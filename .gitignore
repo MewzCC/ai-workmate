@@ -1,0 +1,68 @@
+# Dependencies
+node_modules/
+frontend/node_modules/
+
+# Next.js / frontend build output
+.next/
+frontend/.next/
+out/
+frontend/out/
+dist/
+frontend/dist/
+build/
+frontend/build/
+*.tsbuildinfo
+
+# Java / Maven build output
+target/
+backend/target/
+*.class
+*.jar
+*.war
+*.ear
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+application-local.yml
+application-local.yaml
+backend/src/main/resources/application-local.yml
+backend/src/main/resources/application-local.yaml
+
+# IDE / editor
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+.DS_Store
+Thumbs.db
+
+# OS / temp
+*.tmp
+*.temp
+*.swp
+*.swo
+~$*
+
+# Test and coverage output
+coverage/
+frontend/coverage/
+.nyc_output/
+test-results/
+playwright-report/
+
+# Docker / local data
+.docker/
+docker-data/
+data/
+uploads/

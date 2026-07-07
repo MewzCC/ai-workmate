@@ -1,0 +1,76 @@
+spring:
+  application:
+    name: ai-workmate
+  profiles:
+    active: dev
+
+  # ========== 数据库 ==========
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    url: jdbc:postgresql://localhost:5432/ai_workmate
+    username: postgres
+    password: ${DB_PASSWORD:postgres}
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+
+  # ========== Redis ==========
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password: ${REDIS_PASSWORD:}
+      database: 0
+      timeout: 3000ms
+      lettuce:
+        pool:
+          max-active: 16
+          max-idle: 8
+          min-idle: 4
+
+  # ========== MyBatis-Plus ==========
+  mybatis-plus:
+    mapper-locations: classpath*:/mapper/**/*.xml
+    type-aliases-package: com.aiworkmate.entity
+    configuration:
+      map-underscore-to-camel-case: true
+      log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+    global-config:
+      db-config:
+        id-type: auto
+        logic-delete-field: deleted
+        logic-delete-value: 1
+        logic-not-delete-value: 0
+
+  # ========== AI 配置 ==========
+  ai:
+    openai:
+      api-key: ${AI_API_KEY:your-deepseek-api-key}
+      base-url: ${AI_BASE_URL:https://api.deepseek.com}
+      chat:
+        enabled: true
+        options:
+          model: ${AI_MODEL:deepseek-chat}
+          temperature: 0.7
+          max-tokens: 4096
+
+  # ========== 文件上传 ==========
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 100MB
+
+# ========== JWT 配置 ==========
+jwt:
+  secret: ${JWT_SECRET:YWktd29ya21hdGUtand0LXNlY3JldC1rZXktcGxlYXNlLWNoYW5nZS1pbi1wcm9kdWN0aW9u}
+  expiration: 86400000  # 24小时
+
+# ========== 服务端口 ==========
+server:
+  port: 8080
+
+# ========== 日志 ==========
+logging:
+  level:
+    com.aiworkmate: debug
+    org.springframework.ai: debug
