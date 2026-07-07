@@ -1,0 +1,31 @@
+---
+description: AI WorkMate repository-wide rules for AI coding agents
+globs:
+  - "**/*"
+alwaysApply: true
+---
+
+# AI WorkMate Rules
+
+Before editing this repository, read:
+
+- `AGENTS.md`
+- `docs/rules/engineering-rules.md`
+- `docs/rules/frontend-rules.md` for `frontend/**`
+- `docs/rules/backend-rules.md` for `backend/**`
+- `docs/rules/agent-rules.md` for AI/RAG/Agent work
+
+Use these skills when relevant:
+
+- `docs/skills/frontend-design-skill.md`
+- `docs/skills/motion-skill.md`
+- `docs/skills/backend-engineering-skill.md`
+- `docs/skills/agent-engineering-skill.md`
+
+Core requirements:
+
+- Keep changes scoped.
+- Do not leak secrets.
+- Preserve frontend/backend API contracts.
+- Validate with `npm run lint`, `npm run build`, or `mvn test` when applicable.
+- Use Conventional Commits for commit messages.
