@@ -10,6 +10,12 @@
 - PostgreSQL + pgvector。
 - Redis。
 
+## Skill 触发
+
+- 修改 Spring Boot、Spring Security、JWT、MyBatis-Plus、SSE、RAG、Agent 后端能力时，读取 `docs/skills/backend-engineering-skill.md`。
+- 修改 OA mock 后端接口、`SystemController`、`AiTaskController`、`AiTaskService`、`MockAiTaskServiceImpl` 或 `AiTask*DTO` 时，必须读取 `docs/skills/oa-workbench-skill.md`。
+- 修改真实 Agent、Tool Calling、RAG 权限和提示词边界时，读取 `docs/skills/agent-engineering-skill.md`。
+
 ## 分层规范
 
 Controller：
@@ -30,36 +36,63 @@ Mapper：
 
 - 只负责数据库访问。
 - 简单 CRUD 优先使用 MyBatis-Plus。
-- 复杂查询需要 XML 或注解 SQL 时必须可读、可索引、可解释。
+- 复杂查询需要可读、可索引、可解释。
 
 DTO：
 
 - 请求 DTO 使用 Bean Validation。
 - 响应 DTO 避免暴露密码、密钥、内部状态字段。
-- 字段语义写清楚，不复用无关 DTO。
+- 字段语义必须清楚，不复用无关 DTO。
+
+## OA mock 接口规则
+
+当前 OA 只实现基础 mock 联调：
+
+- `GET /api/system/health`
+- `POST /api/ai/tasks/plan`
+- `POST /api/ai/tasks/execute`
+
+约束：
+
+- 返回统一 `Result<T>`。
+- `AiTaskController` 只做校验和服务调用。
+- `AiTaskService` 表达 plan/execute 能力。
+- `MockAiTaskServiceImpl` 返回确定性 mock 数据。
+- `plan` 根据 input 简单判断任务类型。
+- `execute` 必须要求 `confirm=true`。
+- 不依赖真实 `ChatClient`。
+- 不要求真实 `AI_API_KEY`。
+- 不接数据库。
+- 不写真实审批、真实导出、真实上传逻辑。
+
+## 安全
+
+- JWT secret 必须来自环境变量；默认值仅开发可用。
+- 鉴权失败返回 401，权限不足返回 403。
+- 用户只能访问自己的 conversation、message、knowledge_doc。
+- 工具调用必须白名单化，参数必须校验。
+- 模型输出不能直接执行为工具调用。
+- `SecurityConfig` 仅允许临时放行：
+  - `/api/auth/**`
+  - `/api/system/**`
+  - `/api/ai/tasks/**`
+  - OPTIONS
+- 不得为了联调放开全部接口。
+- 不得破坏 `/api/chat/stream` 的认证逻辑。
 
 ## 异常与返回
 
 - 普通 REST 返回 `Result<T>`。
-- 业务异常应该映射为明确 code 和 message。
+- 业务异常映射为明确 code 和 message。
 - 不把 Java 堆栈返回给前端。
 - 全局异常处理集中在 `GlobalExceptionHandler`。
-- SSE 不能只依赖 HTTP 状态码，流中错误要设计 event 或 data 约定。
-
-## 安全
-
-- 密码必须使用强哈希算法，不允许明文或可逆加密存储。
-- JWT secret 必须来自环境变量，默认值仅开发可用。
-- 鉴权失败返回 401，权限不足返回 403。
-- 用户只能访问自己的 conversation、message、knowledge_doc。
-- 所有文件上传必须校验类型、大小、后缀、内容和存储路径。
-- 模型输出不能直接执行为工具调用；工具调用必须有白名单和参数校验。
+- SSE 不能只依赖 HTTP 状态码，流中错误要设计事件或 data 约定。
 
 ## 数据库
 
-- 新表必须包含主键、必要索引、创建时间、更新时间或说明为什么不需要。
+- 新表必须包含主键、必要索引、创建时间、更新时间，或说明为什么不需要。
 - 高频查询必须建立索引。
-- 生产迁移脚本必须可重复、可回滚或有人工回滚说明。
+- 迁移脚本必须可重复、可回滚或有人工回滚说明。
 - 避免使用 `"user"` 这类需要转义的保留字作为新表名。
 - RAG chunk 表必须包含 doc_id、chunk_index、content、embedding、metadata。
 
@@ -73,7 +106,8 @@ DTO：
 
 ## 测试
 
-- Service 层新增复杂逻辑必须有单元测试。
+- Service 层新增复杂逻辑应有单元测试。
 - Controller 新增接口应有 WebMvc 或集成测试。
 - 安全相关改动必须覆盖未登录、越权、过期 token。
-- 数据访问复杂查询必须覆盖空数据、边界数据和权限过滤。
+- 当前本机若缺 Java 17 或 Maven，最终说明必须写明无法运行后端测试的原因。
+
