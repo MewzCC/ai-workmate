@@ -1,7 +1,6 @@
 'use client';
 
-import { useState } from 'react';
-import { ConfigProvider, Switch } from 'antd';
+import { useEffect, useState } from 'react';
 import {
   ArrowRight,
   Bot,
@@ -12,17 +11,16 @@ import {
   DatabaseZap,
   FileSearch,
   LockKeyhole,
-  Moon,
   Play,
   ShieldCheck,
   Sparkles,
-  Sun,
   Workflow,
   Zap,
 } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import ChatInterface from '@/components/ChatInterface';
 import LoginPage from '@/components/LoginPage';
+import ThemeToggle from '@/components/ThemeToggle';
 
 type SiteTheme = 'day' | 'night';
 type AppMode = 'marketing' | 'experience';
@@ -66,7 +64,15 @@ const agentCards = [
 
 export default function Home() {
   const [mode, setMode] = useState<AppMode>('marketing');
-  const [theme, setTheme] = useState<SiteTheme>('day');
+  const [theme, setTheme] = useState<SiteTheme>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = window.localStorage.getItem('wm-theme');
+      if (saved === 'day' || saved === 'night') {
+        return saved;
+      }
+    }
+    return 'day';
+  });
   const [workflow, setWorkflow] = useState<WorkflowKey>('launch');
   const [isRunning, setIsRunning] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
@@ -76,31 +82,78 @@ export default function Home() {
     return false;
   });
 
+  // 持久化日夜模式
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem('wm-theme', theme);
+  }, [theme]);
+
+  // 刷新页面时回到顶部（关闭浏览器自动 scroll restoration）
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if ('scrollRestoration' in window.history) {
+      window.history.scrollRestoration = 'manual';
+    }
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  }, []);
+
+  useEffect(() => {
+    if (mode !== 'marketing') {
+      return;
+    }
+
+    const revealItems = Array.from(document.querySelectorAll<HTMLElement>('.wm-scroll-reveal'));
+    if (!revealItems.length) {
+      return;
+    }
+
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (prefersReducedMotion) {
+      revealItems.forEach((item) => item.classList.add('is-visible'));
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('is-visible');
+            observer.unobserve(entry.target);
+          }
+        });
+      },
+      {
+        rootMargin: '0px 0px -12% 0px',
+        threshold: 0.12,
+      },
+    );
+
+    requestAnimationFrame(() => {
+      revealItems.forEach((item) => observer.observe(item));
+    });
+
+    return () => observer.disconnect();
+  }, [mode, theme]);
+
   if (mode === 'experience') {
     return (
-      <div className="relative min-h-screen bg-white dark:bg-dark-900">
-        <button
-          type="button"
-          onClick={() => setMode('marketing')}
-          className="fixed left-4 top-4 z-50 inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/80 px-4 py-2 text-sm font-medium text-slate-700 shadow-2xl shadow-cyan-950/10 backdrop-blur-xl transition hover:-translate-y-0.5 hover:bg-white dark:border-white/10 dark:bg-dark-800/80 dark:text-white"
-        >
+      <div className={`wm-site ${theme === 'night' ? 'wm-night' : 'wm-day'} relative`}>
+        <button type="button" onClick={() => setMode('marketing')} className="wm-back-btn">
           <ChevronLeft className="h-4 w-4" />
           返回官网
         </button>
 
         {!isLoggedIn ? (
-          <LoginPage onLoginSuccess={() => setIsLoggedIn(true)} />
+          <LoginPage theme={theme} onLoginSuccess={() => setIsLoggedIn(true)} />
         ) : (
-          <div className="flex h-screen overflow-hidden">
+          <div className="wm-app">
             <Sidebar
               onLogout={() => {
                 localStorage.removeItem('token');
                 setIsLoggedIn(false);
               }}
             />
-            <main className="flex min-w-0 flex-1 flex-col">
-              <ChatInterface />
-            </main>
+            <ChatInterface />
           </div>
         )}
       </div>
@@ -116,7 +169,11 @@ export default function Home() {
   };
 
   return (
-    <main className={`wm-site ${isNight ? 'wm-night' : 'wm-day'}`}>
+    // 切换日夜模式时强制重挂载，触发所有 CSS keyframe 重新播放
+    <main
+      className={`wm-site ${isNight ? 'wm-night' : 'wm-day'}`}
+      key={`wm-site-${theme}`}
+    >
       <div className="wm-bg" aria-hidden="true">
         <span className="wm-mesh wm-mesh-a" />
         <span className="wm-mesh wm-mesh-b" />
@@ -138,42 +195,7 @@ export default function Home() {
           <a href="#docs">文档</a>
         </nav>
         <div className="wm-actions">
-          <ConfigProvider
-            theme={{
-              token: {
-                colorPrimary: '#11100f',
-                colorPrimaryHover: '#11100f',
-                colorPrimaryBorder: '#11100f',
-                colorTextQuaternary: '#11100f',
-                controlHeight: 32,
-                borderRadius: 999,
-              },
-              components: {
-                Switch: {
-                  handleBg: isNight ? '#ffffff' : '#11100f',
-                  colorPrimary: '#11100f',
-                  colorPrimaryHover: '#11100f',
-                  colorPrimaryBorder: '#11100f',
-                },
-              },
-            }}
-          >
-            <div className="wm-switcher" aria-label="日夜模式切换">
-              <span className={isNight ? '' : 'active'}>
-                <Sun className="h-4 w-4" />
-              </span>
-              <Switch
-                aria-label="切换日间或夜间模式"
-                checked={isNight}
-                onChange={(checked) => setTheme(checked ? 'night' : 'day')}
-                checkedChildren={<Moon className="h-3.5 w-3.5" />}
-                unCheckedChildren={<Sun className="h-3.5 w-3.5" />}
-              />
-              <span className={isNight ? 'active' : ''}>
-                <Moon className="h-4 w-4" />
-              </span>
-            </div>
-          </ConfigProvider>
+          <ThemeToggle theme={theme} onChange={setTheme} />
           <button type="button" className="wm-login">登录</button>
           <button type="button" className="wm-try wm-try-nav" onClick={() => setMode('experience')}>
             立即尝试
@@ -184,10 +206,9 @@ export default function Home() {
 
       <section className="wm-hero">
         <p className="wm-eyebrow">ENTERPRISE AGENT OS</p>
-        <h1>
-          让公司的每项工作，
-          <br />
-          都能被智能体接手。
+        <h1 className="wm-hero-title">
+          <span className="wm-hero-line">让公司的每项工作，</span>
+          <span className="wm-hero-line wm-hero-line-accent">都能被智能体接手。</span>
         </h1>
         <p className="wm-sub">
           AI WorkMate 为每个团队提供可治理的工作空间，让智能体读取知识、调用工具、遵循权限，并把过程和结果完整留痕。
@@ -227,15 +248,15 @@ export default function Home() {
         )}
       </section>
 
-      <section id="product" className="wm-section">
-        <div className="wm-section-head">
+      <section id="product" className="wm-section wm-scroll-reveal">
+        <div className="wm-section-head wm-scroll-reveal">
           <p className="wm-eyebrow">Product Tour</p>
           <h2>不止停留在聊天框里，而是接管真实流程。</h2>
           <p>从官网首屏建立价值认知，再用真实产品入口承接试用。销售、运营、客服、法务都能拥有自己的 Agent Workspace。</p>
         </div>
         <div className="wm-feature-grid">
           {featureCards.map(([num, title, desc]) => (
-            <article className="wm-feature-card" key={title}>
+            <article className="wm-feature-card wm-scroll-reveal" key={title}>
               <small>{num}</small>
               <h3>{title}</h3>
               <p>{desc}</p>
@@ -244,8 +265,8 @@ export default function Home() {
         </div>
       </section>
 
-      <section id="scenes" className="wm-split">
-        <div>
+      <section id="scenes" className="wm-split wm-scroll-reveal">
+        <div className="wm-scroll-reveal">
           <p className="wm-eyebrow">营销玩法</p>
           <h2>把“预约 Demo”变成“立即尝试”。</h2>
           <p>
@@ -256,9 +277,9 @@ export default function Home() {
             <Zap className="h-5 w-5 fill-current" />
           </button>
         </div>
-        <div className="wm-stack-panel">
+        <div className="wm-stack-panel wm-scroll-reveal">
           {['销售赋能', '法务审查', '客服运营', '管理层汇报'].map((item, index) => (
-            <div className="wm-stack-row" key={item}>
+            <div className="wm-stack-row wm-scroll-reveal" key={item}>
               <span>{String(index + 1).padStart(2, '0')}</span>
               <div>
                 <strong>{item}</strong>
@@ -270,8 +291,8 @@ export default function Home() {
         </div>
       </section>
 
-      <section id="security" className="wm-security">
-        <div>
+      <section id="security" className="wm-security wm-scroll-reveal">
+        <div className="wm-scroll-reveal">
           <p className="wm-eyebrow">Enterprise Control</p>
           <h2>默认可治理，上线第一天就能用。</h2>
         </div>
@@ -281,7 +302,7 @@ export default function Home() {
             ['人工审批闸口', '发送、写入系统、修改权限等高影响动作先进入确认。'],
             ['审计级记忆', '输入、来源、工具调用、负责人和输出结果全链路留痕。'],
           ].map(([title, desc]) => (
-            <article key={title}>
+            <article className="wm-scroll-reveal" key={title}>
               <ShieldCheck className="h-5 w-5" />
               <div>
                 <strong>{title}</strong>
@@ -292,7 +313,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section id="docs" className="wm-final">
+      <section id="docs" className="wm-final wm-scroll-reveal">
         <p className="wm-eyebrow">AI WorkMate</p>
         <h2>从一个想法，走到可运行流程。</h2>
         <p>现在就进入当前项目体验登录、鉴权和 SSE 流式聊天链路。后续可以继续承接知识库、Agent 模板市场和私有化部署介绍。</p>
@@ -318,9 +339,9 @@ function FloatingProof({ className, label, value }: { className: string; label: 
 
 function TrustRow() {
   return (
-    <div className="wm-trust-row" aria-label="示例客户">
+    <div className="wm-trust-row wm-scroll-reveal" aria-label="示例客户">
       {['星河银行', '海河运营', '量点科技', '明日智能', '北辰数据', 'Atlas Ops'].map((item) => (
-        <span key={item}>{item}</span>
+        <span className="wm-scroll-reveal" key={item}>{item}</span>
       ))}
     </div>
   );
@@ -328,14 +349,14 @@ function TrustRow() {
 
 function MetricStrip() {
   return (
-    <div className="wm-metric-strip" aria-label="产品指标">
+    <div className="wm-metric-strip wm-scroll-reveal" aria-label="产品指标">
       {[
         ['4.8x', '简报周期提速'],
         ['1.2万', '知识条目已索引'],
         ['38%', '人工交接减少'],
         ['99.9%', '审计链路覆盖'],
       ].map(([value, label]) => (
-        <div key={label}>
+        <div className="wm-scroll-reveal" key={label}>
           <strong>{value}</strong>
           <span>{label}</span>
         </div>
@@ -405,9 +426,9 @@ function DayProductWindow({
 
 function NightAgentBoard() {
   return (
-    <div className="wm-agent-board">
+    <div className="wm-agent-board wm-scroll-reveal">
       {agentCards.map(([title, desc, stat], index) => (
-        <article className={index === 1 ? 'featured' : ''} key={title}>
+        <article className={`${index === 1 ? 'featured ' : ''}wm-scroll-reveal`} key={title}>
           <div className="wm-agent-orb" />
           <h3>{title}</h3>
           <p>{desc}</p>

@@ -29,3 +29,8 @@ export interface ApiResult<T> {
   message: string;
   data: T;
 }
+
+export interface CaptchaResult {
+  captchaId: string;
+  captchaImage: string;
+}

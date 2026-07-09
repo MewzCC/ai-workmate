@@ -9,7 +9,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
-import org.springframework.ai.chat.memory.InMemoryChatMemory;
+import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 
@@ -31,7 +31,7 @@ public class ChatServiceImpl implements ChatService {
     private final MessageMapper messageMapper;
 
     // 第 1 月用内存存储对话历史，第 2 月升级为 Redis + PostgreSQL
-    private final InMemoryChatMemory chatMemory = new InMemoryChatMemory();
+    private final MessageWindowChatMemory chatMemory = MessageWindowChatMemory.builder().build();
 
     @Override
     public Flux<String> chatStream(Long userId, Long conversationId,
@@ -44,7 +44,7 @@ public class ChatServiceImpl implements ChatService {
 
         // 3. 构建 ChatClient 请求
         var advisor = MessageChatMemoryAdvisor.builder(chatMemory)
-                .chatMemoryRetrieveSize(20)  // 最近 20 条消息作为上下文
+                .conversationId(String.valueOf(conv.getId()))
                 .build();
 
         // 4. 流式返回

@@ -1,114 +1,281 @@
 'use client';
 
-import { useState } from 'react';
-import { login, register } from '@/lib/api';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { Sparkles, RefreshCw, ShieldCheck, ChevronLeft } from 'lucide-react';
+import { login, register, getCaptcha, sendEmailCode, resetPassword } from '@/lib/api';
+
+type SiteTheme = 'day' | 'night';
 
 interface Props {
   onLoginSuccess: () => void;
+  theme?: SiteTheme;
 }
 
-export default function LoginPage({ onLoginSuccess }: Props) {
-  const [isRegister, setIsRegister] = useState(false);
+type Mode = 'login' | 'register' | 'reset';
+
+export default function LoginPage({ onLoginSuccess, theme = 'day' }: Props) {
+  const [mode, setMode] = useState<Mode>('login');
+
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [email, setEmail] = useState('');
+  const [captchaId, setCaptchaId] = useState('');
+  const [captchaImage, setCaptchaImage] = useState('');
+  const [captchaCode, setCaptchaCode] = useState('');
+  const [emailCode, setEmailCode] = useState('');
+  const [newPassword, setNewPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [sendingCode, setSendingCode] = useState(false);
+  const [countdown, setCountdown] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const refreshCaptcha = useCallback(async () => {
+    setCaptchaCode('');
+    try {
+      const data = await getCaptcha();
+      setCaptchaId(data.captchaId);
+      setCaptchaImage(data.captchaImage);
+    } catch {
+      // 静默
+    }
+  }, []);
+
+  useEffect(() => { refreshCaptcha(); }, [refreshCaptcha]);
+
+  useEffect(() => {
+    if (countdown > 0) {
+      timerRef.current = setInterval(() => {
+        setCountdown((c) => {
+          if (c <= 1) { if (timerRef.current) clearInterval(timerRef.current); return 0; }
+          return c - 1;
+        });
+      }, 1000);
+      return () => { if (timerRef.current) clearInterval(timerRef.current); };
+    }
+  }, [countdown]);
+
+  const switchMode = (m: Mode) => {
+    setMode(m);
+    setError('');
+    setUsername(''); setPassword(''); setEmail(''); setCaptchaCode('');
+    setEmailCode(''); setNewPassword('');
+    refreshCaptcha();
+  };
+
+  const handleSendCode = async () => {
+    if (!email) { setError('请先输入邮箱'); return; }
+    if (!captchaCode) { setError('请先输入图形验证码'); return; }
+    setError('');
+    setSendingCode(true);
+    try {
+      await sendEmailCode(captchaId, captchaCode, email);
+      setCountdown(60);
+      await refreshCaptcha();
+    } catch (err: any) {
+      setError(err.message || '验证码发送失败');
+      await refreshCaptcha();
+    } finally {
+      setSendingCode(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
-
     try {
-      if (isRegister) {
-        await register(username, password, email || undefined);
+      if (mode === 'login') {
+        await login(username, password, captchaId, captchaCode);
+        onLoginSuccess();
+      } else if (mode === 'register') {
+        await register(username, password, email, captchaId, captchaCode, emailCode);
+        onLoginSuccess();
       } else {
-        await login(username, password);
+        // reset
+        await resetPassword(email, emailCode, newPassword);
+        setError('');
+        switchMode('login');
       }
-      onLoginSuccess();
     } catch (err: any) {
       setError(err.message || '操作失败');
+      await refreshCaptcha();
     } finally {
       setLoading(false);
     }
   };
 
+  const isLogin = mode === 'login';
+  const isReset = mode === 'reset';
+  const submitLabel = loading
+    ? '处理中...'
+    : isLogin ? '登录' : mode === 'register' ? '注册' : '重置密码';
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 via-white to-indigo-50 dark:from-dark-900 dark:via-dark-800 dark:to-dark-900">
-      <div className="w-full max-w-md p-8 bg-white dark:bg-dark-800 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700">
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-primary-500 rounded-2xl mb-4">
-            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23.693L5 14.5m14.8.8l1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0112 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5" />
-            </svg>
-          </div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">AI WorkMate</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">企业级 AI 助手平台</p>
+    <div className={`wm-site ${theme === 'night' ? 'wm-night' : 'wm-day'} min-h-screen flex items-center justify-center relative overflow-hidden`}>
+      <div className="wm-bg" aria-hidden="true">
+        <span className="wm-mesh wm-mesh-a" />
+        <span className="wm-mesh wm-mesh-b" />
+        <span className="wm-mesh wm-mesh-c" />
+        <span className="wm-grid" />
+        <span className="wm-lightline wm-lightline-a" />
+        <span className="wm-lightline wm-lightline-b" />
+      </div>
+
+      <div className="wm-login-card">
+        <div className="wm-login-logo">
+          <span className="wm-mark wm-login-mark"><Sparkles className="h-6 w-6" /></span>
+          <h1>AI WorkMate</h1>
+          <p>{isReset ? '找回密码' : '企业级 AI 助手平台'}</p>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">用户名</label>
-            <input
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-dark-700 focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all"
-              placeholder="请输入用户名"
-              required
-            />
-          </div>
-
-          {isRegister && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">邮箱</label>
+        <form onSubmit={handleSubmit} className="wm-login-form">
+          {/* 用户名 — 登录/注册 */}
+          {!isReset && (
+            <div className="wm-login-field">
+              <label>用户名</label>
               <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-dark-700 focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all"
-                placeholder="选填"
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="请输入用户名"
+                autoComplete="username"
+                required
               />
             </div>
           )}
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">密码</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-dark-700 focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all"
-              placeholder="请输入密码"
-              required
-            />
-          </div>
-
-          {error && (
-            <div className="text-sm text-red-500 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-lg">
-              {error}
+          {/* 邮箱 — 注册/重置 */}
+          {!isLogin && (
+            <div className="wm-login-field">
+              <label>邮箱</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder={isReset ? '请输入注册时的邮箱' : '请输入邮箱'}
+                autoComplete="email"
+                required
+              />
             </div>
           )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {loading ? '处理中...' : isRegister ? '注册' : '登录'}
+          {/* 图形验证码 — 全部模式 */}
+          <div className="wm-login-field">
+            <label>图形验证码</label>
+            <div className="wm-captcha-row">
+              <input
+                type="text"
+                value={captchaCode}
+                onChange={(e) => setCaptchaCode(e.target.value)}
+                placeholder="请输入图中字符"
+                maxLength={6}
+                className="wm-captcha-input"
+                required
+              />
+              {captchaImage ? (
+                <img
+                  src={captchaImage}
+                  alt="验证码"
+                  className="wm-captcha-img"
+                  onClick={refreshCaptcha}
+                  title="点击刷新"
+                />
+              ) : (
+                <button type="button" onClick={refreshCaptcha} className="wm-captcha-placeholder">
+                  <RefreshCw className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* 邮件验证码 — 注册/重置 */}
+          {!isLogin && (
+            <div className="wm-login-field">
+              <label>邮箱验证码</label>
+              <div className="wm-captcha-row">
+                <input
+                  type="text"
+                  value={emailCode}
+                  onChange={(e) => setEmailCode(e.target.value)}
+                  placeholder="请输入邮箱验证码"
+                  maxLength={6}
+                  className="wm-captcha-input"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={handleSendCode}
+                  disabled={sendingCode || countdown > 0}
+                  className="wm-send-code-btn"
+                >
+                  {sendingCode ? '发送中...' : countdown > 0 ? `${countdown}s` : '获取验证码'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* 密码 — 登录/注册 */}
+          {!isReset && (
+            <div className="wm-login-field">
+              <label>密码</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="请输入密码"
+                autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
+                required
+              />
+            </div>
+          )}
+
+          {/* 新密码 — 重置 */}
+          {isReset && (
+            <div className="wm-login-field">
+              <label>新密码</label>
+              <input
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="请输入新密码（至少6位）"
+                autoComplete="new-password"
+                required
+              />
+            </div>
+          )}
+
+          {error && <div className="wm-login-error">{error}</div>}
+
+          <button type="submit" disabled={loading} className="wm-try wm-login-submit">
+            {submitLabel}
           </button>
         </form>
 
-        <div className="mt-4 text-center">
-          <button
-            onClick={() => { setIsRegister(!isRegister); setError(''); }}
-            className="text-sm text-primary-600 hover:underline"
-          >
-            {isRegister ? '已有账号？去登录' : '没有账号？去注册'}
-          </button>
+        {/* 切换链接 */}
+        <div className="wm-login-links">
+          {isReset ? (
+            <button type="button" onClick={() => switchMode('login')} className="wm-login-toggle wm-login-back">
+              <ChevronLeft className="h-3.5 w-3.5" />
+              返回登录
+            </button>
+          ) : (
+            <>
+              <button type="button" onClick={() => switchMode(isLogin ? 'register' : 'login')} className="wm-login-toggle">
+                {isLogin ? '没有账号？去注册' : '已有账号？去登录'}
+              </button>
+              {isLogin && (
+                <button type="button" onClick={() => switchMode('reset')} className="wm-login-toggle wm-login-forgot">
+                  忘记密码？
+                </button>
+              )}
+            </>
+          )}
+        </div>
+
+        <div className="wm-security-hint">
+          <ShieldCheck className="h-3.5 w-3.5" />
+          <span>{isLogin ? '登录注册均在安全模式下完成' : '注册/找回密码需邮箱验证'}</span>
         </div>
       </div>
     </div>
