@@ -36,6 +36,8 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 // 公开接口：认证相关（含验证码）全部放行
                 .requestMatchers("/api/auth/**").permitAll()
+                .requestMatchers("/api/system/**").permitAll()
+                .requestMatchers("/api/ai/tasks/**").permitAll()
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 // 其余需认证
                 .anyRequest().authenticated()

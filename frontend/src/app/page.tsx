@@ -168,6 +168,10 @@ export default function Home() {
     window.setTimeout(() => setIsRunning(false), 1300);
   };
 
+  const enterOa = () => {
+    window.location.href = '/oa';
+  };
+
   return (
     // 切换日夜模式时强制重挂载，触发所有 CSS keyframe 重新播放
     <main
@@ -197,7 +201,7 @@ export default function Home() {
         <div className="wm-actions">
           <ThemeToggle theme={theme} onChange={setTheme} />
           <button type="button" className="wm-login">登录</button>
-          <button type="button" className="wm-try wm-try-nav" onClick={() => setMode('experience')}>
+          <button type="button" className="wm-try wm-try-nav" onClick={enterOa}>
             立即尝试
             <ArrowRight className="h-4 w-4" />
           </button>
@@ -215,7 +219,7 @@ export default function Home() {
         </p>
 
         <div className="wm-hero-actions">
-          <button type="button" className="wm-try wm-try-main" onClick={() => setMode('experience')}>
+          <button type="button" className="wm-try wm-try-main" onClick={enterOa}>
             立即尝试
             <Play className="h-5 w-5 fill-current" />
           </button>
@@ -272,7 +276,7 @@ export default function Home() {
           <p>
             让潜在客户不用等待销售联系，直接进入当前产品路径。官网通过稀缺席位、同步状态、演示窗口和真实入口完成转化闭环。
           </p>
-          <button type="button" className="wm-try" onClick={() => setMode('experience')}>
+          <button type="button" className="wm-try" onClick={enterOa}>
             立即尝试
             <Zap className="h-5 w-5 fill-current" />
           </button>
@@ -317,7 +321,7 @@ export default function Home() {
         <p className="wm-eyebrow">AI WorkMate</p>
         <h2>从一个想法，走到可运行流程。</h2>
         <p>现在就进入当前项目体验登录、鉴权和 SSE 流式聊天链路。后续可以继续承接知识库、Agent 模板市场和私有化部署介绍。</p>
-        <button type="button" className="wm-try wm-try-main" onClick={() => setMode('experience')}>
+        <button type="button" className="wm-try wm-try-main" onClick={enterOa}>
           立即尝试
           <ArrowRight className="h-5 w-5" />
         </button>
