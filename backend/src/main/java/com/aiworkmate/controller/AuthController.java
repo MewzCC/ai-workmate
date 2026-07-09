@@ -4,6 +4,7 @@ import com.aiworkmate.common.Result;
 import com.aiworkmate.dto.LoginRequest;
 import com.aiworkmate.dto.LoginResponse;
 import com.aiworkmate.dto.RegisterRequest;
+import com.aiworkmate.dto.ResetPasswordRequest;
 import com.aiworkmate.service.AuthService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -27,5 +28,11 @@ public class AuthController {
     @PostMapping("/register")
     public Result<LoginResponse> register(@Valid @RequestBody RegisterRequest request) {
         return Result.ok(authService.register(request));
+    }
+
+    @PostMapping("/reset-password")
+    public Result<Void> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        authService.resetPassword(request);
+        return Result.ok();
     }
 }

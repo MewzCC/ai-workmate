@@ -12,6 +12,7 @@ frontend/dist/
 build/
 frontend/build/
 *.tsbuildinfo
+deploy/
 
 # Java / Maven build output
 target/

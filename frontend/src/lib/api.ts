@@ -1,14 +1,40 @@
-import { ChatRequest, LoginResponse, ApiResult, Conversation } from '@/types';
+import { ChatRequest, LoginResponse, ApiResult, Conversation, CaptchaResult } from '@/types';
 
 const BASE = '/api';
 
+// ========== Captcha ==========
+
+/** 获取图形验证码 */
+export async function getCaptcha(): Promise<CaptchaResult> {
+  const res = await fetch(`${BASE}/auth/captcha`);
+  const json: ApiResult<CaptchaResult> = await res.json();
+  if (json.code !== 200) throw new Error(json.message);
+  return json.data;
+}
+
+/** 发送邮件验证码（需先通过图形验证码校验） */
+export async function sendEmailCode(captchaId: string, captchaCode: string, email: string): Promise<void> {
+  const res = await fetch(`${BASE}/auth/send-code`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ captchaId, captchaCode, email }),
+  });
+  const json: ApiResult<void> = await res.json();
+  if (json.code !== 200) throw new Error(json.message);
+}
+
 // ========== Auth ==========
 
-export async function login(username: string, password: string): Promise<LoginResponse> {
+export async function login(
+  username: string,
+  password: string,
+  captchaId: string,
+  captchaCode: string,
+): Promise<LoginResponse> {
   const res = await fetch(`${BASE}/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, password }),
+    body: JSON.stringify({ username, password, captchaId, captchaCode }),
   });
   const json: ApiResult<LoginResponse> = await res.json();
   if (json.code !== 200) throw new Error(json.message);
@@ -16,16 +42,38 @@ export async function login(username: string, password: string): Promise<LoginRe
   return json.data;
 }
 
-export async function register(username: string, password: string, email?: string): Promise<LoginResponse> {
+export async function register(
+  username: string,
+  password: string,
+  email: string,
+  captchaId: string,
+  captchaCode: string,
+  emailCode: string,
+): Promise<LoginResponse> {
   const res = await fetch(`${BASE}/auth/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, password, email }),
+    body: JSON.stringify({ username, password, email, captchaId, captchaCode, emailCode }),
   });
   const json: ApiResult<LoginResponse> = await res.json();
   if (json.code !== 200) throw new Error(json.message);
   localStorage.setItem('token', json.data.token);
   return json.data;
+}
+
+/** 重置密码（通过邮箱验证码） */
+export async function resetPassword(
+  email: string,
+  emailCode: string,
+  newPassword: string,
+): Promise<void> {
+  const res = await fetch(`${BASE}/auth/reset-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, emailCode, newPassword }),
+  });
+  const json: ApiResult<void> = await res.json();
+  if (json.code !== 200) throw new Error(json.message);
 }
 
 // ========== Chat ==========
