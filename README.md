@@ -1,4 +1,10 @@
-# AI WorkMate — 企业 AI 助手平台
+﻿# AI WorkMate — 企业 AI 助手平台
+
+## Frontend Split
+
+- ronted-main: marketing website, runs on http://localhost:3000.
+- onted-oa: OA workbench, runs on http://localhost:3001/oa.
+- The old single rontend app has been split into two independent programs.
 
 > Spring Boot 3 + Spring AI + Next.js 14 全栈 AI Agent 项目  
 
@@ -29,7 +35,8 @@ ai-workmate/
 │           ├── application-dev.yml   # 开发环境
 │           └── db/init.sql           # 数据库初始化
 │
-└── frontend/                         # Next.js 14 前端
+├── fronted-main/                     # Next.js 14 官网程序，端口 3000
+└── fonted-oa/                        # Next.js 14 OA 程序，端口 3001
     ├── package.json
     ├── next.config.js                # API 代理配置
     ├── tailwind.config.ts
@@ -64,7 +71,13 @@ ai-workmate/
 ### 1. 启动基础设施
 
 ```bash
-# 使用 Docker Compose 一键启动 PostgreSQL + Redis
+# 使用 Docker Compose 一键启动 PostgreSQL + Redis
+
+## Frontend Split
+
+- ronted-main: marketing website, runs on http://localhost:3000.
+- onted-oa: OA workbench, runs on http://localhost:3001/oa.
+- The old single rontend app has been split into two independent programs.
 docker compose -f docker-compose.yml up -d
 ```
 
@@ -73,10 +86,22 @@ docker compose -f docker-compose.yml up -d
 获取 DeepSeek API Key（https://platform.deepseek.com），然后：
 
 ```bash
-# 方式一：环境变量
+# 方式一：环境变量
+
+## Frontend Split
+
+- ronted-main: marketing website, runs on http://localhost:3000.
+- onted-oa: OA workbench, runs on http://localhost:3001/oa.
+- The old single rontend app has been split into two independent programs.
 export AI_API_KEY=sk-your-deepseek-api-key
 
-# 方式二：修改 application.yml 中的 spring.ai.openai.api-key
+# 方式二：修改 application.yml 中的 spring.ai.openai.api-key
+
+## Frontend Split
+
+- ronted-main: marketing website, runs on http://localhost:3000.
+- onted-oa: OA workbench, runs on http://localhost:3001/oa.
+- The old single rontend app has been split into two independent programs.
 ```
 
 ### 3. 启动后端
@@ -89,27 +114,45 @@ mvn spring-boot:run
 ### 4. 启动前端
 
 ```bash
-cd frontend
+cd fronted-main
 npm install
 npm run dev
 ```
 
-访问 http://localhost:3000
+访问 http://localhost:3000 和 http://localhost:3001/oa
 
 ### 5. 测试 API
 
 ```bash
-# 注册
+# 注册
+
+## Frontend Split
+
+- ronted-main: marketing website, runs on http://localhost:3000.
+- onted-oa: OA workbench, runs on http://localhost:3001/oa.
+- The old single rontend app has been split into two independent programs.
 curl -X POST http://localhost:8080/api/auth/register \
   -H "Content-Type: application/json" \
   -d '{"username":"test","password":"123456"}'
 
-# 登录
+# 登录
+
+## Frontend Split
+
+- ronted-main: marketing website, runs on http://localhost:3000.
+- onted-oa: OA workbench, runs on http://localhost:3001/oa.
+- The old single rontend app has been split into two independent programs.
 curl -X POST http://localhost:8080/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"username":"test","password":"123456"}'
 
-# AI 对话（需要先获取 token）
+# AI 对话（需要先获取 token）
+
+## Frontend Split
+
+- ronted-main: marketing website, runs on http://localhost:3000.
+- onted-oa: OA workbench, runs on http://localhost:3001/oa.
+- The old single rontend app has been split into two independent programs.
 curl -X POST http://localhost:8080/api/chat/stream \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <token>" \
@@ -148,15 +191,33 @@ curl -X POST http://localhost:8080/api/chat/stream \
 支持所有 OpenAI 兼容的模型：
 
 ```yaml
-# DeepSeek（推荐，便宜）
+# DeepSeek（推荐，便宜）
+
+## Frontend Split
+
+- ronted-main: marketing website, runs on http://localhost:3000.
+- onted-oa: OA workbench, runs on http://localhost:3001/oa.
+- The old single rontend app has been split into two independent programs.
 spring.ai.openai.base-url: https://api.deepseek.com
 spring.ai.openai.chat.options.model: deepseek-chat
 
-# 通义千问
+# 通义千问
+
+## Frontend Split
+
+- ronted-main: marketing website, runs on http://localhost:3000.
+- onted-oa: OA workbench, runs on http://localhost:3001/oa.
+- The old single rontend app has been split into two independent programs.
 spring.ai.openai.base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
 spring.ai.openai.chat.options.model: qwen-turbo
 
-# OpenAI
+# OpenAI
+
+## Frontend Split
+
+- ronted-main: marketing website, runs on http://localhost:3000.
+- onted-oa: OA workbench, runs on http://localhost:3001/oa.
+- The old single rontend app has been split into two independent programs.
 spring.ai.openai.api-key: sk-xxx
 spring.ai.openai.base-url: https://api.openai.com
 spring.ai.openai.chat.options.model: gpt-4o-mini
