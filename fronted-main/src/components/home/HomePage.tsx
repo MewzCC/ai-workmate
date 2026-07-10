@@ -62,7 +62,7 @@ const agentCards = [
   ['运营智能体', '把审批和交付任务变成可复用流程。', '4 条流程'],
 ];
 
-export default function Home() {
+export default function HomePage() {
   const [mode, setMode] = useState<AppMode>('marketing');
   const [theme, setTheme] = useState<SiteTheme>(() => {
     if (typeof window !== 'undefined') {
@@ -169,7 +169,9 @@ export default function Home() {
   };
 
   const enterOa = () => {
-    window.location.href = '/oa';
+    const { protocol, hostname, port } = window.location;
+    const target = port === '3001' ? '/oa' : `${protocol}//${hostname}:3001/oa`;
+    window.location.href = target;
   };
 
   return (

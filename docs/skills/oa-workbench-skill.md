@@ -1,4 +1,12 @@
-# OA Workbench Skill
+﻿# OA Workbench Skill
+
+## Frontend App Split
+
+- The marketing website app lives in `fronted-main` and runs on port `3000`.
+- The OA workbench app lives in `fonted-oa` and runs on port `3001`.
+- OA implementation owns its source inside `fonted-oa/src`; do not depend on the removed `frontend` app.
+- Do not implement OA as a nested page inside the homepage app.
+- The OA app root `/` redirects to `/oa`; OA menu pages use `/oa/<pageId>`.
 
 ## 触发场景
 
@@ -15,15 +23,33 @@
 
 当前 OA 是基础联调版本：
 
-- 前端页面：`frontend/src/app/oa/page.tsx`。
-- 前端组件：`frontend/src/components/oa`。
-- 前端 mock：`frontend/src/mock`。
-- 前端类型：`frontend/src/types/oa.ts`。
-- 前端 API：`frontend/src/lib/oaApi.ts`。
+- 前端页面：`fonted-oa/src/app/oa/page.tsx`。
+- 前端组件：`fonted-oa/src/components/oa`。
+- 前端 mock：`fonted-oa/src/mock`。
+- 前端类型：`fonted-oa/src/types/oa.ts`。
+- 前端 API：`fonted-oa/src/lib/oaApi.ts`。
 - 后端控制器：`SystemController`、`AiTaskController`。
 - 后端服务：`AiTaskService`、`MockAiTaskServiceImpl`。
 
 当前阶段不要接真实数据库、真实审批系统、真实文件上传、真实导出或真实 LLM。
+
+## 首页与 OA 端口切分
+
+- 首页默认运行在 `3000`。
+- OA 默认运行在 `3001`。
+- 首页“立即尝试”跳转到 `http://<host>:3001/oa`。
+- 如果当前端口已经是 `3001`，则跳转 `/oa`。
+- 本地开发：
+  - 首页：`npm run dev:home`
+  - OA：`npm run dev:oa`
+
+## OA 路由规范
+
+- `/oa` 显示企业驾驶舱。
+- `/oa/<pageId>` 显示对应菜单页面或占位页面。
+- 左侧菜单点击必须使用路由跳转，不得只修改组件内部 state。
+- URL、菜单选中态、顶部标题、AI 当前页面上下文必须保持一致。
+- 角色切换后，如果当前页面无权限访问，应跳回 `/oa/dashboard`。
 
 ## 前端实现规范
 
@@ -77,6 +103,17 @@ OA 工作台业务 UI 必须使用真实 Ant Design 组件：
   - `workmeta-oa-wallpaper`
   - `workmeta-oa-wallpaper-opacity`
   - `workmeta-oa-wallpaper-blur`
+- 内置主题必须包含：
+  - 企业蓝
+  - 深青绿
+  - 高级紫
+  - 石墨灰
+  - 暖棕橙
+  - 首页风格
+  - 黑夜风格
+- “首页风格”需要承接营销首页的浅色、暖色、克制质感。
+- “黑夜风格”需要承接营销首页夜间模式，所有文字、卡片、顶部栏、边框和 ECharts 主色必须适配。
+- 自定义换肤是全局规则；新增主题必须同步更新本 skill、`AGENTS.md` 和 `docs/rules/frontend-rules.md`。
 
 ### 图表规范
 
@@ -174,4 +211,3 @@ AI 确认执行：
 - 敏感操作在普通员工角色下被拦截。
 - `npm run lint` 可执行。
 - `npm run build` 通过。
-

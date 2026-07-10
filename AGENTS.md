@@ -1,4 +1,12 @@
-# AI WorkMate Agent Rules
+﻿# AI WorkMate Agent Rules
+
+## Frontend App Split
+
+- `fronted-main` is the standalone marketing website program and runs on port `3000`.
+- `fonted-oa` is the standalone OA workbench program and runs on port `3001`.
+- The old `frontend` program has been split and must not be used as a shared App Router boundary.
+- Do not treat the homepage and OA as two pages in the same App Router app. They must remain independently runnable apps.
+- Home CTA buttons should enter `http://<host>:3001/oa`; the OA app root `/` redirects to `/oa`.
 
 本文件是本仓库的 AI 协作入口规范。任何 AI Agent、代码助手或自动化任务在修改本项目时，必须先遵循本文件，再按需读取 `docs/rules` 与 `docs/skills`。
 
@@ -44,7 +52,12 @@ AI WorkMate 是企业级 AI 助手与 OA 工作台平台雏形：
 前端：
 
 ```bash
-cd frontend
+cd fronted-main
+npm install
+npm run lint
+npm run build
+
+cd ../fonted-oa
 npm install
 npm run lint
 npm run build
@@ -70,20 +83,25 @@ docker compose -f docker-compose.yml up -d
 
 ### 前端
 
-- `frontend/src/app`：Next.js App Router 页面与布局。
-- `frontend/src/app/page.tsx`：营销官网与旧 experience/chat 入口；“立即尝试”应进入 `/oa`。
-- `frontend/src/app/oa/page.tsx`：企业 OA 工作台路由入口。
-- `frontend/src/components`：业务组件与可复用 UI。
-- `frontend/src/components/oa`：OA 工作台组件，包含布局、菜单、顶部栏、Dashboard、AI Drawer、外观 Drawer、ECharts 卡片等。
-- `frontend/src/lib`：API 客户端、浏览器侧基础工具。
-- `frontend/src/lib/oaApi.ts`：OA mock API 封装，包含 system health、AI plan、AI execute 及 fallback mock。
-- `frontend/src/mock`：前端 mock 数据与 mock 权限模型。
-- `frontend/src/mock/oaMenus.ts`：OA 菜单树。
-- `frontend/src/mock/oaDashboard.ts`：OA 首页指标、审批列表、时间线数据。
-- `frontend/src/mock/oaPermissions.ts`：角色、菜单过滤、按钮权限、AI 动作权限。
-- `frontend/src/store`：Zustand 状态管理。
-- `frontend/src/types`：前端共享类型。
-- `frontend/src/types/oa.ts`：OA 菜单、权限、AI 计划、执行结果等类型。
+- `fronted-main`：营销官网独立 Next.js 程序，默认端口 `3000`。
+- `fonted-oa`：OA 工作台独立 Next.js 程序，默认端口 `3001`。
+- `fronted-main/src/app`：营销官网 App Router 页面与布局。
+- `fonted-oa/src/app`：OA 工作台 App Router 页面与布局。
+- `fronted-main/src/app/page.tsx`：营销官网与旧 experience/chat 入口；“立即尝试”应进入 `/oa`。
+- `fonted-oa/src/app/oa/page.tsx`：企业 OA 工作台路由入口。
+- `fronted-main/src/components`：官网、登录、聊天体验组件。
+- `fonted-oa/src/components`：OA 业务组件。
+- `fonted-oa/src/components/oa`：OA 工作台组件，包含布局、菜单、顶部栏、Dashboard、AI Drawer、外观 Drawer、ECharts 卡片等。
+- `fronted-main/src/lib`：官网与聊天体验 API 客户端。
+- `fonted-oa/src/lib`：OA API 客户端与浏览器侧工具。
+- `fonted-oa/src/lib/oaApi.ts`：OA mock API 封装，包含 system health、AI plan、AI execute 及 fallback mock。
+- `fonted-oa/src/mock`：前端 mock 数据与 mock 权限模型。
+- `fonted-oa/src/mock/oaMenus.ts`：OA 菜单树。
+- `fonted-oa/src/mock/oaDashboard.ts`：OA 首页指标、审批列表、时间线数据。
+- `fonted-oa/src/mock/oaPermissions.ts`：角色、菜单过滤、按钮权限、AI 动作权限。
+- `fronted-main/src/store`：官网与聊天体验 Zustand 状态管理。
+- `fronted-main/src/types`：官网与聊天体验共享类型。
+- `fonted-oa/src/types/oa.ts`：OA 菜单、权限、AI 计划、执行结果等类型。
 
 ### 后端
 
@@ -105,6 +123,12 @@ docker compose -f docker-compose.yml up -d
 
 ## OA 工作台约束
 
+- 首页与 OA 需要逻辑切分：默认首页运行在 `3000`，OA 工作台运行在 `3001`。
+- 首页“立即尝试”必须跳转到 `http://<host>:3001/oa`；如果当前已经在 `3001`，则跳转 `/oa`。
+- 本地开发脚本：
+  - 首页：`cd fronted-main && npm run dev`
+  - OA：`cd fonted-oa && npm run dev`
+- OA 必须使用路由驱动页面切换，菜单点击进入 `/oa/<pageId>`；不得只用组件内部 state 假装跳页。
 - OA 页面必须优先使用真实 Ant Design 组件。
 - 业务按钮必须使用 `Button`。
 - 业务表格必须使用 `Table` 或后续 ProTable。
@@ -115,6 +139,8 @@ docker compose -f docker-compose.yml up -d
 - 右下角 AI 入口必须使用 `FloatButton`。
 - 图表必须使用 ECharts，并封装在 Ant Design `Card` 中。
 - 主题切换必须同步 Ant Design `ConfigProvider` token 和 CSS variables。
+- OA 内置主题必须包含“首页风格”和“黑夜风格”，并且所有卡片、顶部栏、侧栏、文字、边框、ECharts 主色都要适配。
+- 自定义换肤能力属于全局 OA 规则，新增主题时必须写入规则与 skill。
 - 主题与 AI 小窗配置必须写入 localStorage：
   - `workmeta-oa-theme`
   - `workmeta-oa-ai-mini-enabled`

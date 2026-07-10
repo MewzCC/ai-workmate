@@ -102,4 +102,10 @@ export interface OaTheme {
   sidebar: string;
   siderText: string;
   surface: string;
+  card: string;
+  text: string;
+  muted: string;
+  border: string;
+  header: string;
+  dark?: boolean;
 }

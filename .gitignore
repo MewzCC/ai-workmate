@@ -1,16 +1,28 @@
 # Dependencies
 node_modules/
 frontend/node_modules/
+fronted-main/node_modules/
+fonted-oa/node_modules/
 
 # Next.js / frontend build output
 .next/
 frontend/.next/
+frontend/.next-home/
+frontend/.next-oa/
+fronted-main/.next/
+fonted-oa/.next/
 out/
 frontend/out/
+fronted-main/out/
+fonted-oa/out/
 dist/
 frontend/dist/
+fronted-main/dist/
+fonted-oa/dist/
 build/
 frontend/build/
+fronted-main/build/
+fonted-oa/build/
 *.tsbuildinfo
 deploy/
 
@@ -58,6 +70,8 @@ Thumbs.db
 # Test and coverage output
 coverage/
 frontend/coverage/
+fronted-main/coverage/
+fonted-oa/coverage/
 .nyc_output/
 test-results/
 playwright-report/

@@ -1,4 +1,12 @@
-# Frontend Rules
+﻿# Frontend Rules
+
+## Frontend App Split
+
+- `fronted-main` is the standalone marketing website program and runs on port `3000`.
+- `fonted-oa` is the standalone OA workbench program and runs on port `3001`.
+- The old `frontend` program has been removed; do not add new app code there.
+- Homepage and OA must not be maintained as two routes inside one App Router app.
+- Start the independent apps from their own directories: `cd fronted-main && npm run dev`, `cd fonted-oa && npm run dev`.
 
 ## 技术栈
 
@@ -15,7 +23,7 @@
 
 - 修改营销官网、聊天 UI、普通 React 组件或页面设计时，读取 `docs/skills/frontend-design-skill.md`。
 - 修改动效、滚动进入、hover、过渡、reduced-motion 时，读取 `docs/skills/motion-skill.md`。
-- 修改 `/oa`、`frontend/src/components/oa`、`frontend/src/mock/oa*`、`frontend/src/lib/oaApi.ts`、`frontend/src/types/oa.ts` 时，必须读取 `docs/skills/oa-workbench-skill.md`。
+- 修改 `/oa`、`fonted-oa/src/components/oa`、`fonted-oa/src/mock/oa*`、`fonted-oa/src/lib/oaApi.ts`、`fonted-oa/src/types/oa.ts` 时，必须读取 `docs/skills/oa-workbench-skill.md`。
 
 ## 组件规范
 
@@ -28,6 +36,20 @@
 - 图标按钮必须有 `aria-label` 或 `title`。
 
 ## OA 工作台强约束
+
+首页和 OA 必须切分：
+
+- 首页默认端口为 `3000`。
+- OA 默认端口为 `3001`。
+- 首页跳转 OA 时使用 `http://<host>:3001/oa`。
+- 本地开发使用 `npm run dev:home` 和 `npm run dev:oa` 分别启动。
+
+OA 页面必须路由驱动：
+
+- `/oa` 为驾驶舱。
+- `/oa/<pageId>` 为菜单页面。
+- 菜单点击必须更新 URL。
+- URL、菜单选中态、顶部标题、AI 上下文必须一致。
 
 OA 工作台业务 UI 必须使用真实 Ant Design 组件：
 
@@ -60,10 +82,19 @@ OA 工作台业务 UI 必须使用真实 Ant Design 组件：
 - 顶部 Header 可 sticky，但不能遮挡内容。
 - 移动端必须避免 Sider 压住主内容。
 
+## OA 主题规则
+
+- 主题切换必须同步 Ant Design `ConfigProvider` token 和 CSS variables。
+- OA 内置主题必须包含“首页风格”和“黑夜风格”。
+- 首页风格承接营销官网浅色暖调。
+- 黑夜风格承接营销官网夜间模式。
+- 所有 OA 组件必须适配主题：侧栏、顶部栏、卡片、表格、文字、边框、FloatButton、Drawer、ECharts。
+- 自定义换肤属于全局规则，新增或调整主题必须同步更新 `AGENTS.md` 与 `docs/skills/oa-workbench-skill.md`。
+
 ## 状态与请求
 
-- API 请求集中在 `frontend/src/lib/api.ts` 或按领域拆分到 `frontend/src/lib/<domain>.ts`。
-- OA API 请求集中在 `frontend/src/lib/oaApi.ts`。
+- API 请求集中在 `fronted-main/src/lib/api.ts` 或按领域拆分到 `fronted-main/src/lib/<domain>.ts`。
+- OA API 请求集中在 `fonted-oa/src/lib/oaApi.ts`。
 - `localStorage` 访问必须在浏览器环境中执行。
 - 请求失败不能导致页面白屏；应提供 message 提示或 fallback mock。
 - SSE 必须处理连接失败、流中断、空响应、重复发送和加载态恢复。
@@ -100,4 +131,3 @@ OA 工作台业务 UI 必须使用真实 Ant Design 组件：
 - 角色切换、菜单过滤、AI Drawer、ECharts 渲染可用。
 - 文案无新增乱码。
 - 组件没有引入不必要的全局副作用。
-

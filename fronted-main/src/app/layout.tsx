@@ -19,11 +19,10 @@ const geistMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: 'AI WorkMate - 企业 AI 工作入口',
-  description: '基于 Spring AI + Next.js 构建的企业级 AI Agent 平台',
+  description: '面向企业团队的 AI Agent 官网与产品体验入口',
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
-  // 阻止浏览器自动恢复滚动位置，每次刷新都从顶部开始
+export default function HomeRootLayout({ children }: { children: React.ReactNode }) {
   const scrollResetScript = `
     if (typeof window !== 'undefined' && 'scrollRestoration' in window.history) {
       window.history.scrollRestoration = 'manual';
@@ -36,9 +35,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <script dangerouslySetInnerHTML={{ __html: scrollResetScript }} />
       </head>
-      <body className="min-h-screen overflow-x-hidden antialiased">
-        {children}
-      </body>
+      <body className="min-h-screen overflow-x-hidden antialiased">{children}</body>
     </html>
   );
 }
