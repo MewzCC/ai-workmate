@@ -169,6 +169,13 @@ export default function HomePage() {
   };
 
   const enterOa = () => {
+    // 生产环境通过构建期环境变量注入 OA 入口地址（部署在反代/域名下时必须配置）
+    const oaUrl = process.env.NEXT_PUBLIC_OA_URL;
+    if (oaUrl) {
+      window.location.href = oaUrl;
+      return;
+    }
+    // 本地开发回退：main 在 3000、OA 在 3001
     const { protocol, hostname, port } = window.location;
     const target = port === '3001' ? '/oa' : `${protocol}//${hostname}:3001/oa`;
     window.location.href = target;
