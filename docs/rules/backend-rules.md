@@ -13,7 +13,7 @@
 ## Skill 触发
 
 - 修改 Spring Boot、Spring Security、JWT、MyBatis-Plus、SSE、RAG、Agent 后端能力时，读取 `docs/skills/backend-engineering-skill.md`。
-- 修改 OA mock 后端接口、`SystemController`、`AiTaskController`、`AiTaskService`、`MockAiTaskServiceImpl` 或 `AiTask*DTO` 时，必须读取 `docs/skills/oa-workbench-skill.md`。
+- 修改 OA AI 后端接口、`SystemController`、`AiTaskController`、`AiTaskService` 或 `AiTask*DTO` 时，必须读取 `docs/skills/oa-workbench-skill.md`。
 - 修改真实 Agent、Tool Calling、RAG 权限和提示词边界时，读取 `docs/skills/agent-engineering-skill.md`。
 
 ## 分层规范
@@ -44,9 +44,9 @@ DTO：
 - 响应 DTO 避免暴露密码、密钥、内部状态字段。
 - 字段语义必须清楚，不复用无关 DTO。
 
-## OA mock 接口规则
+## OA AI 接口规则
 
-当前 OA 只实现基础 mock 联调：
+OA AI 接口不得再提供伪造成功的 mock 能力：
 
 - `GET /api/system/health`
 - `POST /api/ai/tasks/plan`
@@ -57,13 +57,12 @@ DTO：
 - 返回统一 `Result<T>`。
 - `AiTaskController` 只做校验和服务调用。
 - `AiTaskService` 表达 plan/execute 能力。
-- `MockAiTaskServiceImpl` 返回确定性 mock 数据。
-- `plan` 根据 input 简单判断任务类型。
+- 禁止确定性 mock 数据和 fallback mock。
+- `plan` 必须基于真实能力或明确返回能力不可用。
 - `execute` 必须要求 `confirm=true`。
-- 不依赖真实 `ChatClient`。
-- 不要求真实 `AI_API_KEY`。
-- 不接数据库。
-- 不写真实审批、真实导出、真实上传逻辑。
+- 真实执行前必须完成鉴权、权限、幂等、审计和高风险确认。
+- 没有真实 `ChatClient`、`AI_API_KEY` 或业务依赖时必须返回可解释失败。
+- 不得伪造真实审批、真实导出、真实上传成功。
 
 ## 安全
 
@@ -72,7 +71,7 @@ DTO：
 - 用户只能访问自己的 conversation、message、knowledge_doc。
 - 工具调用必须白名单化，参数必须校验。
 - 模型输出不能直接执行为工具调用。
-- `SecurityConfig` 仅允许临时放行：
+- `SecurityConfig` 仅允许放行：
   - `/api/auth/**`
   - `/api/system/**`
   - `/api/ai/tasks/**`
@@ -110,4 +109,3 @@ DTO：
 - Controller 新增接口应有 WebMvc 或集成测试。
 - 安全相关改动必须覆盖未登录、越权、过期 token。
 - 当前本机若缺 Java 17 或 Maven，最终说明必须写明无法运行后端测试的原因。
-

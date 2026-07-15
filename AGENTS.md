@@ -17,7 +17,7 @@ AI WorkMate 是企业级 AI 助手与 OA 工作台平台雏形：
 - 前端：Next.js 14、React 18、TypeScript、Tailwind CSS、Zustand、Ant Design、ECharts。
 - 后端：Spring Boot 3、Java 17、Spring AI、MyBatis-Plus、PostgreSQL、Redis、JWT。
 - 当前核心链路：营销官网、OA 工作台、登录注册、JWT 鉴权、SSE 流式聊天、对话与消息持久化。
-- 当前 OA 链路：`/oa` 独立工作台、Ant Design 中后台布局、mock 菜单权限、ECharts 图表、AI 任务 plan/execute mock 接口。
+- 当前 OA 链路：`/oa` 独立工作台、Ant Design 中后台布局、菜单权限、ECharts 图表、AI 任务 plan/execute 接口。
 - 后续重点：RAG 知识库、Agent Tool Calling、多 Agent、真实 OA 权限后台、容器化部署。
 
 ## AI 工作原则
@@ -94,7 +94,7 @@ docker compose -f docker-compose.yml up -d
 - `fonted-oa/src/components/oa`：OA 工作台组件，包含布局、菜单、顶部栏、Dashboard、AI Drawer、外观 Drawer、ECharts 卡片等。
 - `fronted-main/src/lib`：官网与聊天体验 API 客户端。
 - `fonted-oa/src/lib`：OA API 客户端与浏览器侧工具。
-- `fonted-oa/src/lib/oaApi.ts`：OA mock API 封装，包含 system health、AI plan、AI execute 及 fallback mock。
+- `fonted-oa/src/lib/oaApi.ts`：OA API 封装，包含 system health、AI plan、AI execute；禁止 fallback mock 伪造成功。
 - `fonted-oa/src/mock`：前端 mock 数据与 mock 权限模型。
 - `fonted-oa/src/mock/oaMenus.ts`：OA 菜单树。
 - `fonted-oa/src/mock/oaDashboard.ts`：OA 首页指标、审批列表、时间线数据。
@@ -106,14 +106,14 @@ docker compose -f docker-compose.yml up -d
 ### 后端
 
 - `backend/src/main/java/com/aiworkmate/config`：配置类。
-- `backend/src/main/java/com/aiworkmate/config/SecurityConfig.java`：安全配置；当前仅临时放行 `/api/system/**` 与 `/api/ai/tasks/**` mock 接口，不得放开全部接口。
+- `backend/src/main/java/com/aiworkmate/config/SecurityConfig.java`：安全配置；仅按规则放行 `/api/system/**` 与 `/api/ai/tasks/**`，不得放开全部接口。
 - `backend/src/main/java/com/aiworkmate/controller`：REST/SSE 入口。
 - `backend/src/main/java/com/aiworkmate/controller/SystemController.java`：`GET /api/system/health`。
 - `backend/src/main/java/com/aiworkmate/controller/AiTaskController.java`：`POST /api/ai/tasks/plan`、`POST /api/ai/tasks/execute`。
 - `backend/src/main/java/com/aiworkmate/service`：业务接口。
 - `backend/src/main/java/com/aiworkmate/service/AiTaskService.java`：OA AI 任务接口。
 - `backend/src/main/java/com/aiworkmate/service/impl`：业务实现。
-- `backend/src/main/java/com/aiworkmate/service/impl/MockAiTaskServiceImpl.java`：确定性 mock AI 任务实现，不依赖真实 LLM。
+- `backend/src/main/java/com/aiworkmate/service/impl`：AI 任务真实实现；禁止确定性 mock 或伪造执行成功。
 - `backend/src/main/java/com/aiworkmate/mapper`：MyBatis-Plus 数据访问。
 - `backend/src/main/java/com/aiworkmate/entity`：数据库实体。
 - `backend/src/main/java/com/aiworkmate/dto`：请求与响应对象。
@@ -152,12 +152,12 @@ docker compose -f docker-compose.yml up -d
 
 ## OA 权限与 AI 约束
 
-- 权限 mock 入口：`can(role, menuId, action)`、`filterMenusByRole(role)`、`getAllowedAiActions(role, pageId)`。
+- 权限演示入口：`can(role, menuId, action)`、`filterMenusByRole(role)`、`getAllowedAiActions(role, pageId)`；不得替代后端鉴权。
 - 普通员工不得看到系统设置，不得执行审批、删除、权限修改、敏感导出等高风险 AI 操作。
 - AI Drawer 必须展示当前页面、当前角色、数据范围、可执行动作和高风险确认提示。
-- AI 计划生成调用 `POST /api/ai/tasks/plan`；接口失败时允许本地 fallback mock，但必须提示用户。
+- AI 计划生成调用 `POST /api/ai/tasks/plan`；接口失败时禁止本地 fallback mock，必须提示真实错误或能力不可用。
 - AI 确认执行调用 `POST /api/ai/tasks/execute`；高风险动作必须二次确认。
-- 当前阶段不要接真实数据库、真实审批接口、真实文件上传、真实导出或真实 LLM。
+- 未接真实数据库、真实审批接口、真实文件上传、真实导出或真实 LLM 时，不得模拟成功；必须明确返回能力不可用。
 
 ## 新增依赖说明
 

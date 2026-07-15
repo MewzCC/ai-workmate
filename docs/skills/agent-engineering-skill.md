@@ -4,7 +4,7 @@
 
 当任务涉及 AI Agent、RAG、Tool Calling、多 Agent、提示词工程、模型接入、上下文记忆、知识库问答时使用本 skill。
 
-如果任务涉及 OA AI 操作面板、AI plan/execute mock、AI 动作权限、AI 审计时间线，请同时读取 `docs/skills/oa-workbench-skill.md`。
+如果任务涉及 OA AI 操作面板、AI plan/execute、AI 动作权限、AI 审计时间线，请同时读取 `docs/skills/oa-workbench-skill.md`。
 
 ## Agent 设计模板
 
@@ -38,15 +38,15 @@ Agent 名称：
 
 ## OA AI 约束
 
-当前 OA AI 是 mock 操作面板，不是真实自主执行系统：
+OA AI 必须作为受控企业助手能力接入，不得伪造执行结果：
 
 - 用户能做什么，AI 最多只能做什么。
 - 用户不能做的事，AI 不能代做。
 - 普通员工不得执行审批、删除、权限修改、敏感导出。
 - 高风险动作必须二次确认。
 - 执行必须有审计记录。
-- 失败时必须可解释，并允许 fallback mock。
-- 当前阶段不调用真实 LLM，不操作真实数据库。
+- 失败时必须可解释，禁止 fallback mock。
+- 未接入真实工具或真实业务接口时必须拒绝执行并说明原因。
 
 ## RAG Agent 流程
 
@@ -97,4 +97,3 @@ Agent 名称：
 - 1 条工具参数错误问题。
 - 1 条模型应拒答问题。
 - 1 条长上下文问题。
-

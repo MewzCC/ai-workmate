@@ -7,7 +7,7 @@
 ## Skill 触发
 
 - 修改 Agent、RAG、Tool Calling、多 Agent、提示词工程、模型接入、上下文记忆时，读取 `docs/skills/agent-engineering-skill.md`。
-- 修改 OA AI 操作面板、AI plan/execute mock、AI 动作权限、AI 审计时间线时，必须读取 `docs/skills/oa-workbench-skill.md`。
+- 修改 OA AI 操作面板、AI plan/execute、AI 动作权限、AI 审计时间线时，必须读取 `docs/skills/oa-workbench-skill.md`。
 
 ## 基本边界
 
@@ -19,16 +19,16 @@
 
 ## OA AI 操作边界
 
-OA AI 当前是 mock 联调能力：
+OA AI 不再允许 mock 联调能力：
 
 - 计划生成调用 `POST /api/ai/tasks/plan`。
 - 确认执行调用 `POST /api/ai/tasks/execute`。
 - 前端必须继承当前角色权限。
 - 普通员工不得执行审批、删除、权限修改、敏感导出。
 - 高风险动作必须二次确认。
-- 执行完成必须写入 mock 审计时间线。
-- 接口失败可使用 fallback mock，但必须提示用户。
-- 当前阶段不调用真实 LLM，不操作真实业务数据。
+- 执行完成必须写入审计时间线。
+- 接口失败禁止 fallback mock，必须提示真实错误或能力不可用。
+- 未接入真实 LLM 或真实业务数据时，必须拒绝执行并说明原因。
 
 ## Prompt 规范
 
@@ -86,4 +86,3 @@ OA AI 当前是 mock 联调能力：
 - 对失败原因分类：鉴权失败、检索为空、模型超时、工具失败、格式错误。
 - 新 Agent 上线前至少准备 10 条回归用例。
 - 评估维度：正确性、引用质量、拒答边界、延迟、成本、安全性。
-

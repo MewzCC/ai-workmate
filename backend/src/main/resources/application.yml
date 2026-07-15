@@ -28,6 +28,13 @@ spring:
           max-idle: 8
           min-idle: 4
 
+  # ========== Mail ==========
+  mail:
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:25}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+
   # ========== MyBatis-Plus ==========
   mybatis-plus:
     mapper-locations: classpath*:/mapper/**/*.xml
