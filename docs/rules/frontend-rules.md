@@ -96,7 +96,7 @@ OA 工作台业务 UI 必须使用真实 Ant Design 组件：
 - API 请求集中在 `fronted-main/src/lib/api.ts` 或按领域拆分到 `fronted-main/src/lib/<domain>.ts`。
 - OA API 请求集中在 `fonted-oa/src/lib/oaApi.ts`。
 - `localStorage` 访问必须在浏览器环境中执行。
-- 请求失败不能导致页面白屏；应提供 message 提示或 fallback mock。
+- 请求失败不能导致页面白屏；应提供 message 提示，禁止 fallback mock 伪造成功。
 - SSE 必须处理连接失败、流中断、空响应、重复发送和加载态恢复。
 
 ## UI 设计

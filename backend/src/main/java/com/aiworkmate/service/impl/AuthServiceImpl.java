@@ -51,7 +51,7 @@ public class AuthServiceImpl implements AuthService {
         }
 
         // 4. 签发 JWT
-        String token = jwtUtil.generateToken(user.getId(), user.getUsername());
+        String token = jwtUtil.generateToken(user.getId(), user.getUsername(), user.getRole());
         return new LoginResponse(token, user.getUsername(), user.getRole());
     }
 
@@ -93,7 +93,7 @@ public class AuthServiceImpl implements AuthService {
         userMapper.insert(user);
 
         // 6. 签发 JWT
-        String token = jwtUtil.generateToken(user.getId(), user.getUsername());
+        String token = jwtUtil.generateToken(user.getId(), user.getUsername(), user.getRole());
         return new LoginResponse(token, user.getUsername(), user.getRole());
     }
 

@@ -14,7 +14,7 @@
 
 - `/oa` 企业 OA 工作台。
 - Ant Design 中后台布局、菜单、表格、抽屉、弹窗、表单、FloatButton。
-- OA mock 菜单、角色权限、按钮权限、AI 动作权限。
+- OA 菜单、角色权限、按钮权限、AI 动作权限。
 - ECharts 图表。
 - OA AI 操作面板、计划生成、确认执行、审计时间线。
 - `GET /api/system/health`、`POST /api/ai/tasks/plan`、`POST /api/ai/tasks/execute`。
@@ -25,13 +25,13 @@
 
 - 前端页面：`fonted-oa/src/app/oa/page.tsx`。
 - 前端组件：`fonted-oa/src/components/oa`。
-- 前端 mock：`fonted-oa/src/mock`。
+- 前端权限与演示数据：`fonted-oa/src/mock`。
 - 前端类型：`fonted-oa/src/types/oa.ts`。
 - 前端 API：`fonted-oa/src/lib/oaApi.ts`。
 - 后端控制器：`SystemController`、`AiTaskController`。
-- 后端服务：`AiTaskService`、`MockAiTaskServiceImpl`。
+- 后端服务：`AiTaskService` 及其真实实现。
 
-当前阶段不要接真实数据库、真实审批系统、真实文件上传、真实导出或真实 LLM。
+AI plan/execute 不再允许 mock 成功；未接入真实数据库、审批系统、文件上传、导出或 LLM 时，必须明确失败并提示当前能力不可用。
 
 ## 首页与 OA 端口切分
 
@@ -124,7 +124,7 @@ OA 工作台业务 UI 必须使用真实 Ant Design 组件：
 
 ## 权限规范
 
-当前使用前端 mock RBAC：
+当前前端仍可使用本地 RBAC 数据做界面演示，但不得绕过后端鉴权：
 
 - `filterMenusByRole(role)`：按角色过滤菜单。
 - `can(role, menuId, action)`：判断按钮/动作权限。
@@ -133,7 +133,7 @@ OA 工作台业务 UI 必须使用真实 Ant Design 组件：
 
 角色要求：
 
-- `super_admin`：可见全部菜单，拥有全部 mock 权限。
+- `super_admin`：可见全部菜单，拥有全部演示权限。
 - `system_admin`：可见工作台、流程审批、组织人事、平台能力、系统设置。
 - `process_admin`：可见工作台、流程审批、页面操作配置、运行日志。
 - `finance_admin`：可见工作台、财务合同、审批列表。
@@ -170,7 +170,7 @@ AI 计划生成：
 - 调用 `POST /api/ai/tasks/plan`。
 - 请求字段：`input`、`pageId`、`role`。
 - 成功后使用 `Steps` 渲染后端返回步骤。
-- 失败时可使用前端 fallback mock，但必须 `message.warning` 提示。
+- 失败时不得 fallback mock；必须展示后端错误或能力不可用提示。
 
 AI 确认执行：
 
@@ -181,7 +181,7 @@ AI 确认执行：
 
 ## 后端实现规范
 
-当前后端仅提供 mock 接口：
+后端接口：
 
 - `GET /api/system/health`
 - `POST /api/ai/tasks/plan`
@@ -191,9 +191,9 @@ AI 确认执行：
 
 - Controller 只做请求校验、服务调用、`Result.ok(data)` 包装。
 - Service 接口表达能力。
-- `MockAiTaskServiceImpl` 返回确定性 mock 数据。
-- 不依赖真实 `ChatClient`。
-- 没有 `AI_API_KEY` 时也不能影响 OA mock 接口。
+- 禁止返回确定性 mock 数据或伪造执行成功。
+- 没有 `AI_API_KEY` 或真实业务依赖不可用时，必须返回可解释失败。
+- 高风险动作必须完成二次确认、权限校验和审计记录后才能执行。
 - `SecurityConfig` 仅放行 `/api/system/**` 与 `/api/ai/tasks/**`，不要放开全部接口。
 
 ## 验证清单

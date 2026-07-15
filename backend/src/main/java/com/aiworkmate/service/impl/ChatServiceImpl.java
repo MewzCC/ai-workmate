@@ -1,100 +1,155 @@
 package com.aiworkmate.service.impl;
 
+import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.entity.Conversation;
 import com.aiworkmate.entity.Message;
 import com.aiworkmate.mapper.ConversationMapper;
 import com.aiworkmate.mapper.MessageMapper;
 import com.aiworkmate.service.ChatService;
+import com.aiworkmate.service.KnowledgeContextService;
+import com.aiworkmate.service.model.KnowledgeContext;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.memory.MessageWindowChatMemory;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import reactor.core.publisher.Flux;
 
 import java.time.LocalDateTime;
 
-/**
- * AI 对话服务 — 核心业务层
- *
- * 第 1 月实现：单轮/多轮对话 + 流式输出
- * 第 3 月升级：Tool Calling + Agent + 对话记忆持久化
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class ChatServiceImpl implements ChatService {
 
+    private static final String DEFAULT_MODEL = "deepseek-chat";
+    private static final String USER_ROLE = "user";
+    private static final String ASSISTANT_ROLE = "assistant";
+    private static final String STREAM_ERROR_MESSAGE = "抱歉，AI 服务暂时不可用，请稍后重试。";
+    private static final String SYSTEM_PROMPT = """
+            你是 AI WorkMate 企业助手。你需要基于用户问题和可用知识库上下文回答。
+            只能回答当前用户有权访问的信息；没有可靠来源时要明确说明不确定。
+            不得绕过鉴权、不得执行真实业务写操作、不得泄露密钥或敏感配置。
+            """;
+
     private final ChatClient chatClient;
     private final ConversationMapper conversationMapper;
     private final MessageMapper messageMapper;
+    private final KnowledgeContextService knowledgeContextService;
 
-    // 第 1 月用内存存储对话历史，第 2 月升级为 Redis + PostgreSQL
     private final MessageWindowChatMemory chatMemory = MessageWindowChatMemory.builder().build();
 
     @Override
-    public Flux<String> chatStream(Long userId, Long conversationId,
-                                   String userMessage, String model) {
-        // 1. 确保对话存在
-        Conversation conv = getOrCreateConversation(userId, conversationId, model);
+    @Transactional
+    public Flux<String> chatStream(Long userId, Long conversationId, String userMessage, String model) {
+        Conversation conversation = getOrCreateConversation(userId, conversationId, model);
+        saveMessage(conversation.getId(), USER_ROLE, userMessage);
 
-        // 2. 保存用户消息
-        saveMessage(conv.getId(), "user", userMessage);
+        KnowledgeContext knowledgeContext = knowledgeContextService.retrieve(userId, userMessage);
+        StringBuilder assistantMessage = new StringBuilder();
 
-        // 3. 构建 ChatClient 请求
-        var advisor = MessageChatMemoryAdvisor.builder(chatMemory)
-                .conversationId(String.valueOf(conv.getId()))
-                .build();
-
-        // 4. 流式返回
-        return chatClient.prompt()
-                .user(userMessage)
-                .advisors(advisor)
+        return buildPrompt(conversation, userMessage, knowledgeContext)
                 .stream()
                 .content()
-                .doOnComplete(() -> log.info("Chat stream completed for conv={}", conv.getId()))
-                .doOnError(e -> log.error("Chat stream error", e));
+                .doOnNext(assistantMessage::append)
+                .onErrorResume(ex -> {
+                    log.error("Chat stream failed, conversationId={}", conversation.getId(), ex);
+                    assistantMessage.append(STREAM_ERROR_MESSAGE);
+                    return Flux.just(STREAM_ERROR_MESSAGE);
+                })
+                .doFinally(signal -> {
+                    if (!assistantMessage.isEmpty()) {
+                        saveMessage(conversation.getId(), ASSISTANT_ROLE, assistantMessage.toString());
+                        touchConversation(conversation);
+                    }
+                    log.info("Chat stream finished, conversationId={}, signal={}", conversation.getId(), signal);
+                });
     }
 
     @Override
+    @Transactional
     public String chat(Long userId, Long conversationId, String userMessage, String model) {
-        Conversation conv = getOrCreateConversation(userId, conversationId, model);
-        saveMessage(conv.getId(), "user", userMessage);
+        Conversation conversation = getOrCreateConversation(userId, conversationId, model);
+        saveMessage(conversation.getId(), USER_ROLE, userMessage);
 
-        String response = chatClient.prompt()
-                .user(userMessage)
+        KnowledgeContext knowledgeContext = knowledgeContextService.retrieve(userId, userMessage);
+        String response = buildPrompt(conversation, userMessage, knowledgeContext)
                 .call()
                 .content();
 
-        saveMessage(conv.getId(), "assistant", response);
+        saveMessage(conversation.getId(), ASSISTANT_ROLE, response);
+        touchConversation(conversation);
+        log.info("Chat completed, conversationId={}", conversation.getId());
         return response;
     }
 
-    // ===== 私有方法 =====
+    private ChatClient.ChatClientRequestSpec buildPrompt(Conversation conversation,
+                                                         String userMessage,
+                                                         KnowledgeContext knowledgeContext) {
+        var advisor = MessageChatMemoryAdvisor.builder(chatMemory)
+                .conversationId(String.valueOf(conversation.getId()))
+                .build();
+
+        return chatClient.prompt()
+                .system(buildSystemPrompt(knowledgeContext))
+                .user(userMessage)
+                .advisors(advisor);
+    }
+
+    private String buildSystemPrompt(KnowledgeContext knowledgeContext) {
+        if (!knowledgeContext.hasContext()) {
+            return SYSTEM_PROMPT;
+        }
+        return SYSTEM_PROMPT + "\n可用知识库上下文：\n" + knowledgeContext.promptContext();
+    }
 
     private Conversation getOrCreateConversation(Long userId, Long conversationId, String model) {
         if (conversationId != null) {
-            Conversation conv = conversationMapper.selectById(conversationId);
-            if (conv != null) return conv;
+            return findOwnedConversation(userId, conversationId);
         }
 
-        Conversation conv = new Conversation();
-        conv.setUserId(userId);
-        conv.setTitle("新对话");
-        conv.setModel(model != null ? model : "deepseek-chat");
-        conv.setCreatedAt(LocalDateTime.now());
-        conv.setUpdatedAt(LocalDateTime.now());
-        conversationMapper.insert(conv);
-        return conv;
+        Conversation conversation = new Conversation();
+        conversation.setUserId(userId);
+        conversation.setTitle("新对话");
+        conversation.setModel(normalizeModel(model));
+        conversation.setCreatedAt(LocalDateTime.now());
+        conversation.setUpdatedAt(LocalDateTime.now());
+        conversationMapper.insert(conversation);
+        return conversation;
+    }
+
+    private Conversation findOwnedConversation(Long userId, Long conversationId) {
+        Conversation conversation = conversationMapper.selectOne(
+                new LambdaQueryWrapper<Conversation>()
+                        .eq(Conversation::getId, conversationId)
+                        .eq(Conversation::getUserId, userId)
+        );
+        if (conversation == null) {
+            throw new BusinessException(HttpStatus.FORBIDDEN, "无权访问该对话");
+        }
+        return conversation;
+    }
+
+    private String normalizeModel(String model) {
+        return model == null || model.isBlank() ? DEFAULT_MODEL : model;
     }
 
     private void saveMessage(Long conversationId, String role, String content) {
-        Message msg = new Message();
-        msg.setConversationId(conversationId);
-        msg.setRole(role);
-        msg.setContent(content);
-        msg.setCreatedAt(LocalDateTime.now());
-        messageMapper.insert(msg);
+        Message message = new Message();
+        message.setConversationId(conversationId);
+        message.setRole(role);
+        message.setContent(content);
+        message.setTokenCount(0);
+        message.setCreatedAt(LocalDateTime.now());
+        messageMapper.insert(message);
+    }
+
+    private void touchConversation(Conversation conversation) {
+        conversation.setUpdatedAt(LocalDateTime.now());
+        conversationMapper.updateById(conversation);
     }
 }
