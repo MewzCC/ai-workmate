@@ -1,6 +1,7 @@
 package com.aiworkmate.service.impl;
 
 import com.aiworkmate.common.BusinessException;
+import com.aiworkmate.common.ErrorCode;
 import com.aiworkmate.entity.Conversation;
 import com.aiworkmate.entity.Message;
 import com.aiworkmate.mapper.ConversationMapper;
@@ -14,7 +15,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.memory.MessageWindowChatMemory;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import reactor.core.publisher.Flux;
@@ -29,7 +29,6 @@ public class ChatServiceImpl implements ChatService {
     private static final String DEFAULT_MODEL = "deepseek-chat";
     private static final String USER_ROLE = "user";
     private static final String ASSISTANT_ROLE = "assistant";
-    private static final String STREAM_ERROR_MESSAGE = "抱歉，AI 服务暂时不可用，请稍后重试。";
     private static final String SYSTEM_PROMPT = """
             你是 AI WorkMate 企业助手。你需要基于用户问题和可用知识库上下文回答。
             只能回答当前用户有权访问的信息；没有可靠来源时要明确说明不确定。
@@ -56,18 +55,15 @@ public class ChatServiceImpl implements ChatService {
                 .stream()
                 .content()
                 .doOnNext(assistantMessage::append)
-                .onErrorResume(ex -> {
-                    log.error("Chat stream failed, conversationId={}", conversation.getId(), ex);
-                    assistantMessage.append(STREAM_ERROR_MESSAGE);
-                    return Flux.just(STREAM_ERROR_MESSAGE);
-                })
-                .doFinally(signal -> {
+                .doOnError(ex -> log.error("Chat stream failed, conversationId={}", conversation.getId(), ex))
+                .doOnComplete(() -> {
                     if (!assistantMessage.isEmpty()) {
                         saveMessage(conversation.getId(), ASSISTANT_ROLE, assistantMessage.toString());
                         touchConversation(conversation);
                     }
-                    log.info("Chat stream finished, conversationId={}, signal={}", conversation.getId(), signal);
-                });
+                })
+                .doFinally(signal -> log.info(
+                        "Chat stream finished, conversationId={}, signal={}", conversation.getId(), signal));
     }
 
     @Override
@@ -129,7 +125,7 @@ public class ChatServiceImpl implements ChatService {
                         .eq(Conversation::getUserId, userId)
         );
         if (conversation == null) {
-            throw new BusinessException(HttpStatus.FORBIDDEN, "无权访问该对话");
+            throw new BusinessException(ErrorCode.RESOURCE_FORBIDDEN, "无权访问该对话");
         }
         return conversation;
     }

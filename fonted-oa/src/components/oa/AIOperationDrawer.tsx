@@ -17,9 +17,9 @@ import {
   Typography,
   message,
 } from 'antd';
-import { RobotOutlined, SaveOutlined, SendOutlined, StopOutlined, ThunderboltOutlined } from '@ant-design/icons';
+import { RobotOutlined, SendOutlined, StopOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import type { AiTaskExecuteResponse, AiTaskPlanResponse, OaRole } from '@/types/oa';
-import { createFallbackExecute, createFallbackPlan, executeAiTask, planAiTask } from '@/lib/oaApi';
+import { executeAiTask, formatOaApiError, OaApiError, planAiTask } from '@/lib/oaApi';
 import { getAllowedAiActions, isSensitiveEmployeeTask, roleDataScope } from '@/mock/oaPermissions';
 
 interface AIOperationDrawerProps {
@@ -51,6 +51,7 @@ export default function AIOperationDrawer({
   const [plan, setPlan] = useState<AiTaskPlanResponse | null>(null);
   const [result, setResult] = useState<AiTaskExecuteResponse | null>(null);
   const [loading, setLoading] = useState(false);
+  const [operationError, setOperationError] = useState<{ message: string; retryable: boolean } | null>(null);
   const allowedActions = getAllowedAiActions(role, pageId);
 
   useEffect(() => {
@@ -72,19 +73,21 @@ export default function AIOperationDrawer({
     }
 
     setLoading(true);
+    setOperationError(null);
     setResult(null);
     setMessages((prev) => [...prev, { role: 'user', content: value }]);
 
     try {
-      const nextPlan = await planAiTask({ input: value, pageId, role });
+      const nextPlan = await planAiTask({ input: value, pageId });
       setPlan(nextPlan);
       setMessages((prev) => [...prev, { role: 'assistant', content: nextPlan.summary }]);
       message.success('AI 执行计划已生成');
-    } catch {
-      const fallback = createFallbackPlan({ input: value, pageId, role });
-      setPlan(fallback);
-      setMessages((prev) => [...prev, { role: 'assistant', content: fallback.summary }]);
-      message.warning('后端不可用，已使用本地模拟结果');
+    } catch (error) {
+      const errorMessage = formatOaApiError(error);
+      setPlan(null);
+      setOperationError({ message: errorMessage, retryable: error instanceof OaApiError && error.retryable });
+      setMessages((prev) => [...prev, { role: 'assistant', content: errorMessage }]);
+      message.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -102,20 +105,21 @@ export default function AIOperationDrawer({
 
     Modal.confirm({
       title: '确认执行 AI 计划',
-      content: `任务 ${plan.taskId} 风险等级为 ${plan.riskLevel}，执行结果会写入 mock 审计。`,
+      content: `任务 ${plan.taskId} 风险等级为 ${plan.riskLevel}。确认后仅调用后端已注册的真实业务能力，并记录审计。`,
       okText: '确认执行',
       cancelText: '取消',
       onOk: async () => {
         try {
-          const data = await executeAiTask({ taskId: plan.taskId, type: plan.type, confirm: true });
+          setOperationError(null);
+          const data = await executeAiTask({ taskId: plan.taskId, confirm: true });
           setResult(data);
           onExecuted(`AI 执行 ${plan.type}：${data.auditId}`);
           message.success(data.message);
-        } catch {
-          const fallback = createFallbackExecute({ taskId: plan.taskId, type: plan.type, confirm: true });
-          setResult(fallback);
-          onExecuted(`AI 本地执行 ${plan.type}：${fallback.auditId}`);
-          message.warning('后端不可用，已使用本地模拟结果');
+        } catch (error) {
+          const errorMessage = formatOaApiError(error);
+          setResult(null);
+          setOperationError({ message: errorMessage, retryable: error instanceof OaApiError && error.retryable });
+          message.error(errorMessage);
         }
       },
     });
@@ -154,6 +158,16 @@ export default function AIOperationDrawer({
           <Alert type="warning" showIcon message="普通员工角色下，审批、删除、权限修改、敏感导出等高风险 AI 操作会被拦截。" />
         )}
 
+        {operationError && (
+          <Alert
+            type="error"
+            showIcon
+            message="AI 能力调用失败"
+            description={operationError.message}
+            action={operationError.retryable ? <Button size="small" onClick={() => submitPlan()}>重试</Button> : undefined}
+          />
+        )}
+
         <Card size="small" title="消息区">
           <List
             size="small"
@@ -187,9 +201,6 @@ export default function AIOperationDrawer({
             message.info('已取消当前计划');
           }}>
             取消计划
-          </Button>
-          <Button icon={<SaveOutlined />} onClick={() => message.success('已保存为 mock 任务模板')}>
-            保存模板
           </Button>
         </Space>
 

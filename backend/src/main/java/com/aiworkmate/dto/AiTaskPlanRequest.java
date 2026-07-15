@@ -11,6 +11,4 @@ public class AiTaskPlanRequest {
     @NotBlank(message = "pageId is required")
     private String pageId;
 
-    @NotBlank(message = "role is required")
-    private String role;
 }

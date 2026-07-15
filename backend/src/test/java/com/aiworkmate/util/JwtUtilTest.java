@@ -3,6 +3,7 @@ package com.aiworkmate.util;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import com.aiworkmate.security.JwtValidationStatus;
 
 class JwtUtilTest {
 
@@ -27,5 +28,15 @@ class JwtUtilTest {
         String token = jwtUtil.generateToken(1001L, "alice", "USER") + "tampered";
 
         assertThat(jwtUtil.validateToken(token)).isFalse();
+        assertThat(jwtUtil.validateTokenStatus(token)).isEqualTo(JwtValidationStatus.INVALID);
+    }
+
+    @Test
+    void shouldIdentifyExpiredToken() {
+        JwtUtil jwtUtil = new JwtUtil(SECRET, -1L);
+
+        String token = jwtUtil.generateToken(1001L, "alice", "USER");
+
+        assertThat(jwtUtil.validateTokenStatus(token)).isEqualTo(JwtValidationStatus.EXPIRED);
     }
 }

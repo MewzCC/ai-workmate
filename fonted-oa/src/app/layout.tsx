@@ -19,7 +19,7 @@ const geistMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: 'AI WorkMate OA - 企业驾驶舱',
-  description: '企业级 OA 工作台、权限 mock、ECharts 图表与 AI 任务入口',
+  description: '企业级 OA 工作台、权限控制、ECharts 图表与 AI 任务入口',
 };
 
 export default function OaRootLayout({ children }: { children: React.ReactNode }) {

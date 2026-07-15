@@ -9,59 +9,79 @@ const BASE = '/api';
 
 interface ApiResult<T> {
   code: number;
+  errorCode?: string;
   message: string;
-  data: T;
+  data: T | null;
+  requestId?: string;
+  traceId?: string;
+}
+
+export class OaApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly errorCode: string,
+    readonly requestId?: string,
+    readonly traceId?: string,
+  ) {
+    super(message);
+    this.name = 'OaApiError';
+  }
+
+  get retryable(): boolean {
+    return this.status === 429 || this.status >= 500;
+  }
 }
 
 async function parseResult<T>(res: Response): Promise<T> {
-  if (!res.ok) {
-    throw new Error(`HTTP ${res.status}`);
-  }
-  const json: ApiResult<T> = await res.json();
-  if (json.code !== 200) {
-    throw new Error(json.message || '接口请求失败');
+  const json = await res.json().catch(() => null) as ApiResult<T> | null;
+  if (!res.ok || !json || json.code !== 200 || json.data === null) {
+    const status = res.status || 500;
+    const error = new OaApiError(
+      json?.message || statusMessage(status),
+      status,
+      json?.errorCode || statusErrorCode(status),
+      json?.requestId,
+      json?.traceId,
+    );
+    if (status === 401 && typeof window !== 'undefined') {
+      window.localStorage.removeItem('token');
+    }
+    throw error;
   }
   return json.data;
 }
 
-function inferTaskType(input: string): AiTaskPlanResponse['type'] {
-  if (/新建|创建|采购|入职/.test(input)) return 'create';
-  if (/修改|调整|改为|同步/.test(input)) return 'update';
-  if (/审批|预审|通过|驳回|催办/.test(input)) return 'approve';
-  if (/接口|联调|失败|报错|排查|回放/.test(input)) return 'debug';
-  if (/导出|汇总|报表|下载/.test(input)) return 'export';
-  return 'general';
+function statusErrorCode(status: number): string {
+  if (status === 401) return 'AUTH_REQUIRED';
+  if (status === 403) return 'PERMISSION_DENIED';
+  if (status === 409) return 'AI_TASK_CONFLICT';
+  if (status === 429) return 'RATE_LIMITED';
+  return 'SYSTEM_ERROR';
 }
 
-export function createFallbackPlan(request: AiTaskPlanRequest): AiTaskPlanResponse {
-  const type = inferTaskType(request.input);
-  const risky = ['approve', 'export', 'update'].includes(type);
-  return {
-    taskId: `task_local_${Date.now()}`,
-    type,
-    riskLevel: risky ? 'high' : 'medium',
-    requireConfirm: risky,
-    summary: '后端不可用，已生成本地模拟执行计划。',
-    steps: [
-      { title: '读取当前页面上下文', description: `识别 ${request.pageId} 页面、当前角色和可用按钮权限。` },
-      { title: '校验角色权限', description: '按 RBAC、数据范围与 AI 动作白名单过滤不可执行操作。' },
-      { title: '生成执行方案', description: '形成可确认的步骤，不直接修改真实业务数据。' },
-      { title: '等待人工确认', description: '高风险动作需要二次确认并写入审计记录。' },
-    ],
-  };
+function statusMessage(status: number): string {
+  if (status === 401) return '请先登录后再使用 AI 能力';
+  if (status === 403) return '当前账号没有执行该操作的权限';
+  if (status === 409) return '任务状态已变化，请重新生成计划';
+  if (status === 429) return '请求过于频繁，请稍后重试';
+  return '服务暂时不可用，请稍后重试';
 }
 
-export function createFallbackExecute(request: AiTaskExecuteRequest): AiTaskExecuteResponse {
-  return {
-    success: request.confirm,
-    auditId: `AUDIT-LOCAL-${Date.now().toString().slice(-6)}`,
-    message: 'AI 任务已使用本地 mock 模拟执行完成。',
-    result: {
-      successCount: 2,
-      pendingConfirmCount: request.type === 'approve' ? 2 : 1,
-      rejectSuggestCount: request.type === 'approve' ? 1 : 0,
-    },
+function requestHeaders(): HeadersInit {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'X-Request-Id': crypto.randomUUID().replaceAll('-', ''),
   };
+  const token = typeof window === 'undefined' ? null : window.localStorage.getItem('token');
+  if (token) headers.Authorization = `Bearer ${token}`;
+  return headers;
+}
+
+export function formatOaApiError(error: unknown): string {
+  if (!(error instanceof OaApiError)) return '请求失败，请稍后重试';
+  const trace = error.traceId ? `（追踪号：${error.traceId}）` : '';
+  return `${error.message}${trace}`;
 }
 
 export async function getSystemHealth(): Promise<{ status: string; service: string }> {
@@ -72,7 +92,7 @@ export async function getSystemHealth(): Promise<{ status: string; service: stri
 export async function planAiTask(request: AiTaskPlanRequest): Promise<AiTaskPlanResponse> {
   const res = await fetch(`${BASE}/ai/tasks/plan`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: requestHeaders(),
     body: JSON.stringify(request),
   });
   return parseResult(res);
@@ -81,7 +101,7 @@ export async function planAiTask(request: AiTaskPlanRequest): Promise<AiTaskPlan
 export async function executeAiTask(request: AiTaskExecuteRequest): Promise<AiTaskExecuteResponse> {
   const res = await fetch(`${BASE}/ai/tasks/execute`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: requestHeaders(),
     body: JSON.stringify(request),
   });
   return parseResult(res);

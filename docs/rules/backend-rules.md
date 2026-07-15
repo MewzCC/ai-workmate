@@ -74,8 +74,8 @@ OA AI 接口不得再提供伪造成功的 mock 能力：
 - `SecurityConfig` 仅允许放行：
   - `/api/auth/**`
   - `/api/system/**`
-  - `/api/ai/tasks/**`
   - OPTIONS
+- `/api/ai/tasks/**` 必须通过 JWT 认证，身份、角色和权限从服务端上下文获取。
 - 不得为了联调放开全部接口。
 - 不得破坏 `/api/chat/stream` 的认证逻辑。
 

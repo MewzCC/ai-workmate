@@ -1,8 +1,10 @@
 package com.aiworkmate.util;
 
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
+import com.aiworkmate.security.JwtValidationStatus;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -55,11 +57,17 @@ public class JwtUtil {
     }
 
     public boolean validateToken(String token) {
+        return validateTokenStatus(token) == JwtValidationStatus.VALID;
+    }
+
+    public JwtValidationStatus validateTokenStatus(String token) {
         try {
             parseToken(token);
-            return true;
+            return JwtValidationStatus.VALID;
+        } catch (ExpiredJwtException e) {
+            return JwtValidationStatus.EXPIRED;
         } catch (Exception e) {
-            return false;
+            return JwtValidationStatus.INVALID;
         }
     }
 

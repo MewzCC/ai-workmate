@@ -37,7 +37,7 @@ export default function Topbar({ role, pageTitle, onRoleChange, onOpenAppearance
           className="oa-role-select"
           aria-label="角色切换"
         />
-        <Tag color="processing">Mock 联调</Tag>
+        <Tag color="processing">安全联调</Tag>
         <Button icon={<QuestionCircleOutlined />} onClick={() => message.info('已打开帮助文档：当前为 OA 工作台基础能力说明')}>
           帮助文档
         </Button>
@@ -57,7 +57,7 @@ export default function Topbar({ role, pageTitle, onRoleChange, onOpenAppearance
         >
           新建流程
         </Button>
-        <Button icon={<FileTextOutlined />} onClick={() => message.success('已生成看板导出任务，当前为 mock 演示')}>
+        <Button icon={<FileTextOutlined />} onClick={() => message.warning('真实导出能力尚未接入')}>
           导出看板
         </Button>
       </Space>
