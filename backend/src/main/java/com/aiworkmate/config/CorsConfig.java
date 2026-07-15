@@ -22,6 +22,8 @@ public class CorsConfig {
         // SSE 需要长连接支持
         config.addExposedHeader("Content-Type");
         config.addExposedHeader("Cache-Control");
+        config.addExposedHeader(RequestTraceFilter.REQUEST_ID_HEADER);
+        config.addExposedHeader(RequestTraceFilter.TRACE_ID_HEADER);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);

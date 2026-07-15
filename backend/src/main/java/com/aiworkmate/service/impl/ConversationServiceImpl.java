@@ -1,6 +1,7 @@
 package com.aiworkmate.service.impl;
 
 import com.aiworkmate.common.BusinessException;
+import com.aiworkmate.common.ErrorCode;
 import com.aiworkmate.dto.ConversationResponse;
 import com.aiworkmate.dto.MessageResponse;
 import com.aiworkmate.entity.Conversation;
@@ -10,7 +11,6 @@ import com.aiworkmate.mapper.MessageMapper;
 import com.aiworkmate.service.ConversationService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -57,7 +57,7 @@ public class ConversationServiceImpl implements ConversationService {
                         .eq(Conversation::getUserId, userId)
         );
         if (count == 0) {
-            throw new BusinessException(HttpStatus.FORBIDDEN, "无权访问该对话");
+            throw new BusinessException(ErrorCode.RESOURCE_FORBIDDEN, "无权访问该对话");
         }
     }
 

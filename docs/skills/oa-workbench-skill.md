@@ -168,7 +168,8 @@ AI Drawer 必须包含：
 AI 计划生成：
 
 - 调用 `POST /api/ai/tasks/plan`。
-- 请求字段：`input`、`pageId`、`role`。
+- 请求字段：`input`、`pageId`；禁止发送可信 `role`、`tenantId` 或权限声明。
+- 请求必须携带 JWT，角色与权限由服务端认证上下文重建。
 - 成功后使用 `Steps` 渲染后端返回步骤。
 - 失败时不得 fallback mock；必须展示后端错误或能力不可用提示。
 
@@ -194,7 +195,7 @@ AI 确认执行：
 - 禁止返回确定性 mock 数据或伪造执行成功。
 - 没有 `AI_API_KEY` 或真实业务依赖不可用时，必须返回可解释失败。
 - 高风险动作必须完成二次确认、权限校验和审计记录后才能执行。
-- `SecurityConfig` 仅放行 `/api/system/**` 与 `/api/ai/tasks/**`，不要放开全部接口。
+- `SecurityConfig` 仅公开 `/api/system/**`；`/api/ai/tasks/**` 必须认证，不要放开全部接口。
 
 ## 验证清单
 

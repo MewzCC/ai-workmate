@@ -24,6 +24,7 @@ import java.util.List;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private static final String BEARER_PREFIX = "Bearer ";
+    public static final String AUTH_ERROR_ATTRIBUTE = JwtAuthenticationFilter.class.getName() + ".AUTH_ERROR";
 
     private final JwtUtil jwtUtil;
 
@@ -40,7 +41,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private void authenticate(HttpServletRequest request, String token) {
         try {
-            if (!jwtUtil.validateToken(token)) {
+            JwtValidationStatus validationStatus = jwtUtil.validateTokenStatus(token);
+            if (validationStatus != JwtValidationStatus.VALID) {
+                request.setAttribute(AUTH_ERROR_ATTRIBUTE, validationStatus);
                 return;
             }
 
@@ -57,6 +60,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
             SecurityContextHolder.getContext().setAuthentication(authentication);
         } catch (Exception ex) {
+            request.setAttribute(AUTH_ERROR_ATTRIBUTE, JwtValidationStatus.INVALID);
             if (log.isDebugEnabled()) {
                 log.debug("JWT authentication failed: {}", ex.getMessage());
             }

@@ -145,11 +145,11 @@ export default function Dashboard({ role, pageId, pageTitle, primaryColor, audit
           <Typography.Text type="secondary">Enterprise OA Workspace</Typography.Text>
           <Typography.Title level={2}>企业运营总览</Typography.Title>
           <Typography.Paragraph>
-            企业级 OA 工作台，支持审批、财务、人事、资产、联调和 AI 操作。当前数据为前端 mock，AI 计划和执行走后端 mock 接口。
+            企业级 OA 工作台，支持审批、财务、人事、资产、联调和 AI 操作。看板当前为演示数据，AI 计划和执行仅调用后端真实能力。
           </Typography.Paragraph>
         </div>
         <Space wrap>
-          <PermissionButton role={role} menuId="dashboard" action="export" icon={<BarChartOutlined />} onClick={() => message.success('已生成看板导出任务')}>
+          <PermissionButton role={role} menuId="dashboard" action="export" icon={<BarChartOutlined />} onClick={() => message.warning('真实导出能力尚未接入')}>
             导出看板
           </PermissionButton>
           <Button icon={<AuditOutlined />} onClick={() => message.info('指标配置面板将在下一阶段接入')}>
@@ -241,9 +241,9 @@ export default function Dashboard({ role, pageId, pageTitle, primaryColor, audit
           bordered
           column={{ xs: 1, md: 3 }}
           items={[
-            { key: 'backend', label: '后端接口', children: 'System / AI Tasks Mock' },
+            { key: 'backend', label: '后端接口', children: 'System / AI Tasks（JWT）' },
             { key: 'charts', label: '图表引擎', children: 'ECharts' },
-            { key: 'permissions', label: '权限模型', children: '前端 RBAC Mock' },
+            { key: 'permissions', label: '权限模型', children: '前端权限演示，后端鉴权优先' },
           ]}
         />
         <Progress percent={86} strokeColor={primaryColor} className="oa-health-progress" />

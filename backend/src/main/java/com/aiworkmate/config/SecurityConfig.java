@@ -1,7 +1,9 @@
 package com.aiworkmate.config;
 
 import com.aiworkmate.common.Result;
+import com.aiworkmate.common.ErrorCode;
 import com.aiworkmate.security.JwtAuthenticationFilter;
+import com.aiworkmate.security.JwtValidationStatus;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -42,15 +44,14 @@ public class SecurityConfig {
                 .exceptionHandling(handler -> handler
                         .authenticationEntryPoint((request, response, ex) ->
                                 writeJson(response, HttpServletResponse.SC_UNAUTHORIZED,
-                                        Result.error(401, "未登录或登录已过期")))
+                                        Result.error(resolveAuthenticationError(request))))
                         .accessDeniedHandler((request, response, ex) ->
                                 writeJson(response, HttpServletResponse.SC_FORBIDDEN,
-                                        Result.error(403, "权限不足")))
+                                        Result.error(ErrorCode.PERMISSION_DENIED)))
                 )
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/system/**").permitAll()
-                        .requestMatchers("/api/ai/tasks/**").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .anyRequest().authenticated()
                 )
@@ -69,5 +70,16 @@ public class SecurityConfig {
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         objectMapper.writeValue(response.getWriter(), result);
+    }
+
+    private ErrorCode resolveAuthenticationError(jakarta.servlet.http.HttpServletRequest request) {
+        Object status = request.getAttribute(JwtAuthenticationFilter.AUTH_ERROR_ATTRIBUTE);
+        if (status == JwtValidationStatus.EXPIRED) {
+            return ErrorCode.AUTH_TOKEN_EXPIRED;
+        }
+        if (status == JwtValidationStatus.INVALID) {
+            return ErrorCode.AUTH_TOKEN_INVALID;
+        }
+        return ErrorCode.AUTH_REQUIRED;
     }
 }

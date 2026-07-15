@@ -110,20 +110,30 @@ export async function* chatStream(request: ChatRequest): AsyncGenerator<string> 
 
     buffer += decoder.decode(value, { stream: true });
 
-    // 解析 SSE data 行
-    const lines = buffer.split('\n');
-    buffer = lines.pop() || '';
+    const blocks = buffer.split(/\r?\n\r?\n/);
+    buffer = blocks.pop() || '';
 
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (trimmed.startsWith('data:')) {
-        const data = trimmed.slice(5).trim();
-        if (data && data !== '[DONE]') {
-          yield data;
-        }
+    for (const block of blocks) {
+      const dataLine = block.split(/\r?\n/).find((line) => line.startsWith('data:'));
+      if (!dataLine) continue;
+      const raw = dataLine.slice(5).trim();
+      const event = JSON.parse(raw) as ChatSseEvent;
+      if (event.type === 'delta' && event.data) yield event.data;
+      if (event.type === 'error') {
+        const trace = event.traceId ? `（追踪号：${event.traceId}）` : '';
+        throw new Error(`${event.data || 'AI 对话服务暂时不可用'}${trace}`);
       }
+      if (event.type === 'done') return;
     }
   }
+}
+
+interface ChatSseEvent {
+  type: 'delta' | 'error' | 'done';
+  data: string | null;
+  errorCode: string | null;
+  requestId: string;
+  traceId: string;
 }
 
 /**

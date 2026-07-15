@@ -106,7 +106,7 @@ docker compose -f docker-compose.yml up -d
 ### 后端
 
 - `backend/src/main/java/com/aiworkmate/config`：配置类。
-- `backend/src/main/java/com/aiworkmate/config/SecurityConfig.java`：安全配置；仅按规则放行 `/api/system/**` 与 `/api/ai/tasks/**`，不得放开全部接口。
+- `backend/src/main/java/com/aiworkmate/config/SecurityConfig.java`：安全配置；仅公开 `/api/auth/**`、`/api/system/**` 与 OPTIONS，`/api/ai/tasks/**` 必须认证。
 - `backend/src/main/java/com/aiworkmate/controller`：REST/SSE 入口。
 - `backend/src/main/java/com/aiworkmate/controller/SystemController.java`：`GET /api/system/health`。
 - `backend/src/main/java/com/aiworkmate/controller/AiTaskController.java`：`POST /api/ai/tasks/plan`、`POST /api/ai/tasks/execute`。

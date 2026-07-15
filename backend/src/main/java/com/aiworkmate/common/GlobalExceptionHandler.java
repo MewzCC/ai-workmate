@@ -25,30 +25,33 @@ public class GlobalExceptionHandler {
         String msg = ex.getBindingResult().getFieldErrors().stream()
                 .map(FieldError::getDefaultMessage)
                 .collect(Collectors.joining(", "));
-        return Result.error(400, msg);
+        return Result.error(ErrorCode.REQUEST_INVALID, msg);
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public Result<Void> handleIllegalArgument(IllegalArgumentException ex) {
-        return Result.error(400, ex.getMessage());
+        return Result.error(ErrorCode.REQUEST_INVALID, ex.getMessage());
     }
 
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<Result<Void>> handleBusiness(BusinessException ex) {
-        return ResponseEntity.status(ex.getStatus()).body(Result.error(ex.getCode(), ex.getMessage()));
+        Result<Void> result = ex.getErrorCode() == null
+                ? Result.error(ex.getCode(), ex.getMessage())
+                : new Result<>(ex.getCode(), ex.getErrorCode(), ex.getMessage(), null);
+        return ResponseEntity.status(ex.getStatus()).body(result);
     }
 
     @ExceptionHandler(AccessDeniedException.class)
     @ResponseStatus(HttpStatus.FORBIDDEN)
     public Result<Void> handleAccessDenied(AccessDeniedException ex) {
-        return Result.error(403, "权限不足");
+        return Result.error(ErrorCode.PERMISSION_DENIED);
     }
 
     @ExceptionHandler(Exception.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public Result<Void> handleException(Exception ex) {
         log.error("Unexpected error", ex);
-        return Result.error(500, "Internal server error");
+        return Result.error(ErrorCode.SYSTEM_ERROR);
     }
 }

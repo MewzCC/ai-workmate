@@ -66,7 +66,6 @@ export interface AiPlanStep {
 export interface AiTaskPlanRequest {
   input: string;
   pageId: string;
-  role: OaRole;
 }
 
 export interface AiTaskPlanResponse {
@@ -80,7 +79,6 @@ export interface AiTaskPlanResponse {
 
 export interface AiTaskExecuteRequest {
   taskId: string;
-  type: AiTaskType;
   confirm: boolean;
 }
 
