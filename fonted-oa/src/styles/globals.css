@@ -2926,15 +2926,34 @@
 }
 
 .oa-shell {
+  position: relative;
+  isolation: isolate;
   min-height: 100vh;
   background-color: var(--oa-surface, #f4f7fb);
-  background-position: center;
-  background-size: cover;
   color: var(--oa-text, #111827);
 }
 
+.oa-wallpaper-layer {
+  position: fixed;
+  inset: -24px;
+  z-index: 0;
+  pointer-events: none;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+  transform: scale(1.025);
+  transform-origin: center;
+  will-change: filter, opacity;
+}
+
 .oa-layout {
+  position: relative;
+  z-index: 1;
   min-height: 100vh;
+  background: transparent;
+}
+
+.oa-has-wallpaper .oa-layout .ant-layout {
   background: transparent;
 }
 
@@ -2947,6 +2966,14 @@
   background: var(--oa-sidebar, #0f1f3d) !important;
   box-shadow: 8px 0 28px rgba(15, 31, 61, 0.14);
   z-index: 50;
+}
+
+.oa-has-wallpaper .oa-sider {
+  background: color-mix(in srgb, var(--oa-sidebar, #0f1f3d) 72%, transparent) !important;
+  border-right: 1px solid color-mix(in srgb, var(--oa-sider-text, #d7e7ff) 16%, transparent);
+  box-shadow: 10px 0 34px rgba(15, 23, 42, 0.16);
+  -webkit-backdrop-filter: blur(24px) saturate(1.18);
+  backdrop-filter: blur(24px) saturate(1.18);
 }
 
 .oa-sider:hover {
@@ -3051,6 +3078,12 @@
   z-index: 20;
 }
 
+.oa-has-wallpaper .oa-header {
+  background: color-mix(in srgb, var(--oa-header, #ffffff) 68%, transparent);
+  -webkit-backdrop-filter: blur(22px) saturate(1.14);
+  backdrop-filter: blur(22px) saturate(1.14);
+}
+
 .oa-header h1 {
   margin: 4px 0 0;
   font-size: 22px;
@@ -3083,6 +3116,14 @@
   box-shadow: 0 18px 50px rgba(15, 23, 42, 0.06);
 }
 
+.oa-has-wallpaper .oa-page-title,
+.oa-has-wallpaper .oa-card {
+  background: color-mix(in srgb, var(--oa-card, #ffffff) 68%, transparent) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(1.12);
+  backdrop-filter: blur(20px) saturate(1.12);
+  box-shadow: 0 16px 44px rgba(15, 23, 42, 0.09);
+}
+
 .oa-page-title h2 {
   margin: 4px 0 8px !important;
 }
@@ -3097,6 +3138,101 @@
   background: var(--oa-card, #ffffff) !important;
   color: var(--oa-text, #111827);
   box-shadow: 0 14px 40px rgba(15, 23, 42, 0.06);
+}
+
+.oa-has-wallpaper .ant-table,
+.oa-has-wallpaper .ant-table-container,
+.oa-has-wallpaper .ant-table-thead > tr > th,
+.oa-has-wallpaper .ant-table-tbody > tr > td,
+.oa-has-wallpaper .ant-descriptions-view {
+  background: transparent !important;
+}
+
+.oa-has-wallpaper .ant-table-tbody > tr:hover > td {
+  background: color-mix(in srgb, var(--oa-card, #ffffff) 44%, transparent) !important;
+}
+
+.oa-wallpaper-active .ant-drawer-mask {
+  background: rgba(15, 23, 42, 0.2) !important;
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+}
+
+.oa-wallpaper-active .ant-drawer-content {
+  background: color-mix(in srgb, var(--oa-card, #ffffff) 72%, transparent) !important;
+  border-left: 1px solid var(--oa-border, rgba(15, 23, 42, 0.08));
+  -webkit-backdrop-filter: blur(26px) saturate(1.16);
+  backdrop-filter: blur(26px) saturate(1.16);
+}
+
+.oa-wallpaper-active .ant-drawer-header,
+.oa-wallpaper-active .ant-drawer-body {
+  background: transparent !important;
+}
+
+.oa-wallpaper-heading {
+  width: 100%;
+  justify-content: space-between;
+}
+
+.oa-wallpaper-heading .ant-typography {
+  margin: 0 !important;
+}
+
+.oa-wallpaper-preview {
+  width: 100%;
+  min-height: 176px;
+  margin-bottom: 14px;
+  overflow: hidden;
+  border: 1px solid var(--oa-border, rgba(15, 23, 42, 0.08));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--oa-card, #ffffff) 72%, transparent);
+}
+
+.oa-wallpaper-preview .ant-spin-nested-loading,
+.oa-wallpaper-preview .ant-spin-container,
+.oa-wallpaper-preview .ant-image {
+  display: block;
+  width: 100%;
+  min-height: 174px;
+}
+
+.oa-wallpaper-preview .ant-image-img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+}
+
+.oa-wallpaper-preview .ant-empty {
+  margin: 0;
+  padding: 34px 16px 24px;
+}
+
+.oa-wallpaper-crop-stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  background: #16181d;
+}
+
+.oa-wallpaper-crop-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px 24px;
+  margin-top: 20px;
+}
+
+.oa-wallpaper-crop-controls > div {
+  min-width: 0;
+}
+
+.oa-wallpaper-crop-controls .ant-typography {
+  display: block;
+  margin-bottom: 8px;
 }
 
 .oa-stat-card .ant-statistic-title {
@@ -3205,6 +3341,10 @@
 }
 
 @media (max-width: 720px) {
+  .oa-wallpaper-crop-controls {
+    grid-template-columns: 1fr;
+  }
+
   .oa-sider {
     z-index: 40;
   }

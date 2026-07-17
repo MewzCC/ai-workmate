@@ -147,6 +147,10 @@ docker compose -f docker-compose.yml up -d
   - `workmeta-oa-wallpaper`
   - `workmeta-oa-wallpaper-opacity`
   - `workmeta-oa-wallpaper-blur`
+- 自定义壁纸必须使用固定底图层；启用后 Sider、Header、Card、Table 和 Drawer 统一切换为透明模糊材质，不能由不透明 Layout 截断。
+- 上传壁纸必须先在浏览器侧压缩，localStorage 写入失败时必须明确提示。
+- 外观 Drawer 使用 Ant Design `Image`、`Spin`、`Empty` 展示受控壁纸预览、处理态和空态；重新打开后预览不得丢失。
+- 壁纸上传后必须先通过 `react-easy-crop` 与 Ant Design `Modal` 进入裁剪流程，支持拖动定位、缩放、旋转、比例切换和重置；仅在用户确认后压缩并持久化裁剪结果。
 - 左侧 OA Sider 必须固定在视口左侧；页面滚动时不得跟随内容移动。
 - 左侧 Sider 滚动条默认隐藏，仅在鼠标移入侧栏时显示。
 

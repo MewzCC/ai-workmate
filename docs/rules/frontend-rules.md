@@ -90,6 +90,11 @@ OA 工作台业务 UI 必须使用真实 Ant Design 组件：
 - 黑夜风格承接营销官网夜间模式。
 - 所有 OA 组件必须适配主题：侧栏、顶部栏、卡片、表格、文字、边框、FloatButton、Drawer、ECharts。
 - 自定义换肤属于全局规则，新增或调整主题必须同步更新 `AGENTS.md` 与 `docs/skills/oa-workbench-skill.md`。
+- 自定义壁纸使用独立固定底图层；Sider、Header、内容卡片、Table 和 Drawer 在壁纸模式下统一使用透明玻璃材质。
+- 壁纸上传必须在浏览器侧压缩后写入既有 localStorage key，写入失败必须提示用户。
+- 壁纸上传区域使用 Ant Design `Image`、`Spin`、`Empty` 呈现受控预览、处理态和空态，重新打开 Drawer 时必须保留预览。
+- 上传图片必须先进入基于 `react-easy-crop` 的 Ant Design 裁剪弹窗，提供拖动定位、缩放、旋转、比例切换、重置和确认操作；不得在用户确认前替换当前壁纸。
+- 原始图片仅用于当前浏览器裁剪会话，结束后释放临时 URL；localStorage 只存储经过裁剪和压缩的 WebP 结果。
 
 ## 状态与请求
 

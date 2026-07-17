@@ -170,11 +170,8 @@ export default function AdminLayout({ initialPageId = 'dashboard' }: AdminLayout
   }, [aiMiniEnabled]);
 
   useEffect(() => {
-    if (wallpaper) {
-      window.localStorage.setItem('workmeta-oa-wallpaper', wallpaper);
-    } else {
-      window.localStorage.removeItem('workmeta-oa-wallpaper');
-    }
+    document.documentElement.classList.toggle('oa-wallpaper-active', Boolean(wallpaper));
+    return () => document.documentElement.classList.remove('oa-wallpaper-active');
   }, [wallpaper]);
 
   useEffect(() => {
@@ -208,13 +205,18 @@ export default function AdminLayout({ initialPageId = 'dashboard' }: AdminLayout
       }}
     >
       <AntApp>
-        <div
-          className={`oa-shell ${collapsed ? 'oa-shell-collapsed' : ''}`}
-          style={wallpaper ? {
-            backgroundImage: `linear-gradient(rgba(255,255,255,${1 - wallpaperOpacity}), rgba(255,255,255,${1 - wallpaperOpacity})), url(${wallpaper})`,
-            backdropFilter: `blur(${wallpaperBlur}px)`,
-          } : undefined}
-        >
+        <div className={`oa-shell ${collapsed ? 'oa-shell-collapsed' : ''} ${wallpaper ? 'oa-has-wallpaper' : ''}`}>
+          {wallpaper && (
+            <div
+              className="oa-wallpaper-layer"
+              aria-hidden="true"
+              style={{
+                backgroundImage: `url(${wallpaper})`,
+                filter: `blur(${wallpaperBlur}px)`,
+                opacity: wallpaperOpacity,
+              }}
+            />
+          )}
           <Layout className="oa-layout">
             <SidebarMenu
               role={role}
@@ -267,6 +269,7 @@ export default function AdminLayout({ initialPageId = 'dashboard' }: AdminLayout
             themes={themes}
             currentTheme={currentTheme.name}
             aiMiniEnabled={aiMiniEnabled}
+            wallpaper={wallpaper}
             wallpaperOpacity={wallpaperOpacity}
             wallpaperBlur={wallpaperBlur}
             onClose={() => setAppearanceOpen(false)}
