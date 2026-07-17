@@ -103,6 +103,13 @@ OA 工作台业务 UI 必须使用真实 Ant Design 组件：
   - `workmeta-oa-wallpaper`
   - `workmeta-oa-wallpaper-opacity`
   - `workmeta-oa-wallpaper-blur`
+- 自定义壁纸必须位于固定底层，不得直接设置在布局容器上。
+- 壁纸启用后，Sider、Header、Card、Table 和 Ant Design Drawer 必须使用透明背景与 `backdrop-filter`，不能出现不透明区域截断壁纸。
+- 本地上传图片必须压缩后再持久化，存储失败要明确提示，禁止静默丢失。
+- 外观 Drawer 必须使用 Ant Design `Image` 展示当前壁纸缩略图并支持大图预览，同时提供处理态、空态和清除态。
+- 壁纸上传采用 `react-easy-crop`，并使用 Ant Design `Modal`、`Segmented`、`Slider` 和 `Button` 组成裁剪工作区。
+- 裁剪必须支持图片拖动定位、缩放、旋转、16:9/4:3/1:1 比例切换、重置与二次裁剪；确认前不得修改当前壁纸。
+- 裁剪会话结束后释放原图临时 URL，仅将压缩后的 WebP 裁剪结果写入 localStorage。
 - 内置主题必须包含：
   - 企业蓝
   - 深青绿
