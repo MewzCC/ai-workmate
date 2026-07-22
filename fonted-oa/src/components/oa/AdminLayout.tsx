@@ -12,6 +12,7 @@ import Topbar from './Topbar';
 import AppearanceDrawer from './AppearanceDrawer';
 import AIOperationDrawer from './AIOperationDrawer';
 import AiMiniPanel from './AiMiniPanel';
+import AiChatWorkspace from '@/components/ai-chat/AiChatWorkspace';
 
 const { Content } = Layout;
 
@@ -153,6 +154,10 @@ export default function AdminLayout({ initialPageId = 'dashboard' }: AdminLayout
   }, [initialPageId, role]);
 
   useEffect(() => {
+    document.title = `AI WorkMate OA - ${selectedMenu.name}`;
+  }, [selectedMenu.name]);
+
+  useEffect(() => {
     document.documentElement.style.setProperty('--oa-primary', currentTheme.primary);
     document.documentElement.style.setProperty('--oa-sidebar', currentTheme.sidebar);
     document.documentElement.style.setProperty('--oa-sider-text', currentTheme.siderText);
@@ -205,7 +210,7 @@ export default function AdminLayout({ initialPageId = 'dashboard' }: AdminLayout
       }}
     >
       <AntApp>
-        <div className={`oa-shell ${collapsed ? 'oa-shell-collapsed' : ''} ${wallpaper ? 'oa-has-wallpaper' : ''}`}>
+        <div className={`oa-shell ${collapsed ? 'oa-shell-collapsed' : ''} ${wallpaper ? 'oa-has-wallpaper' : ''} ${selectedMenu.id === 'ai-workspace' ? 'oa-chat-page' : ''}`}>
           {wallpaper && (
             <div
               className="oa-wallpaper-layer"
@@ -240,29 +245,33 @@ export default function AdminLayout({ initialPageId = 'dashboard' }: AdminLayout
                 onOpenAppearance={() => setAppearanceOpen(true)}
                 onOpenAi={openAi}
               />
-              <Content className="oa-content">
-                <Dashboard
-                  role={role}
-                  pageId={selectedMenu.id}
-                  pageTitle={selectedMenu.name}
-                  primaryColor={currentTheme.primary}
-                  auditItems={auditItems}
-                  onOpenAi={openAi}
-                  onAddAudit={addAudit}
-                />
+              <Content className={`oa-content ${selectedMenu.id === 'ai-workspace' ? 'oa-chat-content' : ''}`}>
+                {selectedMenu.id === 'ai-workspace' ? (
+                  <AiChatWorkspace role={role} />
+                ) : (
+                  <Dashboard
+                    role={role}
+                    pageId={selectedMenu.id}
+                    pageTitle={selectedMenu.name}
+                    primaryColor={currentTheme.primary}
+                    auditItems={auditItems}
+                    onOpenAi={openAi}
+                    onAddAudit={addAudit}
+                  />
+                )}
               </Content>
             </Layout>
           </Layout>
 
-          <FloatButton
+          {selectedMenu.id !== 'ai-workspace' && <FloatButton
             type="primary"
             icon={<RobotOutlined />}
             description="AI"
             tooltip="打开 AI 操作面板"
             onClick={() => openAi()}
-          />
+          />}
 
-          {aiMiniEnabled && <AiMiniPanel onOpenAi={openAi} />}
+          {aiMiniEnabled && selectedMenu.id !== 'ai-workspace' && <AiMiniPanel onOpenAi={openAi} />}
 
           <AppearanceDrawer
             open={appearanceOpen}
@@ -280,7 +289,7 @@ export default function AdminLayout({ initialPageId = 'dashboard' }: AdminLayout
             onWallpaperBlurChange={setWallpaperBlur}
           />
 
-          <AIOperationDrawer
+          {selectedMenu.id !== 'ai-workspace' && <AIOperationDrawer
             open={aiOpen}
             role={role}
             pageId={selectedMenu.id}
@@ -288,7 +297,7 @@ export default function AdminLayout({ initialPageId = 'dashboard' }: AdminLayout
             initialPrompt={aiPrompt}
             onClose={() => setAiOpen(false)}
             onExecuted={addAudit}
-          />
+          />}
         </div>
       </AntApp>
     </ConfigProvider>

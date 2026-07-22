@@ -14,8 +14,9 @@ export const oaMenus: OaMenuItem[] = [
     roles: [...allRoles],
     children: [
       { id: 'dashboard', parentId: 'workspace', name: '企业驾驶舱', type: 'page', sort: 1, visible: true, roles: [...allRoles], actions: ['read', 'export', 'ai_execute'] },
-      { id: 'todo', parentId: 'workspace', name: '我的待办', type: 'page', sort: 2, visible: true, roles: [...allRoles], actions: ['read', 'approve'] },
-      { id: 'messages', parentId: 'workspace', name: '消息中心', type: 'page', sort: 3, visible: true, roles: [...allRoles], actions: ['read'] },
+      { id: 'ai-workspace', parentId: 'workspace', name: 'AI 工作空间', type: 'page', icon: 'RobotOutlined', sort: 2, visible: true, roles: [...allRoles], actions: ['read'] },
+      { id: 'todo', parentId: 'workspace', name: '我的待办', type: 'page', sort: 3, visible: true, roles: [...allRoles], actions: ['read', 'approve'] },
+      { id: 'messages', parentId: 'workspace', name: '消息中心', type: 'page', sort: 4, visible: true, roles: [...allRoles], actions: ['read'] },
     ],
   },
   {

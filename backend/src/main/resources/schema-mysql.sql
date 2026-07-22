@@ -38,9 +38,27 @@ CREATE TABLE IF NOT EXISTS message (
     conversation_id BIGINT       NOT NULL,
     role            VARCHAR(20)  NOT NULL,
     content         TEXT         NOT NULL,
+    status          VARCHAR(20)  NOT NULL DEFAULT 'success',
+    feedback        VARCHAR(20),
     token_count     INT          DEFAULT 0,
     created_at      DATETIME     DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_msg_conv_id (conversation_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS attachment (
+    id              BIGINT       AUTO_INCREMENT PRIMARY KEY,
+    user_id         BIGINT       NOT NULL,
+    conversation_id BIGINT       NOT NULL,
+    message_id      BIGINT,
+    type            VARCHAR(20)  NOT NULL,
+    name            VARCHAR(255) NOT NULL,
+    storage_name    VARCHAR(100) NOT NULL UNIQUE,
+    size            BIGINT       NOT NULL,
+    mime_type       VARCHAR(150) NOT NULL,
+    extracted_text  LONGTEXT,
+    created_at      DATETIME     DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_attachment_user_conv (user_id, conversation_id),
+    INDEX idx_attachment_message (message_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- 知识库文档表

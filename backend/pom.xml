@@ -23,6 +23,7 @@
         <mybatis-plus.version>3.5.7</mybatis-plus.version>
         <spring-ai.version>1.0.0</spring-ai.version>
         <jjwt.version>0.12.6</jjwt.version>
+        <tika.version>3.3.1</tika.version>
     </properties>
 
     <dependencyManagement>
@@ -74,6 +75,18 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
+
+        <!-- 文件类型检测与 PDF/Office/文本解析 -->
+        <dependency>
+            <groupId>org.apache.tika</groupId>
+            <artifactId>tika-core</artifactId>
+            <version>${tika.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.tika</groupId>
+            <artifactId>tika-parsers-standard-package</artifactId>
+            <version>${tika.version}</version>
         </dependency>
 
         <!-- JWT -->

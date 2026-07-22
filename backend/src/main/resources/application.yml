@@ -64,8 +64,15 @@ spring:
   # ========== 文件上传 ==========
   servlet:
     multipart:
-      max-file-size: 50MB
-      max-request-size: 100MB
+      max-file-size: 20MB
+      max-request-size: 22MB
+
+app:
+  upload:
+    directory: ${AI_UPLOAD_DIRECTORY:./data/chat-attachments}
+    image-max-bytes: 10485760
+    file-max-bytes: 20971520
+    extracted-text-max-chars: 120000
 
 # ========== JWT 配置 ==========
 jwt:

@@ -7,6 +7,7 @@ import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   SettingOutlined,
+  RobotOutlined,
 } from '@ant-design/icons';
 import { Button, Layout, Menu } from 'antd';
 import type { MenuProps } from 'antd';
@@ -20,6 +21,7 @@ const iconMap = {
   ApartmentOutlined: <ApartmentOutlined />,
   ApiOutlined: <ApiOutlined />,
   SettingOutlined: <SettingOutlined />,
+  RobotOutlined: <RobotOutlined />,
 };
 
 interface SidebarMenuProps {

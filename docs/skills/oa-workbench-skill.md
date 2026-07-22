@@ -156,7 +156,9 @@ OA 工作台业务 UI 必须使用真实 Ant Design 组件：
 
 ## AI 操作规范
 
-AI 主入口必须是 Ant Design `FloatButton`。
+AI 页面操作主入口必须是 Ant Design `FloatButton`。
+
+通用 AI Chat Workspace 是例外：它必须位于左侧菜单 `/oa/ai-workspace` 并占用独立页面，不使用 FloatButton、Drawer 或 AI MiniPanel；原页面操作助手继续遵循 FloatButton + plan/execute 规范。
 
 AI Drawer 必须包含：
 

@@ -151,6 +151,9 @@ docker compose -f docker-compose.yml up -d
 - 上传壁纸必须先在浏览器侧压缩，localStorage 写入失败时必须明确提示。
 - 外观 Drawer 使用 Ant Design `Image`、`Spin`、`Empty` 展示受控壁纸预览、处理态和空态；重新打开后预览不得丢失。
 - 壁纸上传后必须先通过 `react-easy-crop` 与 Ant Design `Modal` 进入裁剪流程，支持拖动定位、缩放、旋转、比例切换和重置；仅在用户确认后压缩并持久化裁剪结果。
+- AI Chat Workspace 固定使用 `/oa/ai-workspace` 独立页面，包含会话侧栏、消息阅读区和底部输入器；不得实现为 FloatButton、Drawer 或悬浮卡片。
+- Workspace 会话、消息和附件必须调用受 JWT 保护的后端接口，服务端按认证 userId 校验所有权；禁止使用前端角色或 localStorage 会话数据替代鉴权。
+- API Key 与 AI 网关地址只允许服务端环境变量配置，禁止从设置页读取、回显或持久化到浏览器。
 - 左侧 OA Sider 必须固定在视口左侧；页面滚动时不得跟随内容移动。
 - 左侧 Sider 滚动条默认隐藏，仅在鼠标移入侧栏时显示。
 

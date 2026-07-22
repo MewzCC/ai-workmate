@@ -6,6 +6,7 @@ public record ConversationResponse(
         Long id,
         String title,
         String model,
+        LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {
 }

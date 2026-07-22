@@ -18,6 +18,10 @@ public class Message {
 
     private String content;
 
+    private String status;
+
+    private String feedback;
+
     private Integer tokenCount;
 
     @TableField(fill = FieldFill.INSERT)
