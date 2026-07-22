@@ -32,10 +32,14 @@ public class ChatController {
         String traceId = TraceContext.traceId();
         Flux<ServerSentEvent<ChatStreamEvent>> stream = chatService.chatStream(
                 user.userId(),
+                user.role(),
                 request.getConversationId(),
                 request.getMessage(),
-                request.getModel()
-        ).map(chunk -> event("delta", ChatStreamEvent.delta(chunk, requestId, traceId)));
+                request.getModel(),
+                request.getAttachmentIds(),
+                request.getMaxContextRounds()
+        ).map(chunk -> event(chunk.type(), ChatStreamEvent.chunk(chunk.type(), chunk.data(),
+                chunk.messageId(), chunk.conversationId(), requestId, traceId)));
 
         return stream
                 .concatWithValues(event("done", ChatStreamEvent.done(requestId, traceId)))
@@ -52,9 +56,12 @@ public class ChatController {
                                @AuthenticationPrincipal AuthenticatedUser user) {
         String response = chatService.chat(
                 user.userId(),
+                user.role(),
                 request.getConversationId(),
                 request.getMessage(),
-                request.getModel()
+                request.getModel(),
+                request.getAttachmentIds(),
+                request.getMaxContextRounds()
         );
         return Result.ok(response);
     }

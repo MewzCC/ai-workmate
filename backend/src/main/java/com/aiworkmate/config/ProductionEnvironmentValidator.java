@@ -16,14 +16,17 @@ public class ProductionEnvironmentValidator implements InitializingBean {
     private final Environment environment;
     private final String jwtSecret;
     private final String databasePassword;
+    private final String aiApiKey;
 
     public ProductionEnvironmentValidator(
             Environment environment,
             @Value("${jwt.secret}") String jwtSecret,
-            @Value("${spring.datasource.password}") String databasePassword) {
+            @Value("${spring.datasource.password}") String databasePassword,
+            @Value("${spring.ai.openai.api-key}") String aiApiKey) {
         this.environment = environment;
         this.jwtSecret = jwtSecret;
         this.databasePassword = databasePassword;
+        this.aiApiKey = aiApiKey;
     }
 
     @Override
@@ -36,6 +39,9 @@ public class ProductionEnvironmentValidator implements InitializingBean {
         }
         if ("postgres".equals(databasePassword)) {
             throw new IllegalStateException("DB_PASSWORD must be configured for production");
+        }
+        if (aiApiKey == null || aiApiKey.isBlank() || "development-only-unconfigured".equals(aiApiKey)) {
+            throw new IllegalStateException("AI_API_KEY must be configured for production");
         }
     }
 }

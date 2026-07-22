@@ -16,7 +16,8 @@ class ProductionEnvironmentValidatorTest {
         var validator = new ProductionEnvironmentValidator(
                 new MockEnvironment().withProperty("spring.profiles.active", "prod"),
                 DEFAULT_SECRET,
-                "secure-password"
+                "secure-password",
+                "configured-ai-key"
         );
 
         assertThatThrownBy(validator::afterPropertiesSet)
@@ -29,9 +30,24 @@ class ProductionEnvironmentValidatorTest {
         var validator = new ProductionEnvironmentValidator(
                 new MockEnvironment().withProperty("spring.profiles.active", "dev"),
                 DEFAULT_SECRET,
-                "postgres"
+                "postgres",
+                "development-only-unconfigured"
         );
 
         assertThatCode(validator::afterPropertiesSet).doesNotThrowAnyException();
+    }
+
+    @Test
+    void shouldRejectMissingAiKeyInProduction() {
+        var validator = new ProductionEnvironmentValidator(
+                new MockEnvironment().withProperty("spring.profiles.active", "prod"),
+                "a-secure-random-jwt-secret-that-is-not-default",
+                "secure-password",
+                "development-only-unconfigured"
+        );
+
+        assertThatThrownBy(validator::afterPropertiesSet)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("AI_API_KEY");
     }
 }
