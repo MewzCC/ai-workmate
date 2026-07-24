@@ -1,35 +1,44 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Drawer, message } from 'antd';
-import { ChatApiError } from '@/lib/chatApi';
+import { Button, Drawer, Tooltip, message } from 'antd';
+import { MenuUnfoldOutlined, PlusOutlined, SettingOutlined } from '@ant-design/icons';
 import { useAiChatStore } from '@/store/aiChatStore';
 import type { OaRole } from '@/types/oa';
+import type { AiModelId } from '@/config/aiModels';
 import ChatSidebar from './ChatSidebar';
 import ChatWindow from './ChatWindow';
 import SettingsDialog from './SettingsDialog';
-import WorkspaceAuthGate from './WorkspaceAuthGate';
 
-interface AiChatWorkspaceProps { role: OaRole; }
+const SIDEBAR_COLLAPSED_KEY = 'workmeta-ai-chat-sidebar-collapsed';
+
+interface AiChatWorkspaceProps {
+  role: OaRole;
+}
 
 export default function AiChatWorkspace({ role }: AiChatWorkspaceProps) {
   const store = useAiChatStore();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [mobileSessionsOpen, setMobileSessionsOpen] = useState(false);
-  const [authenticated, setAuthenticated] = useState(() => typeof window !== 'undefined' && Boolean(localStorage.getItem('token')));
-  const active = useMemo(() => store.conversations.find((item) => item.id === store.activeId), [store.activeId, store.conversations]);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const active = useMemo(
+    () => store.conversations.find((item) => item.id === store.activeId),
+    [store.activeId, store.conversations],
+  );
 
   useEffect(() => {
-    if (!authenticated) return;
+    setSidebarCollapsed(localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true');
     store.loadConversations().catch((error) => {
-      if (error instanceof ChatApiError && error.status === 401) setAuthenticated(false);
-      else message.error(error instanceof Error ? error.message : '会话加载失败');
+      message.error(error instanceof Error ? error.message : '会话加载失败');
     });
   // Store actions are stable in Zustand.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authenticated]);
+  }, []);
 
-  if (!authenticated) return <WorkspaceAuthGate onAuthenticated={() => setAuthenticated(true)} />;
+  const updateSidebarCollapsed = (collapsed: boolean) => {
+    localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(collapsed));
+    setSidebarCollapsed(collapsed);
+  };
 
   const sidebar = (
     <ChatSidebar
@@ -38,19 +47,51 @@ export default function AiChatWorkspace({ role }: AiChatWorkspaceProps) {
       loading={store.loading}
       onSearch={store.loadConversations}
       onNew={() => store.newConversation()}
-      onSelect={(id) => { store.selectConversation(id); setMobileSessionsOpen(false); }}
+      onSelect={(id) => {
+        store.selectConversation(id);
+        setMobileSessionsOpen(false);
+      }}
       onRename={store.rename}
       onDelete={store.remove}
       onSettings={() => setSettingsOpen(true)}
+      onCollapse={() => updateSidebarCollapsed(true)}
     />
   );
 
   return (
-    <div className="ai-workspace" data-role={role}>
-      <div className="ai-desktop-sidebar">{sidebar}</div>
+    <div
+      className={`ai-workspace ${sidebarCollapsed ? 'ai-workspace-sidebar-collapsed' : ''}`}
+      data-role={role}
+    >
+      <div className="ai-desktop-sidebar">
+        {sidebarCollapsed ? (
+          <aside className="ai-chat-sidebar-rail" aria-label="会话栏快捷操作">
+            <Tooltip title="展开会话栏" placement="right">
+              <Button
+                type="text"
+                icon={<MenuUnfoldOutlined />}
+                aria-label="展开会话栏"
+                onClick={() => updateSidebarCollapsed(false)}
+              />
+            </Tooltip>
+            <Tooltip title="新建聊天" placement="right">
+              <Button type="text" icon={<PlusOutlined />} aria-label="新建聊天" onClick={() => void store.newConversation()} />
+            </Tooltip>
+            <Tooltip title="设置" placement="right">
+              <Button
+                className="ai-sidebar-rail-settings"
+                type="text"
+                icon={<SettingOutlined />}
+                aria-label="设置"
+                onClick={() => setSettingsOpen(true)}
+              />
+            </Tooltip>
+          </aside>
+        ) : sidebar}
+      </div>
       <ChatWindow
         title={active?.title || '新对话'}
-        model={active?.model || store.settings.model}
+        model={store.settings.model}
         messages={store.activeId ? store.messagesByConversation[store.activeId] || [] : []}
         pending={store.activeId ? store.pendingAttachments[store.activeId] || [] : []}
         generating={store.activeId ? store.generatingIds.includes(store.activeId) : false}
@@ -65,9 +106,29 @@ export default function AiChatWorkspace({ role }: AiChatWorkspaceProps) {
           store.send(content);
         }}
         onStop={() => store.activeId && store.stop(store.activeId)}
+        onModelChange={(model: AiModelId) => store.updateSettings({ ...store.settings, model })}
       />
-      <Drawer title="历史会话" placement="left" width={320} open={mobileSessionsOpen} onClose={() => setMobileSessionsOpen(false)}>
-        {sidebar}
+      <Drawer
+        title="历史会话"
+        placement="left"
+        width={320}
+        open={mobileSessionsOpen}
+        onClose={() => setMobileSessionsOpen(false)}
+      >
+        <ChatSidebar
+          conversations={store.conversations}
+          activeId={store.activeId}
+          loading={store.loading}
+          onSearch={store.loadConversations}
+          onNew={() => store.newConversation()}
+          onSelect={(id) => {
+            store.selectConversation(id);
+            setMobileSessionsOpen(false);
+          }}
+          onRename={store.rename}
+          onDelete={store.remove}
+          onSettings={() => setSettingsOpen(true)}
+        />
       </Drawer>
       <SettingsDialog
         open={settingsOpen}

@@ -1,6 +1,8 @@
 spring:
   application:
     name: ai-workmate
+  config:
+    import: optional:file:.env[.properties],optional:file:../.env[.properties]
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:dev}
 
@@ -17,10 +19,9 @@ spring:
   # ========== Redis ==========
   data:
     redis:
-      host: localhost
-      port: 6379
+      url: ${REDIS_URL:redis://localhost:6379}
       password: ${REDIS_PASSWORD:}
-      database: 0
+      database: ${REDIS_DATABASE:0}
       timeout: 3000ms
       lettuce:
         pool:
@@ -30,10 +31,13 @@ spring:
 
   # ========== Mail ==========
   mail:
-    host: ${MAIL_HOST:localhost}
-    port: ${MAIL_PORT:25}
-    username: ${MAIL_USERNAME:}
-    password: ${MAIL_PASSWORD:}
+    host: ${SMTP_HOST:}
+    port: ${SMTP_PORT:465}
+    username: ${SMTP_USERNAME:}
+    password: ${SMTP_PASSWORD:}
+    properties:
+      mail.smtp.auth: true
+      mail.smtp.ssl.enable: true
 
   # ========== MyBatis-Plus ==========
   mybatis-plus:
@@ -68,16 +72,32 @@ spring:
       max-request-size: 22MB
 
 app:
+  auth:
+    cookie-name: ${AUTH_COOKIE_NAME:oa_session}
+    session-ttl: ${AUTH_SESSION_TTL:86400}
+    email-code-ttl: ${EMAIL_CODE_TTL:300}
+    email-code-cooldown: ${EMAIL_CODE_COOLDOWN:60}
+    email-code-hourly-limit: ${EMAIL_CODE_HOURLY_LIMIT:5}
+    email-code-daily-limit: ${EMAIL_CODE_DAILY_LIMIT:10}
+    email-code-max-attempts: ${EMAIL_CODE_MAX_ATTEMPTS:5}
+    captcha-ttl: ${CAPTCHA_TTL:180}
+    login-max-failures: ${LOGIN_MAX_FAILURES:5}
+    login-lock-seconds: ${LOGIN_LOCK_SECONDS:900}
+    cookie-secure: ${AUTH_COOKIE_SECURE:false}
+    mail-from-name: ${SMTP_FROM_NAME:AI WorkMate}
+    mail-from-email: ${SMTP_FROM_EMAIL:}
   upload:
     directory: ${AI_UPLOAD_DIRECTORY:./data/chat-attachments}
     image-max-bytes: 10485760
     file-max-bytes: 20971520
     extracted-text-max-chars: 120000
+  profile:
+    avatar-directory: ${USER_AVATAR_DIRECTORY:./data/user-avatars}
+    avatar-max-bytes: 2097152
 
 # ========== JWT 配置 ==========
 jwt:
   secret: ${JWT_SECRET:YWktd29ya21hdGUtand0LXNlY3JldC1rZXktcGxlYXNlLWNoYW5nZS1pbi1wcm9kdWN0aW9u}
-  expiration: 86400000  # 24小时
 
 # ========== 服务端口 ==========
 server:

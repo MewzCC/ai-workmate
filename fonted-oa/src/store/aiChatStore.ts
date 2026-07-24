@@ -7,9 +7,12 @@ import {
   renameConversation, sendChat, streamChat, uploadAttachment,
 } from '@/lib/chatApi';
 import type { ChatAttachment, ChatConversation, ChatMessage, ChatSettings } from '@/types/chat';
+import { DEFAULT_AI_MODEL, normalizeAiModel } from '@/config/aiModels';
+import { StreamTypewriter } from '@/lib/StreamTypewriter';
 
 const SETTINGS_KEY = 'workmeta-ai-chat-settings';
 const controllers = new Map<number, AbortController>();
+const typewriters = new Map<number, StreamTypewriter>();
 
 interface AiChatState {
   conversations: ChatConversation[];
@@ -33,12 +36,15 @@ interface AiChatState {
   clearAll: () => Promise<void>;
 }
 
-const defaultSettings: ChatSettings = { model: 'deepseek-chat', maxContextRounds: 10, stream: true };
+const defaultSettings: ChatSettings = { model: DEFAULT_AI_MODEL, maxContextRounds: 10, stream: true };
 
 function readSettings(): ChatSettings {
   if (typeof window === 'undefined') return defaultSettings;
   try {
-    return { ...defaultSettings, ...JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') };
+    const stored = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
+    const settings = { ...defaultSettings, ...stored, model: normalizeAiModel(stored.model) };
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    return settings;
   } catch {
     return defaultSettings;
   }
@@ -96,6 +102,7 @@ export const useAiChatStore = create<AiChatState>((set, get) => ({
   remove: async (id) => {
     await deleteConversation(id);
     controllers.get(id)?.abort();
+    typewriters.get(id)?.cancel();
     set((state) => {
       const conversations = state.conversations.filter((item) => item.id !== id);
       const messages = { ...state.messagesByConversation };
@@ -156,7 +163,14 @@ export const useAiChatStore = create<AiChatState>((set, get) => ({
         maxContextRounds: state.settings.maxContextRounds,
       };
       if (state.settings.stream) {
-        await streamChat(request, controller.signal, (event) => applyStreamEvent(set, conversationId, assistantId, event));
+        const typewriter = new StreamTypewriter((delta) => {
+          appendMessageContent(set, conversationId, assistantId, delta);
+        });
+        typewriters.set(conversationId, typewriter);
+        await streamChat(request, controller.signal, (event) => {
+          if (event.type === 'delta' && event.data) typewriter.push(event.data);
+        });
+        await typewriter.finish();
       } else {
         await sendChat(request, controller.signal);
       }
@@ -164,15 +178,25 @@ export const useAiChatStore = create<AiChatState>((set, get) => ({
       set((current) => ({ messagesByConversation: { ...current.messagesByConversation, [conversationId]: persistedMessages } }));
       await get().loadConversations();
     } catch (error) {
+      const typewriter = typewriters.get(conversationId);
+      if (controller.signal.aborted) {
+        typewriter?.cancel();
+      } else {
+        await typewriter?.finish();
+      }
       if (!controller.signal.aborted) antMessage.error(error instanceof Error ? error.message : 'AI 回复失败');
       updateMessage(set, conversationId, assistantId, { status: 'failed' });
     } finally {
       controllers.delete(conversationId);
+      typewriters.delete(conversationId);
       set((current) => ({ generatingIds: current.generatingIds.filter((id) => id !== conversationId) }));
     }
   },
 
-  stop: (id) => controllers.get(id)?.abort(),
+  stop: (id) => {
+    controllers.get(id)?.abort();
+    typewriters.get(id)?.cancel();
+  },
   retry: async (content) => get().send(content),
 
   updateSettings: (settings) => {
@@ -183,7 +207,9 @@ export const useAiChatStore = create<AiChatState>((set, get) => ({
   clearAll: async () => {
     await Promise.all(get().conversations.map((item) => deleteConversation(item.id)));
     controllers.forEach((controller) => controller.abort());
+    typewriters.forEach((typewriter) => typewriter.cancel());
     controllers.clear();
+    typewriters.clear();
     set({ conversations: [], activeId: null, messagesByConversation: {}, pendingAttachments: {}, generatingIds: [] });
   },
 }));
@@ -204,16 +230,12 @@ function updateMessage(set: (value: Partial<AiChatState> | ((state: AiChatState)
   } }));
 }
 
-function applyStreamEvent(set: Parameters<typeof updateMessage>[0], conversationId: number,
-                          temporaryId: string, event: import('@/types/chat').ChatStreamEvent) {
-  if (event.type === 'metadata' && event.messageId) {
-    return;
-  }
-  if (event.type !== 'delta' || !event.data) return;
+function appendMessageContent(set: Parameters<typeof updateMessage>[0], conversationId: number,
+                              temporaryId: string, delta: string) {
   set((state) => ({ messagesByConversation: {
     ...state.messagesByConversation,
     [conversationId]: (state.messagesByConversation[conversationId] || []).map((item) => {
-      return item.id === temporaryId ? { ...item, content: item.content + event.data } : item;
+      return item.id === temporaryId ? { ...item, content: item.content + delta } : item;
     }),
   } }));
 }

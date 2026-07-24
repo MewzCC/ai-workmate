@@ -6,6 +6,7 @@ import com.aiworkmate.security.JwtAuthenticationFilter;
 import com.aiworkmate.security.JwtValidationStatus;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.DispatcherType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -50,6 +51,8 @@ public class SecurityConfig {
                                         Result.error(ErrorCode.PERMISSION_DENIED)))
                 )
                 .authorizeHttpRequests(auth -> auth
+                        .dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.ERROR).permitAll()
+                        .requestMatchers("/api/auth/me").authenticated()
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/system/**").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()

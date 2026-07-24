@@ -6,9 +6,10 @@
 -- CREATE EXTENSION IF NOT EXISTS vector;
 
 -- 用户表
-CREATE TABLE IF NOT EXISTS "user" (
+CREATE TABLE IF NOT EXISTS app_user (
     id          BIGSERIAL PRIMARY KEY,
-    username    VARCHAR(50)  NOT NULL UNIQUE,
+    username    VARCHAR(120) NOT NULL UNIQUE,
+    display_name VARCHAR(50),
     password    VARCHAR(255) NOT NULL,
     email       VARCHAR(100),
     avatar      VARCHAR(500),
@@ -18,16 +19,18 @@ CREATE TABLE IF NOT EXISTS "user" (
     updated_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-COMMENT ON TABLE "user" IS '用户表';
-COMMENT ON COLUMN "user".role IS 'USER / ADMIN';
-COMMENT ON COLUMN "user".status IS '1=正常 0=禁用';
+CREATE UNIQUE INDEX IF NOT EXISTS ux_user_email ON app_user (LOWER(email)) WHERE email IS NOT NULL;
+
+COMMENT ON TABLE app_user IS '用户表';
+COMMENT ON COLUMN app_user.role IS 'USER / ADMIN';
+COMMENT ON COLUMN app_user.status IS '1=正常 0=禁用';
 
 -- 对话表
 CREATE TABLE IF NOT EXISTS conversation (
     id          BIGSERIAL PRIMARY KEY,
     user_id     BIGINT       NOT NULL,
     title       VARCHAR(200) NOT NULL DEFAULT '新对话',
-    model       VARCHAR(50)  NOT NULL DEFAULT 'deepseek-chat',
+    model       VARCHAR(50)  NOT NULL DEFAULT 'deepseek-v4-flash',
     created_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

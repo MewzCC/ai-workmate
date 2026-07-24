@@ -12,6 +12,8 @@ import com.aiworkmate.service.AttachmentService;
 import com.aiworkmate.service.ChatService;
 import com.aiworkmate.service.KnowledgeContextService;
 import com.aiworkmate.service.model.ChatChunk;
+import com.aiworkmate.service.model.AiModelCatalog;
+import com.aiworkmate.service.model.AiProviderExceptionTranslator;
 import com.aiworkmate.service.model.KnowledgeContext;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.RequiredArgsConstructor;
@@ -58,11 +60,12 @@ public class ChatServiceImpl implements ChatService {
                                       String model, List<Long> attachmentIds, int maxContextRounds) {
         Conversation conversation = requireOwnedConversation(userId, conversationId);
         ensureProviderConfigured();
+        String selectedModel = AiModelCatalog.normalize(model);
         List<Attachment> attachments = attachmentService.requireOwned(userId, conversationId, attachmentIds);
         Message user = saveMessage(conversationId, USER_ROLE, userMessage, "success");
         attachmentService.bindToMessage(attachments, user.getId());
         Message assistant = saveMessage(conversationId, ASSISTANT_ROLE, "", "sending");
-        updateConversationBeforeRequest(conversation, userMessage, model);
+        updateConversationBeforeRequest(conversation, userMessage, selectedModel);
 
         KnowledgeContext knowledge = knowledgeContextService.retrieve(userId, userMessage);
         StringBuilder response = new StringBuilder();
@@ -77,7 +80,8 @@ public class ChatServiceImpl implements ChatService {
                     finishMessage(assistant, response.toString(), "failed", finalized);
                     log.error("Chat stream failed, conversationId={}", conversationId, ex);
                 })
-                .doOnCancel(() -> finishMessage(assistant, response.toString(), "failed", finalized));
+                .doOnCancel(() -> finishMessage(assistant, response.toString(), "failed", finalized))
+                .onErrorMap(AiProviderExceptionTranslator::translate);
         return Flux.concat(Flux.just(ChatChunk.metadata(conversationId, assistant.getId())), content);
     }
 
@@ -87,13 +91,19 @@ public class ChatServiceImpl implements ChatService {
                        String model, List<Long> attachmentIds, int maxContextRounds) {
         Conversation conversation = requireOwnedConversation(userId, conversationId);
         ensureProviderConfigured();
+        String selectedModel = AiModelCatalog.normalize(model);
         List<Attachment> attachments = attachmentService.requireOwned(userId, conversationId, attachmentIds);
         Message user = saveMessage(conversationId, USER_ROLE, userMessage, "success");
         attachmentService.bindToMessage(attachments, user.getId());
-        updateConversationBeforeRequest(conversation, userMessage, model);
+        updateConversationBeforeRequest(conversation, userMessage, selectedModel);
         KnowledgeContext knowledge = knowledgeContextService.retrieve(userId, userMessage);
-        String response = buildPrompt(conversation, role, userMessage, knowledge, attachments,
-                user.getId(), maxContextRounds).call().content();
+        String response;
+        try {
+            response = buildPrompt(conversation, role, userMessage, knowledge, attachments,
+                    user.getId(), maxContextRounds).call().content();
+        } catch (Exception ex) {
+            throw AiProviderExceptionTranslator.translate(ex);
+        }
         saveMessage(conversationId, ASSISTANT_ROLE, response, "success");
         return response;
     }
@@ -182,7 +192,7 @@ public class ChatServiceImpl implements ChatService {
 
     private void updateConversationBeforeRequest(Conversation conversation, String userMessage, String model) {
         if ("新对话".equals(conversation.getTitle())) conversation.setTitle(generateTitle(userMessage));
-        if (model != null && !model.isBlank()) conversation.setModel(model.strip());
+        conversation.setModel(AiModelCatalog.normalize(model));
         conversation.setUpdatedAt(LocalDateTime.now());
         conversationMapper.updateById(conversation);
     }

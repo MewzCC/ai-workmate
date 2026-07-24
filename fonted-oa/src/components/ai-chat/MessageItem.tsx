@@ -1,14 +1,22 @@
 'use client';
 
 import { useState } from 'react';
-import { Button, Space, Tag, Tooltip, Typography, message as antMessage } from 'antd';
-import { CopyOutlined, DislikeFilled, DislikeOutlined, LikeFilled, LikeOutlined, ReloadOutlined, RobotOutlined, UserOutlined } from '@ant-design/icons';
-import ReactMarkdown from 'react-markdown';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { oneDark } from 'react-syntax-highlighter/dist/cjs/styles/prism';
+import { Avatar, Button, Space, Tag, Tooltip, Typography, message as antMessage } from 'antd';
+import {
+  CopyOutlined,
+  DislikeFilled,
+  DislikeOutlined,
+  LikeFilled,
+  LikeOutlined,
+  ReloadOutlined,
+  RobotOutlined,
+  UserOutlined,
+} from '@ant-design/icons';
+import { useAuth } from '@/components/auth/AuthProvider';
 import { updateMessageFeedback } from '@/lib/chatApi';
 import type { ChatMessage } from '@/types/chat';
 import AttachmentPreview from './AttachmentPreview';
+import MarkdownRenderer from './MarkdownRenderer';
 
 interface MessageItemProps {
   item: ChatMessage;
@@ -17,7 +25,9 @@ interface MessageItemProps {
 
 export default function MessageItem({ item, onRetry }: MessageItemProps) {
   const isAssistant = item.role === 'assistant';
+  const { user } = useAuth();
   const [feedbackValue, setFeedbackValue] = useState(item.feedback);
+
   const setFeedback = async (feedback: 'like' | 'dislike' | 'none') => {
     if (typeof item.id !== 'number') return;
     try {
@@ -29,11 +39,22 @@ export default function MessageItem({ item, onRetry }: MessageItemProps) {
     }
   };
 
+  const copyReply = async () => {
+    try {
+      await navigator.clipboard.writeText(item.content);
+      antMessage.success('回复已复制');
+    } catch {
+      antMessage.error('回复复制失败');
+    }
+  };
+
   return (
     <article className={`ai-message ai-message-${item.role}`}>
-      <div className="ai-message-avatar" aria-hidden="true">
-        {isAssistant ? <RobotOutlined /> : <UserOutlined />}
-      </div>
+      <Avatar
+        className="ai-message-avatar"
+        src={isAssistant ? undefined : user?.avatarUrl}
+        icon={isAssistant ? <RobotOutlined /> : <UserOutlined />}
+      />
       <div className="ai-message-body">
         <div className="ai-message-heading">
           <Typography.Text strong>{isAssistant ? 'WorkMate AI' : '你'}</Typography.Text>
@@ -42,29 +63,44 @@ export default function MessageItem({ item, onRetry }: MessageItemProps) {
         </div>
         {item.attachments.length > 0 && (
           <div className="ai-message-attachments">
-            {item.attachments.map((attachment) => <AttachmentPreview key={attachment.id} attachment={attachment} />)}
+            {item.attachments.map((attachment) => (
+              <AttachmentPreview key={attachment.id} attachment={attachment} />
+            ))}
           </div>
         )}
-        <div className="ai-message-content">
+        <div className={`ai-message-content ${isAssistant && item.status === 'sending' ? 'ai-message-content-streaming' : ''}`}>
           {isAssistant ? (
-            <ReactMarkdown components={{
-              code({ className, children, ...props }) {
-                const match = /language-(\w+)/.exec(className || '');
-                return match ? (
-                  <SyntaxHighlighter style={oneDark} language={match[1]} PreTag="div">
-                    {String(children).replace(/\n$/, '')}
-                  </SyntaxHighlighter>
-                ) : <code className={className} {...props}>{children}</code>;
-              },
-            }}>{item.content || (item.status === 'sending' ? '正在思考…' : '')}</ReactMarkdown>
-          ) : <Typography.Paragraph>{item.content}</Typography.Paragraph>}
+            <MarkdownRenderer content={item.content || (item.status === 'sending' ? '正在思考...' : '')} />
+          ) : (
+            <Typography.Paragraph>{item.content}</Typography.Paragraph>
+          )}
         </div>
         {isAssistant && item.status !== 'sending' && (
           <Space size={2} className="ai-message-actions">
-            <Tooltip title="复制回复"><Button type="text" size="small" icon={<CopyOutlined />} onClick={() => navigator.clipboard.writeText(item.content)} /></Tooltip>
-            <Tooltip title="重新生成"><Button type="text" size="small" icon={<ReloadOutlined />} onClick={onRetry} /></Tooltip>
-            <Tooltip title="有帮助"><Button type="text" size="small" icon={feedbackValue === 'like' ? <LikeFilled /> : <LikeOutlined />} onClick={() => setFeedback(feedbackValue === 'like' ? 'none' : 'like')} /></Tooltip>
-            <Tooltip title="需改进"><Button type="text" size="small" icon={feedbackValue === 'dislike' ? <DislikeFilled /> : <DislikeOutlined />} onClick={() => setFeedback(feedbackValue === 'dislike' ? 'none' : 'dislike')} /></Tooltip>
+            <Tooltip title="复制回复">
+              <Button type="text" size="small" aria-label="复制回复" icon={<CopyOutlined />} onClick={() => void copyReply()} />
+            </Tooltip>
+            <Tooltip title="重新生成">
+              <Button type="text" size="small" aria-label="重新生成" icon={<ReloadOutlined />} onClick={onRetry} />
+            </Tooltip>
+            <Tooltip title="有帮助">
+              <Button
+                type="text"
+                size="small"
+                aria-label="有帮助"
+                icon={feedbackValue === 'like' ? <LikeFilled /> : <LikeOutlined />}
+                onClick={() => void setFeedback(feedbackValue === 'like' ? 'none' : 'like')}
+              />
+            </Tooltip>
+            <Tooltip title="需改进">
+              <Button
+                type="text"
+                size="small"
+                aria-label="需改进"
+                icon={feedbackValue === 'dislike' ? <DislikeFilled /> : <DislikeOutlined />}
+                onClick={() => void setFeedback(feedbackValue === 'dislike' ? 'none' : 'dislike')}
+              />
+            </Tooltip>
           </Space>
         )}
       </div>

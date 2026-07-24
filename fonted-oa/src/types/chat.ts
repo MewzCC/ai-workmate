@@ -1,3 +1,5 @@
+import type { AiModelId } from '@/config/aiModels';
+
 export type ChatRole = 'user' | 'assistant' | 'system';
 export type MessageStatus = 'sending' | 'success' | 'failed';
 export type MessageFeedback = 'like' | 'dislike' | null;
@@ -34,7 +36,7 @@ export interface ChatConversation {
 }
 
 export interface ChatSettings {
-  model: string;
+  model: AiModelId;
   maxContextRounds: number;
   stream: boolean;
 }

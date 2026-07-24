@@ -1,6 +1,7 @@
 package com.aiworkmate.security;
 
 import com.aiworkmate.util.JwtUtil;
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -12,6 +13,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -27,6 +29,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     public static final String AUTH_ERROR_ATTRIBUTE = JwtAuthenticationFilter.class.getName() + ".AUTH_ERROR";
 
     private final JwtUtil jwtUtil;
+
+    @Value("${app.auth.cookie-name:oa_session}")
+    private String cookieName;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -70,9 +75,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private String resolveToken(HttpServletRequest request) {
         String header = request.getHeader("Authorization");
-        if (!StringUtils.hasText(header) || !header.startsWith(BEARER_PREFIX)) {
+        if (StringUtils.hasText(header) && header.startsWith(BEARER_PREFIX)) {
+            return header.substring(BEARER_PREFIX.length());
+        }
+        Cookie[] cookies = request.getCookies();
+        if (cookies == null) {
             return null;
         }
-        return header.substring(BEARER_PREFIX.length());
+        for (Cookie cookie : cookies) {
+            if (cookieName.equals(cookie.getName()) && StringUtils.hasText(cookie.getValue())) {
+                return cookie.getValue();
+            }
+        }
+        return null;
     }
 }

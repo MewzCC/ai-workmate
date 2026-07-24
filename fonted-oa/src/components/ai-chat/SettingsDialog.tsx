@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect } from 'react';
-import { Alert, Button, Form, Input, InputNumber, Modal, Space, Switch, Typography } from 'antd';
+import { Alert, Button, Form, Input, InputNumber, Modal, Select, Space, Switch, Typography } from 'antd';
+import { AI_MODEL_OPTIONS } from '@/config/aiModels';
 import type { ChatSettings } from '@/types/chat';
 
 interface SettingsDialogProps {
@@ -23,8 +24,8 @@ export default function SettingsDialog({ open, settings, onClose, onSave, onClea
           <Input.Password value="由服务端环境变量管理" disabled />
           <Typography.Text type="secondary">密钥不会下发到浏览器，请通过后端 `AI_API_KEY` 配置。</Typography.Text>
         </Form.Item>
-        <Form.Item name="model" label="模型名称" rules={[{ required: true }, { max: 80 }]}>
-          <Input placeholder="deepseek-chat" />
+        <Form.Item name="model" label="对话模型" rules={[{ required: true, message: '请选择对话模型' }]}>
+          <Select options={[...AI_MODEL_OPTIONS]} />
         </Form.Item>
         <Form.Item name="maxContextRounds" label="最大上下文轮数" rules={[{ required: true }]}>
           <InputNumber min={1} max={20} className="ai-settings-number" />

@@ -6,7 +6,6 @@ import {
   Bot,
   BrainCircuit,
   CheckCircle2,
-  ChevronLeft,
   Command,
   DatabaseZap,
   FileSearch,
@@ -17,13 +16,9 @@ import {
   Workflow,
   Zap,
 } from 'lucide-react';
-import Sidebar from '@/components/Sidebar';
-import ChatInterface from '@/components/ChatInterface';
-import LoginPage from '@/components/LoginPage';
 import ThemeToggle from '@/components/ThemeToggle';
 
 type SiteTheme = 'day' | 'night';
-type AppMode = 'marketing' | 'experience';
 type WorkflowKey = 'launch' | 'contract' | 'support' | 'weekly';
 
 const workflowCopy: Record<WorkflowKey, { title: string; desc: string; steps: string[] }> = {
@@ -63,7 +58,6 @@ const agentCards = [
 ];
 
 export default function HomePage() {
-  const [mode, setMode] = useState<AppMode>('marketing');
   const [theme, setTheme] = useState<SiteTheme>(() => {
     if (typeof window !== 'undefined') {
       const saved = window.localStorage.getItem('wm-theme');
@@ -75,12 +69,6 @@ export default function HomePage() {
   });
   const [workflow, setWorkflow] = useState<WorkflowKey>('launch');
   const [isRunning, setIsRunning] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return !!localStorage.getItem('token');
-    }
-    return false;
-  });
 
   // 持久化日夜模式
   useEffect(() => {
@@ -98,10 +86,6 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
-    if (mode !== 'marketing') {
-      return;
-    }
-
     const revealItems = Array.from(document.querySelectorAll<HTMLElement>('.wm-scroll-reveal'));
     if (!revealItems.length) {
       return;
@@ -133,32 +117,7 @@ export default function HomePage() {
     });
 
     return () => observer.disconnect();
-  }, [mode, theme]);
-
-  if (mode === 'experience') {
-    return (
-      <div className={`wm-site ${theme === 'night' ? 'wm-night' : 'wm-day'} relative`}>
-        <button type="button" onClick={() => setMode('marketing')} className="wm-back-btn">
-          <ChevronLeft className="h-4 w-4" />
-          返回官网
-        </button>
-
-        {!isLoggedIn ? (
-          <LoginPage theme={theme} onLoginSuccess={() => setIsLoggedIn(true)} />
-        ) : (
-          <div className="wm-app">
-            <Sidebar
-              onLogout={() => {
-                localStorage.removeItem('token');
-                setIsLoggedIn(false);
-              }}
-            />
-            <ChatInterface />
-          </div>
-        )}
-      </div>
-    );
-  }
+  }, [theme]);
 
   const activeWorkflow = workflowCopy[workflow];
   const isNight = theme === 'night';
@@ -209,7 +168,7 @@ export default function HomePage() {
         </nav>
         <div className="wm-actions">
           <ThemeToggle theme={theme} onChange={setTheme} />
-          <button type="button" className="wm-login">登录</button>
+          <button type="button" className="wm-login" onClick={enterOa}>登录</button>
           <button type="button" className="wm-try wm-try-nav" onClick={enterOa}>
             立即尝试
             <ArrowRight className="h-4 w-4" />

@@ -1,150 +1,132 @@
 package com.aiworkmate.service.impl;
 
-import com.aiworkmate.dto.LoginRequest;
-import com.aiworkmate.dto.LoginResponse;
+import com.aiworkmate.common.BusinessException;
+import com.aiworkmate.common.ErrorCode;
+import com.aiworkmate.dto.AuthUserResponse;
+import com.aiworkmate.dto.CodeScene;
+import com.aiworkmate.dto.EmailCodeLoginRequest;
+import com.aiworkmate.dto.PasswordLoginRequest;
 import com.aiworkmate.dto.RegisterRequest;
 import com.aiworkmate.dto.ResetPasswordRequest;
 import com.aiworkmate.entity.User;
 import com.aiworkmate.mapper.UserMapper;
 import com.aiworkmate.service.AuthService;
-import com.aiworkmate.util.JwtUtil;
+import com.aiworkmate.service.LoginProtectionService;
+import com.aiworkmate.service.VerificationCodeService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class AuthServiceImpl implements AuthService {
+    private static final String INVALID_CREDENTIALS = "邮箱、密码或验证码错误";
 
     private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
-    private final JwtUtil jwtUtil;
-    private final StringRedisTemplate redisTemplate;
-
-    private static final String EMAIL_CODE_KEY = "captcha:email:";
+    private final VerificationCodeService verificationCodeService;
+    private final LoginProtectionService loginProtectionService;
 
     @Override
-    public LoginResponse login(LoginRequest request) {
-        // 1. 校验图形验证码
-        verifyCaptcha(request.getCaptchaId(), request.getCaptchaCode());
-
-        // 2. 查询用户
-        User user = userMapper.selectOne(
-                new LambdaQueryWrapper<User>()
-                        .eq(User::getUsername, request.getUsername())
-        );
-
-        if (user == null || user.getStatus() == 0) {
-            throw new IllegalArgumentException("用户名或密码错误");
+    public AuthUserResponse loginWithPassword(PasswordLoginRequest request, String clientIp) {
+        String email = normalizeEmail(request.email());
+        loginProtectionService.assertLoginAllowed(email, clientIp);
+        if (loginProtectionService.isCaptchaRequired(email, clientIp)) {
+            verificationCodeService.verifyImageCaptcha(request.captchaId(), request.captchaCode());
         }
-
-        // 3. 校验密码
-        if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
-            throw new IllegalArgumentException("用户名或密码错误");
+        User user = findByEmail(email);
+        if (!isActive(user) || !passwordEncoder.matches(request.password(), user.getPassword())) {
+            loginProtectionService.recordFailure(email, clientIp);
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, INVALID_CREDENTIALS);
         }
-
-        // 4. 签发 JWT
-        String token = jwtUtil.generateToken(user.getId(), user.getUsername(), user.getRole());
-        return new LoginResponse(token, user.getUsername(), user.getRole());
+        loginProtectionService.clearFailures(email, clientIp);
+        log.info("Password login succeeded, userId={}", user.getId());
+        return toResponse(user);
     }
 
     @Override
-    public LoginResponse register(RegisterRequest request) {
-        // 1. 校验图形验证码
-        verifyCaptcha(request.getCaptchaId(), request.getCaptchaCode());
-
-        // 2. 校验邮箱验证码
-        verifyEmailCode(request.getEmail(), request.getEmailCode());
-
-        // 3. 检查用户名是否存在
-        Long count = userMapper.selectCount(
-                new LambdaQueryWrapper<User>()
-                        .eq(User::getUsername, request.getUsername())
-        );
-        if (count > 0) {
-            throw new IllegalArgumentException("用户名已存在");
+    public AuthUserResponse loginWithEmailCode(EmailCodeLoginRequest request) {
+        String email = normalizeEmail(request.email());
+        verificationCodeService.verifyEmailCode(CodeScene.LOGIN, email, request.emailCode());
+        User user = findByEmail(email);
+        if (!isActive(user)) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, INVALID_CREDENTIALS);
         }
+        log.info("Email code login succeeded, userId={}", user.getId());
+        return toResponse(user);
+    }
 
-        // 4. 检查邮箱是否已注册
-        Long emailCount = userMapper.selectCount(
-                new LambdaQueryWrapper<User>()
-                        .eq(User::getEmail, request.getEmail())
-        );
-        if (emailCount > 0) {
-            throw new IllegalArgumentException("该邮箱已注册");
+    @Override
+    @Transactional
+    public AuthUserResponse register(RegisterRequest request) {
+        String email = normalizeEmail(request.email());
+        verificationCodeService.verifyEmailCode(CodeScene.REGISTER, email, request.emailCode());
+        loginProtectionService.claimRegistration(request.requestId());
+        if (findByEmail(email) != null) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "暂时无法创建账号，请检查信息后重试");
         }
-
-        // 5. 创建用户
+        LocalDateTime now = LocalDateTime.now();
         User user = new User();
-        user.setUsername(request.getUsername());
-        user.setPassword(passwordEncoder.encode(request.getPassword()));
-        user.setEmail(request.getEmail());
+        user.setUsername(email);
+        user.setDisplayName(request.name().trim());
+        user.setEmail(email);
+        user.setPassword(passwordEncoder.encode(request.password()));
         user.setRole("USER");
         user.setStatus(1);
-        user.setCreatedAt(LocalDateTime.now());
-        user.setUpdatedAt(LocalDateTime.now());
+        user.setCreatedAt(now);
+        user.setUpdatedAt(now);
         userMapper.insert(user);
-
-        // 6. 签发 JWT
-        String token = jwtUtil.generateToken(user.getId(), user.getUsername(), user.getRole());
-        return new LoginResponse(token, user.getUsername(), user.getRole());
+        log.info("Enterprise account registered, userId={}", user.getId());
+        return toResponse(user);
     }
 
     @Override
+    @Transactional
     public void resetPassword(ResetPasswordRequest request) {
-        // 1. 校验邮箱验证码
-        verifyEmailCode(request.getEmail(), request.getEmailCode());
-
-        // 2. 查找该邮箱对应的用户
-        User user = userMapper.selectOne(
-                new LambdaQueryWrapper<User>()
-                        .eq(User::getEmail, request.getEmail())
-        );
-        if (user == null) {
-            throw new IllegalArgumentException("该邮箱未注册");
+        String email = normalizeEmail(request.email());
+        verificationCodeService.verifyEmailCode(CodeScene.RESET_PASSWORD, email, request.emailCode());
+        User user = findByEmail(email);
+        if (user != null) {
+            user.setPassword(passwordEncoder.encode(request.newPassword()));
+            user.setUpdatedAt(LocalDateTime.now());
+            userMapper.updateById(user);
+            log.info("Password reset succeeded, userId={}", user.getId());
         }
-
-        // 3. 更新密码
-        userMapper.update(null,
-                new LambdaUpdateWrapper<User>()
-                        .eq(User::getId, user.getId())
-                        .set(User::getPassword, passwordEncoder.encode(request.getNewPassword()))
-                        .set(User::getUpdatedAt, LocalDateTime.now())
-        );
-
-        log.info("Password reset for user: {}", user.getUsername());
     }
 
-    // ===== 私有方法 =====
-
-    private void verifyCaptcha(String captchaId, String captchaCode) {
-        String key = "captcha:img:" + captchaId;
-        String stored = redisTemplate.opsForValue().get(key);
-        if (stored == null) {
-            throw new IllegalArgumentException("图形验证码已过期，请刷新");
+    @Override
+    public AuthUserResponse getCurrentUser(Long userId) {
+        User user = userMapper.selectById(userId);
+        if (!isActive(user)) {
+            throw new BusinessException(ErrorCode.AUTH_REQUIRED);
         }
-        if (!stored.equalsIgnoreCase(captchaCode)) {
-            throw new IllegalArgumentException("图形验证码错误");
-        }
-        redisTemplate.delete(key);
+        return toResponse(user);
     }
 
-    private void verifyEmailCode(String email, String emailCode) {
-        String key = EMAIL_CODE_KEY + email;
-        String stored = redisTemplate.opsForValue().get(key);
-        if (stored == null) {
-            throw new IllegalArgumentException("邮箱验证码已过期，请重新获取");
-        }
-        if (!stored.equals(emailCode)) {
-            throw new IllegalArgumentException("邮箱验证码错误");
-        }
-        redisTemplate.delete(key);
+    private User findByEmail(String email) {
+        return userMapper.selectOne(new LambdaQueryWrapper<User>().eq(User::getEmail, email));
+    }
+
+    private boolean isActive(User user) {
+        return user != null && Integer.valueOf(1).equals(user.getStatus());
+    }
+
+    private String normalizeEmail(String email) {
+        return email.trim().toLowerCase();
+    }
+
+    private AuthUserResponse toResponse(User user) {
+        String name = user.getDisplayName() == null || user.getDisplayName().isBlank()
+                ? user.getUsername() : user.getDisplayName();
+        String avatarUrl = user.getAvatar() == null || user.getAvatar().isBlank()
+                ? null : "/api/profile/avatar/content?v=" + user.getUpdatedAt().toInstant(ZoneOffset.UTC).toEpochMilli();
+        return new AuthUserResponse(user.getId(), name, user.getEmail(), user.getRole(), avatarUrl);
     }
 }
