@@ -37,7 +37,9 @@ spring:
     password: ${SMTP_PASSWORD:}
     properties:
       mail.smtp.auth: true
-      mail.smtp.ssl.enable: true
+      mail.smtp.ssl.enable: ${SMTP_SSL_ENABLE:true}
+      mail.smtp.starttls.enable: ${SMTP_STARTTLS_ENABLE:false}
+      mail.smtp.starttls.required: ${SMTP_STARTTLS_REQUIRED:false}
 
   # ========== MyBatis-Plus ==========
   mybatis-plus:
