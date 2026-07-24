@@ -76,8 +76,7 @@ fonted-oa/coverage/
 test-results/
 playwright-report/
 qa/
-docs/
-
+api/
 # Docker / local data
 .docker/
 docker-data/
