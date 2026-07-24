@@ -1,11 +1,11 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { ConfigProvider, FloatButton, Layout, App as AntApp, message, theme as antdTheme } from 'antd';
 import { RobotOutlined } from '@ant-design/icons';
 import type { OaMenuItem, OaRole, OaTheme } from '@/types/oa';
-import { filterMenusByRole, findMenu } from '@/mock/oaPermissions';
+import { findMenu } from '@/mock/oaPermissions';
 import Dashboard from './Dashboard';
 import SidebarMenu from './SidebarMenu';
 import Topbar from './Topbar';
@@ -14,6 +14,8 @@ import AIOperationDrawer from './AIOperationDrawer';
 import AiMiniPanel from './AiMiniPanel';
 import AiChatWorkspace from '@/components/ai-chat/AiChatWorkspace';
 import { useAuth } from '@/components/auth/AuthProvider';
+import AccessControlPage from './AccessControlPage';
+import { getNavigation, type NavigationRoute } from '@/lib/navigationApi';
 
 const { Content } = Layout;
 
@@ -125,20 +127,25 @@ function readStorage(key: string, fallback: string): string {
   return window.localStorage.getItem(key) || fallback;
 }
 
-interface AdminLayoutProps {
-  initialPageId?: string;
-}
-
-export default function AdminLayout({ initialPageId = 'dashboard' }: AdminLayoutProps) {
+export default function AdminLayout() {
   const router = useRouter();
+  const pathname = usePathname();
+  const currentPageId = useMemo(() => {
+    const segments = pathname.split('/').filter(Boolean);
+    return segments.length > 1 ? decodeURIComponent(segments[1]) : 'dashboard';
+  }, [pathname]);
   const { user } = useAuth();
   const role = useMemo<OaRole>(() => {
-    if (user?.role === 'ADMIN') return 'system_admin';
     if (user?.role === 'SUPER_ADMIN') return 'super_admin';
+    if (user?.role === 'ADMIN' || user?.role === 'SYSTEM_ADMIN') return 'system_admin';
+    if (user?.role === 'PROCESS_ADMIN') return 'process_admin';
+    if (user?.role === 'FINANCE_ADMIN') return 'finance_admin';
     return 'employee';
   }, [user?.role]);
   const [collapsed, setCollapsed] = useState(false);
-  const [selectedMenu, setSelectedMenu] = useState<OaMenuItem>(() => findMenu(initialPageId) || dashboardMenu);
+  const [menus, setMenus] = useState<OaMenuItem[]>([]);
+  const [navigationLoaded, setNavigationLoaded] = useState(false);
+  const [selectedMenu, setSelectedMenu] = useState<OaMenuItem>(dashboardMenu);
   const [appearanceOpen, setAppearanceOpen] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
   const [aiPrompt, setAiPrompt] = useState('');
@@ -155,9 +162,39 @@ export default function AdminLayout({ initialPageId = 'dashboard' }: AdminLayout
   const currentTheme = useMemo(() => themes.find((theme) => theme.name === themeName) || themes[0], [themeName]);
 
   useEffect(() => {
-    const visibleMenu = findMenu(initialPageId, filterMenusByRole(role));
-    setSelectedMenu(visibleMenu || dashboardMenu);
-  }, [initialPageId, role]);
+    let active = true;
+    if (!user) return;
+    setNavigationLoaded(false);
+    getNavigation()
+      .then((routes) => {
+        if (!active) return;
+        setMenus(routes.map(toMenuItem));
+        setNavigationLoaded(true);
+      })
+      .catch((error) => {
+        if (!active) return;
+        setMenus([]);
+        setNavigationLoaded(true);
+        message.error(error instanceof Error ? error.message : '导航菜单加载失败');
+      });
+    return () => {
+      active = false;
+    };
+  }, [user]);
+
+  useEffect(() => {
+    if (!navigationLoaded) return;
+    const visibleMenu = findMenu(currentPageId, menus);
+    if (visibleMenu?.type === 'page') {
+      setSelectedMenu(visibleMenu);
+      return;
+    }
+    const fallback = findMenu('dashboard', menus) || firstPage(menus);
+    if (fallback) {
+      setSelectedMenu(fallback);
+      if (currentPageId !== fallback.id) router.replace(fallback.path || `/oa/${fallback.id}`);
+    }
+  }, [currentPageId, menus, navigationLoaded, router]);
 
   useEffect(() => {
     document.title = `AI WorkMate OA - ${selectedMenu.name}`;
@@ -213,6 +250,26 @@ export default function AdminLayout({ initialPageId = 'dashboard' }: AdminLayout
           colorTextSecondary: currentTheme.muted,
           colorBorder: currentTheme.border,
         },
+        components: {
+          Menu: {
+            darkItemBg: currentTheme.sidebar,
+            darkPopupBg: currentTheme.sidebar,
+            darkSubMenuItemBg: currentTheme.sidebar,
+            darkItemColor: currentTheme.siderText,
+            darkItemHoverColor: '#ffffff',
+            darkItemHoverBg: `color-mix(in srgb, ${currentTheme.primary} 24%, ${currentTheme.sidebar})`,
+            darkItemSelectedColor: '#ffffff',
+            darkItemSelectedBg: currentTheme.primary,
+            darkGroupTitleColor: currentTheme.siderText,
+          },
+          Table: {
+            headerBg: `color-mix(in srgb, ${currentTheme.card} 96%, ${currentTheme.text} 4%)`,
+            headerColor: currentTheme.muted,
+            rowHoverBg: `color-mix(in srgb, ${currentTheme.card} 94%, ${currentTheme.primary} 6%)`,
+            borderColor: currentTheme.border,
+            headerBorderRadius: 8,
+          },
+        },
       }}
     >
       <AntApp>
@@ -230,12 +287,13 @@ export default function AdminLayout({ initialPageId = 'dashboard' }: AdminLayout
           )}
           <Layout className="oa-layout">
             <SidebarMenu
-              role={role}
-              selectedKey={selectedMenu.id}
+              menus={menus}
+              selectedKey={findMenu(currentPageId, menus)?.id || selectedMenu.id}
+              initialSelectedKey={currentPageId}
               collapsed={collapsed}
               onCollapse={setCollapsed}
               onSelect={(menu) => {
-                router.push(`/oa/${menu.id}`);
+                router.push(menu.path || `/oa/${menu.id}`);
                 message.info(`已切换到：${menu.name}`);
               }}
             />
@@ -248,8 +306,10 @@ export default function AdminLayout({ initialPageId = 'dashboard' }: AdminLayout
               />
               <Content className={`oa-content ${selectedMenu.id === 'ai-workspace' ? 'oa-chat-content' : ''}`}>
                 <div key={selectedMenu.id} className="oa-page-transition">
-                  {selectedMenu.id === 'ai-workspace' ? (
+                  {selectedMenu.componentKey === 'AI_WORKSPACE' ? (
                     <AiChatWorkspace role={role} />
+                  ) : selectedMenu.componentKey === 'ACCESS_CONTROL' ? (
+                    <AccessControlPage />
                   ) : (
                     <Dashboard
                       role={role}
@@ -305,4 +365,29 @@ export default function AdminLayout({ initialPageId = 'dashboard' }: AdminLayout
       </AntApp>
     </ConfigProvider>
   );
+}
+
+function toMenuItem(route: NavigationRoute): OaMenuItem {
+  return {
+    id: route.routeKey,
+    parentId: route.parentKey,
+    name: route.name,
+    type: route.routeType.toLowerCase() as OaMenuItem['type'],
+    icon: route.icon,
+    path: route.path,
+    componentKey: route.componentKey,
+    permissionCode: route.permissionCode,
+    sort: route.sortOrder,
+    visible: true,
+    children: route.children?.length ? route.children.map(toMenuItem) : undefined,
+  };
+}
+
+function firstPage(menus: OaMenuItem[]): OaMenuItem | undefined {
+  for (const menu of menus) {
+    if (menu.type === 'page') return menu;
+    const child = firstPage(menu.children || []);
+    if (child) return child;
+  }
+  return undefined;
 }

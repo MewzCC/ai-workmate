@@ -8,6 +8,7 @@ import com.aiworkmate.dto.UpdateProfileRequest;
 import com.aiworkmate.entity.User;
 import com.aiworkmate.mapper.UserMapper;
 import com.aiworkmate.service.UserProfileService;
+import com.aiworkmate.service.UserAccessService;
 import com.aiworkmate.service.model.AvatarContent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -41,6 +42,7 @@ public class UserProfileServiceImpl implements UserProfileService {
 
     private final UserMapper userMapper;
     private final ProfileProperties properties;
+    private final UserAccessService userAccessService;
     private final Tika tika = new Tika();
 
     @Override
@@ -191,6 +193,13 @@ public class UserProfileServiceImpl implements UserProfileService {
                 ? user.getUsername() : user.getDisplayName();
         String avatarUrl = user.getAvatar() == null || user.getAvatar().isBlank()
                 ? null : "/api/profile/avatar/content?v=" + user.getUpdatedAt().toInstant(ZoneOffset.UTC).toEpochMilli();
-        return new AuthUserResponse(user.getId(), name, user.getEmail(), user.getRole(), avatarUrl);
+        return new AuthUserResponse(
+                user.getId(),
+                name,
+                user.getEmail(),
+                user.getRole(),
+                avatarUrl,
+                userAccessService.permissionsForRole(user.getRole())
+        );
     }
 }

@@ -25,15 +25,28 @@ export default function AttachmentPreview({ attachment, removable, onRemove }: A
   useEffect(() => {
     if (attachment.type !== 'image' || attachment.previewUrl) return;
     const controller = new AbortController();
+    let active = true;
     let objectUrl = '';
     loadAttachmentContent(attachment.id, controller.signal)
       .then((url) => {
+        if (!active) {
+          URL.revokeObjectURL(url);
+          return;
+        }
         objectUrl = url;
         setSource(url);
       })
-      .finally(() => setLoading(false));
+      .catch((error: unknown) => {
+        if (!isAbortError(error)) {
+          setSource('');
+        }
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
     return () => {
-      controller.abort();
+      active = false;
+      if (!controller.signal.aborted) controller.abort();
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [attachment.id, attachment.previewUrl, attachment.type]);
@@ -119,6 +132,12 @@ function AttachmentMeta({ attachment, action }: { attachment: ChatAttachment; ac
 function isMarkdownAttachment(attachment: ChatAttachment): boolean {
   const name = attachment.name.toLowerCase();
   return attachment.mimeType === 'text/markdown' || name.endsWith('.md') || name.endsWith('.markdown');
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException
+    ? error.name === 'AbortError'
+    : error instanceof Error && error.name === 'AbortError';
 }
 
 function formatBytes(bytes: number): string {

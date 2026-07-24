@@ -1,4 +1,5 @@
-﻿# AI WorkMate — 企业 AI 助手平台
+﻿# AI WorkMate — 企业 AI 助手平台
+
 
 ## Frontend Split
 
@@ -71,7 +72,8 @@ ai-workmate/
 ### 1. 启动基础设施
 
 ```bash
-# 使用 Docker Compose 一键启动 PostgreSQL + Redis
+# 使用 Docker Compose 一键启动 PostgreSQL + Redis
+
 
 ## Frontend Split
 
@@ -86,7 +88,8 @@ docker compose -f docker-compose.yml up -d
 获取 DeepSeek API Key（https://platform.deepseek.com），然后：
 
 ```bash
-# 方式一：环境变量
+# 方式一：环境变量
+
 
 ## Frontend Split
 
@@ -95,7 +98,8 @@ docker compose -f docker-compose.yml up -d
 - The old single rontend app has been split into two independent programs.
 export AI_API_KEY=sk-your-deepseek-api-key
 
-# 方式二：修改 application.yml 中的 spring.ai.openai.api-key
+# 方式二：修改 application.yml 中的 spring.ai.openai.api-key
+
 
 ## Frontend Split
 
@@ -124,7 +128,8 @@ npm run dev
 ### 5. 测试 API
 
 ```bash
-# 注册
+# 注册
+
 
 ## Frontend Split
 
@@ -135,7 +140,8 @@ curl -X POST http://localhost:8080/api/auth/register \
   -H "Content-Type: application/json" \
   -d '{"username":"test","password":"123456"}'
 
-# 登录
+# 登录
+
 
 ## Frontend Split
 
@@ -146,7 +152,8 @@ curl -X POST http://localhost:8080/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"username":"test","password":"123456"}'
 
-# AI 对话（需要先获取 token）
+# AI 对话（需要先获取 token）
+
 
 ## Frontend Split
 
@@ -175,23 +182,13 @@ curl -X POST http://localhost:8080/api/chat/stream \
 | 认证 | Spring Security + JWT | 无状态认证 |
 | 部署 | Docker Compose + Nginx | 容器化（第4月） |
 
-## 6 个月开发路线
-
-```
-第 1 月：Java 基础 + 第一个 AI 对话接口 ✅（当前阶段）
-第 2 月：RAG 知识库 + 向量检索 + 文档解析
-第 3 月：AI Agent Tool Calling + 前端流式聊天 UI
-第 4 月：Multi-Agent + Docker 部署上线
-第 5 月：AI 系统设计 + 简历面试准备
-第 6 月：拿 Offer
-```
-
 ## 模型切换
 
 支持所有 OpenAI 兼容的模型：
 
 ```yaml
-# DeepSeek（推荐，便宜）
+# DeepSeek（推荐，便宜）
+
 
 ## Frontend Split
 
@@ -201,7 +198,8 @@ curl -X POST http://localhost:8080/api/chat/stream \
 spring.ai.openai.base-url: https://api.deepseek.com
 spring.ai.openai.chat.options.model: deepseek-chat
 
-# 通义千问
+# 通义千问
+
 
 ## Frontend Split
 
@@ -211,7 +209,8 @@ spring.ai.openai.chat.options.model: deepseek-chat
 spring.ai.openai.base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
 spring.ai.openai.chat.options.model: qwen-turbo
 
-# OpenAI
+# OpenAI
+
 
 ## Frontend Split
 
