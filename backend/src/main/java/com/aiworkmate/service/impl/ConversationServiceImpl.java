@@ -12,6 +12,7 @@ import com.aiworkmate.mapper.ConversationMapper;
 import com.aiworkmate.mapper.MessageMapper;
 import com.aiworkmate.service.AttachmentService;
 import com.aiworkmate.service.ConversationService;
+import com.aiworkmate.service.model.AiModelCatalog;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -27,7 +28,6 @@ import java.util.stream.Collectors;
 public class ConversationServiceImpl implements ConversationService {
 
     private static final String DEFAULT_TITLE = "新对话";
-    private static final String DEFAULT_MODEL = "deepseek-chat";
 
     private final ConversationMapper conversationMapper;
     private final MessageMapper messageMapper;
@@ -122,7 +122,7 @@ public class ConversationServiceImpl implements ConversationService {
     }
 
     private String normalizeModel(String model) {
-        return model == null || model.isBlank() ? DEFAULT_MODEL : model.strip();
+        return AiModelCatalog.normalize(model);
     }
 
     private ConversationResponse toResponse(Conversation conversation) {

@@ -75,6 +75,8 @@ fonted-oa/coverage/
 .nyc_output/
 test-results/
 playwright-report/
+qa/
+docs/
 
 # Docker / local data
 .docker/

@@ -1,0 +1,5 @@
+ALTER TABLE app_user
+    ADD COLUMN IF NOT EXISTS display_name VARCHAR(50);
+
+ALTER TABLE app_user
+    ADD COLUMN IF NOT EXISTS avatar VARCHAR(500);

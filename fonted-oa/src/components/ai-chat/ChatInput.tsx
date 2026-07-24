@@ -6,7 +6,13 @@ import { ArrowUpOutlined, PaperClipOutlined, StopOutlined } from '@ant-design/ic
 import type { ChatAttachment } from '@/types/chat';
 import AttachmentPreview from './AttachmentPreview';
 
-const ACCEPT = '.jpg,.jpeg,.png,.webp,.pdf,.doc,.docx,.xls,.xlsx,.txt,.md,.csv';
+const SUPPORTED_EXTENSIONS = new Set([
+  '.jpg', '.jpeg', '.png', '.webp',
+  '.pdf', '.doc', '.docx', '.xls', '.xlsx',
+  '.txt', '.md', '.markdown', '.csv',
+]);
+const IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const ACCEPT = Array.from(SUPPORTED_EXTENSIONS).join(',');
 
 interface ChatInputProps {
   pending: ChatAttachment[];
@@ -65,7 +71,13 @@ export default function ChatInput({ pending, generating, onUpload, onRemoveAttac
             if (file.uid === list[0]?.uid) acceptFiles(list as File[]);
             return false;
           }}>
-            <Tooltip title="上传图片或文件"><Button type="text" icon={<PaperClipOutlined />} /></Tooltip>
+            <Tooltip title="上传图片或文件">
+              <Button
+                type="text"
+                icon={<PaperClipOutlined />}
+                aria-label="上传图片或文件"
+              />
+            </Tooltip>
           </Upload>
           <span className="ai-composer-hint">Enter 发送 · Shift + Enter 换行</span>
         </Space>
@@ -81,7 +93,13 @@ export default function ChatInput({ pending, generating, onUpload, onRemoveAttac
 }
 
 function validateFile(file: File): boolean {
-  const image = ['image/jpeg', 'image/png', 'image/webp'].includes(file.type);
+  const dotIndex = file.name.lastIndexOf('.');
+  const extension = dotIndex >= 0 ? file.name.slice(dotIndex).toLowerCase() : '';
+  const image = IMAGE_TYPES.has(file.type);
+  if (!SUPPORTED_EXTENSIONS.has(extension) && !image) {
+    message.error(`${file.name}：暂不支持该文件类型`);
+    return false;
+  }
   const max = image ? 10 * 1024 * 1024 : 20 * 1024 * 1024;
   if (file.size > max) {
     message.error(`${file.name} 超过${image ? ' 10MB' : ' 20MB'}限制`);

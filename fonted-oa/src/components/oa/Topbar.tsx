@@ -6,22 +6,34 @@ import {
   PlusOutlined,
   QuestionCircleOutlined,
   SkinOutlined,
+  LogoutOutlined,
+  UserOutlined,
 } from '@ant-design/icons';
-import { Breadcrumb, Button, Layout, Select, Space, Tag, message, notification } from 'antd';
+import { Avatar, Breadcrumb, Button, Layout, Space, message, notification } from 'antd';
 import type { OaRole } from '@/types/oa';
-import { roleOptions } from '@/mock/oaPermissions';
+import { useAuth } from '@/components/auth/AuthProvider';
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
+import ProfileSettingsModal from '@/components/profile/ProfileSettingsModal';
 
 const { Header } = Layout;
 
 interface TopbarProps {
   role: OaRole;
   pageTitle: string;
-  onRoleChange: (role: OaRole) => void;
   onOpenAppearance: () => void;
   onOpenAi: (prompt?: string) => void;
 }
 
-export default function Topbar({ role, pageTitle, onRoleChange, onOpenAppearance, onOpenAi }: TopbarProps) {
+export default function Topbar({ role, pageTitle, onOpenAppearance, onOpenAi }: TopbarProps) {
+  const { user, logout } = useAuth();
+  const router = useRouter();
+  const [profileOpen, setProfileOpen] = useState(false);
+
+  const handleLogout = async () => {
+    await logout();
+    router.replace('/auth');
+  };
   return (
     <Header className="oa-header">
       <div>
@@ -30,14 +42,14 @@ export default function Topbar({ role, pageTitle, onRoleChange, onOpenAppearance
       </div>
 
       <Space wrap>
-        <Select
-          value={role}
-          options={roleOptions}
-          onChange={onRoleChange}
-          className="oa-role-select"
-          aria-label="角色切换"
-        />
-        <Tag color="processing">安全联调</Tag>
+        <Button
+          type="text"
+          className="oa-profile-trigger"
+          icon={<Avatar size={26} src={user?.avatarUrl} icon={<UserOutlined />} />}
+          onClick={() => setProfileOpen(true)}
+        >
+          {user?.name || role}
+        </Button>
         <Button icon={<QuestionCircleOutlined />} onClick={() => message.info('已打开帮助文档：当前为 OA 工作台基础能力说明')}>
           帮助文档
         </Button>
@@ -60,7 +72,9 @@ export default function Topbar({ role, pageTitle, onRoleChange, onOpenAppearance
         <Button icon={<FileTextOutlined />} onClick={() => message.warning('真实导出能力尚未接入')}>
           导出看板
         </Button>
+        <Button icon={<LogoutOutlined />} onClick={() => void handleLogout()}>退出</Button>
       </Space>
+      <ProfileSettingsModal open={profileOpen} onClose={() => setProfileOpen(false)} />
     </Header>
   );
 }

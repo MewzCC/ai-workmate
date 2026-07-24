@@ -17,22 +17,18 @@ export class ChatApiError extends Error {
   }
 }
 
-function token(): string | null {
-  return typeof window === 'undefined' ? null : window.localStorage.getItem('token');
-}
-
 function headers(json = true): HeadersInit {
   const result: Record<string, string> = { 'X-Request-Id': crypto.randomUUID().replaceAll('-', '') };
   if (json) result['Content-Type'] = 'application/json';
-  const jwt = token();
-  if (jwt) result.Authorization = `Bearer ${jwt}`;
   return result;
 }
 
 async function parse<T>(response: Response): Promise<T> {
   const body = await response.json().catch(() => null) as ApiResult<T> | null;
   if (!response.ok || !body || body.code !== 200) {
-    if (response.status === 401) window.localStorage.removeItem('token');
+    if (response.status === 401 && typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('oa-auth-expired'));
+    }
     throw new ChatApiError(body?.message || '请求失败', response.status, body?.errorCode, body?.traceId);
   }
   return body.data as T;
@@ -74,6 +70,15 @@ export async function loadAttachmentContent(id: number, signal?: AbortSignal): P
   const response = await fetch(`${BASE}/attachments/${id}/content`, { headers: headers(false), signal });
   if (!response.ok) throw new ChatApiError('附件加载失败', response.status);
   return URL.createObjectURL(await response.blob());
+}
+
+export async function loadAttachmentText(id: number, signal?: AbortSignal): Promise<string> {
+  const response = await fetch(`${BASE}/attachments/${id}/content`, { headers: headers(false), signal });
+  if (response.status === 401 && typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('oa-auth-expired'));
+  }
+  if (!response.ok) throw new ChatApiError('Markdown 文档加载失败', response.status);
+  return response.text();
 }
 
 export async function updateMessageFeedback(messageId: number, feedback: 'like' | 'dislike' | 'none'): Promise<void> {

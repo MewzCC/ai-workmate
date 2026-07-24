@@ -44,9 +44,7 @@ async function parseResult<T>(res: Response): Promise<T> {
       json?.requestId,
       json?.traceId,
     );
-    if (status === 401 && typeof window !== 'undefined') {
-      window.localStorage.removeItem('token');
-    }
+    if (status === 401 && typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('oa-auth-expired'));
     throw error;
   }
   return json.data;
@@ -73,8 +71,6 @@ function requestHeaders(): HeadersInit {
     'Content-Type': 'application/json',
     'X-Request-Id': crypto.randomUUID().replaceAll('-', ''),
   };
-  const token = typeof window === 'undefined' ? null : window.localStorage.getItem('token');
-  if (token) headers.Authorization = `Bearer ${token}`;
   return headers;
 }
 

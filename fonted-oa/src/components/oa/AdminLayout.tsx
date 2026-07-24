@@ -13,6 +13,7 @@ import AppearanceDrawer from './AppearanceDrawer';
 import AIOperationDrawer from './AIOperationDrawer';
 import AiMiniPanel from './AiMiniPanel';
 import AiChatWorkspace from '@/components/ai-chat/AiChatWorkspace';
+import { useAuth } from '@/components/auth/AuthProvider';
 
 const { Content } = Layout;
 
@@ -130,7 +131,12 @@ interface AdminLayoutProps {
 
 export default function AdminLayout({ initialPageId = 'dashboard' }: AdminLayoutProps) {
   const router = useRouter();
-  const [role, setRole] = useState<OaRole>('super_admin');
+  const { user } = useAuth();
+  const role = useMemo<OaRole>(() => {
+    if (user?.role === 'ADMIN') return 'system_admin';
+    if (user?.role === 'SUPER_ADMIN') return 'super_admin';
+    return 'employee';
+  }, [user?.role]);
   const [collapsed, setCollapsed] = useState(false);
   const [selectedMenu, setSelectedMenu] = useState<OaMenuItem>(() => findMenu(initialPageId) || dashboardMenu);
   const [appearanceOpen, setAppearanceOpen] = useState(false);
@@ -237,28 +243,25 @@ export default function AdminLayout({ initialPageId = 'dashboard' }: AdminLayout
               <Topbar
                 role={role}
                 pageTitle={selectedMenu.name}
-                onRoleChange={(nextRole) => {
-                  setRole(nextRole);
-                  router.push('/oa/dashboard');
-                  message.success('角色已切换，菜单和权限已刷新');
-                }}
                 onOpenAppearance={() => setAppearanceOpen(true)}
                 onOpenAi={openAi}
               />
               <Content className={`oa-content ${selectedMenu.id === 'ai-workspace' ? 'oa-chat-content' : ''}`}>
-                {selectedMenu.id === 'ai-workspace' ? (
-                  <AiChatWorkspace role={role} />
-                ) : (
-                  <Dashboard
-                    role={role}
-                    pageId={selectedMenu.id}
-                    pageTitle={selectedMenu.name}
-                    primaryColor={currentTheme.primary}
-                    auditItems={auditItems}
-                    onOpenAi={openAi}
-                    onAddAudit={addAudit}
-                  />
-                )}
+                <div key={selectedMenu.id} className="oa-page-transition">
+                  {selectedMenu.id === 'ai-workspace' ? (
+                    <AiChatWorkspace role={role} />
+                  ) : (
+                    <Dashboard
+                      role={role}
+                      pageId={selectedMenu.id}
+                      pageTitle={selectedMenu.name}
+                      primaryColor={currentTheme.primary}
+                      auditItems={auditItems}
+                      onOpenAi={openAi}
+                      onAddAudit={addAudit}
+                    />
+                  )}
+                </div>
               </Content>
             </Layout>
           </Layout>

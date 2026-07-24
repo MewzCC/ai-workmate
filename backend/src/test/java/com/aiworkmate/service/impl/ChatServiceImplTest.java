@@ -20,6 +20,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 @ExtendWith(MockitoExtension.class)
 class ChatServiceImplTest {
@@ -47,5 +48,21 @@ class ChatServiceImplTest {
                 .isInstanceOfSatisfying(BusinessException.class, ex ->
                         org.assertj.core.api.Assertions.assertThat(ex.getErrorCode())
                                 .isEqualTo(ErrorCode.AI_CHAT_UNAVAILABLE.getErrorCode()));
+    }
+
+    @Test
+    void shouldRejectUnknownModelBeforePersistingMessages() {
+        Conversation conversation = new Conversation();
+        conversation.setId(2001L);
+        conversation.setUserId(1001L);
+        when(conversationMapper.selectOne(any())).thenReturn(conversation);
+        when(aiRuntimeProperties.configured()).thenReturn(true);
+
+        assertThatThrownBy(() -> chatService.chat(
+                1001L, "USER", 2001L, "你好", "unknown-model", List.of(), 10))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("不支持的 AI 模型");
+
+        verifyNoInteractions(messageMapper, attachmentService, knowledgeContextService);
     }
 }

@@ -12,11 +12,6 @@ export interface Conversation {
   updatedAt: string;
 }
 
-export interface LoginResponse {
-  token: string;
-  username: string;
-  role: string;
-}
 
 export interface ChatRequest {
   conversationId?: number;
@@ -28,9 +23,4 @@ export interface ApiResult<T> {
   code: number;
   message: string;
   data: T;
-}
-
-export interface CaptchaResult {
-  captchaId: string;
-  captchaImage: string;
 }

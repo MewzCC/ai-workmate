@@ -3,6 +3,7 @@ package com.aiworkmate.controller;
 import com.aiworkmate.common.Result;
 import com.aiworkmate.common.ErrorCode;
 import com.aiworkmate.common.TraceContext;
+import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.dto.ChatRequest;
 import com.aiworkmate.dto.ChatStreamEvent;
 import com.aiworkmate.security.AuthenticatedUser;
@@ -44,7 +45,9 @@ public class ChatController {
         return stream
                 .concatWithValues(event("done", ChatStreamEvent.done(requestId, traceId)))
                 .onErrorResume(ex -> Flux.just(event("error", ChatStreamEvent.error(
-                        ErrorCode.AI_CHAT_UNAVAILABLE.getDefaultMessage(),
+                        ex instanceof BusinessException businessException
+                                ? businessException.getMessage()
+                                : ErrorCode.AI_CHAT_UNAVAILABLE.getDefaultMessage(),
                         ErrorCode.AI_CHAT_UNAVAILABLE.getErrorCode(),
                         requestId,
                         traceId

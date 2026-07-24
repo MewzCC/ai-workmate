@@ -24,6 +24,7 @@
         <spring-ai.version>1.0.0</spring-ai.version>
         <jjwt.version>0.12.6</jjwt.version>
         <tika.version>3.3.1</tika.version>
+        <commons-lang3.version>3.18.0</commons-lang3.version>
     </properties>
 
     <dependencyManagement>
@@ -87,6 +88,11 @@
             <groupId>org.apache.tika</groupId>
             <artifactId>tika-parsers-standard-package</artifactId>
             <version>${tika.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-lang3</artifactId>
+            <version>${commons-lang3.version}</version>
         </dependency>
 
         <!-- JWT -->

@@ -1,15 +1,16 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { Button, Tag, Typography } from 'antd';
+import { Button, Select, Typography } from 'antd';
 import { MenuOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
+import { AI_MODEL_OPTIONS, type AiModelId } from '@/config/aiModels';
 import type { ChatAttachment, ChatMessage } from '@/types/chat';
 import ChatInput from './ChatInput';
 import MessageList from './MessageList';
 
 interface ChatWindowProps {
   title: string;
-  model: string;
+  model: AiModelId;
   messages: ChatMessage[];
   pending: ChatAttachment[];
   generating: boolean;
@@ -18,6 +19,7 @@ interface ChatWindowProps {
   onRemoveAttachment: (id: number) => void;
   onSend: (content: string) => void;
   onStop: () => void;
+  onModelChange: (model: AiModelId) => void;
 }
 
 export default function ChatWindow(props: ChatWindowProps) {
@@ -37,7 +39,14 @@ export default function ChatWindow(props: ChatWindowProps) {
           <Typography.Title level={5}>{props.title}</Typography.Title>
           <Typography.Text type="secondary"><SafetyCertificateOutlined /> 权限由服务端校验</Typography.Text>
         </div>
-        <Tag>{props.model}</Tag>
+        <Select<AiModelId>
+          aria-label="切换对话模型"
+          className="ai-model-select"
+          value={props.model}
+          options={[...AI_MODEL_OPTIONS]}
+          onChange={props.onModelChange}
+          disabled={props.generating}
+        />
       </header>
       <div className="ai-chat-scroll" ref={scrollRef}>
         <MessageList messages={props.messages} onStarter={props.onSend} onRetry={props.onSend} />

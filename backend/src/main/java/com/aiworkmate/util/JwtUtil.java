@@ -19,9 +19,9 @@ public class JwtUtil {
     private final long expiration;
 
     public JwtUtil(@Value("${jwt.secret}") String secret,
-                   @Value("${jwt.expiration}") long expiration) {
+                   @Value("${app.auth.session-ttl}") long expirationSeconds) {
         this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
-        this.expiration = expiration;
+        this.expiration = expirationSeconds * 1000;
     }
 
     public String generateToken(Long userId, String username, String role) {

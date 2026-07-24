@@ -9,11 +9,12 @@ CREATE DATABASE IF NOT EXISTS ai_workmate
 USE ai_workmate;
 
 -- 用户表
-CREATE TABLE IF NOT EXISTS `user` (
+CREATE TABLE IF NOT EXISTS app_user (
     id          BIGINT       AUTO_INCREMENT PRIMARY KEY,
-    username    VARCHAR(50)  NOT NULL UNIQUE,
+    username    VARCHAR(120) NOT NULL UNIQUE,
+    display_name VARCHAR(50),
     password    VARCHAR(255) NOT NULL,
-    email       VARCHAR(100),
+    email       VARCHAR(100) UNIQUE,
     avatar      VARCHAR(500),
     role        VARCHAR(20)  NOT NULL DEFAULT 'USER',
     status      TINYINT      NOT NULL DEFAULT 1,

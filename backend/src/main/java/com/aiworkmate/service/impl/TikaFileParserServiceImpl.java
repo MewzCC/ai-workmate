@@ -12,8 +12,10 @@ import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Locale;
 import java.util.Set;
 
 @Slf4j
@@ -36,6 +38,9 @@ public class TikaFileParserServiceImpl implements FileParserService {
     @Override
     public ParsedFile parse(Path path, String filename) {
         try {
+            if (isMarkdown(filename)) {
+                return new ParsedFile("text/markdown", readMarkdown(path), false);
+            }
             String mimeType;
             try (InputStream input = Files.newInputStream(path)) {
                 mimeType = tika.detect(input, filename);
@@ -58,5 +63,21 @@ public class TikaFileParserServiceImpl implements FileParserService {
         if (text.isBlank()) throw new IOException("No extractable text");
         int maxChars = properties.getExtractedTextMaxChars();
         return text.length() <= maxChars ? text : text.substring(0, maxChars);
+    }
+
+    private String readMarkdown(Path path) throws IOException {
+        String text = Files.readString(path, StandardCharsets.UTF_8);
+        if (text.indexOf('\0') >= 0) {
+            throw new IOException("Binary content is not a Markdown document");
+        }
+        if (text.startsWith("\uFEFF")) {
+            text = text.substring(1);
+        }
+        return limit(text.strip());
+    }
+
+    private boolean isMarkdown(String filename) {
+        String normalized = filename == null ? "" : filename.toLowerCase(Locale.ROOT);
+        return normalized.endsWith(".md") || normalized.endsWith(".markdown");
     }
 }
