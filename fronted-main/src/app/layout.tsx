@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Inter, JetBrains_Mono } from 'next/font/google';
+import Script from 'next/script';
 import 'antd/dist/reset.css';
 import './globals.css';
 
@@ -35,7 +36,10 @@ export default function HomeRootLayout({ children }: { children: React.ReactNode
       <head>
         <script dangerouslySetInnerHTML={{ __html: scrollResetScript }} />
       </head>
-      <body className="min-h-screen overflow-x-hidden antialiased">{children}</body>
+      <body className="min-h-screen overflow-x-hidden antialiased">
+        {children}
+        <Script src="/iconfont/iconfont.js" strategy="beforeInteractive" />
+      </body>
     </html>
   );
 }
