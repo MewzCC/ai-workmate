@@ -6,6 +6,7 @@ export interface AuthUser {
   email: string;
   role: string;
   avatarUrl?: string | null;
+  permissions: string[];
 }
 
 export interface CaptchaData {

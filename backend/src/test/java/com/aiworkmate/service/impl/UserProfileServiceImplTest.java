@@ -6,6 +6,7 @@ import com.aiworkmate.dto.AuthUserResponse;
 import com.aiworkmate.dto.UpdateProfileRequest;
 import com.aiworkmate.entity.User;
 import com.aiworkmate.mapper.UserMapper;
+import com.aiworkmate.service.UserAccessService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -39,13 +40,19 @@ class UserProfileServiceImplTest {
     @Mock
     private UserMapper userMapper;
 
+    @Mock
+    private UserAccessService userAccessService;
+
     private UserProfileServiceImpl profileService;
 
     @BeforeEach
     void setUp() {
         ProfileProperties properties = new ProfileProperties();
         properties.setAvatarDirectory(tempDir.toString());
-        profileService = new UserProfileServiceImpl(userMapper, properties);
+        profileService = new UserProfileServiceImpl(userMapper, properties, userAccessService);
+        org.mockito.Mockito.lenient()
+                .when(userAccessService.permissionsForRole(org.mockito.ArgumentMatchers.anyString()))
+                .thenReturn(java.util.List.of());
     }
 
     @Test
@@ -100,7 +107,7 @@ class UserProfileServiceImplTest {
         user.setUsername("alice@example.com");
         user.setDisplayName("Alice");
         user.setEmail("alice@example.com");
-        user.setRole("USER");
+        user.setRole("EMPLOYEE");
         user.setStatus(1);
         user.setUpdatedAt(LocalDateTime.now());
         return user;

@@ -8,6 +8,8 @@ import com.aiworkmate.config.SecurityConfig;
 import com.aiworkmate.security.JwtAuthenticationFilter;
 import com.aiworkmate.security.JwtValidationStatus;
 import com.aiworkmate.service.AiTaskService;
+import com.aiworkmate.service.UserAccessService;
+import com.aiworkmate.service.model.ResolvedUserAccess;
 import com.aiworkmate.util.JwtUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -41,11 +43,15 @@ class AiTaskSecurityTest {
     @MockBean
     private JwtUtil jwtUtil;
 
+    @MockBean
+    private UserAccessService userAccessService;
+
     @BeforeEach
     void setUp() {
         when(jwtUtil.validateTokenStatus(TOKEN)).thenReturn(JwtValidationStatus.VALID);
         when(jwtUtil.getUserIdFromToken(TOKEN)).thenReturn(1001L);
-        when(jwtUtil.getUsernameFromToken(TOKEN)).thenReturn("alice");
+        when(userAccessService.resolveActiveUser(1001L))
+                .thenReturn(new ResolvedUserAccess(1001L, "alice", "EMPLOYEE", java.util.List.of()));
     }
 
     @Test
@@ -86,8 +92,6 @@ class AiTaskSecurityTest {
 
     @Test
     void shouldRejectEmployeeExecution() throws Exception {
-        when(jwtUtil.getRoleFromToken(TOKEN)).thenReturn("USER");
-
         mockMvc.perform(post("/api/ai/tasks/execute")
                         .header("Authorization", "Bearer " + TOKEN)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -100,7 +104,8 @@ class AiTaskSecurityTest {
 
     @Test
     void shouldReturnCapabilityUnavailableWithoutCreatingFakePlan() throws Exception {
-        when(jwtUtil.getRoleFromToken(TOKEN)).thenReturn("ADMIN");
+        when(userAccessService.resolveActiveUser(1001L))
+                .thenReturn(new ResolvedUserAccess(1001L, "alice", "SYSTEM_ADMIN", java.util.List.of()));
         when(aiTaskService.plan(any(), any()))
                 .thenThrow(new BusinessException(ErrorCode.AI_TASK_CAPABILITY_UNAVAILABLE));
 

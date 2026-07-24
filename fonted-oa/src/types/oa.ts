@@ -31,6 +31,8 @@ export interface OaMenuItem {
   type: 'group' | 'menu' | 'page';
   icon?: string;
   path?: string;
+  componentKey?: 'DASHBOARD' | 'AI_WORKSPACE' | 'ACCESS_CONTROL';
+  permissionCode?: string;
   sort: number;
   visible: boolean;
   roles?: OaRole[];

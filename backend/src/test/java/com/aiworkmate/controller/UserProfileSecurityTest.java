@@ -7,6 +7,8 @@ import com.aiworkmate.dto.AuthUserResponse;
 import com.aiworkmate.security.JwtAuthenticationFilter;
 import com.aiworkmate.security.JwtValidationStatus;
 import com.aiworkmate.service.UserProfileService;
+import com.aiworkmate.service.UserAccessService;
+import com.aiworkmate.service.model.ResolvedUserAccess;
 import com.aiworkmate.util.JwtUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -40,12 +42,15 @@ class UserProfileSecurityTest {
     @MockBean
     private JwtUtil jwtUtil;
 
+    @MockBean
+    private UserAccessService userAccessService;
+
     @BeforeEach
     void setUp() {
         when(jwtUtil.validateTokenStatus(TOKEN)).thenReturn(JwtValidationStatus.VALID);
         when(jwtUtil.getUserIdFromToken(TOKEN)).thenReturn(1001L);
-        when(jwtUtil.getUsernameFromToken(TOKEN)).thenReturn("alice");
-        when(jwtUtil.getRoleFromToken(TOKEN)).thenReturn("USER");
+        when(userAccessService.resolveActiveUser(1001L))
+                .thenReturn(new ResolvedUserAccess(1001L, "alice", "EMPLOYEE", java.util.List.of()));
     }
 
     @Test
@@ -62,7 +67,7 @@ class UserProfileSecurityTest {
     void shouldUseAuthenticatedUserIdForProfileUpdate() throws Exception {
         when(userProfileService.update(org.mockito.ArgumentMatchers.eq(1001L), any()))
                 .thenReturn(new AuthUserResponse(1001L, "Alice Chen", "alice@example.com",
-                        "USER", null));
+                        "EMPLOYEE", null, java.util.List.of()));
 
         mockMvc.perform(put("/api/profile")
                         .header("Authorization", "Bearer " + TOKEN)

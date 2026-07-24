@@ -18,7 +18,7 @@ public class User {
     private String email;
     private String avatar;
 
-    private String role;    // USER / ADMIN
+    private String role;
 
     private Integer status; // 1=正常 0=禁用
 

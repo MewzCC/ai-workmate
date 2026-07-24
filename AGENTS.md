@@ -119,7 +119,7 @@ docker compose -f docker-compose.yml up -d
 - `backend/src/main/java/com/aiworkmate/dto`：请求与响应对象。
 - `backend/src/main/java/com/aiworkmate/dto/AiTask*`：OA AI 任务 plan/execute DTO。
 - `backend/src/main/java/com/aiworkmate/common`：统一响应、异常处理、公共模型。
-- `backend/src/main/resources/db`：数据库初始化与迁移脚本。
+- `backend/src/main/resources/db/init.sql`：唯一数据库初始化与升级入口；禁止新增版本化 SQL 文件。
 
 ## OA 工作台约束
 
@@ -159,6 +159,14 @@ docker compose -f docker-compose.yml up -d
 
 ## OA 权限与 AI 约束
 
+- OA 真实菜单必须由 `GET /api/navigation` 返回，角色、权限和路由分别存储于 `rbac_role`、`rbac_permission`、`rbac_route`；禁止使用 `fonted-oa/src/mock` 作为真实授权来源。
+- 动态页面权限使用 `route:<routeKey>`，前端只允许渲染固定组件注册表中的组件；直接访问无权限路由必须回到首个可访问页面。
+- `AdminLayout` 必须由 `/oa/layout.tsx` 持久挂载，页面路由切换不得重新挂载侧栏。
+- OA 动态菜单首次进入全部折叠，允许同时展开多个目录；选择页面时保留已展开目录并补充当前祖先目录；刷新叶子页面时自动恢复其目录链。
+- 侧栏收缩后必须保留 Ant Design 弹出子菜单选择能力，不得用受控空 `openKeys` 阻止交互。
+- 收缩菜单及其他挂载到 `body` 的 Portal 弹层必须同步当前 `ConfigProvider` token 和 OA CSS variables，不能保留 Ant Design 默认深蓝背景；壁纸模式下同步透明模糊材质。
+- 权限后台固定使用 `/oa/access-control`，支持新增角色、用户角色分配、角色权限分配和动态路由配置；管理接口必须校验 `access:manage`。
+- JWT 请求必须按认证 `userId` 从数据库实时解析角色权限，角色变更后无需重新登录；最后一名有效 `SUPER_ADMIN` 不得被降级。
 - 权限演示入口：`can(role, menuId, action)`、`filterMenusByRole(role)`、`getAllowedAiActions(role, pageId)`；不得替代后端鉴权。
 - 普通员工不得看到系统设置，不得执行审批、删除、权限修改、敏感导出等高风险 AI 操作。
 - AI Drawer 必须展示当前页面、当前角色、数据范围、可执行动作和高风险确认提示。

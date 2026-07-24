@@ -1,6 +1,8 @@
 package com.aiworkmate.security;
 
 import com.aiworkmate.util.JwtUtil;
+import com.aiworkmate.service.UserAccessService;
+import com.aiworkmate.service.model.ResolvedUserAccess;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -18,7 +20,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.util.List;
+import java.util.ArrayList;
 
 @Slf4j
 @Component
@@ -29,6 +31,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     public static final String AUTH_ERROR_ATTRIBUTE = JwtAuthenticationFilter.class.getName() + ".AUTH_ERROR";
 
     private final JwtUtil jwtUtil;
+    private final UserAccessService userAccessService;
 
     @Value("${app.auth.cookie-name:oa_session}")
     private String cookieName;
@@ -52,15 +55,21 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 return;
             }
 
-            AuthenticatedUser principal = new AuthenticatedUser(
-                    jwtUtil.getUserIdFromToken(token),
-                    jwtUtil.getUsernameFromToken(token),
-                    jwtUtil.getRoleFromToken(token)
-            );
+            ResolvedUserAccess access = userAccessService.resolveActiveUser(jwtUtil.getUserIdFromToken(token));
+            if (access == null) {
+                request.setAttribute(AUTH_ERROR_ATTRIBUTE, JwtValidationStatus.INVALID);
+                return;
+            }
+            AuthenticatedUser principal = new AuthenticatedUser(access.userId(), access.username(), access.role());
+            var authorities = new ArrayList<SimpleGrantedAuthority>();
+            authorities.add(new SimpleGrantedAuthority("ROLE_" + access.role()));
+            access.permissions().stream()
+                    .map(SimpleGrantedAuthority::new)
+                    .forEach(authorities::add);
             var authentication = new UsernamePasswordAuthenticationToken(
                     principal,
                     null,
-                    List.of(new SimpleGrantedAuthority("ROLE_" + principal.role()))
+                    authorities
             );
             authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
             SecurityContextHolder.getContext().setAuthentication(authentication);

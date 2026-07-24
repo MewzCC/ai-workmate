@@ -12,6 +12,7 @@ import com.aiworkmate.entity.User;
 import com.aiworkmate.mapper.UserMapper;
 import com.aiworkmate.service.AuthService;
 import com.aiworkmate.service.LoginProtectionService;
+import com.aiworkmate.service.UserAccessService;
 import com.aiworkmate.service.VerificationCodeService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +34,7 @@ public class AuthServiceImpl implements AuthService {
     private final PasswordEncoder passwordEncoder;
     private final VerificationCodeService verificationCodeService;
     private final LoginProtectionService loginProtectionService;
+    private final UserAccessService userAccessService;
 
     @Override
     public AuthUserResponse loginWithPassword(PasswordLoginRequest request, String clientIp) {
@@ -78,7 +80,7 @@ public class AuthServiceImpl implements AuthService {
         user.setDisplayName(request.name().trim());
         user.setEmail(email);
         user.setPassword(passwordEncoder.encode(request.password()));
-        user.setRole("USER");
+        user.setRole("EMPLOYEE");
         user.setStatus(1);
         user.setCreatedAt(now);
         user.setUpdatedAt(now);
@@ -127,6 +129,13 @@ public class AuthServiceImpl implements AuthService {
                 ? user.getUsername() : user.getDisplayName();
         String avatarUrl = user.getAvatar() == null || user.getAvatar().isBlank()
                 ? null : "/api/profile/avatar/content?v=" + user.getUpdatedAt().toInstant(ZoneOffset.UTC).toEpochMilli();
-        return new AuthUserResponse(user.getId(), name, user.getEmail(), user.getRole(), avatarUrl);
+        return new AuthUserResponse(
+                user.getId(),
+                name,
+                user.getEmail(),
+                user.getRole(),
+                avatarUrl,
+                userAccessService.permissionsForRole(user.getRole())
+        );
     }
 }

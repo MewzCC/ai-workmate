@@ -6,7 +6,9 @@ import com.aiworkmate.config.SecurityConfig;
 import com.aiworkmate.security.JwtAuthenticationFilter;
 import com.aiworkmate.security.JwtValidationStatus;
 import com.aiworkmate.service.ChatService;
+import com.aiworkmate.service.UserAccessService;
 import com.aiworkmate.service.model.ChatChunk;
+import com.aiworkmate.service.model.ResolvedUserAccess;
 import com.aiworkmate.util.JwtUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -56,12 +58,15 @@ class ChatStreamSecurityTest {
     @MockBean
     private JwtUtil jwtUtil;
 
+    @MockBean
+    private UserAccessService userAccessService;
+
     @BeforeEach
     void setUp() {
         when(jwtUtil.validateTokenStatus(TOKEN)).thenReturn(JwtValidationStatus.VALID);
         when(jwtUtil.getUserIdFromToken(TOKEN)).thenReturn(1001L);
-        when(jwtUtil.getUsernameFromToken(TOKEN)).thenReturn("alice");
-        when(jwtUtil.getRoleFromToken(TOKEN)).thenReturn("USER");
+        when(userAccessService.resolveActiveUser(1001L))
+                .thenReturn(new ResolvedUserAccess(1001L, "alice", "EMPLOYEE", java.util.List.of()));
     }
 
     @Test
