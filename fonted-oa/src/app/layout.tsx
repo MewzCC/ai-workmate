@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Inter, JetBrains_Mono } from 'next/font/google';
+import Script from 'next/script';
 import 'antd/dist/reset.css';
 import './globals.css';
 import Providers from './providers';
@@ -26,7 +27,10 @@ export const metadata: Metadata = {
 export default function OaRootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="zh-CN" className={`${geistSans.variable} ${geistMono.variable}`}>
-      <body className="min-h-screen overflow-x-hidden antialiased"><Providers>{children}</Providers></body>
+      <body className="min-h-screen overflow-x-hidden antialiased">
+        <Providers>{children}</Providers>
+        <Script src="/iconfont/iconfont.js" strategy="beforeInteractive" />
+      </body>
     </html>
   );
 }
