@@ -45,6 +45,8 @@ export default function AiChatWorkspace({ role }: AiChatWorkspaceProps) {
       conversations={store.conversations}
       activeId={store.activeId}
       loading={store.loading}
+      messagesByConversation={store.messagesByConversation}
+      generatingIds={store.generatingIds}
       onSearch={store.loadConversations}
       onNew={() => store.newConversation()}
       onSelect={(id) => {
@@ -119,6 +121,8 @@ export default function AiChatWorkspace({ role }: AiChatWorkspaceProps) {
           conversations={store.conversations}
           activeId={store.activeId}
           loading={store.loading}
+          messagesByConversation={store.messagesByConversation}
+          generatingIds={store.generatingIds}
           onSearch={store.loadConversations}
           onNew={() => store.newConversation()}
           onSelect={(id) => {
