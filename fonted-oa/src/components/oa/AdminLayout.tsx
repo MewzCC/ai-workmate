@@ -189,10 +189,14 @@ export default function AdminLayout() {
       setSelectedMenu(visibleMenu);
       return;
     }
+    // 仅当当前 pageId 在菜单中确实不存在时，才回退到首个可用页面
+    // 避免与用户主动点击触发的路由跳转打架
     const fallback = findMenu('dashboard', menus) || firstPage(menus);
-    if (fallback) {
+    if (fallback && fallback.id !== currentPageId) {
       setSelectedMenu(fallback);
-      if (currentPageId !== fallback.id) router.replace(fallback.path || `/oa/${fallback.id}`);
+      router.replace(fallback.path || `/oa/${fallback.id}`);
+    } else if (fallback) {
+      setSelectedMenu(fallback);
     }
   }, [currentPageId, menus, navigationLoaded, router]);
 
