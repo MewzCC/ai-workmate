@@ -2823,12 +2823,12 @@ html.oa-wallpaper-active .ant-menu-submenu-popup .ant-menu-dark {
 }
 
 .oa-header {
-  height: auto;
+  height: auto !important;
   min-height: 82px;
-  padding: 14px 24px;
-  background: linear-gradient(135deg, color-mix(in srgb, var(--oa-primary, #1677ff) 88%, #000) 0%, color-mix(in srgb, var(--oa-primary, #1677ff) 72%, #000) 100%);
+  padding: 14px 24px !important;
+  background: linear-gradient(135deg, var(--oa-primary, #1677ff) 0%, color-mix(in srgb, var(--oa-primary, #1677ff) 78%, #000) 100%) !important;
   backdrop-filter: blur(14px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12) !important;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -2836,29 +2836,110 @@ html.oa-wallpaper-active .ant-menu-submenu-popup .ant-menu-dark {
   position: sticky;
   top: 0;
   z-index: 20;
+  color: #ffffff !important;
+  line-height: 1.4;
 }
 
 .oa-has-wallpaper .oa-header {
-  background: linear-gradient(135deg, color-mix(in srgb, var(--oa-primary, #1677ff) 78%, #000) 0%, color-mix(in srgb, var(--oa-primary, #1677ff) 62%, #000) 100%);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--oa-primary, #1677ff) 88%, #000) 0%, color-mix(in srgb, var(--oa-primary, #1677ff) 68%, #000) 100%) !important;
   -webkit-backdrop-filter: blur(22px) saturate(1.14);
   backdrop-filter: blur(22px) saturate(1.14);
 }
 
 .oa-header h1 {
-  margin: 4px 0 0;
+  margin: 4px 0 0 !important;
   font-size: 22px;
   line-height: 1.1;
-  color: #ffffff;
+  color: #ffffff !important;
 }
 
 .oa-header .ant-breadcrumb,
 .oa-header .ant-breadcrumb a,
 .oa-header .ant-breadcrumb-separator {
-  color: rgba(255, 255, 255, 0.85) !important;
+  color: rgba(255, 255, 255, 0.75) !important;
 }
 
 .oa-header .ant-breadcrumb > span:last-child {
   color: #ffffff !important;
+}
+
+.oa-header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.oa-header-actions {
+  justify-content: flex-end;
+}
+
+/* 默认隐藏移动端"更多"按钮（web 端不显示） */
+.oa-header-more-btn {
+  display: none !important;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px !important;
+  background: rgba(255, 255, 255, 0.16) !important;
+  border: 1px solid rgba(255, 255, 255, 0.28) !important;
+  color: #ffffff !important;
+  font-size: 18px;
+}
+
+.oa-header-more-btn:hover {
+  background: rgba(255, 255, 255, 0.28) !important;
+  border-color: rgba(255, 255, 255, 0.48) !important;
+  color: #ffffff !important;
+}
+
+.oa-header .ant-btn:not(.ant-btn-primary):not(.ant-btn-text) {
+  background: rgba(255, 255, 255, 0.16) !important;
+  border-color: rgba(255, 255, 255, 0.28) !important;
+  color: #ffffff !important;
+}
+
+.oa-header .ant-btn:not(.ant-btn-primary):not(.ant-btn-text):hover {
+  background: rgba(255, 255, 255, 0.28) !important;
+  border-color: rgba(255, 255, 255, 0.48) !important;
+  color: #ffffff !important;
+}
+
+.oa-profile-trigger {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px 4px 6px !important;
+  border-radius: 999px !important;
+  background: rgba(255, 255, 255, 0.16) !important;
+  border: 1px solid rgba(255, 255, 255, 0.28) !important;
+  color: #ffffff !important;
+  height: 40px;
+}
+
+.oa-profile-trigger:hover {
+  background: rgba(255, 255, 255, 0.28) !important;
+  border-color: rgba(255, 255, 255, 0.48) !important;
+}
+
+.oa-profile-trigger .ant-avatar {
+  background: rgba(255, 255, 255, 0.32);
+  flex-shrink: 0;
+}
+
+.oa-profile-name {
+  font-size: 13px;
+  font-weight: 500;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.oa-profile-caret {
+  font-size: 11px;
+  opacity: 0.6;
 }
 
 .oa-role-select {
@@ -3862,10 +3943,61 @@ html.oa-wallpaper-active .ant-menu-submenu-popup .ant-menu-dark {
 @media (max-width: 980px) {
   .ai-workspace { grid-template-columns: 240px minmax(0, 1fr); }
 
-  .oa-header,
   .oa-page-title {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  /* 顶部栏保持横向：标题在左，更多+头像在右 */
+  .oa-header {
+    min-height: 56px;
+    padding: 10px 14px;
+    gap: 12px;
+    flex-wrap: nowrap;
+  }
+
+  .oa-header-title {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .oa-header-title .ant-breadcrumb {
+    display: none;
+  }
+
+  .oa-header h1 {
+    font-size: 16px;
+    margin: 0 !important;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* 隐藏业务按钮组，改用"更多"菜单 */
+  .oa-header-actions {
+    display: none !important;
+  }
+
+  .oa-header-more-btn {
+    display: inline-flex !important;
+  }
+
+  .oa-header-right {
+    flex-shrink: 0;
+    gap: 8px;
+  }
+
+  /* 头像胶囊：窄屏只显示头像图标，隐藏用户名 */
+  .oa-profile-trigger {
+    padding: 4px !important;
+    width: 40px;
+    height: 40px;
+    justify-content: center;
+  }
+
+  .oa-profile-name,
+  .oa-profile-caret {
+    display: none;
   }
 
   .oa-content {
@@ -3874,6 +4006,16 @@ html.oa-wallpaper-active .ant-menu-submenu-popup .ant-menu-dark {
 
   .oa-ai-mini {
     display: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .oa-header {
+    padding: 8px 12px;
+  }
+
+  .oa-header h1 {
+    font-size: 15px;
   }
 }
 
