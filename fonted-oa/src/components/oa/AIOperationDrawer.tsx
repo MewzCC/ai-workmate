@@ -126,7 +126,7 @@ export default function AIOperationDrawer({
   };
 
   return (
-    <Drawer title="AI 操作面板" width={520} open={open} onClose={onClose} extra={<Button onClick={onClose}>关闭 Drawer</Button>}>
+    <Drawer title="AI 操作面板" width={520} open={open} onClose={onClose}>
       <Space direction="vertical" size={16} className="oa-drawer-stack">
         <Card size="small" title="当前上下文">
           <Descriptions
