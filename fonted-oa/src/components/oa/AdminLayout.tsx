@@ -333,7 +333,6 @@ export default function AdminLayout() {
           {selectedMenu.id !== 'ai-workspace' && <FloatButton
             type="primary"
             icon={<RobotOutlined />}
-            description="AI"
             tooltip="打开 AI 操作面板"
             onClick={() => openAi()}
           />}
