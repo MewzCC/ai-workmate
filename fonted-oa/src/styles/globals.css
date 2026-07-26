@@ -2745,9 +2745,35 @@
   align-items: center;
   gap: 12px;
   color: var(--oa-sider-text, #d7e7ff);
+  transition: gap 200ms ease;
+  overflow: hidden;
+}
+
+/* 收缩态：仅切换 gap，logo 位置保持稳定（始终靠左 18px），避免展开/收缩时位移 */
+.oa-shell-collapsed .oa-sider-brand,
+.oa-sider-brand.is-collapsed {
+  gap: 0;
+}
+
+.oa-sider-brand-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  opacity: 1;
+  max-width: 180px;
+  transition: opacity 180ms ease, max-width 200ms ease;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.oa-sider-brand.is-collapsed .oa-sider-brand-text {
+  opacity: 0;
+  max-width: 0;
+  pointer-events: none;
 }
 
 .oa-logo {
+  flex: none;
   width: 38px;
   height: 38px;
   display: inline-flex;
@@ -2772,6 +2798,33 @@
   margin: 0 12px 12px;
   width: calc(100% - 24px) !important;
   color: var(--oa-sider-text, #d7e7ff) !important;
+}
+
+/* 收缩态：按钮占满 sider 宽度、padding 清零、隐藏文字 span，icon 用 flex 居中，与 menu item icon 严格对齐 */
+.oa-shell-collapsed .oa-collapse-btn {
+  margin: 0 0 12px !important;
+  width: 100% !important;
+  padding: 0 !important;
+  display: flex !important;
+  justify-content: center !important;
+}
+.oa-shell-collapsed .oa-collapse-btn-text {
+  display: none !important;
+}
+
+.oa-collapse-btn-text {
+  display: inline-block;
+  max-width: 120px;
+  opacity: 1;
+  transition: opacity 160ms ease, max-width 180ms ease;
+  overflow: hidden;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.oa-shell-collapsed .oa-collapse-btn-text {
+  max-width: 0;
+  opacity: 0;
 }
 
 .oa-sider .ant-menu {

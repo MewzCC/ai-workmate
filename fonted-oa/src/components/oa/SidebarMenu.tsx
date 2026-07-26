@@ -111,14 +111,12 @@ export default function SidebarMenu({
       collapsed={collapsed}
       trigger={null}
     >
-      <div className="oa-sider-brand">
+      <div className={`oa-sider-brand ${collapsed ? 'is-collapsed' : 'is-expanded'}`}>
         <span className="oa-logo">W</span>
-        {!collapsed && (
-          <div>
-            <strong>WorkMate OA</strong>
-            <small>Enterprise Console</small>
-          </div>
-        )}
+        <div className="oa-sider-brand-text">
+          <strong>WorkMate OA</strong>
+          <small>Enterprise Console</small>
+        </div>
       </div>
 
       <Button
@@ -128,7 +126,7 @@ export default function SidebarMenu({
         onClick={() => onCollapse(!collapsed)}
         block
       >
-        {!collapsed && '收起菜单'}
+        <span className="oa-collapse-btn-text">{!collapsed && '收起菜单'}</span>
       </Button>
 
       <Menu
