@@ -20,6 +20,7 @@ interface ChatSidebarProps {
   activeId: number | null;
   loading: boolean;
   messagesByConversation?: Record<number, ChatMessage[]>;
+  previewByConversation?: Record<number, ChatMessage[]>;
   generatingIds?: number[];
   onSearch: (value: string) => void;
   onNew: () => void;
@@ -105,9 +106,12 @@ export default function ChatSidebar(props: ChatSidebarProps) {
   const renderSessionItem = (item: ChatConversation) => {
     const isActive = item.id === props.activeId;
     const isGenerating = props.generatingIds?.includes(item.id);
+    // 优先用完整消息列表（已点击加载过），否则用预览（preloadPreviews 预加载的最近一条）
     const messages = props.messagesByConversation?.[item.id];
+    const previewMessages = props.previewByConversation?.[item.id];
+    const preview = pickPreview(messages || previewMessages);
+    // 消息数：只有完整列表才知道准确数量，预览模式不显示
     const messageCount = messages?.length || 0;
-    const preview = pickPreview(messages);
 
     return (
       <div
