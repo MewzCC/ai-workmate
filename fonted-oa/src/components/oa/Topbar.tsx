@@ -18,6 +18,7 @@ import { useAuth } from '@/components/auth/AuthProvider';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import ProfileSettingsModal from '@/components/profile/ProfileSettingsModal';
+import HelpDrawer from './HelpDrawer';
 
 const { Header } = Layout;
 
@@ -33,13 +34,14 @@ export default function Topbar({ role, pageTitle, breadcrumbs, onOpenAppearance,
   const { user, logout } = useAuth();
   const router = useRouter();
   const [profileOpen, setProfileOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   const handleLogout = async () => {
     await logout();
     router.replace('/auth');
   };
 
-  const handleHelp = () => message.info('已打开帮助文档：当前为 OA 工作台基础能力说明');
+  const handleHelp = () => setHelpOpen(true);
   const handleNotify = () => notification.info({ message: '通知中心', description: '你有 3 条审批提醒、1 条接口告警待处理。' });
   const handleNewFlow = () => onOpenAi('帮我新建一个跨部门采购申请，并检查审批链是否完整');
   const handleExport = () => message.warning('真实导出能力尚未接入');
@@ -130,6 +132,7 @@ export default function Topbar({ role, pageTitle, breadcrumbs, onOpenAppearance,
         </Dropdown>
       </div>
       <ProfileSettingsModal open={profileOpen} onClose={() => setProfileOpen(false)} />
+      <HelpDrawer open={helpOpen} role={role} onClose={() => setHelpOpen(false)} onOpenAi={onOpenAi} />
     </Header>
   );
 }
