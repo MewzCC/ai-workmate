@@ -91,7 +91,7 @@ export default function ProfileSettingsModal({ open, onClose }: ProfileSettingsM
       onOk={() => form.submit()}
       okText="保存资料"
       confirmLoading={saving}
-      destroyOnClose
+      destroyOnHidden
     >
       <div className="oa-profile-avatar-editor">
         <Avatar size={80} src={previewUrl || user?.avatarUrl} icon={<UserOutlined />} />

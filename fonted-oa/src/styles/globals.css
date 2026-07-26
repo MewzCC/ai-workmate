@@ -2859,7 +2859,10 @@ html.oa-wallpaper-active .ant-menu-submenu-popup .ant-menu-dark {
   color: rgba(255, 255, 255, 0.75) !important;
 }
 
-.oa-header .ant-breadcrumb > span:last-child {
+.oa-header .ant-breadcrumb > span:last-child,
+.oa-header .ant-breadcrumb > span:last-child > span,
+.oa-header .ant-breadcrumb li:last-child,
+.oa-header .ant-breadcrumb li:last-child > span {
   color: #ffffff !important;
 }
 
