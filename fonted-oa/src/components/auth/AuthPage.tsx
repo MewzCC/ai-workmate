@@ -275,7 +275,7 @@ export default function AuthPage() {
           okButtonProps={{ disabled: captchaLoading || !captcha }}
           onOk={() => void confirmSendCode()}
           onCancel={() => { setCaptchaModalOpen(false); setCaptchaError(''); }}
-          destroyOnClose
+          destroyOnHidden
         >
           <p className="auth-captcha-hint">发送邮箱验证码前，请先输入下图中的字符。</p>
           <CaptchaInput

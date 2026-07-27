@@ -1,14 +1,15 @@
 'use client';
 
 import { Button, Empty, Space, Typography } from 'antd';
-import { CodeOutlined, FileSearchOutlined, PictureOutlined, WarningOutlined } from '@ant-design/icons';
+import { PictureOutlined, WarningOutlined } from '@ant-design/icons';
 import type { ChatMessage } from '@/types/chat';
 import MessageItem from './MessageItem';
+import { OaIcon } from '@/components/OaIcon';
 
 const starters = [
-  { label: '帮我总结一份文档', icon: <FileSearchOutlined /> },
+  { label: '帮我总结一份文档', icon: <OaIcon name="search" /> },
   { label: '分析这张图片', icon: <PictureOutlined /> },
-  { label: '帮我写一段代码', icon: <CodeOutlined /> },
+  { label: '帮我写一段代码', icon: <OaIcon name="code" /> },
   { label: '解释这个报错', icon: <WarningOutlined /> },
 ];
 
@@ -22,7 +23,7 @@ export default function MessageList({ messages, onStarter, onRetry }: MessageLis
   if (!messages.length) {
     return (
       <div className="ai-chat-empty">
-        <div className="ai-empty-mark">AI</div>
+        <div className="ai-empty-mark"><OaIcon name="ai" size={30} title="WorkMate AI" /></div>
         <Typography.Title level={2}>今天想一起完成什么？</Typography.Title>
         <Typography.Paragraph type="secondary">可以直接提问，也可以上传图片、表格或文档作为上下文。</Typography.Paragraph>
         <Space wrap className="ai-starter-list">

@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { Alert, Button, Image, Modal, Spin, Typography } from 'antd';
-import { CloseOutlined, FileTextOutlined } from '@ant-design/icons';
+import { CloseOutlined } from '@ant-design/icons';
 import { loadAttachmentContent, loadAttachmentText } from '@/lib/chatApi';
 import type { ChatAttachment } from '@/types/chat';
 import MarkdownRenderer from './MarkdownRenderer';
+import { OaIcon, type OaIconName } from '@/components/OaIcon';
 
 interface AttachmentPreviewProps {
   attachment: ChatAttachment;
@@ -76,14 +77,14 @@ export default function AttachmentPreview({ attachment, removable, onRemove }: A
           <Button
             type="text"
             className="ai-attachment-open"
-            icon={<span className="ai-attachment-file-icon"><FileTextOutlined /></span>}
+            icon={<span className="ai-attachment-file-icon"><OaIcon name={attachmentIcon(attachment)} /></span>}
             onClick={() => void openMarkdown()}
           >
             <AttachmentMeta attachment={attachment} action="点击预览" />
           </Button>
         ) : (
           <>
-            <span className="ai-attachment-file-icon"><FileTextOutlined /></span>
+            <span className="ai-attachment-file-icon"><OaIcon name={attachmentIcon(attachment)} /></span>
             <AttachmentMeta attachment={attachment} />
           </>
         )}
@@ -132,6 +133,16 @@ function AttachmentMeta({ attachment, action }: { attachment: ChatAttachment; ac
 function isMarkdownAttachment(attachment: ChatAttachment): boolean {
   const name = attachment.name.toLowerCase();
   return attachment.mimeType === 'text/markdown' || name.endsWith('.md') || name.endsWith('.markdown');
+}
+
+function attachmentIcon(attachment: ChatAttachment): OaIconName {
+  const extension = attachment.name.split('.').pop()?.toLowerCase();
+  if (extension === 'csv') return 'csv';
+  if (extension === 'pdf') return 'pdf';
+  if (extension === 'png') return 'png';
+  if (extension === 'jpg' || extension === 'jpeg') return 'jpg';
+  if (extension === 'txt' || extension === 'md' || extension === 'markdown') return 'txt';
+  return 'attachment';
 }
 
 function isAbortError(error: unknown): boolean {

@@ -3,11 +3,11 @@
 import { Fragment, useState } from 'react';
 import { Button, Card, Drawer, Empty, Image, Radio, Slider, Space, Spin, Switch, Tag, Typography, Upload, message } from 'antd';
 import type { UploadProps } from 'antd';
-import { DeleteOutlined, EditOutlined, UploadOutlined } from '@ant-design/icons';
 import type { Area } from 'react-easy-crop';
 import type { OaTheme } from '@/types/oa';
 import { createCroppedWallpaper, createWallpaperSource, releaseWallpaperSource } from '@/lib/wallpaper';
 import WallpaperCropModal from './WallpaperCropModal';
+import { OaIcon } from '@/components/OaIcon';
 
 const WALLPAPER_STORAGE_KEY = 'workmeta-oa-wallpaper';
 
@@ -119,17 +119,17 @@ export default function AppearanceDrawer(props: AppearanceDrawerProps) {
             </div>
             <Space wrap>
               <Upload {...uploadProps}>
-                <Button icon={<UploadOutlined />} disabled={processingWallpaper}>上传并裁剪</Button>
+                <Button icon={<OaIcon name="upload" />} disabled={processingWallpaper}>上传并裁剪</Button>
               </Upload>
               <Button
-                icon={<EditOutlined />}
+                icon={<OaIcon name="edit" />}
                 disabled={!props.wallpaper || processingWallpaper}
                 onClick={() => setCropSource(props.wallpaper)}
               >
                 重新裁剪
               </Button>
               <Button
-                icon={<DeleteOutlined />}
+                icon={<OaIcon name="delete" />}
                 disabled={!props.wallpaper || processingWallpaper}
                 onClick={clearWallpaper}
               >
