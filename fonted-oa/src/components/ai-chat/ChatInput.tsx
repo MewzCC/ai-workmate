@@ -29,8 +29,10 @@ export default function ChatInput({ pending, generating, onUpload, onRemoveAttac
   const dragDepth = useRef(0);
 
   const send = () => {
-    if ((!value.trim() && !pending.length) || generating) return;
-    onSend(value);
+    // 去除末尾换行并 trim，避免发送的文本末尾残留回车符
+    const content = value.replace(/\n+$/, '').trim();
+    if ((!content && !pending.length) || generating) return;
+    onSend(content);
     setValue('');
   };
 

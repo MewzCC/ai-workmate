@@ -189,16 +189,32 @@ export default function AdminLayout() {
       setSelectedMenu(visibleMenu);
       return;
     }
+    // 仅当当前 pageId 在菜单中确实不存在时，才回退到首个可用页面
+    // 延迟 300ms 执行，避免与用户主动点击触发的路由跳转打架
     const fallback = findMenu('dashboard', menus) || firstPage(menus);
-    if (fallback) {
+    if (!fallback) return;
+    const timer = setTimeout(() => {
       setSelectedMenu(fallback);
-      if (currentPageId !== fallback.id) router.replace(fallback.path || `/oa/${fallback.id}`);
-    }
+      if (fallback.id !== currentPageId) {
+        router.replace(fallback.path || `/oa/${fallback.id}`);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
   }, [currentPageId, menus, navigationLoaded, router]);
 
   useEffect(() => {
     document.title = `AI WorkMate OA - ${selectedMenu.name}`;
   }, [selectedMenu.name]);
+
+  // 路由切换完成后关闭 loading 提示
+  useEffect(() => {
+    if (!navigationLoaded) return;
+    message.destroy('oa-route-switch');
+    if (selectedMenu.id === currentPageId) {
+      message.info(`已切换到：${selectedMenu.name}`, 1.5);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname, navigationLoaded]);
 
   useEffect(() => {
     document.documentElement.style.setProperty('--oa-primary', currentTheme.primary);
@@ -235,6 +251,20 @@ export default function AdminLayout() {
   const addAudit = (text: string) => {
     setAuditItems((prev) => [{ color: currentTheme.primary, children: `${new Date().toLocaleTimeString()} ${text}` }, ...prev].slice(0, 6));
   };
+
+  // 菜单加载后预取所有页面路由，触发 Next dev 模式提前编译，避免点击时再等编译
+  useEffect(() => {
+    if (!navigationLoaded || menus.length === 0) return;
+    const collectPaths = (items: OaMenuItem[]): string[] => {
+      const paths: string[] = [];
+      for (const item of items) {
+        if (item.type === 'page') paths.push(item.path || `/oa/${item.id}`);
+        if (item.children?.length) paths.push(...collectPaths(item.children));
+      }
+      return paths;
+    };
+    collectPaths(menus).forEach((path) => router.prefetch(path));
+  }, [menus, navigationLoaded, router]);
 
   return (
     <ConfigProvider
@@ -293,14 +323,21 @@ export default function AdminLayout() {
               collapsed={collapsed}
               onCollapse={setCollapsed}
               onSelect={(menu) => {
-                router.push(menu.path || `/oa/${menu.id}`);
-                message.info(`已切换到：${menu.name}`);
+                if (menu.id === currentPageId) return;
+                const target = menu.path || `/oa/${menu.id}`;
+                message.loading({
+                  content: `正在切换到：${menu.name}`,
+                  key: 'oa-route-switch',
+                  duration: 0,
+                });
+                router.push(target);
               }}
             />
             <Layout>
               <Topbar
                 role={role}
                 pageTitle={selectedMenu.name}
+                breadcrumbs={buildBreadcrumbs(selectedMenu, menus)}
                 onOpenAppearance={() => setAppearanceOpen(true)}
                 onOpenAi={openAi}
               />
@@ -329,7 +366,6 @@ export default function AdminLayout() {
           {selectedMenu.id !== 'ai-workspace' && <FloatButton
             type="primary"
             icon={<RobotOutlined />}
-            description="AI"
             tooltip="打开 AI 操作面板"
             onClick={() => openAi()}
           />}
@@ -390,4 +426,28 @@ function firstPage(menus: OaMenuItem[]): OaMenuItem | undefined {
     if (child) return child;
   }
   return undefined;
+}
+
+function buildBreadcrumbs(menu: OaMenuItem, menus: OaMenuItem[]): Array<{ title: string }> {
+  // 扁平化所有菜单（含嵌套 children），便于按 id 查找父级
+  const flatMap = new Map<string, OaMenuItem>();
+  const collect = (items: OaMenuItem[]) => {
+    for (const item of items) {
+      flatMap.set(item.id, item);
+      if (item.children?.length) collect(item.children);
+    }
+  };
+  collect(menus);
+
+  // 从当前菜单向上回溯 parentId，形成完整路径
+  const trail: OaMenuItem[] = [];
+  const visited = new Set<string>();
+  let current: OaMenuItem | undefined = menu;
+  while (current && !visited.has(current.id)) {
+    trail.unshift(current);
+    visited.add(current.id);
+    current = current.parentId ? flatMap.get(current.parentId) : undefined;
+  }
+
+  return trail.map((item) => ({ title: item.name }));
 }

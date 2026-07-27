@@ -17,7 +17,9 @@ const typewriters = new Map<number, StreamTypewriter>();
 interface AiChatState {
   conversations: ChatConversation[];
   activeId: number | null;
+  draftMode: boolean;
   messagesByConversation: Record<number, ChatMessage[]>;
+  previewByConversation: Record<number, ChatMessage[]>;
   pendingAttachments: Record<number, ChatAttachment[]>;
   generatingIds: number[];
   loading: boolean;
@@ -53,7 +55,9 @@ function readSettings(): ChatSettings {
 export const useAiChatStore = create<AiChatState>((set, get) => ({
   conversations: [],
   activeId: null,
+  draftMode: false,
   messagesByConversation: {},
+  previewByConversation: {},
   pendingAttachments: {},
   generatingIds: [],
   loading: false,
@@ -63,28 +67,24 @@ export const useAiChatStore = create<AiChatState>((set, get) => ({
     set({ loading: true });
     try {
       const conversations = await listConversations(search);
-      set({ conversations, activeId: get().activeId ?? conversations[0]?.id ?? null });
+      // 不自动选中第一个会话：保持 activeId 不变，让用户主动点击后再加载内容
+      set({ conversations });
+      // 并发预加载每个会话的最近一条消息，用于侧栏预览（不影响完整消息列表的加载逻辑）
+      preloadPreviews(conversations, set);
     } finally {
       set({ loading: false });
     }
   },
 
+  // 草稿模式：不立即调 API，只清空 activeId 并进入草稿状态。
+  // 真正的后端会话在首次发送消息时由 send() 内部按需创建。
   newConversation: async () => {
-    try {
-      const conversation = await createConversation(get().settings.model);
-      set((state) => ({
-        conversations: [conversation, ...state.conversations], activeId: conversation.id,
-        messagesByConversation: { ...state.messagesByConversation, [conversation.id]: [] },
-      }));
-      return conversation.id;
-    } catch (error) {
-      antMessage.error(error instanceof Error ? error.message : '新建会话失败');
-      return null;
-    }
+    set({ activeId: null, draftMode: true });
+    return null;
   },
 
   selectConversation: async (id) => {
-    set({ activeId: id });
+    set({ activeId: id, draftMode: false });
     if (get().messagesByConversation[id]) return;
     try {
       const messages = await listMessages(id);
@@ -107,14 +107,36 @@ export const useAiChatStore = create<AiChatState>((set, get) => ({
       const conversations = state.conversations.filter((item) => item.id !== id);
       const messages = { ...state.messagesByConversation };
       delete messages[id];
-      return { conversations, messagesByConversation: messages, activeId: state.activeId === id ? conversations[0]?.id ?? null : state.activeId };
+      const previews = { ...state.previewByConversation };
+      delete previews[id];
+      return {
+        conversations,
+        messagesByConversation: messages,
+        previewByConversation: previews,
+        activeId: state.activeId === id ? conversations[0]?.id ?? null : state.activeId,
+        draftMode: state.activeId === id ? false : state.draftMode,
+      };
     });
   },
 
   upload: async (files) => {
     let conversationId = get().activeId;
-    if (!conversationId) conversationId = await get().newConversation();
-    if (!conversationId) return;
+    // 草稿模式下上传文件：先真正创建后端会话，再上传附件
+    if (!conversationId) {
+      try {
+        const conversation = await createConversation(get().settings.model);
+        conversationId = conversation.id;
+        set((state) => ({
+          conversations: [conversation, ...state.conversations],
+          activeId: conversation.id,
+          draftMode: false,
+          messagesByConversation: { ...state.messagesByConversation, [conversation.id]: [] },
+        }));
+      } catch (error) {
+        antMessage.error(error instanceof Error ? error.message : '新建会话失败');
+        return;
+      }
+    }
     for (const file of files) {
       try {
         const attachment = await uploadAttachment(conversationId, file);
@@ -140,8 +162,24 @@ export const useAiChatStore = create<AiChatState>((set, get) => ({
 
   send: async (rawContent) => {
     const state = get();
-    const conversationId = state.activeId;
-    if (!conversationId || controllers.has(conversationId)) return;
+    let conversationId = state.activeId;
+    // 草稿模式：首次发送时才真正创建后端会话
+    if (!conversationId) {
+      try {
+        const conversation = await createConversation(state.settings.model);
+        conversationId = conversation.id;
+        set((current) => ({
+          conversations: [conversation, ...current.conversations],
+          activeId: conversation.id,
+          draftMode: false,
+          messagesByConversation: { ...current.messagesByConversation, [conversation.id]: [] },
+        }));
+      } catch (error) {
+        antMessage.error(error instanceof Error ? error.message : '新建会话失败');
+        return;
+      }
+    }
+    if (controllers.has(conversationId)) return;
     const attachments = state.pendingAttachments[conversationId] || [];
     const content = rawContent.trim() || '请分析这些附件。';
     const now = new Date().toISOString();
@@ -175,7 +213,11 @@ export const useAiChatStore = create<AiChatState>((set, get) => ({
         await sendChat(request, controller.signal);
       }
       const persistedMessages = await listMessages(conversationId);
-      set((current) => ({ messagesByConversation: { ...current.messagesByConversation, [conversationId]: persistedMessages } }));
+      set((current) => ({
+        messagesByConversation: { ...current.messagesByConversation, [conversationId]: persistedMessages },
+        // 同步更新预览：用最新消息列表的最后一条
+        previewByConversation: { ...current.previewByConversation, [conversationId]: persistedMessages.slice(-1) },
+      }));
       await get().loadConversations();
     } catch (error) {
       const typewriter = typewriters.get(conversationId);
@@ -210,7 +252,7 @@ export const useAiChatStore = create<AiChatState>((set, get) => ({
     typewriters.forEach((typewriter) => typewriter.cancel());
     controllers.clear();
     typewriters.clear();
-    set({ conversations: [], activeId: null, messagesByConversation: {}, pendingAttachments: {}, generatingIds: [] });
+    set({ conversations: [], activeId: null, draftMode: false, messagesByConversation: {}, previewByConversation: {}, pendingAttachments: {}, generatingIds: [] });
   },
 }));
 
@@ -220,6 +262,35 @@ function appendMessages(set: (value: Partial<AiChatState> | ((state: AiChatState
     ...state.messagesByConversation,
     [conversationId]: [...(state.messagesByConversation[conversationId] || []), ...messages],
   } }));
+}
+
+// 并发预加载每个会话的最近一条消息，用于侧栏预览。
+// - 并发限制 6（浏览器对同一域名默认并发上限），避免打爆后端
+// - 失败的会话不影响其他，预览保持空
+// - 只缓存最后一条消息到 previewByConversation，不影响完整消息列表
+async function preloadPreviews(
+  conversations: ChatConversation[],
+  set: (value: Partial<AiChatState> | ((state: AiChatState) => Partial<AiChatState>)) => void,
+) {
+  if (!conversations.length) return;
+  const CONCURRENCY = 6;
+  const queue = [...conversations];
+  const worker = async () => {
+    while (queue.length) {
+      const conv = queue.shift();
+      if (!conv) break;
+      try {
+        const messages = await listMessages(conv.id);
+        const last = messages[messages.length - 1];
+        if (last) {
+          set((state) => ({ previewByConversation: { ...state.previewByConversation, [conv.id]: [last] } }));
+        }
+      } catch {
+        // 预览加载失败忽略，不影响主流程
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, conversations.length) }, worker));
 }
 
 function updateMessage(set: (value: Partial<AiChatState> | ((state: AiChatState) => Partial<AiChatState>)) => void,
