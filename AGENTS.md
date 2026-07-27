@@ -167,6 +167,8 @@ docker compose -f docker-compose.yml up -d
 - 动态页面权限使用 `route:<routeKey>`，前端只允许渲染固定组件注册表中的组件；直接访问无权限路由必须回到首个可访问页面。
 - `AdminLayout` 必须由 `/oa/layout.tsx` 持久挂载，页面路由切换不得重新挂载侧栏。
 - OA 动态菜单首次进入全部折叠，允许同时展开多个目录；选择页面时保留已展开目录并补充当前祖先目录；刷新叶子页面时自动恢复其目录链。
+- OA 顶部使用访问页面标签导航，访问过的有权限页面自动加入，可直接回切和关闭；驾驶舱或首个可访问页必须固定保留，标签切换必须继续使用真实路由。
+- 页面标签持久化到 `workmeta-oa-open-tabs`，恢复时必须按最新 `GET /api/navigation` 结果过滤，禁止从 localStorage 恢复无权限页面。
 - 侧栏收缩后必须保留 Ant Design 弹出子菜单选择能力，不得用受控空 `openKeys` 阻止交互。
 - 收缩菜单及其他挂载到 `body` 的 Portal 弹层必须同步当前 `ConfigProvider` token 和 OA CSS variables，不能保留 Ant Design 默认深蓝背景；壁纸模式下同步透明模糊材质。
 - 权限后台固定使用 `/oa/access-control`，支持新增角色、用户角色分配、角色权限分配和动态路由配置；管理接口必须校验 `access:manage`。
