@@ -156,6 +156,10 @@ docker compose -f docker-compose.yml up -d
 - API Key 与 AI 网关地址只允许服务端环境变量配置，禁止从设置页读取、回显或持久化到浏览器。
 - 左侧 OA Sider 必须固定在视口左侧；页面滚动时不得跟随内容移动。
 - 左侧 Sider 滚动条默认隐藏，仅在鼠标移入侧栏时显示。
+- OA 图标必须通过 `fonted-oa/src/components/OaIcon.tsx` 的语义名称统一引用；已有图标优先使用项目本地 Iconfont Symbol，禁止在业务页面重复硬编码 Symbol ID。
+- OA 正式业务图标统一在 Iconfont 项目中新增和维护；仓库不保存待上传 SVG、图标上传 ZIP 或本地图标绘制产物。
+- 图标尚未上传 Iconfont 时，界面必须使用 `OaIcon` 注册的开源占位图标，禁止引用不存在的 Symbol 导致空白；上传并更新 `iconfont.js` 后再将对应语义映射切换到 `iconFontMap`。
+- 新下载的 Symbol 包必须通过 `scripts/import-iconfont-symbol.mjs` 同步到 Main 和 OA；单色业务图标必须转换为 `currentColor`，禁止保留会破坏深色主题对比度的固定填充色。
 
 ## OA 权限与 AI 约束
 

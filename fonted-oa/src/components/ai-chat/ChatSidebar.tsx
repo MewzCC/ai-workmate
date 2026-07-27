@@ -3,17 +3,12 @@
 import { useMemo, useState } from 'react';
 import { Button, Dropdown, Empty, Input, Modal, Spin, Tooltip, Typography } from 'antd';
 import {
-  DeleteOutlined,
-  EditOutlined,
   LoadingOutlined,
   MenuFoldOutlined,
   MessageOutlined,
-  MoreOutlined,
-  PlusOutlined,
-  SearchOutlined,
-  SettingOutlined,
 } from '@ant-design/icons';
 import type { ChatConversation, ChatMessage } from '@/types/chat';
+import { OaIcon } from '@/components/OaIcon';
 
 interface ChatSidebarProps {
   conversations: ChatConversation[];
@@ -84,7 +79,7 @@ export default function ChatSidebar(props: ChatSidebarProps) {
     let title = conversation.title;
     Modal.confirm({
       title: '重命名会话',
-      icon: <EditOutlined />,
+      icon: <OaIcon name="edit" />,
       content: <Input defaultValue={title} maxLength={100} onChange={(event) => { title = event.target.value; }} />,
       okText: '保存',
       cancelText: '取消',
@@ -147,8 +142,8 @@ export default function ChatSidebar(props: ChatSidebarProps) {
           trigger={['click']}
           menu={{
             items: [
-              { key: 'rename', label: '重命名', icon: <EditOutlined />, onClick: () => rename(item) },
-              { key: 'delete', label: '删除', danger: true, icon: <DeleteOutlined />, onClick: () => remove(item) },
+              { key: 'rename', label: '重命名', icon: <OaIcon name="edit" />, onClick: () => rename(item) },
+              { key: 'delete', label: '删除', danger: true, icon: <OaIcon name="delete" />, onClick: () => remove(item) },
             ],
           }}
         >
@@ -156,7 +151,7 @@ export default function ChatSidebar(props: ChatSidebarProps) {
             type="text"
             size="small"
             className="ai-session-more"
-            icon={<MoreOutlined />}
+            icon={<OaIcon name="more" />}
             aria-label={`管理会话 ${item.title}`}
             onClick={(event) => event.stopPropagation()}
           />
@@ -168,7 +163,7 @@ export default function ChatSidebar(props: ChatSidebarProps) {
   return (
     <aside className="ai-chat-sidebar">
       <div className="ai-sidebar-primary-actions">
-        <Button type="primary" icon={<PlusOutlined />} block onClick={props.onNew}>新建聊天</Button>
+        <Button type="primary" icon={<OaIcon name="add" />} block onClick={props.onNew}>新建聊天</Button>
         {props.onCollapse && (
           <Tooltip title="收起会话栏">
             <Button
@@ -182,7 +177,7 @@ export default function ChatSidebar(props: ChatSidebarProps) {
       </div>
       <Input
         allowClear
-        prefix={<SearchOutlined />}
+        prefix={<OaIcon name="search" />}
         value={search}
         placeholder="搜索会话与消息"
         onChange={(event) => setSearch(event.target.value)}
@@ -206,7 +201,7 @@ export default function ChatSidebar(props: ChatSidebarProps) {
         </Spin>
       </div>
       <Tooltip title="模型、上下文与数据设置">
-        <Button className="ai-sidebar-settings" type="text" icon={<SettingOutlined />} block onClick={props.onSettings}>
+        <Button className="ai-sidebar-settings" type="text" icon={<OaIcon name="settings" />} block onClick={props.onSettings}>
           设置
         </Button>
       </Tooltip>

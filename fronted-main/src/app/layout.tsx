@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Inter, JetBrains_Mono } from 'next/font/google';
 import Script from 'next/script';
+import { iconfontVersion } from '@/generated/iconfontVersion';
 import 'antd/dist/reset.css';
 import './globals.css';
 
@@ -38,7 +39,10 @@ export default function HomeRootLayout({ children }: { children: React.ReactNode
       </head>
       <body className="min-h-screen overflow-x-hidden antialiased">
         {children}
-        <Script src="/iconfont/iconfont.js" strategy="beforeInteractive" />
+        <Script
+          src={`/iconfont/iconfont.js?v=${iconfontVersion}`}
+          strategy="beforeInteractive"
+        />
       </body>
     </html>
   );

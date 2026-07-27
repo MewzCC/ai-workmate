@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { ConfigProvider, FloatButton, Layout, App as AntApp, message, theme as antdTheme } from 'antd';
-import { RobotOutlined } from '@ant-design/icons';
 import type { OaMenuItem, OaRole, OaTheme } from '@/types/oa';
 import { findMenu } from '@/mock/oaPermissions';
 import Dashboard from './Dashboard';
@@ -16,6 +15,7 @@ import AiChatWorkspace from '@/components/ai-chat/AiChatWorkspace';
 import { useAuth } from '@/components/auth/AuthProvider';
 import AccessControlPage from './AccessControlPage';
 import { getNavigation, type NavigationRoute } from '@/lib/navigationApi';
+import { OaIcon } from '@/components/OaIcon';
 
 const { Content } = Layout;
 
@@ -365,7 +365,7 @@ export default function AdminLayout() {
 
           {selectedMenu.id !== 'ai-workspace' && <FloatButton
             type="primary"
-            icon={<RobotOutlined />}
+            icon={<OaIcon name="ai" size={20} />}
             tooltip="打开 AI 操作面板"
             onClick={() => openAi()}
           />}

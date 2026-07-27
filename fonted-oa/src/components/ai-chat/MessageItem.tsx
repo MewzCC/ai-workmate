@@ -3,20 +3,17 @@
 import { useState } from 'react';
 import { Avatar, Button, Space, Tag, Tooltip, Typography, message as antMessage } from 'antd';
 import {
-  CopyOutlined,
   DislikeFilled,
   DislikeOutlined,
   LikeFilled,
   LikeOutlined,
-  ReloadOutlined,
-  RobotOutlined,
-  UserOutlined,
 } from '@ant-design/icons';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { updateMessageFeedback } from '@/lib/chatApi';
 import type { ChatMessage } from '@/types/chat';
 import AttachmentPreview from './AttachmentPreview';
 import MarkdownRenderer from './MarkdownRenderer';
+import { OaIcon } from '@/components/OaIcon';
 
 interface MessageItemProps {
   item: ChatMessage;
@@ -53,7 +50,7 @@ export default function MessageItem({ item, onRetry }: MessageItemProps) {
       <Avatar
         className="ai-message-avatar"
         src={isAssistant ? undefined : user?.avatarUrl}
-        icon={isAssistant ? <RobotOutlined /> : <UserOutlined />}
+        icon={isAssistant ? <OaIcon name="ai" /> : <OaIcon name="avatar" />}
       />
       <div className="ai-message-body">
         <div className="ai-message-heading">
@@ -78,10 +75,10 @@ export default function MessageItem({ item, onRetry }: MessageItemProps) {
         {isAssistant && item.status !== 'sending' && (
           <Space size={2} className="ai-message-actions">
             <Tooltip title="复制回复">
-              <Button type="text" size="small" aria-label="复制回复" icon={<CopyOutlined />} onClick={() => void copyReply()} />
+              <Button type="text" size="small" aria-label="复制回复" icon={<OaIcon name="copy" />} onClick={() => void copyReply()} />
             </Tooltip>
             <Tooltip title="重新生成">
-              <Button type="text" size="small" aria-label="重新生成" icon={<ReloadOutlined />} onClick={onRetry} />
+              <Button type="text" size="small" aria-label="重新生成" icon={<OaIcon name="reload" />} onClick={onRetry} />
             </Tooltip>
             <Tooltip title="有帮助">
               <Button

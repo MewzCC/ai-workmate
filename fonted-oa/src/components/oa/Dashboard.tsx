@@ -22,18 +22,12 @@ import {
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import type { EChartsOption } from 'echarts';
-import {
-  AuditOutlined,
-  BarChartOutlined,
-  EllipsisOutlined,
-  FileSearchOutlined,
-  ThunderboltOutlined,
-} from '@ant-design/icons';
 import { approvalRecords, oaMetrics, quickEntries, timelineSeed } from '@/mock/oaDashboard';
 import { can } from '@/mock/oaPermissions';
 import type { ApprovalRecord, OaRole } from '@/types/oa';
 import EChartsCard from './EChartsCard';
 import PermissionButton from './PermissionButton';
+import { OaIcon } from '@/components/OaIcon';
 
 interface DashboardProps {
   role: OaRole;
@@ -120,7 +114,7 @@ export default function Dashboard({ role, pageId, pageTitle, primaryColor, audit
             }}
             trigger={['click']}
           >
-            <Button size="small" icon={<EllipsisOutlined />} />
+            <Button size="small" icon={<OaIcon name="more" />} aria-label="更多操作" />
           </Dropdown>
         </Space>
       ),
@@ -135,7 +129,7 @@ export default function Dashboard({ role, pageId, pageTitle, primaryColor, audit
           description={`${pageTitle} 业务页面暂未展开，当前已完成菜单权限、标题切换和 AI 操作入口。`}
         />
         <Space>
-          <Button type="primary" icon={<ThunderboltOutlined />} onClick={() => onOpenAi(`帮我分析 ${pageTitle} 页面当前可以自动化的操作`)}>
+          <Button type="primary" icon={<OaIcon name="ai" />} onClick={() => onOpenAi(`帮我分析 ${pageTitle} 页面当前可以自动化的操作`)}>
             让 AI 分析本页
           </Button>
           <Button onClick={() => message.info('已记录页面访问审计')}>记录访问</Button>
@@ -155,13 +149,13 @@ export default function Dashboard({ role, pageId, pageTitle, primaryColor, audit
           </Typography.Paragraph>
         </div>
         <Space className="oa-page-title-actions" wrap={false}>
-          <PermissionButton role={role} menuId="dashboard" action="export" icon={<BarChartOutlined />} onClick={() => message.warning('真实导出能力尚未接入')}>
+          <PermissionButton role={role} menuId="dashboard" action="export" icon={<OaIcon name="export" />} onClick={() => message.warning('真实导出能力尚未接入')}>
             导出看板
           </PermissionButton>
-          <Button icon={<AuditOutlined />} onClick={() => message.info('指标配置面板将在下一阶段接入')}>
+          <Button icon={<OaIcon name="audit" />} onClick={() => message.info('指标配置面板将在下一阶段接入')}>
             配置指标
           </Button>
-          <Button type="primary" icon={<ThunderboltOutlined />} onClick={() => onOpenAi('帮我预审当前列表，并输出风险排序')}>
+          <Button type="primary" icon={<OaIcon name="ai" />} onClick={() => onOpenAi('帮我预审当前列表，并输出风险排序')}>
             让 AI 预审
           </Button>
         </Space>
@@ -186,7 +180,7 @@ export default function Dashboard({ role, pageId, pageTitle, primaryColor, audit
               hoverable
               onClick={() => onOpenAi(entry.prompt)}
               actions={[
-                <Button key="start" type="link" icon={<ThunderboltOutlined />} onClick={(event) => {
+                <Button key="start" type="link" icon={<OaIcon name="ai" />} onClick={(event) => {
                   event.stopPropagation();
                   onOpenAi(entry.prompt);
                 }}>
@@ -211,7 +205,7 @@ export default function Dashboard({ role, pageId, pageTitle, primaryColor, audit
                 allowClear
                 onSearch={(value) => setQuery(value)}
                 style={{ maxWidth: 260 }}
-                prefix={<FileSearchOutlined />}
+                prefix={<OaIcon name="search" />}
               />
             }
           >

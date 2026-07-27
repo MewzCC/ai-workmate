@@ -72,6 +72,16 @@ import { IconFont } from '@/components/IconFont';
 
 尽量不要修改已经在代码中使用的 `font_class`，否则旧调用会失效。
 
+推荐从仓库根目录运行统一导入脚本：
+
+```powershell
+node scripts/import-iconfont-symbol.mjs "你的下载目录\font_xxx"
+```
+
+脚本会校验 OA 已注册图标是否齐全，将单色图标的固定 `fill` 转换为
+`currentColor`，并同步更新 Main 和 OA 两端的 `iconfont.js`、`iconfont.json`。
+不要直接复制未经处理的 `iconfont.js`，否则深色主题下固定深色填充的图标可能不可见。
+
 ### 2. 替换两个应用的脚本
 
 在仓库根目录执行：
@@ -157,3 +167,17 @@ npm run build
 ### OA 可以显示，但官网不显示
 
 两个应用运行在不同端口，不能依赖另一个应用的静态资源。检查 `fronted-main/public/iconfont/iconfont.js` 是否已经更新；反向情况同理。
+
+## OA 新增图标流程
+
+OA 图标统一由 `fonted-oa/src/components/OaIcon.tsx` 管理，正式图标只在
+Iconfont 项目中维护，仓库不保存待上传 SVG。
+
+1. 在 Iconfont 项目中选择或上传图标，确定稳定的 `font_class`。
+2. 下载最新 Symbol 包。
+3. 运行 `scripts/import-iconfont-symbol.mjs` 同步 Main 和 OA。
+4. 在两个 `IconFont.tsx` 中登记 `font_class`。
+5. 在 `OaIcon.tsx` 的 `iconFontMap` 中建立语义映射。
+6. 运行 Main、OA 的 lint/build。
+
+Iconfont 尚未加入图标时，可以使用 `fallbackIconMap` 中许可证明确的开源图标临时占位。
