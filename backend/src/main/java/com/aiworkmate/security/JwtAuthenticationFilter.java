@@ -60,7 +60,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 request.setAttribute(AUTH_ERROR_ATTRIBUTE, JwtValidationStatus.INVALID);
                 return;
             }
-            AuthenticatedUser principal = new AuthenticatedUser(access.userId(), access.username(), access.role());
+            AuthenticatedUser principal = new AuthenticatedUser(
+                    access.userId(),
+                    access.username(),
+                    access.tenantId(),
+                    access.role(),
+                    access.roles(),
+                    access.permissions(),
+                    access.dataScopes(),
+                    access.permissionVersion()
+            );
             var authorities = new ArrayList<SimpleGrantedAuthority>();
             authorities.add(new SimpleGrantedAuthority("ROLE_" + access.role()));
             access.permissions().stream()

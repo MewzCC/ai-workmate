@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.aiworkmate.mapper.WorkflowActionLogMapper">
+
+    <select id="selectTimeline"
+            resultType="com.aiworkmate.dto.WorkflowTimelineResponse">
+        SELECT log.id,
+               log.actor_user_id AS actorUserId,
+               COALESCE(NULLIF(u.display_name, ''), u.username) AS actorName,
+               log.action,
+               log.from_status AS fromStatus,
+               log.to_status AS toStatus,
+               log.comment,
+               log.created_at AS createdAt
+        FROM workflow_action_log log
+        JOIN app_user u ON u.id = log.actor_user_id
+        WHERE log.tenant_id = #{tenantId}
+          AND log.instance_id = #{instanceId}
+        ORDER BY log.created_at, log.id
+    </select>
+
+</mapper>

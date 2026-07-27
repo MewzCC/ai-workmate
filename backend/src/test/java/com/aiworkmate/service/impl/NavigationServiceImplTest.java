@@ -32,7 +32,7 @@ class NavigationServiceImplTest {
         when(userAccessService.resolveActiveUser(7L))
                 .thenReturn(new ResolvedUserAccess(
                         7L, "employee@example.com", "EMPLOYEE", List.of("route:dashboard")));
-        when(accessControlMapper.selectRoutes()).thenReturn(List.of(
+        when(accessControlMapper.selectRoutesForTenant(1L)).thenReturn(List.of(
                 route("workspace", null, "GROUP", null, true, 1),
                 route("dashboard", "workspace", "PAGE", "route:dashboard", true, 1),
                 route("access-control", "workspace", "PAGE", "route:access-control", true, 2),

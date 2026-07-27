@@ -6,6 +6,8 @@ public record AccessControlOverviewResponse(
         List<AccessUserResponse> users,
         List<AccessRoleResponse> roles,
         List<AccessPermissionResponse> permissions,
-        List<AccessRouteResponse> routes
+        List<AccessRouteResponse> routes,
+        List<DepartmentResponse> departments,
+        List<PositionResponse> positions
 ) {
 }
