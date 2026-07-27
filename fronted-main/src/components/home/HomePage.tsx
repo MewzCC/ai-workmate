@@ -58,23 +58,28 @@ const agentCards = [
 ];
 
 export default function HomePage() {
-  const [theme, setTheme] = useState<SiteTheme>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = window.localStorage.getItem('wm-theme');
-      if (saved === 'day' || saved === 'night') {
-        return saved;
-      }
-    }
-    return 'day';
-  });
+  // 避免 SSR hydration mismatch：服务端和客户端首次渲染都用 'day'，
+  // 挂载后再从 localStorage 读取真实偏好并切换。
+  const [theme, setTheme] = useState<SiteTheme>('day');
+  const [mounted, setMounted] = useState(false);
   const [workflow, setWorkflow] = useState<WorkflowKey>('launch');
   const [isRunning, setIsRunning] = useState(false);
 
+  // 挂载后读取 localStorage 中的真实主题
+  useEffect(() => {
+    setMounted(true);
+    if (typeof window === 'undefined') return;
+    const saved = window.localStorage.getItem('wm-theme');
+    if (saved === 'day' || saved === 'night') {
+      setTheme(saved);
+    }
+  }, []);
+
   // 持久化日夜模式
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined' || !mounted) return;
     window.localStorage.setItem('wm-theme', theme);
-  }, [theme]);
+  }, [theme, mounted]);
 
   // 刷新页面时回到顶部（关闭浏览器自动 scroll restoration）
   useEffect(() => {

@@ -45,6 +45,9 @@ export default function AiChatWorkspace({ role }: AiChatWorkspaceProps) {
       conversations={store.conversations}
       activeId={store.activeId}
       loading={store.loading}
+      messagesByConversation={store.messagesByConversation}
+      previewByConversation={store.previewByConversation}
+      generatingIds={store.generatingIds}
       onSearch={store.loadConversations}
       onNew={() => store.newConversation()}
       onSelect={(id) => {
@@ -98,13 +101,7 @@ export default function AiChatWorkspace({ role }: AiChatWorkspaceProps) {
         onOpenSessions={() => setMobileSessionsOpen(true)}
         onUpload={store.upload}
         onRemoveAttachment={store.removePendingAttachment}
-        onSend={async (content) => {
-          if (!store.activeId) {
-            const id = await store.newConversation();
-            if (!id) return;
-          }
-          store.send(content);
-        }}
+        onSend={(content) => store.send(content)}
         onStop={() => store.activeId && store.stop(store.activeId)}
         onModelChange={(model: AiModelId) => store.updateSettings({ ...store.settings, model })}
       />
@@ -119,6 +116,9 @@ export default function AiChatWorkspace({ role }: AiChatWorkspaceProps) {
           conversations={store.conversations}
           activeId={store.activeId}
           loading={store.loading}
+          messagesByConversation={store.messagesByConversation}
+          previewByConversation={store.previewByConversation}
+          generatingIds={store.generatingIds}
           onSearch={store.loadConversations}
           onNew={() => store.newConversation()}
           onSelect={(id) => {

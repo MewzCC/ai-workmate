@@ -72,7 +72,7 @@ export default function MessageItem({ item, onRetry }: MessageItemProps) {
           {isAssistant ? (
             <MarkdownRenderer content={item.content || (item.status === 'sending' ? '正在思考...' : '')} />
           ) : (
-            <Typography.Paragraph>{item.content}</Typography.Paragraph>
+            <div className="ai-message-user-text">{item.content}</div>
           )}
         </div>
         {isAssistant && item.status !== 'sending' && (
