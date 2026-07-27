@@ -408,4 +408,446 @@ FROM (
 ) AS defaults(role_code, route_key)
 ON CONFLICT DO NOTHING;
 
+-- ============================================
+-- Phase 1：默认租户、组织、多角色与请假审批
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS tenant (
+    id                 BIGSERIAL PRIMARY KEY,
+    code               VARCHAR(40) NOT NULL UNIQUE,
+    name               VARCHAR(120) NOT NULL,
+    status             SMALLINT NOT NULL DEFAULT 1,
+    permission_version BIGINT NOT NULL DEFAULT 1,
+    created_at         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT INTO tenant(code, name)
+VALUES ('DEFAULT', 'AI WorkMate')
+ON CONFLICT (code) DO UPDATE SET
+    name = EXCLUDED.name,
+    updated_at = CURRENT_TIMESTAMP;
+
+ALTER TABLE app_user ADD COLUMN IF NOT EXISTS tenant_id BIGINT;
+ALTER TABLE app_user ADD COLUMN IF NOT EXISTS department_id BIGINT;
+ALTER TABLE app_user ADD COLUMN IF NOT EXISTS position_id BIGINT;
+ALTER TABLE app_user ADD COLUMN IF NOT EXISTS approver_user_id BIGINT;
+ALTER TABLE app_user ADD COLUMN IF NOT EXISTS permission_version BIGINT NOT NULL DEFAULT 1;
+
+UPDATE app_user
+SET tenant_id = (SELECT id FROM tenant WHERE code = 'DEFAULT')
+WHERE tenant_id IS NULL;
+
+ALTER TABLE conversation ADD COLUMN IF NOT EXISTS tenant_id BIGINT;
+ALTER TABLE attachment ADD COLUMN IF NOT EXISTS tenant_id BIGINT;
+ALTER TABLE knowledge_doc ADD COLUMN IF NOT EXISTS tenant_id BIGINT;
+ALTER TABLE access_audit_log ADD COLUMN IF NOT EXISTS tenant_id BIGINT;
+ALTER TABLE access_audit_log ADD COLUMN IF NOT EXISTS result VARCHAR(20) NOT NULL DEFAULT 'SUCCESS';
+ALTER TABLE access_audit_log ADD COLUMN IF NOT EXISTS trace_id VARCHAR(64);
+ALTER TABLE rbac_role ADD COLUMN IF NOT EXISTS tenant_id BIGINT;
+ALTER TABLE rbac_permission ADD COLUMN IF NOT EXISTS tenant_id BIGINT;
+ALTER TABLE rbac_role_permission ADD COLUMN IF NOT EXISTS tenant_id BIGINT;
+ALTER TABLE rbac_route ADD COLUMN IF NOT EXISTS tenant_id BIGINT;
+
+UPDATE conversation c
+SET tenant_id = u.tenant_id
+FROM app_user u
+WHERE c.user_id = u.id AND c.tenant_id IS NULL;
+
+UPDATE attachment a
+SET tenant_id = u.tenant_id
+FROM app_user u
+WHERE a.user_id = u.id AND a.tenant_id IS NULL;
+
+UPDATE knowledge_doc k
+SET tenant_id = u.tenant_id
+FROM app_user u
+WHERE k.user_id = u.id AND k.tenant_id IS NULL;
+
+UPDATE access_audit_log a
+SET tenant_id = u.tenant_id
+FROM app_user u
+WHERE a.operator_user_id = u.id AND a.tenant_id IS NULL;
+
+UPDATE rbac_role
+SET tenant_id = (SELECT id FROM tenant WHERE code = 'DEFAULT')
+WHERE tenant_id IS NULL;
+UPDATE rbac_permission
+SET tenant_id = (SELECT id FROM tenant WHERE code = 'DEFAULT')
+WHERE tenant_id IS NULL;
+UPDATE rbac_role_permission
+SET tenant_id = (SELECT id FROM tenant WHERE code = 'DEFAULT')
+WHERE tenant_id IS NULL;
+UPDATE rbac_route
+SET tenant_id = (SELECT id FROM tenant WHERE code = 'DEFAULT')
+WHERE tenant_id IS NULL;
+
+ALTER TABLE app_user ALTER COLUMN tenant_id SET NOT NULL;
+ALTER TABLE conversation ALTER COLUMN tenant_id SET NOT NULL;
+ALTER TABLE attachment ALTER COLUMN tenant_id SET NOT NULL;
+ALTER TABLE knowledge_doc ALTER COLUMN tenant_id SET NOT NULL;
+ALTER TABLE access_audit_log ALTER COLUMN tenant_id SET NOT NULL;
+ALTER TABLE rbac_role ALTER COLUMN tenant_id SET NOT NULL;
+ALTER TABLE rbac_permission ALTER COLUMN tenant_id SET NOT NULL;
+ALTER TABLE rbac_role_permission ALTER COLUMN tenant_id SET NOT NULL;
+ALTER TABLE rbac_route ALTER COLUMN tenant_id SET NOT NULL;
+
+-- 兼容本文件前半段的历史 RBAC 种子语句：首次升级后再次执行时，
+-- 未显式传 tenant_id 的种子数据仍必须归属 DEFAULT 租户。
+DO $$
+DECLARE
+    default_tenant_id BIGINT;
+BEGIN
+    SELECT id INTO default_tenant_id FROM tenant WHERE code = 'DEFAULT';
+    EXECUTE format(
+        'ALTER TABLE rbac_role ALTER COLUMN tenant_id SET DEFAULT %s',
+        default_tenant_id
+    );
+    EXECUTE format(
+        'ALTER TABLE rbac_permission ALTER COLUMN tenant_id SET DEFAULT %s',
+        default_tenant_id
+    );
+    EXECUTE format(
+        'ALTER TABLE rbac_role_permission ALTER COLUMN tenant_id SET DEFAULT %s',
+        default_tenant_id
+    );
+    EXECUTE format(
+        'ALTER TABLE rbac_route ALTER COLUMN tenant_id SET DEFAULT %s',
+        default_tenant_id
+    );
+END
+$$;
+
+CREATE INDEX IF NOT EXISTS idx_app_user_tenant_status
+    ON app_user(tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_conversation_tenant_user
+    ON conversation(tenant_id, user_id);
+CREATE INDEX IF NOT EXISTS idx_attachment_tenant_user
+    ON attachment(tenant_id, user_id);
+CREATE INDEX IF NOT EXISTS idx_knowledge_doc_tenant_user
+    ON knowledge_doc(tenant_id, user_id);
+CREATE INDEX IF NOT EXISTS idx_rbac_role_tenant
+    ON rbac_role(tenant_id, code);
+CREATE INDEX IF NOT EXISTS idx_rbac_permission_tenant
+    ON rbac_permission(tenant_id, code);
+CREATE INDEX IF NOT EXISTS idx_rbac_route_tenant
+    ON rbac_route(tenant_id, route_key);
+
+CREATE TABLE IF NOT EXISTS department (
+    id                       BIGSERIAL PRIMARY KEY,
+    tenant_id                BIGINT NOT NULL REFERENCES tenant(id) ON DELETE RESTRICT,
+    parent_id                BIGINT REFERENCES department(id) ON DELETE RESTRICT,
+    code                     VARCHAR(60) NOT NULL,
+    name                     VARCHAR(100) NOT NULL,
+    default_approver_user_id BIGINT,
+    status                   SMALLINT NOT NULL DEFAULT 1,
+    created_at               TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at               TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(tenant_id, code)
+);
+
+CREATE INDEX IF NOT EXISTS idx_department_tenant_parent
+    ON department(tenant_id, parent_id, status);
+
+CREATE TABLE IF NOT EXISTS position (
+    id         BIGSERIAL PRIMARY KEY,
+    tenant_id  BIGINT NOT NULL REFERENCES tenant(id) ON DELETE RESTRICT,
+    code       VARCHAR(60) NOT NULL,
+    name       VARCHAR(100) NOT NULL,
+    status     SMALLINT NOT NULL DEFAULT 1,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(tenant_id, code)
+);
+
+CREATE TABLE IF NOT EXISTS user_role (
+    tenant_id BIGINT NOT NULL REFERENCES tenant(id) ON DELETE RESTRICT,
+    user_id   BIGINT NOT NULL REFERENCES app_user(id) ON DELETE CASCADE,
+    role_code VARCHAR(40) NOT NULL REFERENCES rbac_role(code) ON DELETE RESTRICT,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY(tenant_id, user_id, role_code)
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_role_tenant_role
+    ON user_role(tenant_id, role_code, user_id);
+
+CREATE TABLE IF NOT EXISTS data_scope (
+    id          BIGSERIAL PRIMARY KEY,
+    tenant_id   BIGINT NOT NULL REFERENCES tenant(id) ON DELETE RESTRICT,
+    role_code   VARCHAR(40) NOT NULL REFERENCES rbac_role(code) ON DELETE CASCADE,
+    scope_type  VARCHAR(32) NOT NULL,
+    created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(tenant_id, role_code),
+    CONSTRAINT ck_data_scope_type CHECK (
+        scope_type IN ('SELF', 'DEPARTMENT', 'DEPARTMENT_AND_CHILDREN', 'ALL')
+    )
+);
+
+INSERT INTO department(tenant_id, code, name)
+SELECT id, 'HEADQUARTERS', '总部'
+FROM tenant WHERE code = 'DEFAULT'
+ON CONFLICT (tenant_id, code) DO UPDATE SET
+    name = EXCLUDED.name,
+    updated_at = CURRENT_TIMESTAMP;
+
+INSERT INTO position(tenant_id, code, name)
+SELECT id, 'EMPLOYEE', '员工'
+FROM tenant WHERE code = 'DEFAULT'
+ON CONFLICT (tenant_id, code) DO UPDATE SET
+    name = EXCLUDED.name,
+    updated_at = CURRENT_TIMESTAMP;
+
+UPDATE app_user
+SET department_id = (
+        SELECT d.id FROM department d
+        WHERE d.tenant_id = app_user.tenant_id AND d.code = 'HEADQUARTERS'
+    ),
+    position_id = (
+        SELECT p.id FROM position p
+        WHERE p.tenant_id = app_user.tenant_id AND p.code = 'EMPLOYEE'
+    )
+WHERE department_id IS NULL OR position_id IS NULL;
+
+INSERT INTO user_role(tenant_id, user_id, role_code)
+SELECT tenant_id, id, role
+FROM app_user
+ON CONFLICT DO NOTHING;
+
+INSERT INTO data_scope(tenant_id, role_code, scope_type)
+SELECT t.id, values.role_code, values.scope_type
+FROM tenant t
+CROSS JOIN (
+    VALUES
+        ('SUPER_ADMIN', 'ALL'),
+        ('SYSTEM_ADMIN', 'ALL'),
+        ('PROCESS_ADMIN', 'DEPARTMENT_AND_CHILDREN'),
+        ('FINANCE_ADMIN', 'DEPARTMENT'),
+        ('EMPLOYEE', 'SELF')
+) AS values(role_code, scope_type)
+WHERE t.code = 'DEFAULT'
+ON CONFLICT (tenant_id, role_code) DO UPDATE SET
+    scope_type = EXCLUDED.scope_type,
+    updated_at = CURRENT_TIMESTAMP;
+
+CREATE TABLE IF NOT EXISTS workflow_definition (
+    id            BIGSERIAL PRIMARY KEY,
+    tenant_id     BIGINT NOT NULL REFERENCES tenant(id) ON DELETE RESTRICT,
+    code          VARCHAR(60) NOT NULL,
+    name          VARCHAR(100) NOT NULL,
+    business_type VARCHAR(40) NOT NULL,
+    version       INTEGER NOT NULL DEFAULT 1,
+    enabled       BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(tenant_id, code, version)
+);
+
+CREATE TABLE IF NOT EXISTS workflow_instance (
+    id             BIGSERIAL PRIMARY KEY,
+    tenant_id      BIGINT NOT NULL REFERENCES tenant(id) ON DELETE RESTRICT,
+    definition_id  BIGINT NOT NULL REFERENCES workflow_definition(id) ON DELETE RESTRICT,
+    business_type  VARCHAR(40) NOT NULL,
+    business_id    BIGINT NOT NULL,
+    applicant_id   BIGINT NOT NULL REFERENCES app_user(id) ON DELETE RESTRICT,
+    status         VARCHAR(20) NOT NULL,
+    version        INTEGER NOT NULL DEFAULT 0,
+    started_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    completed_at   TIMESTAMP,
+    created_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(tenant_id, business_type, business_id),
+    CONSTRAINT ck_workflow_instance_status CHECK (
+        status IN ('RUNNING', 'COMPLETED', 'CANCELLED')
+    )
+);
+
+CREATE TABLE IF NOT EXISTS workflow_task (
+    id                   BIGSERIAL PRIMARY KEY,
+    tenant_id            BIGINT NOT NULL REFERENCES tenant(id) ON DELETE RESTRICT,
+    instance_id          BIGINT NOT NULL REFERENCES workflow_instance(id) ON DELETE CASCADE,
+    business_type        VARCHAR(40) NOT NULL,
+    business_id          BIGINT NOT NULL,
+    assignee_user_id     BIGINT NOT NULL REFERENCES app_user(id) ON DELETE RESTRICT,
+    status               VARCHAR(20) NOT NULL,
+    decision_comment     VARCHAR(500),
+    due_at               TIMESTAMP,
+    version              INTEGER NOT NULL DEFAULT 0,
+    completed_at         TIMESTAMP,
+    created_at           TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at           TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT ck_workflow_task_status CHECK (
+        status IN ('PENDING', 'APPROVED', 'REJECTED', 'CANCELLED')
+    )
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_workflow_task_active_business
+    ON workflow_task(tenant_id, business_type, business_id)
+    WHERE status = 'PENDING';
+CREATE INDEX IF NOT EXISTS idx_workflow_task_assignee_status
+    ON workflow_task(tenant_id, assignee_user_id, status, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS leave_application (
+    id                  BIGSERIAL PRIMARY KEY,
+    tenant_id           BIGINT NOT NULL REFERENCES tenant(id) ON DELETE RESTRICT,
+    applicant_user_id   BIGINT NOT NULL REFERENCES app_user(id) ON DELETE RESTRICT,
+    approver_user_id    BIGINT REFERENCES app_user(id) ON DELETE RESTRICT,
+    workflow_instance_id BIGINT REFERENCES workflow_instance(id) ON DELETE RESTRICT,
+    leave_type          VARCHAR(24) NOT NULL,
+    start_date          DATE NOT NULL,
+    start_period        VARCHAR(2) NOT NULL,
+    end_date            DATE NOT NULL,
+    end_period          VARCHAR(2) NOT NULL,
+    duration_half_days  INTEGER NOT NULL,
+    reason              VARCHAR(500) NOT NULL,
+    status              VARCHAR(20) NOT NULL DEFAULT 'DRAFT',
+    version             INTEGER NOT NULL DEFAULT 0,
+    submitted_at        TIMESTAMP,
+    completed_at        TIMESTAMP,
+    created_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT ck_leave_type CHECK (
+        leave_type IN ('ANNUAL', 'PERSONAL', 'SICK', 'MARRIAGE', 'MATERNITY',
+                       'PATERNITY', 'BEREAVEMENT', 'COMPENSATORY', 'OTHER')
+    ),
+    CONSTRAINT ck_leave_period CHECK (
+        start_period IN ('AM', 'PM') AND end_period IN ('AM', 'PM')
+    ),
+    CONSTRAINT ck_leave_status CHECK (
+        status IN ('DRAFT', 'PENDING', 'APPROVED', 'REJECTED', 'WITHDRAWN')
+    ),
+    CONSTRAINT ck_leave_duration CHECK (duration_half_days > 0)
+);
+
+CREATE INDEX IF NOT EXISTS idx_leave_applicant_status
+    ON leave_application(tenant_id, applicant_user_id, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_leave_approver_status
+    ON leave_application(tenant_id, approver_user_id, status, submitted_at DESC);
+
+CREATE TABLE IF NOT EXISTS workflow_action_log (
+    id           BIGSERIAL PRIMARY KEY,
+    tenant_id    BIGINT NOT NULL REFERENCES tenant(id) ON DELETE RESTRICT,
+    instance_id  BIGINT REFERENCES workflow_instance(id) ON DELETE CASCADE,
+    task_id      BIGINT REFERENCES workflow_task(id) ON DELETE SET NULL,
+    actor_user_id BIGINT NOT NULL REFERENCES app_user(id) ON DELETE RESTRICT,
+    action       VARCHAR(40) NOT NULL,
+    from_status  VARCHAR(20),
+    to_status    VARCHAR(20) NOT NULL,
+    comment      VARCHAR(500),
+    trace_id     VARCHAR(64) NOT NULL,
+    created_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_workflow_action_instance
+    ON workflow_action_log(tenant_id, instance_id, created_at, id);
+
+CREATE TABLE IF NOT EXISTS business_audit_log (
+    id            BIGSERIAL PRIMARY KEY,
+    tenant_id     BIGINT NOT NULL REFERENCES tenant(id) ON DELETE RESTRICT,
+    actor_user_id BIGINT NOT NULL REFERENCES app_user(id) ON DELETE RESTRICT,
+    resource_type VARCHAR(40) NOT NULL,
+    resource_id   VARCHAR(80) NOT NULL,
+    action        VARCHAR(60) NOT NULL,
+    result        VARCHAR(20) NOT NULL,
+    summary       VARCHAR(500),
+    trace_id      VARCHAR(64) NOT NULL,
+    created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT ck_business_audit_result CHECK (
+        result IN ('SUCCESS', 'DENIED', 'CONFLICT', 'FAILURE')
+    )
+);
+
+CREATE INDEX IF NOT EXISTS idx_business_audit_tenant_time
+    ON business_audit_log(tenant_id, created_at DESC, id DESC);
+CREATE INDEX IF NOT EXISTS idx_business_audit_actor_time
+    ON business_audit_log(tenant_id, actor_user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_business_audit_resource
+    ON business_audit_log(tenant_id, resource_type, resource_id);
+
+INSERT INTO workflow_definition(tenant_id, code, name, business_type, version)
+SELECT id, 'LEAVE_SINGLE_APPROVAL', '请假单级审批', 'LEAVE_APPLICATION', 1
+FROM tenant WHERE code = 'DEFAULT'
+ON CONFLICT (tenant_id, code, version) DO UPDATE SET
+    name = EXCLUDED.name,
+    enabled = TRUE,
+    updated_at = CURRENT_TIMESTAMP;
+
+INSERT INTO rbac_permission(code, name, module, description, tenant_id) VALUES
+    ('leave:create', '创建请假申请', '请假审批', '创建、编辑并提交自己的请假申请',
+        (SELECT id FROM tenant WHERE code = 'DEFAULT')),
+    ('leave:read:self', '查看我的申请', '请假审批', '查看自己的请假申请与审批时间线',
+        (SELECT id FROM tenant WHERE code = 'DEFAULT')),
+    ('leave:withdraw', '撤回请假申请', '请假审批', '撤回自己审批中的请假申请',
+        (SELECT id FROM tenant WHERE code = 'DEFAULT')),
+    ('approval:act', '处理审批待办', '请假审批', '处理分配给自己的审批待办',
+        (SELECT id FROM tenant WHERE code = 'DEFAULT')),
+    ('route:leave-application', '访问请假申请', '页面访问', '允许访问请假申请页面',
+        (SELECT id FROM tenant WHERE code = 'DEFAULT')),
+    ('route:my-applications', '访问我的申请', '页面访问', '允许访问我的申请页面',
+        (SELECT id FROM tenant WHERE code = 'DEFAULT'))
+ON CONFLICT (code) DO UPDATE SET
+    name = EXCLUDED.name,
+    module = EXCLUDED.module,
+    description = EXCLUDED.description,
+    tenant_id = EXCLUDED.tenant_id;
+
+UPDATE rbac_route
+SET component_key = 'TODO_LIST', updated_at = CURRENT_TIMESTAMP
+WHERE route_key = 'todo';
+UPDATE rbac_route
+SET component_key = 'AUDIT_CENTER', updated_at = CURRENT_TIMESTAMP
+WHERE route_key = 'audit-center';
+
+INSERT INTO rbac_route(
+    route_key, parent_key, name, path, icon, route_type, component_key,
+    permission_code, sort_order, enabled, tenant_id
+) VALUES
+    ('leave-application', 'workspace', '请假申请', '/oa/leave-application', NULL,
+        'PAGE', 'LEAVE_FORM', 'route:leave-application', 4, TRUE,
+        (SELECT id FROM tenant WHERE code = 'DEFAULT')),
+    ('my-applications', 'workspace', '我的申请', '/oa/my-applications', NULL,
+        'PAGE', 'MY_APPLICATIONS', 'route:my-applications', 5, TRUE,
+        (SELECT id FROM tenant WHERE code = 'DEFAULT'))
+ON CONFLICT (route_key) DO UPDATE SET
+    parent_key = EXCLUDED.parent_key,
+    name = EXCLUDED.name,
+    path = EXCLUDED.path,
+    component_key = EXCLUDED.component_key,
+    permission_code = EXCLUDED.permission_code,
+    sort_order = EXCLUDED.sort_order,
+    enabled = TRUE,
+    tenant_id = EXCLUDED.tenant_id,
+    updated_at = CURRENT_TIMESTAMP;
+
+INSERT INTO rbac_role_permission(role_code, permission_code, tenant_id)
+SELECT values.role_code, values.permission_code, t.id
+FROM tenant t
+CROSS JOIN (
+    VALUES
+        ('EMPLOYEE', 'leave:create'),
+        ('EMPLOYEE', 'leave:read:self'),
+        ('EMPLOYEE', 'leave:withdraw'),
+        ('EMPLOYEE', 'route:leave-application'),
+        ('EMPLOYEE', 'route:my-applications'),
+        ('SYSTEM_ADMIN', 'leave:create'),
+        ('SYSTEM_ADMIN', 'leave:read:self'),
+        ('SYSTEM_ADMIN', 'leave:withdraw'),
+        ('SYSTEM_ADMIN', 'approval:act'),
+        ('SYSTEM_ADMIN', 'route:leave-application'),
+        ('SYSTEM_ADMIN', 'route:my-applications'),
+        ('PROCESS_ADMIN', 'leave:create'),
+        ('PROCESS_ADMIN', 'leave:read:self'),
+        ('PROCESS_ADMIN', 'leave:withdraw'),
+        ('PROCESS_ADMIN', 'approval:act'),
+        ('PROCESS_ADMIN', 'route:leave-application'),
+        ('PROCESS_ADMIN', 'route:my-applications')
+) AS values(role_code, permission_code)
+WHERE t.code = 'DEFAULT'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO rbac_role_permission(role_code, permission_code, tenant_id)
+SELECT 'SUPER_ADMIN', code, tenant_id
+FROM rbac_permission
+ON CONFLICT DO NOTHING;
+
 COMMIT;

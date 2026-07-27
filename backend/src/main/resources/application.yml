@@ -96,6 +96,8 @@ app:
   profile:
     avatar-directory: ${USER_AVATAR_DIRECTORY:./data/user-avatars}
     avatar-max-bytes: 2097152
+  workflow:
+    approval-due-hours: ${APPROVAL_DUE_HOURS:48}
 
 # ========== JWT 配置 ==========
 jwt:

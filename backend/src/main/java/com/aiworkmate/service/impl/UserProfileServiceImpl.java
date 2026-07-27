@@ -9,6 +9,7 @@ import com.aiworkmate.entity.User;
 import com.aiworkmate.mapper.UserMapper;
 import com.aiworkmate.service.UserProfileService;
 import com.aiworkmate.service.UserAccessService;
+import com.aiworkmate.service.model.ResolvedUserAccess;
 import com.aiworkmate.service.model.AvatarContent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,6 +27,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -189,6 +191,7 @@ public class UserProfileServiceImpl implements UserProfileService {
     }
 
     private AuthUserResponse toResponse(User user) {
+        ResolvedUserAccess access = userAccessService.resolveActiveUser(user.getId());
         String name = user.getDisplayName() == null || user.getDisplayName().isBlank()
                 ? user.getUsername() : user.getDisplayName();
         String avatarUrl = user.getAvatar() == null || user.getAvatar().isBlank()
@@ -197,9 +200,13 @@ public class UserProfileServiceImpl implements UserProfileService {
                 user.getId(),
                 name,
                 user.getEmail(),
-                user.getRole(),
+                access == null ? user.getTenantId() : access.tenantId(),
+                access == null ? user.getRole() : access.role(),
+                access == null ? List.of(user.getRole()) : access.roles(),
                 avatarUrl,
-                userAccessService.permissionsForRole(user.getRole())
+                access == null ? userAccessService.permissionsForRole(user.getRole()) : access.permissions(),
+                access == null ? List.of("SELF") : access.dataScopes(),
+                access == null ? user.getPermissionVersion() : access.permissionVersion()
         );
     }
 }

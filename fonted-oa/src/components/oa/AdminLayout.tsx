@@ -17,6 +17,11 @@ import AccessControlPage from './AccessControlPage';
 import { getNavigation, type NavigationRoute } from '@/lib/navigationApi';
 import { OaIcon } from '@/components/OaIcon';
 import PageTabBar, { type OaPageTab } from './PageTabBar';
+import TodoListPage from './TodoListPage';
+import LeaveFormPage from './LeaveFormPage';
+import MyApplicationsPage from './MyApplicationsPage';
+import ApprovalDetailPage from './ApprovalDetailPage';
+import AuditCenterPage from './AuditCenterPage';
 
 const { Content } = Layout;
 const OPEN_TABS_STORAGE_KEY = 'workmeta-oa-open-tabs';
@@ -133,10 +138,15 @@ function readStorage(key: string, fallback: string): string {
 export default function AdminLayout() {
   const router = useRouter();
   const pathname = usePathname();
+  const approvalTaskId = useMemo(() => {
+    const match = pathname.match(/^\/oa\/approval-tasks\/(\d+)$/);
+    return match ? Number(match[1]) : undefined;
+  }, [pathname]);
   const currentPageId = useMemo(() => {
+    if (approvalTaskId) return 'todo';
     const segments = pathname.split('/').filter(Boolean);
     return segments.length > 1 ? decodeURIComponent(segments[1]) : 'dashboard';
-  }, [pathname]);
+  }, [approvalTaskId, pathname]);
   const { user } = useAuth();
   const role = useMemo<OaRole>(() => {
     if (user?.role === 'SUPER_ADMIN') return 'super_admin';
@@ -213,8 +223,8 @@ export default function AdminLayout() {
   }, [currentPageId, menus, navigationLoaded, router]);
 
   useEffect(() => {
-    document.title = `AI WorkMate OA - ${selectedMenu.name}`;
-  }, [selectedMenu.name]);
+    document.title = `AI WorkMate OA - ${approvalTaskId ? '审批详情' : selectedMenu.name}`;
+  }, [approvalTaskId, selectedMenu.name]);
 
   useEffect(() => {
     if (!navigationLoaded || openTabsReady) return;
@@ -449,10 +459,20 @@ export default function AdminLayout() {
               </div>
               <Content className={`oa-content ${selectedMenu.id === 'ai-workspace' ? 'oa-chat-content' : ''}`}>
                 <div key={selectedMenu.id} className="oa-page-transition">
-                  {selectedMenu.componentKey === 'AI_WORKSPACE' ? (
+                  {approvalTaskId ? (
+                    <ApprovalDetailPage taskId={approvalTaskId} />
+                  ) : selectedMenu.componentKey === 'AI_WORKSPACE' ? (
                     <AiChatWorkspace role={role} />
                   ) : selectedMenu.componentKey === 'ACCESS_CONTROL' ? (
                     <AccessControlPage />
+                  ) : selectedMenu.componentKey === 'TODO_LIST' ? (
+                    <TodoListPage />
+                  ) : selectedMenu.componentKey === 'LEAVE_FORM' ? (
+                    <LeaveFormPage />
+                  ) : selectedMenu.componentKey === 'MY_APPLICATIONS' ? (
+                    <MyApplicationsPage />
+                  ) : selectedMenu.componentKey === 'AUDIT_CENTER' ? (
+                    <AuditCenterPage />
                   ) : (
                     <Dashboard
                       role={role}

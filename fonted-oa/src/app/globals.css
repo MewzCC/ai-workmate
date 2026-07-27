@@ -134,3 +134,28 @@
 }
 @media (max-width: 620px) { .auth-page { align-items: start; padding: max(10px,env(safe-area-inset-top)) 10px max(10px,env(safe-area-inset-bottom)); overflow-y: auto; } .auth-card { width: 100%; max-height: none; padding: 25px 20px 20px; border-radius: 22px; transform: none; } .auth-heading { margin: 20px 0; } .auth-heading h1 { font-size: 27px; } .auth-brand small { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .auth-card .ant-input { font-size: 16px; } .auth-form-grid { grid-template-columns: 1fr; gap: 0; } .auth-code-row, .auth-captcha-row { grid-template-columns: minmax(0,1fr) 124px; } .auth-social { grid-template-columns: 1fr; } .auth-social .ant-btn { min-height: 44px; } }
 @media (prefers-reduced-motion: reduce) { .auth-ambient { animation: none; } .auth-tab-slider { transition: none; } }
+
+.oa-domain-page { display: grid; gap: 18px; max-width: 1480px; margin: 0 auto; }
+.oa-domain-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+.oa-domain-heading .ant-typography { margin-top: 0; }
+.oa-domain-card { border-color: var(--oa-border); background: var(--oa-card); margin-bottom: 6px !important;}
+.oa-domain-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 18px; }
+.oa-leave-form { max-width: 980px; margin-top: 22px; }
+.oa-form-grid-four { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.oa-duration-alert { margin-bottom: 20px; }
+.oa-detail-grid { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(320px, .75fr); gap: 18px; }
+.oa-detail-actions { margin-top: 22px; }
+.oa-detail-grid .ant-timeline { margin-top: 8px; }
+.oa-wallpaper-active .oa-domain-card { background: color-mix(in srgb, var(--oa-card) 78%, transparent); backdrop-filter: blur(18px); }
+
+@media (max-width: 980px) {
+  .oa-form-grid-four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .oa-detail-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 620px) {
+  .oa-domain-heading { flex-direction: column; }
+  .oa-domain-heading > .ant-btn { width: 100%; }
+  .oa-form-grid-four { grid-template-columns: 1fr; gap: 0; }
+  .oa-domain-toolbar > * { width: 100% !important; }
+}

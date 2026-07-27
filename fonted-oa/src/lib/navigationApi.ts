@@ -5,7 +5,8 @@ export interface NavigationRoute {
   path?: string;
   icon?: string;
   routeType: 'GROUP' | 'MENU' | 'PAGE';
-  componentKey?: 'DASHBOARD' | 'AI_WORKSPACE' | 'ACCESS_CONTROL';
+  componentKey?: 'DASHBOARD' | 'AI_WORKSPACE' | 'ACCESS_CONTROL'
+    | 'TODO_LIST' | 'LEAVE_FORM' | 'MY_APPLICATIONS' | 'AUDIT_CENTER';
   permissionCode?: string;
   sortOrder: number;
   children: NavigationRoute[];

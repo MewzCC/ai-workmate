@@ -29,7 +29,7 @@ public class NavigationServiceImpl implements NavigationService {
             return List.of();
         }
         Set<String> permissions = Set.copyOf(access.permissions());
-        List<AccessRouteResponse> visible = accessControlMapper.selectRoutes().stream()
+        List<AccessRouteResponse> visible = accessControlMapper.selectRoutesForTenant(access.tenantId()).stream()
                 .filter(AccessRouteResponse::enabled)
                 .filter(route -> !"PAGE".equals(route.routeType())
                         || permissions.contains(route.permissionCode()))

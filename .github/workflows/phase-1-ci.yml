@@ -1,0 +1,189 @@
+name: Phase 1 CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: ai_workmate_dev
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+      - name: Verify idempotent database initialization
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h localhost -U postgres -d ai_workmate_dev -v ON_ERROR_STOP=1 -f backend/src/main/resources/db/init.sql
+          psql -h localhost -U postgres -d ai_workmate_dev -v ON_ERROR_STOP=1 -f backend/src/main/resources/db/init.sql
+      - name: Backend tests
+        working-directory: backend
+        run: mvn test
+
+  frontends:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: |
+            fronted-main/package-lock.json
+            fonted-oa/package-lock.json
+      - name: Marketing site checks
+        working-directory: fronted-main
+        run: |
+          npm ci
+          npm run lint
+          npm run build
+      - name: OA tests and build
+        working-directory: fonted-oa
+        run: |
+          npm ci
+          npm test
+          npm run lint
+          npm run build
+
+  phase-1-e2e:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: ai_workmate
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: fonted-oa/package-lock.json
+      - name: Initialize isolated E2E database and users
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h localhost -U postgres -d ai_workmate -v ON_ERROR_STOP=1 -f backend/src/main/resources/db/init.sql
+          psql -h localhost -U postgres -d ai_workmate -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE EXTENSION IF NOT EXISTS pgcrypto;
+          DO $$
+          DECLARE
+            tenant_id_value BIGINT;
+            department_id_value BIGINT;
+            position_id_value BIGINT;
+            employee_id_value BIGINT;
+            approver_id_value BIGINT;
+          BEGIN
+            SELECT id INTO tenant_id_value FROM tenant WHERE code = 'DEFAULT';
+            SELECT id INTO department_id_value FROM department
+              WHERE tenant_id = tenant_id_value AND code = 'HEADQUARTERS';
+            SELECT id INTO position_id_value FROM position
+              WHERE tenant_id = tenant_id_value AND code = 'EMPLOYEE';
+
+            INSERT INTO app_user(
+              username, display_name, password, email, role, status,
+              tenant_id, department_id, position_id
+            ) VALUES (
+              'phase1-e2e-employee', 'Phase 1 Employee',
+              crypt('Phase1Employee!2026', gen_salt('bf')),
+              'phase1-employee@example.test', 'EMPLOYEE', 1,
+              tenant_id_value, department_id_value, position_id_value
+            ) RETURNING id INTO employee_id_value;
+
+            INSERT INTO app_user(
+              username, display_name, password, email, role, status,
+              tenant_id, department_id, position_id
+            ) VALUES (
+              'phase1-e2e-approver', 'Phase 1 Approver',
+              crypt('Phase1Approver!2026', gen_salt('bf')),
+              'phase1-approver@example.test', 'PROCESS_ADMIN', 1,
+              tenant_id_value, department_id_value, position_id_value
+            ) RETURNING id INTO approver_id_value;
+
+            UPDATE app_user
+            SET approver_user_id = approver_id_value
+            WHERE id = employee_id_value;
+
+            INSERT INTO user_role(tenant_id, user_id, role_code) VALUES
+              (tenant_id_value, employee_id_value, 'EMPLOYEE'),
+              (tenant_id_value, approver_id_value, 'PROCESS_ADMIN');
+          END
+          $$;
+          SQL
+      - name: Start backend
+        working-directory: backend
+        env:
+          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/ai_workmate
+          DB_PASSWORD: postgres
+        run: |
+          nohup mvn spring-boot:run > ../phase-1-e2e-backend.log 2>&1 &
+          for attempt in {1..60}; do
+            if curl --fail --silent http://localhost:8080/api/system/health > /dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          cat ../phase-1-e2e-backend.log
+          exit 1
+      - working-directory: fonted-oa
+        run: npm ci
+      - name: Run Phase 1 approval E2E
+        working-directory: fonted-oa
+        env:
+          E2E_API_BASE_URL: http://localhost:8080
+          E2E_EMPLOYEE_EMAIL: phase1-employee@example.test
+          E2E_EMPLOYEE_PASSWORD: Phase1Employee!2026
+          E2E_APPROVER_EMAIL: phase1-approver@example.test
+          E2E_APPROVER_PASSWORD: Phase1Approver!2026
+        run: npm run test:e2e
