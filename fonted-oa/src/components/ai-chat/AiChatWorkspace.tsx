@@ -2,13 +2,14 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { Button, Drawer, Tooltip, message } from 'antd';
-import { MenuUnfoldOutlined, PlusOutlined, SettingOutlined } from '@ant-design/icons';
+import { MenuUnfoldOutlined } from '@ant-design/icons';
 import { useAiChatStore } from '@/store/aiChatStore';
 import type { OaRole } from '@/types/oa';
 import type { AiModelId } from '@/config/aiModels';
 import ChatSidebar from './ChatSidebar';
 import ChatWindow from './ChatWindow';
 import SettingsDialog from './SettingsDialog';
+import { OaIcon } from '@/components/OaIcon';
 
 const SIDEBAR_COLLAPSED_KEY = 'workmeta-ai-chat-sidebar-collapsed';
 
@@ -78,13 +79,13 @@ export default function AiChatWorkspace({ role }: AiChatWorkspaceProps) {
               />
             </Tooltip>
             <Tooltip title="新建聊天" placement="right">
-              <Button type="text" icon={<PlusOutlined />} aria-label="新建聊天" onClick={() => void store.newConversation()} />
+              <Button type="text" icon={<OaIcon name="add" />} aria-label="新建聊天" onClick={() => void store.newConversation()} />
             </Tooltip>
             <Tooltip title="设置" placement="right">
               <Button
                 className="ai-sidebar-rail-settings"
                 type="text"
-                icon={<SettingOutlined />}
+                icon={<OaIcon name="settings" />}
                 aria-label="设置"
                 onClick={() => setSettingsOpen(true)}
               />

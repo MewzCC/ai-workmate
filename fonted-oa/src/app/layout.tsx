@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Inter, JetBrains_Mono } from 'next/font/google';
 import Script from 'next/script';
+import { iconfontVersion } from '@/generated/iconfontVersion';
 import { AntdRegistry } from '@ant-design/nextjs-registry';
 import 'antd/dist/reset.css';
 import '../styles/globals.css';
@@ -33,7 +34,10 @@ export default function OaRootLayout({ children }: { children: React.ReactNode }
         <AntdRegistry>
           <Providers>{children}</Providers>
         </AntdRegistry>
-        <Script src="/iconfont/iconfont.js" strategy="beforeInteractive" />
+        <Script
+          src={`/iconfont/iconfont.js?v=${iconfontVersion}`}
+          strategy="beforeInteractive"
+        />
       </body>
     </html>
   );

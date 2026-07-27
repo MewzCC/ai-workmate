@@ -1,18 +1,8 @@
 'use client';
 
-import {
-  BookOutlined,
-  BulbOutlined,
-  EyeOutlined,
-  KeyOutlined,
-  LockOutlined,
-  RobotOutlined,
-  RocketOutlined,
-  SafetyOutlined,
-  ThunderboltOutlined,
-} from '@ant-design/icons';
 import { Anchor, Button, Drawer, Space, Tag, Typography } from 'antd';
 import type { OaRole } from '@/types/oa';
+import { OaIcon } from '@/components/OaIcon';
 
 interface HelpDrawerProps {
   open: boolean;
@@ -40,7 +30,7 @@ export default function HelpDrawer({ open, role, onClose, onOpenAi }: HelpDrawer
   const sections: HelpSection[] = [
     {
       id: 'overview',
-      icon: <BookOutlined />,
+      icon: <OaIcon name="dictionary" />,
       title: '工作台概览',
       body: (
         <Typography>
@@ -57,7 +47,7 @@ export default function HelpDrawer({ open, role, onClose, onOpenAi }: HelpDrawer
     },
     {
       id: 'navigation',
-      icon: <RocketOutlined />,
+      icon: <OaIcon name="process" />,
       title: '导航与页面切换',
       body: (
         <Typography>
@@ -73,7 +63,7 @@ export default function HelpDrawer({ open, role, onClose, onOpenAi }: HelpDrawer
     },
     {
       id: 'ai-workspace',
-      icon: <RobotOutlined />,
+      icon: <OaIcon name="ai" />,
       title: 'AI 工作空间',
       body: (
         <Typography>
@@ -91,7 +81,7 @@ export default function HelpDrawer({ open, role, onClose, onOpenAi }: HelpDrawer
     },
     {
       id: 'ai-drawer',
-      icon: <ThunderboltOutlined />,
+      icon: <OaIcon name="ai" />,
       title: 'AI 操作面板（页面级）',
       body: (
         <Typography>
@@ -106,7 +96,7 @@ export default function HelpDrawer({ open, role, onClose, onOpenAi }: HelpDrawer
     },
     {
       id: 'appearance',
-      icon: <EyeOutlined />,
+      icon: <OaIcon name="appearance" />,
       title: '外观与主题',
       body: (
         <Typography>
@@ -123,7 +113,7 @@ export default function HelpDrawer({ open, role, onClose, onOpenAi }: HelpDrawer
     },
     {
       id: 'permissions',
-      icon: <LockOutlined />,
+      icon: <OaIcon name="lock" />,
       title: '权限与角色',
       body: (
         <Typography>
@@ -140,7 +130,7 @@ export default function HelpDrawer({ open, role, onClose, onOpenAi }: HelpDrawer
     },
     {
       id: 'security',
-      icon: <SafetyOutlined />,
+      icon: <OaIcon name="access-control" />,
       title: '安全边界',
       body: (
         <Typography>
@@ -155,7 +145,7 @@ export default function HelpDrawer({ open, role, onClose, onOpenAi }: HelpDrawer
     },
     {
       id: 'shortcuts',
-      icon: <KeyOutlined />,
+      icon: <OaIcon name="lock" />,
       title: '快捷操作',
       body: (
         <Typography>
@@ -170,7 +160,7 @@ export default function HelpDrawer({ open, role, onClose, onOpenAi }: HelpDrawer
     },
     {
       id: 'tips',
-      icon: <BulbOutlined />,
+      icon: <OaIcon name="ai" />,
       title: '常见问题',
       body: (
         <Typography>
@@ -233,7 +223,7 @@ export default function HelpDrawer({ open, role, onClose, onOpenAi }: HelpDrawer
             </Typography.Paragraph>
             <Button
               type="primary"
-              icon={<RobotOutlined />}
+              icon={<OaIcon name="ai" />}
               onClick={() => {
                 onClose();
                 onOpenAi('请根据当前 OA 工作台的能力，为我详细介绍我能做什么以及如何使用');

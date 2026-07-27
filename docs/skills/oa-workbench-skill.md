@@ -77,6 +77,16 @@ OA 工作台业务 UI 必须使用真实 Ant Design 组件：
 
 禁止用原生 `button`、`table`、自定义 `div drawer`、自定义 `div modal` 模拟 Ant Design。
 
+### 图标工作流
+
+- OA 组件通过 `fonted-oa/src/components/OaIcon.tsx` 使用语义图标，避免业务代码依赖 Iconfont 的具体 Symbol ID。
+- `iconFontMap` 保存已经进入 Iconfont 的图标；`fallbackIconMap` 保存等待上传期间的开源占位图标。
+- 新增正式图标时直接在 Iconfont 项目中选择或上传；仓库不生成、不保存待上传 SVG 或上传压缩包。
+- Iconfont 暂无对应图标时，可使用已安装且许可证明确的开源图标作为临时 fallback。
+- 用户上传 Iconfont 并提供新下载包前，必须用可见占位图标完成页面构建；禁止引用不存在的 Symbol。
+- 更新 Symbol 包后，同步 `IconFont.tsx` 类型、`OaIcon.tsx` 映射并运行 OA lint/build。
+- 下载的 Symbol 包使用 `scripts/import-iconfont-symbol.mjs` 导入；单色业务图标统一使用 `currentColor`，禁止固定深色填充导致深色主题不可见。
+
 ### 布局规范
 
 - `AdminLayout` 是 OA 工作台总布局。

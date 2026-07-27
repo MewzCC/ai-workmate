@@ -23,14 +23,6 @@ import {
   Typography,
   message,
 } from 'antd';
-import {
-  ApartmentOutlined,
-  EditOutlined,
-  PlusOutlined,
-  SafetyCertificateOutlined,
-  SaveOutlined,
-  TeamOutlined,
-} from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import {
   accessControlApi,
@@ -41,6 +33,7 @@ import {
   type AccessUser,
   type SaveRoutePayload,
 } from '@/lib/accessControlApi';
+import { OaIcon, oaMenuIconOptions } from '@/components/OaIcon';
 
 const componentOptions = [
   { value: 'DASHBOARD', label: '通用 OA 页面' },
@@ -258,7 +251,7 @@ export default function AccessControlPage() {
           <Button
             type="text"
             shape="circle"
-            icon={<EditOutlined />}
+            icon={<OaIcon name="edit" />}
             aria-label={`编辑${route.name}`}
             onClick={() => openRouteEditor(route)}
           />
@@ -276,7 +269,7 @@ export default function AccessControlPage() {
             权限由服务端实时解析。角色变更无需重新登录，菜单和直接 URL 访问都会同步受控。
           </Typography.Paragraph>
         </div>
-        <Tag className="oa-access-service-tag" icon={<SafetyCertificateOutlined />} bordered={false}>
+        <Tag className="oa-access-service-tag" icon={<OaIcon name="access-control" />} bordered={false}>
           服务端 RBAC
         </Tag>
       </header>
@@ -286,7 +279,7 @@ export default function AccessControlPage() {
           <Tabs items={[
             {
               key: 'users',
-              label: <span><TeamOutlined /> 用户角色</span>,
+              label: <span><OaIcon name="user" /> 用户角色</span>,
               children: (
                 <Table
                   className="oa-access-table"
@@ -301,11 +294,11 @@ export default function AccessControlPage() {
             },
             {
               key: 'roles',
-              label: <span><SafetyCertificateOutlined /> 角色权限</span>,
+              label: <span><OaIcon name="role" /> 角色权限</span>,
               children: (
                 <>
                   <div className="oa-access-toolbar">
-                    <Button type="primary" icon={<PlusOutlined />} onClick={() => setRoleModalOpen(true)}>
+                    <Button type="primary" icon={<OaIcon name="add" />} onClick={() => setRoleModalOpen(true)}>
                       新建角色
                     </Button>
                   </div>
@@ -351,7 +344,7 @@ export default function AccessControlPage() {
                             ))}
                           </Checkbox.Group>
                           {selectedRole.code !== 'SUPER_ADMIN' && (
-                            <Button type="primary" icon={<SaveOutlined />} loading={savingPermissions}
+                            <Button type="primary" icon={<OaIcon name="save" />} loading={savingPermissions}
                               onClick={() => void savePermissions()}>
                               保存角色权限
                             </Button>
@@ -365,13 +358,13 @@ export default function AccessControlPage() {
             },
             {
               key: 'routes',
-              label: <span><ApartmentOutlined /> 动态路由</span>,
+              label: <span><OaIcon name="organization" /> 动态路由</span>,
               children: (
                 <>
                   <div className="oa-access-toolbar">
                     <Alert className="oa-access-hint" type="info" showIcon
                       message="新增 PAGE 会自动创建对应页面权限；角色勾选后，该页面才会出现在菜单中。" />
-                    <Button type="primary" icon={<PlusOutlined />} onClick={() => openRouteEditor()}>
+                    <Button type="primary" icon={<OaIcon name="add" />} onClick={() => openRouteEditor()}>
                       新增路由
                     </Button>
                   </div>
@@ -460,9 +453,13 @@ export default function AccessControlPage() {
           </Form.Item>
           <div className="oa-route-form-grid">
             <Form.Item name="icon" label="图标编码">
-              <Select allowClear options={[
-                'DashboardOutlined', 'ApartmentOutlined', 'ApiOutlined', 'SettingOutlined', 'RobotOutlined',
-              ].map((value) => ({ value, label: value }))} />
+              <Select
+                allowClear
+                showSearch
+                optionFilterProp="label"
+                options={oaMenuIconOptions}
+                placeholder="选择语义图标"
+              />
             </Form.Item>
             <Form.Item name="enabled" label="启用" valuePropName="checked">
               <Switch />

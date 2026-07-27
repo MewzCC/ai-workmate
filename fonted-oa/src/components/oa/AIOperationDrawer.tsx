@@ -17,10 +17,10 @@ import {
   Typography,
   message,
 } from 'antd';
-import { RobotOutlined, SendOutlined, StopOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import type { AiTaskExecuteResponse, AiTaskPlanResponse, OaRole } from '@/types/oa';
 import { executeAiTask, formatOaApiError, OaApiError, planAiTask } from '@/lib/oaApi';
 import { getAllowedAiActions, isSensitiveEmployeeTask, roleDataScope } from '@/mock/oaPermissions';
+import { OaIcon } from '@/components/OaIcon';
 
 interface AIOperationDrawerProps {
   open: boolean;
@@ -147,7 +147,7 @@ export default function AIOperationDrawer({
         <Card size="small" title="快捷指令">
           <Space wrap>
             {['预审当前列表', '新建采购申请', '修改员工部门', '排查接口异常', '导出审批摘要'].map((command) => (
-              <Button key={command} icon={<ThunderboltOutlined />} onClick={() => submitPlan(command)}>
+              <Button key={command} icon={<OaIcon name="ai" />} onClick={() => submitPlan(command)}>
                 {command}
               </Button>
             ))}
@@ -192,10 +192,10 @@ export default function AIOperationDrawer({
           placeholder="例如：帮我预审当前列表，并输出风险排序"
         />
         <Space wrap>
-          <Button type="primary" icon={<SendOutlined />} loading={loading} onClick={() => submitPlan()}>
+          <Button type="primary" icon={<OaIcon name="send" />} loading={loading} onClick={() => submitPlan()}>
             发送 / 生成计划
           </Button>
-          <Button icon={<StopOutlined />} onClick={() => {
+          <Button icon={<OaIcon name="pause" />} onClick={() => {
             setPlan(null);
             setResult(null);
             message.info('已取消当前计划');
@@ -218,7 +218,7 @@ export default function AIOperationDrawer({
               current={plan.steps.length - 1}
               items={plan.steps.map((step) => ({ title: step.title, description: step.description }))}
             />
-            <Button type="primary" icon={<RobotOutlined />} onClick={confirmExecute}>
+            <Button type="primary" icon={<OaIcon name="ai" />} onClick={confirmExecute}>
               确认执行
             </Button>
           </Card>

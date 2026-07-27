@@ -1,10 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { DeleteOutlined, UploadOutlined, UserOutlined } from '@ant-design/icons';
 import { Avatar, Button, Form, Input, Modal, Space, Upload, message } from 'antd';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { profileApi } from '@/lib/profileApi';
+import { OaIcon } from '@/components/OaIcon';
 
 const AVATAR_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const AVATAR_MAX_BYTES = 2 * 1024 * 1024;
@@ -94,7 +94,7 @@ export default function ProfileSettingsModal({ open, onClose }: ProfileSettingsM
       destroyOnHidden
     >
       <div className="oa-profile-avatar-editor">
-        <Avatar size={80} src={previewUrl || user?.avatarUrl} icon={<UserOutlined />} />
+        <Avatar size={80} src={previewUrl || user?.avatarUrl} icon={<OaIcon name="avatar" size={32} />} />
         <Space>
           <Upload
             accept=".jpg,.jpeg,.png,.webp"
@@ -102,12 +102,12 @@ export default function ProfileSettingsModal({ open, onClose }: ProfileSettingsM
             showUploadList={false}
             beforeUpload={selectAvatar}
           >
-            <Button icon={<UploadOutlined />}>选择头像</Button>
+            <Button icon={<OaIcon name="upload" />}>选择头像</Button>
           </Upload>
           {(user?.avatarUrl || avatarFile) && (
             <Button
               danger
-              icon={<DeleteOutlined />}
+              icon={<OaIcon name="delete" />}
               loading={deleting}
               onClick={() => void deleteAvatar()}
             >

@@ -2,9 +2,9 @@
 
 import { useRef, useState } from 'react';
 import { Button, Input, Space, Tooltip, Upload, message } from 'antd';
-import { ArrowUpOutlined, PaperClipOutlined, StopOutlined } from '@ant-design/icons';
 import type { ChatAttachment } from '@/types/chat';
 import AttachmentPreview from './AttachmentPreview';
+import { OaIcon } from '@/components/OaIcon';
 
 const SUPPORTED_EXTENSIONS = new Set([
   '.jpg', '.jpeg', '.png', '.webp',
@@ -76,7 +76,7 @@ export default function ChatInput({ pending, generating, onUpload, onRemoveAttac
             <Tooltip title="上传图片或文件">
               <Button
                 type="text"
-                icon={<PaperClipOutlined />}
+                icon={<OaIcon name="attachment" />}
                 aria-label="上传图片或文件"
               />
             </Tooltip>
@@ -84,9 +84,9 @@ export default function ChatInput({ pending, generating, onUpload, onRemoveAttac
           <span className="ai-composer-hint">Enter 发送 · Shift + Enter 换行</span>
         </Space>
         {generating ? (
-          <Button danger icon={<StopOutlined />} onClick={onStop}>停止生成</Button>
+          <Button danger icon={<OaIcon name="pause" />} onClick={onStop}>停止生成</Button>
         ) : (
-          <Button type="primary" shape="circle" icon={<ArrowUpOutlined />} disabled={!value.trim() && !pending.length} onClick={send} aria-label="发送消息" />
+          <Button type="primary" shape="circle" icon={<OaIcon name="send" />} disabled={!value.trim() && !pending.length} onClick={send} aria-label="发送消息" />
         )}
       </div>
       {dragging && <div className="ai-drop-mask">松开以上传文件</div>}
