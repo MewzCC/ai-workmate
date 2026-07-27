@@ -28,11 +28,13 @@ import {
   LinkOutlined,
   LockOutlined,
   LogoutOutlined,
+  LeftOutlined,
   MoreOutlined,
   NodeIndexOutlined,
   PaperClipOutlined,
   QuestionCircleOutlined,
   ReloadOutlined,
+  RightOutlined,
   SafetyCertificateOutlined,
   SaveOutlined,
   SearchOutlined,
@@ -171,6 +173,8 @@ const fallbackIconMap = {
   reload: ReloadOutlined,
   lock: LockOutlined,
   history: HistoryOutlined,
+  previous: LeftOutlined,
+  next: RightOutlined,
 } satisfies Record<string, ComponentType<AntdIconProps>>;
 
 export type OaIconName = keyof typeof iconFontMap | keyof typeof fallbackIconMap;

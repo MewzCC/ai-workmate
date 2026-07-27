@@ -1,6 +1,6 @@
 'use client';
 
-import { Avatar, Breadcrumb, Button, Dropdown, Layout, Space, message, notification } from 'antd';
+import { Avatar, Button, Dropdown, Layout, Space, message, notification } from 'antd';
 import type { MenuProps } from 'antd';
 import type { OaRole } from '@/types/oa';
 import { useAuth } from '@/components/auth/AuthProvider';
@@ -15,12 +15,11 @@ const { Header } = Layout;
 interface TopbarProps {
   role: OaRole;
   pageTitle: string;
-  breadcrumbs: Array<{ title: string }>;
   onOpenAppearance: () => void;
   onOpenAi: (prompt?: string) => void;
 }
 
-export default function Topbar({ role, pageTitle, breadcrumbs, onOpenAppearance, onOpenAi }: TopbarProps) {
+export default function Topbar({ role, pageTitle, onOpenAppearance, onOpenAi }: TopbarProps) {
   const { user, logout } = useAuth();
   const router = useRouter();
   const [profileOpen, setProfileOpen] = useState(false);
@@ -75,7 +74,6 @@ export default function Topbar({ role, pageTitle, breadcrumbs, onOpenAppearance,
   return (
     <Header className="oa-header">
       <div className="oa-header-title">
-        <Breadcrumb items={breadcrumbs} />
         <h1>{pageTitle}</h1>
       </div>
 
