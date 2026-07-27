@@ -1,7 +1,10 @@
 import type { Metadata } from 'next';
 import { Inter, JetBrains_Mono } from 'next/font/google';
 import Script from 'next/script';
+import { iconfontVersion } from '@/generated/iconfontVersion';
+import { AntdRegistry } from '@ant-design/nextjs-registry';
 import 'antd/dist/reset.css';
+import '../styles/globals.css';
 import './globals.css';
 import Providers from './providers';
 
@@ -28,8 +31,13 @@ export default function OaRootLayout({ children }: { children: React.ReactNode }
   return (
     <html lang="zh-CN" className={`${geistSans.variable} ${geistMono.variable}`}>
       <body className="min-h-screen overflow-x-hidden antialiased">
-        <Providers>{children}</Providers>
-        <Script src="/iconfont/iconfont.js" strategy="beforeInteractive" />
+        <AntdRegistry>
+          <Providers>{children}</Providers>
+        </AntdRegistry>
+        <Script
+          src={`/iconfont/iconfont.js?v=${iconfontVersion}`}
+          strategy="beforeInteractive"
+        />
       </body>
     </html>
   );

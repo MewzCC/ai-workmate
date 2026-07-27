@@ -156,6 +156,10 @@ docker compose -f docker-compose.yml up -d
 - API Key 与 AI 网关地址只允许服务端环境变量配置，禁止从设置页读取、回显或持久化到浏览器。
 - 左侧 OA Sider 必须固定在视口左侧；页面滚动时不得跟随内容移动。
 - 左侧 Sider 滚动条默认隐藏，仅在鼠标移入侧栏时显示。
+- OA 图标必须通过 `fonted-oa/src/components/OaIcon.tsx` 的语义名称统一引用；已有图标优先使用项目本地 Iconfont Symbol，禁止在业务页面重复硬编码 Symbol ID。
+- OA 正式业务图标统一在 Iconfont 项目中新增和维护；仓库不保存待上传 SVG、图标上传 ZIP 或本地图标绘制产物。
+- 图标尚未上传 Iconfont 时，界面必须使用 `OaIcon` 注册的开源占位图标，禁止引用不存在的 Symbol 导致空白；上传并更新 `iconfont.js` 后再将对应语义映射切换到 `iconFontMap`。
+- 新下载的 Symbol 包必须通过 `scripts/import-iconfont-symbol.mjs` 同步到 Main 和 OA；单色业务图标必须转换为 `currentColor`，禁止保留会破坏深色主题对比度的固定填充色。
 
 ## OA 权限与 AI 约束
 
@@ -163,6 +167,8 @@ docker compose -f docker-compose.yml up -d
 - 动态页面权限使用 `route:<routeKey>`，前端只允许渲染固定组件注册表中的组件；直接访问无权限路由必须回到首个可访问页面。
 - `AdminLayout` 必须由 `/oa/layout.tsx` 持久挂载，页面路由切换不得重新挂载侧栏。
 - OA 动态菜单首次进入全部折叠，允许同时展开多个目录；选择页面时保留已展开目录并补充当前祖先目录；刷新叶子页面时自动恢复其目录链。
+- OA 顶部使用访问页面标签导航，访问过的有权限页面自动加入，可直接回切和关闭；驾驶舱或首个可访问页必须固定保留，标签切换必须继续使用真实路由。
+- 页面标签持久化到 `workmeta-oa-open-tabs`，恢复时必须按最新 `GET /api/navigation` 结果过滤，禁止从 localStorage 恢复无权限页面。
 - 侧栏收缩后必须保留 Ant Design 弹出子菜单选择能力，不得用受控空 `openKeys` 阻止交互。
 - 收缩菜单及其他挂载到 `body` 的 Portal 弹层必须同步当前 `ConfigProvider` token 和 OA CSS variables，不能保留 Ant Design 默认深蓝背景；壁纸模式下同步透明模糊材质。
 - 权限后台固定使用 `/oa/access-control`，支持新增角色、用户角色分配、角色权限分配和动态路由配置；管理接口必须校验 `access:manage`。

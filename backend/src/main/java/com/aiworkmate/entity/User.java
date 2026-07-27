@@ -19,6 +19,11 @@ public class User {
     private String avatar;
 
     private String role;
+    private Long tenantId;
+    private Long departmentId;
+    private Long positionId;
+    private Long approverUserId;
+    private Long permissionVersion;
 
     private Integer status; // 1=正常 0=禁用
 

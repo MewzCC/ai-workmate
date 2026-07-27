@@ -4,9 +4,13 @@ export interface AuthUser {
   id: number;
   name: string;
   email: string;
+  tenantId: number;
   role: string;
+  roles: string[];
   avatarUrl?: string | null;
   permissions: string[];
+  dataScopes: string[];
+  permissionVersion: number;
 }
 
 export interface CaptchaData {

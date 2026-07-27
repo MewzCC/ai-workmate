@@ -13,6 +13,7 @@ import com.aiworkmate.mapper.UserMapper;
 import com.aiworkmate.service.AuthService;
 import com.aiworkmate.service.LoginProtectionService;
 import com.aiworkmate.service.UserAccessService;
+import com.aiworkmate.service.model.ResolvedUserAccess;
 import com.aiworkmate.service.VerificationCodeService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
 
 @Slf4j
 @Service
@@ -81,10 +83,19 @@ public class AuthServiceImpl implements AuthService {
         user.setEmail(email);
         user.setPassword(passwordEncoder.encode(request.password()));
         user.setRole("EMPLOYEE");
+        Long tenantId = userMapper.selectDefaultTenantId();
+        if (tenantId == null) {
+            throw new BusinessException(ErrorCode.AUTH_SERVICE_UNAVAILABLE, "默认租户尚未初始化");
+        }
+        user.setTenantId(tenantId);
+        user.setDepartmentId(userMapper.selectDefaultDepartmentId(tenantId));
+        user.setPositionId(userMapper.selectDefaultPositionId(tenantId));
+        user.setPermissionVersion(1L);
         user.setStatus(1);
         user.setCreatedAt(now);
         user.setUpdatedAt(now);
         userMapper.insert(user);
+        userMapper.insertUserRole(tenantId, user.getId(), "EMPLOYEE");
         log.info("Enterprise account registered, userId={}", user.getId());
         return toResponse(user);
     }
@@ -125,6 +136,7 @@ public class AuthServiceImpl implements AuthService {
     }
 
     private AuthUserResponse toResponse(User user) {
+        ResolvedUserAccess access = userAccessService.resolveActiveUser(user.getId());
         String name = user.getDisplayName() == null || user.getDisplayName().isBlank()
                 ? user.getUsername() : user.getDisplayName();
         String avatarUrl = user.getAvatar() == null || user.getAvatar().isBlank()
@@ -133,9 +145,13 @@ public class AuthServiceImpl implements AuthService {
                 user.getId(),
                 name,
                 user.getEmail(),
-                user.getRole(),
+                access == null ? user.getTenantId() : access.tenantId(),
+                access == null ? user.getRole() : access.role(),
+                access == null ? List.of(user.getRole()) : access.roles(),
                 avatarUrl,
-                userAccessService.permissionsForRole(user.getRole())
+                access == null ? userAccessService.permissionsForRole(user.getRole()) : access.permissions(),
+                access == null ? List.of("SELF") : access.dataScopes(),
+                access == null ? user.getPermissionVersion() : access.permissionVersion()
         );
     }
 }

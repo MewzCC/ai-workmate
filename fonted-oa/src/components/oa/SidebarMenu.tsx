@@ -2,27 +2,15 @@
 
 import { useEffect, useRef, useState } from 'react';
 import {
-  ApartmentOutlined,
-  ApiOutlined,
-  DashboardOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
-  SettingOutlined,
-  RobotOutlined,
 } from '@ant-design/icons';
 import { Button, Layout, Menu } from 'antd';
 import type { MenuProps } from 'antd';
 import type { OaMenuItem } from '@/types/oa';
+import { OaIcon, resolveOaMenuIcon } from '@/components/OaIcon';
 
 const { Sider } = Layout;
-
-const iconMap = {
-  DashboardOutlined: <DashboardOutlined />,
-  ApartmentOutlined: <ApartmentOutlined />,
-  ApiOutlined: <ApiOutlined />,
-  SettingOutlined: <SettingOutlined />,
-  RobotOutlined: <RobotOutlined />,
-};
 
 interface SidebarMenuProps {
   menus: OaMenuItem[];
@@ -36,9 +24,10 @@ interface SidebarMenuProps {
 function toMenuItems(menus: OaMenuItem[]): MenuProps['items'] {
   return menus.map((menu) => {
     const hasChildren = menu.type !== 'page' && Boolean(menu.children?.length);
+    const iconName = resolveOaMenuIcon(menu.id, menu.icon);
     return {
       key: menu.id,
-      icon: menu.icon ? iconMap[menu.icon as keyof typeof iconMap] : undefined,
+      icon: iconName ? <OaIcon name={iconName} size={18} /> : undefined,
       label: menu.name,
       children: hasChildren ? toMenuItems(menu.children || []) : undefined,
     };
@@ -111,14 +100,14 @@ export default function SidebarMenu({
       collapsed={collapsed}
       trigger={null}
     >
-      <div className="oa-sider-brand">
-        <span className="oa-logo">W</span>
-        {!collapsed && (
-          <div>
-            <strong>WorkMate OA</strong>
-            <small>Enterprise Console</small>
-          </div>
-        )}
+      <div className={`oa-sider-brand ${collapsed ? 'is-collapsed' : 'is-expanded'}`}>
+        <span className="oa-logo">
+          <OaIcon name="brand" size={30} title="WorkMate OA" />
+        </span>
+        <div className="oa-sider-brand-text">
+          <strong>WorkMate OA</strong>
+          <small>Enterprise Console</small>
+        </div>
       </div>
 
       <Button
@@ -128,7 +117,7 @@ export default function SidebarMenu({
         onClick={() => onCollapse(!collapsed)}
         block
       >
-        {!collapsed && '收起菜单'}
+        <span className="oa-collapse-btn-text">{!collapsed && '收起菜单'}</span>
       </Button>
 
       <Menu

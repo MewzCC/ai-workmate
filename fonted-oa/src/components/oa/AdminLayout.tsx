@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { ConfigProvider, FloatButton, Layout, App as AntApp, message, theme as antdTheme } from 'antd';
-import { RobotOutlined } from '@ant-design/icons';
 import type { OaMenuItem, OaRole, OaTheme } from '@/types/oa';
 import { findMenu } from '@/mock/oaPermissions';
 import Dashboard from './Dashboard';
@@ -16,8 +15,17 @@ import AiChatWorkspace from '@/components/ai-chat/AiChatWorkspace';
 import { useAuth } from '@/components/auth/AuthProvider';
 import AccessControlPage from './AccessControlPage';
 import { getNavigation, type NavigationRoute } from '@/lib/navigationApi';
+import { OaIcon } from '@/components/OaIcon';
+import PageTabBar, { type OaPageTab } from './PageTabBar';
+import TodoListPage from './TodoListPage';
+import LeaveFormPage from './LeaveFormPage';
+import MyApplicationsPage from './MyApplicationsPage';
+import ApprovalDetailPage from './ApprovalDetailPage';
+import AuditCenterPage from './AuditCenterPage';
 
 const { Content } = Layout;
+const OPEN_TABS_STORAGE_KEY = 'workmeta-oa-open-tabs';
+const MAX_OPEN_TABS = 20;
 
 const dashboardMenu: OaMenuItem = {
   id: 'dashboard',
@@ -130,10 +138,15 @@ function readStorage(key: string, fallback: string): string {
 export default function AdminLayout() {
   const router = useRouter();
   const pathname = usePathname();
+  const approvalTaskId = useMemo(() => {
+    const match = pathname.match(/^\/oa\/approval-tasks\/(\d+)$/);
+    return match ? Number(match[1]) : undefined;
+  }, [pathname]);
   const currentPageId = useMemo(() => {
+    if (approvalTaskId) return 'todo';
     const segments = pathname.split('/').filter(Boolean);
     return segments.length > 1 ? decodeURIComponent(segments[1]) : 'dashboard';
-  }, [pathname]);
+  }, [approvalTaskId, pathname]);
   const { user } = useAuth();
   const role = useMemo<OaRole>(() => {
     if (user?.role === 'SUPER_ADMIN') return 'super_admin';
@@ -158,13 +171,20 @@ export default function AdminLayout() {
   const [wallpaperOpacity, setWallpaperOpacity] = useState(() => Number(readStorage('workmeta-oa-wallpaper-opacity', '0.28')));
   const [wallpaperBlur, setWallpaperBlur] = useState(() => Number(readStorage('workmeta-oa-wallpaper-blur', '4')));
   const [auditItems, setAuditItems] = useState<Array<{ color: string; children: string }>>([]);
+  const [openTabs, setOpenTabs] = useState<OaPageTab[]>([]);
+  const [openTabsReady, setOpenTabsReady] = useState(false);
 
   const currentTheme = useMemo(() => themes.find((theme) => theme.name === themeName) || themes[0], [themeName]);
+  const pinnedMenu = useMemo(
+    () => findMenu('dashboard', menus) || firstPage(menus),
+    [menus],
+  );
 
   useEffect(() => {
     let active = true;
     if (!user) return;
     setNavigationLoaded(false);
+    setOpenTabsReady(false);
     getNavigation()
       .then((routes) => {
         if (!active) return;
@@ -189,16 +209,78 @@ export default function AdminLayout() {
       setSelectedMenu(visibleMenu);
       return;
     }
+    // 仅当当前 pageId 在菜单中确实不存在时，才回退到首个可用页面
+    // 延迟 300ms 执行，避免与用户主动点击触发的路由跳转打架
     const fallback = findMenu('dashboard', menus) || firstPage(menus);
-    if (fallback) {
+    if (!fallback) return;
+    const timer = setTimeout(() => {
       setSelectedMenu(fallback);
-      if (currentPageId !== fallback.id) router.replace(fallback.path || `/oa/${fallback.id}`);
-    }
+      if (fallback.id !== currentPageId) {
+        router.replace(fallback.path || `/oa/${fallback.id}`);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
   }, [currentPageId, menus, navigationLoaded, router]);
 
   useEffect(() => {
-    document.title = `AI WorkMate OA - ${selectedMenu.name}`;
-  }, [selectedMenu.name]);
+    document.title = `AI WorkMate OA - ${approvalTaskId ? '审批详情' : selectedMenu.name}`;
+  }, [approvalTaskId, selectedMenu.name]);
+
+  useEffect(() => {
+    if (!navigationLoaded || openTabsReady) return;
+    const pages = flattenPages(menus);
+    const pageMap = new Map(pages.map((page) => [page.id, page]));
+    const pinnedPage = pageMap.get('dashboard') || pages[0];
+    const currentPage = pageMap.get(currentPageId);
+    let storedIds: string[] = [];
+    try {
+      const raw = window.localStorage.getItem(OPEN_TABS_STORAGE_KEY);
+      const parsed = raw ? JSON.parse(raw) : [];
+      if (Array.isArray(parsed)) {
+        storedIds = parsed.filter((value): value is string => typeof value === 'string');
+      }
+    } catch {
+      storedIds = [];
+    }
+
+    const restored = storedIds
+      .map((id) => pageMap.get(id))
+      .filter((page): page is OaMenuItem => Boolean(page))
+      .map(toPageTab);
+    const initialTabs = limitTabs(uniqueTabs([
+      ...(pinnedPage ? [toPageTab(pinnedPage)] : []),
+      ...restored,
+      ...(currentPage ? [toPageTab(currentPage)] : []),
+    ]), pinnedPage?.id);
+    setOpenTabs(initialTabs);
+    setOpenTabsReady(true);
+  }, [currentPageId, menus, navigationLoaded, openTabsReady]);
+
+  useEffect(() => {
+    if (!openTabsReady || selectedMenu.type !== 'page') return;
+    setOpenTabs((current) => {
+      const next = uniqueTabs([...current, toPageTab(selectedMenu)]);
+      return limitTabs(next, pinnedMenu?.id);
+    });
+  }, [openTabsReady, pinnedMenu?.id, selectedMenu]);
+
+  useEffect(() => {
+    if (!openTabsReady) return;
+    window.localStorage.setItem(
+      OPEN_TABS_STORAGE_KEY,
+      JSON.stringify(openTabs.map((tab) => tab.id)),
+    );
+  }, [openTabs, openTabsReady]);
+
+  // 路由切换完成后关闭 loading 提示
+  useEffect(() => {
+    if (!navigationLoaded) return;
+    message.destroy('oa-route-switch');
+    if (selectedMenu.id === currentPageId) {
+      message.info(`已切换到：${selectedMenu.name}`, 1.5);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname, navigationLoaded]);
 
   useEffect(() => {
     document.documentElement.style.setProperty('--oa-primary', currentTheme.primary);
@@ -235,6 +317,57 @@ export default function AdminLayout() {
   const addAudit = (text: string) => {
     setAuditItems((prev) => [{ color: currentTheme.primary, children: `${new Date().toLocaleTimeString()} ${text}` }, ...prev].slice(0, 6));
   };
+
+  const navigateToPage = (tab: OaPageTab) => {
+    if (tab.id === currentPageId) return;
+    message.loading({
+      content: `正在切换到：${tab.name}`,
+      key: 'oa-route-switch',
+      duration: 0,
+    });
+    router.push(tab.path);
+  };
+
+  const closePageTab = (tabId: string) => {
+    if (tabId === pinnedMenu?.id) return;
+    const closingIndex = openTabs.findIndex((tab) => tab.id === tabId);
+    if (closingIndex < 0) return;
+    const nextTabs = openTabs.filter((tab) => tab.id !== tabId);
+    setOpenTabs(nextTabs);
+    if (tabId === currentPageId) {
+      const nextActive =
+        nextTabs[Math.min(closingIndex, nextTabs.length - 1)]
+        || nextTabs[nextTabs.length - 1];
+      if (nextActive) navigateToPage(nextActive);
+    }
+  };
+
+  const closeOtherTabs = () => {
+    setOpenTabs((tabs) =>
+      tabs.filter((tab) => tab.id === pinnedMenu?.id || tab.id === currentPageId),
+    );
+  };
+
+  const closeAllTabs = () => {
+    if (!pinnedMenu) return;
+    const pinnedTab = toPageTab(pinnedMenu);
+    setOpenTabs([pinnedTab]);
+    if (currentPageId !== pinnedTab.id) navigateToPage(pinnedTab);
+  };
+
+  // 菜单加载后预取所有页面路由，触发 Next dev 模式提前编译，避免点击时再等编译
+  useEffect(() => {
+    if (!navigationLoaded || menus.length === 0) return;
+    const collectPaths = (items: OaMenuItem[]): string[] => {
+      const paths: string[] = [];
+      for (const item of items) {
+        if (item.type === 'page') paths.push(item.path || `/oa/${item.id}`);
+        if (item.children?.length) paths.push(...collectPaths(item.children));
+      }
+      return paths;
+    };
+    collectPaths(menus).forEach((path) => router.prefetch(path));
+  }, [menus, navigationLoaded, router]);
 
   return (
     <ConfigProvider
@@ -293,23 +426,53 @@ export default function AdminLayout() {
               collapsed={collapsed}
               onCollapse={setCollapsed}
               onSelect={(menu) => {
-                router.push(menu.path || `/oa/${menu.id}`);
-                message.info(`已切换到：${menu.name}`);
+                if (menu.id === currentPageId) return;
+                const target = menu.path || `/oa/${menu.id}`;
+                message.loading({
+                  content: `正在切换到：${menu.name}`,
+                  key: 'oa-route-switch',
+                  duration: 0,
+                });
+                router.push(target);
               }}
             />
             <Layout>
-              <Topbar
-                role={role}
-                pageTitle={selectedMenu.name}
-                onOpenAppearance={() => setAppearanceOpen(true)}
-                onOpenAi={openAi}
-              />
+              <div className="oa-top-stack">
+                <Topbar
+                  role={role}
+                  pageTitle={selectedMenu.name}
+                  onOpenAppearance={() => setAppearanceOpen(true)}
+                  onOpenAi={openAi}
+                />
+                {openTabsReady ? (
+                  <PageTabBar
+                    tabs={openTabs}
+                    activeKey={selectedMenu.id}
+                    pinnedKey={pinnedMenu?.id}
+                    onNavigate={navigateToPage}
+                    onClose={closePageTab}
+                    onCloseOthers={closeOtherTabs}
+                    onCloseAll={closeAllTabs}
+                    onRefresh={() => router.refresh()}
+                  />
+                ) : null}
+              </div>
               <Content className={`oa-content ${selectedMenu.id === 'ai-workspace' ? 'oa-chat-content' : ''}`}>
                 <div key={selectedMenu.id} className="oa-page-transition">
-                  {selectedMenu.componentKey === 'AI_WORKSPACE' ? (
+                  {approvalTaskId ? (
+                    <ApprovalDetailPage taskId={approvalTaskId} />
+                  ) : selectedMenu.componentKey === 'AI_WORKSPACE' ? (
                     <AiChatWorkspace role={role} />
                   ) : selectedMenu.componentKey === 'ACCESS_CONTROL' ? (
                     <AccessControlPage />
+                  ) : selectedMenu.componentKey === 'TODO_LIST' ? (
+                    <TodoListPage />
+                  ) : selectedMenu.componentKey === 'LEAVE_FORM' ? (
+                    <LeaveFormPage />
+                  ) : selectedMenu.componentKey === 'MY_APPLICATIONS' ? (
+                    <MyApplicationsPage />
+                  ) : selectedMenu.componentKey === 'AUDIT_CENTER' ? (
+                    <AuditCenterPage />
                   ) : (
                     <Dashboard
                       role={role}
@@ -328,8 +491,7 @@ export default function AdminLayout() {
 
           {selectedMenu.id !== 'ai-workspace' && <FloatButton
             type="primary"
-            icon={<RobotOutlined />}
-            description="AI"
+            icon={<OaIcon name="ai" size={20} />}
             tooltip="打开 AI 操作面板"
             onClick={() => openAi()}
           />}
@@ -390,4 +552,35 @@ function firstPage(menus: OaMenuItem[]): OaMenuItem | undefined {
     if (child) return child;
   }
   return undefined;
+}
+
+function flattenPages(menus: OaMenuItem[]): OaMenuItem[] {
+  return menus.flatMap((menu) => [
+    ...(menu.type === 'page' ? [menu] : []),
+    ...flattenPages(menu.children || []),
+  ]);
+}
+
+function toPageTab(menu: OaMenuItem): OaPageTab {
+  return {
+    id: menu.id,
+    name: menu.name,
+    path: menu.path || `/oa/${menu.id}`,
+    icon: menu.icon,
+  };
+}
+
+function uniqueTabs(tabs: OaPageTab[]): OaPageTab[] {
+  const unique = new Map<string, OaPageTab>();
+  tabs.forEach((tab) => unique.set(tab.id, tab));
+  return [...unique.values()];
+}
+
+function limitTabs(tabs: OaPageTab[], pinnedId?: string): OaPageTab[] {
+  if (tabs.length <= MAX_OPEN_TABS) return tabs;
+  const pinned = pinnedId ? tabs.find((tab) => tab.id === pinnedId) : undefined;
+  const recent = tabs
+    .filter((tab) => tab.id !== pinnedId)
+    .slice(-(MAX_OPEN_TABS - (pinned ? 1 : 0)));
+  return pinned ? [pinned, ...recent] : recent;
 }

@@ -7,6 +7,9 @@ import com.aiworkmate.dto.AccessPermissionResponse;
 import com.aiworkmate.dto.AccessRoleResponse;
 import com.aiworkmate.dto.AccessRouteResponse;
 import com.aiworkmate.dto.AccessUserResponse;
+import com.aiworkmate.dto.AccessUserRow;
+import com.aiworkmate.dto.DepartmentResponse;
+import com.aiworkmate.dto.PositionResponse;
 import com.aiworkmate.dto.SaveRouteRequest;
 import com.aiworkmate.mapper.AccessControlMapper;
 import com.aiworkmate.service.AccessControlService;
@@ -17,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Set;
+import java.util.Comparator;
 
 @Slf4j
 @Service
@@ -30,24 +34,38 @@ public class AccessControlServiceImpl implements AccessControlService {
     @Override
     @Transactional(readOnly = true)
     public AccessControlOverviewResponse overview() {
-        List<AccessPermissionResponse> permissions = accessControlMapper.selectPermissions();
+        return overview(accessControlMapper.selectDefaultTenantId());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public AccessControlOverviewResponse overview(Long tenantId) {
+        List<AccessPermissionResponse> permissions = accessControlMapper.selectPermissionsForTenant(tenantId);
         List<String> allPermissionCodes = permissions.stream().map(AccessPermissionResponse::code).toList();
-        List<AccessRoleResponse> roles = accessControlMapper.selectRoles().stream()
+        List<AccessRoleResponse> roles = accessControlMapper.selectRolesForTenant(tenantId).stream()
                 .map(role -> role.withPermissions(SUPER_ADMIN.equals(role.code())
                         ? allPermissionCodes
-                        : accessControlMapper.selectPermissionCodes(role.code())))
+                        : accessControlMapper.selectPermissionCodesForRoles(tenantId, List.of(role.code()))))
                 .toList();
         return new AccessControlOverviewResponse(
-                List.copyOf(accessControlMapper.selectUsers()),
+                accessControlMapper.selectUsers(tenantId).stream()
+                        .map(row -> toUser(tenantId, row))
+                        .toList(),
                 roles,
                 List.copyOf(permissions),
-                List.copyOf(accessControlMapper.selectRoutes())
+                List.copyOf(accessControlMapper.selectRoutesForTenant(tenantId)),
+                List.copyOf(accessControlMapper.selectDepartments(tenantId)),
+                List.copyOf(accessControlMapper.selectPositions(tenantId))
         );
     }
 
     @Override
     @Transactional
     public AccessUserResponse assignRole(Long operatorUserId, Long userId, String roleCode) {
+        Long tenantId = accessControlMapper.selectUserTenantId(userId);
+        if (tenantId != null) {
+            return assignRoles(operatorUserId, tenantId, userId, Set.of(roleCode));
+        }
         String normalizedRole = roleCode.trim().toUpperCase();
         assertRoleExists(normalizedRole);
         String previousRole = accessControlMapper.selectUserRole(userId);
@@ -64,8 +82,136 @@ public class AccessControlServiceImpl implements AccessControlService {
                 String.valueOf(userId), previousRole, normalizedRole);
         log.info("User role assigned, operatorUserId={}, userId={}, role={}",
                 operatorUserId, userId, normalizedRole);
-        return accessControlMapper.selectUsers().stream()
+        return accessControlMapper.selectUsers(tenantId).stream()
                 .filter(user -> user.id().equals(userId))
+                .map(row -> toUser(tenantId, row))
+                .findFirst()
+                .orElseThrow(() -> new BusinessException(ErrorCode.SYSTEM_ERROR));
+    }
+
+    @Override
+    @Transactional
+    public AccessUserResponse assignRoles(Long operatorUserId,
+                                          Long tenantId,
+                                          Long userId,
+                                          Set<String> roleCodes) {
+        Set<String> normalized = roleCodes.stream()
+                .map(value -> value.trim().toUpperCase())
+                .collect(java.util.stream.Collectors.toUnmodifiableSet());
+        if (normalized.isEmpty()) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "用户至少需要一个角色");
+        }
+        if (!tenantId.equals(accessControlMapper.selectUserTenantId(userId))) {
+            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        }
+        for (String roleCode : normalized) {
+            if (accessControlMapper.countRoleForTenant(tenantId, roleCode) == 0) {
+                throw new BusinessException(ErrorCode.REQUEST_INVALID, "角色不存在：" + roleCode);
+            }
+        }
+        List<String> previous = accessControlMapper.selectUserRoleCodes(tenantId, userId);
+        if (previous.contains(SUPER_ADMIN)
+                && !normalized.contains(SUPER_ADMIN)
+                && accessControlMapper.countActiveSuperAdminsForTenant(tenantId) <= 1) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "必须至少保留一名有效超级管理员");
+        }
+        accessControlMapper.deleteUserRoles(tenantId, userId);
+        accessControlMapper.insertUserRoles(tenantId, userId, normalized);
+        String primaryRole = normalized.stream()
+                .min(Comparator.comparingInt(this::rolePriority))
+                .orElseThrow();
+        accessControlMapper.updateUserRolesVersion(tenantId, userId, primaryRole);
+        accessControlMapper.insertAudit(operatorUserId, "ASSIGN_USER_ROLES", "USER",
+                String.valueOf(userId), previous.toString(), normalized.toString());
+        return findUser(tenantId, userId);
+    }
+
+    @Override
+    @Transactional
+    public AccessUserResponse updateUserOrganization(Long operatorUserId,
+                                                     Long tenantId,
+                                                     Long userId,
+                                                     Long departmentId,
+                                                     Long positionId,
+                                                     Long approverUserId) {
+        if (!tenantId.equals(accessControlMapper.selectUserTenantId(userId))) {
+            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        }
+        if (accessControlMapper.countDepartment(tenantId, departmentId) == 0
+                || accessControlMapper.countPosition(tenantId, positionId) == 0) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "部门或岗位不存在");
+        }
+        if (approverUserId != null) {
+            if (approverUserId.equals(userId)) {
+                throw new BusinessException(ErrorCode.REQUEST_INVALID, "审批人不能是用户本人");
+            }
+            if (accessControlMapper.countActiveUser(tenantId, approverUserId) == 0) {
+                throw new BusinessException(ErrorCode.REQUEST_INVALID, "审批人不存在或已停用");
+            }
+        }
+        accessControlMapper.updateUserOrganization(
+                tenantId, userId, departmentId, positionId, approverUserId);
+        accessControlMapper.insertAudit(operatorUserId, "UPDATE_USER_ORGANIZATION", "USER",
+                userId.toString(), null, departmentId + "/" + positionId + "/" + approverUserId);
+        return findUser(tenantId, userId);
+    }
+
+    @Override
+    @Transactional
+    public AccessUserResponse updateUserStatus(Long operatorUserId,
+                                               Long tenantId,
+                                               Long userId,
+                                               Integer status) {
+        AccessUserResponse current = findUser(tenantId, userId);
+        if (status == 0
+                && current.roles().contains(SUPER_ADMIN)
+                && accessControlMapper.countActiveSuperAdminsForTenant(tenantId) <= 1) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "最后一名有效超级管理员不能停用");
+        }
+        accessControlMapper.updateUserStatus(tenantId, userId, status);
+        accessControlMapper.insertAudit(operatorUserId, "UPDATE_USER_STATUS", "USER",
+                userId.toString(), current.status().toString(), status.toString());
+        return findUser(tenantId, userId);
+    }
+
+    @Override
+    @Transactional
+    public DepartmentResponse saveDepartment(Long operatorUserId,
+                                             Long tenantId,
+                                             String code,
+                                             String name,
+                                             Long parentId,
+                                             Long defaultApproverUserId) {
+        if (parentId != null && accessControlMapper.countDepartment(tenantId, parentId) == 0) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "上级部门不存在");
+        }
+        if (defaultApproverUserId != null
+                && accessControlMapper.countActiveUser(tenantId, defaultApproverUserId) == 0) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "默认审批人不存在或已停用");
+        }
+        String normalizedCode = code.trim().toUpperCase();
+        accessControlMapper.saveDepartment(
+                tenantId, normalizedCode, name.trim(), parentId, defaultApproverUserId);
+        accessControlMapper.insertAudit(operatorUserId, "SAVE_DEPARTMENT", "DEPARTMENT",
+                normalizedCode, null, name.trim());
+        return accessControlMapper.selectDepartments(tenantId).stream()
+                .filter(item -> item.code().equals(normalizedCode))
+                .findFirst()
+                .orElseThrow(() -> new BusinessException(ErrorCode.SYSTEM_ERROR));
+    }
+
+    @Override
+    @Transactional
+    public PositionResponse savePosition(Long operatorUserId,
+                                         Long tenantId,
+                                         String code,
+                                         String name) {
+        String normalizedCode = code.trim().toUpperCase();
+        accessControlMapper.savePosition(tenantId, normalizedCode, name.trim());
+        accessControlMapper.insertAudit(operatorUserId, "SAVE_POSITION", "POSITION",
+                normalizedCode, null, name.trim());
+        return accessControlMapper.selectPositions(tenantId).stream()
+                .filter(item -> item.code().equals(normalizedCode))
                 .findFirst()
                 .orElseThrow(() -> new BusinessException(ErrorCode.SYSTEM_ERROR));
     }
@@ -76,27 +222,32 @@ public class AccessControlServiceImpl implements AccessControlService {
                                                     String roleCode,
                                                     Set<String> permissionCodes) {
         String normalizedRole = roleCode.trim().toUpperCase();
-        assertRoleExists(normalizedRole);
+        Long tenantId = accessControlMapper.selectUserTenantId(operatorUserId);
+        if (tenantId == null || accessControlMapper.countRoleForTenant(tenantId, normalizedRole) == 0) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "角色不存在");
+        }
         if (SUPER_ADMIN.equals(normalizedRole)) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID, "超级管理员始终拥有全部权限");
         }
 
         Set<String> requested = Set.copyOf(permissionCodes);
-        Set<String> available = Set.copyOf(accessControlMapper.selectAllPermissionCodes());
+        Set<String> available = Set.copyOf(accessControlMapper.selectAllPermissionCodesForTenant(tenantId));
         if (!available.containsAll(requested)) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID, "包含不存在的权限编码");
         }
 
-        List<String> previous = accessControlMapper.selectPermissionCodes(normalizedRole);
-        accessControlMapper.deleteRolePermissions(normalizedRole);
+        List<String> previous = accessControlMapper.selectPermissionCodesForRoles(
+                tenantId, List.of(normalizedRole));
+        accessControlMapper.deleteRolePermissionsForTenant(tenantId, normalizedRole);
         if (!requested.isEmpty()) {
-            accessControlMapper.insertRolePermissions(normalizedRole, requested);
+            accessControlMapper.insertRolePermissionsForTenant(tenantId, normalizedRole, requested);
         }
         accessControlMapper.insertAudit(operatorUserId, "UPDATE_ROLE_PERMISSIONS", "ROLE",
                 normalizedRole, previous.toString(), requested.toString());
+        accessControlMapper.incrementPermissionVersionForRole(tenantId, normalizedRole);
         log.info("Role permissions updated, operatorUserId={}, role={}, permissionCount={}",
                 operatorUserId, normalizedRole, requested.size());
-        return accessControlMapper.selectRoles().stream()
+        return accessControlMapper.selectRolesForTenant(tenantId).stream()
                 .filter(role -> role.code().equals(normalizedRole))
                 .findFirst()
                 .orElseThrow(() -> new BusinessException(ErrorCode.SYSTEM_ERROR))
@@ -107,10 +258,15 @@ public class AccessControlServiceImpl implements AccessControlService {
     @Transactional
     public AccessRoleResponse createRole(Long operatorUserId, String code, String name, String description) {
         String normalizedCode = code.trim().toUpperCase();
-        if (accessControlMapper.countRole(normalizedCode) > 0) {
+        Long tenantId = accessControlMapper.selectUserTenantId(operatorUserId);
+        if (tenantId == null) {
+            throw new BusinessException(ErrorCode.AUTH_REQUIRED);
+        }
+        if (accessControlMapper.countRoleForTenant(tenantId, normalizedCode) > 0) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID, "角色编码已存在");
         }
-        accessControlMapper.insertRole(normalizedCode, name.trim(), description.trim());
+        accessControlMapper.insertRoleForTenant(
+                tenantId, normalizedCode, name.trim(), description.trim());
         accessControlMapper.insertAudit(operatorUserId, "CREATE_ROLE", "ROLE",
                 normalizedCode, null, name.trim());
         log.info("Role created, operatorUserId={}, role={}", operatorUserId, normalizedCode);
@@ -120,6 +276,10 @@ public class AccessControlServiceImpl implements AccessControlService {
     @Override
     @Transactional
     public AccessRouteResponse saveRoute(Long operatorUserId, SaveRouteRequest request) {
+        Long tenantId = accessControlMapper.selectUserTenantId(operatorUserId);
+        if (tenantId == null) {
+            throw new BusinessException(ErrorCode.AUTH_REQUIRED);
+        }
         String routeKey = request.routeKey().trim();
         String routeType = request.routeType().trim().toUpperCase();
         boolean page = "PAGE".equals(routeType);
@@ -131,7 +291,8 @@ public class AccessControlServiceImpl implements AccessControlService {
         String parentKey = normalizeNullable(request.parentKey());
         String icon = normalizeNullable(request.icon());
         if (page) {
-            accessControlMapper.upsertPermission(
+            accessControlMapper.upsertPermissionForTenant(
+                    tenantId,
                     permissionCode,
                     "访问" + request.name().trim(),
                     "允许访问" + request.name().trim() + "页面"
@@ -143,14 +304,15 @@ public class AccessControlServiceImpl implements AccessControlService {
             accessControlMapper.updateRoute(routeKey, parentKey, request.name().trim(), path, icon,
                     routeType, componentKey, permissionCode, request.sortOrder(), request.enabled());
         } else {
-            accessControlMapper.insertRoute(routeKey, parentKey, request.name().trim(), path, icon,
+            accessControlMapper.insertRouteForTenant(tenantId, routeKey, parentKey,
+                    request.name().trim(), path, icon,
                     routeType, componentKey, permissionCode, request.sortOrder(), request.enabled());
         }
         accessControlMapper.insertAudit(operatorUserId, exists ? "UPDATE_ROUTE" : "CREATE_ROUTE", "ROUTE",
                 routeKey, null, request.name().trim());
         log.info("Route saved, operatorUserId={}, routeKey={}, type={}",
                 operatorUserId, routeKey, routeType);
-        return accessControlMapper.selectRoutes().stream()
+        return accessControlMapper.selectRoutesForTenant(tenantId).stream()
                 .filter(route -> route.routeKey().equals(routeKey))
                 .findFirst()
                 .orElseThrow(() -> new BusinessException(ErrorCode.SYSTEM_ERROR));
@@ -183,5 +345,31 @@ public class AccessControlServiceImpl implements AccessControlService {
         if (accessControlMapper.countRole(roleCode) == 0) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID, "角色不存在");
         }
+    }
+
+    private AccessUserResponse findUser(Long tenantId, Long userId) {
+        return accessControlMapper.selectUsers(tenantId).stream()
+                .filter(row -> row.id().equals(userId))
+                .map(row -> toUser(tenantId, row))
+                .findFirst()
+                .orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND));
+    }
+
+    private AccessUserResponse toUser(Long tenantId, AccessUserRow row) {
+        List<String> roles = accessControlMapper.selectUserRoleCodes(tenantId, row.id());
+        return new AccessUserResponse(
+                row.id(), row.name(), row.email(), row.role(), List.copyOf(roles),
+                row.status(), row.departmentId(), row.positionId(), row.approverUserId(),
+                row.permissionVersion(), row.updatedAt());
+    }
+
+    private int rolePriority(String roleCode) {
+        return switch (roleCode) {
+            case "SUPER_ADMIN" -> 0;
+            case "SYSTEM_ADMIN" -> 1;
+            case "PROCESS_ADMIN" -> 2;
+            case "FINANCE_ADMIN" -> 3;
+            default -> 10;
+        };
     }
 }

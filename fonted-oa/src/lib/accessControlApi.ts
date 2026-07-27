@@ -3,7 +3,12 @@ export interface AccessUser {
   name: string;
   email: string;
   role: string;
+  roles: string[];
   status: number;
+  departmentId?: number;
+  positionId?: number;
+  approverUserId?: number;
+  permissionVersion: number;
   updatedAt: string;
 }
 
@@ -29,7 +34,8 @@ export interface AccessRoute {
   path?: string;
   icon?: string;
   routeType: 'GROUP' | 'MENU' | 'PAGE';
-  componentKey?: 'DASHBOARD' | 'AI_WORKSPACE' | 'ACCESS_CONTROL';
+  componentKey?: 'DASHBOARD' | 'AI_WORKSPACE' | 'ACCESS_CONTROL'
+    | 'TODO_LIST' | 'LEAVE_FORM' | 'MY_APPLICATIONS' | 'AUDIT_CENTER';
   permissionCode?: string;
   sortOrder: number;
   enabled: boolean;
@@ -40,6 +46,15 @@ export interface AccessControlOverview {
   roles: AccessRole[];
   permissions: AccessPermission[];
   routes: AccessRoute[];
+  departments: Array<{
+    id: number;
+    code: string;
+    name: string;
+    parentId?: number;
+    defaultApproverUserId?: number;
+    status: number;
+  }>;
+  positions: Array<{ id: number; code: string; name: string; status: number }>;
 }
 
 export interface SaveRoutePayload {
@@ -83,6 +98,33 @@ export const accessControlApi = {
     request<AccessUser>(`/users/${userId}/role`, {
       method: 'PUT',
       body: JSON.stringify({ roleCode }),
+    }),
+  assignUserRoles: (userId: number, roleCodes: string[]) =>
+    request<AccessUser>(`/users/${userId}/roles`, {
+      method: 'PUT',
+      body: JSON.stringify({ roleCodes }),
+    }),
+  updateUserOrganization: (
+    userId: number,
+    payload: { departmentId: number; positionId: number; approverUserId?: number },
+  ) => request<AccessUser>(`/users/${userId}/organization`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  }),
+  updateUserStatus: (userId: number, status: number) =>
+    request<AccessUser>(`/users/${userId}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({ status }),
+    }),
+  saveDepartment: (payload: { code: string; name: string; parentId?: number; defaultApproverUserId?: number }) =>
+    request<AccessControlOverview['departments'][number]>('/departments', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  savePosition: (payload: { code: string; name: string }) =>
+    request<AccessControlOverview['positions'][number]>('/positions', {
+      method: 'POST',
+      body: JSON.stringify(payload),
     }),
   updateRolePermissions: (roleCode: string, permissionCodes: string[]) =>
     request<AccessRole>(`/roles/${encodeURIComponent(roleCode)}/permissions`, {

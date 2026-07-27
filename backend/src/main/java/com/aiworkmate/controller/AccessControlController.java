@@ -9,6 +9,13 @@ import com.aiworkmate.dto.CreateRoleRequest;
 import com.aiworkmate.dto.AccessRouteResponse;
 import com.aiworkmate.dto.SaveRouteRequest;
 import com.aiworkmate.dto.UpdateRolePermissionsRequest;
+import com.aiworkmate.dto.AssignUserRolesRequest;
+import com.aiworkmate.dto.UpdateUserOrganizationRequest;
+import com.aiworkmate.dto.UpdateUserStatusRequest;
+import com.aiworkmate.dto.SaveDepartmentRequest;
+import com.aiworkmate.dto.SavePositionRequest;
+import com.aiworkmate.dto.DepartmentResponse;
+import com.aiworkmate.dto.PositionResponse;
 import com.aiworkmate.security.AuthenticatedUser;
 import com.aiworkmate.service.AccessControlService;
 import jakarta.validation.Valid;
@@ -32,8 +39,9 @@ public class AccessControlController {
     private final AccessControlService accessControlService;
 
     @GetMapping
-    public Result<AccessControlOverviewResponse> overview() {
-        return Result.ok(accessControlService.overview());
+    public Result<AccessControlOverviewResponse> overview(
+            @AuthenticationPrincipal AuthenticatedUser operator) {
+        return Result.ok(accessControlService.overview(operator.tenantId()));
     }
 
     @PutMapping("/users/{userId}/role")
@@ -42,6 +50,51 @@ public class AccessControlController {
             @Valid @RequestBody AssignUserRoleRequest request,
             @AuthenticationPrincipal AuthenticatedUser operator) {
         return Result.ok(accessControlService.assignRole(operator.userId(), userId, request.roleCode()));
+    }
+
+    @PutMapping("/users/{userId}/roles")
+    public Result<AccessUserResponse> assignRoles(
+            @PathVariable Long userId,
+            @Valid @RequestBody AssignUserRolesRequest request,
+            @AuthenticationPrincipal AuthenticatedUser operator) {
+        return Result.ok(accessControlService.assignRoles(
+                operator.userId(), operator.tenantId(), userId, request.roleCodes()));
+    }
+
+    @PutMapping("/users/{userId}/organization")
+    public Result<AccessUserResponse> updateOrganization(
+            @PathVariable Long userId,
+            @Valid @RequestBody UpdateUserOrganizationRequest request,
+            @AuthenticationPrincipal AuthenticatedUser operator) {
+        return Result.ok(accessControlService.updateUserOrganization(
+                operator.userId(), operator.tenantId(), userId,
+                request.departmentId(), request.positionId(), request.approverUserId()));
+    }
+
+    @PutMapping("/users/{userId}/status")
+    public Result<AccessUserResponse> updateStatus(
+            @PathVariable Long userId,
+            @Valid @RequestBody UpdateUserStatusRequest request,
+            @AuthenticationPrincipal AuthenticatedUser operator) {
+        return Result.ok(accessControlService.updateUserStatus(
+                operator.userId(), operator.tenantId(), userId, request.status()));
+    }
+
+    @PostMapping("/departments")
+    public Result<DepartmentResponse> saveDepartment(
+            @Valid @RequestBody SaveDepartmentRequest request,
+            @AuthenticationPrincipal AuthenticatedUser operator) {
+        return Result.ok(accessControlService.saveDepartment(
+                operator.userId(), operator.tenantId(), request.code(), request.name(),
+                request.parentId(), request.defaultApproverUserId()));
+    }
+
+    @PostMapping("/positions")
+    public Result<PositionResponse> savePosition(
+            @Valid @RequestBody SavePositionRequest request,
+            @AuthenticationPrincipal AuthenticatedUser operator) {
+        return Result.ok(accessControlService.savePosition(
+                operator.userId(), operator.tenantId(), request.code(), request.name()));
     }
 
     @PutMapping("/roles/{roleCode}/permissions")

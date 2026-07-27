@@ -50,6 +50,8 @@ AI plan/execute 不再允许 mock 成功；未接入真实数据库、审批系�
 - 左侧菜单点击必须使用路由跳转，不得只修改组件内部 state。
 - URL、菜单选中态、顶部标题、AI 当前页面上下文必须保持一致。
 - 角色切换后，如果当前页面无权限访问，应跳回 `/oa/dashboard`。
+- 顶部页面标签记录已访问的有权限页面，支持快速切换、关闭当前、关闭其他和关闭全部；固定页不可关闭。
+- 标签切换必须调用路由，不得用组件内部 state 模拟页面；`workmeta-oa-open-tabs` 仅保存页面 ID，恢复时必须按最新服务端导航过滤。
 
 ## 前端实现规范
 
@@ -77,6 +79,16 @@ OA 工作台业务 UI 必须使用真实 Ant Design 组件：
 
 禁止用原生 `button`、`table`、自定义 `div drawer`、自定义 `div modal` 模拟 Ant Design。
 
+### 图标工作流
+
+- OA 组件通过 `fonted-oa/src/components/OaIcon.tsx` 使用语义图标，避免业务代码依赖 Iconfont 的具体 Symbol ID。
+- `iconFontMap` 保存已经进入 Iconfont 的图标；`fallbackIconMap` 保存等待上传期间的开源占位图标。
+- 新增正式图标时直接在 Iconfont 项目中选择或上传；仓库不生成、不保存待上传 SVG 或上传压缩包。
+- Iconfont 暂无对应图标时，可使用已安装且许可证明确的开源图标作为临时 fallback。
+- 用户上传 Iconfont 并提供新下载包前，必须用可见占位图标完成页面构建；禁止引用不存在的 Symbol。
+- 更新 Symbol 包后，同步 `IconFont.tsx` 类型、`OaIcon.tsx` 映射并运行 OA lint/build。
+- 下载的 Symbol 包使用 `scripts/import-iconfont-symbol.mjs` 导入；单色业务图标统一使用 `currentColor`，禁止固定深色填充导致深色主题不可见。
+
 ### 布局规范
 
 - `AdminLayout` 是 OA 工作台总布局。
@@ -87,6 +99,7 @@ OA 工作台业务 UI 必须使用真实 Ant Design 组件：
 - 左侧 Sider 默认隐藏滚动条，鼠标移入侧栏时显示滚动条。
 - 右侧内容区必须根据 Sider 展开/收起状态保留左边距。
 - 移动端必须避免 Sider 遮挡主内容。
+- 顶部标题与页面标签组成同一个 sticky 导航区；标签过多时使用 Ant Design Tabs 的横向滚动/更多菜单，不得挤压页面操作区。
 
 ### 主题规范
 
