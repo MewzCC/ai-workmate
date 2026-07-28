@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { Avatar, Button, Space, Tag, Tooltip, Typography, message as antMessage } from 'antd';
+import { Avatar, Button, Space, Tag, Tooltip, Typography } from 'antd';
+import { message as antMessage } from '@/lib/antdMessage';
 import {
   DislikeFilled,
   DislikeOutlined,

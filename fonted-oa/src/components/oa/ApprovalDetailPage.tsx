@@ -1,8 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { Alert, Button, Card, Descriptions, Empty, Form, Input, Modal, Space, Spin, Tag, Timeline, Typography, message } from 'antd';
+import { useRouter } from '@/lib/nextCompat';
+import { Alert, Button, Card, Descriptions, Empty, Form, Input, Modal, Space, Spin, Tag, Timeline, Typography } from 'antd';
+import { message } from '@/lib/antdMessage';
 import {
   formatOaApiError,
   OaApiError,
@@ -76,7 +77,7 @@ export default function ApprovalDetailPage({ taskId }: { taskId: number }) {
           <div className="oa-detail-grid">
             <Card className="oa-domain-card" title="申请信息">
               {!application.canApprove && application.status === 'PENDING' && (
-                <Alert showIcon type="warning" message="当前用户不能处理该申请" />
+                <Alert showIcon type="warning" title="当前用户不能处理该申请" />
               )}
               <Descriptions column={{ xs: 1, sm: 2 }} bordered size="small">
                 <Descriptions.Item label="申请人">{application.applicantName}</Descriptions.Item>

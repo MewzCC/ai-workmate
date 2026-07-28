@@ -1,6 +1,7 @@
 'use client';
 
-import { Button, message } from 'antd';
+import { Button } from 'antd';
+import { message } from '@/lib/antdMessage';
 import type { ButtonProps } from 'antd';
 import type { OaRole, PermissionAction } from '@/types/oa';
 import { can } from '@/mock/oaPermissions';

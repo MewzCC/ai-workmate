@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { Alert, Button, Card, DatePicker, Form, Input, Modal, Select, Space, Spin, Typography, message } from 'antd';
+import { useRouter, useSearchParams } from '@/lib/nextCompat';
+import { Alert, Button, Card, DatePicker, Form, Input, Modal, Select, Space, Spin, Typography } from 'antd';
+import { message } from '@/lib/antdMessage';
 import type { Dayjs } from 'dayjs';
 import dayjs from 'dayjs';
 import {
@@ -151,7 +152,7 @@ export default function LeaveFormPage() {
           <Alert
             showIcon
             type="info"
-            message="最小请假单位为半天"
+            title="最小请假单位为半天"
             description="起止时段均包含在请假区间内，例如同一天上午至上午为 0.5 天。"
           />
           <Form form={form} layout="vertical" className="oa-leave-form">
@@ -176,7 +177,7 @@ export default function LeaveFormPage() {
               className="oa-duration-alert"
               type={duration > 0 ? 'success' : 'error'}
               showIcon
-              message={duration > 0 ? `预计请假 ${duration / 2} 天` : '结束时间不得早于开始时间'}
+              title={duration > 0 ? `预计请假 ${duration / 2} 天` : '结束时间不得早于开始时间'}
             />
             <Form.Item
               name="reason"
