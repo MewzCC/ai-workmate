@@ -3168,13 +3168,13 @@ html.oa-wallpaper-active .ant-menu-submenu-popup .ant-menu-dark {
   display: inline-flex !important;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   border-radius: 999px !important;
   background: rgba(255, 255, 255, 0.16) !important;
   border: 1px solid rgba(255, 255, 255, 0.28) !important;
   color: #ffffff !important;
-  font-size: 18px;
+  font-size: 16px;
   transition: background 180ms ease, border-color 180ms ease;
 }
 
@@ -3185,17 +3185,17 @@ html.oa-wallpaper-active .ant-menu-submenu-popup .ant-menu-dark {
 
 .oa-notify-badge {
   position: absolute;
-  top: -2px;
-  right: -2px;
-  min-width: 16px;
-  height: 16px;
-  padding: 0 4px;
-  border-radius: 8px;
+  top: -4px;
+  right: -6px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0;
+  border-radius: 50%;
   background: #ff4d4f;
   color: #ffffff;
-  font-size: 10px;
+  font-size: 8px;
   font-weight: 600;
-  line-height: 16px;
+  line-height: 14px;
   text-align: center;
   border: 1.5px solid var(--oa-card, #ffffff);
   box-sizing: content-box;
@@ -3421,11 +3421,6 @@ html.oa-wallpaper-active .ant-menu-submenu-popup .ant-menu-dark {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.oa-profile-caret {
-  font-size: 11px;
-  opacity: 0.6;
 }
 
 .oa-role-select {
@@ -4637,8 +4632,7 @@ html.oa-wallpaper-active .ant-menu-submenu-popup .ant-menu-dark {
     justify-content: center;
   }
 
-  .oa-profile-name,
-  .oa-profile-caret {
+  .oa-profile-name {
     display: none;
   }
 

@@ -144,14 +144,13 @@ export default function Topbar({ role, pageTitle, onOpenAppearance, onOpenAi }: 
         {/* 桌面端头像 */}
         <Dropdown
           menu={{ items: avatarMenuItems, onClick: onAvatarMenuClick }}
-          trigger={['click']}
+          trigger={['hover']}
           placement="bottomRight"
           className="oa-header-avatar-desktop"
         >
           <Button type="text" className="oa-profile-trigger">
             <Avatar size={28} src={user?.avatarUrl} icon={<OaIcon name="avatar" />} />
             <span className="oa-profile-name">{user?.name || role}</span>
-            <OaIcon name="settings" className="oa-profile-caret" />
           </Button>
         </Dropdown>
       </div>
