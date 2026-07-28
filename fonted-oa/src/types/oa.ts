@@ -32,7 +32,7 @@ export interface OaMenuItem {
   icon?: string;
   path?: string;
   componentKey?: 'DASHBOARD' | 'AI_WORKSPACE' | 'ACCESS_CONTROL'
-    | 'TODO_LIST' | 'LEAVE_FORM' | 'MY_APPLICATIONS' | 'AUDIT_CENTER';
+    | 'TODO_LIST' | 'LEAVE_FORM' | 'MY_APPLICATIONS' | 'AUDIT_CENTER' | 'ORG_TREE';
   permissionCode?: string;
   sort: number;
   visible: boolean;

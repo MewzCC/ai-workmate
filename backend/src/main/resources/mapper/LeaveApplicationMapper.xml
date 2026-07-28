@@ -1,0 +1,265 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.aiworkmate.mapper.LeaveApplicationMapper">
+
+    <sql id="leaveApplicationViewColumns">
+        l.id,
+        l.applicant_user_id AS applicantUserId,
+        COALESCE(NULLIF(applicant.display_name, ''), applicant.username) AS applicantName,
+        l.approver_user_id AS approverUserId,
+        COALESCE(NULLIF(approver.display_name, ''), approver.username) AS approverName,
+        l.leave_type AS leaveType,
+        l.start_date AS startDate,
+        l.start_period AS startPeriod,
+        l.end_date AS endDate,
+        l.end_period AS endPeriod,
+        l.duration_half_days AS durationHalfDays,
+        l.reason,
+        l.status,
+        l.version,
+        task.id AS taskId,
+        task.version AS taskVersion,
+        task.status AS taskStatus,
+        task.due_at AS taskDueAt,
+        instance.status AS workflowStatus,
+        l.submitted_at AS submittedAt,
+        l.completed_at AS completedAt,
+        l.created_at AS createdAt,
+        l.updated_at AS updatedAt
+    </sql>
+
+    <sql id="leaveApplicationViewJoins">
+        JOIN app_user applicant ON applicant.id = l.applicant_user_id
+        LEFT JOIN app_user approver ON approver.id = l.approver_user_id
+        LEFT JOIN LATERAL (
+            SELECT wt.id, wt.version, wt.status, wt.due_at
+            FROM workflow_task wt
+            WHERE wt.tenant_id = l.tenant_id
+              AND wt.business_type = 'LEAVE_APPLICATION'
+              AND wt.business_id = l.id
+            ORDER BY wt.created_at DESC, wt.id DESC
+            LIMIT 1
+        ) task ON TRUE
+        LEFT JOIN workflow_instance instance
+          ON instance.id = l.workflow_instance_id
+         AND instance.tenant_id = l.tenant_id
+    </sql>
+
+    <select id="selectView"
+            resultType="com.aiworkmate.dto.LeaveApplicationView">
+        SELECT <include refid="leaveApplicationViewColumns"/>
+        FROM leave_application l
+        <include refid="leaveApplicationViewJoins"/>
+        WHERE l.tenant_id = #{tenantId}
+          AND l.id = #{id}
+    </select>
+
+    <select id="selectMine"
+            resultType="com.aiworkmate.dto.LeaveApplicationView">
+        SELECT <include refid="leaveApplicationViewColumns"/>
+        FROM leave_application l
+        <include refid="leaveApplicationViewJoins"/>
+        WHERE l.tenant_id = #{tenantId}
+          AND l.applicant_user_id = #{userId}
+        <if test="status != null and status != ''">
+            AND l.status = #{status}
+        </if>
+        ORDER BY l.created_at DESC, l.id DESC
+        LIMIT #{size} OFFSET #{offset}
+    </select>
+
+    <select id="countMine" resultType="long">
+        SELECT COUNT(*)
+        FROM leave_application
+        WHERE tenant_id = #{tenantId}
+          AND applicant_user_id = #{userId}
+        <if test="status != null and status != ''">
+            AND status = #{status}
+        </if>
+    </select>
+
+    <select id="resolveApprover" resultType="long">
+        SELECT candidate_id
+        FROM (
+            SELECT direct.id AS candidate_id, 1 AS priority
+            FROM app_user applicant
+            JOIN app_user direct
+              ON direct.id = applicant.approver_user_id
+             AND direct.tenant_id = applicant.tenant_id
+             AND direct.status = 1
+            WHERE applicant.id = #{applicantId}
+              AND applicant.tenant_id = #{tenantId}
+              AND direct.id &lt;&gt; applicant.id
+              AND (
+                EXISTS (
+                    SELECT 1
+                    FROM user_role ur
+                    JOIN rbac_role_permission rp
+                      ON rp.tenant_id = ur.tenant_id
+                     AND rp.role_code = ur.role_code
+                     AND rp.permission_code = 'approval:act'
+                    WHERE ur.tenant_id = #{tenantId}
+                      AND ur.user_id = direct.id
+                )
+                OR EXISTS (
+                    SELECT 1
+                    FROM user_role ur
+                    WHERE ur.tenant_id = #{tenantId}
+                      AND ur.user_id = direct.id
+                      AND ur.role_code = 'SUPER_ADMIN'
+                )
+              )
+            UNION ALL
+            SELECT fallback_user.id AS candidate_id, 2 AS priority
+            FROM app_user applicant
+            JOIN department d
+              ON d.id = applicant.department_id
+             AND d.tenant_id = applicant.tenant_id
+             AND d.status = 1
+            JOIN app_user fallback_user
+              ON fallback_user.id = d.default_approver_user_id
+             AND fallback_user.tenant_id = applicant.tenant_id
+             AND fallback_user.status = 1
+            WHERE applicant.id = #{applicantId}
+              AND applicant.tenant_id = #{tenantId}
+              AND fallback_user.id &lt;&gt; applicant.id
+              AND (
+                EXISTS (
+                    SELECT 1
+                    FROM user_role ur
+                    JOIN rbac_role_permission rp
+                      ON rp.tenant_id = ur.tenant_id
+                     AND rp.role_code = ur.role_code
+                     AND rp.permission_code = 'approval:act'
+                    WHERE ur.tenant_id = #{tenantId}
+                      AND ur.user_id = fallback_user.id
+                )
+                OR EXISTS (
+                    SELECT 1
+                    FROM user_role ur
+                    WHERE ur.tenant_id = #{tenantId}
+                      AND ur.user_id = fallback_user.id
+                      AND ur.role_code = 'SUPER_ADMIN'
+                )
+              )
+        ) candidates
+        ORDER BY priority
+        LIMIT 1
+    </select>
+
+    <select id="selectLeaveDefinitionId" resultType="long">
+        SELECT id
+        FROM workflow_definition
+        WHERE tenant_id = #{tenantId}
+          AND code = 'LEAVE_SINGLE_APPROVAL'
+          AND enabled = TRUE
+        ORDER BY version DESC
+        LIMIT 1
+    </select>
+
+    <sql id="eligibleApproverCte">
+        WITH RECURSIVE applicant_department AS (
+            SELECT department_id
+            FROM app_user
+            WHERE tenant_id = #{tenantId} AND id = #{applicantId}
+        ),
+        department_chain AS (
+            SELECT d.id, d.parent_id, 0 AS depth
+            FROM department d
+            JOIN applicant_department ad ON ad.department_id = d.id
+            WHERE d.tenant_id = #{tenantId} AND d.status = 1
+            UNION ALL
+            SELECT parent.id, parent.parent_id, chain.depth + 1
+            FROM department parent
+            JOIN department_chain chain ON chain.parent_id = parent.id
+            WHERE parent.tenant_id = #{tenantId} AND parent.status = 1
+        ),
+        eligible AS (
+            SELECT DISTINCT u.id,
+                   COALESCE(NULLIF(u.display_name, ''), u.username) AS name,
+                   d.name AS department_name,
+                   p.name AS position_name,
+                   chain.depth
+            FROM app_user u
+            JOIN department_chain chain ON chain.id = u.department_id
+            LEFT JOIN department d ON d.tenant_id = u.tenant_id AND d.id = u.department_id
+            LEFT JOIN position p ON p.tenant_id = u.tenant_id AND p.id = u.position_id
+            WHERE u.tenant_id = #{tenantId}
+              AND u.status = 1
+              AND u.id &lt;&gt; #{applicantId}
+              AND (
+                EXISTS (
+                    SELECT 1
+                    FROM user_role ur
+                    JOIN rbac_role_permission rp
+                      ON rp.tenant_id = ur.tenant_id
+                     AND rp.role_code = ur.role_code
+                     AND rp.permission_code = 'approval:act'
+                    WHERE ur.tenant_id = #{tenantId} AND ur.user_id = u.id
+                )
+                OR EXISTS (
+                    SELECT 1 FROM user_role ur
+                    WHERE ur.tenant_id = #{tenantId}
+                      AND ur.user_id = u.id
+                      AND ur.role_code = 'SUPER_ADMIN'
+                )
+              )
+        )
+    </sql>
+
+    <select id="selectApproverCandidates"
+            resultType="com.aiworkmate.dto.ApproverCandidateResponse">
+        <include refid="eligibleApproverCte"/>
+        SELECT id, name,
+               department_name AS departmentName,
+               position_name AS positionName,
+               CASE WHEN id = #{recommendedId} THEN TRUE ELSE FALSE END AS recommended
+        FROM eligible
+        <if test="keyword != null and keyword != ''">
+            WHERE name ILIKE CONCAT('%', #{keyword}, '%')
+               OR COALESCE(department_name, '') ILIKE CONCAT('%', #{keyword}, '%')
+               OR COALESCE(position_name, '') ILIKE CONCAT('%', #{keyword}, '%')
+        </if>
+        ORDER BY CASE WHEN id = #{recommendedId} THEN 0 ELSE 1 END, depth, name, id
+        LIMIT #{size} OFFSET #{offset}
+    </select>
+
+    <select id="countApproverCandidates" resultType="long">
+        <include refid="eligibleApproverCte"/>
+        SELECT COUNT(*)
+        FROM eligible
+        <if test="keyword != null and keyword != ''">
+            WHERE name ILIKE CONCAT('%', #{keyword}, '%')
+               OR COALESCE(department_name, '') ILIKE CONCAT('%', #{keyword}, '%')
+               OR COALESCE(position_name, '') ILIKE CONCAT('%', #{keyword}, '%')
+        </if>
+    </select>
+
+    <select id="countEligibleApprover" resultType="int">
+        <include refid="eligibleApproverCte"/>
+        SELECT COUNT(*) FROM eligible WHERE id = #{approverId}
+    </select>
+
+    <select id="selectApprovalContext"
+            resultType="com.aiworkmate.dto.LeaveApprovalContextRow">
+        SELECT COALESCE(NULLIF(applicant.display_name, ''), applicant.username) AS applicantName,
+               department.name AS departmentName,
+               position.name AS positionName,
+               COALESCE(NULLIF(approver.display_name, ''), approver.username) AS approverName
+        FROM app_user applicant
+        LEFT JOIN department
+          ON department.id = applicant.department_id
+         AND department.tenant_id = applicant.tenant_id
+        LEFT JOIN position
+          ON position.id = applicant.position_id
+         AND position.tenant_id = applicant.tenant_id
+        LEFT JOIN app_user approver
+          ON approver.id = #{approverId}
+         AND approver.tenant_id = applicant.tenant_id
+        WHERE applicant.tenant_id = #{tenantId}
+          AND applicant.id = #{applicantId}
+    </select>
+
+</mapper>
