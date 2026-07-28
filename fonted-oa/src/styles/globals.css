@@ -2990,10 +2990,12 @@ html.oa-wallpaper-active .ant-menu-submenu-popup .ant-menu-dark {
   border-radius: 9px 9px 0 0 !important;
   color: var(--oa-muted, #64748b);
   background: color-mix(in srgb, var(--oa-card, #ffffff) 44%, transparent) !important;
+  /* 平滑过渡：颜色变化以及被其他标签 reorder 后的位置回归 */
   transition:
     color 160ms ease,
     background-color 160ms ease,
-    border-color 160ms ease;
+    border-color 160ms ease,
+    transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 .oa-page-tabs .ant-tabs-tab.ant-tabs-tab-with-remove {
@@ -3027,9 +3029,22 @@ html.oa-wallpaper-active .ant-menu-submenu-popup .ant-menu-dark {
 
 .oa-page-tab-label {
   display: inline-flex;
+  position: relative;
   min-width: 0;
   align-items: center;
   gap: 7px;
+}
+
+/* 拖拽中的原标签：提升 z-index、加阴影、禁用过渡精确跟随鼠标 */
+.oa-page-tabs .ant-tabs-tab.is-tab-dragging {
+  z-index: 10;
+  cursor: grabbing !important;
+  transition: none !important;
+  background: var(--oa-card, #ffffff) !important;
+  border-color: color-mix(in srgb, var(--oa-primary, #1677ff) 48%, var(--oa-border, #d7dee9)) !important;
+  box-shadow:
+    0 10px 22px rgba(15, 23, 42, 0.22),
+    0 0 0 1px color-mix(in srgb, var(--oa-primary, #1677ff) 32%, transparent) !important;
 }
 
 .oa-page-tab-label > span:last-child {
