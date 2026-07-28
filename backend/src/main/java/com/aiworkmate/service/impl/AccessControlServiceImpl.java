@@ -218,6 +218,55 @@ public class AccessControlServiceImpl implements AccessControlService {
 
     @Override
     @Transactional
+    public void deleteDepartment(Long operatorUserId, Long tenantId, Long departmentId) {
+        if (accessControlMapper.countDepartment(tenantId, departmentId) == 0) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "部门不存在");
+        }
+        if (accessControlMapper.countChildDepartments(tenantId, departmentId) > 0) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "该部门下存在子部门，请先调整子部门");
+        }
+        if (accessControlMapper.countUsersInDepartment(tenantId, departmentId) > 0) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "该部门下仍有用户，请先调整用户部门");
+        }
+        DepartmentResponse current = accessControlMapper.selectDepartments(tenantId).stream()
+                .filter(item -> item.id().equals(departmentId))
+                .findFirst()
+                .orElseThrow(() -> new BusinessException(ErrorCode.REQUEST_INVALID, "部门不存在"));
+        int affected = accessControlMapper.deleteDepartment(tenantId, departmentId);
+        if (affected == 0) {
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "删除部门失败");
+        }
+        accessControlMapper.insertAudit(operatorUserId, "DELETE_DEPARTMENT", "DEPARTMENT",
+                current.code(), current.name(), null);
+        log.info("Department deleted, operatorUserId={}, departmentId={}, code={}",
+                operatorUserId, departmentId, current.code());
+    }
+
+    @Override
+    @Transactional
+    public void deletePosition(Long operatorUserId, Long tenantId, Long positionId) {
+        if (accessControlMapper.countPosition(tenantId, positionId) == 0) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "岗位不存在");
+        }
+        if (accessControlMapper.countUsersInPosition(tenantId, positionId) > 0) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "该岗位下仍有用户，请先调整用户岗位");
+        }
+        PositionResponse current = accessControlMapper.selectPositions(tenantId).stream()
+                .filter(item -> item.id().equals(positionId))
+                .findFirst()
+                .orElseThrow(() -> new BusinessException(ErrorCode.REQUEST_INVALID, "岗位不存在"));
+        int affected = accessControlMapper.deletePosition(tenantId, positionId);
+        if (affected == 0) {
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "删除岗位失败");
+        }
+        accessControlMapper.insertAudit(operatorUserId, "DELETE_POSITION", "POSITION",
+                current.code(), current.name(), null);
+        log.info("Position deleted, operatorUserId={}, positionId={}, code={}",
+                operatorUserId, positionId, current.code());
+    }
+
+    @Override
+    @Transactional
     public AccessRoleResponse updateRolePermissions(Long operatorUserId,
                                                     String roleCode,
                                                     Set<String> permissionCodes) {
