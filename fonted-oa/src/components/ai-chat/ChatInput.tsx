@@ -1,7 +1,8 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { Button, Input, Space, Tooltip, Upload, message } from 'antd';
+import { Button, Input, Space, Tooltip, Upload } from 'antd';
+import { message } from '@/lib/antdMessage';
 import type { ChatAttachment } from '@/types/chat';
 import AttachmentPreview from './AttachmentPreview';
 import { OaIcon } from '@/components/OaIcon';

@@ -109,7 +109,7 @@ export default function AttachmentPreview({ attachment, removable, onRemove }: A
       >
         <Spin spinning={markdownLoading}>
           {markdownError ? (
-            <Alert type="error" showIcon message="文档预览失败" description={markdownError} />
+            <Alert type="error" showIcon title="文档预览失败" description={markdownError} />
           ) : (
             <MarkdownRenderer content={markdownContent} className="ai-markdown-document" />
           )}

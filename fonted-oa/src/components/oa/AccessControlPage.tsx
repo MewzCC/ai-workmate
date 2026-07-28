@@ -271,7 +271,7 @@ export default function AccessControlPage() {
       title: '用户',
       key: 'user',
       render: (_, user) => (
-        <Space className="oa-access-identity" direction="vertical" size={2}>
+        <Space className="oa-access-identity" orientation="vertical" size={2}>
           <Typography.Text strong>{user.name}</Typography.Text>
           <Typography.Text type="secondary">{user.email}</Typography.Text>
         </Space>
@@ -362,7 +362,7 @@ export default function AccessControlPage() {
       title: '名称 / 编码',
       key: 'route',
       render: (_, route) => (
-        <Space className="oa-access-identity" direction="vertical" size={2}>
+        <Space className="oa-access-identity" orientation="vertical" size={2}>
           <Typography.Text strong>{route.name}</Typography.Text>
           <Typography.Text className="oa-access-code">{route.routeKey}</Typography.Text>
         </Space>
@@ -373,7 +373,7 @@ export default function AccessControlPage() {
       title: '类型',
       dataIndex: 'routeType',
       width: 90,
-      render: (value) => <Tag className="oa-access-type-tag" bordered={false}>{value}</Tag>,
+      render: (value) => <Tag className="oa-access-type-tag" variant="filled">{value}</Tag>,
     },
     {
       title: '路径',
@@ -419,7 +419,7 @@ export default function AccessControlPage() {
             权限由服务端实时解析。角色变更无需重新登录，菜单和直接 URL 访问都会同步受控。
           </Typography.Paragraph>
         </div>
-        <Tag className="oa-access-service-tag" icon={<OaIcon name="access-control" />} bordered={false}>
+        <Tag className="oa-access-service-tag" icon={<OaIcon name="access-control" />} variant="filled">
           服务端 RBAC
         </Tag>
       </header>
@@ -610,7 +610,7 @@ export default function AccessControlPage() {
                             </Space>
                           </div>
                           {selectedRole.code === 'SUPER_ADMIN' && (
-                            <Alert type="info" showIcon message="超级管理员始终拥有全部权限" />
+                            <Alert type="info" showIcon title="超级管理员始终拥有全部权限" />
                           )}
                           <Checkbox.Group value={selectedPermissions}
                             disabled={selectedRole.code === 'SUPER_ADMIN'}
@@ -651,7 +651,7 @@ export default function AccessControlPage() {
                 <>
                   <div className="oa-access-toolbar">
                     <Alert className="oa-access-hint" type="info" showIcon
-                      message="新增 PAGE 会自动创建对应页面权限；角色勾选后，该页面才会出现在菜单中。" />
+                      title="新增 PAGE 会自动创建对应页面权限；角色勾选后，该页面才会出现在菜单中。" />
                     <Button type="primary" icon={<OaIcon name="add" />} onClick={() => openRouteEditor()}>
                       新增路由
                     </Button>

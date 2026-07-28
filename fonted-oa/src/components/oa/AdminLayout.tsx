@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
-import { ConfigProvider, FloatButton, Layout, App as AntApp, message, theme as antdTheme } from 'antd';
+import { usePathname, useRouter } from '@/lib/nextCompat';
+import { ConfigProvider, FloatButton, Layout, theme as antdTheme } from 'antd';
+import { message } from '@/lib/antdMessage';
 import type { OaMenuItem, OaRole, OaTheme } from '@/types/oa';
 import { findMenu } from '@/mock/oaPermissions';
 import Dashboard from './Dashboard';
@@ -171,7 +172,7 @@ export default function AdminLayout() {
   });
   const [wallpaperOpacity, setWallpaperOpacity] = useState(() => Number(readStorage('workmeta-oa-wallpaper-opacity', '0.28')));
   const [wallpaperBlur, setWallpaperBlur] = useState(() => Number(readStorage('workmeta-oa-wallpaper-blur', '4')));
-  const [auditItems, setAuditItems] = useState<Array<{ color: string; children: string }>>([]);
+  const [auditItems, setAuditItems] = useState<Array<{ color: string; content: string }>>([]);
   const [openTabs, setOpenTabs] = useState<OaPageTab[]>([]);
   const [openTabsReady, setOpenTabsReady] = useState(false);
 
@@ -316,7 +317,7 @@ export default function AdminLayout() {
   };
 
   const addAudit = (text: string) => {
-    setAuditItems((prev) => [{ color: currentTheme.primary, children: `${new Date().toLocaleTimeString()} ${text}` }, ...prev].slice(0, 6));
+    setAuditItems((prev) => [{ color: currentTheme.primary, content: `${new Date().toLocaleTimeString()} ${text}` }, ...prev].slice(0, 6));
   };
 
   const navigateToPage = (tab: OaPageTab) => {
@@ -356,20 +357,6 @@ export default function AdminLayout() {
     if (currentPageId !== pinnedTab.id) navigateToPage(pinnedTab);
   };
 
-  // 菜单加载后预取所有页面路由，触发 Next dev 模式提前编译，避免点击时再等编译
-  useEffect(() => {
-    if (!navigationLoaded || menus.length === 0) return;
-    const collectPaths = (items: OaMenuItem[]): string[] => {
-      const paths: string[] = [];
-      for (const item of items) {
-        if (item.type === 'page') paths.push(item.path || `/oa/${item.id}`);
-        if (item.children?.length) paths.push(...collectPaths(item.children));
-      }
-      return paths;
-    };
-    collectPaths(menus).forEach((path) => router.prefetch(path));
-  }, [menus, navigationLoaded, router]);
-
   return (
     <ConfigProvider
       theme={{
@@ -406,7 +393,7 @@ export default function AdminLayout() {
         },
       }}
     >
-      <AntApp>
+      <>
         <div className={`oa-shell ${collapsed ? 'oa-shell-collapsed' : ''} ${wallpaper ? 'oa-has-wallpaper' : ''} ${selectedMenu.id === 'ai-workspace' ? 'oa-chat-page' : ''}`}>
           {wallpaper && (
             <div
@@ -527,7 +514,7 @@ export default function AdminLayout() {
             onExecuted={addAudit}
           />}
         </div>
-      </AntApp>
+      </>
     </ConfigProvider>
   );
 }

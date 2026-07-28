@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Button, Drawer, Tooltip, message } from 'antd';
+import { Button, Drawer, Tooltip } from 'antd';
+import { message } from '@/lib/antdMessage';
 import { MenuUnfoldOutlined } from '@ant-design/icons';
 import { useAiChatStore } from '@/store/aiChatStore';
 import type { OaRole } from '@/types/oa';
@@ -109,7 +110,8 @@ export default function AiChatWorkspace({ role }: AiChatWorkspaceProps) {
       <Drawer
         title="历史会话"
         placement="left"
-        width={320}
+        size="default"
+        styles={{ wrapper: { width: 320 } }}
         open={mobileSessionsOpen}
         onClose={() => setMobileSessionsOpen(false)}
       >

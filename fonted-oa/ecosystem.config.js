@@ -2,7 +2,8 @@ module.exports = {
   apps: [
     {
       name: 'fonted-oa',
-      script: './server.js',
+      script: 'npx',
+      args: 'vite preview --port 3001 --host 0.0.0.0',
       cwd: __dirname,
       exec_mode: 'fork',
       instances: 1,
@@ -12,8 +13,6 @@ module.exports = {
       merge_logs: true,
       env: {
         NODE_ENV: 'production',
-        HOSTNAME: '0.0.0.0',
-        PORT: '3001',
       },
     },
   ],

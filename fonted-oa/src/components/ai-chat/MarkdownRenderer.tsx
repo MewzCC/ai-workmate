@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { Button, Tooltip, message as antMessage } from 'antd';
+import { Button, Tooltip } from 'antd';
+import { message as antMessage } from '@/lib/antdMessage';
 import { CheckOutlined, CopyOutlined } from '@ant-design/icons';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';

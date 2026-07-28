@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Avatar, Button, Form, Input, Modal, Space, Upload, message } from 'antd';
+import { Avatar, Button, Form, Input, Modal, Space, Upload } from 'antd';
+import { message } from '@/lib/antdMessage';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { profileApi } from '@/lib/profileApi';
 import { OaIcon } from '@/components/OaIcon';
