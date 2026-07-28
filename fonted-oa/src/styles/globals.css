@@ -3162,6 +3162,147 @@ html.oa-wallpaper-active .ant-menu-submenu-popup .ant-menu-dark {
   flex-shrink: 0;
 }
 
+/* ============== 通知中心 ============== */
+.oa-notify-trigger {
+  position: relative;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px !important;
+  background: rgba(255, 255, 255, 0.16) !important;
+  border: 1px solid rgba(255, 255, 255, 0.28) !important;
+  color: #ffffff !important;
+  font-size: 18px;
+  transition: background 180ms ease, border-color 180ms ease;
+}
+
+.oa-notify-trigger:hover {
+  background: rgba(255, 255, 255, 0.28) !important;
+  border-color: rgba(255, 255, 255, 0.48) !important;
+}
+
+.oa-notify-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: #ff4d4f;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 16px;
+  text-align: center;
+  border: 1.5px solid var(--oa-card, #ffffff);
+  box-sizing: content-box;
+}
+
+/* 下拉面板 */
+.oa-notify-panel {
+  width: 320px;
+  max-width: 90vw;
+  background: var(--oa-card, #ffffff);
+  border-radius: 12px;
+  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.12);
+  border: 1px solid var(--oa-border, rgba(15, 23, 42, 0.08));
+  overflow: hidden;
+}
+
+.oa-notify-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--oa-border, rgba(15, 23, 42, 0.06));
+}
+
+.oa-notify-panel-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--oa-text, #111827);
+}
+
+.oa-notify-panel-badge {
+  font-size: 11px;
+  color: var(--oa-primary, #1677ff);
+  background: color-mix(in srgb, var(--oa-primary, #1677ff) 10%, transparent);
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 500;
+}
+
+.oa-notify-panel-list {
+  list-style: none;
+  margin: 0;
+  padding: 6px 0;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.oa-notify-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: background 160ms ease;
+}
+
+.oa-notify-item:hover {
+  background: color-mix(in srgb, var(--oa-primary, #1677ff) 5%, transparent);
+}
+
+.oa-notify-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-top: 6px;
+  border-radius: 50%;
+}
+
+.oa-notify-dot--approval {
+  background: #1677ff;
+}
+
+.oa-notify-dot--alert {
+  background: #ff4d4f;
+}
+
+.oa-notify-item-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.oa-notify-item-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--oa-text, #111827);
+  margin-bottom: 2px;
+}
+
+.oa-notify-item-desc {
+  font-size: 12px;
+  color: var(--oa-muted, #64748b);
+  line-height: 1.5;
+}
+
+/* 壁纸模式适配 */
+.oa-wallpaper-active .oa-notify-panel {
+  background: color-mix(in srgb, var(--oa-card, #ffffff) 88%, transparent);
+  backdrop-filter: blur(10px) saturate(140%);
+  -webkit-backdrop-filter: blur(10px) saturate(140%);
+}
+
+/* 深色主题适配 */
+.oa-layout[data-theme-mode="dark"] .oa-notify-panel,
+[data-theme="dark"] .oa-notify-panel {
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.4);
+}
+
 /* ============== HelpDrawer ============== */
 .oa-help-drawer {
   display: flex;
@@ -4475,6 +4616,10 @@ html.oa-wallpaper-active .ant-menu-submenu-popup .ant-menu-dark {
     display: none !important;
   }
 
+  .oa-header-notify-desktop {
+    display: none !important;
+  }
+
   .oa-header-more-btn {
     display: inline-flex !important;
   }
@@ -4557,5 +4702,269 @@ html.oa-wallpaper-active .ant-menu-submenu-popup .ant-menu-dark {
 
   .oa-content {
     padding-left: 16px;
+  }
+}
+
+/* ============================================
+   组织架构页面 (Organization Tree Page)
+   ============================================ */
+
+.oa-org-page {
+  min-height: 100%;
+  max-width: 1680px;
+  margin: 0 auto;
+  padding: 28px 32px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.oa-domain-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 4px;
+}
+
+.oa-domain-heading h3 {
+  margin: 0 0 4px;
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--oa-text, #111827);
+  letter-spacing: -0.02em;
+}
+
+.oa-domain-heading .ant-typography-secondary {
+  margin: 0;
+  color: var(--oa-muted, #64748b);
+  font-size: 13px;
+  line-height: 1.6;
+  max-width: 720px;
+}
+
+.oa-org-stats .ant-card {
+  border-radius: 10px;
+  border: 1px solid var(--oa-border, rgba(15, 23, 42, 0.06));
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--oa-primary, #1677ff) 3%, transparent), transparent 50%),
+    var(--oa-card, #ffffff);
+  transition: transform 220ms cubic-bezier(0.4, 0, 0.2, 1), box-shadow 220ms ease, border-color 220ms ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.oa-org-stats .ant-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--oa-primary, #1677ff), transparent);
+  opacity: 0.7;
+}
+
+.oa-org-stats .ant-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--oa-primary, #1677ff) 12%, rgba(15, 23, 42, 0.08));
+  border-color: color-mix(in srgb, var(--oa-primary, #1677ff) 25%, var(--oa-border, rgba(15, 23, 42, 0.06)));
+}
+
+.oa-org-stats .ant-statistic-title {
+  margin-bottom: 6px;
+  color: var(--oa-muted, #64748b);
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.oa-org-stats .ant-statistic-content {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--oa-text, #111827);
+  letter-spacing: -0.02em;
+}
+
+.oa-org-stats .ant-statistic-content-prefix {
+  margin-right: 6px;
+  color: var(--oa-primary, #1677ff);
+  font-size: 18px;
+}
+
+/* 架构图卡片 */
+.oa-org-tree-card.ant-card {
+  border-radius: 12px;
+  border: 1px solid var(--oa-border, rgba(15, 23, 42, 0.06));
+  background: var(--oa-card, #ffffff);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+  overflow: hidden;
+}
+
+.oa-org-tree-card .ant-card-head {
+  min-height: 48px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--oa-border, rgba(15, 23, 42, 0.06));
+  background: transparent;
+}
+
+.oa-org-tree-card .ant-card-head-title {
+  padding: 13px 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--oa-text, #111827);
+  letter-spacing: -0.01em;
+}
+
+.oa-org-tree-card .ant-card-body {
+  padding: 20px 20px 24px;
+  overflow-x: auto;
+}
+
+/**
+ * ============================================================
+ * G6 组织架构图
+ * ============================================================
+ */
+
+/* 架构图标题栏提示 */
+.oa-org-tree-hint {
+  font-size: 12px;
+}
+
+/* G6 容器：采用页面 surface 底色 + 极淡主题色辉光 */
+.oa-org-graph {
+  position: relative;
+  width: 100%;
+  height: 520px;
+  min-height: 340px;
+  cursor: grab;
+  border-radius: 10px;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse at 50% 0%, color-mix(in srgb, var(--oa-primary, #1677ff) 4%, transparent), transparent 60%),
+    var(--oa-surface, #f4f7fb);
+  border: 1px solid var(--oa-border, rgba(15, 23, 42, 0.06));
+}
+
+/* 极淡点阵网格背景层 */
+.oa-org-graph::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 10px;
+  background-image: radial-gradient(circle, color-mix(in srgb, var(--oa-text, #111827) 5%, transparent) 0.8px, transparent 0.8px);
+  background-size: 28px 28px;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.5;
+}
+
+.oa-org-graph:active {
+  cursor: grabbing;
+}
+
+/* G6 canvas 层级提升，确保在网格背景之上 */
+.oa-org-graph > canvas {
+  position: relative;
+  z-index: 1;
+}
+
+/* 壁纸模式适配 */
+.oa-wallpaper-active .oa-org-graph {
+  background:
+    radial-gradient(ellipse at 50% 0%, color-mix(in srgb, var(--oa-primary, #1677ff) 5%, transparent), transparent 60%),
+    color-mix(in srgb, var(--oa-surface, #f4f7fb) 70%, transparent);
+  backdrop-filter: blur(10px) saturate(140%);
+  -webkit-backdrop-filter: blur(10px) saturate(140%);
+}
+
+/* 员工列表卡片 */
+.oa-org-employees-card.ant-card {
+  border-radius: 12px;
+  border: 1px solid var(--oa-border, rgba(15, 23, 42, 0.08));
+  background: var(--oa-card, #ffffff);
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.04);
+}
+
+.oa-org-employees-card .ant-card-body {
+  padding: 16px 20px 20px;
+}
+
+.oa-org-employees-card .oa-access-toolbar {
+  margin-bottom: 14px;
+}
+
+.oa-org-employees-card .ant-table {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.oa-org-employees-card .ant-table-thead > tr > th {
+  background: color-mix(in srgb, var(--oa-card, #ffffff) 94%, var(--oa-text, #111827) 6%);
+  color: var(--oa-muted, #64748b);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.oa-org-employees-card .ant-table-tbody > tr > td {
+  font-size: 13px;
+  color: var(--oa-text, #111827);
+}
+
+/* 壁纸模式适配 */
+.oa-has-wallpaper .oa-org-tree-card.ant-card,
+.oa-has-wallpaper .oa-org-employees-card.ant-card,
+.oa-has-wallpaper .oa-org-stats .ant-card {
+  background: color-mix(in srgb, var(--oa-card, #ffffff) 82%, transparent);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+}
+
+/* 响应式：小屏纵向堆叠 */
+@media (max-width: 980px) {
+  .oa-org-page {
+    padding: 20px 16px 28px;
+  }
+
+  .oa-domain-heading {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .oa-org-tree-card .ant-card-body {
+    padding: 16px 12px 20px;
+  }
+
+  .oa-org-graph {
+    height: 420px;
+  }
+}
+
+@media (max-width: 640px) {
+  .oa-org-page {
+    padding: 16px 12px 24px;
+    gap: 14px;
+  }
+
+  .oa-domain-heading h3 {
+    font-size: 18px;
+  }
+
+  .oa-domain-heading .ant-typography-secondary {
+    font-size: 12px;
+  }
+
+  .oa-org-stats .ant-statistic-content {
+    font-size: 20px;
+  }
+
+  .oa-org-graph {
+    height: 360px;
+  }
+
+  .oa-org-employees-card .ant-card-body {
+    padding: 12px;
   }
 }
