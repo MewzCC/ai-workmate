@@ -12,6 +12,8 @@ import {
   Input,
   InputNumber,
   Modal,
+  Popconfirm,
+  Segmented,
   Select,
   Space,
   Spin,
@@ -43,6 +45,7 @@ const componentOptions = [
   { value: 'LEAVE_FORM', label: '请假申请' },
   { value: 'MY_APPLICATIONS', label: '我的申请' },
   { value: 'AUDIT_CENTER', label: '审计中心' },
+  { value: 'ORG_TREE', label: '组织架构' },
 ];
 
 export default function AccessControlPage() {
@@ -55,6 +58,8 @@ export default function AccessControlPage() {
   const [roleModalOpen, setRoleModalOpen] = useState(false);
   const [routeModalOpen, setRouteModalOpen] = useState(false);
   const [organizationModal, setOrganizationModal] = useState<'department' | 'position'>();
+  const [userViewMode, setUserViewMode] = useState<'linkage' | 'table'>('linkage');
+  const [activeTab, setActiveTab] = useState('users');
   const [editingRoute, setEditingRoute] = useState<AccessRoute | null>(null);
   const [roleForm] = Form.useForm();
   const [routeForm] = Form.useForm<SaveRoutePayload>();
@@ -196,6 +201,19 @@ export default function AccessControlPage() {
     }
   };
 
+  const deleteRole = async () => {
+    if (!selectedRole || selectedRole.builtin) return;
+    try {
+      await accessControlApi.deleteRole(selectedRole.code);
+      setSelectedRoleCode('');
+      setSelectedPermissions([]);
+      await load();
+      message.success('角色已删除');
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '角色删除失败');
+    }
+  };
+
   const openRouteEditor = (route?: AccessRoute) => {
     setEditingRoute(route || null);
     routeForm.setFieldsValue(route ? {
@@ -278,6 +296,8 @@ export default function AccessControlPage() {
       render: (roleCodes: string[], user) => (
         <Select
           mode="multiple"
+          showSearch
+          optionFilterProp="label"
           value={roleCodes}
           loading={savingUserId === user.id}
           options={roles.map((role) => ({ value: role.code, label: `${role.name} (${role.code})` }))}
@@ -293,6 +313,8 @@ export default function AccessControlPage() {
       width: 180,
       render: (value: number | undefined, user) => (
         <Select
+          showSearch
+          optionFilterProp="label"
           value={value}
           style={{ width: 150 }}
           options={(overview?.departments || []).map((item) => ({ value: item.id, label: item.name }))}
@@ -306,6 +328,8 @@ export default function AccessControlPage() {
       width: 180,
       render: (value: number | undefined, user) => (
         <Select
+          showSearch
+          optionFilterProp="label"
           value={value}
           style={{ width: 150 }}
           options={(overview?.positions || []).map((item) => ({ value: item.id, label: item.name }))}
@@ -320,6 +344,8 @@ export default function AccessControlPage() {
       render: (value: number | undefined, user) => (
         <Select
           allowClear
+          showSearch
+          optionFilterProp="label"
           value={value}
           style={{ width: 170 }}
           options={(overview?.users || [])
@@ -400,20 +426,81 @@ export default function AccessControlPage() {
 
       <Spin spinning={loading}>
         {!overview ? <Empty description="暂无权限配置数据" /> : (
-          <Tabs items={[
+          <Tabs activeKey={activeTab} onChange={setActiveTab} items={[
             {
               key: 'users',
               label: <span><OaIcon name="user" /> 用户角色</span>,
               children: (
-                <Table
-                  className="oa-access-table"
-                  rowKey="id"
-                  columns={userColumns}
-                  dataSource={overview.users}
-                  size="middle"
-                  pagination={{ pageSize: 10, hideOnSinglePage: true, showSizeChanger: false }}
-                  scroll={{ x: 1180 }}
-                />
+                <>
+                  <div className="oa-access-toolbar">
+                    <Alert
+                      className="oa-access-hint"
+                      type="info"
+                      showIcon
+                      message="用户 → 角色 → 权限实时联动；新增角色默认零权限，需管理员显式授权。"
+                    />
+                    <Segmented
+                      value={userViewMode}
+                      onChange={(value) => setUserViewMode(value as typeof userViewMode)}
+                      options={[
+                        { value: 'linkage', label: '关系视图' },
+                        { value: 'table', label: '配置表格' },
+                      ]}
+                    />
+                  </div>
+                  {userViewMode === 'table' ? (
+                    <Table
+                      className="oa-access-table"
+                      rowKey="id"
+                      columns={userColumns}
+                      dataSource={overview.users}
+                      size="middle"
+                      pagination={{ pageSize: 10, hideOnSinglePage: true, showSizeChanger: false }}
+                      scroll={{ x: 1180 }}
+                    />
+                  ) : (
+                    <div className="oa-rbac-linkage">
+                      {roles.map((role) => {
+                        const members = overview.users.filter((user) => user.roles.includes(role.code));
+                        return (
+                          <section className="oa-rbac-role-node" key={role.code}>
+                            <div className="oa-rbac-role-node__heading">
+                              <span className="oa-rbac-role-node__icon"><OaIcon name="role" /></span>
+                              <div>
+                                <Typography.Text strong>{role.name}</Typography.Text>
+                                <Typography.Text type="secondary">{role.code}</Typography.Text>
+                              </div>
+                              <Tag color={role.builtin ? 'blue' : 'purple'}>
+                                {role.builtin ? '内置' : '自定义'}
+                              </Tag>
+                            </div>
+                            <div className="oa-rbac-flow-label">
+                              <span>{members.length} 位用户</span>
+                              <i />
+                              <span>{role.permissions.length} 项权限</span>
+                            </div>
+                            <div className="oa-rbac-member-cloud">
+                              {members.map((member) => (
+                                <Tag key={member.id} icon={<OaIcon name="user" />}>{member.name}</Tag>
+                              ))}
+                              {!members.length && <Typography.Text type="secondary">暂未分配用户</Typography.Text>}
+                            </div>
+                            <div className="oa-rbac-permission-preview">
+                              {role.permissions.slice(0, 5).map((permission) => (
+                                <span key={permission}>{permission}</span>
+                              ))}
+                              {role.permissions.length > 5 && <em>+{role.permissions.length - 5}</em>}
+                              {!role.permissions.length && <span className="is-empty">等待管理员配置权限</span>}
+                            </div>
+                            <Button block onClick={() => { chooseRole(role); setActiveTab('roles'); }}>
+                              查看并配置权限
+                            </Button>
+                          </section>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
               ),
             },
             {
@@ -507,7 +594,20 @@ export default function AccessControlPage() {
                               <Typography.Title level={5}>{selectedRole.name}</Typography.Title>
                               <Typography.Text type="secondary">{selectedRole.description}</Typography.Text>
                             </div>
-                            <Typography.Text code>{selectedRole.code}</Typography.Text>
+                            <Space>
+                              <Typography.Text code>{selectedRole.code}</Typography.Text>
+                              {!selectedRole.builtin && (
+                                <Popconfirm
+                                  title="确认删除该角色？"
+                                  description="有关联用户的角色不能删除，请先完成角色迁移。"
+                                  onConfirm={() => void deleteRole()}
+                                >
+                                  <Button danger type="text" icon={<OaIcon name="delete" />}>
+                                    删除角色
+                                  </Button>
+                                </Popconfirm>
+                              )}
+                            </Space>
                           </div>
                           {selectedRole.code === 'SUPER_ADMIN' && (
                             <Alert type="info" showIcon message="超级管理员始终拥有全部权限" />
@@ -611,12 +711,12 @@ export default function AccessControlPage() {
           {organizationModal === 'department' && (
             <>
               <Form.Item name="parentId" label="上级部门">
-                <Select allowClear options={(overview?.departments || []).map((item) => ({
+                <Select allowClear showSearch optionFilterProp="label" options={(overview?.departments || []).map((item) => ({
                   value: item.id, label: item.name,
                 }))} />
               </Form.Item>
               <Form.Item name="defaultApproverUserId" label="部门默认审批人">
-                <Select allowClear options={(overview?.users || [])
+                <Select allowClear showSearch optionFilterProp="label" options={(overview?.users || [])
                   .filter((item) => item.status === 1)
                   .map((item) => ({ value: item.id, label: item.name }))} />
               </Form.Item>

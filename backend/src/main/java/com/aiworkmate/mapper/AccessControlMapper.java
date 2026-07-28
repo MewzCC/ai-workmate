@@ -395,6 +395,27 @@ public interface AccessControlMapper {
     @Select("SELECT COUNT(*) FROM department WHERE tenant_id = #{tenantId} AND id = #{id}")
     int countDepartment(@Param("tenantId") Long tenantId, @Param("id") Long id);
 
+    @Select("SELECT id FROM department WHERE tenant_id = #{tenantId} AND code = #{code}")
+    Long selectDepartmentIdByCode(@Param("tenantId") Long tenantId,
+                                  @Param("code") String code);
+
+    @Select("""
+            WITH RECURSIVE descendants AS (
+                SELECT id FROM department
+                WHERE tenant_id = #{tenantId} AND parent_id = #{departmentId}
+                UNION ALL
+                SELECT child.id
+                FROM department child
+                JOIN descendants parent ON child.parent_id = parent.id
+                WHERE child.tenant_id = #{tenantId}
+            )
+            SELECT COUNT(*) FROM descendants WHERE id = #{candidateParentId}
+            """)
+    int countDepartmentDescendant(
+            @Param("tenantId") Long tenantId,
+            @Param("departmentId") Long departmentId,
+            @Param("candidateParentId") Long candidateParentId);
+
     @Select("SELECT COUNT(*) FROM position WHERE tenant_id = #{tenantId} AND id = #{id}")
     int countPosition(@Param("tenantId") Long tenantId, @Param("id") Long id);
 
@@ -403,6 +424,112 @@ public interface AccessControlMapper {
             WHERE tenant_id = #{tenantId} AND id = #{id} AND status = 1
             """)
     int countActiveUser(@Param("tenantId") Long tenantId, @Param("id") Long id);
+
+    @Select("""
+            SELECT COUNT(*)
+            FROM app_user u
+            WHERE u.tenant_id = #{tenantId}
+              AND u.id = #{userId}
+              AND u.status = 1
+              AND (
+                EXISTS (
+                    SELECT 1
+                    FROM user_role ur
+                    JOIN rbac_role_permission rp
+                      ON rp.tenant_id = ur.tenant_id
+                     AND rp.role_code = ur.role_code
+                     AND rp.permission_code = 'approval:act'
+                    WHERE ur.tenant_id = #{tenantId} AND ur.user_id = u.id
+                )
+                OR EXISTS (
+                    SELECT 1 FROM user_role ur
+                    WHERE ur.tenant_id = #{tenantId}
+                      AND ur.user_id = u.id
+                      AND ur.role_code = 'SUPER_ADMIN'
+                )
+              )
+            """)
+    int countActiveApprovalUser(@Param("tenantId") Long tenantId,
+                                @Param("userId") Long userId);
+
+    @Select("""
+            WITH RECURSIVE department_chain AS (
+                SELECT id, parent_id
+                FROM department
+                WHERE tenant_id = #{tenantId} AND id = #{departmentId} AND status = 1
+                UNION ALL
+                SELECT parent.id, parent.parent_id
+                FROM department parent
+                JOIN department_chain child ON child.parent_id = parent.id
+                WHERE parent.tenant_id = #{tenantId} AND parent.status = 1
+            )
+            SELECT COUNT(*)
+            FROM app_user approver
+            WHERE approver.tenant_id = #{tenantId}
+              AND approver.id = #{approverUserId}
+              AND approver.status = 1
+              AND approver.department_id IN (SELECT id FROM department_chain)
+              AND (
+                EXISTS (
+                    SELECT 1
+                    FROM user_role ur
+                    JOIN rbac_role_permission rp
+                      ON rp.tenant_id = ur.tenant_id
+                     AND rp.role_code = ur.role_code
+                     AND rp.permission_code = 'approval:act'
+                    WHERE ur.tenant_id = #{tenantId} AND ur.user_id = approver.id
+                )
+                OR EXISTS (
+                    SELECT 1 FROM user_role ur
+                    WHERE ur.tenant_id = #{tenantId}
+                      AND ur.user_id = approver.id
+                      AND ur.role_code = 'SUPER_ADMIN'
+                )
+              )
+            """)
+    int countEligibleApproverForDepartment(
+            @Param("tenantId") Long tenantId,
+            @Param("departmentId") Long departmentId,
+            @Param("approverUserId") Long approverUserId);
+
+    @Select("SELECT builtin FROM rbac_role WHERE tenant_id = #{tenantId} AND code = #{roleCode}")
+    Boolean selectRoleBuiltin(@Param("tenantId") Long tenantId, @Param("roleCode") String roleCode);
+
+    @Select("SELECT COUNT(*) FROM user_role WHERE tenant_id = #{tenantId} AND role_code = #{roleCode}")
+    int countRoleUsers(@Param("tenantId") Long tenantId, @Param("roleCode") String roleCode);
+
+    @Select("""
+            SELECT COUNT(*) FROM department
+            WHERE tenant_id = #{tenantId} AND parent_id = #{departmentId}
+            """)
+    int countChildDepartments(@Param("tenantId") Long tenantId,
+                              @Param("departmentId") Long departmentId);
+
+    @Select("""
+            SELECT COUNT(*) FROM app_user
+            WHERE tenant_id = #{tenantId} AND department_id = #{departmentId}
+            """)
+    int countDepartmentUsers(@Param("tenantId") Long tenantId,
+                             @Param("departmentId") Long departmentId);
+
+    @Select("""
+            SELECT COUNT(*) FROM app_user
+            WHERE tenant_id = #{tenantId} AND position_id = #{positionId}
+            """)
+    int countPositionUsers(@Param("tenantId") Long tenantId,
+                           @Param("positionId") Long positionId);
+
+    @Delete("DELETE FROM department WHERE tenant_id = #{tenantId} AND id = #{departmentId}")
+    int deleteDepartment(@Param("tenantId") Long tenantId,
+                         @Param("departmentId") Long departmentId);
+
+    @Delete("DELETE FROM position WHERE tenant_id = #{tenantId} AND id = #{positionId}")
+    int deletePosition(@Param("tenantId") Long tenantId,
+                       @Param("positionId") Long positionId);
+
+    @Delete("DELETE FROM rbac_role WHERE tenant_id = #{tenantId} AND code = #{roleCode}")
+    int deleteRoleForTenant(@Param("tenantId") Long tenantId,
+                            @Param("roleCode") String roleCode);
 
     @Insert("""
             INSERT INTO department(tenant_id, code, name, parent_id, default_approver_user_id)

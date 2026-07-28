@@ -1,9 +1,21 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Button, Card, DatePicker, Empty, Select, Space, Table, Tag, Typography, message } from 'antd';
+import {
+  Button,
+  Card,
+  DatePicker,
+  Empty,
+  Segmented,
+  Space,
+  Table,
+  Tag,
+  Typography,
+  message,
+} from 'antd';
 import type { ColumnsType } from 'antd/es/table';
+import dayjs from 'dayjs';
 import { formatOaApiError, todoApi, type TodoItem } from '@/lib/oaApi';
 import { leaveTypeLabel } from './MyApplicationsPage';
 import { OaIcon } from '@/components/OaIcon';
@@ -40,76 +52,135 @@ export default function TodoListPage() {
 
   useEffect(() => { void load(); }, [load]);
 
+  const overdueCount = useMemo(() => records.filter((item) => item.overdue).length, [records]);
+
   const columns: ColumnsType<TodoItem> = [
-    { title: '待办编号', dataIndex: 'id', width: 100, render: (value) => `#${value}` },
-    { title: '申请人', dataIndex: 'applicantName', width: 150 },
-    { title: '类型', dataIndex: 'leaveType', width: 110, render: leaveTypeLabel },
-    { title: '天数', dataIndex: 'durationHalfDays', width: 90, render: (value) => `${value / 2} 天` },
-    { title: '提交时间', dataIndex: 'submittedAt', width: 190, render: formatTime },
+    {
+      title: '待审批事项',
+      key: 'subject',
+      width: 260,
+      render: (_, item) => (
+        <div className="leave-table-subject">
+          <span className="leave-table-subject__icon is-approval"><OaIcon name="approval" /></span>
+          <div>
+            <Typography.Text strong>{item.applicantName}的{leaveTypeLabel(item.leaveType)}申请</Typography.Text>
+            <Typography.Text type="secondary">
+              TK-{String(item.id).padStart(6, '0')} · 申请 #{item.applicationId}
+            </Typography.Text>
+          </div>
+        </div>
+      ),
+    },
+    {
+      title: '申请时长',
+      dataIndex: 'durationHalfDays',
+      width: 110,
+      render: (value) => <Typography.Text strong>{value / 2} 天</Typography.Text>,
+    },
+    {
+      title: '提交时间',
+      dataIndex: 'submittedAt',
+      width: 170,
+      render: formatTime,
+    },
+    {
+      title: '处理时限',
+      key: 'sla',
+      width: 190,
+      render: (_, item) => (
+        <div className="todo-sla-cell">
+          <Typography.Text>{item.dueAt ? formatTime(item.dueAt) : '未配置'}</Typography.Text>
+          {item.overdue
+            ? <Tag color="error">已超时</Tag>
+            : item.status === 'PENDING' && <Tag color="processing">计时中</Tag>}
+        </div>
+      ),
+    },
     {
       title: '状态',
       dataIndex: 'status',
       width: 110,
-      render: (value, item) => (
-        <Space>
-          <Tag color={value === 'PENDING' ? 'processing' : 'default'}>{value === 'PENDING' ? '待处理' : value}</Tag>
-          {item.overdue && <Tag color="error">已超时</Tag>}
-        </Space>
-      ),
+      render: (value) => <TodoStatusTag status={value} />,
     },
     {
       title: '操作',
-      width: 110,
+      width: 130,
+      fixed: 'right',
       render: (_, item) => (
-        <Button type="link" onClick={() => router.push(`/oa/approval-tasks/${item.id}`)}>
-          查看详情
+        <Button
+          type={item.status === 'PENDING' ? 'primary' : 'link'}
+          size="small"
+          onClick={() => router.push(`/oa/approval-tasks/${item.id}`)}
+        >
+          {item.status === 'PENDING' ? '立即处理' : '查看详情'}
         </Button>
       ),
     },
   ];
 
   return (
-    <section className="oa-domain-page">
-      <div className="oa-domain-heading">
+    <section className="leave-list-workbench">
+      <header className="leave-list-hero todo-list-hero">
         <div>
-          <Typography.Title level={3}>我的待办</Typography.Title>
-          <Typography.Paragraph type="secondary">仅展示分配给当前登录用户的真实审批任务。</Typography.Paragraph>
+          <span className="leave-list-hero__kicker">APPROVAL INBOX</span>
+          <Typography.Title level={2}>审批工作台</Typography.Title>
+          <Typography.Paragraph>
+            仅展示分配给当前账号的真实任务，按处理时限优先完成审批。
+          </Typography.Paragraph>
         </div>
-      </div>
-      <Card className="oa-domain-card">
-        <div className="oa-domain-toolbar">
-          <Select
+        <div className="todo-hero-indicator">
+          <span>当前待处理</span>
+          <strong>{status === 'PENDING' ? total : records.filter((item) => item.status === 'PENDING').length}</strong>
+          <small>{overdueCount > 0 ? `${overdueCount} 项已超时` : '暂无超时任务'}</small>
+        </div>
+      </header>
+
+      <Card className="leave-list-card" bordered={false}>
+        <div className="todo-toolbar">
+          <Segmented
             value={status}
-            style={{ width: 150 }}
             options={[
               { value: 'PENDING', label: '待处理' },
               { value: 'APPROVED', label: '已通过' },
               { value: 'REJECTED', label: '已退回' },
               { value: 'CANCELLED', label: '已取消' },
-              { value: '', label: '全部状态' },
+              { value: '', label: '全部' },
             ]}
-            onChange={(value) => { setStatus(value); setPage(1); }}
+            onChange={(value) => { setStatus(String(value)); setPage(1); }}
           />
-          <RangePicker
-            showTime
-            onChange={(dates) => {
-              setRange(dates?.[0] && dates[1]
-                ? [dates[0].toISOString(), dates[1].toISOString()]
-                : undefined);
-              setPage(1);
-            }}
-          />
-          <Button icon={<OaIcon name="reload" />} onClick={() => void load()}>刷新</Button>
+          <Space wrap>
+            <RangePicker
+              showTime
+              onChange={(dates) => {
+                setRange(dates?.[0] && dates[1]
+                  ? [dates[0].toISOString(), dates[1].toISOString()]
+                  : undefined);
+                setPage(1);
+              }}
+            />
+            <Button icon={<OaIcon name="reload" />} onClick={() => void load()}>刷新</Button>
+          </Space>
         </div>
         <Table
           rowKey="id"
           columns={columns}
           dataSource={records}
           loading={loading}
-          locale={{ emptyText: <Empty description="暂无待办" /> }}
-          scroll={{ x: 900 }}
+          locale={{
+            emptyText: (
+              <Empty
+                description={status === 'PENDING' ? '当前没有待处理任务' : '当前筛选下暂无记录'}
+              />
+            ),
+          }}
+          scroll={{ x: 1020 }}
           pagination={{
-            current: page, pageSize: 20, total, showSizeChanger: false, onChange: setPage,
+            current: page,
+            pageSize: 20,
+            total,
+            showSizeChanger: false,
+            showTotal: (value) => `共 ${value} 项任务`,
+            onChange: setPage,
           }}
         />
       </Card>
@@ -117,6 +188,17 @@ export default function TodoListPage() {
   );
 }
 
+function TodoStatusTag({ status }: { status: string }) {
+  const config: Record<string, { color: string; label: string }> = {
+    PENDING: { color: 'processing', label: '待处理' },
+    APPROVED: { color: 'success', label: '已通过' },
+    REJECTED: { color: 'error', label: '已退回' },
+    CANCELLED: { color: 'default', label: '已取消' },
+  };
+  const item = config[status] || { color: 'default', label: status };
+  return <Tag color={item.color}>{item.label}</Tag>;
+}
+
 function formatTime(value?: string) {
-  return value ? new Date(value).toLocaleString() : '-';
+  return value ? dayjs(value).format('YYYY-MM-DD HH:mm') : '-';
 }

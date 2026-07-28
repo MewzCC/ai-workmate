@@ -35,7 +35,7 @@ export interface AccessRoute {
   icon?: string;
   routeType: 'GROUP' | 'MENU' | 'PAGE';
   componentKey?: 'DASHBOARD' | 'AI_WORKSPACE' | 'ACCESS_CONTROL'
-    | 'TODO_LIST' | 'LEAVE_FORM' | 'MY_APPLICATIONS' | 'AUDIT_CENTER';
+    | 'TODO_LIST' | 'LEAVE_FORM' | 'MY_APPLICATIONS' | 'AUDIT_CENTER' | 'ORG_TREE';
   permissionCode?: string;
   sortOrder: number;
   enabled: boolean;
@@ -136,6 +136,8 @@ export const accessControlApi = {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
+  deleteRole: (roleCode: string) =>
+    request<boolean>(`/roles/${encodeURIComponent(roleCode)}`, { method: 'DELETE' }),
   saveRoute: (payload: SaveRoutePayload) =>
     request<AccessRoute>(`/routes/${encodeURIComponent(payload.routeKey)}`, {
       method: 'PUT',

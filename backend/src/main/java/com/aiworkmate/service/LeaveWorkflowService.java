@@ -2,7 +2,9 @@ package com.aiworkmate.service;
 
 import com.aiworkmate.common.PageResponse;
 import com.aiworkmate.dto.ApprovalDecisionRequest;
+import com.aiworkmate.dto.ApproverCandidateResponse;
 import com.aiworkmate.dto.LeaveApplicationRequest;
+import com.aiworkmate.dto.LeaveApprovalContextResponse;
 import com.aiworkmate.dto.LeaveApplicationResponse;
 import com.aiworkmate.dto.TodoResponse;
 import com.aiworkmate.dto.VersionRequest;
@@ -12,6 +14,10 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 public interface LeaveWorkflowService {
+
+    LeaveApprovalContextResponse approvalContext(Long userId);
+
+    PageResponse<ApproverCandidateResponse> approverCandidates(Long userId, String keyword, int page, int size);
 
     LeaveApplicationResponse createDraft(Long userId, LeaveApplicationRequest request);
 

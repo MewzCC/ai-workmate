@@ -22,6 +22,7 @@ import LeaveFormPage from './LeaveFormPage';
 import MyApplicationsPage from './MyApplicationsPage';
 import ApprovalDetailPage from './ApprovalDetailPage';
 import AuditCenterPage from './AuditCenterPage';
+import OrganizationTreePage from './OrganizationTreePage';
 
 const { Content } = Layout;
 const OPEN_TABS_STORAGE_KEY = 'workmeta-oa-open-tabs';
@@ -473,6 +474,8 @@ export default function AdminLayout() {
                     <MyApplicationsPage />
                   ) : selectedMenu.componentKey === 'AUDIT_CENTER' ? (
                     <AuditCenterPage />
+                  ) : selectedMenu.componentKey === 'ORG_TREE' ? (
+                    <OrganizationTreePage />
                   ) : (
                     <Dashboard
                       role={role}
