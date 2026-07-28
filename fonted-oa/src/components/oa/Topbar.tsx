@@ -1,11 +1,12 @@
 'use client';
 
-import { Avatar, Button, Dropdown, Layout, Space, message, notification } from 'antd';
+import { Avatar, Button, Dropdown, Layout, Space, notification } from 'antd';
+import { message } from '@/lib/antdMessage';
 import type { MenuProps } from 'antd';
 import type { OaRole } from '@/types/oa';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { OaIcon } from '@/components/OaIcon';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/lib/nextCompat';
 import { useState } from 'react';
 import ProfileSettingsModal from '@/components/profile/ProfileSettingsModal';
 import HelpDrawer from './HelpDrawer';

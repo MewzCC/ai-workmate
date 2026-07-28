@@ -1,8 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { Button, Card, DatePicker, Empty, Select, Space, Table, Tag, Typography, message } from 'antd';
+import { useRouter } from '@/lib/nextCompat';
+import { Button, Card, DatePicker, Empty, Select, Space, Table, Tag, Typography } from 'antd';
+import { message } from '@/lib/antdMessage';
 import type { ColumnsType } from 'antd/es/table';
 import { formatOaApiError, todoApi, type TodoItem } from '@/lib/oaApi';
 import { leaveTypeLabel } from './MyApplicationsPage';
