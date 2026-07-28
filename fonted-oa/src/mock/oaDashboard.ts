@@ -23,7 +23,7 @@ export const approvalRecords: ApprovalRecord[] = [
 ];
 
 export const timelineSeed = [
-  { color: 'green', children: '08:55 SSO 与组织架构同步完成' },
-  { color: 'blue', children: '09:20 AI 预审发现 1 条合同资料缺失' },
-  { color: 'orange', children: '10:05 接口联调中心产生 3 条告警' },
+  { color: 'green', content: '08:55 SSO 与组织架构同步完成' },
+  { color: 'blue', content: '09:20 AI 预审发现 1 条合同资料缺失' },
+  { color: 'orange', content: '10:05 接口联调中心产生 3 条告警' },
 ];

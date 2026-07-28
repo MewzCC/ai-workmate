@@ -7,8 +7,8 @@ import {
   Card,
   Descriptions,
   Drawer,
+  Empty,
   Input,
-  List,
   Modal,
   Result,
   Space,
@@ -126,8 +126,8 @@ export default function AIOperationDrawer({
   };
 
   return (
-    <Drawer title="AI 操作面板" width={520} open={open} onClose={onClose}>
-      <Space direction="vertical" size={16} className="oa-drawer-stack">
+    <Drawer title="AI 操作面板" size="default" styles={{ wrapper: { width: 520 } }} open={open} onClose={onClose}>
+      <Space orientation="vertical" size={16} className="oa-drawer-stack">
         <Card size="small" title="当前上下文">
           <Descriptions
             size="small"
@@ -155,34 +155,35 @@ export default function AIOperationDrawer({
         </Card>
 
         {role === 'employee' && (
-          <Alert type="warning" showIcon message="普通员工角色下，审批、删除、权限修改、敏感导出等高风险 AI 操作会被拦截。" />
+          <Alert type="warning" showIcon title="普通员工角色下，审批、删除、权限修改、敏感导出等高风险 AI 操作会被拦截。" />
         )}
 
         {operationError && (
           <Alert
             type="error"
             showIcon
-            message="AI 能力调用失败"
+            title="AI 能力调用失败"
             description={operationError.message}
             action={operationError.retryable ? <Button size="small" onClick={() => submitPlan()}>重试</Button> : undefined}
           />
         )}
 
         <Card size="small" title="消息区">
-          <List
-            size="small"
-            dataSource={messages}
-            locale={{ emptyText: '输入任务后这里会显示用户消息与 AI 返回' }}
-            renderItem={(item) => (
-              <List.Item>
-                <List.Item.Meta
-                  avatar={<Tag color={item.role === 'user' ? 'geekblue' : 'purple'}>{item.role === 'user' ? '你' : 'AI'}</Tag>}
-                  title={item.role === 'user' ? '用户输入' : 'AI 返回'}
-                  description={item.content}
-                />
-              </List.Item>
-            )}
-          />
+          {messages.length === 0 ? (
+            <Empty description="输入任务后这里会显示用户消息与 AI 返回" />
+          ) : (
+            <ul className="oa-ai-message-list">
+              {messages.map((item, index) => (
+                <li key={index} className="oa-ai-message-item">
+                  <div className="oa-ai-message-meta">
+                    <Tag color={item.role === 'user' ? 'geekblue' : 'purple'}>{item.role === 'user' ? '你' : 'AI'}</Tag>
+                    <Typography.Text type="secondary">{item.role === 'user' ? '用户输入' : 'AI 返回'}</Typography.Text>
+                  </div>
+                  <Typography.Paragraph className="oa-ai-message-content">{item.content}</Typography.Paragraph>
+                </li>
+              ))}
+            </ul>
+          )}
         </Card>
 
         <Input.TextArea

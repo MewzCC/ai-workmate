@@ -34,7 +34,7 @@ interface DashboardProps {
   pageId: string;
   pageTitle: string;
   primaryColor: string;
-  auditItems: Array<{ color: string; children: string }>;
+  auditItems: Array<{ color: string; content: string }>;
   onOpenAi: (prompt?: string) => void;
   onAddAudit: (text: string) => void;
 }
@@ -165,7 +165,7 @@ export default function Dashboard({ role, pageId, pageTitle, primaryColor, audit
         {oaMetrics.map((metric) => (
           <Col xs={12} sm={12} md={6} key={metric.title}>
             <Card className="oa-card oa-stat-card">
-              <Statistic title={metric.title} value={metric.value} suffix={metric.suffix} valueStyle={{ color: primaryColor }} />
+              <Statistic title={metric.title} value={metric.value} suffix={metric.suffix} styles={{ content: { color: primaryColor } }} />
               <Tag color="blue">{metric.trend}</Tag>
             </Card>
           </Col>
@@ -225,7 +225,7 @@ export default function Dashboard({ role, pageId, pageTitle, primaryColor, audit
           <Card className="oa-card" title="AI 执行与审计时间线">
             <Timeline items={[...auditItems, ...timelineSeed]} />
             {!can(role, 'dashboard', 'ai_execute') && (
-              <Alert type="warning" showIcon message="当前角色 AI 执行能力受限，只允许查看和提交本人任务。" />
+              <Alert type="warning" showIcon title="当前角色 AI 执行能力受限，只允许查看和提交本人任务。" />
             )}
           </Card>
         </Col>

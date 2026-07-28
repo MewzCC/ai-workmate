@@ -1,7 +1,7 @@
 'use client';
 
 import { create } from 'zustand';
-import { message as antMessage } from 'antd';
+import { message as antMessage } from '@/lib/antdMessage';
 import {
   createConversation, deleteConversation, listConversations, listMessages,
   renameConversation, sendChat, streamChat, uploadAttachment,
