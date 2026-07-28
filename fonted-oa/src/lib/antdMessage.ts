@@ -18,7 +18,7 @@ type Args<T> = T extends (...a: infer A) => unknown ? A : never;
 function delegate<T extends keyof MessageInstance>(method: T) {
   return (...args: Args<MessageInstance[T]>) => {
     if (instance) {
-      (instance[method] as Function)(...args);
+      (instance[method] as (...a: unknown[]) => void)(...args);
     } else {
       // fallback: 实例未初始化时输出到控制台
       console.warn(`[message.${String(method)}] instance not ready`, args);
