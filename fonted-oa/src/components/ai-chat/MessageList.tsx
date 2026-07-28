@@ -1,6 +1,6 @@
 'use client';
 
-import { Button, Empty, Space, Typography } from 'antd';
+import { Button, Space, Typography } from 'antd';
 import { PictureOutlined, WarningOutlined } from '@ant-design/icons';
 import type { ChatMessage } from '@/types/chat';
 import MessageItem from './MessageItem';
