@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter } from '@/lib/nextCompat';
 import { Spin } from 'antd';
 import { useAuth } from './AuthProvider';
 
@@ -17,7 +17,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   }, [loading, pathname, router, user]);
 
   if (loading || !user) {
-    return <div className="auth-route-loading"><Spin size="large" tip="正在验证登录状态" /></div>;
+    return <div className="auth-route-loading"><Spin size="large" description="正在验证登录状态" /></div>;
   }
   return children;
 }

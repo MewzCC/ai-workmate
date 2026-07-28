@@ -1,7 +1,8 @@
 'use client';
 
 import { Fragment, useState } from 'react';
-import { Button, Card, Drawer, Empty, Image, Radio, Slider, Space, Spin, Switch, Tag, Typography, Upload, message } from 'antd';
+import { Button, Card, Drawer, Empty, Image, Radio, Slider, Space, Spin, Switch, Tag, Typography, Upload } from 'antd';
+import { message } from '@/lib/antdMessage';
 import type { UploadProps } from 'antd';
 import type { Area } from 'react-easy-crop';
 import type { OaTheme } from '@/types/oa';
@@ -75,12 +76,12 @@ export default function AppearanceDrawer(props: AppearanceDrawerProps) {
 
   return (
     <Fragment>
-      <Drawer title="外观设置" width={420} open={props.open} onClose={props.onClose}>
-        <Space direction="vertical" size={20} className="oa-drawer-stack">
+      <Drawer title="外观设置" size="default" styles={{ wrapper: { width: 420 } }} open={props.open} onClose={props.onClose}>
+        <Space orientation="vertical" size={20} className="oa-drawer-stack">
           <section>
             <Typography.Title level={5}>皮肤选择</Typography.Title>
             <Radio.Group value={props.currentTheme} onChange={(event) => props.onThemeChange(event.target.value)}>
-              <Space direction="vertical" className="oa-theme-list">
+              <Space orientation="vertical" className="oa-theme-list">
                 {props.themes.map((theme) => (
                   <Card key={theme.name} size="small" className="oa-theme-option">
                     <Radio value={theme.name}>
@@ -109,7 +110,7 @@ export default function AppearanceDrawer(props: AppearanceDrawerProps) {
               图片在浏览器中裁剪、压缩并保存，不会上传到服务器。
             </Typography.Paragraph>
             <div className="oa-wallpaper-preview" aria-live="polite">
-              <Spin spinning={processingWallpaper} tip="正在处理壁纸">
+              <Spin spinning={processingWallpaper} description="正在处理壁纸">
                 {props.wallpaper ? (
                   <Image src={props.wallpaper} alt="当前壁纸预览" width="100%" preview={{ mask: '查看大图' }} />
                 ) : (

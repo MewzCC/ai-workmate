@@ -25,7 +25,7 @@ export default function AiMiniPanel({ onOpenAi }: AiMiniPanelProps) {
         zIndex: 1050,
       }}
     >
-      <Space direction="vertical" size={8}>
+      <Space orientation="vertical" size={8}>
         <Tag color="purple">AI 快捷卡片</Tag>
         <strong>需要我接手当前流程吗？</strong>
         <Button type="primary" icon={<OaIcon name="ai" />} onClick={() => onOpenAi('帮我总结当前工作台的风险和下一步动作')}>

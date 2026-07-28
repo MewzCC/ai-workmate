@@ -191,7 +191,8 @@ export default function HelpDrawer({ open, role, onClose, onOpenAi }: HelpDrawer
     <Drawer
       title="帮助文档"
       placement="right"
-      width={680}
+      size="default"
+      styles={{ wrapper: { width: 680 } }}
       open={open}
       onClose={onClose}
       destroyOnHidden
