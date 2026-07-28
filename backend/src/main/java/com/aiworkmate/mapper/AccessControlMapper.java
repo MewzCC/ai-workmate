@@ -404,6 +404,30 @@ public interface AccessControlMapper {
             """)
     int countActiveUser(@Param("tenantId") Long tenantId, @Param("id") Long id);
 
+    @Select("""
+            SELECT COUNT(*) FROM app_user
+            WHERE tenant_id = #{tenantId} AND department_id = #{departmentId}
+            """)
+    int countUsersInDepartment(@Param("tenantId") Long tenantId, @Param("departmentId") Long departmentId);
+
+    @Select("""
+            SELECT COUNT(*) FROM app_user
+            WHERE tenant_id = #{tenantId} AND position_id = #{positionId}
+            """)
+    int countUsersInPosition(@Param("tenantId") Long tenantId, @Param("positionId") Long positionId);
+
+    @Select("""
+            SELECT COUNT(*) FROM department
+            WHERE tenant_id = #{tenantId} AND parent_id = #{parentId}
+            """)
+    int countChildDepartments(@Param("tenantId") Long tenantId, @Param("parentId") Long parentId);
+
+    @Delete("DELETE FROM department WHERE tenant_id = #{tenantId} AND id = #{id}")
+    int deleteDepartment(@Param("tenantId") Long tenantId, @Param("id") Long id);
+
+    @Delete("DELETE FROM position WHERE tenant_id = #{tenantId} AND id = #{id}")
+    int deletePosition(@Param("tenantId") Long tenantId, @Param("id") Long id);
+
     @Insert("""
             INSERT INTO department(tenant_id, code, name, parent_id, default_approver_user_id)
             VALUES(#{tenantId}, #{code}, #{name}, #{parentId}, #{defaultApproverUserId})

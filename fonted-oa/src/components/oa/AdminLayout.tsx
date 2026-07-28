@@ -23,6 +23,7 @@ import LeaveFormPage from './LeaveFormPage';
 import MyApplicationsPage from './MyApplicationsPage';
 import ApprovalDetailPage from './ApprovalDetailPage';
 import AuditCenterPage from './AuditCenterPage';
+import OrganizationTreePage from './OrganizationTreePage';
 
 const { Content } = Layout;
 const OPEN_TABS_STORAGE_KEY = 'workmeta-oa-open-tabs';
@@ -356,6 +357,18 @@ export default function AdminLayout() {
     if (currentPageId !== pinnedTab.id) navigateToPage(pinnedTab);
   };
 
+  const reorderTabs = (sourceId: string, targetId: string) => {
+    setOpenTabs((current) => {
+      const sourceIndex = current.findIndex((t) => t.id === sourceId);
+      const targetIndex = current.findIndex((t) => t.id === targetId);
+      if (sourceIndex === -1 || targetIndex === -1) return current;
+      const next = [...current];
+      const [moved] = next.splice(sourceIndex, 1);
+      next.splice(targetIndex, 0, moved);
+      return next;
+    });
+  };
+
   return (
     <ConfigProvider
       theme={{
@@ -441,6 +454,7 @@ export default function AdminLayout() {
                     onCloseOthers={closeOtherTabs}
                     onCloseAll={closeAllTabs}
                     onRefresh={() => router.refresh()}
+                    onReorder={reorderTabs}
                   />
                 ) : null}
               </div>
@@ -460,6 +474,8 @@ export default function AdminLayout() {
                     <MyApplicationsPage />
                   ) : selectedMenu.componentKey === 'AUDIT_CENTER' ? (
                     <AuditCenterPage />
+                  ) : selectedMenu.componentKey === 'ORG_TREE' ? (
+                    <OrganizationTreePage />
                   ) : (
                     <Dashboard
                       role={role}
