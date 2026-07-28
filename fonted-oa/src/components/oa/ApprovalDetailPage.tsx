@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/lib/nextCompat';
 import {
   Alert,
   Avatar,
@@ -17,8 +17,8 @@ import {
   Tag,
   Timeline,
   Typography,
-  message,
 } from 'antd';
+import { message } from '@/lib/antdMessage';
 import dayjs from 'dayjs';
 import {
   formatOaApiError,

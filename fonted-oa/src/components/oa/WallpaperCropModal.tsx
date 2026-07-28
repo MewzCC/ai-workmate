@@ -54,7 +54,7 @@ export default function WallpaperCropModal({
       width={880}
       open={open}
       destroyOnHidden
-      maskClosable={!confirming}
+      mask={{ closable: !confirming }}
       closable={!confirming}
       onCancel={onCancel}
       footer={[

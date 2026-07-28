@@ -33,10 +33,10 @@ export default function SettingsDialog({ open, settings, onClose, onSave, onClea
         <Form.Item name="stream" label="流式输出" valuePropName="checked">
           <Switch />
         </Form.Item>
-        <Alert type="info" showIcon message="接口地址由服务端 AI_BASE_URL 管理，避免凭据和内部网关信息暴露。" />
+        <Alert type="info" showIcon title="接口地址由服务端 AI_BASE_URL 管理，避免凭据和内部网关信息暴露。" />
       </Form>
       <div className="ai-settings-danger">
-        <Space direction="vertical">
+        <Space orientation="vertical">
           <Typography.Text strong>数据管理</Typography.Text>
           <Button danger onClick={() => Modal.confirm({
             title: '清空全部聊天记录？',

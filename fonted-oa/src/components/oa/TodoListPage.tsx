@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/lib/nextCompat';
 import {
   Button,
   Card,
@@ -12,8 +12,8 @@ import {
   Table,
   Tag,
   Typography,
-  message,
 } from 'antd';
+import { message } from '@/lib/antdMessage';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import { formatOaApiError, todoApi, type TodoItem } from '@/lib/oaApi';

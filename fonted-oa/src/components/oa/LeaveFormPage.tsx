@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from '@/lib/nextCompat';
 import {
   Alert,
   Button,
@@ -14,8 +14,8 @@ import {
   Space,
   Spin,
   Typography,
-  message,
 } from 'antd';
+import { message } from '@/lib/antdMessage';
 import type { Dayjs } from 'dayjs';
 import dayjs from 'dayjs';
 import {

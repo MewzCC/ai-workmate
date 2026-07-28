@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Button, Card, DatePicker, Empty, Input, Select, Space, Table, Tag, Typography, message } from 'antd';
+import { Button, Card, DatePicker, Empty, Input, Select, Table, Tag, Typography } from 'antd';
+import { message } from '@/lib/antdMessage';
 import type { ColumnsType } from 'antd/es/table';
 import { auditApi, formatOaApiError, type AuditRecord } from '@/lib/oaApi';
 import { OaIcon } from '@/components/OaIcon';
