@@ -1,6 +1,6 @@
 'use client';
 
-import { Avatar, Button, Dropdown, Layout, Space, notification } from 'antd';
+import { Avatar, Button, Dropdown, Layout, Space } from 'antd';
 import { message } from '@/lib/antdMessage';
 import type { MenuProps } from 'antd';
 import type { OaRole } from '@/types/oa';
@@ -32,9 +32,34 @@ export default function Topbar({ role, pageTitle, onOpenAppearance, onOpenAi }: 
   };
 
   const handleHelp = () => setHelpOpen(true);
-  const handleNotify = () => notification.info({ message: '通知中心', description: '你有 3 条审批提醒、1 条接口告警待处理。' });
   const handleNewFlow = () => onOpenAi('帮我新建一个跨部门采购申请，并检查审批链是否完整');
   const handleExport = () => message.warning('真实导出能力尚未接入');
+
+  // 通知中心下拉内容
+  const notifyContent = (
+    <div className="oa-notify-panel">
+      <div className="oa-notify-panel-head">
+        <span className="oa-notify-panel-title">通知中心</span>
+        <span className="oa-notify-panel-badge">4 条未读</span>
+      </div>
+      <ul className="oa-notify-panel-list">
+        <li className="oa-notify-item">
+          <span className="oa-notify-dot oa-notify-dot--approval" />
+          <div className="oa-notify-item-body">
+            <div className="oa-notify-item-title">审批提醒</div>
+            <div className="oa-notify-item-desc">你有 3 条审批待处理</div>
+          </div>
+        </li>
+        <li className="oa-notify-item">
+          <span className="oa-notify-dot oa-notify-dot--alert" />
+          <div className="oa-notify-item-body">
+            <div className="oa-notify-item-title">接口告警</div>
+            <div className="oa-notify-item-desc">1 条接口告警待处理</div>
+          </div>
+        </li>
+      </ul>
+    </div>
+  );
 
   const avatarMenuItems: MenuProps['items'] = [
     { key: 'profile', icon: <OaIcon name="avatar" />, label: '个人资料' },
@@ -64,7 +89,7 @@ export default function Topbar({ role, pageTitle, onOpenAppearance, onOpenAi }: 
 
   const onMoreMenuClick: MenuProps['onClick'] = ({ key }) => {
     if (key === 'newFlow') handleNewFlow();
-    else if (key === 'notify') handleNotify();
+    else if (key === 'notify') message.info('你有 3 条审批提醒、1 条接口告警待处理。');
     else if (key === 'export') handleExport();
     else if (key === 'help') handleHelp();
     else if (key === 'profile') setProfileOpen(true);
@@ -83,9 +108,6 @@ export default function Topbar({ role, pageTitle, onOpenAppearance, onOpenAi }: 
           <Button icon={<OaIcon name="help" />} onClick={handleHelp}>
             帮助文档
           </Button>
-          <Button icon={<OaIcon name="notification" />} onClick={handleNotify}>
-            通知
-          </Button>
           <Button type="primary" icon={<OaIcon name="add" />} onClick={handleNewFlow}>
             新建流程
           </Button>
@@ -103,6 +125,19 @@ export default function Topbar({ role, pageTitle, onOpenAppearance, onOpenAi }: 
         >
           <Button type="text" className="oa-header-more-btn" aria-label="更多操作">
             <OaIcon name="more" />
+          </Button>
+        </Dropdown>
+
+        {/* 桌面端通知（hover 下拉） */}
+        <Dropdown
+          dropdownRender={() => notifyContent}
+          trigger={['hover']}
+          placement="bottomRight"
+          className="oa-header-notify-desktop"
+        >
+          <Button type="text" className="oa-notify-trigger" aria-label="通知">
+            <OaIcon name="notification" />
+            <span className="oa-notify-badge">4</span>
           </Button>
         </Dropdown>
 
