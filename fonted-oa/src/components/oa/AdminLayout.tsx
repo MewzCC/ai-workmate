@@ -228,7 +228,6 @@ export default function AdminLayout() {
         if (!active) return;
         setWallpaper(migrated.wallpaperUrl);
         window.localStorage.removeItem('workmeta-oa-wallpaper');
-        message.success('本地壁纸已迁移到 MinIO');
       } catch (error) {
         if (!active) return;
         setWallpaper(null);

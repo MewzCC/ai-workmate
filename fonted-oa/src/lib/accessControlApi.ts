@@ -138,6 +138,11 @@ export const accessControlApi = {
       method: 'PUT',
       body: JSON.stringify({ permissionCodes }),
     }),
+  updateRoleMembers: (roleCode: string, userIds: number[]) =>
+    request<AccessControlOverview>(`/roles/${encodeURIComponent(roleCode)}/members`, {
+      method: 'PUT',
+      body: JSON.stringify({ userIds }),
+    }),
   createRole: (payload: { code: string; name: string; description: string }) =>
     request<AccessRole>('/roles', {
       method: 'POST',
