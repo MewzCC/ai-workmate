@@ -9,6 +9,8 @@ import org.springframework.stereotype.Component;
 @ConfigurationProperties(prefix = "app.profile")
 public class ProfileProperties {
 
-    private String avatarDirectory = "./data/user-avatars";
     private long avatarMaxBytes = 2 * 1024 * 1024;
+
+    /** 头像在对象存储中的 key 前缀 */
+    private String avatarStoragePrefix = "user-avatars/";
 }
