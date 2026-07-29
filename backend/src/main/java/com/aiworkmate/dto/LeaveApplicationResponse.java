@@ -2,6 +2,7 @@ package com.aiworkmate.dto;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
 public record LeaveApplicationResponse(
         Long id,
@@ -21,6 +22,12 @@ public record LeaveApplicationResponse(
         int version,
         Long taskId,
         Integer taskVersion,
+        String taskStatus,
+        LocalDateTime taskDueAt,
+        boolean overdue,
+        String workflowStatus,
+        String currentStage,
+        List<WorkflowStageResponse> workflowStages,
         LocalDateTime submittedAt,
         LocalDateTime completedAt,
         LocalDateTime createdAt,
