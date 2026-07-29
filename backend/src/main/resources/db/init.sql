@@ -850,4 +850,48 @@ SELECT 'SUPER_ADMIN', code, tenant_id
 FROM rbac_permission
 ON CONFLICT DO NOTHING;
 
+-- ============================================
+-- Phase 1: 组织架构
+-- ============================================
+INSERT INTO rbac_permission(code, name, module, description, tenant_id) VALUES
+    ('org:read', '查看组织架构', '组织人事', '查看部门、岗位、成员和汇报关系',
+        (SELECT id FROM tenant WHERE code = 'DEFAULT')),
+    ('org:manage', '管理组织架构', '组织人事', '维护部门、岗位、成员归属和审批关系',
+        (SELECT id FROM tenant WHERE code = 'DEFAULT'))
+ON CONFLICT (code) DO UPDATE SET
+    name = EXCLUDED.name,
+    module = EXCLUDED.module,
+    description = EXCLUDED.description,
+    tenant_id = EXCLUDED.tenant_id;
+
+UPDATE rbac_route
+SET component_key = 'ORG_TREE',
+    permission_code = 'route:org-tree',
+    updated_at = CURRENT_TIMESTAMP
+WHERE route_key = 'org-tree';
+
+INSERT INTO rbac_role_permission(role_code, permission_code, tenant_id)
+SELECT role_code, permission_code, t.id
+FROM tenant t
+CROSS JOIN (
+    VALUES
+        ('EMPLOYEE', 'org:read'),
+        ('EMPLOYEE', 'route:org-tree'),
+        ('PROCESS_ADMIN', 'org:read'),
+        ('PROCESS_ADMIN', 'route:org-tree'),
+        ('FINANCE_ADMIN', 'org:read'),
+        ('FINANCE_ADMIN', 'route:org-tree'),
+        ('SYSTEM_ADMIN', 'org:read'),
+        ('SYSTEM_ADMIN', 'org:manage'),
+        ('SYSTEM_ADMIN', 'route:org-tree')
+) AS defaults(role_code, permission_code)
+WHERE t.code = 'DEFAULT'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO rbac_role_permission(role_code, permission_code, tenant_id)
+SELECT 'SUPER_ADMIN', code, tenant_id
+FROM rbac_permission
+WHERE code IN ('org:read', 'org:manage', 'route:org-tree')
+ON CONFLICT DO NOTHING;
+
 COMMIT;

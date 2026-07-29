@@ -9,6 +9,7 @@ import com.aiworkmate.service.AuditQueryService;
 import com.aiworkmate.service.LeaveWorkflowService;
 import com.aiworkmate.service.UserAccessService;
 import com.aiworkmate.service.model.ResolvedUserAccess;
+import com.aiworkmate.dto.LeaveApprovalContextResponse;
 import com.aiworkmate.util.JwtUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -100,13 +101,32 @@ class PhaseOneApiSecurityTest {
         verifyNoInteractions(auditQueryService);
     }
 
+    @Test
+    void shouldResolveApprovalContextFromAuthenticatedUser() throws Exception {
+        when(leaveWorkflowService.approvalContext(1001L))
+                .thenReturn(new LeaveApprovalContextResponse(
+                        "测试员工", "研发中心", "研发工程师",
+                        2001L, "直属主管", "DIRECT_OR_DEPARTMENT_DEFAULT",
+                        true, 48));
+
+        mockMvc.perform(get("/api/leave-applications/approval-context")
+                        .header("Authorization", "Bearer " + TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.applicantName").value("测试员工"))
+                .andExpect(jsonPath("$.data.approverName").value("直属主管"))
+                .andExpect(jsonPath("$.data.approvalDueHours").value(48));
+
+        verify(leaveWorkflowService).approvalContext(1001L);
+    }
+
     private String validLeaveBody() {
         return """
                 {
                   "leaveType": "PERSONAL",
-                  "startDate": "2026-07-27",
+                  "approverUserId": 2002,
+                  "startDate": "2026-07-28",
                   "startPeriod": "AM",
-                  "endDate": "2026-07-27",
+                  "endDate": "2026-07-28",
                   "endPeriod": "PM",
                   "reason": "家庭事务"
                 }
