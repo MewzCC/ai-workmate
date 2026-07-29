@@ -3,10 +3,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
+  Avatar,
   Badge,
   Button,
+  Card,
   Checkbox,
   Divider,
+  Drawer,
   Empty,
   Form,
   Input,
@@ -50,7 +53,10 @@ export default function AccessControlPage() {
   const [loading, setLoading] = useState(true);
   const [selectedRoleCode, setSelectedRoleCode] = useState('');
   const [selectedPermissions, setSelectedPermissions] = useState<string[]>([]);
+  const [selectedMemberIds, setSelectedMemberIds] = useState<number[]>([]);
+  const [roleWorkspaceMode, setRoleWorkspaceMode] = useState<'members' | 'permissions'>();
   const [savingPermissions, setSavingPermissions] = useState(false);
+  const [savingMembers, setSavingMembers] = useState(false);
   const [roleModalOpen, setRoleModalOpen] = useState(false);
   const [routeModalOpen, setRouteModalOpen] = useState(false);
   const [organizationModal, setOrganizationModal] = useState<'department' | 'position'>();
@@ -95,9 +101,27 @@ export default function AccessControlPage() {
     [overview?.permissions],
   );
 
-  const chooseRole = (role: AccessRole) => {
+  const openRoleWorkspace = (role: AccessRole, mode: 'members' | 'permissions') => {
     setSelectedRoleCode(role.code);
     setSelectedPermissions(role.permissions);
+    setSelectedMemberIds(
+      (overview?.users || [])
+        .filter((user) => user.roles.includes(role.code))
+        .map((user) => user.id),
+    );
+    setRoleWorkspaceMode(mode);
+  };
+
+  const changeSelectedMembers = (nextIds: number[]) => {
+    const removedIds = selectedMemberIds.filter((userId) => !nextIds.includes(userId));
+    const orphanedUser = (overview?.users || []).find(
+      (user) => removedIds.includes(user.id) && user.roles.length <= 1,
+    );
+    if (orphanedUser) {
+      message.warning(`${orphanedUser.name}仅有当前角色，不能移除`);
+      return;
+    }
+    setSelectedMemberIds(nextIds);
   };
 
   const savePermissions = async () => {
@@ -114,6 +138,23 @@ export default function AccessControlPage() {
       message.error(error instanceof Error ? error.message : '角色权限保存失败');
     } finally {
       setSavingPermissions(false);
+    }
+  };
+
+  const saveMembers = async () => {
+    if (!selectedRole) return;
+    setSavingMembers(true);
+    try {
+      const updatedOverview = await accessControlApi.updateRoleMembers(
+        selectedRole.code,
+        selectedMemberIds,
+      );
+      setOverview(updatedOverview);
+      message.success('角色成员已更新');
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '角色成员保存失败');
+    } finally {
+      setSavingMembers(false);
     }
   };
 
@@ -446,30 +487,74 @@ export default function AccessControlPage() {
         <div>
           <Typography.Title level={3}>角色、权限与动态路由</Typography.Title>
           <Typography.Paragraph type="secondary">
-            权限由服务端实时解析。角色变更无需重新登录，菜单和直接 URL 访问都会同步受控。
+            从角色出发维护成员与权限，变更由服务端实时生效并同步控制菜单和直接 URL。
           </Typography.Paragraph>
         </div>
-        <Tag className="oa-access-service-tag" icon={<OaIcon name="access-control" />} variant="filled">
-          服务端 RBAC
-        </Tag>
+        <Space>
+          <Tag className="oa-access-service-tag" icon={<OaIcon name="access-control" />} variant="filled">
+            服务端 RBAC
+          </Tag>
+          <Button type="primary" icon={<OaIcon name="add" />} onClick={() => setRoleModalOpen(true)}>
+            新建角色
+          </Button>
+        </Space>
       </header>
 
       <Spin spinning={loading}>
         {!overview ? <Empty description="暂无权限配置数据" /> : (
-          <Tabs items={[
+          <Tabs defaultActiveKey="roles" items={[
             {
-              key: 'users',
-              label: <span><OaIcon name="user" /> 用户角色</span>,
+              key: 'roles',
+              label: <span><OaIcon name="role" /> 角色工作台</span>,
               children: (
-                <Table
-                  className="oa-access-table"
-                  rowKey="id"
-                  columns={userColumns}
-                  dataSource={overview.users}
-                  size="middle"
-                  pagination={{ pageSize: 10, hideOnSinglePage: true, showSizeChanger: false }}
-                  scroll={{ x: 1100 }}
-                />
+                <div className="oa-role-card-grid">
+                  {roles.map((role) => {
+                    const members = overview.users.filter((user) => user.roles.includes(role.code));
+                    return (
+                      <Card className="oa-role-card" key={role.code}>
+                        <div className="oa-role-card-heading">
+                          <div className="oa-role-card-icon"><OaIcon name="role" /></div>
+                          <div className="oa-role-card-title">
+                            <Space size={8} wrap>
+                              <Typography.Title level={5}>{role.name}</Typography.Title>
+                              {role.builtin && <Tag variant="filled">内置</Tag>}
+                            </Space>
+                            <Typography.Text className="oa-access-code">{role.code}</Typography.Text>
+                          </div>
+                        </div>
+                        <Typography.Paragraph className="oa-role-card-description" type="secondary">
+                          {role.description}
+                        </Typography.Paragraph>
+                        <div className="oa-role-card-summary">
+                          <div><strong>{members.length}</strong><span>位成员</span></div>
+                          <div><strong>{role.permissions.length}</strong><span>项权限</span></div>
+                        </div>
+                        <div className="oa-role-member-preview">
+                          <Avatar.Group max={{ count: 4 }}>
+                            {members.map((user) => (
+                              <Tooltip key={user.id} title={`${user.name} · ${user.email}`}>
+                                <Avatar>{user.name.slice(0, 1).toUpperCase()}</Avatar>
+                              </Tooltip>
+                            ))}
+                          </Avatar.Group>
+                          <Typography.Text type="secondary">
+                            {members.length ? `已关联 ${members.length} 位用户` : '暂未分配成员'}
+                          </Typography.Text>
+                        </div>
+                        <div className="oa-role-card-actions">
+                          <Button icon={<OaIcon name="user" />}
+                            onClick={() => openRoleWorkspace(role, 'members')}>
+                            管理成员
+                          </Button>
+                          <Button type="primary" ghost icon={<OaIcon name="access-control" />}
+                            onClick={() => openRoleWorkspace(role, 'permissions')}>
+                            配置权限
+                          </Button>
+                        </div>
+                      </Card>
+                    );
+                  })}
+                </div>
               ),
             },
             {
@@ -564,66 +649,23 @@ export default function AccessControlPage() {
               ),
             },
             {
-              key: 'roles',
-              label: <span><OaIcon name="role" /> 角色权限</span>,
+              key: 'users',
+              label: <span><OaIcon name="user" /> 用户批量配置</span>,
               children: (
                 <>
                   <div className="oa-access-toolbar">
-                    <Button type="primary" icon={<OaIcon name="add" />} onClick={() => setRoleModalOpen(true)}>
-                      新建角色
-                    </Button>
+                    <Alert type="info" showIcon
+                      title="集中维护用户角色、部门、岗位和直属审批人；每位用户必须至少保留一个角色。" />
                   </div>
-                  <div className="oa-role-permission-layout">
-                    <nav className="oa-role-list" aria-label="角色列表">
-                      {roles.map((role) => (
-                        <Button key={role.code} type={role.code === selectedRoleCode ? 'primary' : 'text'}
-                          block onClick={() => chooseRole(role)}>
-                          {role.name}
-                        </Button>
-                      ))}
-                    </nav>
-                    <div className="oa-role-permission-editor">
-                      {selectedRole ? (
-                        <>
-                          <div className="oa-role-permission-heading">
-                            <div>
-                              <Typography.Title level={5}>{selectedRole.name}</Typography.Title>
-                              <Typography.Text type="secondary">{selectedRole.description}</Typography.Text>
-                            </div>
-                            <Typography.Text code>{selectedRole.code}</Typography.Text>
-                          </div>
-                          {selectedRole.code === 'SUPER_ADMIN' && (
-                            <Alert type="info" showIcon title="超级管理员始终拥有全部权限" />
-                          )}
-                          <Checkbox.Group value={selectedPermissions}
-                            disabled={selectedRole.code === 'SUPER_ADMIN'}
-                            onChange={(values) => setSelectedPermissions(values as string[])}>
-                            {Array.from(groupedPermissions.entries()).map(([module, items]) => (
-                              <section className="oa-permission-group" key={module}>
-                                <Divider titlePlacement="left">{module}</Divider>
-                                <div className="oa-permission-grid">
-                                  {items.map((permission) => (
-                                    <Checkbox key={permission.code} value={permission.code}>
-                                      <span className="oa-permission-label">
-                                        <strong>{permission.name}</strong>
-                                        <small>{permission.description}</small>
-                                      </span>
-                                    </Checkbox>
-                                  ))}
-                                </div>
-                              </section>
-                            ))}
-                          </Checkbox.Group>
-                          {selectedRole.code !== 'SUPER_ADMIN' && (
-                            <Button type="primary" icon={<OaIcon name="save" />} loading={savingPermissions}
-                              onClick={() => void savePermissions()}>
-                              保存角色权限
-                            </Button>
-                          )}
-                        </>
-                      ) : <Empty description="请选择角色" />}
-                    </div>
-                  </div>
+                  <Table
+                    className="oa-access-table"
+                    rowKey="id"
+                    columns={userColumns}
+                    dataSource={overview.users}
+                    size="middle"
+                    pagination={{ pageSize: 10, hideOnSinglePage: true, showSizeChanger: false }}
+                    scroll={{ x: 1100 }}
+                  />
                 </>
               ),
             },
@@ -654,6 +696,122 @@ export default function AccessControlPage() {
           ]} />
         )}
       </Spin>
+
+      <Drawer
+        className="oa-role-workspace-drawer"
+        title={selectedRole ? (
+          <div>
+            <Typography.Text strong>{selectedRole.name}</Typography.Text>
+            <Typography.Text className="oa-access-code"> · {selectedRole.code}</Typography.Text>
+          </div>
+        ) : '角色工作区'}
+        open={Boolean(roleWorkspaceMode)}
+        size={640}
+        onClose={() => setRoleWorkspaceMode(undefined)}
+        extra={roleWorkspaceMode && (
+          <Tag variant="filled">{roleWorkspaceMode === 'members' ? '成员管理' : '权限配置'}</Tag>
+        )}
+        footer={selectedRole && (
+          <div className="oa-role-workspace-footer">
+            <Button onClick={() => setRoleWorkspaceMode(undefined)}>取消</Button>
+            {roleWorkspaceMode === 'members' ? (
+              <Button type="primary" icon={<OaIcon name="save" />} loading={savingMembers}
+                onClick={() => void saveMembers()}>
+                保存成员
+              </Button>
+            ) : selectedRole.code !== 'SUPER_ADMIN' && (
+              <Button type="primary" icon={<OaIcon name="save" />} loading={savingPermissions}
+                onClick={() => void savePermissions()}>
+                保存权限
+              </Button>
+            )}
+          </div>
+        )}
+      >
+        {selectedRole && roleWorkspaceMode === 'members' && (
+          <div className="oa-role-workspace">
+            <Alert
+              type="info"
+              showIcon
+              title="可按姓名或邮箱搜索并选择多人。停用成员可从角色移除，但不能重新加入。"
+            />
+            <div className="oa-role-workspace-summary">
+              <span>当前已选</span>
+              <strong>{selectedMemberIds.length}</strong>
+              <span>位成员</span>
+            </div>
+            <Form layout="vertical">
+              <Form.Item label="角色成员">
+                <Select
+                  mode="multiple"
+                  showSearch
+                  allowClear
+                  optionFilterProp="label"
+                  value={selectedMemberIds}
+                  maxTagCount="responsive"
+                  placeholder="输入姓名或邮箱搜索"
+                  onChange={changeSelectedMembers}
+                  options={overview?.users
+                    .filter((user) => user.status === 1 || selectedMemberIds.includes(user.id))
+                    .map((user) => ({
+                      value: user.id,
+                      label: `${user.name} · ${user.email}${user.status === 1 ? '' : ' · 已停用'}`,
+                    }))}
+                />
+              </Form.Item>
+            </Form>
+            <div className="oa-role-member-list">
+              {(overview?.users || [])
+                .filter((user) => selectedMemberIds.includes(user.id))
+                .map((user) => (
+                  <div className="oa-role-member-row" key={user.id}>
+                    <Avatar>{user.name.slice(0, 1).toUpperCase()}</Avatar>
+                    <div>
+                      <Typography.Text strong>{user.name}</Typography.Text>
+                      <Typography.Text type="secondary">{user.email}</Typography.Text>
+                    </div>
+                    <Badge status={user.status === 1 ? 'success' : 'default'}
+                      text={user.status === 1 ? '正常' : '停用'} />
+                  </div>
+                ))}
+            </div>
+          </div>
+        )}
+
+        {selectedRole && roleWorkspaceMode === 'permissions' && (
+          <div className="oa-role-workspace">
+            {selectedRole.code === 'SUPER_ADMIN' && (
+              <Alert type="info" showIcon title="超级管理员始终拥有全部权限，无需手动配置。" />
+            )}
+            <div className="oa-role-workspace-summary">
+              <span>当前已选</span>
+              <strong>{selectedPermissions.length}</strong>
+              <span>项权限</span>
+            </div>
+            <Checkbox.Group
+              value={selectedPermissions}
+              disabled={selectedRole.code === 'SUPER_ADMIN'}
+              onChange={(values) => setSelectedPermissions(values as string[])}
+            >
+              {Array.from(groupedPermissions.entries()).map(([module, items]) => (
+                <section className="oa-permission-group" key={module}>
+                  <Divider titlePlacement="left">{module}</Divider>
+                  <div className="oa-permission-grid">
+                    {items.map((permission) => (
+                      <Checkbox key={permission.code} value={permission.code}>
+                        <span className="oa-permission-label">
+                          <strong>{permission.name}</strong>
+                          <small>{permission.description}</small>
+                        </span>
+                      </Checkbox>
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </Checkbox.Group>
+          </div>
+        )}
+      </Drawer>
 
       <Modal title="新建角色" open={roleModalOpen} onCancel={() => setRoleModalOpen(false)}
         onOk={() => void createRole()} okText="创建">

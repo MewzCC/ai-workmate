@@ -36,6 +36,9 @@ public interface AccessControlService {
 
     AccessRoleResponse updateRolePermissions(Long operatorUserId, String roleCode, Set<String> permissionCodes);
 
+    AccessControlOverviewResponse updateRoleMembers(Long operatorUserId, Long tenantId,
+                                                    String roleCode, Set<Long> userIds);
+
     AccessRoleResponse createRole(Long operatorUserId, String code, String name, String description);
 
     AccessRouteResponse saveRoute(Long operatorUserId, SaveRouteRequest request);

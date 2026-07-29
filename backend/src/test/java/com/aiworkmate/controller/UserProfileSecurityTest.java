@@ -4,6 +4,7 @@ import com.aiworkmate.common.GlobalExceptionHandler;
 import com.aiworkmate.config.RequestTraceFilter;
 import com.aiworkmate.config.SecurityConfig;
 import com.aiworkmate.dto.AuthUserResponse;
+import com.aiworkmate.dto.WallpaperResponse;
 import com.aiworkmate.security.JwtAuthenticationFilter;
 import com.aiworkmate.security.JwtValidationStatus;
 import com.aiworkmate.service.UserProfileService;
@@ -24,6 +25,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -77,5 +79,27 @@ class UserProfileSecurityTest {
                 .andExpect(jsonPath("$.data.name").value("Alice Chen"));
 
         verify(userProfileService).update(org.mockito.ArgumentMatchers.eq(1001L), any());
+    }
+
+    @Test
+    void shouldRejectAnonymousWallpaperRead() throws Exception {
+        mockMvc.perform(get("/api/profile/wallpaper"))
+                .andExpect(status().isUnauthorized());
+
+        verifyNoInteractions(userProfileService);
+    }
+
+    @Test
+    void shouldUseAuthenticatedUserIdForWallpaperRead() throws Exception {
+        when(userProfileService.getWallpaper(1001L))
+                .thenReturn(new WallpaperResponse("/api/profile/wallpaper/content?v=1"));
+
+        mockMvc.perform(get("/api/profile/wallpaper")
+                        .header("Authorization", "Bearer " + TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.wallpaperUrl")
+                        .value("/api/profile/wallpaper/content?v=1"));
+
+        verify(userProfileService).getWallpaper(1001L);
     }
 }

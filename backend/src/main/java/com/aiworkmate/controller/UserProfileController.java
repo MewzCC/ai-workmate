@@ -3,6 +3,7 @@ package com.aiworkmate.controller;
 import com.aiworkmate.common.Result;
 import com.aiworkmate.dto.AuthUserResponse;
 import com.aiworkmate.dto.UpdateProfileRequest;
+import com.aiworkmate.dto.WallpaperResponse;
 import com.aiworkmate.security.AuthenticatedUser;
 import com.aiworkmate.service.UserProfileService;
 import com.aiworkmate.service.model.AvatarContent;
@@ -50,6 +51,35 @@ public class UserProfileController {
     public ResponseEntity<org.springframework.core.io.Resource> avatar(
             @AuthenticationPrincipal AuthenticatedUser user) {
         AvatarContent content = userProfileService.loadAvatar(user.userId());
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noCache())
+                .contentType(MediaType.parseMediaType(content.mimeType()))
+                .body(content.resource());
+    }
+
+    @GetMapping("/wallpaper")
+    public Result<WallpaperResponse> wallpaperMetadata(
+            @AuthenticationPrincipal AuthenticatedUser user) {
+        return Result.ok(userProfileService.getWallpaper(user.userId()));
+    }
+
+    @PostMapping(value = "/wallpaper", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public Result<WallpaperResponse> uploadWallpaper(
+            @RequestPart("file") MultipartFile file,
+            @AuthenticationPrincipal AuthenticatedUser user) {
+        return Result.ok(userProfileService.uploadWallpaper(user.userId(), file));
+    }
+
+    @DeleteMapping("/wallpaper")
+    public Result<WallpaperResponse> deleteWallpaper(
+            @AuthenticationPrincipal AuthenticatedUser user) {
+        return Result.ok(userProfileService.deleteWallpaper(user.userId()));
+    }
+
+    @GetMapping("/wallpaper/content")
+    public ResponseEntity<org.springframework.core.io.Resource> wallpaperContent(
+            @AuthenticationPrincipal AuthenticatedUser user) {
+        AvatarContent content = userProfileService.loadWallpaper(user.userId());
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.noCache())
                 .contentType(MediaType.parseMediaType(content.mimeType()))
