@@ -29,6 +29,7 @@ interface AIOperationDrawerProps {
   pageTitle: string;
   initialPrompt?: string;
   onClose: () => void;
+  onOpenChangeComplete?: (open: boolean) => void;
   onExecuted: (text: string) => void;
 }
 
@@ -44,6 +45,7 @@ export default function AIOperationDrawer({
   pageTitle,
   initialPrompt,
   onClose,
+  onOpenChangeComplete,
   onExecuted,
 }: AIOperationDrawerProps) {
   const [input, setInput] = useState('');
@@ -126,7 +128,37 @@ export default function AIOperationDrawer({
   };
 
   return (
-    <Drawer title="AI 操作面板" size="default" styles={{ wrapper: { width: 520 } }} open={open} onClose={onClose}>
+    <Drawer
+      rootClassName="oa-ai-operation-drawer"
+      title="AI 操作面板"
+      size="default"
+      styles={{ wrapper: { width: 520 } }}
+      open={open}
+      onClose={onClose}
+      afterOpenChange={onOpenChangeComplete}
+      footer={(
+        <Space orientation="vertical" size={10} className="oa-ai-composer">
+          <Input.TextArea
+            rows={4}
+            value={input}
+            onChange={(event) => setInput(event.target.value)}
+            placeholder="例如：帮我预审当前列表，并输出风险排序"
+          />
+          <Space wrap>
+            <Button type="primary" icon={<OaIcon name="send" />} loading={loading} onClick={() => submitPlan()}>
+              发送 / 生成计划
+            </Button>
+            <Button icon={<OaIcon name="pause" />} onClick={() => {
+              setPlan(null);
+              setResult(null);
+              message.info('已取消当前计划');
+            }}>
+              取消计划
+            </Button>
+          </Space>
+        </Space>
+      )}
+    >
       <Space orientation="vertical" size={16} className="oa-drawer-stack">
         <Card size="small" title="当前上下文">
           <Descriptions
@@ -185,25 +217,6 @@ export default function AIOperationDrawer({
             </ul>
           )}
         </Card>
-
-        <Input.TextArea
-          rows={4}
-          value={input}
-          onChange={(event) => setInput(event.target.value)}
-          placeholder="例如：帮我预审当前列表，并输出风险排序"
-        />
-        <Space wrap>
-          <Button type="primary" icon={<OaIcon name="send" />} loading={loading} onClick={() => submitPlan()}>
-            发送 / 生成计划
-          </Button>
-          <Button icon={<OaIcon name="pause" />} onClick={() => {
-            setPlan(null);
-            setResult(null);
-            message.info('已取消当前计划');
-          }}>
-            取消计划
-          </Button>
-        </Space>
 
         {plan && (
           <Card size="small" title="执行计划">

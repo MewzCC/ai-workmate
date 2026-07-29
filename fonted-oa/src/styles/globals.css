@@ -4764,6 +4764,86 @@ html.oa-wallpaper-active .ant-menu-submenu-popup .ant-menu-dark {
 .oa-ai-mini {
   border-color: color-mix(in srgb, var(--oa-primary, #1677ff) 34%, transparent) !important;
   box-shadow: 0 20px 60px rgba(15, 23, 42, 0.18);
+  will-change: left, top;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.oa-ai-mini-content {
+  width: 100%;
+}
+
+.oa-ai-mini-drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+}
+
+.oa-ai-mini-drag-handle .ant-tag {
+  margin-inline-end: 0;
+  pointer-events: none;
+}
+
+.oa-ai-mini-drag-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--oa-text-muted, #64748b);
+  font-size: 12px;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.oa-ai-mini-grip {
+  width: 10px;
+  height: 14px;
+  background-image: radial-gradient(circle, currentColor 1.2px, transparent 1.4px);
+  background-position: 0 0;
+  background-size: 5px 5px;
+  opacity: 0.72;
+}
+
+.oa-ai-mini-dragging {
+  cursor: grabbing;
+  box-shadow: 0 24px 72px rgba(15, 23, 42, 0.24);
+}
+
+.oa-ai-mini-dragging * {
+  cursor: grabbing;
+}
+
+.oa-ai-mini:not(.oa-ai-mini-dragging) .ant-btn {
+  cursor: pointer;
+}
+
+.oa-ai-operation-drawer .ant-drawer-body {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.oa-ai-operation-drawer .ant-drawer-footer {
+  flex: 0 0 auto;
+  padding: 16px 24px;
+  background: var(--oa-card, #ffffff);
+  border-top-color: var(--oa-border, rgba(15, 23, 42, 0.08));
+  box-shadow: 0 -10px 28px rgba(15, 23, 42, 0.06);
+}
+
+.oa-ai-composer {
+  width: 100%;
+}
+
+.oa-ai-composer .ant-input {
+  resize: vertical;
+  max-height: 180px;
+}
+
+html.oa-wallpaper-active .oa-ai-operation-drawer .ant-drawer-footer {
+  background: color-mix(in srgb, var(--oa-card, #ffffff) 78%, transparent);
+  backdrop-filter: blur(18px);
 }
 
 @media (max-width: 980px) {
