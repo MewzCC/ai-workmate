@@ -2,6 +2,7 @@ package com.aiworkmate.service;
 
 import com.aiworkmate.dto.AuthUserResponse;
 import com.aiworkmate.dto.UpdateProfileRequest;
+import com.aiworkmate.dto.WallpaperResponse;
 import com.aiworkmate.service.model.AvatarContent;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -14,4 +15,12 @@ public interface UserProfileService {
     AuthUserResponse deleteAvatar(Long userId);
 
     AvatarContent loadAvatar(Long userId);
+
+    WallpaperResponse getWallpaper(Long userId);
+
+    WallpaperResponse uploadWallpaper(Long userId, MultipartFile file);
+
+    WallpaperResponse deleteWallpaper(Long userId);
+
+    AvatarContent loadWallpaper(Long userId);
 }

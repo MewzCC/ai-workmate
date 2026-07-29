@@ -54,9 +54,11 @@ OA 新增并接入真实接口：
 
 动态组件只允许从固定注册表解析；页面统一处理加载、空态、401、403、409、网络失败及重复提交。
 
+用户头像与自定义壁纸统一保存到 MinIO；壁纸在浏览器完成裁剪压缩后上传，旧版 localStorage 壁纸会在登录后一次性迁移。
+
 ## 6. 验证结果
 
-- 后端：Java 17 + Maven 测试通过，56 tests，0 failures，0 errors，1 skipped（本机 Docker 未运行，PostgreSQL/Testcontainers 初始化脚本集成测试按条件跳过）。
+- 后端：Java 17 + Maven 测试通过，60 tests，0 failures，0 errors，1 skipped（本机 Docker 未运行，PostgreSQL/Testcontainers 初始化脚本集成测试按条件跳过）。
 - 数据库：本机 PostgreSQL 16 空库连续执行 `init.sql` 两次通过。
 - OA：Vitest 2 个测试文件、6 项测试通过；lint 和生产 build 通过。
 - 营销官网：lint 和生产 build 通过。
