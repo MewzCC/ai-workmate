@@ -10,12 +10,13 @@ import com.aiworkmate.mapper.AttachmentMapper;
 import com.aiworkmate.mapper.ConversationMapper;
 import com.aiworkmate.service.AttachmentService;
 import com.aiworkmate.service.FileParserService;
+import com.aiworkmate.service.ObjectStorageService;
 import com.aiworkmate.service.model.AttachmentContent;
 import com.aiworkmate.service.model.ParsedFile;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -36,24 +37,37 @@ public class AttachmentServiceImpl implements AttachmentService {
     private final ConversationMapper conversationMapper;
     private final FileParserService fileParserService;
     private final UploadProperties properties;
+    private final ObjectStorageService objectStorageService;
 
     @Override
     @Transactional
     public AttachmentResponse upload(Long userId, Long conversationId, MultipartFile file) {
         requireConversationOwner(userId, conversationId);
         validateBasicFile(file);
-        Path storedPath = store(file);
+        Path tempFile = createTempFile(file);
         try {
-            ParsedFile parsed = fileParserService.parse(storedPath, safeDisplayName(file));
+            ParsedFile parsed = fileParserService.parse(tempFile, safeDisplayName(file));
             validateSize(file.getSize(), parsed.image());
-            Attachment attachment = createEntity(userId, conversationId, file, storedPath, parsed);
-            attachmentMapper.insert(attachment);
+            String storageName = buildStorageName();
+            try {
+                objectStorageService.store(storageName, file.getInputStream(), file.getSize(), parsed.mimeType());
+            } catch (IOException ex) {
+                log.error("Attachment stream read failed", ex);
+                throw new BusinessException(ErrorCode.SYSTEM_ERROR, "附件保存失败");
+            }
+            Attachment attachment;
+            try {
+                attachment = createEntity(userId, conversationId, file, storageName, parsed);
+                attachmentMapper.insert(attachment);
+            } catch (RuntimeException ex) {
+                objectStorageService.delete(storageName);
+                throw ex;
+            }
             log.info("Attachment uploaded, userId={}, conversationId={}, attachmentId={}",
                     userId, conversationId, attachment.getId());
             return toResponse(attachment);
-        } catch (RuntimeException ex) {
-            deleteQuietly(storedPath);
-            throw ex;
+        } finally {
+            deleteTempFile(tempFile);
         }
     }
 
@@ -61,11 +75,8 @@ public class AttachmentServiceImpl implements AttachmentService {
     @Transactional(readOnly = true)
     public AttachmentContent loadContent(Long userId, Long attachmentId) {
         Attachment attachment = findOwned(userId, attachmentId);
-        Path path = storageRoot().resolve(attachment.getStorageName()).normalize();
-        if (!path.startsWith(storageRoot()) || !Files.isRegularFile(path)) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "附件文件不存在");
-        }
-        return new AttachmentContent(new FileSystemResource(path), attachment.getMimeType(), attachment.getName());
+        Resource resource = objectStorageService.load(attachment.getStorageName());
+        return new AttachmentContent(resource, attachment.getMimeType(), attachment.getName());
     }
 
     @Override
@@ -107,29 +118,25 @@ public class AttachmentServiceImpl implements AttachmentService {
         List<Attachment> attachments = attachmentMapper.selectList(new LambdaQueryWrapper<Attachment>()
                 .eq(Attachment::getUserId, userId)
                 .eq(Attachment::getConversationId, conversationId));
-        attachments.forEach(attachment -> deleteQuietly(storageRoot().resolve(attachment.getStorageName())));
+        attachments.forEach(attachment -> objectStorageService.delete(attachment.getStorageName()));
         attachmentMapper.delete(new LambdaQueryWrapper<Attachment>()
                 .eq(Attachment::getUserId, userId)
                 .eq(Attachment::getConversationId, conversationId));
     }
 
     @Override
-    public org.springframework.core.io.Resource resourceFor(Attachment attachment) {
-        Path path = storageRoot().resolve(attachment.getStorageName()).normalize();
-        if (!path.startsWith(storageRoot()) || !Files.isRegularFile(path)) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "附件文件不存在");
-        }
-        return new FileSystemResource(path);
+    public Resource resourceFor(Attachment attachment) {
+        return objectStorageService.load(attachment.getStorageName());
     }
 
     private Attachment createEntity(Long userId, Long conversationId, MultipartFile file,
-                                    Path storedPath, ParsedFile parsed) {
+                                    String storageName, ParsedFile parsed) {
         Attachment attachment = new Attachment();
         attachment.setUserId(userId);
         attachment.setConversationId(conversationId);
         attachment.setType(parsed.image() ? "image" : "file");
         attachment.setName(safeDisplayName(file));
-        attachment.setStorageName(storedPath.getFileName().toString());
+        attachment.setStorageName(storageName);
         attachment.setSize(file.getSize());
         attachment.setMimeType(parsed.mimeType());
         attachment.setExtractedText(parsed.extractedText());
@@ -137,15 +144,13 @@ public class AttachmentServiceImpl implements AttachmentService {
         return attachment;
     }
 
-    private Path store(MultipartFile file) {
+    private Path createTempFile(MultipartFile file) {
         try {
-            Path root = storageRoot();
-            Files.createDirectories(root);
-            Path target = root.resolve(UUID.randomUUID().toString()).normalize();
-            file.transferTo(target);
-            return target;
+            Path temp = Files.createTempFile("attachment-", ".bin");
+            file.transferTo(temp);
+            return temp;
         } catch (IOException ex) {
-            log.error("Attachment storage failed", ex);
+            log.error("Attachment temp storage failed", ex);
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "附件保存失败");
         }
     }
@@ -186,8 +191,10 @@ public class AttachmentServiceImpl implements AttachmentService {
         return clean.length() > 255 ? clean.substring(clean.length() - 255) : clean;
     }
 
-    private Path storageRoot() {
-        return Path.of(properties.getDirectory()).toAbsolutePath().normalize();
+    private String buildStorageName() {
+        String prefix = properties.getStoragePrefix() == null || properties.getStoragePrefix().isBlank()
+                ? "" : properties.getStoragePrefix();
+        return prefix + UUID.randomUUID();
     }
 
     private AttachmentResponse toResponse(Attachment attachment) {
@@ -198,11 +205,11 @@ public class AttachmentServiceImpl implements AttachmentService {
                 attachment.getCreatedAt());
     }
 
-    private void deleteQuietly(Path path) {
+    private void deleteTempFile(Path path) {
         try {
             Files.deleteIfExists(path);
         } catch (IOException ex) {
-            log.warn("Unable to remove failed attachment file, path={}", path, ex);
+            log.warn("Unable to remove attachment temp file, path={}", path, ex);
         }
     }
 }

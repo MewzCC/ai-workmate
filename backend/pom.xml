@@ -25,6 +25,7 @@
         <jjwt.version>0.12.6</jjwt.version>
         <tika.version>3.3.1</tika.version>
         <commons-lang3.version>3.18.0</commons-lang3.version>
+        <minio.version>8.5.10</minio.version>
     </properties>
 
     <dependencyManagement>
@@ -127,13 +128,12 @@
             <scope>runtime</scope>
         </dependency>
 
-        <!-- MinIO 文件存储（后期启用）
+        <!-- MinIO 对象存储 -->
         <dependency>
             <groupId>io.minio</groupId>
             <artifactId>minio</artifactId>
-            <version>8.5.10</version>
+            <version>${minio.version}</version>
         </dependency>
-        -->
 
         <!-- 工具 -->
         <dependency>

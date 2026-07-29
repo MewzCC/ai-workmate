@@ -9,12 +9,13 @@ import com.aiworkmate.entity.User;
 import com.aiworkmate.mapper.UserMapper;
 import com.aiworkmate.service.UserProfileService;
 import com.aiworkmate.service.UserAccessService;
+import com.aiworkmate.service.ObjectStorageService;
 import com.aiworkmate.service.model.ResolvedUserAccess;
 import com.aiworkmate.service.model.AvatarContent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.tika.Tika;
-import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -23,11 +24,10 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
@@ -41,10 +41,16 @@ public class UserProfileServiceImpl implements UserProfileService {
             "image/png", ".png",
             "image/webp", ".webp"
     );
+    private static final Map<String, String> AVATAR_MIME_BY_EXTENSION = Map.of(
+            ".jpg", "image/jpeg",
+            ".png", "image/png",
+            ".webp", "image/webp"
+    );
 
     private final UserMapper userMapper;
     private final ProfileProperties properties;
     private final UserAccessService userAccessService;
+    private final ObjectStorageService objectStorageService;
     private final Tika tika = new Tika();
 
     @Override
@@ -69,25 +75,29 @@ public class UserProfileServiceImpl implements UserProfileService {
         }
 
         User user = requireActiveUser(userId);
-        Path root = avatarRoot();
-        String storageName = UUID.randomUUID().toString().replace("-", "") + extension;
-        Path target = resolveInside(root, storageName);
+        String storageName = buildAvatarKey(extension);
         String previousAvatar = user.getAvatar();
         try {
-            Files.createDirectories(root);
-            file.transferTo(target);
+            objectStorageService.store(storageName, file.getInputStream(), file.getSize(), mimeType);
+        } catch (IOException ex) {
+            objectStorageService.delete(storageName);
+            log.error("User avatar stream read failed, userId={}", userId, ex);
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "头像保存失败，请稍后重试");
+        } catch (RuntimeException ex) {
+            objectStorageService.delete(storageName);
+            log.error("User avatar storage failed, userId={}", userId, ex);
+            throw ex instanceof BusinessException ? ex
+                    : new BusinessException(ErrorCode.SYSTEM_ERROR, "头像保存失败，请稍后重试");
+        }
+        try {
             user.setAvatar(storageName);
             user.setUpdatedAt(LocalDateTime.now());
             userMapper.updateById(user);
-            scheduleFileCleanup(root, storageName, previousAvatar);
+            scheduleAvatarCleanup(storageName, previousAvatar);
             log.info("User avatar updated, userId={}", userId);
             return toResponse(user);
-        } catch (IOException ex) {
-            deleteQuietly(root, storageName);
-            log.error("User avatar storage failed, userId={}", userId, ex);
-            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "头像保存失败，请稍后重试");
         } catch (RuntimeException ex) {
-            deleteQuietly(root, storageName);
+            objectStorageService.delete(storageName);
             throw ex;
         }
     }
@@ -100,7 +110,9 @@ public class UserProfileServiceImpl implements UserProfileService {
         user.setAvatar(null);
         user.setUpdatedAt(LocalDateTime.now());
         userMapper.updateById(user);
-        deleteQuietly(avatarRoot(), previousAvatar);
+        if (previousAvatar != null && !previousAvatar.isBlank()) {
+            objectStorageService.delete(previousAvatar);
+        }
         log.info("User avatar deleted, userId={}", userId);
         return toResponse(user);
     }
@@ -112,15 +124,10 @@ public class UserProfileServiceImpl implements UserProfileService {
         if (user.getAvatar() == null || user.getAvatar().isBlank()) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID, "尚未设置头像");
         }
-        Path path = resolveInside(avatarRoot(), user.getAvatar());
-        if (!Files.isRegularFile(path)) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "头像文件不存在");
-        }
-        String mimeType = detectStoredMimeType(path);
-        if (!AVATAR_EXTENSIONS.containsKey(mimeType)) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "头像文件类型无效");
-        }
-        return new AvatarContent(new FileSystemResource(path), mimeType);
+        String storageName = user.getAvatar();
+        String mimeType = resolveMimeType(storageName);
+        Resource resource = objectStorageService.load(storageName);
+        return new AvatarContent(resource, mimeType);
     }
 
     private void validateSize(MultipartFile file) {
@@ -140,12 +147,17 @@ public class UserProfileServiceImpl implements UserProfileService {
         }
     }
 
-    private String detectStoredMimeType(Path path) {
-        try (InputStream input = Files.newInputStream(path)) {
-            return tika.detect(input, path.getFileName().toString());
-        } catch (IOException ex) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "无法读取头像文件");
+    private String resolveMimeType(String storageName) {
+        String lower = storageName.toLowerCase(Locale.ROOT);
+        String mime = AVATAR_MIME_BY_EXTENSION.entrySet().stream()
+                .filter(entry -> lower.endsWith(entry.getKey()))
+                .map(Map.Entry::getValue)
+                .findFirst()
+                .orElse(null);
+        if (mime == null) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "头像文件类型无效");
         }
+        return mime;
     }
 
     private User requireActiveUser(Long userId) {
@@ -156,35 +168,22 @@ public class UserProfileServiceImpl implements UserProfileService {
         return user;
     }
 
-    private Path avatarRoot() {
-        return Path.of(properties.getAvatarDirectory()).toAbsolutePath().normalize();
+    private String buildAvatarKey(String extension) {
+        String prefix = properties.getAvatarStoragePrefix() == null || properties.getAvatarStoragePrefix().isBlank()
+                ? "" : properties.getAvatarStoragePrefix();
+        return prefix + UUID.randomUUID().toString().replace("-", "") + extension;
     }
 
-    private Path resolveInside(Path root, String storageName) {
-        Path resolved = root.resolve(storageName).normalize();
-        if (!resolved.startsWith(root)) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "头像存储路径无效");
-        }
-        return resolved;
-    }
-
-    private void deleteQuietly(Path root, String storageName) {
-        if (storageName == null || storageName.isBlank()) return;
-        try {
-            Files.deleteIfExists(resolveInside(root, storageName));
-        } catch (IOException ex) {
-            log.warn("Unable to delete old avatar file, storageName={}", storageName);
-        }
-    }
-
-    private void scheduleFileCleanup(Path root, String newAvatar, String previousAvatar) {
+    private void scheduleAvatarCleanup(String newAvatar, String previousAvatar) {
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCompletion(int status) {
                 if (status == STATUS_COMMITTED) {
-                    deleteQuietly(root, previousAvatar);
+                    if (previousAvatar != null && !previousAvatar.isBlank()) {
+                        objectStorageService.delete(previousAvatar);
+                    }
                 } else {
-                    deleteQuietly(root, newAvatar);
+                    objectStorageService.delete(newAvatar);
                 }
             }
         });
