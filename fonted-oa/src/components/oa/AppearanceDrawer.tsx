@@ -61,7 +61,7 @@ export default function AppearanceDrawer(props: AppearanceDrawerProps) {
       props.onWallpaperChange(uploaded.wallpaperUrl);
       window.localStorage.removeItem('workmeta-oa-wallpaper');
       closeCropper();
-      message.success('壁纸已裁剪、压缩并保存到 MinIO');
+      message.success('壁纸已成功裁剪、压缩');
     } catch (error) {
       message.error(error instanceof Error ? error.message : '壁纸处理失败');
     } finally {
@@ -75,7 +75,7 @@ export default function AppearanceDrawer(props: AppearanceDrawerProps) {
       await profileApi.deleteWallpaper();
       window.localStorage.removeItem('workmeta-oa-wallpaper');
       props.onWallpaperChange(null);
-      message.success('壁纸已从 MinIO 清除');
+      message.success('壁纸已清除');
     } catch (error) {
       message.error(error instanceof Error ? error.message : '壁纸清除失败');
     } finally {

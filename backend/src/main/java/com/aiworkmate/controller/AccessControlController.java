@@ -9,6 +9,7 @@ import com.aiworkmate.dto.CreateRoleRequest;
 import com.aiworkmate.dto.AccessRouteResponse;
 import com.aiworkmate.dto.SaveRouteRequest;
 import com.aiworkmate.dto.UpdateRolePermissionsRequest;
+import com.aiworkmate.dto.UpdateRoleMembersRequest;
 import com.aiworkmate.dto.AssignUserRolesRequest;
 import com.aiworkmate.dto.UpdateUserOrganizationRequest;
 import com.aiworkmate.dto.UpdateUserStatusRequest;
@@ -121,6 +122,15 @@ public class AccessControlController {
             @AuthenticationPrincipal AuthenticatedUser operator) {
         return Result.ok(accessControlService.updateRolePermissions(
                 operator.userId(), roleCode, request.permissionCodes()));
+    }
+
+    @PutMapping("/roles/{roleCode}/members")
+    public Result<AccessControlOverviewResponse> updateRoleMembers(
+            @PathVariable String roleCode,
+            @Valid @RequestBody UpdateRoleMembersRequest request,
+            @AuthenticationPrincipal AuthenticatedUser operator) {
+        return Result.ok(accessControlService.updateRoleMembers(
+                operator.userId(), operator.tenantId(), roleCode, request.userIds()));
     }
 
     @PostMapping("/roles")

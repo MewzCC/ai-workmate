@@ -76,6 +76,16 @@ public interface AccessControlMapper {
             @Param("tenantId") Long tenantId,
             @Param("userId") Long userId);
 
+    @Select("""
+            SELECT user_id
+            FROM user_role
+            WHERE tenant_id = #{tenantId} AND role_code = #{roleCode}
+            ORDER BY user_id
+            """)
+    List<Long> selectRoleMemberUserIds(
+            @Param("tenantId") Long tenantId,
+            @Param("roleCode") String roleCode);
+
     @Select({
             "<script>",
             "SELECT DISTINCT scope_type",
