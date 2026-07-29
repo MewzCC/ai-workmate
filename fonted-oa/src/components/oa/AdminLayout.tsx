@@ -164,6 +164,7 @@ export default function AdminLayout() {
   const [selectedMenu, setSelectedMenu] = useState<OaMenuItem>(dashboardMenu);
   const [appearanceOpen, setAppearanceOpen] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
+  const [aiDrawerPresent, setAiDrawerPresent] = useState(false);
   const [aiPrompt, setAiPrompt] = useState('');
   const [themeName, setThemeName] = useState(() => readStorage('workmeta-oa-theme', 'enterprise-blue'));
   const [aiMiniEnabled, setAiMiniEnabled] = useState(() => readStorage('workmeta-oa-ai-mini-enabled', 'false') === 'true');
@@ -535,7 +536,11 @@ export default function AdminLayout() {
             onClick={() => openAi()}
           />}
 
-          {aiMiniEnabled && selectedMenu.id !== 'ai-workspace' && <AiMiniPanel onOpenAi={openAi} />}
+          {aiMiniEnabled
+            && !aiOpen
+            && !aiDrawerPresent
+            && selectedMenu.id !== 'ai-workspace'
+            && <AiMiniPanel onOpenAi={openAi} />}
 
           <AppearanceDrawer
             open={appearanceOpen}
@@ -560,6 +565,7 @@ export default function AdminLayout() {
             pageTitle={selectedMenu.name}
             initialPrompt={aiPrompt}
             onClose={() => setAiOpen(false)}
+            onOpenChangeComplete={setAiDrawerPresent}
             onExecuted={addAudit}
           />}
         </div>
