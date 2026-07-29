@@ -5,6 +5,7 @@ import com.aiworkmate.common.ErrorCode;
 import com.aiworkmate.config.ProfileProperties;
 import com.aiworkmate.dto.AuthUserResponse;
 import com.aiworkmate.dto.UpdateProfileRequest;
+import com.aiworkmate.dto.WallpaperResponse;
 import com.aiworkmate.entity.User;
 import com.aiworkmate.mapper.UserMapper;
 import com.aiworkmate.service.UserProfileService;
@@ -111,7 +112,7 @@ public class UserProfileServiceImpl implements UserProfileService {
         user.setUpdatedAt(LocalDateTime.now());
         userMapper.updateById(user);
         if (previousAvatar != null && !previousAvatar.isBlank()) {
-            objectStorageService.delete(previousAvatar);
+            scheduleDeletionAfterCommit(previousAvatar);
         }
         log.info("User avatar deleted, userId={}", userId);
         return toResponse(user);
@@ -130,12 +131,93 @@ public class UserProfileServiceImpl implements UserProfileService {
         return new AvatarContent(resource, mimeType);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public WallpaperResponse getWallpaper(Long userId) {
+        User user = requireActiveUser(userId);
+        return toWallpaperResponse(user);
+    }
+
+    @Override
+    @Transactional
+    public WallpaperResponse uploadWallpaper(Long userId, MultipartFile file) {
+        validateWallpaperSize(file);
+        String mimeType = detectMimeType(file);
+        String extension = AVATAR_EXTENSIONS.get(mimeType);
+        if (extension == null) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "壁纸仅支持 JPG、PNG 或 WebP");
+        }
+
+        User user = requireActiveUser(userId);
+        String storageName = buildStorageKey(properties.getWallpaperStoragePrefix(), extension);
+        String previousWallpaper = user.getWallpaper();
+        try {
+            objectStorageService.store(storageName, file.getInputStream(), file.getSize(), mimeType);
+        } catch (IOException ex) {
+            objectStorageService.delete(storageName);
+            log.error("User wallpaper stream read failed, userId={}", userId, ex);
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "壁纸保存失败，请稍后重试");
+        } catch (RuntimeException ex) {
+            objectStorageService.delete(storageName);
+            log.error("User wallpaper storage failed, userId={}", userId, ex);
+            throw ex instanceof BusinessException ? ex
+                    : new BusinessException(ErrorCode.SYSTEM_ERROR, "壁纸保存失败，请稍后重试");
+        }
+
+        try {
+            user.setWallpaper(storageName);
+            user.setUpdatedAt(LocalDateTime.now());
+            userMapper.updateById(user);
+            scheduleObjectCleanup(storageName, previousWallpaper);
+            log.info("User wallpaper updated, userId={}", userId);
+            return toWallpaperResponse(user);
+        } catch (RuntimeException ex) {
+            objectStorageService.delete(storageName);
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional
+    public WallpaperResponse deleteWallpaper(Long userId) {
+        User user = requireActiveUser(userId);
+        String previousWallpaper = user.getWallpaper();
+        user.setWallpaper(null);
+        user.setUpdatedAt(LocalDateTime.now());
+        userMapper.updateById(user);
+        if (previousWallpaper != null && !previousWallpaper.isBlank()) {
+            scheduleDeletionAfterCommit(previousWallpaper);
+        }
+        log.info("User wallpaper deleted, userId={}", userId);
+        return new WallpaperResponse(null);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public AvatarContent loadWallpaper(Long userId) {
+        User user = requireActiveUser(userId);
+        if (user.getWallpaper() == null || user.getWallpaper().isBlank()) {
+            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "尚未设置壁纸");
+        }
+        String storageName = user.getWallpaper();
+        return new AvatarContent(objectStorageService.load(storageName), resolveMimeType(storageName));
+    }
+
     private void validateSize(MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID, "请选择头像文件");
         }
         if (file.getSize() > properties.getAvatarMaxBytes()) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID, "头像大小不能超过 2MB");
+        }
+    }
+
+    private void validateWallpaperSize(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "请选择壁纸文件");
+        }
+        if (file.getSize() > properties.getWallpaperMaxBytes()) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "壁纸大小不能超过 5MB");
         }
     }
 
@@ -169,24 +251,58 @@ public class UserProfileServiceImpl implements UserProfileService {
     }
 
     private String buildAvatarKey(String extension) {
-        String prefix = properties.getAvatarStoragePrefix() == null || properties.getAvatarStoragePrefix().isBlank()
-                ? "" : properties.getAvatarStoragePrefix();
+        return buildStorageKey(properties.getAvatarStoragePrefix(), extension);
+    }
+
+    private String buildStorageKey(String configuredPrefix, String extension) {
+        String prefix = configuredPrefix == null || configuredPrefix.isBlank() ? "" : configuredPrefix;
         return prefix + UUID.randomUUID().toString().replace("-", "") + extension;
     }
 
     private void scheduleAvatarCleanup(String newAvatar, String previousAvatar) {
+        scheduleObjectCleanup(newAvatar, previousAvatar);
+    }
+
+    private void scheduleObjectCleanup(String newObject, String previousObject) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            if (previousObject != null && !previousObject.isBlank()) {
+                objectStorageService.delete(previousObject);
+            }
+            return;
+        }
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCompletion(int status) {
                 if (status == STATUS_COMMITTED) {
-                    if (previousAvatar != null && !previousAvatar.isBlank()) {
-                        objectStorageService.delete(previousAvatar);
+                    if (previousObject != null && !previousObject.isBlank()) {
+                        objectStorageService.delete(previousObject);
                     }
                 } else {
-                    objectStorageService.delete(newAvatar);
+                    objectStorageService.delete(newObject);
                 }
             }
         });
+    }
+
+    private void scheduleDeletionAfterCommit(String objectKey) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            objectStorageService.delete(objectKey);
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                objectStorageService.delete(objectKey);
+            }
+        });
+    }
+
+    private WallpaperResponse toWallpaperResponse(User user) {
+        String wallpaperUrl = user.getWallpaper() == null || user.getWallpaper().isBlank()
+                ? null
+                : "/api/profile/wallpaper/content?v="
+                + user.getUpdatedAt().toInstant(ZoneOffset.UTC).toEpochMilli();
+        return new WallpaperResponse(wallpaperUrl);
     }
 
     private AuthUserResponse toResponse(User user) {

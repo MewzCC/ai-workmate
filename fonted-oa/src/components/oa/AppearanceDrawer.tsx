@@ -7,10 +7,9 @@ import type { UploadProps } from 'antd';
 import type { Area } from 'react-easy-crop';
 import type { OaTheme } from '@/types/oa';
 import { createCroppedWallpaper, createWallpaperSource, releaseWallpaperSource } from '@/lib/wallpaper';
+import { profileApi } from '@/lib/profileApi';
 import WallpaperCropModal from './WallpaperCropModal';
 import { OaIcon } from '@/components/OaIcon';
-
-const WALLPAPER_STORAGE_KEY = 'workmeta-oa-wallpaper';
 
 interface AppearanceDrawerProps {
   open: boolean;
@@ -57,10 +56,12 @@ export default function AppearanceDrawer(props: AppearanceDrawerProps) {
     setProcessingWallpaper(true);
     try {
       const result = await createCroppedWallpaper(cropSource, crop, rotation);
-      window.localStorage.setItem(WALLPAPER_STORAGE_KEY, result);
-      props.onWallpaperChange(result);
+      const wallpaperFile = await fetch(result).then((response) => response.blob());
+      const uploaded = await profileApi.uploadWallpaper(wallpaperFile);
+      props.onWallpaperChange(uploaded.wallpaperUrl);
+      window.localStorage.removeItem('workmeta-oa-wallpaper');
       closeCropper();
-      message.success('壁纸已裁剪、压缩并保存到本地');
+      message.success('壁纸已裁剪、压缩并保存到 MinIO');
     } catch (error) {
       message.error(error instanceof Error ? error.message : '壁纸处理失败');
     } finally {
@@ -68,10 +69,18 @@ export default function AppearanceDrawer(props: AppearanceDrawerProps) {
     }
   };
 
-  const clearWallpaper = () => {
-    window.localStorage.removeItem(WALLPAPER_STORAGE_KEY);
-    props.onWallpaperChange(null);
-    message.success('壁纸已清除');
+  const clearWallpaper = async () => {
+    setProcessingWallpaper(true);
+    try {
+      await profileApi.deleteWallpaper();
+      window.localStorage.removeItem('workmeta-oa-wallpaper');
+      props.onWallpaperChange(null);
+      message.success('壁纸已从 MinIO 清除');
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '壁纸清除失败');
+    } finally {
+      setProcessingWallpaper(false);
+    }
   };
 
   return (
@@ -107,7 +116,7 @@ export default function AppearanceDrawer(props: AppearanceDrawerProps) {
               {props.wallpaper && <Tag color="success">已应用</Tag>}
             </Space>
             <Typography.Paragraph type="secondary">
-              图片在浏览器中裁剪、压缩并保存，不会上传到服务器。
+              图片会先在浏览器中裁剪压缩，再安全上传到 MinIO，并跟随当前账号同步。
             </Typography.Paragraph>
             <div className="oa-wallpaper-preview" aria-live="polite">
               <Spin spinning={processingWallpaper} description="正在处理壁纸">
@@ -132,7 +141,7 @@ export default function AppearanceDrawer(props: AppearanceDrawerProps) {
               <Button
                 icon={<OaIcon name="delete" />}
                 disabled={!props.wallpaper || processingWallpaper}
-                onClick={clearWallpaper}
+                onClick={() => void clearWallpaper()}
               >
                 清除壁纸
               </Button>
@@ -153,7 +162,7 @@ export default function AppearanceDrawer(props: AppearanceDrawerProps) {
               setSaving(true);
               window.setTimeout(() => {
                 setSaving(false);
-                message.success('外观配置已保存到 localStorage');
+                message.success('外观配置已保存');
                 props.onClose();
               }, 450);
             }}
