@@ -103,7 +103,9 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
         LeaveApplication leave = new LeaveApplication();
         leave.setTenantId(actor.tenantId());
         leave.setApplicantUserId(actor.userId());
-        requireEligibleApprover(actor, request.approverUserId());
+        if (request.approverUserId() != null) {
+            requireEligibleApprover(actor, request.approverUserId());
+        }
         leave.setApproverUserId(request.approverUserId());
         applyRequest(leave, request, duration);
         leave.setStatus("DRAFT");
@@ -126,7 +128,9 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
         LeaveApplication current = requireOwnedLeave(actor, id);
         requireState(current, "DRAFT");
         int duration = calculateDuration(request);
-        requireEligibleApprover(actor, request.approverUserId());
+        if (request.approverUserId() != null) {
+            requireEligibleApprover(actor, request.approverUserId());
+        }
         LambdaUpdateWrapper<LeaveApplication> update = new LambdaUpdateWrapper<LeaveApplication>()
                 .eq(LeaveApplication::getId, id)
                 .eq(LeaveApplication::getTenantId, actor.tenantId())
@@ -179,6 +183,11 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
         LeaveApplication current = requireOwnedLeave(actor, id);
         requireState(current, "DRAFT");
         Long approverId = current.getApproverUserId();
+        if (approverId == null
+                || leaveMapper.countEligibleApprover(
+                        actor.tenantId(), actor.userId(), approverId) != 1) {
+            approverId = leaveMapper.resolveApprover(actor.tenantId(), actor.userId());
+        }
         if (approverId == null
                 || leaveMapper.countEligibleApprover(
                         actor.tenantId(), actor.userId(), approverId) != 1) {
@@ -295,12 +304,8 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
     @Transactional(readOnly = true)
     public LeaveApplicationResponse todoDetail(Long userId, Long taskId) {
         ResolvedUserAccess actor = requireAccess(userId);
-        WorkflowTask task = taskMapper.selectById(taskId);
-        if (task == null || !actor.tenantId().equals(task.getTenantId())) {
-            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
-        }
+        WorkflowTask task = requireAssignedTask(actor, taskId);
         LeaveApplicationView view = requireView(actor.tenantId(), task.getBusinessId());
-        assertCanRead(actor, view);
         return response(actor, view);
     }
 
