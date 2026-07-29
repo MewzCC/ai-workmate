@@ -11,7 +11,7 @@ public record LeaveApplicationRequest(
         @NotBlank
         @Pattern(regexp = "ANNUAL|PERSONAL|SICK|MARRIAGE|MATERNITY|PATERNITY|BEREAVEMENT|COMPENSATORY|OTHER")
         String leaveType,
-        @NotNull Long approverUserId,
+        Long approverUserId,
         @NotNull LocalDate startDate,
         @NotBlank @Pattern(regexp = "AM|PM") String startPeriod,
         @NotNull LocalDate endDate,
