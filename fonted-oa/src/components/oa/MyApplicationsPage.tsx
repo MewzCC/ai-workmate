@@ -1,26 +1,15 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from '@/lib/nextCompat';
-import {
-  Button,
-  Card,
-  Empty,
-  Modal,
-  Segmented,
-  Space,
-  Table,
-  Tag,
-  Typography,
-} from 'antd';
+import { Button, Card, Empty, Modal, Select, Space, Table, Tag, Typography } from 'antd';
 import { message } from '@/lib/antdMessage';
 import type { ColumnsType } from 'antd/es/table';
-import dayjs from 'dayjs';
 import { formatOaApiError, leaveApi, type LeaveApplication, type LeaveStatus } from '@/lib/oaApi';
 import { OaIcon } from '@/components/OaIcon';
 
 const statusOptions = [
-  { value: '', label: '全部' },
+  { value: '', label: '全部状态' },
   { value: 'DRAFT', label: '草稿' },
   { value: 'PENDING', label: '审批中' },
   { value: 'APPROVED', label: '已通过' },
@@ -52,16 +41,10 @@ export default function MyApplicationsPage() {
 
   useEffect(() => { void load(); }, [load]);
 
-  const pageMetrics = useMemo(() => ({
-    pending: records.filter((item) => item.status === 'PENDING').length,
-    completed: records.filter((item) => item.status === 'APPROVED').length,
-    attention: records.filter((item) => item.status === 'REJECTED' || item.overdue).length,
-  }), [records]);
-
   const withdraw = (item: LeaveApplication) => {
     Modal.confirm({
       title: '确认撤回申请？',
-      content: '撤回后原审批待办立即失效，该申请进入终态，无法再次提交。',
+      content: '撤回后原审批待办将立即失效，且该申请不能再次提交。',
       okText: '确认撤回',
       okButtonProps: { danger: true },
       onOk: async () => {
@@ -81,90 +64,43 @@ export default function MyApplicationsPage() {
   };
 
   const columns: ColumnsType<LeaveApplication> = [
+    { title: '申请编号', dataIndex: 'id', width: 100, render: (value) => `#${value}` },
+    { title: '类型', dataIndex: 'leaveType', width: 110, render: leaveTypeLabel },
     {
-      title: '申请事项',
-      key: 'application',
-      width: 230,
-      render: (_, item) => (
-        <div className="leave-table-subject">
-          <span className="leave-table-subject__icon"><OaIcon name="form" /></span>
-          <div>
-            <Typography.Text strong>{leaveTypeLabel(item.leaveType)}申请</Typography.Text>
-            <Typography.Text type="secondary">
-              LV-{String(item.id).padStart(6, '0')} · {dayjs(item.createdAt).format('MM-DD HH:mm')}
-            </Typography.Text>
-          </div>
-        </div>
-      ),
-    },
-    {
-      title: '请假时间',
+      title: '请假区间',
       key: 'range',
-      width: 260,
-      render: (_, item) => (
-        <div className="leave-table-range">
-          <span>{item.startDate} {periodLabel(item.startPeriod)}</span>
-          <OaIcon name="next" />
-          <span>{item.endDate} {periodLabel(item.endPeriod)}</span>
-        </div>
-      ),
+      render: (_, item) => `${item.startDate} ${periodLabel(item.startPeriod)} — ${item.endDate} ${periodLabel(item.endPeriod)}`,
     },
+    { title: '天数', dataIndex: 'durationDays', width: 90, render: (value) => `${value} 天` },
+    { title: '状态', dataIndex: 'status', width: 105, render: (value) => <StatusTag status={value} /> },
     {
-      title: '时长',
-      dataIndex: 'durationDays',
-      width: 90,
-      render: (value) => <Typography.Text strong>{value} 天</Typography.Text>,
-    },
-    {
-      title: '流程进度',
-      key: 'progress',
-      width: 180,
-      render: (_, item) => (
-        <div className="leave-table-progress">
-          <StatusTag status={item.status} />
-          <Typography.Text type="secondary">
-            {item.status === 'DRAFT'
-              ? '等待提交'
-              : item.status === 'PENDING'
-                ? `${item.approverName || '审批人'}处理中`
-                : '流程已结束'}
-          </Typography.Text>
-        </div>
-      ),
+      title: '审批人',
+      dataIndex: 'approverName',
+      width: 140,
+      render: (value) => value || '-',
     },
     {
       title: '操作',
       key: 'actions',
-      width: 220,
-      fixed: 'right',
+      width: 210,
       render: (_, item) => (
         <Space>
           {item.canEdit && (
-            <Button
-              size="small"
-              icon={<OaIcon name="edit" />}
-              onClick={() => router.push(`/oa/leave-application?id=${item.id}`)}
-            >
+            <Button size="small" icon={<OaIcon name="edit" />}
+              onClick={() => router.push(`/oa/leave-application?id=${item.id}`)}>
               继续编辑
             </Button>
           )}
           {item.canWithdraw && (
-            <Button
-              size="small"
-              danger
-              loading={actingId === item.id}
-              onClick={() => withdraw(item)}
-            >
+            <Button size="small" danger loading={actingId === item.id}
+              onClick={() => withdraw(item)}>
               撤回
             </Button>
           )}
           {item.taskId && (
-            <Button
-              size="small"
-              type="link"
-              onClick={() => router.push(`/oa/approval-tasks/${item.taskId}`)}
-            >
-              流程详情
+            <Button size="small" type="link"
+              onClick={() => router.push(`/oa/approval-tasks/${item.taskId}`)}>
+              查看时间线
             </Button>
           )}
         </Space>
@@ -173,42 +109,24 @@ export default function MyApplicationsPage() {
   ];
 
   return (
-    <section className="leave-list-workbench">
-      <header className="leave-list-hero">
+    <section className="oa-domain-page">
+      <div className="oa-domain-heading">
         <div>
-          <span className="leave-list-hero__kicker">MY REQUESTS</span>
-          <Typography.Title level={2}>我的请假申请</Typography.Title>
-          <Typography.Paragraph>集中查看草稿、审批进度、处理结果和完整流程记录。</Typography.Paragraph>
+          <Typography.Title level={3}>我的申请</Typography.Title>
+          <Typography.Paragraph type="secondary">查看草稿、审批进度与最终结果。</Typography.Paragraph>
         </div>
-        <Button
-          type="primary"
-          size="large"
-          icon={<OaIcon name="add" />}
-          onClick={() => router.push('/oa/leave-application')}
-        >
-          发起请假
+        <Button type="primary" icon={<OaIcon name="add" />}
+          onClick={() => router.push('/oa/leave-application')}>
+          新建请假申请
         </Button>
-      </header>
-
-      <div className="leave-metric-strip">
-        <div><span>当前筛选</span><strong>{total}</strong><small>条申请</small></div>
-        <div><span>本页审批中</span><strong>{pageMetrics.pending}</strong><small>等待处理</small></div>
-        <div><span>本页已完成</span><strong>{pageMetrics.completed}</strong><small>审批通过</small></div>
-        <div className={pageMetrics.attention ? 'is-attention' : ''}>
-          <span>需要关注</span><strong>{pageMetrics.attention}</strong><small>退回或超时</small>
-        </div>
       </div>
-
-      <Card className="leave-list-card" bordered={false}>
-        <div className="leave-list-toolbar">
-          <Segmented
-            block
+      <Card className="oa-domain-card">
+        <div className="oa-domain-toolbar">
+          <Select
             value={status || ''}
             options={statusOptions}
-            onChange={(value) => {
-              setStatus((value || undefined) as LeaveStatus | undefined);
-              setPage(1);
-            }}
+            style={{ width: 160 }}
+            onChange={(value) => { setStatus((value || undefined) as LeaveStatus | undefined); setPage(1); }}
           />
           <Button icon={<OaIcon name="reload" />} onClick={() => void load()}>刷新</Button>
         </div>
@@ -217,14 +135,13 @@ export default function MyApplicationsPage() {
           columns={columns}
           dataSource={records}
           loading={loading}
-          locale={{ emptyText: <Empty description="当前筛选下暂无申请" /> }}
-          scroll={{ x: 1080 }}
+          locale={{ emptyText: <Empty description="暂无请假申请" /> }}
+          scroll={{ x: 980 }}
           pagination={{
             current: page,
             pageSize: 20,
             total,
             showSizeChanger: false,
-            showTotal: (value) => `共 ${value} 条`,
             onChange: setPage,
           }}
         />
@@ -247,15 +164,9 @@ export function StatusTag({ status }: { status: LeaveStatus }) {
 
 export function leaveTypeLabel(value: string) {
   const labels: Record<string, string> = {
-    ANNUAL: '年假',
-    PERSONAL: '事假',
-    SICK: '病假',
-    MARRIAGE: '婚假',
-    MATERNITY: '产假',
-    PATERNITY: '陪产假',
-    BEREAVEMENT: '丧假',
-    COMPENSATORY: '调休',
-    OTHER: '其他',
+    ANNUAL: '年假', PERSONAL: '事假', SICK: '病假', MARRIAGE: '婚假',
+    MATERNITY: '产假', PATERNITY: '陪产假', BEREAVEMENT: '丧假',
+    COMPENSATORY: '调休', OTHER: '其他',
   };
   return labels[value] || value;
 }

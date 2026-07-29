@@ -23,10 +23,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -98,6 +98,22 @@ public class AccessControlController {
                 operator.userId(), operator.tenantId(), request.code(), request.name()));
     }
 
+    @DeleteMapping("/departments/{departmentId}")
+    public Result<Void> deleteDepartment(
+            @PathVariable Long departmentId,
+            @AuthenticationPrincipal AuthenticatedUser operator) {
+        accessControlService.deleteDepartment(operator.userId(), operator.tenantId(), departmentId);
+        return Result.ok();
+    }
+
+    @DeleteMapping("/positions/{positionId}")
+    public Result<Void> deletePosition(
+            @PathVariable Long positionId,
+            @AuthenticationPrincipal AuthenticatedUser operator) {
+        accessControlService.deletePosition(operator.userId(), operator.tenantId(), positionId);
+        return Result.ok();
+    }
+
     @PutMapping("/roles/{roleCode}/permissions")
     public Result<AccessRoleResponse> updateRolePermissions(
             @PathVariable String roleCode,
@@ -113,14 +129,6 @@ public class AccessControlController {
             @AuthenticationPrincipal AuthenticatedUser operator) {
         return Result.ok(accessControlService.createRole(
                 operator.userId(), request.code(), request.name(), request.description()));
-    }
-
-    @DeleteMapping("/roles/{roleCode}")
-    public Result<Boolean> deleteRole(
-            @PathVariable String roleCode,
-            @AuthenticationPrincipal AuthenticatedUser operator) {
-        accessControlService.deleteRole(operator.userId(), roleCode);
-        return Result.ok(true);
     }
 
     @PutMapping("/routes/{routeKey}")

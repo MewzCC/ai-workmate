@@ -145,10 +145,8 @@ public class AccessControlServiceImpl implements AccessControlService {
             if (approverUserId.equals(userId)) {
                 throw new BusinessException(ErrorCode.REQUEST_INVALID, "审批人不能是用户本人");
             }
-            if (accessControlMapper.countEligibleApproverForDepartment(
-                    tenantId, departmentId, approverUserId) == 0) {
-                throw new BusinessException(ErrorCode.REQUEST_INVALID,
-                        "直属审批人必须位于本部门或上级部门，并拥有审批权限");
+            if (accessControlMapper.countActiveUser(tenantId, approverUserId) == 0) {
+                throw new BusinessException(ErrorCode.REQUEST_INVALID, "审批人不存在或已停用");
             }
         }
         accessControlMapper.updateUserOrganization(
@@ -184,40 +182,22 @@ public class AccessControlServiceImpl implements AccessControlService {
                                              String name,
                                              Long parentId,
                                              Long defaultApproverUserId) {
-        String normalizedCode = code.trim().toUpperCase();
         if (parentId != null && accessControlMapper.countDepartment(tenantId, parentId) == 0) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID, "上级部门不存在");
         }
-        Long existingId = accessControlMapper.selectDepartmentIdByCode(tenantId, normalizedCode);
-        if (existingId != null && parentId != null
-                && (existingId.equals(parentId)
-                || accessControlMapper.countDepartmentDescendant(
-                        tenantId, existingId, parentId) > 0)) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "上级部门不能形成循环关系");
-        }
         if (defaultApproverUserId != null
-                && accessControlMapper.countActiveApprovalUser(tenantId, defaultApproverUserId) == 0) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID,
-                    "默认审批人不存在、已停用或未被授予审批权限");
+                && accessControlMapper.countActiveUser(tenantId, defaultApproverUserId) == 0) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "默认审批人不存在或已停用");
         }
+        String normalizedCode = code.trim().toUpperCase();
         accessControlMapper.saveDepartment(
                 tenantId, normalizedCode, name.trim(), parentId, defaultApproverUserId);
         accessControlMapper.insertAudit(operatorUserId, "SAVE_DEPARTMENT", "DEPARTMENT",
                 normalizedCode, null, name.trim());
-        DepartmentResponse saved = accessControlMapper.selectDepartments(tenantId).stream()
+        return accessControlMapper.selectDepartments(tenantId).stream()
                 .filter(item -> item.code().equals(normalizedCode))
                 .findFirst()
                 .orElseThrow(() -> new BusinessException(ErrorCode.SYSTEM_ERROR));
-        if (saved.parentId() != null && saved.parentId().equals(saved.id())) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "部门不能将自身设为上级");
-        }
-        if (defaultApproverUserId != null
-                && accessControlMapper.countEligibleApproverForDepartment(
-                        tenantId, saved.id(), defaultApproverUserId) == 0) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID,
-                    "部门默认审批人必须位于本部门或上级部门");
-        }
-        return saved;
     }
 
     @Override
@@ -240,52 +220,49 @@ public class AccessControlServiceImpl implements AccessControlService {
     @Transactional
     public void deleteDepartment(Long operatorUserId, Long tenantId, Long departmentId) {
         if (accessControlMapper.countDepartment(tenantId, departmentId) == 0) {
-            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "部门不存在");
         }
-        if (accessControlMapper.countChildDepartments(tenantId, departmentId) > 0
-                || accessControlMapper.countDepartmentUsers(tenantId, departmentId) > 0) {
-            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID,
-                    "部门仍包含下级部门或成员，请先完成迁移");
+        if (accessControlMapper.countChildDepartments(tenantId, departmentId) > 0) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "该部门下存在子部门，请先调整子部门");
         }
-        accessControlMapper.deleteDepartment(tenantId, departmentId);
+        if (accessControlMapper.countUsersInDepartment(tenantId, departmentId) > 0) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "该部门下仍有用户，请先调整用户部门");
+        }
+        DepartmentResponse current = accessControlMapper.selectDepartments(tenantId).stream()
+                .filter(item -> item.id().equals(departmentId))
+                .findFirst()
+                .orElseThrow(() -> new BusinessException(ErrorCode.REQUEST_INVALID, "部门不存在"));
+        int affected = accessControlMapper.deleteDepartment(tenantId, departmentId);
+        if (affected == 0) {
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "删除部门失败");
+        }
         accessControlMapper.insertAudit(operatorUserId, "DELETE_DEPARTMENT", "DEPARTMENT",
-                departmentId.toString(), null, null);
+                current.code(), current.name(), null);
+        log.info("Department deleted, operatorUserId={}, departmentId={}, code={}",
+                operatorUserId, departmentId, current.code());
     }
 
     @Override
     @Transactional
     public void deletePosition(Long operatorUserId, Long tenantId, Long positionId) {
         if (accessControlMapper.countPosition(tenantId, positionId) == 0) {
-            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "岗位不存在");
         }
-        if (accessControlMapper.countPositionUsers(tenantId, positionId) > 0) {
-            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID,
-                    "岗位仍有关联成员，请先完成迁移");
+        if (accessControlMapper.countUsersInPosition(tenantId, positionId) > 0) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "该岗位下仍有用户，请先调整用户岗位");
         }
-        accessControlMapper.deletePosition(tenantId, positionId);
+        PositionResponse current = accessControlMapper.selectPositions(tenantId).stream()
+                .filter(item -> item.id().equals(positionId))
+                .findFirst()
+                .orElseThrow(() -> new BusinessException(ErrorCode.REQUEST_INVALID, "岗位不存在"));
+        int affected = accessControlMapper.deletePosition(tenantId, positionId);
+        if (affected == 0) {
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "删除岗位失败");
+        }
         accessControlMapper.insertAudit(operatorUserId, "DELETE_POSITION", "POSITION",
-                positionId.toString(), null, null);
-    }
-
-    @Override
-    @Transactional
-    public void deleteRole(Long operatorUserId, String roleCode) {
-        Long tenantId = accessControlMapper.selectUserTenantId(operatorUserId);
-        String normalizedRole = roleCode.trim().toUpperCase();
-        Boolean builtin = accessControlMapper.selectRoleBuiltin(tenantId, normalizedRole);
-        if (builtin == null) {
-            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
-        }
-        if (builtin) {
-            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID, "内置角色不可删除");
-        }
-        if (accessControlMapper.countRoleUsers(tenantId, normalizedRole) > 0) {
-            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID,
-                    "角色仍有关联用户，请先调整用户角色");
-        }
-        accessControlMapper.deleteRoleForTenant(tenantId, normalizedRole);
-        accessControlMapper.insertAudit(operatorUserId, "DELETE_ROLE", "ROLE",
-                normalizedRole, null, null);
+                current.code(), current.name(), null);
+        log.info("Position deleted, operatorUserId={}, positionId={}, code={}",
+                operatorUserId, positionId, current.code());
     }
 
     @Override

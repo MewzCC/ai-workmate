@@ -355,7 +355,7 @@ VALUES
     ('form-engine', 'approval', '表单引擎', '/oa/form-engine', NULL, 'PAGE', 'DASHBOARD', 'route:form-engine', 2),
     ('process-config', 'approval', '流程配置', '/oa/process-config', NULL, 'PAGE', 'DASHBOARD', 'route:process-config', 3),
     ('approval-rules', 'approval', '审批规则', '/oa/approval-rules', NULL, 'PAGE', 'DASHBOARD', 'route:approval-rules', 4),
-    ('org-tree', 'hr', '组织架构', '/oa/org-tree', NULL, 'PAGE', 'DASHBOARD', 'route:org-tree', 1),
+    ('org-tree', 'hr', '组织架构', '/oa/org-tree', NULL, 'PAGE', 'ORG_TREE', 'route:org-tree', 1),
     ('employee-files', 'hr', '员工档案', '/oa/employee-files', NULL, 'PAGE', 'DASHBOARD', 'route:employee-files', 2),
     ('attendance', 'hr', '考勤假勤', '/oa/attendance', NULL, 'PAGE', 'DASHBOARD', 'route:attendance', 3),
     ('employee-change', 'hr', '入转调离', '/oa/employee-change', NULL, 'PAGE', 'DASHBOARD', 'route:employee-change', 4),
