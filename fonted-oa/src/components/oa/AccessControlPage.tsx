@@ -12,8 +12,6 @@ import {
   Input,
   InputNumber,
   Modal,
-  Popconfirm,
-  Segmented,
   Select,
   Space,
   Spin,
@@ -45,25 +43,27 @@ const componentOptions = [
   { value: 'LEAVE_FORM', label: '请假申请' },
   { value: 'MY_APPLICATIONS', label: '我的申请' },
   { value: 'AUDIT_CENTER', label: '审计中心' },
-  { value: 'ORG_TREE', label: '组织架构' },
 ];
 
 export default function AccessControlPage() {
   const [overview, setOverview] = useState<AccessControlOverview | null>(null);
   const [loading, setLoading] = useState(true);
-  const [savingUserId, setSavingUserId] = useState<number | null>(null);
   const [selectedRoleCode, setSelectedRoleCode] = useState('');
   const [selectedPermissions, setSelectedPermissions] = useState<string[]>([]);
   const [savingPermissions, setSavingPermissions] = useState(false);
   const [roleModalOpen, setRoleModalOpen] = useState(false);
   const [routeModalOpen, setRouteModalOpen] = useState(false);
   const [organizationModal, setOrganizationModal] = useState<'department' | 'position'>();
-  const [userViewMode, setUserViewMode] = useState<'linkage' | 'table'>('linkage');
-  const [activeTab, setActiveTab] = useState('users');
   const [editingRoute, setEditingRoute] = useState<AccessRoute | null>(null);
+  const [deletingOrganizationId, setDeletingOrganizationId] = useState<number | null>(null);
+  const [editingUser, setEditingUser] = useState<AccessUser | null>(null);
+  const [userModalOpen, setUserModalOpen] = useState(false);
+  const [savingUser, setSavingUser] = useState(false);
+  const [togglingUserId, setTogglingUserId] = useState<number | null>(null);
   const [roleForm] = Form.useForm();
   const [routeForm] = Form.useForm<SaveRoutePayload>();
   const [organizationForm] = Form.useForm();
+  const [userForm] = Form.useForm();
 
   const load = async () => {
     setLoading(true);
@@ -94,75 +94,6 @@ export default function AccessControlPage() {
     () => groupPermissions(overview?.permissions || []),
     [overview?.permissions],
   );
-
-  const assignRoles = async (userId: number, roleCodes: string[]) => {
-    if (!roleCodes.length) {
-      message.warning('用户至少需要一个角色');
-      return;
-    }
-    setSavingUserId(userId);
-    try {
-      const updated = await accessControlApi.assignUserRoles(userId, roleCodes);
-      setOverview((current) => current && ({
-        ...current,
-        users: current.users.map((user) => user.id === userId ? updated : user),
-      }));
-      message.success('用户角色已更新，下一次请求立即生效');
-    } catch (error) {
-      message.error(error instanceof Error ? error.message : '角色分配失败');
-    } finally {
-      setSavingUserId(null);
-    }
-  };
-
-  const updateOrganization = async (
-    user: AccessUser,
-    field: 'departmentId' | 'positionId' | 'approverUserId',
-    value?: number,
-  ) => {
-    const payload = {
-      departmentId: field === 'departmentId' ? value : user.departmentId,
-      positionId: field === 'positionId' ? value : user.positionId,
-      approverUserId: field === 'approverUserId' ? value : user.approverUserId,
-    };
-    if (!payload.departmentId || !payload.positionId) {
-      message.warning('部门和岗位不能为空');
-      return;
-    }
-    setSavingUserId(user.id);
-    try {
-      const updated = await accessControlApi.updateUserOrganization(user.id, {
-        departmentId: payload.departmentId,
-        positionId: payload.positionId,
-        approverUserId: payload.approverUserId,
-      });
-      setOverview((current) => current && ({
-        ...current,
-        users: current.users.map((item) => item.id === user.id ? updated : item),
-      }));
-      message.success('用户组织信息已更新');
-    } catch (error) {
-      message.error(error instanceof Error ? error.message : '组织信息更新失败');
-    } finally {
-      setSavingUserId(null);
-    }
-  };
-
-  const updateStatus = async (user: AccessUser, checked: boolean) => {
-    setSavingUserId(user.id);
-    try {
-      const updated = await accessControlApi.updateUserStatus(user.id, checked ? 1 : 0);
-      setOverview((current) => current && ({
-        ...current,
-        users: current.users.map((item) => item.id === user.id ? updated : item),
-      }));
-      message.success('用户状态已更新');
-    } catch (error) {
-      message.error(error instanceof Error ? error.message : '用户状态更新失败');
-    } finally {
-      setSavingUserId(null);
-    }
-  };
 
   const chooseRole = (role: AccessRole) => {
     setSelectedRoleCode(role.code);
@@ -198,19 +129,6 @@ export default function AccessControlPage() {
       message.success('角色已创建，可立即分配页面权限');
     } catch (error) {
       message.error(error instanceof Error ? error.message : '角色创建失败');
-    }
-  };
-
-  const deleteRole = async () => {
-    if (!selectedRole || selectedRole.builtin) return;
-    try {
-      await accessControlApi.deleteRole(selectedRole.code);
-      setSelectedRoleCode('');
-      setSelectedPermissions([]);
-      await load();
-      message.success('角色已删除');
-    } catch (error) {
-      message.error(error instanceof Error ? error.message : '角色删除失败');
     }
   };
 
@@ -266,10 +184,121 @@ export default function AccessControlPage() {
     }
   };
 
+  const confirmDeleteOrganization = (item: { id: number; name: string }, kind: 'department' | 'position') => {
+    Modal.confirm({
+      title: `确认删除${kind === 'department' ? '部门' : '岗位'}？`,
+      content: `「${item.name}」将被删除。若该${kind === 'department' ? '部门' : '岗位'}下仍有用户或子节点，删除将被服务端拒绝。`,
+      okText: '确认删除',
+      okType: 'danger',
+      cancelText: '取消',
+      onOk: async () => {
+        setDeletingOrganizationId(item.id);
+        try {
+          if (kind === 'department') {
+            await accessControlApi.deleteDepartment(item.id);
+          } else {
+            await accessControlApi.deletePosition(item.id);
+          }
+          await load();
+          message.success(kind === 'department' ? '部门已删除' : '岗位已删除');
+        } catch (error) {
+          message.error(error instanceof Error ? error.message : '删除失败');
+        } finally {
+          setDeletingOrganizationId(null);
+        }
+      },
+    });
+  };
+
+  const openUserEditor = (user: AccessUser) => {
+    setEditingUser(user);
+    userForm.setFieldsValue({
+      roles: user.roles,
+      departmentId: user.departmentId,
+      positionId: user.positionId,
+      approverUserId: user.approverUserId,
+    });
+    setUserModalOpen(true);
+  };
+
+  const saveUser = async () => {
+    if (!editingUser) return;
+    const values = await userForm.validateFields();
+    setSavingUser(true);
+    try {
+      const roleChanged = !areArraysEqual(values.roles, editingUser.roles);
+      const orgChanged = values.departmentId !== editingUser.departmentId
+        || values.positionId !== editingUser.positionId
+        || values.approverUserId !== editingUser.approverUserId;
+      let updated = editingUser;
+      if (roleChanged) {
+        updated = await accessControlApi.assignUserRoles(editingUser.id, values.roles);
+        setOverview((current) => current && ({
+          ...current,
+          users: current.users.map((item) => item.id === updated.id ? updated : item),
+        }));
+      }
+      if (orgChanged) {
+        if (!values.departmentId || !values.positionId) {
+          message.warning('部门和岗位不能为空');
+          setSavingUser(false);
+          return;
+        }
+        updated = await accessControlApi.updateUserOrganization(editingUser.id, {
+          departmentId: values.departmentId,
+          positionId: values.positionId,
+          approverUserId: values.approverUserId,
+        });
+        setOverview((current) => current && ({
+          ...current,
+          users: current.users.map((item) => item.id === updated.id ? updated : item),
+        }));
+      }
+      setUserModalOpen(false);
+      setEditingUser(null);
+      userForm.resetFields();
+      if (roleChanged || orgChanged) {
+        message.success('用户信息已更新');
+      }
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '用户信息保存失败');
+    } finally {
+      setSavingUser(false);
+    }
+  };
+
+  const toggleUserStatus = (user: AccessUser) => {
+    const nextStatus = user.status === 1 ? 0 : 1;
+    const action = nextStatus === 0 ? '禁用' : '启用';
+    Modal.confirm({
+      title: `确认${action}用户？`,
+      content: `「${user.name}」将被${action}。`,
+      okText: `确认${action}`,
+      okType: nextStatus === 0 ? 'danger' : 'primary',
+      cancelText: '取消',
+      onOk: async () => {
+        setTogglingUserId(user.id);
+        try {
+          const updated = await accessControlApi.updateUserStatus(user.id, nextStatus);
+          setOverview((current) => current && ({
+            ...current,
+            users: current.users.map((item) => item.id === user.id ? updated : item),
+          }));
+          message.success(`用户已${action}`);
+        } catch (error) {
+          message.error(error instanceof Error ? error.message : `用户${action}失败`);
+        } finally {
+          setTogglingUserId(null);
+        }
+      },
+    });
+  };
+
   const userColumns: ColumnsType<AccessUser> = [
     {
       title: '用户',
       key: 'user',
+      align: 'center',
       render: (_, user) => (
         <Space className="oa-access-identity" orientation="vertical" size={2}>
           <Typography.Text strong>{user.name}</Typography.Text>
@@ -280,79 +309,75 @@ export default function AccessControlPage() {
     {
       title: '状态',
       dataIndex: 'status',
-      width: 100,
-      render: (status: number, user) => (
-        <Space>
-          <Badge status={status === 1 ? 'success' : 'default'} text={status === 1 ? '正常' : '停用'} />
-          <Switch size="small" checked={status === 1} loading={savingUserId === user.id}
-            onChange={(checked) => void updateStatus(user, checked)} />
-        </Space>
+      width: 90,
+      align: 'center',
+      render: (status: number) => (
+        <Badge status={status === 1 ? 'success' : 'default'} text={status === 1 ? '正常' : '停用'} />
       ),
     },
     {
       title: '角色',
       dataIndex: 'roles',
-      width: 300,
-      render: (roleCodes: string[], user) => (
-        <Select
-          mode="multiple"
-          showSearch
-          optionFilterProp="label"
-          value={roleCodes}
-          loading={savingUserId === user.id}
-          options={roles.map((role) => ({ value: role.code, label: `${role.name} (${role.code})` }))}
-          style={{ width: 270 }}
-          maxTagCount="responsive"
-          onChange={(value) => void assignRoles(user.id, value)}
-        />
-      ),
+      width: 240,
+      align: 'center',
+      render: (roleCodes: string[]) => {
+        const items = roleCodes.map((code) => roles.find((role) => role.code === code));
+        const valid = items.filter((item): item is AccessRole => Boolean(item));
+        if (!valid.length) return <Typography.Text type="secondary">-</Typography.Text>;
+        return (
+          <Space size={[4, 4]} wrap>
+            {valid.map((role) => (
+              <Tag key={role.code} variant="filled">{role.name}</Tag>
+            ))}
+          </Space>
+        );
+      },
     },
     {
       title: '部门',
       dataIndex: 'departmentId',
-      width: 180,
-      render: (value: number | undefined, user) => (
-        <Select
-          showSearch
-          optionFilterProp="label"
-          value={value}
-          style={{ width: 150 }}
-          options={(overview?.departments || []).map((item) => ({ value: item.id, label: item.name }))}
-          onChange={(next) => void updateOrganization(user, 'departmentId', next)}
-        />
+      width: 140,
+      align: 'center',
+      render: (value: number | undefined) => (
+        <Typography.Text>{overview?.departments.find((item) => item.id === value)?.name || '-'}</Typography.Text>
       ),
     },
     {
       title: '岗位',
       dataIndex: 'positionId',
-      width: 180,
-      render: (value: number | undefined, user) => (
-        <Select
-          showSearch
-          optionFilterProp="label"
-          value={value}
-          style={{ width: 150 }}
-          options={(overview?.positions || []).map((item) => ({ value: item.id, label: item.name }))}
-          onChange={(next) => void updateOrganization(user, 'positionId', next)}
-        />
+      width: 140,
+      align: 'center',
+      render: (value: number | undefined) => (
+        <Typography.Text>{overview?.positions.find((item) => item.id === value)?.name || '-'}</Typography.Text>
       ),
     },
     {
       title: '直属审批人',
       dataIndex: 'approverUserId',
-      width: 200,
-      render: (value: number | undefined, user) => (
-        <Select
-          allowClear
-          showSearch
-          optionFilterProp="label"
-          value={value}
-          style={{ width: 170 }}
-          options={(overview?.users || [])
-            .filter((item) => item.id !== user.id && item.status === 1)
-            .map((item) => ({ value: item.id, label: item.name }))}
-          onChange={(next) => void updateOrganization(user, 'approverUserId', next)}
-        />
+      width: 120,
+      align: 'center',
+      render: (value: number | undefined) => (
+        <Typography.Text>{overview?.users.find((item) => item.id === value)?.name || '-'}</Typography.Text>
+      ),
+    },
+    {
+      title: '操作',
+      key: 'actions',
+      width: 140,
+      align: 'center',
+      fixed: 'right',
+      render: (_, user) => (
+        <Space size={0}>
+          <Button type="link" onClick={() => openUserEditor(user)}>编辑</Button>
+          <Button
+            type="link"
+            danger={user.status === 1}
+            loading={togglingUserId === user.id}
+            onClick={() => toggleUserStatus(user)}
+          >
+            {user.status === 1 ? '禁用' : '启用'}
+          </Button>
+        </Space>
       ),
     },
   ];
@@ -361,6 +386,7 @@ export default function AccessControlPage() {
     {
       title: '名称 / 编码',
       key: 'route',
+      align: 'center',
       render: (_, route) => (
         <Space className="oa-access-identity" orientation="vertical" size={2}>
           <Typography.Text strong>{route.name}</Typography.Text>
@@ -368,28 +394,32 @@ export default function AccessControlPage() {
         </Space>
       ),
     },
-    { title: '父级', dataIndex: 'parentKey', width: 140, render: (value) => value || '-' },
+    { title: '父级', dataIndex: 'parentKey', width: 140, align: 'center', render: (value) => value || '-' },
     {
       title: '类型',
       dataIndex: 'routeType',
       width: 90,
+      align: 'center',
       render: (value) => <Tag className="oa-access-type-tag" variant="filled">{value}</Tag>,
     },
     {
       title: '路径',
       dataIndex: 'path',
+      align: 'center',
       render: (value) => <span className="oa-access-path">{value || '-'}</span>,
     },
     {
       title: '组件',
       dataIndex: 'componentKey',
       width: 160,
+      align: 'center',
       render: (value) => <span className="oa-access-code">{value || '-'}</span>,
     },
     {
       title: '状态',
       dataIndex: 'enabled',
       width: 80,
+      align: 'center',
       render: (enabled) => <Badge status={enabled ? 'success' : 'default'} text={enabled ? '启用' : '停用'} />,
     },
     {
@@ -426,81 +456,20 @@ export default function AccessControlPage() {
 
       <Spin spinning={loading}>
         {!overview ? <Empty description="暂无权限配置数据" /> : (
-          <Tabs activeKey={activeTab} onChange={setActiveTab} items={[
+          <Tabs items={[
             {
               key: 'users',
               label: <span><OaIcon name="user" /> 用户角色</span>,
               children: (
-                <>
-                  <div className="oa-access-toolbar">
-                    <Alert
-                      className="oa-access-hint"
-                      type="info"
-                      showIcon
-                      message="用户 → 角色 → 权限实时联动；新增角色默认零权限，需管理员显式授权。"
-                    />
-                    <Segmented
-                      value={userViewMode}
-                      onChange={(value) => setUserViewMode(value as typeof userViewMode)}
-                      options={[
-                        { value: 'linkage', label: '关系视图' },
-                        { value: 'table', label: '配置表格' },
-                      ]}
-                    />
-                  </div>
-                  {userViewMode === 'table' ? (
-                    <Table
-                      className="oa-access-table"
-                      rowKey="id"
-                      columns={userColumns}
-                      dataSource={overview.users}
-                      size="middle"
-                      pagination={{ pageSize: 10, hideOnSinglePage: true, showSizeChanger: false }}
-                      scroll={{ x: 1180 }}
-                    />
-                  ) : (
-                    <div className="oa-rbac-linkage">
-                      {roles.map((role) => {
-                        const members = overview.users.filter((user) => user.roles.includes(role.code));
-                        return (
-                          <section className="oa-rbac-role-node" key={role.code}>
-                            <div className="oa-rbac-role-node__heading">
-                              <span className="oa-rbac-role-node__icon"><OaIcon name="role" /></span>
-                              <div>
-                                <Typography.Text strong>{role.name}</Typography.Text>
-                                <Typography.Text type="secondary">{role.code}</Typography.Text>
-                              </div>
-                              <Tag color={role.builtin ? 'blue' : 'purple'}>
-                                {role.builtin ? '内置' : '自定义'}
-                              </Tag>
-                            </div>
-                            <div className="oa-rbac-flow-label">
-                              <span>{members.length} 位用户</span>
-                              <i />
-                              <span>{role.permissions.length} 项权限</span>
-                            </div>
-                            <div className="oa-rbac-member-cloud">
-                              {members.map((member) => (
-                                <Tag key={member.id} icon={<OaIcon name="user" />}>{member.name}</Tag>
-                              ))}
-                              {!members.length && <Typography.Text type="secondary">暂未分配用户</Typography.Text>}
-                            </div>
-                            <div className="oa-rbac-permission-preview">
-                              {role.permissions.slice(0, 5).map((permission) => (
-                                <span key={permission}>{permission}</span>
-                              ))}
-                              {role.permissions.length > 5 && <em>+{role.permissions.length - 5}</em>}
-                              {!role.permissions.length && <span className="is-empty">等待管理员配置权限</span>}
-                            </div>
-                            <Button block onClick={() => { chooseRole(role); setActiveTab('roles'); }}>
-                              查看并配置权限
-                            </Button>
-                          </section>
-                        );
-                      })}
-                    </div>
-                  )}
-                </>
+                <Table
+                  className="oa-access-table"
+                  rowKey="id"
+                  columns={userColumns}
+                  dataSource={overview.users}
+                  size="middle"
+                  pagination={{ pageSize: 10, hideOnSinglePage: true, showSizeChanger: false }}
+                  scroll={{ x: 1100 }}
+                />
               ),
             },
             {
@@ -513,53 +482,80 @@ export default function AccessControlPage() {
                       onClick={() => setOrganizationModal('department')}>
                       新增或更新部门
                     </Button>
-                    <Button icon={<OaIcon name="add" />}
-                      onClick={() => setOrganizationModal('position')}>
-                      新增或更新岗位
-                    </Button>
                   </div>
                   <Table
                     rowKey="id"
                     dataSource={overview.departments}
                     pagination={false}
                     columns={[
-                      { title: '部门编码', dataIndex: 'code' },
-                      { title: '部门名称', dataIndex: 'name' },
+                      { title: '部门编码', dataIndex: 'code', align: 'center' as const },
+                      { title: '部门名称', dataIndex: 'name', align: 'center' as const },
                       {
                         title: '默认审批人',
                         dataIndex: 'defaultApproverUserId',
+                        align: 'center' as const,
                         render: (value) => overview.users.find((user) => user.id === value)?.name || '-',
                       },
                       {
                         title: '操作',
+                        width: 140,
+                        align: 'center' as const,
                         render: (_, item) => (
-                          <Button type="link" onClick={() => {
-                            organizationForm.setFieldsValue(item);
-                            setOrganizationModal('department');
-                          }}>
-                            编辑
-                          </Button>
+                          <Space size={0}>
+                            <Button type="link" onClick={() => {
+                              organizationForm.setFieldsValue(item);
+                              setOrganizationModal('department');
+                            }}>
+                              编辑
+                            </Button>
+                            <Button
+                              type="link"
+                              danger
+                              loading={deletingOrganizationId === item.id}
+                              onClick={() => confirmDeleteOrganization(item, 'department')}
+                            >
+                              删除
+                            </Button>
+                          </Space>
                         ),
                       },
                     ]}
                   />
                   <Divider />
+                  <div className="oa-access-toolbar">
+                    <Button type="primary" icon={<OaIcon name="add" />}
+                      onClick={() => setOrganizationModal('position')}>
+                      新增或更新岗位
+                    </Button>
+                  </div>
                   <Table
                     rowKey="id"
                     dataSource={overview.positions}
                     pagination={false}
                     columns={[
-                      { title: '岗位编码', dataIndex: 'code' },
-                      { title: '岗位名称', dataIndex: 'name' },
+                      { title: '岗位编码', dataIndex: 'code', align: 'center' as const },
+                      { title: '岗位名称', dataIndex: 'name', align: 'center' as const },
                       {
                         title: '操作',
+                        width: 140,
+                        align: 'center' as const,
                         render: (_, item) => (
-                          <Button type="link" onClick={() => {
-                            organizationForm.setFieldsValue(item);
-                            setOrganizationModal('position');
-                          }}>
-                            编辑
-                          </Button>
+                          <Space size={0}>
+                            <Button type="link" onClick={() => {
+                              organizationForm.setFieldsValue(item);
+                              setOrganizationModal('position');
+                            }}>
+                              编辑
+                            </Button>
+                            <Button
+                              type="link"
+                              danger
+                              loading={deletingOrganizationId === item.id}
+                              onClick={() => confirmDeleteOrganization(item, 'position')}
+                            >
+                              删除
+                            </Button>
+                          </Space>
                         ),
                       },
                     ]}
@@ -594,20 +590,7 @@ export default function AccessControlPage() {
                               <Typography.Title level={5}>{selectedRole.name}</Typography.Title>
                               <Typography.Text type="secondary">{selectedRole.description}</Typography.Text>
                             </div>
-                            <Space>
-                              <Typography.Text code>{selectedRole.code}</Typography.Text>
-                              {!selectedRole.builtin && (
-                                <Popconfirm
-                                  title="确认删除该角色？"
-                                  description="有关联用户的角色不能删除，请先完成角色迁移。"
-                                  onConfirm={() => void deleteRole()}
-                                >
-                                  <Button danger type="text" icon={<OaIcon name="delete" />}>
-                                    删除角色
-                                  </Button>
-                                </Popconfirm>
-                              )}
-                            </Space>
+                            <Typography.Text code>{selectedRole.code}</Typography.Text>
                           </div>
                           {selectedRole.code === 'SUPER_ADMIN' && (
                             <Alert type="info" showIcon title="超级管理员始终拥有全部权限" />
@@ -711,12 +694,12 @@ export default function AccessControlPage() {
           {organizationModal === 'department' && (
             <>
               <Form.Item name="parentId" label="上级部门">
-                <Select allowClear showSearch optionFilterProp="label" options={(overview?.departments || []).map((item) => ({
+                <Select allowClear options={(overview?.departments || []).map((item) => ({
                   value: item.id, label: item.name,
                 }))} />
               </Form.Item>
               <Form.Item name="defaultApproverUserId" label="部门默认审批人">
-                <Select allowClear showSearch optionFilterProp="label" options={(overview?.users || [])
+                <Select allowClear options={(overview?.users || [])
                   .filter((item) => item.status === 1)
                   .map((item) => ({ value: item.id, label: item.name }))} />
               </Form.Item>
@@ -789,8 +772,67 @@ export default function AccessControlPage() {
           </div>
         </Form>
       </Modal>
+
+      <Modal
+        title={editingUser ? `编辑用户 - ${editingUser.name}` : '编辑用户'}
+        open={userModalOpen}
+        onCancel={() => { setUserModalOpen(false); setEditingUser(null); userForm.resetFields(); }}
+        onOk={() => void saveUser()}
+        okText="保存"
+        cancelText="取消"
+        confirmLoading={savingUser}
+        width={520}
+      >
+        {editingUser && (
+          <div className="oa-access-identity" style={{ marginBottom: 16 }}>
+            <Typography.Text strong>{editingUser.name}</Typography.Text>
+            <Typography.Text type="secondary"> {editingUser.email}</Typography.Text>
+          </div>
+        )}
+        <Form form={userForm} layout="vertical">
+          <Form.Item name="roles" label="角色" rules={[{ required: true, message: '请至少分配一个角色' }]}>
+            <Select
+              mode="multiple"
+              options={roles.map((role) => ({ value: role.code, label: `${role.name} (${role.code})` }))}
+              maxTagCount="responsive"
+              placeholder="选择角色"
+            />
+          </Form.Item>
+          <div className="oa-route-form-grid">
+            <Form.Item name="departmentId" label="部门" rules={[{ required: true, message: '请选择部门' }]}>
+              <Select
+                options={(overview?.departments || []).map((item) => ({ value: item.id, label: item.name }))}
+                placeholder="选择部门"
+              />
+            </Form.Item>
+            <Form.Item name="positionId" label="岗位" rules={[{ required: true, message: '请选择岗位' }]}>
+              <Select
+                options={(overview?.positions || []).map((item) => ({ value: item.id, label: item.name }))}
+                placeholder="选择岗位"
+              />
+            </Form.Item>
+          </div>
+          <Form.Item name="approverUserId" label="直属审批人">
+            <Select
+              allowClear
+              options={(overview?.users || [])
+                .filter((item) => item.id !== editingUser?.id && item.status === 1)
+                .map((item) => ({ value: item.id, label: item.name }))}
+              placeholder="选择直属审批人"
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
     </section>
   );
+}
+
+function areArraysEqual(a?: string[], b?: string[]): boolean {
+  const left = a ?? [];
+  const right = b ?? [];
+  if (left.length !== right.length) return false;
+  const set = new Set(left);
+  return right.every((item) => set.has(item));
 }
 
 function groupPermissions(permissions: AccessPermission[]): Map<string, AccessPermission[]> {

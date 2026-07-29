@@ -133,21 +133,12 @@ export interface PageResponse<T> {
 
 export interface LeaveApplicationPayload {
   leaveType: LeaveType;
-  approverUserId: number;
   startDate: string;
   startPeriod: HalfDayPeriod;
   endDate: string;
   endPeriod: HalfDayPeriod;
   reason: string;
   version?: number;
-}
-
-export interface ApproverCandidate {
-  id: number;
-  name: string;
-  departmentName?: string;
-  positionName?: string;
-  recommended: boolean;
 }
 
 export interface LeaveApplication {
@@ -168,12 +159,6 @@ export interface LeaveApplication {
   version: number;
   taskId?: number;
   taskVersion?: number;
-  taskStatus?: string;
-  taskDueAt?: string;
-  overdue: boolean;
-  workflowStatus?: string;
-  currentStage: 'APPLICATION' | 'APPROVAL' | 'COMPLETED';
-  workflowStages: WorkflowStage[];
   submittedAt?: string;
   completedAt?: string;
   createdAt: string;
@@ -182,26 +167,6 @@ export interface LeaveApplication {
   canSubmit: boolean;
   canWithdraw: boolean;
   canApprove: boolean;
-}
-
-export interface WorkflowStage {
-  key: 'APPLICATION' | 'APPROVAL' | 'COMPLETED';
-  title: string;
-  status: 'WAIT' | 'PROCESS' | 'FINISH' | 'ERROR';
-  actorName?: string;
-  occurredAt?: string;
-  description: string;
-}
-
-export interface LeaveApprovalContext {
-  applicantName: string;
-  departmentName?: string;
-  positionName?: string;
-  approverUserId?: number;
-  approverName?: string;
-  approverSource: 'DIRECT_OR_DEPARTMENT_DEFAULT' | 'UNCONFIGURED';
-  approverConfigured: boolean;
-  approvalDueHours: number;
 }
 
 export interface TodoItem {
@@ -252,11 +217,6 @@ function queryString(params: Record<string, string | number | undefined>): strin
 }
 
 export const leaveApi = {
-  approvalContext: () => request<LeaveApprovalContext>('/leave-applications/approval-context'),
-  approverCandidates: (keyword?: string) =>
-    request<PageResponse<ApproverCandidate>>(
-      `/leave-applications/approver-candidates${queryString({ keyword, page: 1, size: 100 })}`,
-    ),
   create: (payload: LeaveApplicationPayload) =>
     request<LeaveApplication>('/leave-applications', {
       method: 'POST',

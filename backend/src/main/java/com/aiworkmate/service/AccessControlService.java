@@ -34,8 +34,6 @@ public interface AccessControlService {
 
     void deletePosition(Long operatorUserId, Long tenantId, Long positionId);
 
-    void deleteRole(Long operatorUserId, String roleCode);
-
     AccessRoleResponse updateRolePermissions(Long operatorUserId, String roleCode, Set<String> permissionCodes);
 
     AccessRoleResponse createRole(Long operatorUserId, String code, String name, String description);

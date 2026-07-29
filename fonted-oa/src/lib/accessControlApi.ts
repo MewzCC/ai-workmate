@@ -35,7 +35,8 @@ export interface AccessRoute {
   icon?: string;
   routeType: 'GROUP' | 'MENU' | 'PAGE';
   componentKey?: 'DASHBOARD' | 'AI_WORKSPACE' | 'ACCESS_CONTROL'
-    | 'TODO_LIST' | 'LEAVE_FORM' | 'MY_APPLICATIONS' | 'AUDIT_CENTER' | 'ORG_TREE';
+    | 'TODO_LIST' | 'LEAVE_FORM' | 'MY_APPLICATIONS' | 'AUDIT_CENTER'
+    | 'ORG_TREE';
   permissionCode?: string;
   sortOrder: number;
   enabled: boolean;
@@ -86,10 +87,12 @@ async function request<T>(path = '', init?: RequestInit): Promise<T> {
   if (response.status === 401 && typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('oa-auth-expired'));
   }
-  if (!response.ok || !result || result.code !== 200 || result.data === null) {
+  const isVoidResponse = init?.method === 'DELETE';
+  if (!response.ok || !result || result.code !== 200
+      || (!isVoidResponse && result.data === null)) {
     throw new Error(result?.message || '权限配置请求失败');
   }
-  return result.data;
+  return (result.data ?? null) as T;
 }
 
 export const accessControlApi = {
@@ -126,6 +129,10 @@ export const accessControlApi = {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
+  deleteDepartment: (departmentId: number) =>
+    request<void>(`/departments/${departmentId}`, { method: 'DELETE' }),
+  deletePosition: (positionId: number) =>
+    request<void>(`/positions/${positionId}`, { method: 'DELETE' }),
   updateRolePermissions: (roleCode: string, permissionCodes: string[]) =>
     request<AccessRole>(`/roles/${encodeURIComponent(roleCode)}/permissions`, {
       method: 'PUT',
@@ -136,8 +143,6 @@ export const accessControlApi = {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
-  deleteRole: (roleCode: string) =>
-    request<boolean>(`/roles/${encodeURIComponent(roleCode)}`, { method: 'DELETE' }),
   saveRoute: (payload: SaveRoutePayload) =>
     request<AccessRoute>(`/routes/${encodeURIComponent(payload.routeKey)}`, {
       method: 'PUT',
