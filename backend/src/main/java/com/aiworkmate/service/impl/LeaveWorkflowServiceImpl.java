@@ -5,12 +5,16 @@ import com.aiworkmate.common.ErrorCode;
 import com.aiworkmate.common.PageResponse;
 import com.aiworkmate.common.TraceContext;
 import com.aiworkmate.dto.ApprovalDecisionRequest;
+import com.aiworkmate.dto.ApproverCandidateResponse;
 import com.aiworkmate.dto.LeaveApplicationRequest;
 import com.aiworkmate.dto.LeaveApplicationResponse;
 import com.aiworkmate.dto.LeaveApplicationView;
+import com.aiworkmate.dto.LeaveApprovalContextResponse;
+import com.aiworkmate.dto.LeaveApprovalContextRow;
 import com.aiworkmate.dto.TodoResponse;
 import com.aiworkmate.dto.VersionRequest;
 import com.aiworkmate.dto.WorkflowTimelineResponse;
+import com.aiworkmate.dto.WorkflowStageResponse;
 import com.aiworkmate.entity.LeaveApplication;
 import com.aiworkmate.entity.WorkflowActionLog;
 import com.aiworkmate.entity.WorkflowInstance;
@@ -31,6 +35,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
@@ -51,6 +56,45 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
     private long approvalDueHours;
 
     @Override
+    @Transactional(readOnly = true)
+    public LeaveApprovalContextResponse approvalContext(Long userId) {
+        ResolvedUserAccess actor = requirePermission(userId, "leave:create");
+        Long approverId = leaveMapper.resolveApprover(actor.tenantId(), actor.userId());
+        LeaveApprovalContextRow row = leaveMapper.selectApprovalContext(
+                actor.tenantId(), actor.userId(), approverId);
+        if (row == null) {
+            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        }
+        return new LeaveApprovalContextResponse(
+                row.applicantName(),
+                row.departmentName(),
+                row.positionName(),
+                approverId,
+                row.approverName(),
+                approverId == null ? "UNCONFIGURED" : "DIRECT_OR_DEPARTMENT_DEFAULT",
+                approverId != null,
+                Math.max(0, approvalDueHours)
+        );
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<ApproverCandidateResponse> approverCandidates(
+            Long userId, String keyword, int page, int size) {
+        ResolvedUserAccess actor = requirePermission(userId, "leave:create");
+        int safePage = Math.max(1, page);
+        int safeSize = Math.min(100, Math.max(1, size));
+        String search = normalize(keyword);
+        Long recommendedId = leaveMapper.resolveApprover(actor.tenantId(), actor.userId());
+        List<ApproverCandidateResponse> records = leaveMapper.selectApproverCandidates(
+                actor.tenantId(), actor.userId(), recommendedId, search,
+                safeSize, (safePage - 1) * safeSize);
+        long total = leaveMapper.countApproverCandidates(
+                actor.tenantId(), actor.userId(), search);
+        return PageResponse.of(records, total, safePage, safeSize);
+    }
+
+    @Override
     @Transactional
     public LeaveApplicationResponse createDraft(Long userId, LeaveApplicationRequest request) {
         ResolvedUserAccess actor = requirePermission(userId, "leave:create");
@@ -59,6 +103,10 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
         LeaveApplication leave = new LeaveApplication();
         leave.setTenantId(actor.tenantId());
         leave.setApplicantUserId(actor.userId());
+        if (request.approverUserId() != null) {
+            requireEligibleApprover(actor, request.approverUserId());
+        }
+        leave.setApproverUserId(request.approverUserId());
         applyRequest(leave, request, duration);
         leave.setStatus("DRAFT");
         leave.setVersion(0);
@@ -80,6 +128,9 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
         LeaveApplication current = requireOwnedLeave(actor, id);
         requireState(current, "DRAFT");
         int duration = calculateDuration(request);
+        if (request.approverUserId() != null) {
+            requireEligibleApprover(actor, request.approverUserId());
+        }
         LambdaUpdateWrapper<LeaveApplication> update = new LambdaUpdateWrapper<LeaveApplication>()
                 .eq(LeaveApplication::getId, id)
                 .eq(LeaveApplication::getTenantId, actor.tenantId())
@@ -87,6 +138,7 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
                 .eq(LeaveApplication::getStatus, "DRAFT")
                 .eq(LeaveApplication::getVersion, request.version())
                 .set(LeaveApplication::getLeaveType, request.leaveType())
+                .set(LeaveApplication::getApproverUserId, request.approverUserId())
                 .set(LeaveApplication::getStartDate, request.startDate())
                 .set(LeaveApplication::getStartPeriod, request.startPeriod())
                 .set(LeaveApplication::getEndDate, request.endDate())
@@ -130,8 +182,15 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
         ResolvedUserAccess actor = requirePermission(userId, "leave:create");
         LeaveApplication current = requireOwnedLeave(actor, id);
         requireState(current, "DRAFT");
-        Long approverId = leaveMapper.resolveApprover(actor.tenantId(), actor.userId());
-        if (approverId == null) {
+        Long approverId = current.getApproverUserId();
+        if (approverId == null
+                || leaveMapper.countEligibleApprover(
+                        actor.tenantId(), actor.userId(), approverId) != 1) {
+            approverId = leaveMapper.resolveApprover(actor.tenantId(), actor.userId());
+        }
+        if (approverId == null
+                || leaveMapper.countEligibleApprover(
+                        actor.tenantId(), actor.userId(), approverId) != 1) {
             auditService.record(actor.tenantId(), actor.userId(), BUSINESS_TYPE,
                     id.toString(), "SUBMIT", "FAILURE", "未配置有效审批人");
             throw new BusinessException(ErrorCode.APPROVER_NOT_CONFIGURED);
@@ -246,7 +305,8 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
     public LeaveApplicationResponse todoDetail(Long userId, Long taskId) {
         ResolvedUserAccess actor = requireAccess(userId);
         WorkflowTask task = requireAssignedTask(actor, taskId);
-        return response(actor, requireView(actor.tenantId(), task.getBusinessId()));
+        LeaveApplicationView view = requireView(actor.tenantId(), task.getBusinessId());
+        return response(actor, view);
     }
 
     @Override
@@ -402,6 +462,8 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
                 view.startDate(), view.startPeriod(), view.endDate(), view.endPeriod(),
                 view.durationHalfDays(), view.durationHalfDays() / 2.0,
                 view.reason(), view.status(), view.version(), view.taskId(), view.taskVersion(),
+                view.taskStatus(), view.taskDueAt(), isOverdue(view),
+                view.workflowStatus(), currentStage(view.status()), workflowStages(view),
                 view.submittedAt(), view.completedAt(), view.createdAt(), view.updatedAt(),
                 applicant && "DRAFT".equals(view.status()),
                 applicant && "DRAFT".equals(view.status()),
@@ -410,6 +472,62 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
                 approver && "PENDING".equals(view.status())
                         && actor.permissions().contains("approval:act")
                         && !applicant
+        );
+    }
+
+    private boolean isOverdue(LeaveApplicationView view) {
+        return "PENDING".equals(view.taskStatus())
+                && view.taskDueAt() != null
+                && view.taskDueAt().isBefore(LocalDateTime.now());
+    }
+
+    private String currentStage(String status) {
+        return switch (status) {
+            case "DRAFT" -> "APPLICATION";
+            case "PENDING" -> "APPROVAL";
+            default -> "COMPLETED";
+        };
+    }
+
+    private List<WorkflowStageResponse> workflowStages(LeaveApplicationView view) {
+        boolean draft = "DRAFT".equals(view.status());
+        boolean pending = "PENDING".equals(view.status());
+        boolean approved = "APPROVED".equals(view.status());
+        boolean rejected = "REJECTED".equals(view.status());
+        boolean withdrawn = "WITHDRAWN".equals(view.status());
+        return List.of(
+                new WorkflowStageResponse(
+                        "APPLICATION",
+                        "填写并提交",
+                        draft ? "PROCESS" : "FINISH",
+                        view.applicantName(),
+                        view.submittedAt() == null ? view.createdAt() : view.submittedAt(),
+                        draft ? "申请信息尚未提交" : "申请已提交并生成审批待办"
+                ),
+                new WorkflowStageResponse(
+                        "APPROVAL",
+                        "直属/部门审批",
+                        pending ? "PROCESS" : draft ? "WAIT" : approved ? "FINISH" : "ERROR",
+                        view.approverName(),
+                        pending || draft ? null : view.completedAt(),
+                        pending
+                                ? (isOverdue(view) ? "当前审批已超过处理时限" : "等待当前审批人处理")
+                                : approved ? "审批人已通过申请"
+                                : rejected ? "审批人已退回申请"
+                                : withdrawn ? "申请人撤回，审批任务已取消"
+                                : "等待申请提交"
+                ),
+                new WorkflowStageResponse(
+                        "COMPLETED",
+                        "流程归档",
+                        draft || pending ? "WAIT" : approved ? "FINISH" : "ERROR",
+                        null,
+                        view.completedAt(),
+                        approved ? "流程已完成并归档"
+                                : rejected ? "流程以退回结果结束"
+                                : withdrawn ? "流程以撤回结果结束"
+                                : "审批完成后自动归档"
+                )
         );
     }
 
@@ -436,6 +554,9 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
     }
 
     private int calculateDuration(LeaveApplicationRequest request) {
+        if (request.startDate().isBefore(LocalDate.now())) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "开始日期不能早于今天");
+        }
         return HalfDayCalculator.calculate(
                 request.startDate(), request.startPeriod(), request.endDate(), request.endPeriod());
     }
@@ -444,12 +565,21 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
                               LeaveApplicationRequest request,
                               int duration) {
         leave.setLeaveType(request.leaveType());
+        leave.setApproverUserId(request.approverUserId());
         leave.setStartDate(request.startDate());
         leave.setStartPeriod(request.startPeriod());
         leave.setEndDate(request.endDate());
         leave.setEndPeriod(request.endPeriod());
         leave.setDurationHalfDays(duration);
         leave.setReason(request.reason().trim());
+    }
+
+    private void requireEligibleApprover(ResolvedUserAccess actor, Long approverUserId) {
+        if (approverUserId == null || leaveMapper.countEligibleApprover(
+                actor.tenantId(), actor.userId(), approverUserId) != 1) {
+            throw new BusinessException(ErrorCode.APPROVER_NOT_CONFIGURED,
+                    "所选审批人不在有效审批范围内，请重新选择");
+        }
     }
 
     private LeaveApplicationView requireView(Long tenantId, Long id) {

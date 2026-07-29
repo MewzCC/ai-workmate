@@ -3,6 +3,8 @@ package com.aiworkmate.controller;
 import com.aiworkmate.common.PageResponse;
 import com.aiworkmate.common.Result;
 import com.aiworkmate.dto.LeaveApplicationRequest;
+import com.aiworkmate.dto.ApproverCandidateResponse;
+import com.aiworkmate.dto.LeaveApprovalContextResponse;
 import com.aiworkmate.dto.LeaveApplicationResponse;
 import com.aiworkmate.dto.VersionRequest;
 import com.aiworkmate.security.AuthenticatedUser;
@@ -25,6 +27,21 @@ import org.springframework.web.bind.annotation.RestController;
 public class LeaveApplicationController {
 
     private final LeaveWorkflowService service;
+
+    @GetMapping("/approval-context")
+    public Result<LeaveApprovalContextResponse> approvalContext(
+            @AuthenticationPrincipal AuthenticatedUser user) {
+        return Result.ok(service.approvalContext(user.userId()));
+    }
+
+    @GetMapping("/approver-candidates")
+    public Result<PageResponse<ApproverCandidateResponse>> approverCandidates(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return Result.ok(service.approverCandidates(user.userId(), keyword, page, size));
+    }
 
     @PostMapping
     public Result<LeaveApplicationResponse> create(

@@ -1,6 +1,6 @@
 import dayjs from 'dayjs';
 import { describe, expect, it } from 'vitest';
-import { calculateHalfDays } from './LeaveFormPage';
+import { calculateHalfDays, isDateBeforeToday } from './LeaveFormPage';
 
 describe('calculateHalfDays', () => {
   it('counts inclusive calendar half-day slots', () => {
@@ -36,5 +36,14 @@ describe('calculateHalfDays', () => {
       endDate: date,
       endPeriod: 'AM',
     })).toBe(0);
+  });
+});
+
+describe('isDateBeforeToday', () => {
+  it('blocks previous dates but keeps today selectable', () => {
+    const today = dayjs('2026-07-28');
+    expect(isDateBeforeToday(dayjs('2026-07-27'), today)).toBe(true);
+    expect(isDateBeforeToday(dayjs('2026-07-28'), today)).toBe(false);
+    expect(isDateBeforeToday(dayjs('2026-07-29'), today)).toBe(false);
   });
 });
