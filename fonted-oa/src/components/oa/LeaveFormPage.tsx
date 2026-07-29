@@ -217,7 +217,7 @@ export default function LeaveFormPage() {
                 name="approverUserId"
                 label="本次审批人"
                 rules={[{ required: true, message: '请选择审批人' }]}
-                extra="候选人来自您所在部门及上级部门，并实时校验审批权限"
+                extra="候选人来自您所在部门及上级部门"
               >
                 <Select
                   size="large"

@@ -141,14 +141,13 @@ docker compose -f docker-compose.yml up -d
 - 主题切换必须同步 Ant Design `ConfigProvider` token 和 CSS variables。
 - OA 内置主题必须包含“首页风格”和“黑夜风格”，并且所有卡片、顶部栏、侧栏、文字、边框、ECharts 主色都要适配。
 - 自定义换肤能力属于全局 OA 规则，新增主题时必须写入规则与 skill。
-- 主题与 AI 小窗配置必须写入 localStorage：
+- 主题、AI 小窗及壁纸显示参数必须写入 localStorage：
   - `workmeta-oa-theme`
   - `workmeta-oa-ai-mini-enabled`
-  - `workmeta-oa-wallpaper`
   - `workmeta-oa-wallpaper-opacity`
   - `workmeta-oa-wallpaper-blur`
 - 自定义壁纸必须使用固定底图层；启用后 Sider、Header、Card、Table 和 Drawer 统一切换为透明模糊材质，不能由不透明 Layout 截断。
-- 上传壁纸必须先在浏览器侧压缩，localStorage 写入失败时必须明确提示。
+- 上传壁纸必须先在浏览器侧裁剪压缩，再通过受 JWT 保护的用户资料接口写入 MinIO；禁止将完整壁纸 Base64 长期保存到 localStorage。
 - 外观 Drawer 使用 Ant Design `Image`、`Spin`、`Empty` 展示受控壁纸预览、处理态和空态；重新打开后预览不得丢失。
 - 壁纸上传后必须先通过 `react-easy-crop` 与 Ant Design `Modal` 进入裁剪流程，支持拖动定位、缩放、旋转、比例切换和重置；仅在用户确认后压缩并持久化裁剪结果。
 - AI Chat Workspace 固定使用 `/oa/ai-workspace` 独立页面，包含会话侧栏、消息阅读区和底部输入器；不得实现为 FloatButton、Drawer 或悬浮卡片。

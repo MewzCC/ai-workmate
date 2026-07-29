@@ -103,7 +103,7 @@ export default function HelpDrawer({ open, role, onClose, onOpenAi }: HelpDrawer
           <ul>
             <li>顶部头像菜单 →「外观设置」打开外观 Drawer。</li>
             <li>内置 7 套主题：企业蓝、深青绿、高级紫、石墨灰、暖棕橙、首页风格、黑夜风格。</li>
-            <li><strong>自定义壁纸</strong>：上传图片后进入裁剪流程（支持拖动 / 缩放 / 旋转 / 比例切换），确认后压缩并持久化到 localStorage。</li>
+            <li><strong>自定义壁纸</strong>：上传图片后进入裁剪流程（支持拖动 / 缩放 / 旋转 / 比例切换），确认后压缩并安全保存到 MinIO。</li>
             <li>启用壁纸后，侧栏、顶栏、卡片、表格、抽屉统一切换为透明模糊材质。</li>
             <li>壁纸透明度与模糊度可调，实时预览。</li>
             <li><strong>AI 快捷卡片</strong>：开启后右下角显示「需要我接手当前流程吗？」快捷入口（AI 工作空间页面不显示）。</li>

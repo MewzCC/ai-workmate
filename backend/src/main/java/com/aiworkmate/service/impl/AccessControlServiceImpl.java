@@ -21,6 +21,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.Set;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.TreeSet;
 
 @Slf4j
 @Service
@@ -279,7 +282,7 @@ public class AccessControlServiceImpl implements AccessControlService {
             throw new BusinessException(ErrorCode.REQUEST_INVALID, "超级管理员始终拥有全部权限");
         }
 
-        Set<String> requested = Set.copyOf(permissionCodes);
+        Set<String> requested = new TreeSet<>(permissionCodes);
         Set<String> available = Set.copyOf(accessControlMapper.selectAllPermissionCodesForTenant(tenantId));
         if (!available.containsAll(requested)) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID, "包含不存在的权限编码");
@@ -301,6 +304,88 @@ public class AccessControlServiceImpl implements AccessControlService {
                 .findFirst()
                 .orElseThrow(() -> new BusinessException(ErrorCode.SYSTEM_ERROR))
                 .withPermissions(requested.stream().sorted().toList());
+    }
+
+    @Override
+    @Transactional
+    public AccessControlOverviewResponse updateRoleMembers(Long operatorUserId,
+                                                           Long tenantId,
+                                                           String roleCode,
+                                                           Set<Long> userIds) {
+        if (!tenantId.equals(accessControlMapper.selectUserTenantId(operatorUserId))) {
+            throw new BusinessException(ErrorCode.RESOURCE_FORBIDDEN);
+        }
+        String normalizedRole = roleCode.trim().toUpperCase();
+        if (accessControlMapper.countRoleForTenant(tenantId, normalizedRole) == 0) {
+            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        }
+
+        Set<Long> requested = new TreeSet<>(userIds);
+        Set<Long> current = new TreeSet<>(
+                accessControlMapper.selectRoleMemberUserIds(tenantId, normalizedRole));
+        Map<Long, AccessUserResponse> usersById = new HashMap<>();
+        for (AccessUserRow row : accessControlMapper.selectUsers(tenantId)) {
+            usersById.put(row.id(), toUser(tenantId, row));
+        }
+        if (!usersById.keySet().containsAll(requested)) {
+            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        }
+
+        Set<Long> added = new TreeSet<>(requested);
+        added.removeAll(current);
+        for (Long userId : added) {
+            if (usersById.get(userId).status() != 1) {
+                throw new BusinessException(
+                        ErrorCode.REQUEST_INVALID, "停用用户不能新增到角色");
+            }
+        }
+
+        Set<Long> removed = new TreeSet<>(current);
+        removed.removeAll(requested);
+        for (Long userId : removed) {
+            AccessUserResponse user = usersById.get(userId);
+            if (user == null) {
+                throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+            }
+            if (user.roles().size() <= 1) {
+                throw new BusinessException(
+                        ErrorCode.REQUEST_INVALID, "不能移除用户的唯一角色");
+            }
+        }
+
+        if (SUPER_ADMIN.equals(normalizedRole)) {
+            long remainingActiveSuperAdmins = requested.stream()
+                    .map(usersById::get)
+                    .filter(user -> user != null && user.status() == 1)
+                    .count();
+            if (remainingActiveSuperAdmins == 0) {
+                throw new BusinessException(
+                        ErrorCode.REQUEST_INVALID, "必须至少保留一名有效超级管理员");
+            }
+        }
+
+        Set<Long> changed = new TreeSet<>(added);
+        changed.addAll(removed);
+        for (Long userId : changed) {
+            Set<String> updatedRoles = new TreeSet<>(usersById.get(userId).roles());
+            if (added.contains(userId)) {
+                updatedRoles.add(normalizedRole);
+            } else {
+                updatedRoles.remove(normalizedRole);
+            }
+            accessControlMapper.deleteUserRoles(tenantId, userId);
+            accessControlMapper.insertUserRoles(tenantId, userId, updatedRoles);
+            String primaryRole = updatedRoles.stream()
+                    .min(Comparator.comparingInt(this::rolePriority))
+                    .orElseThrow();
+            accessControlMapper.updateUserRolesVersion(tenantId, userId, primaryRole);
+        }
+        accessControlMapper.insertAudit(
+                operatorUserId, "UPDATE_ROLE_MEMBERS", "ROLE", normalizedRole,
+                current.toString(), requested.toString());
+        log.info("Role members updated, operatorUserId={}, role={}, addedCount={}, removedCount={}",
+                operatorUserId, normalizedRole, added.size(), removed.size());
+        return overview(tenantId);
     }
 
     @Override

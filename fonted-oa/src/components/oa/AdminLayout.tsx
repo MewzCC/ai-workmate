@@ -16,6 +16,7 @@ import AiChatWorkspace from '@/components/ai-chat/AiChatWorkspace';
 import { useAuth } from '@/components/auth/AuthProvider';
 import AccessControlPage from './AccessControlPage';
 import { getNavigation, type NavigationRoute } from '@/lib/navigationApi';
+import { profileApi } from '@/lib/profileApi';
 import { OaIcon } from '@/components/OaIcon';
 import PageTabBar, { type OaPageTab } from './PageTabBar';
 import TodoListPage from './TodoListPage';
@@ -166,10 +167,7 @@ export default function AdminLayout() {
   const [aiPrompt, setAiPrompt] = useState('');
   const [themeName, setThemeName] = useState(() => readStorage('workmeta-oa-theme', 'enterprise-blue'));
   const [aiMiniEnabled, setAiMiniEnabled] = useState(() => readStorage('workmeta-oa-ai-mini-enabled', 'false') === 'true');
-  const [wallpaper, setWallpaper] = useState<string | null>(() => {
-    const saved = readStorage('workmeta-oa-wallpaper', '');
-    return saved || null;
-  });
+  const [wallpaper, setWallpaper] = useState<string | null>(null);
   const [wallpaperOpacity, setWallpaperOpacity] = useState(() => Number(readStorage('workmeta-oa-wallpaper-opacity', '0.28')));
   const [wallpaperBlur, setWallpaperBlur] = useState(() => Number(readStorage('workmeta-oa-wallpaper-blur', '4')));
   const [auditItems, setAuditItems] = useState<Array<{ color: string; content: string }>>([]);
@@ -199,6 +197,44 @@ export default function AdminLayout() {
         setNavigationLoaded(true);
         message.error(error instanceof Error ? error.message : '导航菜单加载失败');
       });
+    return () => {
+      active = false;
+    };
+  }, [user]);
+
+  useEffect(() => {
+    let active = true;
+    if (!user) {
+      setWallpaper(null);
+      return;
+    }
+    const loadWallpaper = async () => {
+      try {
+        const stored = await profileApi.getWallpaper();
+        if (!active) return;
+        if (stored.wallpaperUrl) {
+          setWallpaper(stored.wallpaperUrl);
+          window.localStorage.removeItem('workmeta-oa-wallpaper');
+          return;
+        }
+
+        const legacyWallpaper = window.localStorage.getItem('workmeta-oa-wallpaper');
+        if (!legacyWallpaper?.startsWith('data:image/')) {
+          setWallpaper(null);
+          return;
+        }
+        const file = await fetch(legacyWallpaper).then((response) => response.blob());
+        const migrated = await profileApi.uploadWallpaper(file);
+        if (!active) return;
+        setWallpaper(migrated.wallpaperUrl);
+        window.localStorage.removeItem('workmeta-oa-wallpaper');
+      } catch (error) {
+        if (!active) return;
+        setWallpaper(null);
+        message.error(error instanceof Error ? error.message : '壁纸加载失败');
+      }
+    };
+    void loadWallpaper();
     return () => {
       active = false;
     };

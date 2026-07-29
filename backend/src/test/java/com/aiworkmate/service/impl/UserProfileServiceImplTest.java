@@ -102,6 +102,49 @@ class UserProfileServiceImplTest {
         }
     }
 
+    @Test
+    void shouldStoreWallpaperInDedicatedMinioPrefix() {
+        User user = activeUser();
+        when(userMapper.selectById(1001L)).thenReturn(user);
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "wallpaper.png", "image/png", ONE_PIXEL_PNG);
+
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            var response = profileService.uploadWallpaper(1001L, file);
+            TransactionSynchronizationManager.getSynchronizations()
+                    .forEach(synchronization -> synchronization.afterCompletion(
+                            TransactionSynchronization.STATUS_COMMITTED));
+
+            assertThat(response.wallpaperUrl()).startsWith("/api/profile/wallpaper/content?v=");
+            assertThat(user.getWallpaper()).startsWith("user-wallpapers/").endsWith(".png");
+            verify(objectStorageService).store(
+                    org.mockito.ArgumentMatchers.startsWith("user-wallpapers/"),
+                    any(),
+                    eq((long) ONE_PIXEL_PNG.length),
+                    eq("image/png"));
+            verify(userMapper).updateById(user);
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+    }
+
+    @Test
+    void shouldRejectOversizedWallpaperBeforeStorage() {
+        ProfileProperties properties = new ProfileProperties();
+        properties.setWallpaperMaxBytes(4);
+        profileService = new UserProfileServiceImpl(userMapper, properties, userAccessService, objectStorageService);
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "wallpaper.png", "image/png", ONE_PIXEL_PNG);
+
+        assertThatThrownBy(() -> profileService.uploadWallpaper(1001L, file))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("壁纸大小不能超过 5MB");
+
+        verifyNoInteractions(userMapper);
+        verifyNoInteractions(objectStorageService);
+    }
+
     private User activeUser() {
         User user = new User();
         user.setId(1001L);
