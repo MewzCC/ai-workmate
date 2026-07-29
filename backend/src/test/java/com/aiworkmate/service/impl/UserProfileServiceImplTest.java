@@ -7,9 +7,9 @@ import com.aiworkmate.dto.UpdateProfileRequest;
 import com.aiworkmate.entity.User;
 import com.aiworkmate.mapper.UserMapper;
 import com.aiworkmate.service.UserAccessService;
+import com.aiworkmate.service.ObjectStorageService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -17,13 +17,14 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.Base64;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -34,22 +35,21 @@ class UserProfileServiceImplTest {
     private static final byte[] ONE_PIXEL_PNG = Base64.getDecoder().decode(
             "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=");
 
-    @TempDir
-    Path tempDir;
-
     @Mock
     private UserMapper userMapper;
 
     @Mock
     private UserAccessService userAccessService;
 
+    @Mock
+    private ObjectStorageService objectStorageService;
+
     private UserProfileServiceImpl profileService;
 
     @BeforeEach
     void setUp() {
         ProfileProperties properties = new ProfileProperties();
-        properties.setAvatarDirectory(tempDir.toString());
-        profileService = new UserProfileServiceImpl(userMapper, properties, userAccessService);
+        profileService = new UserProfileServiceImpl(userMapper, properties, userAccessService, objectStorageService);
         org.mockito.Mockito.lenient()
                 .when(userAccessService.permissionsForRole(org.mockito.ArgumentMatchers.anyString()))
                 .thenReturn(java.util.List.of());
@@ -76,6 +76,7 @@ class UserProfileServiceImplTest {
                 .hasMessage("头像仅支持 JPG、PNG 或 WebP");
 
         verifyNoInteractions(userMapper);
+        verifyNoInteractions(objectStorageService);
     }
 
     @Test
@@ -94,7 +95,7 @@ class UserProfileServiceImplTest {
 
             assertThat(response.avatarUrl()).startsWith("/api/profile/avatar/content?v=");
             assertThat(user.getAvatar()).endsWith(".png");
-            assertThat(Files.isRegularFile(tempDir.resolve(user.getAvatar()))).isTrue();
+            verify(objectStorageService).store(anyString(), any(), eq((long) ONE_PIXEL_PNG.length), eq("image/png"));
             verify(userMapper).updateById(user);
         } finally {
             TransactionSynchronizationManager.clearSynchronization();

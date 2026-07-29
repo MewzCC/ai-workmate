@@ -6,6 +6,7 @@ import com.aiworkmate.config.UploadProperties;
 import com.aiworkmate.mapper.AttachmentMapper;
 import com.aiworkmate.mapper.ConversationMapper;
 import com.aiworkmate.service.FileParserService;
+import com.aiworkmate.service.ObjectStorageService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -32,6 +33,9 @@ class AttachmentServiceImplTest {
 
     @Mock
     private UploadProperties properties;
+
+    @Mock
+    private ObjectStorageService objectStorageService;
 
     @InjectMocks
     private AttachmentServiceImpl attachmentService;
