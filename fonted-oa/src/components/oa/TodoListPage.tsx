@@ -110,7 +110,7 @@ export default function TodoListPage() {
         <Button
           type={item.status === 'PENDING' ? 'primary' : 'link'}
           size="small"
-          onClick={() => router.push(`/oa/approval-tasks/${item.id}`)}
+          onClick={() => router.push(`/oa/approval-tasks/${item.id}?from=todo`)}
         >
           {item.status === 'PENDING' ? '立即处理' : '查看详情'}
         </Button>

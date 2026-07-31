@@ -1,7 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import { useRouter } from '@/lib/nextCompat';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from '@/lib/nextCompat';
 import {
   Alert,
   Avatar,
@@ -33,6 +33,9 @@ import LeaveWorkflowPanel from './LeaveWorkflowPanel';
 
 export default function ApprovalDetailPage({ taskId }: { taskId: number }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const fromMyApplications = searchParams.get('from') === 'my-applications';
+  const fromTodo = searchParams.get('from') === 'todo';
   const [application, setApplication] = useState<LeaveApplication>();
   const [timeline, setTimeline] = useState<WorkflowTimelineItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -57,6 +60,14 @@ export default function ApprovalDetailPage({ taskId }: { taskId: number }) {
   }, [taskId]);
 
   useEffect(() => { void load(); }, [load]);
+
+  const { target: returnTarget, label: returnLabel } = useMemo(() => {
+    if (fromTodo) return { target: '/oa/todo', label: '返回待办' };
+    if (fromMyApplications) return { target: '/oa/my-applications', label: '返回我的申请' };
+    return application?.canApprove
+      ? { target: '/oa/todo', label: '返回待办' }
+      : { target: '/oa/my-applications', label: '返回我的申请' };
+  }, [fromTodo, fromMyApplications, application?.canApprove]);
 
   const submitDecision = async () => {
     if (application?.taskVersion == null || application.taskVersion < 0) return;
@@ -87,9 +98,9 @@ export default function ApprovalDetailPage({ taskId }: { taskId: number }) {
         <Button
           type="text"
           icon={<OaIcon name="previous" />}
-          onClick={() => router.push(application?.canApprove ? '/oa/todo' : '/oa/my-applications')}
+          onClick={() => router.push(returnTarget)}
         >
-          {application?.canApprove ? '返回待办' : '返回我的申请'}
+          {returnLabel}
         </Button>
         <div className="approval-detail-hero__title">
           <span>LEAVE APPROVAL · #{taskId}</span>
