@@ -11,6 +11,7 @@ import {
 } from '@ant-design/icons';
 import { App, Button, Checkbox, ConfigProvider, Form, Input, Modal, Result } from 'antd';
 import { authApi, AuthApiError, type CaptchaData, type CodeScene } from '@/lib/authApi';
+import { uuid } from '@/lib/uuid';
 import { useAuth } from './AuthProvider';
 import {
   AuthNotice,
@@ -60,7 +61,7 @@ export default function AuthPage() {
   const [riskCaptcha, setRiskCaptcha] = useState(false);
   const [resetStep, setResetStep] = useState<0 | 1 | 2>(0);
   const [registerPassword, setRegisterPassword] = useState('');
-  const [requestId, setRequestId] = useState(() => crypto.randomUUID());
+  const [requestId, setRequestId] = useState(() => uuid());
   const [passwordForm] = Form.useForm<PasswordLoginValues>();
   const [codeForm] = Form.useForm<CodeLoginValues>();
   const [registerForm] = Form.useForm<RegisterValues>();
@@ -188,7 +189,7 @@ export default function AuthPage() {
       message.success('企业账号创建成功');
       router.replace(redirect);
     } catch (reason) {
-      setRequestId(crypto.randomUUID());
+      setRequestId(uuid());
       handleError(reason);
     } finally { setSubmitting(false); }
   };
