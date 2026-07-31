@@ -304,8 +304,12 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
     @Transactional(readOnly = true)
     public LeaveApplicationResponse todoDetail(Long userId, Long taskId) {
         ResolvedUserAccess actor = requireAccess(userId);
-        WorkflowTask task = requireAssignedTask(actor, taskId);
+        WorkflowTask task = taskMapper.selectById(taskId);
+        if (task == null || !actor.tenantId().equals(task.getTenantId())) {
+            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        }
         LeaveApplicationView view = requireView(actor.tenantId(), task.getBusinessId());
+        assertCanRead(actor, view);
         return response(actor, view);
     }
 

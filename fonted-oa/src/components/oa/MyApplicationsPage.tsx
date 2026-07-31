@@ -162,7 +162,7 @@ export default function MyApplicationsPage() {
             <Button
               size="small"
               type="link"
-              onClick={() => router.push(`/oa/approval-tasks/${item.taskId}`)}
+              onClick={() => router.push(`/oa/approval-tasks/${item.taskId}?from=my-applications`)}
             >
               流程详情
             </Button>
