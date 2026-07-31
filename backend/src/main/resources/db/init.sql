@@ -17,8 +17,8 @@ $$;
 -- AI WorkMate 初始化 SQL
 -- ============================================
 
--- 启用 pgvector 扩展（需要先安装 pgvector 插件）
--- CREATE EXTENSION IF NOT EXISTS vector;
+-- 启用 pgvector 扩展（docker-compose 已使用 pgvector/pgvector:pg16 镜像，插件已内置）
+CREATE EXTENSION IF NOT EXISTS vector;
 
 -- 用户表
 CREATE TABLE IF NOT EXISTS app_user (

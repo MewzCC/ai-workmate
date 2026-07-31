@@ -4,6 +4,7 @@ import type {
   AiTaskPlanRequest,
   AiTaskPlanResponse,
 } from '@/types/oa';
+import { uuid } from '@/lib/uuid';
 
 const BASE = '/api';
 
@@ -69,7 +70,7 @@ function statusMessage(status: number): string {
 function requestHeaders(): HeadersInit {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    'X-Request-Id': crypto.randomUUID().replaceAll('-', ''),
+    'X-Request-Id': uuid().replaceAll('-', ''),
   };
   return headers;
 }
