@@ -1,4 +1,5 @@
 import type { ChatAttachment, ChatConversation, ChatMessage, ChatStreamEvent } from '@/types/chat';
+import { uuid } from '@/lib/uuid';
 
 const BASE = '/api';
 
@@ -18,7 +19,7 @@ export class ChatApiError extends Error {
 }
 
 function headers(json = true): HeadersInit {
-  const result: Record<string, string> = { 'X-Request-Id': crypto.randomUUID().replaceAll('-', '') };
+  const result: Record<string, string> = { 'X-Request-Id': uuid().replaceAll('-', '') };
   if (json) result['Content-Type'] = 'application/json';
   return result;
 }
