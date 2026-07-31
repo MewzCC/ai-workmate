@@ -9,6 +9,7 @@ import {
 import type { ChatAttachment, ChatConversation, ChatMessage, ChatSettings } from '@/types/chat';
 import { DEFAULT_AI_MODEL, normalizeAiModel } from '@/config/aiModels';
 import { StreamTypewriter } from '@/lib/StreamTypewriter';
+import { uuid } from '@/lib/uuid';
 
 const SETTINGS_KEY = 'workmeta-ai-chat-settings';
 const controllers = new Map<number, AbortController>();
@@ -183,8 +184,8 @@ export const useAiChatStore = create<AiChatState>((set, get) => ({
     const attachments = state.pendingAttachments[conversationId] || [];
     const content = rawContent.trim() || '请分析这些附件。';
     const now = new Date().toISOString();
-    const userId = `local-user-${crypto.randomUUID()}`;
-    const assistantId = `local-assistant-${crypto.randomUUID()}`;
+    const userId = `local-user-${uuid()}`;
+    const assistantId = `local-assistant-${uuid()}`;
     const user: ChatMessage = { id: userId, role: 'user', content, status: 'success', feedback: null, attachments, createdAt: now };
     const assistant: ChatMessage = { id: assistantId, role: 'assistant', content: '', status: 'sending', feedback: null, attachments: [], createdAt: now };
     appendMessages(set, conversationId, user, assistant);
