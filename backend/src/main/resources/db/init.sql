@@ -17,8 +17,8 @@ $$;
 -- AI WorkMate 初始化 SQL
 -- ============================================
 
--- 启用 pgvector 扩展（需要先安装 pgvector 插件）
--- CREATE EXTENSION IF NOT EXISTS vector;
+-- 启用 pgvector 扩展（目标 PostgreSQL 环境必须安装 pgvector）
+CREATE EXTENSION IF NOT EXISTS vector;
 
 -- 用户表
 CREATE TABLE IF NOT EXISTS app_user (
@@ -95,15 +95,26 @@ CREATE TABLE IF NOT EXISTS knowledge_doc (
     created_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- 知识库向量块表（第2月使用，需要 pgvector）
--- CREATE TABLE IF NOT EXISTS knowledge_chunk (
---     id          BIGSERIAL PRIMARY KEY,
---     doc_id      BIGINT       NOT NULL,
---     chunk_index INT          NOT NULL,
---     content     TEXT         NOT NULL,
---     embedding   vector(1536),
---     created_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
--- );
+-- 本地模型与 API Provider 均必须输出 1024 维，切换时按 provider/model 隔离向量空间。
+CREATE TABLE IF NOT EXISTS knowledge_chunk (
+    id          BIGSERIAL PRIMARY KEY,
+    tenant_id   BIGINT       NOT NULL,
+    user_id     BIGINT       NOT NULL,
+    doc_id      BIGINT       NOT NULL REFERENCES knowledge_doc(id) ON DELETE CASCADE,
+    chunk_index INT          NOT NULL,
+    content     TEXT         NOT NULL,
+    embedding   vector(1024) NOT NULL,
+    embedding_provider VARCHAR(20) NOT NULL,
+    embedding_model VARCHAR(160) NOT NULL,
+    metadata    JSONB        NOT NULL DEFAULT '{}'::jsonb,
+    created_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(doc_id, chunk_index)
+);
+
+CREATE INDEX IF NOT EXISTS idx_knowledge_chunk_owner
+    ON knowledge_chunk(tenant_id, user_id, doc_id);
+CREATE INDEX IF NOT EXISTS idx_knowledge_chunk_embedding_hnsw
+    ON knowledge_chunk USING hnsw (embedding vector_cosine_ops);
 
 
 -- 兼容已存在的旧版表结构，可重复执行。
@@ -442,6 +453,13 @@ WHERE tenant_id IS NULL;
 ALTER TABLE conversation ADD COLUMN IF NOT EXISTS tenant_id BIGINT;
 ALTER TABLE attachment ADD COLUMN IF NOT EXISTS tenant_id BIGINT;
 ALTER TABLE knowledge_doc ADD COLUMN IF NOT EXISTS tenant_id BIGINT;
+ALTER TABLE knowledge_doc ADD COLUMN IF NOT EXISTS content_hash VARCHAR(64);
+ALTER TABLE knowledge_doc ADD COLUMN IF NOT EXISTS error_message VARCHAR(500);
+ALTER TABLE knowledge_doc ADD COLUMN IF NOT EXISTS embedding_provider VARCHAR(20);
+ALTER TABLE knowledge_doc ADD COLUMN IF NOT EXISTS embedding_model VARCHAR(160);
+ALTER TABLE knowledge_doc ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE knowledge_chunk ADD COLUMN IF NOT EXISTS embedding_provider VARCHAR(20) NOT NULL DEFAULT 'local';
+ALTER TABLE knowledge_chunk ADD COLUMN IF NOT EXISTS embedding_model VARCHAR(160) NOT NULL DEFAULT 'Qwen3-Embedding-0.6B';
 ALTER TABLE access_audit_log ADD COLUMN IF NOT EXISTS tenant_id BIGINT;
 ALTER TABLE access_audit_log ADD COLUMN IF NOT EXISTS result VARCHAR(20) NOT NULL DEFAULT 'SUCCESS';
 ALTER TABLE access_audit_log ADD COLUMN IF NOT EXISTS trace_id VARCHAR(64);
@@ -527,6 +545,14 @@ CREATE INDEX IF NOT EXISTS idx_attachment_tenant_user
     ON attachment(tenant_id, user_id);
 CREATE INDEX IF NOT EXISTS idx_knowledge_doc_tenant_user
     ON knowledge_doc(tenant_id, user_id);
+CREATE INDEX IF NOT EXISTS idx_knowledge_chunk_owner_model
+    ON knowledge_chunk(tenant_id, user_id, embedding_provider, embedding_model, doc_id);
+DROP INDEX IF EXISTS ux_knowledge_doc_owner_hash;
+CREATE UNIQUE INDEX IF NOT EXISTS ux_knowledge_doc_owner_hash_model
+    ON knowledge_doc(tenant_id, user_id, content_hash, embedding_provider, embedding_model)
+    WHERE content_hash IS NOT NULL
+      AND embedding_provider IS NOT NULL
+      AND embedding_model IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_rbac_role_tenant
     ON rbac_role(tenant_id, code);
 CREATE INDEX IF NOT EXISTS idx_rbac_permission_tenant
