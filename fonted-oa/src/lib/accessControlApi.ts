@@ -10,6 +10,7 @@ export interface AccessUser {
   approverUserId?: number;
   permissionVersion: number;
   updatedAt: string;
+  avatarUrl?: string | null;
 }
 
 export interface AccessRole {

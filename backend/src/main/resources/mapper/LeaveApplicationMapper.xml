@@ -27,7 +27,11 @@
         l.submitted_at AS submittedAt,
         l.completed_at AS completedAt,
         l.created_at AS createdAt,
-        l.updated_at AS updatedAt
+        l.updated_at AS updatedAt,
+        applicant.avatar AS applicantAvatar,
+        applicant.updated_at AS applicantUpdatedAt,
+        approver.avatar AS approverAvatar,
+        approver.updated_at AS approverUpdatedAt
     </sql>
 
     <sql id="leaveApplicationViewJoins">
@@ -176,12 +180,14 @@
             JOIN department_chain chain ON chain.parent_id = parent.id
             WHERE parent.tenant_id = #{tenantId} AND parent.status = 1
         ),
-        eligible AS (
-            SELECT DISTINCT u.id,
+        eligible_raw AS (
+            SELECT u.id,
                    COALESCE(NULLIF(u.display_name, ''), u.username) AS name,
                    d.name AS department_name,
                    p.name AS position_name,
-                   chain.depth
+                   chain.depth,
+                   u.avatar,
+                   u.updated_at AS updatedAt
             FROM app_user u
             JOIN department_chain chain ON chain.id = u.department_id
             LEFT JOIN department d ON d.tenant_id = u.tenant_id AND d.id = u.department_id
@@ -206,6 +212,82 @@
                       AND ur.role_code = 'SUPER_ADMIN'
                 )
               )
+            UNION ALL
+            SELECT u.id,
+                   COALESCE(NULLIF(u.display_name, ''), u.username) AS name,
+                   d.name AS department_name,
+                   p.name AS position_name,
+                   -1 AS depth,
+                   u.avatar,
+                   u.updated_at AS updatedAt
+            FROM app_user applicant
+            JOIN app_user u ON u.id = applicant.approver_user_id
+             AND u.tenant_id = applicant.tenant_id
+             AND u.status = 1
+             AND u.id &lt;&gt; applicant.id
+            LEFT JOIN department d ON d.tenant_id = u.tenant_id AND d.id = u.department_id
+            LEFT JOIN position p ON p.tenant_id = u.tenant_id AND p.id = u.position_id
+            WHERE applicant.tenant_id = #{tenantId}
+              AND applicant.id = #{applicantId}
+              AND (
+                EXISTS (
+                    SELECT 1
+                    FROM user_role ur
+                    JOIN rbac_role_permission rp
+                      ON rp.tenant_id = ur.tenant_id
+                     AND rp.role_code = ur.role_code
+                     AND rp.permission_code = 'approval:act'
+                    WHERE ur.tenant_id = #{tenantId} AND ur.user_id = u.id
+                )
+                OR EXISTS (
+                    SELECT 1 FROM user_role ur
+                    WHERE ur.tenant_id = #{tenantId}
+                      AND ur.user_id = u.id
+                      AND ur.role_code = 'SUPER_ADMIN'
+                )
+              )
+            UNION ALL
+            SELECT u.id,
+                   COALESCE(NULLIF(u.display_name, ''), u.username) AS name,
+                   d.name AS department_name,
+                   p.name AS position_name,
+                   998 AS depth,
+                   u.avatar,
+                   u.updated_at AS updatedAt
+            FROM app_user applicant
+            JOIN department dept ON dept.id = applicant.department_id
+             AND dept.tenant_id = applicant.tenant_id
+             AND dept.status = 1
+            JOIN app_user u ON u.id = dept.default_approver_user_id
+             AND u.tenant_id = applicant.tenant_id
+             AND u.status = 1
+             AND u.id &lt;&gt; applicant.id
+            LEFT JOIN department d ON d.tenant_id = u.tenant_id AND d.id = u.department_id
+            LEFT JOIN position p ON p.tenant_id = u.tenant_id AND p.id = u.position_id
+            WHERE applicant.tenant_id = #{tenantId}
+              AND applicant.id = #{applicantId}
+              AND (
+                EXISTS (
+                    SELECT 1
+                    FROM user_role ur
+                    JOIN rbac_role_permission rp
+                      ON rp.tenant_id = ur.tenant_id
+                     AND rp.role_code = ur.role_code
+                     AND rp.permission_code = 'approval:act'
+                    WHERE ur.tenant_id = #{tenantId} AND ur.user_id = u.id
+                )
+                OR EXISTS (
+                    SELECT 1 FROM user_role ur
+                    WHERE ur.tenant_id = #{tenantId}
+                      AND ur.user_id = u.id
+                      AND ur.role_code = 'SUPER_ADMIN'
+                )
+              )
+        ),
+        eligible AS (
+            SELECT DISTINCT ON (id) id, name, department_name, position_name, depth, avatar, updatedAt
+            FROM eligible_raw
+            ORDER BY id, depth
         )
     </sql>
 
@@ -215,7 +297,10 @@
         SELECT id, name,
                department_name AS departmentName,
                position_name AS positionName,
-               CASE WHEN id = #{recommendedId} THEN TRUE ELSE FALSE END AS recommended
+               CASE WHEN id = #{recommendedId} THEN TRUE ELSE FALSE END AS recommended,
+               avatar,
+               updatedAt,
+               NULL AS avatarUrl
         FROM eligible
         <if test="keyword != null and keyword != ''">
             WHERE name ILIKE CONCAT('%', #{keyword}, '%')
@@ -247,7 +332,9 @@
         SELECT COALESCE(NULLIF(applicant.display_name, ''), applicant.username) AS applicantName,
                department.name AS departmentName,
                position.name AS positionName,
-               COALESCE(NULLIF(approver.display_name, ''), approver.username) AS approverName
+               COALESCE(NULLIF(approver.display_name, ''), approver.username) AS approverName,
+               applicant.avatar AS applicantAvatar,
+               applicant.updated_at AS applicantUpdatedAt
         FROM app_user applicant
         LEFT JOIN department
           ON department.id = applicant.department_id

@@ -13,6 +13,7 @@ public record AccessUserRow(
         Long positionId,
         Long approverUserId,
         Long permissionVersion,
-        LocalDateTime updatedAt
+        LocalDateTime updatedAt,
+        String avatar
 ) {
 }

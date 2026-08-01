@@ -1,7 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import { useRouter } from '@/lib/nextCompat';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from '@/lib/nextCompat';
 import {
   Alert,
   Avatar,
@@ -33,6 +33,9 @@ import LeaveWorkflowPanel from './LeaveWorkflowPanel';
 
 export default function ApprovalDetailPage({ taskId }: { taskId: number }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const fromMyApplications = searchParams.get('from') === 'my-applications';
+  const fromTodo = searchParams.get('from') === 'todo';
   const [application, setApplication] = useState<LeaveApplication>();
   const [timeline, setTimeline] = useState<WorkflowTimelineItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -57,6 +60,14 @@ export default function ApprovalDetailPage({ taskId }: { taskId: number }) {
   }, [taskId]);
 
   useEffect(() => { void load(); }, [load]);
+
+  const { target: returnTarget, label: returnLabel } = useMemo(() => {
+    if (fromTodo) return { target: '/oa/todo', label: '返回待办' };
+    if (fromMyApplications) return { target: '/oa/my-applications', label: '返回我的申请' };
+    return application?.canApprove
+      ? { target: '/oa/todo', label: '返回待办' }
+      : { target: '/oa/my-applications', label: '返回我的申请' };
+  }, [fromTodo, fromMyApplications, application?.canApprove]);
 
   const submitDecision = async () => {
     if (application?.taskVersion == null || application.taskVersion < 0) return;
@@ -87,9 +98,9 @@ export default function ApprovalDetailPage({ taskId }: { taskId: number }) {
         <Button
           type="text"
           icon={<OaIcon name="previous" />}
-          onClick={() => router.push(application?.canApprove ? '/oa/todo' : '/oa/my-applications')}
+          onClick={() => router.push(returnTarget)}
         >
-          {application?.canApprove ? '返回待办' : '返回我的申请'}
+          {returnLabel}
         </Button>
         <div className="approval-detail-hero__title">
           <span>LEAVE APPROVAL · #{taskId}</span>
@@ -106,9 +117,9 @@ export default function ApprovalDetailPage({ taskId }: { taskId: number }) {
         ) : (
           <div className="approval-detail-layout">
             <main className="approval-detail-main">
-              <Card className="approval-summary-card" bordered={false}>
+              <Card className="approval-summary-card" variant="borderless">
                 <div className="approval-applicant">
-                  <Avatar size={54} icon={<OaIcon name="user" />} />
+                  <Avatar size={54} src={application.applicantAvatarUrl || undefined} icon={<OaIcon name="user" />} />
                   <div>
                     <Typography.Text type="secondary">申请人</Typography.Text>
                     <Typography.Title level={4}>{application.applicantName}</Typography.Title>
@@ -151,7 +162,10 @@ export default function ApprovalDetailPage({ taskId }: { taskId: number }) {
                     {application.endDate} {periodLabel(application.endPeriod)}
                   </Descriptions.Item>
                   <Descriptions.Item label="当前审批人">
-                    {application.approverName || '未配置'}
+                    <Space>
+                      <Avatar size="small" src={application.approverAvatarUrl || undefined} icon={<OaIcon name="user" />} />
+                      {application.approverName || '未配置'}
+                    </Space>
                   </Descriptions.Item>
                   <Descriptions.Item label="审批截止">
                     {application.taskDueAt ? formatDateTime(application.taskDueAt) : '-'}
@@ -167,7 +181,7 @@ export default function ApprovalDetailPage({ taskId }: { taskId: number }) {
 
               <Card
                 className="approval-history-card"
-                bordered={false}
+                variant="borderless"
                 title={(
                   <div className="leave-card-title">
                     <OaIcon name="history" />
@@ -192,9 +206,10 @@ export default function ApprovalDetailPage({ taskId }: { taskId: number }) {
                             </Typography.Text>
                           </div>
                           <Space size={8} wrap>
-                            <Tag bordered={false} icon={<OaIcon name="user" />}>
-                              {item.actorName}
-                            </Tag>
+                            <Space size={6}>
+                              <Avatar size="small" src={item.actorAvatarUrl || undefined} icon={<OaIcon name="user" />} />
+                              <Tag bordered={false}>{item.actorName}</Tag>
+                            </Space>
                             <Typography.Text type="secondary">
                               {statusLabel(item.fromStatus)} → {statusLabel(item.toStatus)}
                             </Typography.Text>

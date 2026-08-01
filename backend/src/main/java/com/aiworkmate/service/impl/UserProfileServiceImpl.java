@@ -133,6 +133,23 @@ public class UserProfileServiceImpl implements UserProfileService {
 
     @Override
     @Transactional(readOnly = true)
+    public AvatarContent loadAvatarByUser(Long actorUserId, Long targetUserId) {
+        User actor = requireActiveUser(actorUserId);
+        User target = userMapper.selectById(targetUserId);
+        if (target == null || !actor.getTenantId().equals(target.getTenantId())) {
+            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        }
+        if (target.getAvatar() == null || target.getAvatar().isBlank()) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "尚未设置头像");
+        }
+        String storageName = target.getAvatar();
+        String mimeType = resolveMimeType(storageName);
+        Resource resource = objectStorageService.load(storageName);
+        return new AvatarContent(resource, mimeType);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public WallpaperResponse getWallpaper(Long userId) {
         User user = requireActiveUser(userId);
         return toWallpaperResponse(user);

@@ -130,7 +130,7 @@ export default function Topbar({ role, pageTitle, onOpenAppearance, onOpenAi }: 
 
         {/* 桌面端通知（hover 下拉） */}
         <Dropdown
-          dropdownRender={() => notifyContent}
+          popupRender={() => notifyContent}
           trigger={['hover']}
           placement="bottomRight"
           className="oa-header-notify-desktop"

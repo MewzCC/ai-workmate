@@ -16,7 +16,9 @@ public record OrganizationOverviewResponse(
             Long departmentId,
             Long positionId,
             Long approverUserId,
-            String approverName
+            String approverName,
+            String avatarUrl,
+            String approverAvatarUrl
     ) {
     }
 }

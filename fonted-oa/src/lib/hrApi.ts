@@ -24,6 +24,8 @@ export interface HrEmployee {
   positionId?: number;
   approverUserId?: number;
   approverName?: string;
+  avatarUrl?: string | null;
+  approverAvatarUrl?: string | null;
 }
 
 export interface OrganizationOverview {

@@ -14,6 +14,7 @@ public record AccessUserResponse(
         Long positionId,
         Long approverUserId,
         Long permissionVersion,
-        LocalDateTime updatedAt
+        LocalDateTime updatedAt,
+        String avatarUrl
 ) {
 }

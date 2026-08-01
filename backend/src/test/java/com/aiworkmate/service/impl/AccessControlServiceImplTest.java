@@ -237,6 +237,6 @@ class AccessControlServiceImplTest {
     private AccessUserRow userRow(Long id, Integer status) {
         return new AccessUserRow(
                 id, "用户" + id, "user" + id + "@example.com", "EMPLOYEE",
-                status, 3L, null, null, null, 1L, null);
+                status, 3L, null, null, null, 1L, null, null);
     }
 }
