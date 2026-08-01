@@ -16,6 +16,8 @@ public interface UserProfileService {
 
     AvatarContent loadAvatar(Long userId);
 
+    AvatarContent loadAvatarByUser(Long actorUserId, Long targetUserId);
+
     WallpaperResponse getWallpaper(Long userId);
 
     WallpaperResponse uploadWallpaper(Long userId, MultipartFile file);

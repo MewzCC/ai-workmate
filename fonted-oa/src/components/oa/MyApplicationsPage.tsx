@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from '@/lib/nextCompat';
 import {
+  Avatar,
   Button,
   Card,
   Empty,
@@ -126,7 +127,12 @@ export default function MyApplicationsPage() {
             {item.status === 'DRAFT'
               ? '等待提交'
               : item.status === 'PENDING'
-                ? `${item.approverName || '审批人'}处理中`
+                ? (
+                  <Space>
+                    <Avatar size="small" src={item.approverAvatarUrl || undefined}>{(item.approverName || '?').slice(0, 1).toUpperCase()}</Avatar>
+                    <span>{item.approverName || '审批人'}处理中</span>
+                  </Space>
+                )
                 : '流程已结束'}
           </Typography.Text>
         </div>
@@ -199,7 +205,7 @@ export default function MyApplicationsPage() {
         </div>
       </div>
 
-      <Card className="leave-list-card" bordered={false}>
+      <Card className="leave-list-card" variant="borderless">
         <div className="leave-list-toolbar">
           <Segmented
             block

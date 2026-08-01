@@ -339,12 +339,15 @@ export default function AccessControlPage() {
     {
       title: '用户',
       key: 'user',
-      align: 'center',
+      width: 240,
       render: (_, user) => (
-        <Space className="oa-access-identity" orientation="vertical" size={2}>
-          <Typography.Text strong>{user.name}</Typography.Text>
-          <Typography.Text type="secondary">{user.email}</Typography.Text>
-        </Space>
+        <div className="oa-access-user-cell">
+          <Avatar size="small" src={user.avatarUrl || undefined}>{user.name.slice(0, 1).toUpperCase()}</Avatar>
+          <div className="oa-access-user-cell__info">
+            <Typography.Text strong className="oa-access-user-cell__name">{user.name}</Typography.Text>
+            <Typography.Text type="secondary" className="oa-access-user-cell__email">{user.email}</Typography.Text>
+          </div>
+        </div>
       ),
     },
     {
@@ -395,11 +398,21 @@ export default function AccessControlPage() {
     {
       title: '直属审批人',
       dataIndex: 'approverUserId',
-      width: 120,
-      align: 'center',
-      render: (value: number | undefined) => (
-        <Typography.Text>{overview?.users.find((item) => item.id === value)?.name || '-'}</Typography.Text>
-      ),
+      width: 160,
+      render: (value: number | undefined) => {
+        const approver = overview?.users.find((item) => item.id === value);
+        if (!approver) return <Typography.Text type="secondary">-</Typography.Text>;
+        const deptName = overview?.departments.find((d) => d.id === approver.departmentId)?.name;
+        return (
+          <div className="oa-access-user-cell">
+            <Avatar size="small" src={approver.avatarUrl || undefined}>{approver.name.slice(0, 1).toUpperCase()}</Avatar>
+            <div className="oa-access-user-cell__info">
+              <Typography.Text strong className="oa-access-user-cell__name">{approver.name}</Typography.Text>
+              <Typography.Text type="secondary" className="oa-access-user-cell__email">{deptName || approver.email}</Typography.Text>
+            </div>
+          </div>
+        );
+      },
     },
     {
       title: '操作',
@@ -533,7 +546,7 @@ export default function AccessControlPage() {
                           <Avatar.Group max={{ count: 4 }}>
                             {members.map((user) => (
                               <Tooltip key={user.id} title={`${user.name} · ${user.email}`}>
-                                <Avatar>{user.name.slice(0, 1).toUpperCase()}</Avatar>
+                                <Avatar src={user.avatarUrl || undefined}>{user.name.slice(0, 1).toUpperCase()}</Avatar>
                               </Tooltip>
                             ))}
                           </Avatar.Group>
@@ -765,7 +778,7 @@ export default function AccessControlPage() {
                 .filter((user) => selectedMemberIds.includes(user.id))
                 .map((user) => (
                   <div className="oa-role-member-row" key={user.id}>
-                    <Avatar>{user.name.slice(0, 1).toUpperCase()}</Avatar>
+                    <Avatar src={user.avatarUrl || undefined}>{user.name.slice(0, 1).toUpperCase()}</Avatar>
                     <div>
                       <Typography.Text strong>{user.name}</Typography.Text>
                       <Typography.Text type="secondary">{user.email}</Typography.Text>
@@ -973,10 +986,18 @@ export default function AccessControlPage() {
           <Form.Item name="approverUserId" label="直属审批人">
             <Select
               allowClear
+              showSearch
+              optionFilterProp="label"
               options={(overview?.users || [])
                 .filter((item) => item.id !== editingUser?.id && item.status === 1)
-                .map((item) => ({ value: item.id, label: item.name }))}
-              placeholder="选择直属审批人"
+                .map((item) => {
+                  const deptName = overview?.departments.find((d) => d.id === item.departmentId)?.name;
+                  return {
+                    value: item.id,
+                    label: `${item.name} · ${item.email}${deptName ? ` · ${deptName}` : ''}`,
+                  };
+                })}
+              placeholder="选择直属审批人（可按姓名或邮箱搜索）"
             />
           </Form.Item>
         </Form>

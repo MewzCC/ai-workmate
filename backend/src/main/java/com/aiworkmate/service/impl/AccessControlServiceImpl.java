@@ -2,6 +2,7 @@ package com.aiworkmate.service.impl;
 
 import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.common.ErrorCode;
+import com.aiworkmate.common.AvatarUrls;
 import com.aiworkmate.dto.AccessControlOverviewResponse;
 import com.aiworkmate.dto.AccessPermissionResponse;
 import com.aiworkmate.dto.AccessRoleResponse;
@@ -494,7 +495,8 @@ public class AccessControlServiceImpl implements AccessControlService {
         return new AccessUserResponse(
                 row.id(), row.name(), row.email(), row.role(), List.copyOf(roles),
                 row.status(), row.departmentId(), row.positionId(), row.approverUserId(),
-                row.permissionVersion(), row.updatedAt());
+                row.permissionVersion(), row.updatedAt(),
+                AvatarUrls.build(row.id(), row.avatar(), row.updatedAt()));
     }
 
     private int rolePriority(String roleCode) {
