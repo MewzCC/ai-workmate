@@ -1,5 +1,3 @@
-'use client';
-
 import { useState, useRef, useEffect } from 'react';
 import { ArrowUp, Code2, Sparkles, Database, Terminal } from 'lucide-react';
 import { useChatStore } from '@/store/chatStore';

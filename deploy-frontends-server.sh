@@ -53,8 +53,9 @@ deploy_app() {
   rm -rf "$release_dir"
   extract_zip "$zip_file" "$release_dir"
 
-  if [ ! -f "$release_dir/server.js" ]; then
-    echo "ERROR: $zip_file is not a standalone package, missing server.js" >&2
+  # 兼容两种产物：Next standalone（server.js）或 Vite（dist/index.html）
+  if [ ! -f "$release_dir/server.js" ] && [ ! -f "$release_dir/dist/index.html" ]; then
+    echo "ERROR: $zip_file is not a valid package (missing server.js and dist/index.html)" >&2
     exit 1
   fi
 
