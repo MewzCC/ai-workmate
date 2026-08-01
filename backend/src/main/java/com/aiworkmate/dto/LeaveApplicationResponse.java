@@ -35,6 +35,8 @@ public record LeaveApplicationResponse(
         boolean canEdit,
         boolean canSubmit,
         boolean canWithdraw,
-        boolean canApprove
+        boolean canApprove,
+        String applicantAvatarUrl,
+        String approverAvatarUrl
 ) {
 }

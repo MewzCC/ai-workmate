@@ -154,17 +154,32 @@ class LeaveWorkflowServiceImplTest {
     }
 
     @Test
-    void shouldRejectTodoDetailForNonAssignee() {
+    void shouldAllowApplicantToReadOwnTodoDetail() {
         when(userAccessService.resolveActiveUser(APPLICANT_ID)).thenReturn(applicantAccess());
         WorkflowTask task = pendingTask();
         task.setAssigneeUserId(APPROVER_ID);
         when(taskMapper.selectById(30L)).thenReturn(task);
+        when(leaveMapper.selectView(TENANT_ID, 10L))
+                .thenReturn(view("PENDING", APPROVER_ID, 30L, 0, "PENDING", 1));
 
-        assertThatThrownBy(() -> service.todoDetail(APPLICANT_ID, 30L))
+        var response = service.todoDetail(APPLICANT_ID, 30L);
+
+        assertThat(response.id()).isEqualTo(10L);
+        assertThat(response.canApprove()).isFalse();
+    }
+
+    @Test
+    void shouldRejectTodoDetailForUnrelatedUser() {
+        when(userAccessService.resolveActiveUser(9999L)).thenReturn(unrelatedAccess());
+        WorkflowTask task = pendingTask();
+        task.setAssigneeUserId(APPROVER_ID);
+        when(taskMapper.selectById(30L)).thenReturn(task);
+        when(leaveMapper.selectView(TENANT_ID, 10L))
+                .thenReturn(view("PENDING", APPROVER_ID, 30L, 0, "PENDING", 1));
+
+        assertThatThrownBy(() -> service.todoDetail(9999L, 30L))
                 .isInstanceOfSatisfying(BusinessException.class,
                         error -> assertThat(error.getErrorCode()).isEqualTo("RESOURCE_FORBIDDEN"));
-
-        verify(leaveMapper, never()).selectView(anyLong(), anyLong());
     }
 
     @Test
@@ -257,6 +272,13 @@ class LeaveWorkflowServiceImplTest {
                 List.of("DEPARTMENT"), 1L);
     }
 
+    private ResolvedUserAccess unrelatedAccess() {
+        return new ResolvedUserAccess(
+                9999L, "other@example.com", TENANT_ID, "EMPLOYEE",
+                List.of("EMPLOYEE"), List.of("leave:create"),
+                List.of("SELF"), 1L);
+    }
+
     private LeaveApplicationRequest request(Long approverId, LocalDate startDate) {
         return new LeaveApplicationRequest(
                 "PERSONAL", approverId, startDate, "AM",
@@ -310,6 +332,9 @@ class LeaveWorkflowServiceImplTest {
                 taskId == null ? null : now.plusHours(48),
                 "PENDING".equals(status) ? "RUNNING" : null,
                 "PENDING".equals(status) ? now : null,
-                null, now, now);
+                null, now, now,
+                "avatar-key", now,
+                approverId == null ? null : "approver-avatar-key",
+                approverId == null ? null : now);
     }
 }

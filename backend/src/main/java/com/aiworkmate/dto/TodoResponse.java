@@ -13,6 +13,9 @@ public record TodoResponse(
         int version,
         LocalDateTime submittedAt,
         LocalDateTime dueAt,
-        boolean overdue
+        boolean overdue,
+        String applicantAvatar,
+        LocalDateTime applicantUpdatedAt,
+        String applicantAvatarUrl
 ) {
 }

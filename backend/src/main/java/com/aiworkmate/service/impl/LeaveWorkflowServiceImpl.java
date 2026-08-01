@@ -4,6 +4,7 @@ import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.common.ErrorCode;
 import com.aiworkmate.common.PageResponse;
 import com.aiworkmate.common.TraceContext;
+import com.aiworkmate.common.AvatarUrls;
 import com.aiworkmate.dto.ApprovalDecisionRequest;
 import com.aiworkmate.dto.ApproverCandidateResponse;
 import com.aiworkmate.dto.LeaveApplicationRequest;
@@ -73,7 +74,8 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
                 row.approverName(),
                 approverId == null ? "UNCONFIGURED" : "DIRECT_OR_DEPARTMENT_DEFAULT",
                 approverId != null,
-                Math.max(0, approvalDueHours)
+                Math.max(0, approvalDueHours),
+                AvatarUrls.build(actor.userId(), row.applicantAvatar(), row.applicantUpdatedAt())
         );
     }
 
@@ -88,7 +90,12 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
         Long recommendedId = leaveMapper.resolveApprover(actor.tenantId(), actor.userId());
         List<ApproverCandidateResponse> records = leaveMapper.selectApproverCandidates(
                 actor.tenantId(), actor.userId(), recommendedId, search,
-                safeSize, (safePage - 1) * safeSize);
+                safeSize, (safePage - 1) * safeSize).stream()
+                .map(item -> new ApproverCandidateResponse(
+                        item.id(), item.name(), item.departmentName(), item.positionName(),
+                        item.recommended(), item.avatar(), item.updatedAt(),
+                        AvatarUrls.build(item.id(), item.avatar(), item.updatedAt())))
+                .toList();
         long total = leaveMapper.countApproverCandidates(
                 actor.tenantId(), actor.userId(), search);
         return PageResponse.of(records, total, safePage, safeSize);
@@ -294,7 +301,14 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
         int safeSize = Math.min(100, Math.max(1, size));
         int offset = (safePage - 1) * safeSize;
         List<TodoResponse> records = taskMapper.selectTodos(
-                actor.tenantId(), actor.userId(), normalize(status), from, to, safeSize, offset);
+                actor.tenantId(), actor.userId(), normalize(status), from, to, safeSize, offset).stream()
+                .map(todo -> new TodoResponse(
+                        todo.id(), todo.applicationId(), todo.applicantUserId(), todo.applicantName(),
+                        todo.leaveType(), todo.durationHalfDays(), todo.status(), todo.version(),
+                        todo.submittedAt(), todo.dueAt(), todo.overdue(),
+                        todo.applicantAvatar(), todo.applicantUpdatedAt(),
+                        AvatarUrls.build(todo.applicantUserId(), todo.applicantAvatar(), todo.applicantUpdatedAt())))
+                .toList();
         long total = taskMapper.countTodos(
                 actor.tenantId(), actor.userId(), normalize(status), from, to);
         return PageResponse.of(records, total, safePage, safeSize);
@@ -304,8 +318,12 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
     @Transactional(readOnly = true)
     public LeaveApplicationResponse todoDetail(Long userId, Long taskId) {
         ResolvedUserAccess actor = requireAccess(userId);
-        WorkflowTask task = requireAssignedTask(actor, taskId);
+        WorkflowTask task = taskMapper.selectById(taskId);
+        if (task == null || !actor.tenantId().equals(task.getTenantId())) {
+            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        }
         LeaveApplicationView view = requireView(actor.tenantId(), task.getBusinessId());
+        assertCanRead(actor, view);
         return response(actor, view);
     }
 
@@ -334,7 +352,13 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
         }
         LeaveApplicationView view = requireView(actor.tenantId(), task.getBusinessId());
         assertCanRead(actor, view);
-        return List.copyOf(actionLogMapper.selectTimeline(actor.tenantId(), task.getInstanceId()));
+        return actionLogMapper.selectTimeline(actor.tenantId(), task.getInstanceId()).stream()
+                .map(entry -> new WorkflowTimelineResponse(
+                        entry.id(), entry.actorUserId(), entry.actorName(), entry.action(),
+                        entry.fromStatus(), entry.toStatus(), entry.comment(), entry.createdAt(),
+                        entry.actorAvatar(), entry.actorUpdatedAt(),
+                        AvatarUrls.build(entry.actorUserId(), entry.actorAvatar(), entry.actorUpdatedAt())))
+                .toList();
     }
 
     private LeaveApplicationResponse decide(Long userId,
@@ -471,7 +495,9 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
                         && actor.permissions().contains("leave:withdraw"),
                 approver && "PENDING".equals(view.status())
                         && actor.permissions().contains("approval:act")
-                        && !applicant
+                        && !applicant,
+                AvatarUrls.build(view.applicantUserId(), view.applicantAvatar(), view.applicantUpdatedAt()),
+                AvatarUrls.build(view.approverUserId(), view.approverAvatar(), view.approverUpdatedAt())
         );
     }
 

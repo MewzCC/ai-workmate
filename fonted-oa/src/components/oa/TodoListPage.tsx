@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from '@/lib/nextCompat';
 import {
+  Avatar,
   Button,
   Card,
   DatePicker,
@@ -63,7 +64,10 @@ export default function TodoListPage() {
         <div className="leave-table-subject">
           <span className="leave-table-subject__icon is-approval"><OaIcon name="approval" /></span>
           <div>
-            <Typography.Text strong>{item.applicantName}的{leaveTypeLabel(item.leaveType)}申请</Typography.Text>
+            <Space>
+              <Avatar size="small" src={item.applicantAvatarUrl || undefined}>{item.applicantName.slice(0, 1).toUpperCase()}</Avatar>
+              <Typography.Text strong>{item.applicantName}的{leaveTypeLabel(item.leaveType)}申请</Typography.Text>
+            </Space>
             <Typography.Text type="secondary">
               TK-{String(item.id).padStart(6, '0')} · 申请 #{item.applicationId}
             </Typography.Text>
@@ -110,7 +114,7 @@ export default function TodoListPage() {
         <Button
           type={item.status === 'PENDING' ? 'primary' : 'link'}
           size="small"
-          onClick={() => router.push(`/oa/approval-tasks/${item.id}`)}
+          onClick={() => router.push(`/oa/approval-tasks/${item.id}?from=todo`)}
         >
           {item.status === 'PENDING' ? '立即处理' : '查看详情'}
         </Button>
@@ -135,7 +139,7 @@ export default function TodoListPage() {
         </div>
       </header>
 
-      <Card className="leave-list-card" bordered={false}>
+      <Card className="leave-list-card" variant="borderless">
         <div className="todo-toolbar">
           <Segmented
             value={status}

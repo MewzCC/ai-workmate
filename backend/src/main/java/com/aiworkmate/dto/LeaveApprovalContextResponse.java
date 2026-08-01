@@ -8,6 +8,7 @@ public record LeaveApprovalContextResponse(
         String approverName,
         String approverSource,
         boolean approverConfigured,
-        long approvalDueHours
+        long approvalDueHours,
+        String applicantAvatarUrl
 ) {
 }

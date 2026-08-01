@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from '@/lib/nextCompat';
 import {
   Alert,
+  Avatar,
   Button,
   Card,
   DatePicker,
@@ -106,6 +107,10 @@ export default function LeaveFormPage() {
   }, [editingId, form]);
 
   const duration = useMemo(() => calculateHalfDays(values), [values]);
+  const selectedApprover = useMemo(
+    () => approvers.find((a) => a.id === values?.approverUserId) ?? null,
+    [approvers, values?.approverUserId],
+  );
 
   const persist = async (): Promise<LeaveApplication> => {
     const valid = await form.validateFields();
@@ -189,7 +194,7 @@ export default function LeaveFormPage() {
 
       <Spin spinning={loading}>
         <div className="leave-compose-grid">
-          <Card className="leave-form-card" bordered={false}>
+          <Card className="leave-form-card" variant="borderless">
             <div className="leave-section-title">
               <span className="leave-section-title__index">01</span>
               <div>
@@ -203,7 +208,7 @@ export default function LeaveFormPage() {
                 className="leave-inline-alert"
                 showIcon
                 type="error"
-                message="审批链路尚未配置"
+                title="审批链路尚未配置"
                 description="请联系管理员配置组织关系并授予审批权限，当前无法保存或提交申请。"
               />
             )}
@@ -228,7 +233,15 @@ export default function LeaveFormPage() {
                   options={approvers.map((approver) => ({
                     value: approver.id,
                     label: `${approver.name} · ${approver.departmentName || '未配置部门'} · ${approver.positionName || '未配置岗位'}${approver.recommended ? '（推荐）' : ''}`,
+                    avatarUrl: approver.avatarUrl,
+                    name: approver.name,
                   }))}
+                  optionRender={(option) => (
+                    <Space>
+                      <Avatar size="small" src={option.data.avatarUrl || undefined}>{option.data.name.slice(0, 1).toUpperCase()}</Avatar>
+                      <span>{option.data.label}</span>
+                    </Space>
+                  )}
                 />
               </Form.Item>
 
@@ -337,6 +350,7 @@ export default function LeaveFormPage() {
             application={application}
             context={context}
             durationDays={duration > 0 ? duration / 2 : 0}
+            selectedApprover={selectedApprover}
           />
         </div>
       </Spin>

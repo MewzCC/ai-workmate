@@ -112,7 +112,8 @@ public interface AccessControlMapper {
                    u.position_id AS positionId,
                    u.approver_user_id AS approverUserId,
                    u.permission_version AS permissionVersion,
-                   u.updated_at AS updatedAt
+                   u.updated_at AS updatedAt,
+                   u.avatar
             FROM app_user u
             WHERE u.tenant_id = #{tenantId}
             ORDER BY u.created_at, u.id

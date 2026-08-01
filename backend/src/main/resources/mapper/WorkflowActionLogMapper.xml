@@ -13,7 +13,10 @@
                log.from_status AS fromStatus,
                log.to_status AS toStatus,
                log.comment,
-               log.created_at AS createdAt
+               log.created_at AS createdAt,
+               u.avatar AS actorAvatar,
+               u.updated_at AS actorUpdatedAt,
+               NULL AS actorAvatarUrl
         FROM workflow_action_log log
         JOIN app_user u ON u.id = log.actor_user_id
         WHERE log.tenant_id = #{tenantId}
