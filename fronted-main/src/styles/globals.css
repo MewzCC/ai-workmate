@@ -3,6 +3,12 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    /* 原 next/font 注入的 CSS 变量，改由 @fontsource 本地字体提供（见 main.tsx） */
+    --font-geist-sans: 'Inter';
+    --font-geist-mono: 'JetBrains Mono';
+  }
+
   * {
     box-sizing: border-box;
   }

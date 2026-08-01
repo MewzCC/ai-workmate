@@ -1,5 +1,3 @@
-'use client';
-
 import { MessageSquare, BookOpen, Bot, BarChart3, Plus, LogOut, Sparkles } from 'lucide-react';
 import { useChatStore } from '@/store/chatStore';
 

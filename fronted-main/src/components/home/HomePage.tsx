@@ -1,5 +1,3 @@
-'use client';
-
 import { useEffect, useState } from 'react';
 import {
   ArrowRight,
@@ -134,7 +132,7 @@ export default function HomePage() {
 
   const enterOa = () => {
     // 生产环境通过构建期环境变量注入 OA 入口地址（部署在反代/域名下时必须配置）
-    const oaUrl = process.env.NEXT_PUBLIC_OA_URL;
+    const oaUrl = import.meta.env.VITE_OA_URL;
     if (oaUrl) {
       window.location.href = oaUrl;
       return;
