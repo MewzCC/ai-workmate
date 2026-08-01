@@ -107,7 +107,7 @@ class PhaseOneApiSecurityTest {
                 .thenReturn(new LeaveApprovalContextResponse(
                         "测试员工", "研发中心", "研发工程师",
                         2001L, "直属主管", "DIRECT_OR_DEPARTMENT_DEFAULT",
-                        true, 48));
+                        true, 48L, null));
 
         mockMvc.perform(get("/api/leave-applications/approval-context")
                         .header("Authorization", "Bearer " + TOKEN))
