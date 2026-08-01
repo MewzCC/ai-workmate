@@ -149,14 +149,17 @@ export interface ApproverCandidate {
   departmentName?: string;
   positionName?: string;
   recommended: boolean;
+  avatarUrl?: string | null;
 }
 
 export interface LeaveApplication {
   id: number;
   applicantUserId: number;
   applicantName: string;
+  applicantAvatarUrl?: string | null;
   approverUserId?: number;
   approverName?: string;
+  approverAvatarUrl?: string | null;
   leaveType: LeaveType;
   startDate: string;
   startPeriod: HalfDayPeriod;
@@ -203,6 +206,7 @@ export interface LeaveApprovalContext {
   approverSource: 'DIRECT_OR_DEPARTMENT_DEFAULT' | 'UNCONFIGURED';
   approverConfigured: boolean;
   approvalDueHours: number;
+  applicantAvatarUrl?: string | null;
 }
 
 export interface TodoItem {
@@ -210,6 +214,7 @@ export interface TodoItem {
   applicationId: number;
   applicantUserId: number;
   applicantName: string;
+  applicantAvatarUrl?: string | null;
   leaveType: LeaveType;
   durationHalfDays: number;
   status: string;
@@ -223,6 +228,7 @@ export interface WorkflowTimelineItem {
   id: number;
   actorUserId: number;
   actorName: string;
+  actorAvatarUrl?: string | null;
   action: string;
   fromStatus?: string;
   toStatus: string;

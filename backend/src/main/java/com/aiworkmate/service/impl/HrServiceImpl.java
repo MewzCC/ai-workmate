@@ -1,5 +1,6 @@
 package com.aiworkmate.service.impl;
 
+import com.aiworkmate.common.AvatarUrls;
 import com.aiworkmate.dto.AccessUserRow;
 import com.aiworkmate.dto.DepartmentResponse;
 import com.aiworkmate.dto.OrganizationOverviewResponse;
@@ -25,21 +26,29 @@ public class HrServiceImpl implements HrService {
         List<PositionResponse> positions = accessControlMapper.selectPositions(tenantId);
         List<AccessUserRow> users = accessControlMapper.selectUsers(tenantId);
 
-        Map<Long, String> nameMap = users.stream()
-                .collect(Collectors.toMap(AccessUserRow::id, AccessUserRow::name, (a, b) -> a));
+        Map<Long, AccessUserRow> userMap = users.stream()
+                .collect(Collectors.toMap(AccessUserRow::id, user -> user, (a, b) -> a));
 
         List<OrganizationOverviewResponse.EmployeeSummary> employees = users.stream()
-                .map(user -> new OrganizationOverviewResponse.EmployeeSummary(
-                        user.id(),
-                        user.name(),
-                        user.email(),
-                        user.role(),
-                        user.status(),
-                        user.departmentId(),
-                        user.positionId(),
-                        user.approverUserId(),
-                        user.approverUserId() != null ? nameMap.get(user.approverUserId()) : null
-                ))
+                .map(user -> {
+                    AccessUserRow approver = user.approverUserId() != null
+                            ? userMap.get(user.approverUserId()) : null;
+                    return new OrganizationOverviewResponse.EmployeeSummary(
+                            user.id(),
+                            user.name(),
+                            user.email(),
+                            user.role(),
+                            user.status(),
+                            user.departmentId(),
+                            user.positionId(),
+                            user.approverUserId(),
+                            approver != null ? approver.name() : null,
+                            AvatarUrls.build(user.id(), user.avatar(), user.updatedAt()),
+                            approver != null
+                                    ? AvatarUrls.build(approver.id(), approver.avatar(), approver.updatedAt())
+                                    : null
+                    );
+                })
                 .toList();
 
         return new OrganizationOverviewResponse(departments, positions, employees);

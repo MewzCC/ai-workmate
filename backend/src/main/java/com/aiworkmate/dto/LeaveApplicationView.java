@@ -26,6 +26,10 @@ public record LeaveApplicationView(
         LocalDateTime submittedAt,
         LocalDateTime completedAt,
         LocalDateTime createdAt,
-        LocalDateTime updatedAt
+        LocalDateTime updatedAt,
+        String applicantAvatar,
+        LocalDateTime applicantUpdatedAt,
+        String approverAvatar,
+        LocalDateTime approverUpdatedAt
 ) {
 }

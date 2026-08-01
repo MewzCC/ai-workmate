@@ -332,6 +332,9 @@ class LeaveWorkflowServiceImplTest {
                 taskId == null ? null : now.plusHours(48),
                 "PENDING".equals(status) ? "RUNNING" : null,
                 "PENDING".equals(status) ? now : null,
-                null, now, now);
+                null, now, now,
+                "avatar-key", now,
+                approverId == null ? null : "approver-avatar-key",
+                approverId == null ? null : now);
     }
 }

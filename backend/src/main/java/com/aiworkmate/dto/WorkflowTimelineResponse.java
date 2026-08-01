@@ -10,6 +10,9 @@ public record WorkflowTimelineResponse(
         String fromStatus,
         String toStatus,
         String comment,
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        String actorAvatar,
+        LocalDateTime actorUpdatedAt,
+        String actorAvatarUrl
 ) {
 }

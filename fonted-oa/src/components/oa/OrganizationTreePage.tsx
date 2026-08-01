@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, Suspense, lazy } from 'react';
 import {
+  Avatar,
   Badge,
   Button,
   Card,
@@ -119,9 +120,12 @@ export default function OrganizationTreePage() {
       key: 'employee',
       align: 'center',
       render: (_, emp) => (
-        <Space direction="vertical" size={2}>
-          <Typography.Text strong>{emp.name}</Typography.Text>
-          <Typography.Text type="secondary">{emp.email}</Typography.Text>
+        <Space size={8}>
+          <Avatar size="small" src={emp.avatarUrl || undefined}>{emp.name.slice(0, 1).toUpperCase()}</Avatar>
+          <div>
+            <Typography.Text strong>{emp.name}</Typography.Text>
+            <Typography.Text type="secondary">{emp.email}</Typography.Text>
+          </div>
         </Space>
       ),
     },
@@ -143,7 +147,16 @@ export default function OrganizationTreePage() {
       title: '直属审批人',
       dataIndex: 'approverName',
       align: 'center',
-      render: (name?: string) => name || '-',
+      render: (name: string | undefined, emp) => {
+        if (!name) return '-';
+        const initial = name.slice(0, 1).toUpperCase();
+        return (
+          <Space size={6}>
+            <Avatar size="small" src={emp.approverAvatarUrl || undefined}>{initial}</Avatar>
+            <Typography.Text>{name}</Typography.Text>
+          </Space>
+        );
+      },
     },
     {
       title: '状态',

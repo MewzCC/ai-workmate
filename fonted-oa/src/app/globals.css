@@ -148,6 +148,12 @@
 .oa-detail-grid .ant-timeline { margin-top: 8px; }
 .oa-wallpaper-active .oa-domain-card { background: color-mix(in srgb, var(--oa-card) 78%, transparent); backdrop-filter: blur(18px); }
 
+/* Access control · user table cell */
+.oa-access-user-cell { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.oa-access-user-cell__info { display: flex; flex-direction: column; min-width: 0; line-height: 1.4; }
+.oa-access-user-cell__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.oa-access-user-cell__email { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+
 @media (max-width: 980px) {
   .oa-form-grid-four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .oa-detail-grid { grid-template-columns: 1fr; }
@@ -481,6 +487,10 @@
   display: grid;
   min-width: 0;
   gap: 2px;
+}
+
+.leave-workflow-panel__identity .ant-badge {
+  white-space: nowrap;
 }
 
 .leave-workflow-panel__identity .ant-avatar {
