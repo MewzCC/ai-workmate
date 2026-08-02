@@ -137,10 +137,11 @@ export default function HomePage() {
       window.location.href = oaUrl;
       return;
     }
-    // 本地开发回退：main 在 3000、OA 在 3001
-    const { protocol, hostname, port } = window.location;
-    const target = port === '3001' ? '/oa' : `${protocol}//${hostname}:3001/oa`;
-    window.location.href = target;
+    // 默认指向同 host 的 3001 端口 /oa/：本地 dev 下主站 3000 与 OA 3001 分离。
+    // 末尾斜杠必须保留：fonted-oa 的 vite base 为 '/oa/'，访问 /oa 会被 Vite 拦截重定向提示。
+    // 生产 nginx 同 IP 同端口反代时，应在 .env 配置 VITE_OA_URL=/oa/（或完整域名）覆盖此默认值。
+    const { hostname } = window.location;
+    window.location.href = `http://${hostname}:3001/oa/`;
   };
 
   return (
