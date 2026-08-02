@@ -16,6 +16,7 @@ public class Attachment {
     @TableId(type = IdType.AUTO)
     private Long id;
 
+    private Long tenantId;
     private Long userId;
     private Long conversationId;
     private Long messageId;
