@@ -8,7 +8,7 @@ export default function App() {
   return (
     <Providers>
       <Routes>
-        <Route path="/auth" element={<AuthPage />} />
+        <Route path="/oa/auth" element={<AuthPage />} />
         <Route path="/oa" element={<AuthGuard><AdminLayout /></AuthGuard>} />
         <Route path="/oa/:pageId" element={<AuthGuard><AdminLayout /></AuthGuard>} />
         <Route path="/oa/approval-tasks/:id" element={<AuthGuard><AdminLayout /></AuthGuard>} />
