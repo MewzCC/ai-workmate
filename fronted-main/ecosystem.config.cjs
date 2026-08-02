@@ -2,7 +2,9 @@ module.exports = {
   apps: [
     {
       name: 'fronted-main',
-      script: './server.js',
+      // Vite 静态预览服务器（需先 npm run build 产出 dist/）
+      script: './node_modules/vite/bin/vite.js',
+      args: 'preview --port 3000 --host 0.0.0.0',
       cwd: __dirname,
       exec_mode: 'fork',
       instances: 1,
@@ -12,8 +14,6 @@ module.exports = {
       merge_logs: true,
       env: {
         NODE_ENV: 'production',
-        HOSTNAME: '0.0.0.0',
-        PORT: '3000',
       },
     },
   ],

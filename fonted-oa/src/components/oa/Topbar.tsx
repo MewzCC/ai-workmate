@@ -28,7 +28,7 @@ export default function Topbar({ role, pageTitle, onOpenAppearance, onOpenAi }: 
 
   const handleLogout = async () => {
     await logout();
-    router.replace('/auth');
+    router.replace('/oa/auth');
   };
 
   const handleHelp = () => setHelpOpen(true);

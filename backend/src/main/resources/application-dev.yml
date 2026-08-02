@@ -1,6 +1,7 @@
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/ai_workmate_dev
+    # dev 默认连本地 ai_workmate_dev；容器化通过 DB_URL 覆盖
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/ai_workmate_dev}
 
 logging:
   level:

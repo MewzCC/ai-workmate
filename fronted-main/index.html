@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>AI WorkMate - 企业 AI 工作入口</title>
+    <meta name="description" content="面向企业团队的 AI Agent 官网与产品体验入口" />
+    <script>
+      // 关闭浏览器自动滚动恢复，刷新时回到顶部（与原 next layout 行为一致）
+      if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+      scrollTo(0, 0);
+    </script>
+    <!-- iconfont symbol（由 scripts/import-iconfont-symbol.mjs 同步到 public/iconfont） -->
+    <script src="/iconfont/iconfont.js"></script>
+  </head>
+  <body class="min-h-screen overflow-x-hidden antialiased">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
