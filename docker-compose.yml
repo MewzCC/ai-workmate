@@ -1,21 +1,29 @@
-version: '3.8'
+# 一键部署 AI WorkMate：基础设施 + 后端 + 两个前端
+# 用法：
+#   1. 复制 .env.docker.example 为 .env，填入生产密钥
+#      cp .env.docker.example .env
+#   2. docker compose up -d --build
+#   3. 访问 http://<host>:3000（主站）、http://<host>:3001/oa/（OA）
+# 端口约定（与 AGENTS.md 一致）：主站 3000、OA 3001、后端 8080、基础设施按需暴露
+# 注意：Docker 部署会覆盖本地开发的 .env，本地开发时请从 .env.example 重新复制。
 
 services:
+  # ========== 基础设施 ==========
   # PostgreSQL + pgvector
   postgres:
     image: pgvector/pgvector:pg16
     container_name: aiworkmate-db
     environment:
-      POSTGRES_DB: ai_workmate_dev
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ${POSTGRES_DB:-ai_workmate_dev}
+      POSTGRES_USER: ${DB_USERNAME:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./backend/src/main/resources/db/init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-postgres}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -34,7 +42,7 @@ services:
       timeout: 5s
       retries: 5
 
-  # MinIO 对象存储（附件 / 头像）
+  # MinIO 对象存储（附件 / 头像 / 壁纸）
   minio:
     image: minio/minio:latest
     container_name: aiworkmate-minio
@@ -52,6 +60,62 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  # ========== 后端 ==========
+  backend:
+    build:
+      context: ./backend
+    container_name: aiworkmate-backend
+    # 从根目录 .env 读取配置注入容器（docker compose 默认读取 .env 做变量插值）
+    env_file:
+      - .env
+    environment:
+      # 容器内通过服务名连接基础设施（覆盖 application.yml 的 localhost 默认值）
+      DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ai_workmate_dev}
+      DB_USERNAME: ${DB_USERNAME:-postgres}
+      REDIS_URL: redis://redis:6379
+      MINIO_ENDPOINT: http://minio:9000
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    restart: unless-stopped
+
+  # ========== 前端：营销官网 ==========
+  # nginx 托管 dist，/api 反代到 backend:8080
+  # VITE_OA_URL 留空时代码自动跳到 http://<host>:3001/oa/（主站 3000 / OA 3001 分离）
+  fronted-main:
+    build:
+      context: ./fronted-main
+      args:
+        # 留空：主站 3000 / OA 3001 分离部署，代码按 hostname 自动拼 3001
+        # 同端口反代场景：设为 /oa/（外部 nginx 用 location /oa/ 转发到 fonted-oa 容器）
+        # 独立域名部署：设为完整 URL，如 https://oa.example.com/oa/
+        VITE_OA_URL: ${VITE_OA_URL:-}
+    container_name: aiworkmate-main
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  # ========== 前端：OA 工作台 ==========
+  # nginx 托管 /oa/ 静态产物，/api 反代到 backend:8080
+  fonted-oa:
+    build:
+      context: ./fonted-oa
+    container_name: aiworkmate-oa
+    ports:
+      - "3001:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
 
 volumes:
   postgres_data:

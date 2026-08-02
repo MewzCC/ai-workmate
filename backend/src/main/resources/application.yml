@@ -9,8 +9,8 @@ spring:
   # ========== 数据库 ==========
   datasource:
     driver-class-name: org.postgresql.Driver
-    url: jdbc:postgresql://localhost:5432/ai_workmate
-    username: postgres
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/ai_workmate}
+    username: ${DB_USERNAME:postgres}
     password: ${DB_PASSWORD:postgres}
     hikari:
       maximum-pool-size: 20
