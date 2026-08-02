@@ -39,7 +39,7 @@ public class ConversationController {
     @PostMapping
     public Result<ConversationResponse> create(@Valid @RequestBody CreateConversationRequest request,
                                                @AuthenticationPrincipal AuthenticatedUser user) {
-        return Result.ok(conversationService.createConversation(user.userId(), request));
+        return Result.ok(conversationService.createConversation(user.tenantId(), user.userId(), request));
     }
 
     @PatchMapping("/{conversationId}")

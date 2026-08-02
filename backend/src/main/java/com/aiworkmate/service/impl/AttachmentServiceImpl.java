@@ -41,7 +41,7 @@ public class AttachmentServiceImpl implements AttachmentService {
 
     @Override
     @Transactional
-    public AttachmentResponse upload(Long userId, Long conversationId, MultipartFile file) {
+    public AttachmentResponse upload(Long tenantId, Long userId, Long conversationId, MultipartFile file) {
         requireConversationOwner(userId, conversationId);
         validateBasicFile(file);
         Path tempFile = createTempFile(file);
@@ -57,7 +57,7 @@ public class AttachmentServiceImpl implements AttachmentService {
             }
             Attachment attachment;
             try {
-                attachment = createEntity(userId, conversationId, file, storageName, parsed);
+                attachment = createEntity(tenantId, userId, conversationId, file, storageName, parsed);
                 attachmentMapper.insert(attachment);
             } catch (RuntimeException ex) {
                 objectStorageService.delete(storageName);
@@ -129,9 +129,10 @@ public class AttachmentServiceImpl implements AttachmentService {
         return objectStorageService.load(attachment.getStorageName());
     }
 
-    private Attachment createEntity(Long userId, Long conversationId, MultipartFile file,
+    private Attachment createEntity(Long tenantId, Long userId, Long conversationId, MultipartFile file,
                                     String storageName, ParsedFile parsed) {
         Attachment attachment = new Attachment();
+        attachment.setTenantId(tenantId);
         attachment.setUserId(userId);
         attachment.setConversationId(conversationId);
         attachment.setType(parsed.image() ? "image" : "file");

@@ -55,9 +55,10 @@ public class ConversationServiceImpl implements ConversationService {
 
     @Override
     @Transactional
-    public ConversationResponse createConversation(Long userId, CreateConversationRequest request) {
+    public ConversationResponse createConversation(Long tenantId, Long userId, CreateConversationRequest request) {
         LocalDateTime now = LocalDateTime.now();
         Conversation conversation = new Conversation();
+        conversation.setTenantId(tenantId);
         conversation.setUserId(userId);
         conversation.setTitle(normalizeTitle(request.title()));
         conversation.setModel(normalizeModel(request.model()));
