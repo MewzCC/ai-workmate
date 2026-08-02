@@ -39,7 +39,7 @@ interface AiChatState {
   clearAll: () => Promise<void>;
 }
 
-const defaultSettings: ChatSettings = { model: DEFAULT_AI_MODEL, maxContextRounds: 10, stream: true };
+const defaultSettings: ChatSettings = { model: DEFAULT_AI_MODEL, kbId: null, maxContextRounds: 10, stream: true };
 
 function readSettings(): ChatSettings {
   if (typeof window === 'undefined') return defaultSettings;
@@ -198,6 +198,7 @@ export const useAiChatStore = create<AiChatState>((set, get) => ({
         conversationId,
         message: content,
         model: state.settings.model,
+        kbId: state.settings.kbId ?? null,
         attachmentIds: attachments.map((item) => item.id),
         maxContextRounds: state.settings.maxContextRounds,
       };

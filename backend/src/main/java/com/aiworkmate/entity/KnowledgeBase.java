@@ -8,23 +8,23 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 @Data
-@TableName("knowledge_doc")
-public class KnowledgeDocument {
+@TableName("knowledge_base")
+public class KnowledgeBase {
 
     @TableId(type = IdType.AUTO)
     private Long id;
     private Long tenantId;
     private Long userId;
-    private Long kbId;
-    private String filename;
-    private Long fileSize;
-    private String fileType;
-    private Integer chunkCount;
-    private String status;
-    private String contentHash;
-    private String errorMessage;
+    private String name;
+    private String icon;
+    private String description;
     private String embeddingProvider;
     private String embeddingModel;
+    private String rerankModel;
+    private Integer chunkSize;
+    private Integer chunkOverlap;
+    private Integer denseTopK;
+    private Integer sparseTopK;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

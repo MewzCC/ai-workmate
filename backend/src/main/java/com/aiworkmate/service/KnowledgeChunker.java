@@ -1,6 +1,5 @@
 package com.aiworkmate.service;
 
-import com.aiworkmate.config.EmbeddingProperties;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -11,16 +10,18 @@ import java.util.List;
 @RequiredArgsConstructor
 public class KnowledgeChunker {
 
-    private final EmbeddingProperties properties;
-
     public List<String> split(String content) {
+        return split(content, 1000, 120);
+    }
+
+    public List<String> split(String content, int chunkSize, int chunkOverlap) {
         String normalized = content == null ? "" : content
                 .replace("\r\n", "\n")
                 .replace('\r', '\n')
                 .strip();
         if (normalized.isBlank()) return List.of();
 
-        int maxChars = Math.max(200, properties.getChunkMaxChars());
+        int maxChars = Math.max(200, chunkSize);
         List<String> rawChunks = new ArrayList<>();
         StringBuilder current = new StringBuilder();
         for (String paragraph : normalized.split("\\n\\s*\\n+")) {
@@ -39,7 +40,7 @@ public class KnowledgeChunker {
             }
         }
         flush(current, rawChunks);
-        return addOverlap(rawChunks);
+        return addOverlap(rawChunks, Math.max(0, chunkOverlap));
     }
 
     private void splitLongParagraph(String paragraph, int maxChars, List<String> chunks) {
@@ -65,9 +66,8 @@ public class KnowledgeChunker {
         }
     }
 
-    private List<String> addOverlap(List<String> rawChunks) {
+    private List<String> addOverlap(List<String> rawChunks, int overlap) {
         if (rawChunks.size() < 2) return List.copyOf(rawChunks);
-        int overlap = Math.max(0, properties.getChunkOverlapChars());
         if (overlap == 0) return List.copyOf(rawChunks);
         List<String> result = new ArrayList<>(rawChunks.size());
         result.add(rawChunks.get(0));

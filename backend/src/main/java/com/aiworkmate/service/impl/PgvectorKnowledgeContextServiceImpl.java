@@ -23,10 +23,12 @@ public class PgvectorKnowledgeContextServiceImpl implements KnowledgeContextServ
     private final EmbeddingProperties properties;
 
     @Override
-    public KnowledgeContext retrieve(Long userId, String userMessage) {
-        KnowledgeSearchResponse result = knowledgeService.search(userId,
-                new KnowledgeSearchRequest(userMessage, properties.getRetrievalTopK(),
-                        properties.getRetrievalMinScore()));
+    public KnowledgeContext retrieve(Long userId, String userMessage, Long kbId) {
+        KnowledgeSearchRequest request = new KnowledgeSearchRequest(userMessage,
+                properties.getRetrievalTopK(), properties.getRetrievalMinScore());
+        KnowledgeSearchResponse result = kbId == null
+                ? knowledgeService.search(userId, request)
+                : knowledgeService.searchInKnowledgeBase(userId, kbId, request);
         if (result.records().isEmpty()) {
             return KnowledgeContext.empty();
         }

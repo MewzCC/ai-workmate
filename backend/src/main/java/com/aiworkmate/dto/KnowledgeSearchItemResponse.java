@@ -6,6 +6,7 @@ public record KnowledgeSearchItemResponse(
         String filename,
         int chunkIndex,
         String content,
-        double score
+        double score,
+        String matchType
 ) {
 }

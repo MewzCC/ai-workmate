@@ -2,8 +2,9 @@
 
 import { useEffect, useRef } from 'react';
 import { Button, Select, Typography } from 'antd';
-import { MenuOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
+import { DatabaseOutlined, MenuOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
 import { AI_MODEL_OPTIONS, type AiModelId } from '@/config/aiModels';
+import type { KnowledgeBase } from '@/lib/knowledgeApi';
 import type { ChatAttachment, ChatMessage } from '@/types/chat';
 import ChatInput from './ChatInput';
 import MessageList from './MessageList';
@@ -11,6 +12,8 @@ import MessageList from './MessageList';
 interface ChatWindowProps {
   title: string;
   model: AiModelId;
+  kbId: number | null;
+  kbOptions: KnowledgeBase[];
   messages: ChatMessage[];
   pending: ChatAttachment[];
   generating: boolean;
@@ -20,6 +23,7 @@ interface ChatWindowProps {
   onSend: (content: string) => void;
   onStop: () => void;
   onModelChange: (model: AiModelId) => void;
+  onKbChange: (kbId: number | null) => void;
 }
 
 export default function ChatWindow(props: ChatWindowProps) {
@@ -39,6 +43,19 @@ export default function ChatWindow(props: ChatWindowProps) {
           <Typography.Title level={5}>{props.title}</Typography.Title>
           <Typography.Text type="secondary"><SafetyCertificateOutlined /> 权限由服务端校验</Typography.Text>
         </div>
+        <Select<number | null>
+          aria-label="选择知识库"
+          className="ai-kb-select"
+          placeholder="全部知识库"
+          value={props.kbId ?? undefined}
+          allowClear
+          showSearch
+          optionFilterProp="label"
+          suffixIcon={<DatabaseOutlined />}
+          options={props.kbOptions.map((base) => ({ label: base.name, value: base.id }))}
+          onChange={(value) => props.onKbChange(value ?? null)}
+          disabled={props.generating}
+        />
         <Select<AiModelId>
           aria-label="切换对话模型"
           className="ai-model-select"

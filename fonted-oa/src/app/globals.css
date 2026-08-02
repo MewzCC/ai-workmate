@@ -136,6 +136,7 @@
 @media (prefers-reduced-motion: reduce) { .auth-ambient { animation: none; } .auth-tab-slider { transition: none; } }
 
 .oa-domain-page { display: grid; gap: 18px; max-width: 1480px; margin: 0 auto; }
+.oa-domain-page > * { min-width: 0; }
 .oa-domain-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
 .oa-domain-heading .ant-typography { margin-top: 0; }
 .oa-domain-card { border-color: var(--oa-border); background: var(--oa-card); margin-bottom: 6px !important;}
