@@ -66,9 +66,10 @@ services:
     build:
       context: ./backend
     container_name: aiworkmate-backend
-    # 从根目录 .env 读取配置注入容器（docker compose 默认读取 .env 做变量插值）
+    # 从根目录 .env.docker 读取配置注入容器
+    # 注意：docker compose 默认还会读取 .env 做变量插值，如需隔离可在命令行指定 --env-file .env.docker
     env_file:
-      - .env
+      - .env.docker
     environment:
       # 容器内通过服务名连接基础设施（覆盖 application.yml 的 localhost 默认值）
       DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ai_workmate_dev}

@@ -37,6 +37,7 @@ public class ChatController {
                 request.getConversationId(),
                 request.getMessage(),
                 request.getModel(),
+                request.getKbId(),
                 request.getAttachmentIds(),
                 request.getMaxContextRounds()
         ).map(chunk -> event(chunk.type(), ChatStreamEvent.chunk(chunk.type(), chunk.data(),
@@ -63,6 +64,7 @@ public class ChatController {
                 request.getConversationId(),
                 request.getMessage(),
                 request.getModel(),
+                request.getKbId(),
                 request.getAttachmentIds(),
                 request.getMaxContextRounds()
         );

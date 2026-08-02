@@ -175,6 +175,7 @@ const fallbackIconMap = {
   reload: ReloadOutlined,
   lock: LockOutlined,
   history: HistoryOutlined,
+  'knowledge-base': DatabaseOutlined,
   previous: LeftOutlined,
   next: RightOutlined,
 } satisfies Record<string, ComponentType<AntdIconProps>>;
@@ -257,6 +258,7 @@ const routeIconMap: Record<string, OaIconName> = {
   'audit-center': 'audit',
   'tenant-config': 'tenant',
   dictionary: 'dictionary',
+  'knowledge-base': 'knowledge-base',
 };
 
 export interface OaIconProps {

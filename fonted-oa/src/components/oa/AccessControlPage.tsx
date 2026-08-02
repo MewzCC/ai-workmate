@@ -46,6 +46,8 @@ const componentOptions = [
   { value: 'LEAVE_FORM', label: '请假申请' },
   { value: 'MY_APPLICATIONS', label: '我的申请' },
   { value: 'AUDIT_CENTER', label: '审计中心' },
+  { value: 'ORG_TREE', label: '组织架构' },
+  { value: 'KNOWLEDGE_BASE', label: '知识库管理' },
 ];
 
 export default function AccessControlPage() {
