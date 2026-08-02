@@ -53,6 +53,47 @@ public interface KnowledgeDocumentMapper extends BaseMapper<KnowledgeDocument> {
                                      @Param("userId") Long userId,
                                      @Param("docId") Long docId);
 
+    @Select("""
+            SELECT id AS chunk_id, doc_id, chunk_index, content
+            FROM knowledge_chunk
+            WHERE tenant_id = #{tenantId} AND user_id = #{userId} AND doc_id = #{docId}
+            ORDER BY chunk_index
+            """)
+    List<KnowledgeSearchRow> selectChunks(@Param("tenantId") Long tenantId,
+                                          @Param("userId") Long userId,
+                                          @Param("docId") Long docId);
+
+    @Select("""
+            SELECT id AS chunk_id, doc_id, chunk_index, content
+            FROM knowledge_chunk
+            WHERE tenant_id = #{tenantId} AND user_id = #{userId} AND id = #{chunkId}
+            """)
+    KnowledgeSearchRow selectChunkOwned(@Param("tenantId") Long tenantId,
+                                        @Param("userId") Long userId,
+                                        @Param("chunkId") Long chunkId);
+
+    @Delete("""
+            DELETE FROM knowledge_chunk
+            WHERE tenant_id = #{tenantId} AND user_id = #{userId} AND id = #{chunkId}
+            """)
+    int deleteChunkById(@Param("tenantId") Long tenantId,
+                        @Param("userId") Long userId,
+                        @Param("chunkId") Long chunkId);
+
+    @Update("""
+            UPDATE knowledge_chunk
+            SET chunk_index = #{newIndex}
+            WHERE tenant_id = #{tenantId}
+              AND user_id = #{userId}
+              AND doc_id = #{docId}
+              AND chunk_index = #{oldIndex}
+            """)
+    int updateChunkIndex(@Param("tenantId") Long tenantId,
+                         @Param("userId") Long userId,
+                         @Param("docId") Long docId,
+                         @Param("oldIndex") int oldIndex,
+                         @Param("newIndex") int newIndex);
+
     @Update("""
             UPDATE knowledge_chunk
             SET embedding = CAST(#{embedding} AS vector),
@@ -99,4 +140,61 @@ public interface KnowledgeDocumentMapper extends BaseMapper<KnowledgeDocument> {
                                     @Param("embeddingModel") String embeddingModel,
                                     @Param("minScore") double minScore,
                                     @Param("topK") int topK);
+
+    @Select("""
+            SELECT kc.id AS chunk_id,
+                   kd.id AS doc_id,
+                   kd.filename,
+                   kc.chunk_index,
+                   kc.content,
+                   1 - (kc.embedding <=> CAST(#{embedding} AS vector)) AS score
+            FROM knowledge_chunk kc
+            JOIN knowledge_doc kd
+              ON kd.id = kc.doc_id
+             AND kd.tenant_id = kc.tenant_id
+             AND kd.user_id = kc.user_id
+            WHERE kc.tenant_id = #{tenantId}
+              AND kc.user_id = #{userId}
+              AND kd.kb_id = #{kbId}
+              AND kd.status = 'READY'
+              AND kc.embedding_provider = #{embeddingProvider}
+              AND kc.embedding_model = #{embeddingModel}
+              AND 1 - (kc.embedding <=> CAST(#{embedding} AS vector)) >= #{minScore}
+            ORDER BY kc.embedding <=> CAST(#{embedding} AS vector), kc.id
+            LIMIT #{topK}
+            """)
+    List<KnowledgeSearchRow> searchDense(@Param("tenantId") Long tenantId,
+                                         @Param("userId") Long userId,
+                                         @Param("kbId") Long kbId,
+                                         @Param("embedding") String embedding,
+                                         @Param("embeddingProvider") String embeddingProvider,
+                                         @Param("embeddingModel") String embeddingModel,
+                                         @Param("minScore") double minScore,
+                                         @Param("topK") int topK);
+
+    @Select("""
+            SELECT kc.id AS chunk_id,
+                   kd.id AS doc_id,
+                   kd.filename,
+                   kc.chunk_index,
+                   kc.content,
+                   ts_rank(kc.content_tsv, plainto_tsquery('simple', #{query})) AS score
+            FROM knowledge_chunk kc
+            JOIN knowledge_doc kd
+              ON kd.id = kc.doc_id
+             AND kd.tenant_id = kc.tenant_id
+             AND kd.user_id = kc.user_id
+            WHERE kc.tenant_id = #{tenantId}
+              AND kc.user_id = #{userId}
+              AND kd.kb_id = #{kbId}
+              AND kd.status = 'READY'
+              AND kc.content_tsv @@ plainto_tsquery('simple', #{query})
+            ORDER BY score DESC, kc.id
+            LIMIT #{topK}
+            """)
+    List<KnowledgeSearchRow> searchSparse(@Param("tenantId") Long tenantId,
+                                          @Param("userId") Long userId,
+                                          @Param("kbId") Long kbId,
+                                          @Param("query") String query,
+                                          @Param("topK") int topK);
 }

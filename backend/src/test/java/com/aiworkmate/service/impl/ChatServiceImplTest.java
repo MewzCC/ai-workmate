@@ -44,7 +44,7 @@ class ChatServiceImplTest {
         when(aiRuntimeProperties.configured()).thenReturn(false);
 
         assertThatThrownBy(() -> chatService.chat(
-                1001L, "USER", 2001L, "你好", "deepseek-chat", List.of(), 10))
+                1001L, "USER", 2001L, "你好", "deepseek-chat", null, List.of(), 10))
                 .isInstanceOfSatisfying(BusinessException.class, ex ->
                         org.assertj.core.api.Assertions.assertThat(ex.getErrorCode())
                                 .isEqualTo(ErrorCode.AI_CHAT_UNAVAILABLE.getErrorCode()));
@@ -59,7 +59,7 @@ class ChatServiceImplTest {
         when(aiRuntimeProperties.configured()).thenReturn(true);
 
         assertThatThrownBy(() -> chatService.chat(
-                1001L, "USER", 2001L, "你好", "unknown-model", List.of(), 10))
+                1001L, "USER", 2001L, "你好", "unknown-model", null, List.of(), 10))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("不支持的 AI 模型");
 

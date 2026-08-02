@@ -10,7 +10,7 @@ import java.util.List;
 
 public interface AttachmentService {
 
-    AttachmentResponse upload(Long userId, Long conversationId, MultipartFile file);
+    AttachmentResponse upload(Long tenantId, Long userId, Long conversationId, MultipartFile file);
 
     AttachmentContent loadContent(Long userId, Long attachmentId);
 

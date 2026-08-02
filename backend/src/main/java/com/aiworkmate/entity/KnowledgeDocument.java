@@ -15,6 +15,7 @@ public class KnowledgeDocument {
     private Long id;
     private Long tenantId;
     private Long userId;
+    private Long kbId;
     private String filename;
     private Long fileSize;
     private String fileType;

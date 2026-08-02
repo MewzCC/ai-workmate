@@ -10,7 +10,7 @@ public interface ConversationService {
 
     List<ConversationResponse> listConversations(Long userId, String search);
 
-    ConversationResponse createConversation(Long userId, CreateConversationRequest request);
+    ConversationResponse createConversation(Long tenantId, Long userId, CreateConversationRequest request);
 
     ConversationResponse renameConversation(Long userId, Long conversationId, String title);
 

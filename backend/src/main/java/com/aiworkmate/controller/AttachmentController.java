@@ -32,7 +32,7 @@ public class AttachmentController {
     public Result<AttachmentResponse> upload(@RequestParam Long conversationId,
                                              @RequestParam MultipartFile file,
                                              @AuthenticationPrincipal AuthenticatedUser user) {
-        return Result.ok(attachmentService.upload(user.userId(), conversationId, file));
+        return Result.ok(attachmentService.upload(user.tenantId(), user.userId(), conversationId, file));
     }
 
     @GetMapping("/{attachmentId}/content")

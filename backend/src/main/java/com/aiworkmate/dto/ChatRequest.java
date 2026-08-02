@@ -22,6 +22,9 @@ public class ChatRequest {
     /** 模型名称，默认从配置读取 */
     private String model;
 
+    /** 指定检索的知识库 ID；为空时检索当前用户全部知识库 */
+    private Long kbId;
+
     @Size(max = 10, message = "单条消息最多包含 10 个附件")
     private List<Long> attachmentIds = List.of();
 

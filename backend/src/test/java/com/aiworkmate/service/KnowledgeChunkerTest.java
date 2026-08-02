@@ -1,6 +1,5 @@
 package com.aiworkmate.service;
 
-import com.aiworkmate.config.EmbeddingProperties;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -11,14 +10,11 @@ class KnowledgeChunkerTest {
 
     @Test
     void shouldPreferParagraphBoundariesAndAddOverlap() {
-        EmbeddingProperties properties = new EmbeddingProperties();
-        properties.setChunkMaxChars(200);
-        properties.setChunkOverlapChars(20);
-        KnowledgeChunker chunker = new KnowledgeChunker(properties);
+        KnowledgeChunker chunker = new KnowledgeChunker();
 
         String first = "A".repeat(150);
         String second = "B".repeat(100);
-        List<String> chunks = chunker.split(first + "\n\n" + second);
+        List<String> chunks = chunker.split(first + "\n\n" + second, 200, 20);
 
         assertThat(chunks).hasSize(2);
         assertThat(chunks.get(0)).isEqualTo(first);
@@ -27,7 +23,19 @@ class KnowledgeChunkerTest {
 
     @Test
     void shouldReturnNoChunksForBlankContent() {
-        assertThat(new KnowledgeChunker(new EmbeddingProperties()).split(" \n "))
+        assertThat(new KnowledgeChunker().split(" \n "))
                 .isEmpty();
+    }
+
+    @Test
+    void shouldUsePerKnowledgeBaseSettings() {
+        KnowledgeChunker chunker = new KnowledgeChunker();
+
+        String first = "A".repeat(300);
+        String second = "B".repeat(100);
+        List<String> chunks = chunker.split(first + "\n\n" + second, 500, 0);
+
+        assertThat(chunks).hasSize(1);
+        assertThat(chunks.get(0)).contains(first).contains(second);
     }
 }

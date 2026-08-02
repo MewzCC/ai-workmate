@@ -4303,6 +4303,11 @@ html.oa-wallpaper-active .ant-menu-submenu-popup .ant-menu-dark {
   flex: 0 0 184px;
 }
 
+.ai-kb-select {
+  width: 184px;
+  flex: 0 0 184px;
+}
+
 .ai-mobile-session-button {
   display: none;
 }
@@ -4951,6 +4956,7 @@ html.oa-wallpaper-active .oa-ai-operation-drawer .ant-drawer-footer {
   .ai-mobile-session-button { display: inline-flex; }
   .ai-chat-header { padding: 0 12px; }
   .ai-model-select { width: 148px; flex-basis: 148px; }
+  .ai-kb-select { width: 132px; flex-basis: 132px; }
   .ai-message-list { padding: 18px 14px 64px; }
   .ai-message { grid-template-columns: 28px minmax(0, 1fr); gap: 10px; }
   .ai-message-user { grid-template-columns: minmax(0, 1fr) 28px; }
