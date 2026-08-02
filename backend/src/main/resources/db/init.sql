@@ -921,4 +921,135 @@ FROM rbac_permission
 WHERE code IN ('org:read', 'org:manage', 'route:org-tree')
 ON CONFLICT DO NOTHING;
 
+-- ============================================
+-- Phase 1: 知识库管理
+-- ============================================
+INSERT INTO rbac_permission(code, name, module, description, tenant_id) VALUES
+    ('route:knowledge-base', '访问知识库管理', '系统设置', '允许访问知识库管理页面',
+        (SELECT id FROM tenant WHERE code = 'DEFAULT'))
+ON CONFLICT (code) DO UPDATE SET
+    name = EXCLUDED.name,
+    module = EXCLUDED.module,
+    description = EXCLUDED.description,
+    tenant_id = EXCLUDED.tenant_id;
+
+INSERT INTO rbac_route(
+    route_key, parent_key, name, path, icon, route_type, component_key,
+    permission_code, sort_order, enabled, tenant_id
+) VALUES
+    ('knowledge-base', 'settings', '知识库管理', '/oa/knowledge-base', 'DatabaseOutlined',
+        'PAGE', 'KNOWLEDGE_BASE', 'route:knowledge-base', 3, TRUE,
+        (SELECT id FROM tenant WHERE code = 'DEFAULT'))
+ON CONFLICT (route_key) DO UPDATE SET
+    parent_key = EXCLUDED.parent_key,
+    name = EXCLUDED.name,
+    path = EXCLUDED.path,
+    icon = EXCLUDED.icon,
+    component_key = EXCLUDED.component_key,
+    permission_code = EXCLUDED.permission_code,
+    sort_order = EXCLUDED.sort_order,
+    enabled = TRUE,
+    tenant_id = EXCLUDED.tenant_id,
+    updated_at = CURRENT_TIMESTAMP;
+
+INSERT INTO rbac_role_permission(role_code, permission_code, tenant_id)
+SELECT role_code, permission_code, t.id
+FROM tenant t
+CROSS JOIN (
+    VALUES
+        ('SYSTEM_ADMIN', 'route:knowledge-base')
+) AS defaults(role_code, permission_code)
+WHERE t.code = 'DEFAULT'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO rbac_role_permission(role_code, permission_code, tenant_id)
+SELECT 'SUPER_ADMIN', code, tenant_id
+FROM rbac_permission
+WHERE code = 'route:knowledge-base'
+ON CONFLICT DO NOTHING;
+
+-- ============================================
+-- 知识库集合：knowledge_base 表与文档归属
+-- ============================================
+CREATE TABLE IF NOT EXISTS knowledge_base (
+    id                BIGSERIAL PRIMARY KEY,
+    tenant_id         BIGINT       NOT NULL,
+    user_id           BIGINT       NOT NULL,
+    name              VARCHAR(80)  NOT NULL,
+    icon              VARCHAR(40)  NOT NULL DEFAULT 'knowledge-base',
+    description       VARCHAR(500),
+    embedding_provider VARCHAR(20),
+    embedding_model   VARCHAR(160),
+    rerank_model      VARCHAR(160),
+    chunk_size        INT          NOT NULL DEFAULT 1000,
+    chunk_overlap     INT          NOT NULL DEFAULT 120,
+    dense_top_k       INT          NOT NULL DEFAULT 5,
+    sparse_top_k      INT          NOT NULL DEFAULT 5,
+    created_at        TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at        TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_knowledge_base_tenant_user
+    ON knowledge_base(tenant_id, user_id);
+
+-- 文档归属知识库；删除知识库时级联删除文档（文档分块再级联删除）
+ALTER TABLE knowledge_doc ADD COLUMN IF NOT EXISTS kb_id BIGINT
+    REFERENCES knowledge_base(id) ON DELETE CASCADE;
+CREATE INDEX IF NOT EXISTS idx_knowledge_doc_kb
+    ON knowledge_doc(tenant_id, user_id, kb_id);
+
+-- 稀疏检索：按 simple 分词器建 tsvector，配合 GIN 索引做关键词召回
+ALTER TABLE knowledge_chunk ADD COLUMN IF NOT EXISTS content_tsv tsvector
+    GENERATED ALWAYS AS (to_tsvector('simple', content)) STORED;
+CREATE INDEX IF NOT EXISTS idx_knowledge_chunk_tsv
+    ON knowledge_chunk USING GIN (content_tsv);
+
+-- 去重唯一索引改为按知识库隔离；历史游离文档 kb_id 为 NULL，PG 允许多个 NULL 不冲突
+DROP INDEX IF EXISTS ux_knowledge_doc_owner_hash_model;
+CREATE UNIQUE INDEX IF NOT EXISTS ux_knowledge_doc_owner_kb_hash_model
+    ON knowledge_doc(tenant_id, user_id, kb_id, content_hash, embedding_provider, embedding_model)
+    WHERE content_hash IS NOT NULL
+      AND embedding_provider IS NOT NULL
+      AND embedding_model IS NOT NULL;
+
+-- 为存在文档但没有知识库的用户创建「默认知识库」，并回收游离文档
+DO $$
+DECLARE
+    r RECORD;
+BEGIN
+    FOR r IN
+        SELECT DISTINCT kd.tenant_id, kd.user_id
+        FROM knowledge_doc kd
+        WHERE kd.kb_id IS NULL
+    LOOP
+        IF NOT EXISTS (
+            SELECT 1 FROM knowledge_base kb
+            WHERE kb.tenant_id = r.tenant_id AND kb.user_id = r.user_id
+        ) THEN
+            INSERT INTO knowledge_base (
+                tenant_id, user_id, name, icon, description,
+                embedding_provider, embedding_model, chunk_size, chunk_overlap, dense_top_k, sparse_top_k
+            ) VALUES (
+                r.tenant_id, r.user_id, '默认知识库', 'knowledge-base',
+                '系统自动创建的知识库，包含历史文档',
+                (SELECT COALESCE(kd.embedding_provider, 'local') FROM knowledge_doc kd
+                 WHERE kd.tenant_id = r.tenant_id AND kd.user_id = r.user_id
+                 ORDER BY kd.id DESC LIMIT 1),
+                (SELECT COALESCE(kd.embedding_model, 'Qwen3-Embedding-0.6B') FROM knowledge_doc kd
+                 WHERE kd.tenant_id = r.tenant_id AND kd.user_id = r.user_id
+                 ORDER BY kd.id DESC LIMIT 1),
+                1000, 120, 5, 5
+            );
+        END IF;
+    END LOOP;
+END
+$$;
+
+UPDATE knowledge_doc kd
+SET kb_id = kb.id
+FROM knowledge_base kb
+WHERE kd.kb_id IS NULL
+  AND kb.tenant_id = kd.tenant_id
+  AND kb.user_id = kd.user_id
+  AND kb.name = '默认知识库';
+
 COMMIT;

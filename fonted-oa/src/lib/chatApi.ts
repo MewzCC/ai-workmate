@@ -88,8 +88,17 @@ export async function updateMessageFeedback(messageId: number, feedback: 'like' 
   }));
 }
 
+interface ChatRequestPayload {
+  conversationId: number;
+  message: string;
+  model: string;
+  kbId?: number | null;
+  attachmentIds: number[];
+  maxContextRounds: number;
+}
+
 export async function streamChat(
-  request: { conversationId: number; message: string; model: string; attachmentIds: number[]; maxContextRounds: number },
+  request: ChatRequestPayload,
   signal: AbortSignal,
   onEvent: (event: ChatStreamEvent) => void,
 ): Promise<void> {
@@ -113,13 +122,7 @@ export async function streamChat(
   if (buffer.trim()) parseSseEvent(buffer, onEvent);
 }
 
-export async function sendChat(request: {
-  conversationId: number;
-  message: string;
-  model: string;
-  attachmentIds: number[];
-  maxContextRounds: number;
-}, signal?: AbortSignal): Promise<string> {
+export async function sendChat(request: ChatRequestPayload, signal?: AbortSignal): Promise<string> {
   return parse(await fetch(`${BASE}/chat`, {
     method: 'POST', headers: headers(), body: JSON.stringify(request), signal,
   }));

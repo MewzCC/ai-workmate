@@ -37,6 +37,8 @@ export interface ChatConversation {
 
 export interface ChatSettings {
   model: AiModelId;
+  /** 指定检索的知识库 ID；为空（null）时检索当前用户全部知识库 */
+  kbId: number | null;
   maxContextRounds: number;
   stream: boolean;
 }

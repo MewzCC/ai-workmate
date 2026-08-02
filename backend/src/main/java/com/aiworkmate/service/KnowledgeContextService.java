@@ -4,5 +4,5 @@ import com.aiworkmate.service.model.KnowledgeContext;
 
 public interface KnowledgeContextService {
 
-    KnowledgeContext retrieve(Long userId, String userMessage);
+    KnowledgeContext retrieve(Long userId, String userMessage, Long kbId);
 }

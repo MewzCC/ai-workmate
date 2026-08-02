@@ -25,6 +25,7 @@ import MyApplicationsPage from './MyApplicationsPage';
 import ApprovalDetailPage from './ApprovalDetailPage';
 import AuditCenterPage from './AuditCenterPage';
 import OrganizationTreePage from './OrganizationTreePage';
+import KnowledgeBasePage from './KnowledgeBasePage';
 
 const { Content } = Layout;
 const OPEN_TABS_STORAGE_KEY = 'workmeta-oa-open-tabs';
@@ -145,11 +146,16 @@ export default function AdminLayout() {
     const match = pathname.match(/^\/oa\/approval-tasks\/(\d+)$/);
     return match ? Number(match[1]) : undefined;
   }, [pathname]);
+  const kbId = useMemo(() => {
+    const match = pathname.match(/^\/oa\/knowledge-bases\/(\d+)$/);
+    return match ? Number(match[1]) : undefined;
+  }, [pathname]);
   const currentPageId = useMemo(() => {
     if (approvalTaskId) return 'todo';
+    if (kbId) return 'knowledge-base';
     const segments = pathname.split('/').filter(Boolean);
     return segments.length > 1 ? decodeURIComponent(segments[1]) : 'dashboard';
-  }, [approvalTaskId, pathname]);
+  }, [approvalTaskId, kbId, pathname]);
   const { user } = useAuth();
   const role = useMemo<OaRole>(() => {
     if (user?.role === 'SUPER_ADMIN') return 'super_admin';
@@ -262,8 +268,8 @@ export default function AdminLayout() {
   }, [currentPageId, menus, navigationLoaded, router]);
 
   useEffect(() => {
-    document.title = `AI WorkMate OA - ${approvalTaskId ? '审批详情' : selectedMenu.name}`;
-  }, [approvalTaskId, selectedMenu.name]);
+    document.title = `AI WorkMate OA - ${approvalTaskId ? '审批详情' : kbId ? '知识库详情' : selectedMenu.name}`;
+  }, [approvalTaskId, kbId, selectedMenu.name]);
 
   useEffect(() => {
     if (!navigationLoaded || openTabsReady) return;
@@ -499,6 +505,8 @@ export default function AdminLayout() {
                 <div key={selectedMenu.id} className="oa-page-transition">
                   {approvalTaskId ? (
                     <ApprovalDetailPage taskId={approvalTaskId} />
+                  ) : kbId ? (
+                    <KnowledgeBasePage kbId={kbId} />
                   ) : selectedMenu.componentKey === 'AI_WORKSPACE' ? (
                     <AiChatWorkspace role={role} />
                   ) : selectedMenu.componentKey === 'ACCESS_CONTROL' ? (
@@ -513,6 +521,8 @@ export default function AdminLayout() {
                     <AuditCenterPage />
                   ) : selectedMenu.componentKey === 'ORG_TREE' ? (
                     <OrganizationTreePage />
+                  ) : selectedMenu.componentKey === 'KNOWLEDGE_BASE' ? (
+                    <KnowledgeBasePage />
                   ) : (
                     <Dashboard
                       role={role}

@@ -19,7 +19,7 @@ export default function SettingsDialog({ open, settings, onClose, onSave, onClea
 
   return (
     <Modal title="AI Workspace 设置" open={open} onCancel={onClose} onOk={() => form.submit()} okText="保存设置">
-      <Form form={form} layout="vertical" onFinish={(values) => { onSave(values); onClose(); }}>
+      <Form form={form} layout="vertical" onFinish={(values) => { onSave({ ...settings, ...values }); onClose(); }}>
         <Form.Item label="API Key">
           <Input.Password value="由服务端环境变量管理" disabled />
           <Typography.Text type="secondary">密钥不会下发到浏览器，请通过后端 `AI_API_KEY` 配置。</Typography.Text>

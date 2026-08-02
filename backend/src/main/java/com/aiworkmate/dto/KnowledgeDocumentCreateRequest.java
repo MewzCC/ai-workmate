@@ -1,9 +1,13 @@
 package com.aiworkmate.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 public record KnowledgeDocumentCreateRequest(
+        @NotNull(message = "知识库 ID 不能为空")
+        Long kbId,
+
         @NotBlank(message = "文件名不能为空")
         @Size(max = 255, message = "文件名不能超过 255 个字符")
         String filename,

@@ -57,7 +57,7 @@ public class ChatServiceImpl implements ChatService {
     @Override
     @Transactional
     public Flux<ChatChunk> chatStream(Long userId, String role, Long conversationId, String userMessage,
-                                      String model, List<Long> attachmentIds, int maxContextRounds) {
+                                      String model, Long kbId, List<Long> attachmentIds, int maxContextRounds) {
         Conversation conversation = requireOwnedConversation(userId, conversationId);
         ensureProviderConfigured();
         String selectedModel = AiModelCatalog.normalize(model);
@@ -67,7 +67,7 @@ public class ChatServiceImpl implements ChatService {
         Message assistant = saveMessage(conversationId, ASSISTANT_ROLE, "", "sending");
         updateConversationBeforeRequest(conversation, userMessage, selectedModel);
 
-        KnowledgeContext knowledge = knowledgeContextService.retrieve(userId, userMessage);
+        KnowledgeContext knowledge = knowledgeContextService.retrieve(userId, userMessage, kbId);
         StringBuilder response = new StringBuilder();
         AtomicBoolean finalized = new AtomicBoolean(false);
         Flux<ChatChunk> content = buildPrompt(conversation, role, userMessage, knowledge, attachments,
@@ -88,7 +88,7 @@ public class ChatServiceImpl implements ChatService {
     @Override
     @Transactional
     public String chat(Long userId, String role, Long conversationId, String userMessage,
-                       String model, List<Long> attachmentIds, int maxContextRounds) {
+                       String model, Long kbId, List<Long> attachmentIds, int maxContextRounds) {
         Conversation conversation = requireOwnedConversation(userId, conversationId);
         ensureProviderConfigured();
         String selectedModel = AiModelCatalog.normalize(model);
@@ -96,7 +96,7 @@ public class ChatServiceImpl implements ChatService {
         Message user = saveMessage(conversationId, USER_ROLE, userMessage, "success");
         attachmentService.bindToMessage(attachments, user.getId());
         updateConversationBeforeRequest(conversation, userMessage, selectedModel);
-        KnowledgeContext knowledge = knowledgeContextService.retrieve(userId, userMessage);
+        KnowledgeContext knowledge = knowledgeContextService.retrieve(userId, userMessage, kbId);
         String response;
         try {
             response = buildPrompt(conversation, role, userMessage, knowledge, attachments,

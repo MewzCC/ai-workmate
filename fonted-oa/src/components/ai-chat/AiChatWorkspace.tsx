@@ -5,6 +5,7 @@ import { Button, Drawer, Tooltip } from 'antd';
 import { message } from '@/lib/antdMessage';
 import { MenuUnfoldOutlined } from '@ant-design/icons';
 import { useAiChatStore } from '@/store/aiChatStore';
+import { knowledgeApi, type KnowledgeBase } from '@/lib/knowledgeApi';
 import type { OaRole } from '@/types/oa';
 import type { AiModelId } from '@/config/aiModels';
 import ChatSidebar from './ChatSidebar';
@@ -23,6 +24,7 @@ export default function AiChatWorkspace({ role }: AiChatWorkspaceProps) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [mobileSessionsOpen, setMobileSessionsOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [kbOptions, setKbOptions] = useState<KnowledgeBase[]>([]);
   const active = useMemo(
     () => store.conversations.find((item) => item.id === store.activeId),
     [store.activeId, store.conversations],
@@ -33,6 +35,9 @@ export default function AiChatWorkspace({ role }: AiChatWorkspaceProps) {
     store.loadConversations().catch((error) => {
       message.error(error instanceof Error ? error.message : '会话加载失败');
     });
+    knowledgeApi.listBases()
+      .then(setKbOptions)
+      .catch(() => setKbOptions([]));
   // Store actions are stable in Zustand.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -97,6 +102,8 @@ export default function AiChatWorkspace({ role }: AiChatWorkspaceProps) {
       <ChatWindow
         title={active?.title || '新对话'}
         model={store.settings.model}
+        kbId={store.settings.kbId}
+        kbOptions={kbOptions}
         messages={store.activeId ? store.messagesByConversation[store.activeId] || [] : []}
         pending={store.activeId ? store.pendingAttachments[store.activeId] || [] : []}
         generating={store.activeId ? store.generatingIds.includes(store.activeId) : false}
@@ -106,6 +113,7 @@ export default function AiChatWorkspace({ role }: AiChatWorkspaceProps) {
         onSend={(content) => store.send(content)}
         onStop={() => store.activeId && store.stop(store.activeId)}
         onModelChange={(model: AiModelId) => store.updateSettings({ ...store.settings, model })}
+        onKbChange={(kbId: number | null) => store.updateSettings({ ...store.settings, kbId })}
       />
       <Drawer
         title="历史会话"

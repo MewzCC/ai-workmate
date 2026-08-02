@@ -12,6 +12,7 @@ export default function App() {
         <Route path="/oa" element={<AuthGuard><AdminLayout /></AuthGuard>} />
         <Route path="/oa/:pageId" element={<AuthGuard><AdminLayout /></AuthGuard>} />
         <Route path="/oa/approval-tasks/:id" element={<AuthGuard><AdminLayout /></AuthGuard>} />
+        <Route path="/oa/knowledge-bases/:id" element={<AuthGuard><AdminLayout /></AuthGuard>} />
         <Route path="*" element={<Navigate to="/oa" replace />} />
       </Routes>
     </Providers>
