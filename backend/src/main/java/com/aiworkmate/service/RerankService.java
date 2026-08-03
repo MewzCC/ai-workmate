@@ -11,6 +11,9 @@ public interface RerankService {
     /** 是否已启用且密钥/模型配置完整 */
     boolean configured();
 
+    /** 当前配置的重排模型名（未启用时也可返回，供界面展示） */
+    String model();
+
     /**
      * 对候选文档重排。
      *

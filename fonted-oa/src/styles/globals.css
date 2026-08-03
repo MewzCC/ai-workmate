@@ -2911,6 +2911,18 @@ html.oa-wallpaper-active .ant-menu-submenu-popup .ant-menu-dark {
   gap: 10px;
 }
 
+/* 汉堡菜单按钮：仅移动端显示 */
+.oa-header-menu-btn {
+  display: none;
+  flex: none;
+  color: #ffffff !important;
+}
+
+/* 移动端侧栏展开时的遮罩：默认隐藏 */
+.oa-sider-mask {
+  display: none;
+}
+
 .oa-header-context {
   display: inline-flex;
   flex-shrink: 0;
@@ -5066,12 +5078,50 @@ html.oa-wallpaper-active .oa-ai-operation-drawer .ant-drawer-footer {
   }
 
   .oa-sider {
-    z-index: 40;
+    z-index: 60;
+    top: 60px;
+    /* 从 header 下方开始，高度按视口精确计算，避免底部超出视口 */
+    height: calc(100vh - 60px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    transition: transform 0.2s ease, width 0.2s ease;
+  }
+
+  /* 移动端特化：隐藏品牌区与收起按钮，菜单独占侧栏 */
+  .oa-sider-brand,
+  .oa-collapse-btn {
+    display: none;
+  }
+
+  .oa-sider .ant-layout-sider-children {
+    padding-top: 8px;
+  }
+
+  /* 移动端折叠时侧栏完全移出视口，内容占满 */
+  .oa-shell-collapsed .oa-sider {
+    transform: translateX(-100%);
   }
 
   .oa-layout > .ant-layout,
   .oa-shell-collapsed .oa-layout > .ant-layout {
-    margin-left: 80px;
+    margin-left: 0;
+  }
+
+  /* 汉堡菜单按钮：仅移动端显示 */
+  .oa-header-menu-btn {
+    display: inline-flex;
+  }
+
+  /* 移动端展开侧栏时的遮罩：从侧栏右边缘（268px）开始，物理上不可能盖住侧栏；
+     左侧 header 汉堡按钮区域保持可点，点击右侧任意处收起菜单 */
+  .oa-sider-mask.is-visible {
+    display: block;
+    position: fixed;
+    inset: 0 0 0 268px;
+    z-index: 45;
+    background: rgba(15, 23, 42, 0.42);
+    -webkit-backdrop-filter: blur(2px);
+    backdrop-filter: blur(2px);
   }
 
   .oa-content {

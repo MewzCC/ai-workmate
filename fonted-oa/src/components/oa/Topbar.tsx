@@ -1,6 +1,7 @@
 'use client';
 
 import { Avatar, Button, Dropdown, Layout, Space } from 'antd';
+import { MenuOutlined } from '@ant-design/icons';
 import { message } from '@/lib/antdMessage';
 import type { MenuProps } from 'antd';
 import type { OaRole } from '@/types/oa';
@@ -18,9 +19,10 @@ interface TopbarProps {
   pageTitle: string;
   onOpenAppearance: () => void;
   onOpenAi: (prompt?: string) => void;
+  onToggleMenu: () => void;
 }
 
-export default function Topbar({ role, pageTitle, onOpenAppearance, onOpenAi }: TopbarProps) {
+export default function Topbar({ role, pageTitle, onOpenAppearance, onOpenAi, onToggleMenu }: TopbarProps) {
   const { user, logout } = useAuth();
   const router = useRouter();
   const [profileOpen, setProfileOpen] = useState(false);
@@ -99,6 +101,13 @@ export default function Topbar({ role, pageTitle, onOpenAppearance, onOpenAi }: 
 
   return (
     <Header className="oa-header">
+      <Button
+        type="text"
+        className="oa-header-menu-btn"
+        aria-label="展开或收起菜单"
+        icon={<MenuOutlined />}
+        onClick={onToggleMenu}
+      />
       <div className="oa-header-title">
         <h1>{pageTitle}</h1>
       </div>

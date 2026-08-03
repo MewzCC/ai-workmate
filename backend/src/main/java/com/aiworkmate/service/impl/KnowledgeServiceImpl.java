@@ -420,8 +420,10 @@ public class KnowledgeServiceImpl implements KnowledgeService {
     @Override
     public EmbeddingStatusResponse embeddingStatus() {
         EmbeddingDescriptor descriptor = embeddingService.current();
+        boolean rerankEnabled = rerankService != null && rerankService.configured();
+        String rerankModel = rerankEnabled ? rerankService.model() : null;
         return new EmbeddingStatusResponse(properties.isEnabled(), descriptor.provider(),
-                descriptor.model(), descriptor.dimension());
+                descriptor.model(), descriptor.dimension(), rerankEnabled, rerankModel);
     }
 
     /**
