@@ -22,4 +22,4 @@ ss -lntp | grep 3001
 curl -I http://127.0.0.1:3001/oa
 ```
 
-This package is a Next.js standalone build. Do not run `npm install` on the server.
+This package is a Vite SPA build. The server needs `node_modules` (run `npm install` before `npm run build`).

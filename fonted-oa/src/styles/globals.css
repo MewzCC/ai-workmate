@@ -4556,6 +4556,34 @@ html.oa-wallpaper-active .ant-menu-submenu-popup .ant-menu-dark {
   font-size: 12px;
 }
 
+.ai-inline-citation {
+  display: inline-block;
+  margin: 0 2px;
+  padding: 0 3px;
+  border: 1px solid color-mix(in srgb, var(--oa-primary, #1677ff) 26%, transparent);
+  border-radius: 4px;
+  color: var(--oa-primary, #1677ff);
+  background: color-mix(in srgb, var(--oa-primary, #1677ff) 8%, transparent);
+  cursor: pointer;
+  font-size: 0.72em;
+  line-height: 1.4;
+  vertical-align: super;
+  white-space: nowrap;
+  transition: border-color 160ms ease, background 160ms ease;
+}
+
+.ai-inline-citation:hover {
+  border-color: color-mix(in srgb, var(--oa-primary, #1677ff) 46%, transparent);
+  background: color-mix(in srgb, var(--oa-primary, #1677ff) 13%, transparent);
+}
+
+.ai-inline-citation-muted {
+  border-color: color-mix(in srgb, var(--oa-muted, #64748b) 24%, transparent);
+  color: var(--oa-muted, #64748b);
+  background: color-mix(in srgb, var(--oa-muted, #64748b) 6%, transparent);
+  cursor: default;
+}
+
 .ai-citation-item {
   display: inline-block;
   max-width: 260px;

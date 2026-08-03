@@ -19,6 +19,7 @@ public class PgvectorKnowledgeContextServiceImpl implements KnowledgeContextServ
 
     private static final int MAX_PROMPT_CONTEXT_CHARS = 12_000;
     private static final int MAX_REFERENCE_TEXT_CHARS = 300;
+    private static final int MAX_HEADER_PREVIEW_CHARS = 40;
 
     private final KnowledgeService knowledgeService;
     private final EmbeddingProperties properties;
@@ -38,8 +39,7 @@ public class PgvectorKnowledgeContextServiceImpl implements KnowledgeContextServ
         List<KnowledgeContext.Reference> references = new ArrayList<>();
         int referenceNumber = 1;
         for (KnowledgeSearchItemResponse item : result.records()) {
-            String header = "[知识来源" + referenceNumber + "：" + item.filename()
-                    + "，分块 " + item.chunkIndex() + "]\n";
+            String header = buildHeader(referenceNumber, item);
             if (prompt.length() + header.length() >= MAX_PROMPT_CONTEXT_CHARS) {
                 break;
             }
@@ -58,6 +58,30 @@ public class PgvectorKnowledgeContextServiceImpl implements KnowledgeContextServ
         return references.isEmpty()
                 ? KnowledgeContext.empty()
                 : new KnowledgeContext(prompt.toString().strip(), List.copyOf(references));
+    }
+
+    /**
+     * 片段标识头。除来源文件名与分块序号外，附上内容摘录，
+     * 让 LLM 能按内容精确匹配标注，避免“只知哪本书、不知哪段”导致错标。
+     */
+    private String buildHeader(int referenceNumber, KnowledgeSearchItemResponse item) {
+        String preview = summarize(item.content());
+        return "[知识来源" + referenceNumber + "：" + item.filename()
+                + "，分块 " + item.chunkIndex()
+                + (preview.isEmpty() ? "" : "，内容摘录：\"" + preview + "\"")
+                + "]\n";
+    }
+
+    private String summarize(String content) {
+        if (content == null || content.isBlank()) return "";
+        String singleLine = content.replaceAll("\\s+", " ").strip();
+        if (singleLine.length() <= MAX_HEADER_PREVIEW_CHARS) return singleLine;
+        // 按 code point 截断，避免切断代理对
+        String preview = singleLine.codePoints()
+                .limit(MAX_HEADER_PREVIEW_CHARS)
+                .collect(StringBuilder::new, StringBuilder::appendCodePoint, StringBuilder::append)
+                .toString();
+        return preview + "…";
     }
 
     private String trimReferenceText(String content) {

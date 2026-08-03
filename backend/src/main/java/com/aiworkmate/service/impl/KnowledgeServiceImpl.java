@@ -21,6 +21,7 @@ import com.aiworkmate.service.EmbeddingService;
 import com.aiworkmate.service.FileParserService;
 import com.aiworkmate.service.KnowledgeChunker;
 import com.aiworkmate.service.KnowledgeService;
+import com.aiworkmate.service.RerankService;
 import com.aiworkmate.service.UserAccessService;
 import com.aiworkmate.service.model.EmbeddingDescriptor;
 import com.aiworkmate.service.model.EmbeddingResult;
@@ -51,6 +52,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 @Slf4j
 @Service
@@ -59,6 +61,9 @@ public class KnowledgeServiceImpl implements KnowledgeService {
 
     private static final String STATUS_PROCESSING = "PROCESSING";
     private static final String STATUS_READY = "READY";
+
+    /** 目录页特征：连续 4+ 个点/中点/省略号（如“章节标题 ………… 42”） */
+    private static final Pattern TOC_DOT_LINE = Pattern.compile(".*[.·…．]{4,}.*");
 
     private static final Map<String, String> FILE_TYPE_BY_MIME = Map.ofEntries(
             Map.entry("application/pdf", "PDF"),
@@ -81,6 +86,7 @@ public class KnowledgeServiceImpl implements KnowledgeService {
     private final UploadProperties uploadProperties;
     private final EmbeddingProperties properties;
     private final ObjectMapper objectMapper;
+    private final RerankService rerankService;
 
     @Override
     @Transactional
@@ -335,7 +341,9 @@ public class KnowledgeServiceImpl implements KnowledgeService {
         List<KnowledgeSearchItemResponse> records = rows.stream()
                 .map(row -> new KnowledgeSearchItemResponse(row.getDocId(), row.getChunkId(),
                         row.getFilename(), row.getChunkIndex(), row.getContent(), row.getScore(), "DENSE"))
+                .filter(record -> !isTocLikeChunk(record.content()))
                 .toList();
+        records = applyRerank(query, records);
         return new KnowledgeSearchResponse(descriptor.provider(), descriptor.model(),
                 descriptor.dimension(), records);
     }
@@ -383,13 +391,14 @@ public class KnowledgeServiceImpl implements KnowledgeService {
 
         if (sparseTopK > 0) {
             for (KnowledgeSearchRow row : documentMapper.searchSparse(
-                    access.tenantId(), access.userId(), kbId, query, sparseTopK)) {
+                    access.tenantId(), access.userId(), kbId, query,
+                    properties.getSparseMinScore(), sparseTopK)) {
                 rowsByChunk.putIfAbsent(row.getChunkId(), row);
                 sparseScores.put(row.getChunkId(), row.getScore());
             }
         }
 
-        List<KnowledgeSearchItemResponse> records = rowsByChunk.values().stream()
+        List<KnowledgeSearchItemResponse> records = filterTocChunks(rowsByChunk.values().stream()
                 .map(row -> {
                     double dense = denseScores.getOrDefault(row.getChunkId(), 0d);
                     double sparse = sparseScores.getOrDefault(row.getChunkId(), 0d);
@@ -400,8 +409,9 @@ public class KnowledgeServiceImpl implements KnowledgeService {
                             (dense + sparse) / 2.0, matchType);
                 })
                 .sorted(Comparator.comparingDouble(KnowledgeSearchItemResponse::score).reversed())
-                .limit(resultCap)
-                .toList();
+                .toList());
+        records = applyRerank(query, records);
+        records = records.stream().limit(resultCap).toList();
 
         return new KnowledgeSearchResponse(descriptor.provider(), descriptor.model(),
                 descriptor.dimension(), records);
@@ -412,6 +422,59 @@ public class KnowledgeServiceImpl implements KnowledgeService {
         EmbeddingDescriptor descriptor = embeddingService.current();
         return new EmbeddingStatusResponse(properties.isEnabled(), descriptor.provider(),
                 descriptor.model(), descriptor.dimension());
+    }
+
+    /**
+     * 对检索候选做 rerank 重排（若已配置）。失败时降级为原检索顺序，不阻断检索。
+     */
+    private List<KnowledgeSearchItemResponse> applyRerank(String query,
+                                                          List<KnowledgeSearchItemResponse> records) {
+        if (rerankService == null || !rerankService.configured() || records.size() < 2) {
+            return records;
+        }
+        try {
+            List<String> documents = records.stream()
+                    .map(KnowledgeSearchItemResponse::content).toList();
+            List<RerankService.RankedItem> ranked = rerankService.rerank(query, documents, records.size());
+            List<KnowledgeSearchItemResponse> reranked = ranked.stream()
+                    .filter(item -> item.index() >= 0 && item.index() < records.size())
+                    .map(item -> {
+                        KnowledgeSearchItemResponse record = records.get(item.index());
+                        return new KnowledgeSearchItemResponse(record.docId(), record.chunkId(),
+                                record.filename(), record.chunkIndex(), record.content(),
+                                item.score(), record.matchType());
+                    })
+                    .toList();
+            return reranked.isEmpty() ? records : reranked;
+        } catch (RuntimeException ex) {
+            log.warn("Rerank failed, fallback to retrieval order, query={}", query, ex);
+            return records;
+        }
+    }
+
+    /**
+     * 过滤目录/索引类分块：整块中超过一半非空行包含连续点线（如“标题 …… 42”）时
+     * 判定为目录页，对 RAG 回答没有内容价值，直接剔除，避免挤占正文引用位置。
+     */
+    private List<KnowledgeSearchItemResponse> filterTocChunks(List<KnowledgeSearchItemResponse> records) {
+        return records.stream()
+                .filter(record -> !isTocLikeChunk(record.content()))
+                .toList();
+    }
+
+    private boolean isTocLikeChunk(String content) {
+        if (content == null || content.isBlank()) return false;
+        String[] lines = content.split("\\R");
+        if (lines.length < 3) return false;
+        int total = 0;
+        int dotLines = 0;
+        for (String line : lines) {
+            String trimmed = line.strip();
+            if (trimmed.isEmpty()) continue;
+            total++;
+            if (TOC_DOT_LINE.matcher(trimmed).matches()) dotLines++;
+        }
+        return total > 0 && (double) dotLines / total >= 0.5;
     }
 
     private ResolvedUserAccess requireAccess(Long userId) {

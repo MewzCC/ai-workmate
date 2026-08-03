@@ -28,7 +28,8 @@ class PgvectorKnowledgeContextServiceImplTest {
 
         var context = service.retrieve(7L, "How many days?", null);
 
-        assertThat(context.promptContext()).contains("知识来源1", "handbook.txt", "Annual leave policy");
+        assertThat(context.promptContext()).contains("知识来源1", "handbook.txt", "Annual leave policy", "内容摘录");
+        assertThat(context.promptContext()).contains("[知识来源1：handbook.txt，分块 0，内容摘录：\"Annual leave policy\"]");
         assertThat(context.references()).hasSize(1);
         assertThat(context.references().get(0).docId()).isEqualTo("10");
         assertThat(context.references().get(0).text()).isEqualTo("Annual leave policy");
@@ -67,7 +68,7 @@ class PgvectorKnowledgeContextServiceImplTest {
 
         var context = service.retrieve(7L, "How to onboard?", 3L);
 
-        assertThat(context.promptContext()).contains("知识来源1", "spec.txt", "Onboarding checklist");
+        assertThat(context.promptContext()).contains("知识来源1", "spec.txt", "Onboarding checklist", "内容摘录");
         assertThat(context.references()).hasSize(1);
         assertThat(context.references().get(0).docId()).isEqualTo("12");
     }

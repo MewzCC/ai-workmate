@@ -45,7 +45,7 @@
 
 ### 2.1 已具备能力
 
-- `fronted-main` 与 `fonted-oa` 已是两个独立 Next.js 应用，分别运行在 `3000` 和 `3001`。
+- `fronted-main` 与 `fonted-oa` 已是两个独立 Vite SPA 应用，分别运行在 `3000` 和 `3001`。
 - 后端采用 Spring Boot 3、Java 17、Spring Security、JWT、Spring AI、MyBatis-Plus、PostgreSQL/Redis 方向。
 - 已存在登录注册、JWT、SSE 聊天、会话与消息持久化基础链路。
 - OA 已具备路由入口、Ant Design 布局、菜单权限演示、Dashboard、AI Drawer、主题与 ECharts。
@@ -472,7 +472,7 @@ owner: workflow-domain
 
 - `fronted-main` 继续承载官网、登录和旧聊天体验，默认端口 `3000`。
 - `fonted-oa` 独立承载 OA，默认端口 `3001`；根路由 `/` 重定向 `/oa`。
-- 首页 CTA 进入 `http://<host>:3001/oa`，不得重新合并为同一个 App Router 应用。
+- 首页 CTA 进入 `http://<host>:3001/oa`，不得重新合并为同一个应用。
 - OA 路由保持 `/oa`、`/oa/<pageId>`，URL、菜单、标题和 AI 上下文一致。
 
 ### 11.2 OA 前端模块建议
@@ -1003,7 +1003,7 @@ SLO 需在真实压测后校准，并为模型、数据库、Redis、对象存�
 
 | 决策 | 选择 | 原因 |
 | --- | --- | --- |
-| 应用边界 | 官网与 OA 保持两个独立 Next.js 应用 | 保持部署和路由边界清晰 |
+| 应用边界 | 官网与 OA 保持两个独立 Vite SPA 应用 | 保持部署和路由边界清晰 |
 | 后端形态 | 先模块化单体，条件成熟再拆服务 | 降低当前阶段分布式复杂度 |
 | AI 操作方式 | Page Manifest + UI Command + Server Tool | 同时获得页面可操作性与业务安全性 |
 | 授权 | RBAC + ABAC + Data Scope + Tenant | 覆盖企业菜单、动作、数据和动态策略 |
