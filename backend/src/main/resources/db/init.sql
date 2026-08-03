@@ -130,6 +130,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS ux_user_email
 
 ALTER TABLE message ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'success';
 ALTER TABLE message ADD COLUMN IF NOT EXISTS feedback VARCHAR(20);
+-- 引用知识库 JSON 数组字符串，例如 [{"docId":"1","chunkId":"2","source":"a.pdf","score":0.8,"text":"..."}]
+ALTER TABLE message ADD COLUMN IF NOT EXISTS citations TEXT NOT NULL DEFAULT '[]';
 
 ALTER TABLE conversation
     ADD COLUMN IF NOT EXISTS model VARCHAR(50) NOT NULL DEFAULT 'deepseek-v4-flash';

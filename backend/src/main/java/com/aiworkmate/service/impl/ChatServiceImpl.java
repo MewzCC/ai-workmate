@@ -16,6 +16,8 @@ import com.aiworkmate.service.model.AiModelCatalog;
 import com.aiworkmate.service.model.AiProviderExceptionTranslator;
 import com.aiworkmate.service.model.KnowledgeContext;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
@@ -54,6 +56,7 @@ public class ChatServiceImpl implements ChatService {
     private final KnowledgeContextService knowledgeContextService;
     private final AttachmentService attachmentService;
     private final AiRuntimeProperties aiRuntimeProperties;
+    private final ObjectMapper objectMapper;
     @Override
     @Transactional
     public Flux<ChatChunk> chatStream(Long userId, String role, Long conversationId, String userMessage,
@@ -75,14 +78,22 @@ public class ChatServiceImpl implements ChatService {
                 .stream().content()
                 .doOnNext(response::append)
                 .map(chunk -> ChatChunk.delta(chunk, conversationId, assistant.getId()))
-                .doOnComplete(() -> finishMessage(assistant, response.toString(), "success", finalized))
+                .doOnComplete(() -> {
+                    finishMessage(assistant, response.toString(), "success", finalized);
+                    // 仅在成功完成时持久化引用，避免失败/取消消息残留脏数据
+                    persistCitations(assistant, knowledge);
+                })
                 .doOnError(ex -> {
                     finishMessage(assistant, response.toString(), "failed", finalized);
                     log.error("Chat stream failed, conversationId={}", conversationId, ex);
                 })
                 .doOnCancel(() -> finishMessage(assistant, response.toString(), "failed", finalized))
                 .onErrorMap(AiProviderExceptionTranslator::translate);
-        return Flux.concat(Flux.just(ChatChunk.metadata(conversationId, assistant.getId())), content);
+        Flux<ChatChunk> references = knowledge.references().isEmpty()
+                ? Flux.empty()
+                : Flux.just(ChatChunk.references(toCitationsJson(knowledge.references()),
+                        conversationId, assistant.getId()));
+        return Flux.concat(Flux.just(ChatChunk.metadata(conversationId, assistant.getId())), references, content);
     }
 
     @Override
@@ -104,7 +115,8 @@ public class ChatServiceImpl implements ChatService {
         } catch (Exception ex) {
             throw AiProviderExceptionTranslator.translate(ex);
         }
-        saveMessage(conversationId, ASSISTANT_ROLE, response, "success");
+        Message assistant = saveMessage(conversationId, ASSISTANT_ROLE, response, "success");
+        persistCitations(assistant, knowledge);
         return response;
     }
 
@@ -191,6 +203,21 @@ public class ChatServiceImpl implements ChatService {
         message.setContent(content);
         message.setStatus(status);
         messageMapper.updateById(message);
+    }
+
+    private void persistCitations(Message assistant, KnowledgeContext knowledge) {
+        assistant.setCitations(toCitationsJson(knowledge.references()));
+        messageMapper.updateById(assistant);
+    }
+
+    private String toCitationsJson(List<KnowledgeContext.Reference> references) {
+        if (references == null || references.isEmpty()) return "[]";
+        try {
+            return objectMapper.writeValueAsString(references);
+        } catch (JsonProcessingException ex) {
+            log.warn("序列化知识库引用失败，引用数={}", references.size(), ex);
+            return "[]";
+        }
     }
 
     private void updateConversationBeforeRequest(Conversation conversation, String userMessage, String model) {

@@ -18,6 +18,7 @@ import java.util.List;
 public class PgvectorKnowledgeContextServiceImpl implements KnowledgeContextService {
 
     private static final int MAX_PROMPT_CONTEXT_CHARS = 12_000;
+    private static final int MAX_REFERENCE_TEXT_CHARS = 300;
 
     private final KnowledgeService knowledgeService;
     private final EmbeddingProperties properties;
@@ -48,7 +49,7 @@ public class PgvectorKnowledgeContextServiceImpl implements KnowledgeContextServ
             prompt.append(header).append(content).append("\n\n");
             references.add(new KnowledgeContext.Reference(
                     String.valueOf(item.docId()), String.valueOf(item.chunkId()),
-                    item.filename(), item.score()));
+                    item.filename(), item.score(), trimReferenceText(item.content())));
             referenceNumber++;
             if (content.length() < item.content().length()) {
                 break;
@@ -57,5 +58,15 @@ public class PgvectorKnowledgeContextServiceImpl implements KnowledgeContextServ
         return references.isEmpty()
                 ? KnowledgeContext.empty()
                 : new KnowledgeContext(prompt.toString().strip(), List.copyOf(references));
+    }
+
+    private String trimReferenceText(String content) {
+        if (content == null || content.isBlank()) return "";
+        if (content.length() <= MAX_REFERENCE_TEXT_CHARS) return content;
+        // 按 code point 截断，避免切断代理对产生孤立 surrogate
+        return content.codePoints()
+                .limit(MAX_REFERENCE_TEXT_CHARS)
+                .collect(StringBuilder::new, StringBuilder::appendCodePoint, StringBuilder::append)
+                .toString();
     }
 }
