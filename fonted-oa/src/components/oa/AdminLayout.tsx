@@ -15,6 +15,7 @@ import AiMiniPanel from './AiMiniPanel';
 import AiChatWorkspace from '@/components/ai-chat/AiChatWorkspace';
 import { useAuth } from '@/components/auth/AuthProvider';
 import AccessControlPage from './AccessControlPage';
+import NotificationPage from './NotificationPage';
 import { getNavigation, type NavigationRoute } from '@/lib/navigationApi';
 import { profileApi } from '@/lib/profileApi';
 import { OaIcon } from '@/components/OaIcon';
@@ -538,6 +539,8 @@ export default function AdminLayout() {
                     <KnowledgeBasePage kbId={kbId} />
                   ) : selectedMenu.componentKey === 'AI_WORKSPACE' ? (
                     <AiChatWorkspace role={role} />
+                  ) : selectedMenu.componentKey === 'MESSAGE_CENTER' ? (
+                    <NotificationPage />
                   ) : selectedMenu.componentKey === 'ACCESS_CONTROL' ? (
                     <AccessControlPage />
                   ) : selectedMenu.componentKey === 'TODO_LIST' ? (

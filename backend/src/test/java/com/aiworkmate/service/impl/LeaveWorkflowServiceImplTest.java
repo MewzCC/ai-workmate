@@ -14,6 +14,7 @@ import com.aiworkmate.mapper.WorkflowActionLogMapper;
 import com.aiworkmate.mapper.WorkflowInstanceMapper;
 import com.aiworkmate.mapper.WorkflowTaskMapper;
 import com.aiworkmate.service.BusinessAuditService;
+import com.aiworkmate.service.NotificationService;
 import com.aiworkmate.service.UserAccessService;
 import com.aiworkmate.service.model.ResolvedUserAccess;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
@@ -59,6 +60,8 @@ class LeaveWorkflowServiceImplTest {
     private UserAccessService userAccessService;
     @Mock
     private BusinessAuditService auditService;
+    @Mock
+    private NotificationService notificationService;
 
     private LeaveWorkflowServiceImpl service;
 
@@ -69,7 +72,7 @@ class LeaveWorkflowServiceImplTest {
         initializeTableMetadata(WorkflowTask.class);
         service = new LeaveWorkflowServiceImpl(
                 leaveMapper, instanceMapper, taskMapper, actionLogMapper,
-                userAccessService, auditService);
+                userAccessService, auditService, notificationService);
         ReflectionTestUtils.setField(service, "approvalDueHours", 48L);
     }
 

@@ -8,11 +8,19 @@ import type { OaRole } from '@/types/oa';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { OaIcon } from '@/components/OaIcon';
 import { useRouter } from '@/lib/nextCompat';
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import ProfileSettingsModal from '@/components/profile/ProfileSettingsModal';
 import HelpDrawer from './HelpDrawer';
+import {
+  fetchUnreadCount,
+  listNotifications,
+  markNotificationRead,
+  type NotificationItem,
+} from '@/lib/notificationApi';
 
 const { Header } = Layout;
+
+const NOTIFY_POLL_INTERVAL_MS = 30_000;
 
 interface TopbarProps {
   role: OaRole;
@@ -27,6 +35,40 @@ export default function Topbar({ role, pageTitle, onOpenAppearance, onOpenAi, on
   const router = useRouter();
   const [profileOpen, setProfileOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [notifyItems, setNotifyItems] = useState<NotificationItem[]>([]);
+
+  const loadNotifications = useCallback(async () => {
+    try {
+      const [pageResult, unread] = await Promise.all([
+        listNotifications(1, 5),
+        fetchUnreadCount(),
+      ]);
+      setNotifyItems(pageResult.records);
+      setUnreadCount(unread);
+    } catch {
+      // 通知接口异常时保持现状，不打断顶栏
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadNotifications();
+    const timer = window.setInterval(() => void loadNotifications(), NOTIFY_POLL_INTERVAL_MS);
+    return () => window.clearInterval(timer);
+  }, [loadNotifications]);
+
+  const handleNotifyItemClick = async (item: NotificationItem) => {
+    if (!item.read) {
+      try {
+        await markNotificationRead(item.id);
+        setUnreadCount((current) => Math.max(0, current - 1));
+        setNotifyItems((current) => current.map((entry) => entry.id === item.id ? { ...entry, read: true } : entry));
+      } catch {
+        // 已读标记失败不阻断跳转
+      }
+    }
+    router.push('/oa/messages');
+  };
 
   const handleLogout = async () => {
     await logout();
@@ -37,29 +79,46 @@ export default function Topbar({ role, pageTitle, onOpenAppearance, onOpenAi, on
   const handleNewFlow = () => onOpenAi('帮我新建一个跨部门采购申请，并检查审批链是否完整');
   const handleExport = () => message.warning('真实导出能力尚未接入');
 
-  // 通知中心下拉内容
+  // 通知中心下拉内容（真实数据）
   const notifyContent = (
     <div className="oa-notify-panel">
       <div className="oa-notify-panel-head">
         <span className="oa-notify-panel-title">通知中心</span>
-        <span className="oa-notify-panel-badge">4 条未读</span>
+        <span className="oa-notify-panel-badge">{unreadCount} 条未读</span>
       </div>
       <ul className="oa-notify-panel-list">
-        <li className="oa-notify-item">
-          <span className="oa-notify-dot oa-notify-dot--approval" />
-          <div className="oa-notify-item-body">
-            <div className="oa-notify-item-title">审批提醒</div>
-            <div className="oa-notify-item-desc">你有 3 条审批待处理</div>
-          </div>
-        </li>
-        <li className="oa-notify-item">
-          <span className="oa-notify-dot oa-notify-dot--alert" />
-          <div className="oa-notify-item-body">
-            <div className="oa-notify-item-title">接口告警</div>
-            <div className="oa-notify-item-desc">1 条接口告警待处理</div>
-          </div>
-        </li>
+        {notifyItems.length === 0 ? (
+          <li className="oa-notify-empty">暂无通知</li>
+        ) : notifyItems.map((item) => (
+          <li
+            key={item.id}
+            className="oa-notify-item"
+            role="button"
+            tabIndex={0}
+            onClick={() => void handleNotifyItemClick(item)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                void handleNotifyItemClick(item);
+              }
+            }}
+          >
+            <span className={`oa-notify-dot oa-notify-dot--${item.type}`} />
+            <div className="oa-notify-item-body">
+              <div className="oa-notify-item-title">
+                {!item.read && <span className="oa-notify-unread-dot" />}
+                {item.title}
+              </div>
+              <div className="oa-notify-item-desc">{item.content}</div>
+            </div>
+          </li>
+        ))}
       </ul>
+      <div className="oa-notify-panel-foot">
+        <button type="button" className="oa-notify-link" onClick={() => router.push('/oa/messages')}>
+          查看全部
+        </button>
+      </div>
     </div>
   );
 
@@ -91,7 +150,7 @@ export default function Topbar({ role, pageTitle, onOpenAppearance, onOpenAi, on
 
   const onMoreMenuClick: MenuProps['onClick'] = ({ key }) => {
     if (key === 'newFlow') handleNewFlow();
-    else if (key === 'notify') message.info('你有 3 条审批提醒、1 条接口告警待处理。');
+    else if (key === 'notify') router.push('/oa/messages');
     else if (key === 'export') handleExport();
     else if (key === 'help') handleHelp();
     else if (key === 'profile') setProfileOpen(true);
@@ -146,7 +205,7 @@ export default function Topbar({ role, pageTitle, onOpenAppearance, onOpenAi, on
         >
           <Button type="text" className="oa-notify-trigger" aria-label="通知">
             <OaIcon name="notification" />
-            <span className="oa-notify-badge">4</span>
+            {unreadCount > 0 && <span className="oa-notify-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>}
           </Button>
         </Dropdown>
 

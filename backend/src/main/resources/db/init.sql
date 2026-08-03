@@ -66,6 +66,23 @@ CREATE TABLE IF NOT EXISTS message (
 
 CREATE INDEX IF NOT EXISTS idx_msg_conv_id ON message(conversation_id);
 
+-- 通知表（通知中心；业务事件经 Redis 临时队列异步落库）
+CREATE TABLE IF NOT EXISTS notification (
+    id          BIGSERIAL PRIMARY KEY,
+    tenant_id   BIGINT       NOT NULL,
+    user_id     BIGINT       NOT NULL,
+    type        VARCHAR(20)  NOT NULL,          -- approval / system / alert / todo
+    title       VARCHAR(200) NOT NULL,
+    content     TEXT         NOT NULL,
+    biz_type    VARCHAR(50),                    -- 关联业务类型（如 leave）
+    biz_id      BIGINT,
+    read_flag   BOOLEAN      NOT NULL DEFAULT FALSE,
+    created_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_notification_user
+    ON notification(user_id, read_flag, created_at DESC);
+
 CREATE TABLE IF NOT EXISTS attachment (
     id              BIGSERIAL PRIMARY KEY,
     user_id         BIGINT       NOT NULL,
@@ -364,7 +381,7 @@ VALUES
     ('dashboard', 'workspace', '企业驾驶舱', '/oa/dashboard', NULL, 'PAGE', 'DASHBOARD', 'route:dashboard', 1),
     ('ai-workspace', 'workspace', 'AI 工作空间', '/oa/ai-workspace', 'RobotOutlined', 'PAGE', 'AI_WORKSPACE', 'route:ai-workspace', 2),
     ('todo', 'workspace', '我的待办', '/oa/todo', NULL, 'PAGE', 'DASHBOARD', 'route:todo', 3),
-    ('messages', 'workspace', '消息中心', '/oa/messages', NULL, 'PAGE', 'DASHBOARD', 'route:messages', 4),
+    ('messages', 'workspace', '消息中心', '/oa/messages', NULL, 'PAGE', 'MESSAGE_CENTER', 'route:messages', 4),
     ('approval-list', 'approval', '审批列表', '/oa/approval-list', NULL, 'PAGE', 'DASHBOARD', 'route:approval-list', 1),
     ('form-engine', 'approval', '表单引擎', '/oa/form-engine', NULL, 'PAGE', 'DASHBOARD', 'route:form-engine', 2),
     ('process-config', 'approval', '流程配置', '/oa/process-config', NULL, 'PAGE', 'DASHBOARD', 'route:process-config', 3),
