@@ -3,8 +3,23 @@
 import { Popover, Space, Typography } from 'antd';
 import type { ChatMessageCitation } from '@/types/chat';
 
+export interface CitedItem {
+  /** 引用原始序号（1-based，与正文 [知识来源N] 对应） */
+  index: number;
+  citation: ChatMessageCitation;
+}
+
 interface CitationListProps {
-  citations: ChatMessageCitation[];
+  citations: CitedItem[];
+}
+
+/** 提取正文中实际标注过的引用序号集合 */
+export function extractCitedIndexes(content: string): Set<number> {
+  const indexes = new Set<number>();
+  for (const match of content.matchAll(/\[知识来源\s*(\d+)\]/g)) {
+    indexes.add(Number(match[1]));
+  }
+  return indexes;
 }
 
 /**
@@ -19,7 +34,7 @@ export default function CitationList({ citations }: CitationListProps) {
         引用知识库
       </Typography.Text>
       <Space size={[8, 8]} wrap>
-        {citations.map((citation, index) => (
+        {citations.map(({ index, citation }) => (
           <Popover
             key={`${citation.docId}-${citation.chunkId}-${index}`}
             trigger="hover"
@@ -36,7 +51,7 @@ export default function CitationList({ citations }: CitationListProps) {
             }
           >
             <span className="ai-citation-item" tabIndex={0} role="button" aria-label={`查看引用内容：${citation.source}`}>
-              [{index + 1}] {citation.source}
+              [{index}] {citation.source}
             </span>
           </Popover>
         ))}

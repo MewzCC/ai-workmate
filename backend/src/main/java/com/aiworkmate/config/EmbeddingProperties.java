@@ -26,4 +26,7 @@ public class EmbeddingProperties {
     private int maxDocumentChars = 120000;
     private int retrievalTopK = 5;
     private double retrievalMinScore = 0.35;
+
+    /** sparse（全文检索）最低分数，低于该值的结果被过滤 */
+    private double sparseMinScore = 0.05;
 }

@@ -5,12 +5,12 @@
 - `fronted-main` is the standalone marketing website program and runs on port `3000`.
 - `fonted-oa` is the standalone OA workbench program and runs on port `3001`.
 - The old `frontend` program has been removed; do not add new app code there.
-- Homepage and OA must not be maintained as two routes inside one App Router app.
+- Homepage and OA must not be maintained as two routes inside one app.
 - Start the independent apps from their own directories: `cd fronted-main && npm run dev`, `cd fonted-oa && npm run dev`.
 
 ## 技术栈
 
-- Next.js 14 App Router。
+- Vite 5 SPA（两个前端均为纯客户端单页应用，无服务端渲染）。
 - React 18 函数组件。
 - TypeScript 严格建模。
 - Tailwind CSS 用于现有营销页与基础样式。
@@ -31,7 +31,7 @@
 - 业务组件负责交互和状态组合。
 - 基础组件负责纯 UI。
 - 组件 props 必须声明 interface/type，避免隐式 `any`。
-- 客户端组件仅在需要 state、effect、浏览器 API 或事件时使用 `'use client'`。
+- Vite 项目为纯客户端 SPA，所有组件默认客户端渲染，无需 `'use client'` 指令。
 - 复杂组件超过 250 行、状态超过 3 类、渲染分支超过 4 个时，优先拆分。
 - 图标按钮必须有 `aria-label` 或 `title`。
 
@@ -143,7 +143,7 @@ OA 工作台业务 UI 必须使用真实 Ant Design 组件：
 - 避免在渲染过程中构造大对象或执行复杂计算。
 - ECharts 必须处理 resize 和 dispose。
 - 长消息列表后续应考虑虚拟滚动。
-- 图片使用 Next.js Image 或显式尺寸，避免布局跳动。
+- 图片使用 `img` 并声明显式尺寸（width/height 或 CSS aspect-ratio），避免布局跳动。
 
 ## 交付前检查
 

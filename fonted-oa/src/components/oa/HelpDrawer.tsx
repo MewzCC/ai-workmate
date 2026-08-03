@@ -165,8 +165,8 @@ export default function HelpDrawer({ open, role, onClose, onOpenAi }: HelpDrawer
       body: (
         <Typography>
           <ul>
-            <li><strong>首次进入页面很慢？</strong>Next.js dev 模式按需编译，首次 5–15 秒属正常，二次访问秒开。</li>
-            <li><strong>切换页面没反应？</strong>正在编译该路由，会有「正在切换到：xxx」提示，请稍候。</li>
+            <li><strong>首次进入页面很慢？</strong>Vite dev 模式按需编译，首次 5–15 秒属正常，二次访问秒开。</li>
+            <li><strong>切换页面没反应？</strong>请检查浏览器控制台是否有报错，或刷新页面重试。</li>
             <li><strong>新建会话后侧栏没出现？</strong>草稿模式下不创建空会话，发送首条消息后才真正创建。</li>
             <li><strong>AI 回复失败？</strong>检查后端 8080 是否运行、AI 网关环境变量是否配置。</li>
             <li><strong>登录后看不到菜单？</strong>账号可能未分配角色，请联系管理员在权限后台配置。</li>

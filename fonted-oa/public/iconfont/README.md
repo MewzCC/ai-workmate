@@ -1,6 +1,6 @@
 # Iconfont Symbol 使用与更新教程
 
-本项目使用阿里 Iconfont 的 **Symbol** 模式。营销官网 `fronted-main` 和 OA 工作台 `fonted-oa` 是两个独立的 Next.js 应用，因此两端需要分别保存一份 `iconfont.js`。
+本项目使用阿里 Iconfont 的 **Symbol** 模式。营销官网 `fronted-main` 和 OA 工作台 `fonted-oa` 是两个独立的 Vite 应用，因此两端需要分别保存一份 `iconfont.js`。
 
 ## 目录位置
 
@@ -158,7 +158,7 @@ npm run build
 
 ### 更新后仍显示旧图标
 
-重启对应的 Next.js 开发服务，并在浏览器中执行强制刷新。
+重启对应的 Vite 开发服务，并在浏览器中执行强制刷新。
 
 ### TypeScript 提示名称不可用
 

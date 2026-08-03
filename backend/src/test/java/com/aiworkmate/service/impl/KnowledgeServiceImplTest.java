@@ -11,6 +11,7 @@ import com.aiworkmate.mapper.KnowledgeDocumentMapper;
 import com.aiworkmate.service.EmbeddingService;
 import com.aiworkmate.service.FileParserService;
 import com.aiworkmate.service.KnowledgeChunker;
+import com.aiworkmate.service.RerankService;
 import com.aiworkmate.service.UserAccessService;
 import com.aiworkmate.service.model.EmbeddingDescriptor;
 import com.aiworkmate.service.model.EmbeddingResult;
@@ -58,9 +59,20 @@ class KnowledgeServiceImplTest {
                                                 UserAccessService accessService,
                                                 FileParserService parser,
                                                 EmbeddingProperties properties) {
+        return service(mapper, kbMapper, embeddingService, accessService, parser, properties,
+                mock(RerankService.class));
+    }
+
+    private static KnowledgeServiceImpl service(KnowledgeDocumentMapper mapper,
+                                                KnowledgeBaseMapper kbMapper,
+                                                EmbeddingService embeddingService,
+                                                UserAccessService accessService,
+                                                FileParserService parser,
+                                                EmbeddingProperties properties,
+                                                RerankService rerankService) {
         return new KnowledgeServiceImpl(mapper, kbMapper, embeddingService,
                 new KnowledgeChunker(), accessService, parser,
-                new UploadProperties(), properties, new ObjectMapper());
+                new UploadProperties(), properties, new ObjectMapper(), rerankService);
     }
 
     @Test
@@ -225,7 +237,7 @@ class KnowledgeServiceImplTest {
         when(mapper.searchDense(eq(99L), eq(7L), eq(5L), anyString(), eq("local"),
                 eq("model-a"), eq(0.35), eq(5))).thenReturn(List.of(dense));
         KnowledgeSearchRow sparse = row(2L, 11L, "handbook.txt", 0.6);
-        when(mapper.searchSparse(eq(99L), eq(7L), eq(5L), eq("假期"), eq(5)))
+        when(mapper.searchSparse(eq(99L), eq(7L), eq(5L), eq("假期"), eq(0.05), eq(5)))
                 .thenReturn(List.of(sparse));
 
         KnowledgeServiceImpl service = service(mapper, kbMapper, embeddingService,
@@ -258,7 +270,7 @@ class KnowledgeServiceImplTest {
                         List.of(new float[]{0.1F, 0.2F, 0.3F})));
         when(mapper.searchDense(eq(99L), eq(7L), eq(5L), anyString(), eq("local"),
                 eq("model-a"), eq(0.35), eq(5))).thenReturn(List.of(row(1L, 10L, "a.txt", 0.9)));
-        when(mapper.searchSparse(eq(99L), eq(7L), eq(5L), eq("假期"), eq(5)))
+        when(mapper.searchSparse(eq(99L), eq(7L), eq(5L), eq("假期"), eq(0.05), eq(5)))
                 .thenReturn(List.of(
                         row(2L, 11L, "b.txt", 0.6),
                         row(3L, 12L, "c.txt", 0.5)));
@@ -270,6 +282,144 @@ class KnowledgeServiceImplTest {
                 new KnowledgeSearchRequest("假期", 2, null));
 
         assertThat(result.records()).hasSize(2);
+    }
+
+    @Test
+    void searchShouldFilterTocLikeChunks() {
+        KnowledgeDocumentMapper mapper = mock(KnowledgeDocumentMapper.class);
+        EmbeddingService embeddingService = mock(EmbeddingService.class);
+        UserAccessService accessService = mock(UserAccessService.class);
+        EmbeddingProperties properties = new EmbeddingProperties();
+        properties.setDimension(3);
+        when(accessService.resolveActiveUser(7L)).thenReturn(ACCESS);
+        when(embeddingService.current()).thenReturn(new EmbeddingDescriptor("api", "model-a", 3));
+        when(embeddingService.embed(List.of("policy")))
+                .thenReturn(new EmbeddingResult("api", "model-a",
+                        List.of(new float[]{0.1F, 0.2F, 0.3F})));
+        when(mapper.selectCount(any())).thenReturn(1L);
+        // 目录分块相似度更高，但必须被过滤掉，正文分块保留
+        when(mapper.search(eq(99L), eq(7L), anyString(), eq("api"), eq("model-a"),
+                eq(0.4), eq(3))).thenReturn(List.of(tocRow(1L, 10L, 0.9), row(1L, 42L, "book.pdf", 0.6)));
+
+        KnowledgeServiceImpl service = service(mapper, mock(KnowledgeBaseMapper.class),
+                embeddingService, accessService, mock(FileParserService.class), properties);
+
+        var result = service.search(7L, new KnowledgeSearchRequest("policy", 3, 0.4));
+
+        assertThat(result.records()).hasSize(1);
+        assertThat(result.records().get(0).chunkId()).isEqualTo(42L);
+    }
+
+    @Test
+    void searchInKnowledgeBaseShouldFilterTocLikeChunks() {
+        KnowledgeDocumentMapper mapper = mock(KnowledgeDocumentMapper.class);
+        KnowledgeBaseMapper kbMapper = mock(KnowledgeBaseMapper.class);
+        EmbeddingService embeddingService = mock(EmbeddingService.class);
+        UserAccessService accessService = mock(UserAccessService.class);
+        EmbeddingProperties properties = new EmbeddingProperties();
+        properties.setDimension(3);
+        when(accessService.resolveActiveUser(7L)).thenReturn(ACCESS);
+        when(kbMapper.selectOne(any())).thenReturn(ownedKnowledgeBase());
+        when(embeddingService.current()).thenReturn(new EmbeddingDescriptor("local", "model-a", 3));
+        when(mapper.selectCount(any())).thenReturn(1L);
+        when(embeddingService.embed(any()))
+                .thenReturn(new EmbeddingResult("local", "model-a",
+                        List.of(new float[]{0.1F, 0.2F, 0.3F})));
+        when(mapper.searchDense(eq(99L), eq(7L), eq(5L), anyString(), eq("local"),
+                eq("model-a"), eq(0.35), eq(5))).thenReturn(List.of(tocRow(1L, 10L, 0.9)));
+        when(mapper.searchSparse(eq(99L), eq(7L), eq(5L), eq("假期"), eq(0.05), eq(5)))
+                .thenReturn(List.of(row(2L, 11L, "body.txt", 0.6)));
+
+        KnowledgeServiceImpl service = service(mapper, kbMapper, embeddingService,
+                accessService, mock(FileParserService.class), properties);
+
+        var result = service.searchInKnowledgeBase(7L, 5L,
+                new KnowledgeSearchRequest("假期", null, null));
+
+        assertThat(result.records()).hasSize(1);
+        assertThat(result.records().get(0).chunkId()).isEqualTo(11L);
+        assertThat(result.records().get(0).matchType()).isEqualTo("SPARSE");
+    }
+
+    @Test
+    void searchShouldRerankWhenConfigured() {
+        KnowledgeDocumentMapper mapper = mock(KnowledgeDocumentMapper.class);
+        EmbeddingService embeddingService = mock(EmbeddingService.class);
+        UserAccessService accessService = mock(UserAccessService.class);
+        RerankService rerankService = mock(RerankService.class);
+        EmbeddingProperties properties = new EmbeddingProperties();
+        properties.setDimension(3);
+        when(accessService.resolveActiveUser(7L)).thenReturn(ACCESS);
+        when(embeddingService.current()).thenReturn(new EmbeddingDescriptor("api", "model-a", 3));
+        when(embeddingService.embed(List.of("policy")))
+                .thenReturn(new EmbeddingResult("api", "model-a",
+                        List.of(new float[]{0.1F, 0.2F, 0.3F})));
+        when(mapper.selectCount(any())).thenReturn(1L);
+        KnowledgeSearchRow first = row(1L, 10L, "a.txt", 0.9);
+        KnowledgeSearchRow second = row(1L, 11L, "b.txt", 0.6);
+        when(mapper.search(eq(99L), eq(7L), anyString(), eq("api"), eq("model-a"),
+                eq(0.4), eq(3))).thenReturn(List.of(first, second));
+        // rerank 把第 2 条（b.txt）排到第 1
+        when(rerankService.configured()).thenReturn(true);
+        when(rerankService.rerank(eq("policy"), eq(List.of("a.txt content", "b.txt content")), eq(2)))
+                .thenReturn(List.of(
+                        new RerankService.RankedItem(1, 0.95),
+                        new RerankService.RankedItem(0, 0.4)));
+
+        KnowledgeServiceImpl service = service(mapper, mock(KnowledgeBaseMapper.class),
+                embeddingService, accessService, mock(FileParserService.class), properties, rerankService);
+
+        var result = service.search(7L, new KnowledgeSearchRequest("policy", 3, 0.4));
+
+        assertThat(result.records()).hasSize(2);
+        assertThat(result.records().get(0).chunkId()).isEqualTo(11L);
+        assertThat(result.records().get(0).score()).isEqualTo(0.95);
+        assertThat(result.records().get(1).chunkId()).isEqualTo(10L);
+    }
+
+    @Test
+    void searchShouldFallBackToOriginalOrderWhenRerankFails() {
+        KnowledgeDocumentMapper mapper = mock(KnowledgeDocumentMapper.class);
+        EmbeddingService embeddingService = mock(EmbeddingService.class);
+        UserAccessService accessService = mock(UserAccessService.class);
+        RerankService rerankService = mock(RerankService.class);
+        EmbeddingProperties properties = new EmbeddingProperties();
+        properties.setDimension(3);
+        when(accessService.resolveActiveUser(7L)).thenReturn(ACCESS);
+        when(embeddingService.current()).thenReturn(new EmbeddingDescriptor("api", "model-a", 3));
+        when(embeddingService.embed(List.of("policy")))
+                .thenReturn(new EmbeddingResult("api", "model-a",
+                        List.of(new float[]{0.1F, 0.2F, 0.3F})));
+        when(mapper.selectCount(any())).thenReturn(1L);
+        when(mapper.search(eq(99L), eq(7L), anyString(), eq("api"), eq("model-a"),
+                eq(0.4), eq(3))).thenReturn(List.of(row(1L, 10L, "a.txt", 0.9), row(1L, 11L, "b.txt", 0.6)));
+        when(rerankService.configured()).thenReturn(true);
+        when(rerankService.rerank(anyString(), any(), anyInt()))
+                .thenThrow(new RuntimeException("rerank service down"));
+
+        KnowledgeServiceImpl service = service(mapper, mock(KnowledgeBaseMapper.class),
+                embeddingService, accessService, mock(FileParserService.class), properties, rerankService);
+
+        var result = service.search(7L, new KnowledgeSearchRequest("policy", 3, 0.4));
+
+        assertThat(result.records()).hasSize(2);
+        assertThat(result.records().get(0).chunkId()).isEqualTo(10L);
+        assertThat(result.records().get(1).chunkId()).isEqualTo(11L);
+    }
+
+    private static KnowledgeSearchRow tocRow(Long docId, Long chunkId, double score) {
+        KnowledgeSearchRow row = new KnowledgeSearchRow();
+        row.setDocId(docId);
+        row.setChunkId(chunkId);
+        row.setFilename("book.pdf");
+        row.setChunkIndex(0);
+        row.setContent("""
+                1. 前言 ................................ ix
+                2. 语言特性 ................................ 8
+                3. 对设计的影响 ................................ 20
+                """);
+        row.setScore(score);
+        return row;
     }
 
     private static KnowledgeSearchRow row(Long docId, Long chunkId, String filename, double score) {
