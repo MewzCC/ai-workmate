@@ -29,7 +29,7 @@ import type { Key } from 'react';
 import type { ColumnsType } from 'antd/es/table';
 import type { RcFile } from 'antd/es/upload/interface';
 import { message } from '@/lib/antdMessage';
-import { OaIcon, type OaIconName } from '@/components/OaIcon';
+import { OaIcon, oaKnowledgeBaseIconOptions, type OaIconName } from '@/components/OaIcon';
 import {
   knowledgeApi,
   type EmbeddingStatus,
@@ -46,15 +46,6 @@ const { Dragger } = Upload;
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 
 type CreateMode = 'text' | 'file';
-
-const BASE_ICON_OPTIONS: Array<{ value: OaIconName; label: string }> = [
-  { value: 'knowledge-base', label: '知识库' },
-  { value: 'dashboard', label: '驾驶舱' },
-  { value: 'form', label: '表单' },
-  { value: 'audit', label: '审计' },
-  { value: 'help', label: '帮助' },
-  { value: 'organization', label: '组织' },
-];
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -755,7 +746,7 @@ function SettingsTab({ base, onSaved }: SettingsTabProps) {
           </Form.Item>
           <Form.Item name="icon" label="图标">
             <Select
-              options={BASE_ICON_OPTIONS.map((option) => ({
+              options={oaKnowledgeBaseIconOptions.map((option) => ({
                 value: option.value,
                 label: (
                   <Space>

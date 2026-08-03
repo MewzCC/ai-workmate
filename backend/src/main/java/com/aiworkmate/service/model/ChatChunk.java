@@ -9,4 +9,8 @@ public record ChatChunk(String type, String data, Long messageId, Long conversat
     public static ChatChunk delta(String data, Long conversationId, Long messageId) {
         return new ChatChunk("delta", data, messageId, conversationId);
     }
+
+    public static ChatChunk references(String data, Long conversationId, Long messageId) {
+        return new ChatChunk("references", data, messageId, conversationId);
+    }
 }

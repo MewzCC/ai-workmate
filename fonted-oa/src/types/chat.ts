@@ -17,6 +17,14 @@ export interface ChatAttachment {
   previewUrl?: string;
 }
 
+export interface ChatMessageCitation {
+  docId: string;
+  chunkId: string;
+  source: string;
+  score: number;
+  text: string;
+}
+
 export interface ChatMessage {
   id: number | string;
   role: ChatRole;
@@ -24,6 +32,8 @@ export interface ChatMessage {
   status: MessageStatus;
   feedback: MessageFeedback;
   attachments: ChatAttachment[];
+  /** AI 回复引用的知识库片段；无引用时为空数组 */
+  citations: ChatMessageCitation[];
   createdAt: string;
 }
 
@@ -44,7 +54,7 @@ export interface ChatSettings {
 }
 
 export interface ChatStreamEvent {
-  type: 'metadata' | 'delta' | 'done' | 'error';
+  type: 'metadata' | 'delta' | 'references' | 'done' | 'error';
   data?: string | null;
   errorCode?: string | null;
   messageId?: number | null;

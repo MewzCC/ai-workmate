@@ -10,6 +10,7 @@ public record MessageResponse(
         String status,
         String feedback,
         List<AttachmentResponse> attachments,
+        List<MessageCitationResponse> citations,
         LocalDateTime createdAt
 ) {
 }

@@ -4294,6 +4294,12 @@ html.oa-wallpaper-active .ant-menu-submenu-popup .ant-menu-dark {
   margin: 0 !important;
 }
 
+.ai-chat-header h5 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .ai-chat-header .ant-typography-secondary {
   font-size: 12px;
 }
@@ -4533,6 +4539,69 @@ html.oa-wallpaper-active .ant-menu-submenu-popup .ant-menu-dark {
 }
 
 .ai-message:hover .ai-message-actions { opacity: 1; }
+
+.ai-message-citations {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--oa-border, rgba(15, 23, 42, 0.1));
+}
+
+.ai-message-citations-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.ai-citation-item {
+  display: inline-block;
+  max-width: 260px;
+  overflow: hidden;
+  padding: 2px 9px;
+  border: 1px solid color-mix(in srgb, var(--oa-primary, #1677ff) 26%, transparent);
+  border-radius: 5px;
+  color: var(--oa-primary, #1677ff);
+  background: color-mix(in srgb, var(--oa-primary, #1677ff) 8%, transparent);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1.6;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+  transition: border-color 160ms ease, background 160ms ease;
+}
+
+.ai-citation-item:hover {
+  border-color: color-mix(in srgb, var(--oa-primary, #1677ff) 46%, transparent);
+  background: color-mix(in srgb, var(--oa-primary, #1677ff) 13%, transparent);
+}
+
+.ai-citation-popover .ant-popover-inner { max-width: 380px; }
+
+.ai-citation-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ai-citation-text {
+  max-height: 220px;
+  margin: 0;
+  overflow: auto;
+  color: var(--oa-text, #111827);
+  font-size: 13px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.ai-citation-meta {
+  flex: none;
+  font-size: 12px;
+}
 
 .ai-message-attachments,
 .ai-composer-attachments {

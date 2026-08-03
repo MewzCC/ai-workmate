@@ -5,6 +5,7 @@ import com.aiworkmate.common.ErrorCode;
 import com.aiworkmate.dto.AttachmentResponse;
 import com.aiworkmate.dto.ConversationResponse;
 import com.aiworkmate.dto.CreateConversationRequest;
+import com.aiworkmate.dto.MessageCitationResponse;
 import com.aiworkmate.dto.MessageResponse;
 import com.aiworkmate.entity.Conversation;
 import com.aiworkmate.entity.Message;
@@ -14,7 +15,10 @@ import com.aiworkmate.service.AttachmentService;
 import com.aiworkmate.service.ConversationService;
 import com.aiworkmate.service.model.AiModelCatalog;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ConversationServiceImpl implements ConversationService {
@@ -32,6 +37,7 @@ public class ConversationServiceImpl implements ConversationService {
     private final ConversationMapper conversationMapper;
     private final MessageMapper messageMapper;
     private final AttachmentService attachmentService;
+    private final ObjectMapper objectMapper;
 
     @Override
     @Transactional(readOnly = true)
@@ -133,6 +139,17 @@ public class ConversationServiceImpl implements ConversationService {
 
     private MessageResponse toMessageResponse(Message message, List<AttachmentResponse> attachments) {
         return new MessageResponse(message.getId(), message.getRole(), message.getContent(), message.getStatus(),
-                message.getFeedback(), attachments, message.getCreatedAt());
+                message.getFeedback(), attachments, parseCitations(message.getCitations()), message.getCreatedAt());
+    }
+
+    private List<MessageCitationResponse> parseCitations(String citations) {
+        if (citations == null || citations.isBlank()) return List.of();
+        try {
+            return objectMapper.readValue(citations, new TypeReference<List<MessageCitationResponse>>() {
+            });
+        } catch (Exception ex) {
+            log.warn("解析消息引用失败，citations={}", citations, ex);
+            return List.of();
+        }
     }
 }

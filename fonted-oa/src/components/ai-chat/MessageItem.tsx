@@ -14,6 +14,7 @@ import { updateMessageFeedback } from '@/lib/chatApi';
 import type { ChatMessage } from '@/types/chat';
 import AttachmentPreview from './AttachmentPreview';
 import MarkdownRenderer from './MarkdownRenderer';
+import CitationList from './CitationList';
 import { OaIcon } from '@/components/OaIcon';
 
 interface MessageItemProps {
@@ -73,6 +74,9 @@ export default function MessageItem({ item, onRetry }: MessageItemProps) {
             <div className="ai-message-user-text">{item.content}</div>
           )}
         </div>
+        {isAssistant && item.status === 'success' && (item.citations?.length ?? 0) > 0 && (
+          <CitationList citations={item.citations || []} />
+        )}
         {isAssistant && item.status !== 'sending' && (
           <Space size={2} className="ai-message-actions">
             <Tooltip title="复制回复">
