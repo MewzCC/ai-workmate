@@ -10,6 +10,10 @@ export interface EmbeddingStatus {
   provider: string;
   model: string;
   dimension: number;
+  /** 全局 rerank（重排）是否启用 */
+  rerankEnabled: boolean;
+  /** 全局 rerank 模型名；未启用时为 null */
+  rerankModel: string | null;
 }
 
 export interface KnowledgeBase {

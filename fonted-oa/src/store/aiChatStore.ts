@@ -6,7 +6,7 @@ import {
   createConversation, deleteConversation, listConversations, listMessages,
   renameConversation, sendChat, streamChat, uploadAttachment,
 } from '@/lib/chatApi';
-import type { ChatAttachment, ChatConversation, ChatMessage, ChatSettings } from '@/types/chat';
+import type { ChatAttachment, ChatConversation, ChatMessage, ChatMessageCitation, ChatSettings } from '@/types/chat';
 import { DEFAULT_AI_MODEL, normalizeAiModel } from '@/config/aiModels';
 import { StreamTypewriter } from '@/lib/StreamTypewriter';
 import { uuid } from '@/lib/uuid';
@@ -186,8 +186,8 @@ export const useAiChatStore = create<AiChatState>((set, get) => ({
     const now = new Date().toISOString();
     const userId = `local-user-${uuid()}`;
     const assistantId = `local-assistant-${uuid()}`;
-    const user: ChatMessage = { id: userId, role: 'user', content, status: 'success', feedback: null, attachments, createdAt: now };
-    const assistant: ChatMessage = { id: assistantId, role: 'assistant', content: '', status: 'sending', feedback: null, attachments: [], createdAt: now };
+    const user: ChatMessage = { id: userId, role: 'user', content, status: 'success', feedback: null, attachments, citations: [], createdAt: now };
+    const assistant: ChatMessage = { id: assistantId, role: 'assistant', content: '', status: 'sending', feedback: null, attachments: [], citations: [], createdAt: now };
     appendMessages(set, conversationId, user, assistant);
     set((current) => ({ pendingAttachments: { ...current.pendingAttachments, [conversationId]: [] }, generatingIds: [...current.generatingIds, conversationId] }));
 
@@ -209,6 +209,14 @@ export const useAiChatStore = create<AiChatState>((set, get) => ({
         typewriters.set(conversationId, typewriter);
         await streamChat(request, controller.signal, (event) => {
           if (event.type === 'delta' && event.data) typewriter.push(event.data);
+          if (event.type === 'references' && event.data) {
+            try {
+              const citations = JSON.parse(event.data) as ChatMessageCitation[];
+              updateMessage(set, conversationId, assistantId, { citations });
+            } catch {
+              // 引用数据异常时忽略，不影响对话主流程
+            }
+          }
         });
         await typewriter.finish();
       } else {

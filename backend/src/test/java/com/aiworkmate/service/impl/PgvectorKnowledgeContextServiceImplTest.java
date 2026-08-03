@@ -28,9 +28,32 @@ class PgvectorKnowledgeContextServiceImplTest {
 
         var context = service.retrieve(7L, "How many days?", null);
 
-        assertThat(context.promptContext()).contains("知识来源1", "handbook.txt", "Annual leave policy");
+        assertThat(context.promptContext()).contains("知识来源1", "handbook.txt", "Annual leave policy", "内容摘录");
+        assertThat(context.promptContext()).contains("[知识来源1：handbook.txt，分块 0，内容摘录：\"Annual leave policy\"]");
         assertThat(context.references()).hasSize(1);
         assertThat(context.references().get(0).docId()).isEqualTo("10");
+        assertThat(context.references().get(0).text()).isEqualTo("Annual leave policy");
+    }
+
+    @Test
+    void shouldTrimReferenceTextByCodePointWithoutBreakingSurrogatePair() {
+        KnowledgeService knowledgeService = mock(KnowledgeService.class);
+        // 第 300 个 code point 恰好是 emoji（代理对），验证截断不会把它拆开
+        String longContent = "a".repeat(299) + "\uD83D\uDE00" + "b".repeat(100);
+        when(knowledgeService.search(eq(7L), any())).thenReturn(new KnowledgeSearchResponse(
+                "local", "Qwen3", 1024,
+                List.of(new KnowledgeSearchItemResponse(10L, 20L, "handbook.txt",
+                        0, longContent, 0.91, "DENSE"))));
+        PgvectorKnowledgeContextServiceImpl service =
+                new PgvectorKnowledgeContextServiceImpl(knowledgeService, new EmbeddingProperties());
+
+        var context = service.retrieve(7L, "How many days?", null);
+
+        assertThat(context.references()).hasSize(1);
+        String text = context.references().get(0).text();
+        assertThat(text.codePointCount(0, text.length())).isEqualTo(300);
+        assertThat(text).endsWith("\uD83D\uDE00");
+        assertThat(text).doesNotContain("\uFFFD");
     }
 
     @Test
@@ -45,7 +68,7 @@ class PgvectorKnowledgeContextServiceImplTest {
 
         var context = service.retrieve(7L, "How to onboard?", 3L);
 
-        assertThat(context.promptContext()).contains("知识来源1", "spec.txt", "Onboarding checklist");
+        assertThat(context.promptContext()).contains("知识来源1", "spec.txt", "Onboarding checklist", "内容摘录");
         assertThat(context.references()).hasSize(1);
         assertThat(context.references().get(0).docId()).isEqualTo("12");
     }

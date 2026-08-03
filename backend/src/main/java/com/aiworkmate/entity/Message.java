@@ -22,6 +22,9 @@ public class Message {
 
     private String feedback;
 
+    /** 引用知识库 JSON 数组字符串，例如 [{"docId":"1","chunkId":"2","source":"a.pdf","score":0.8,"text":"..."}] */
+    private String citations;
+
     private Integer tokenCount;
 
     @TableField(fill = FieldFill.INSERT)

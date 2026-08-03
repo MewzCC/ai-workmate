@@ -125,6 +125,15 @@ app:
     max-document-chars: ${KNOWLEDGE_MAX_DOCUMENT_CHARS:120000}
     retrieval-top-k: ${KNOWLEDGE_RETRIEVAL_TOP_K:5}
     retrieval-min-score: ${KNOWLEDGE_RETRIEVAL_MIN_SCORE:0.35}
+    sparse-min-score: ${KNOWLEDGE_SPARSE_MIN_SCORE:0.05}
+    rerank:
+      enabled: ${RERANK_ENABLED:false}
+      model: ${RERANK_MODEL:Qwen/Qwen3-Reranker-4B}
+      api-base-url: ${RERANK_API_BASE_URL:https://api.siliconflow.cn/v1}
+      api-key: ${RERANK_API_KEY:}
+      connect-timeout-ms: ${RERANK_CONNECT_TIMEOUT_MS:3000}
+      read-timeout-ms: ${RERANK_READ_TIMEOUT_MS:30000}
+      top-n: ${RERANK_TOP_N:5}
 
 # ========== JWT 配置 ==========
 jwt:

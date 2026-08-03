@@ -13,19 +13,10 @@ import {
   Typography,
 } from 'antd';
 import { message } from '@/lib/antdMessage';
-import { OaIcon, type OaIconName } from '@/components/OaIcon';
+import { OaIcon, oaKnowledgeBaseIconOptions, type OaIconName } from '@/components/OaIcon';
 import { knowledgeApi, type KnowledgeBase } from '@/lib/knowledgeApi';
 import { useRouter } from '@/lib/nextCompat';
 import KnowledgeBaseDetail from './KnowledgeBaseDetail';
-
-const BASE_ICON_OPTIONS: Array<{ value: OaIconName; label: string }> = [
-  { value: 'knowledge-base', label: '知识库' },
-  { value: 'dashboard', label: '驾驶舱' },
-  { value: 'form', label: '表单' },
-  { value: 'audit', label: '审计' },
-  { value: 'help', label: '帮助' },
-  { value: 'organization', label: '组织' },
-];
 
 interface CreateBaseValues {
   name: string;
@@ -238,7 +229,7 @@ export default function KnowledgeBasePage({ kbId }: { kbId?: number }) {
           </Form.Item>
           <Form.Item name="icon" label="图标">
             <Select
-              options={BASE_ICON_OPTIONS.map((option) => ({
+              options={oaKnowledgeBaseIconOptions.map((option) => ({
                 value: option.value,
                 label: (
                   <Space>

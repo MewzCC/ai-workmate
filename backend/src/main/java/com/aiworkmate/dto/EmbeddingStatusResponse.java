@@ -4,6 +4,8 @@ public record EmbeddingStatusResponse(
         boolean enabled,
         String provider,
         String model,
-        int dimension
+        int dimension,
+        boolean rerankEnabled,
+        String rerankModel
 ) {
 }

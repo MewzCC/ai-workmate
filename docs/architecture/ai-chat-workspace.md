@@ -14,7 +14,7 @@ AI Chat Workspace 是 OA 左侧菜单中的独立工作页面，路由为 `/oa/a
 
 ### 2.1 前端
 
-- Next.js 14、React 18、TypeScript、Zustand、Ant Design。
+- Vite 5 SPA、React 18/19、TypeScript、Zustand、Ant Design。
 - `react-markdown` 渲染 Markdown，`react-syntax-highlighter` 渲染代码块。
 - 状态按会话分桶，支持切换会话时保持其他会话的生成任务。
 - 每个生成会话拥有独立 `AbortController`，停止操作不会影响其他会话。

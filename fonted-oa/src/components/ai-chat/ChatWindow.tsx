@@ -40,7 +40,7 @@ export default function ChatWindow(props: ChatWindowProps) {
       <header className="ai-chat-header">
         <Button className="ai-mobile-session-button" type="text" icon={<MenuOutlined />} onClick={props.onOpenSessions} />
         <div>
-          <Typography.Title level={5}>{props.title}</Typography.Title>
+          <Typography.Title level={5} title={props.title}>{props.title}</Typography.Title>
           <Typography.Text type="secondary"><SafetyCertificateOutlined /> 权限由服务端校验</Typography.Text>
         </div>
         <Select<number | null>

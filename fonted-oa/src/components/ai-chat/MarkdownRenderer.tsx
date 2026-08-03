@@ -1,32 +1,71 @@
 'use client';
 
-import { useState } from 'react';
-import { Button, Tooltip } from 'antd';
+import { useMemo, useState } from 'react';
+import { Button, Popover, Tooltip, Typography } from 'antd';
 import { message as antMessage } from '@/lib/antdMessage';
 import { CheckOutlined, CopyOutlined } from '@ant-design/icons';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/cjs/styles/prism';
+import type { ChatMessageCitation } from '@/types/chat';
 
 interface MarkdownRendererProps {
   content: string;
   className?: string;
+  /** AI 回复的知识库引用；用于把正文中的 [知识来源N] 渲染为可悬停查看的上标引用 */
+  citations?: ChatMessageCitation[];
 }
 
-interface CodeBlockProps {
-  language: string;
-  value: string;
+/** 匹配 LLM 按提示词生成的 [知识来源N] / [知识来源 N] 标注 */
+const CITATION_LINK_RE = /\[知识来源\s*(\d+)\]/g;
+
+function decorateCitations(content: string): string {
+  return content.replace(CITATION_LINK_RE, (_match, index: string) => `[${index}](#citation-${index})`);
 }
 
-export default function MarkdownRenderer({ content, className = '' }: MarkdownRendererProps) {
+export default function MarkdownRenderer({ content, className = '', citations = [] }: MarkdownRendererProps) {
+  const decorated = useMemo(() => decorateCitations(content), [content]);
   return (
     <div className={`ai-markdown ${className}`.trim()}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
-          a({ children, ...props }) {
-            return <a {...props} target="_blank" rel="noreferrer">{children}</a>;
+          a({ href, children, ...props }) {
+            const citationMatch = /^#citation-(\d+)$/.exec(href || '');
+            if (citationMatch) {
+              const label = `[${citationMatch[1]}]`;
+              const citation = citations[Number(citationMatch[1]) - 1];
+              if (!citation) {
+                return <sup className="ai-inline-citation ai-inline-citation-muted">{label}</sup>;
+              }
+              return (
+                <Popover
+                  trigger="hover"
+                  placement="top"
+                  overlayClassName="ai-citation-popover"
+                  title={citation.source}
+                  content={
+                    <div className="ai-citation-content">
+                      <p className="ai-citation-text">{citation.text || '（无内容）'}</p>
+                      <Typography.Text type="secondary" className="ai-citation-meta">
+                        相似度 {Math.min(100, Math.max(0, citation.score * 100)).toFixed(1)}%
+                      </Typography.Text>
+                    </div>
+                  }
+                >
+                  <sup
+                    className="ai-inline-citation"
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`查看引用内容：${citation.source}`}
+                  >
+                    {label}
+                  </sup>
+                </Popover>
+              );
+            }
+            return <a {...props} href={href} target="_blank" rel="noreferrer">{children}</a>;
           },
           pre({ children }) {
             return <>{children}</>;
@@ -42,10 +81,15 @@ export default function MarkdownRenderer({ content, className = '' }: MarkdownRe
           },
         }}
       >
-        {content}
+        {decorated}
       </ReactMarkdown>
     </div>
   );
+}
+
+interface CodeBlockProps {
+  language: string;
+  value: string;
 }
 
 function CodeBlock({ language, value }: CodeBlockProps) {

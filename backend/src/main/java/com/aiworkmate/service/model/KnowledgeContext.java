@@ -12,6 +12,6 @@ public record KnowledgeContext(String promptContext, List<Reference> references)
         return promptContext != null && !promptContext.isBlank();
     }
 
-    public record Reference(String docId, String chunkId, String source, double score) {
+    public record Reference(String docId, String chunkId, String source, double score, String text) {
     }
 }

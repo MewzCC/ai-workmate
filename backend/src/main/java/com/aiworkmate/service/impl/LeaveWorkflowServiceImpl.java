@@ -27,6 +27,7 @@ import com.aiworkmate.mapper.WorkflowTaskMapper;
 import com.aiworkmate.service.BusinessAuditService;
 import com.aiworkmate.service.HalfDayCalculator;
 import com.aiworkmate.service.LeaveWorkflowService;
+import com.aiworkmate.service.NotificationService;
 import com.aiworkmate.service.UserAccessService;
 import com.aiworkmate.service.model.ResolvedUserAccess;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
@@ -52,6 +53,7 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
     private final WorkflowActionLogMapper actionLogMapper;
     private final UserAccessService userAccessService;
     private final BusinessAuditService auditService;
+    private final NotificationService notificationService;
 
     @Value("${app.workflow.approval-due-hours:48}")
     private long approvalDueHours;
@@ -253,6 +255,14 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
         insertAction(actor, instance.getId(), task.getId(), "SUBMIT", "DRAFT", "PENDING", null);
         auditService.record(actor.tenantId(), actor.userId(), BUSINESS_TYPE,
                 id.toString(), "SUBMIT", "SUCCESS", "提交请假申请");
+        // 通知审批人：有新的请假申请待审批（经 Redis 临时队列异步落库）
+        if (approverId != null) {
+            notificationService.publish(actor.tenantId(), approverId,
+                    NotificationService.TYPE_APPROVAL,
+                    "新的请假申请待审批",
+                    "员工提交了请假申请，请及时处理",
+                    "leave", id);
+        }
         return response(actor, requireView(actor.tenantId(), id));
     }
 
@@ -410,6 +420,12 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
         auditService.record(actor.tenantId(), actor.userId(), BUSINESS_TYPE,
                 application.getId().toString(), approved ? "APPROVE" : "REJECT",
                 "SUCCESS", approved ? "通过请假申请" : "退回请假申请");
+        // 通知申请人：审批结果（经 Redis 临时队列异步落库）
+        notificationService.publish(actor.tenantId(), application.getApplicantUserId(),
+                NotificationService.TYPE_APPROVAL,
+                approved ? "请假申请已通过" : "请假申请已被退回",
+                approved ? "你的请假申请已通过审批" : "你的请假申请被退回，请查看原因",
+                "leave", application.getId());
         return response(actor, requireView(actor.tenantId(), application.getId()));
     }
 
