@@ -46,6 +46,7 @@ pnpm-debug.log*
 .env
 .env.*
 !.env.example
+!.env.docker.example
 application-local.yml
 application-local.yaml
 backend/src/main/resources/application-local.yml
@@ -54,6 +55,7 @@ backend/src/main/resources/application-local.yaml
 # IDE / editor
 .idea/
 .vscode/
+.reasonix/
 *.iml
 *.ipr
 *.iws
