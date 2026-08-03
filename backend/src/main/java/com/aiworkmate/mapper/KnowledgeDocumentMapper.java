@@ -189,6 +189,7 @@ public interface KnowledgeDocumentMapper extends BaseMapper<KnowledgeDocument> {
               AND kd.kb_id = #{kbId}
               AND kd.status = 'READY'
               AND kc.content_tsv @@ plainto_tsquery('simple', #{query})
+              AND ts_rank(kc.content_tsv, plainto_tsquery('simple', #{query})) >= #{minScore}
             ORDER BY score DESC, kc.id
             LIMIT #{topK}
             """)
@@ -196,5 +197,6 @@ public interface KnowledgeDocumentMapper extends BaseMapper<KnowledgeDocument> {
                                           @Param("userId") Long userId,
                                           @Param("kbId") Long kbId,
                                           @Param("query") String query,
+                                          @Param("minScore") double minScore,
                                           @Param("topK") int topK);
 }

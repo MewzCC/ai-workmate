@@ -27,7 +27,7 @@
 
 ## 编码原则
 
-- 优先复用现有技术栈：Next.js、Tailwind、Zustand、Spring Boot、Spring AI、MyBatis-Plus。
+- 优先复用现有技术栈：Vite、React、Tailwind、Zustand、Spring Boot、Spring AI、MyBatis-Plus。
 - 新增依赖必须有明确收益，且不能替代已有轻量实现。
 - 命名表达业务含义，避免 `data1`、`handleClick2`、`temp` 这类不可维护名称。
 - 删除死代码；保留 TODO 时必须写清楚触发条件和负责人语义。

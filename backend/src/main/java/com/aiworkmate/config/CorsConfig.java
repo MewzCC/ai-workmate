@@ -7,7 +7,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.filter.CorsFilter;
 
 /**
- * 跨域配置 — 允许前端 Next.js (3000端口) 访问后端
+ * 跨域配置 — 允许前端 Vite (3000/3001端口) 访问后端
  */
 @Configuration
 public class CorsConfig {

@@ -7,7 +7,7 @@
 - onted-oa: OA workbench, runs on http://localhost:3001/oa.
 - The old single rontend app has been split into two independent programs.
 
-> Spring Boot 3 + Spring AI + Next.js 14 全栈 AI Agent 项目  
+> Spring Boot 3 + Spring AI + Vite 5 全栈 AI Agent 项目  
 
 ## 项目结构
 
@@ -36,27 +36,18 @@ ai-workmate/
 │           ├── application-dev.yml   # 开发环境
 │           └── db/init.sql           # 数据库初始化
 │
-├── fronted-main/                     # Next.js 14 官网程序，端口 3000
-└── fonted-oa/                        # Next.js 14 OA 程序，端口 3001
+├── fronted-main/                     # 营销官网 Vite SPA，端口 3000
+└── fonted-oa/                        # OA 工作台 Vite SPA，端口 3001
     ├── package.json
-    ├── next.config.js                # API 代理配置
+    ├── vite.config.ts                # API 代理配置
     ├── tailwind.config.ts
     └── src/
-        ├── app/
-        │   ├── layout.tsx
-        │   ├── page.tsx              # 主页面（登录/聊天）
-        │   └── globals.css           # 全局样式 + Markdown
-        ├── components/
-        │   ├── ChatInterface.tsx      # 聊天主界面
-        │   ├── MessageBubble.tsx      # 消息气泡（Markdown渲染+代码高亮）
-        │   ├── Sidebar.tsx            # 侧边栏导航
-        │   └── LoginPage.tsx          # 登录注册页
-        ├── lib/
-        │   └── api.ts                # API 客户端（SSE流式）
-        ├── store/
-        │   └── chatStore.ts          # Zustand 状态管理
-        └── types/
-            └── index.ts              # TypeScript 类型定义
+        ├── main.tsx                  # 应用入口
+        ├── App.tsx                   # React Router 路由（/oa、/oa/:pageId）
+        ├── components/               # 页面与业务组件（首页、OA 工作台等）
+        ├── lib/                      # API 客户端
+        ├── store/                    # Zustand 状态管理
+        └── types/                    # TypeScript 类型定义
 ```
 
 ## 快速开始
@@ -170,7 +161,7 @@ curl -X POST http://localhost:8080/api/chat/stream \
 
 | 层级 | 技术 | 说明 |
 |------|------|------|
-| 前端 | Next.js 14 + React 18 + TypeScript | App Router |
+| 前端 | Vite 5 + React 18/19 + TypeScript | 独立 Vite SPA（3000 / 3001） |
 | 样式 | Tailwind CSS | 响应式 + 暗色模式 |
 | 状态管理 | Zustand | 轻量级 |
 | Markdown | react-markdown + react-syntax-highlighter | 代码高亮 |

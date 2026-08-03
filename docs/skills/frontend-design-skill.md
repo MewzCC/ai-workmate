@@ -2,13 +2,13 @@
 
 ## 触发场景
 
-当任务涉及 Next.js/React 页面、营销官网、聊天 UI、普通工作台组件、样式优化、响应式体验、设计系统时使用本 skill。
+当任务涉及 Vite/React 页面、营销官网、聊天 UI、普通工作台组件、样式优化、响应式体验、设计系统时使用本 skill。
 
 如果任务涉及 `/oa`、`fonted-oa/src/components/oa`、OA 菜单权限、Ant Design 中后台组件或 ECharts，请同时读取 `docs/skills/oa-workbench-skill.md`，并以 OA skill 的组件约束为准。
 
 ## 当前项目约束
 
-- 使用 Next.js 14 App Router。
+- 使用 Vite 5 SPA（纯客户端，无服务端渲染）。
 - 使用 React 18 函数组件。
 - 使用 TypeScript。
 - 现有营销官网以自定义 CSS + Tailwind 基础能力为主。

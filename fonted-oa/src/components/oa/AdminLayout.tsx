@@ -15,6 +15,7 @@ import AiMiniPanel from './AiMiniPanel';
 import AiChatWorkspace from '@/components/ai-chat/AiChatWorkspace';
 import { useAuth } from '@/components/auth/AuthProvider';
 import AccessControlPage from './AccessControlPage';
+import NotificationPage from './NotificationPage';
 import { getNavigation, type NavigationRoute } from '@/lib/navigationApi';
 import { profileApi } from '@/lib/profileApi';
 import { OaIcon } from '@/components/OaIcon';
@@ -30,6 +31,12 @@ import KnowledgeBasePage from './KnowledgeBasePage';
 const { Content } = Layout;
 const OPEN_TABS_STORAGE_KEY = 'workmeta-oa-open-tabs';
 const MAX_OPEN_TABS = 20;
+const MOBILE_BREAKPOINT = '(max-width: 720px)';
+
+function isMobileViewport(): boolean {
+  if (typeof window === 'undefined' || !window.matchMedia) return false;
+  return window.matchMedia(MOBILE_BREAKPOINT).matches;
+}
 
 const dashboardMenu: OaMenuItem = {
   id: 'dashboard',
@@ -164,7 +171,7 @@ export default function AdminLayout() {
     if (user?.role === 'FINANCE_ADMIN') return 'finance_admin';
     return 'employee';
   }, [user?.role]);
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => isMobileViewport());
   const [menus, setMenus] = useState<OaMenuItem[]>([]);
   const [navigationLoaded, setNavigationLoaded] = useState(false);
   const [selectedMenu, setSelectedMenu] = useState<OaMenuItem>(dashboardMenu);
@@ -327,6 +334,17 @@ export default function AdminLayout() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname, navigationLoaded]);
 
+  // 进入移动端视口时自动收起侧栏（用户手动展开/收起状态在桌面端保留）
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    const mql = window.matchMedia(MOBILE_BREAKPOINT);
+    const onViewportChange = (event: MediaQueryListEvent) => {
+      if (event.matches) setCollapsed(true);
+    };
+    mql.addEventListener('change', onViewportChange);
+    return () => mql.removeEventListener('change', onViewportChange);
+  }, []);
+
   useEffect(() => {
     document.documentElement.style.setProperty('--oa-primary', currentTheme.primary);
     document.documentElement.style.setProperty('--oa-sidebar', currentTheme.sidebar);
@@ -450,6 +468,11 @@ export default function AdminLayout() {
     >
       <>
         <div className={`oa-shell ${collapsed ? 'oa-shell-collapsed' : ''} ${wallpaper ? 'oa-has-wallpaper' : ''} ${selectedMenu.id === 'ai-workspace' ? 'oa-chat-page' : ''}`}>
+          <div
+            className={`oa-sider-mask ${collapsed ? '' : 'is-visible'}`}
+            onClick={() => setCollapsed(true)}
+            aria-hidden="true"
+          />
           {wallpaper && (
             <div
               className="oa-wallpaper-layer"
@@ -469,7 +492,11 @@ export default function AdminLayout() {
               collapsed={collapsed}
               onCollapse={setCollapsed}
               onSelect={(menu) => {
-                if (menu.id === currentPageId) return;
+                if (menu.id === currentPageId) {
+                  // 移动端点击当前菜单也收起覆盖层
+                  if (isMobileViewport()) setCollapsed(true);
+                  return;
+                }
                 const target = menu.path || `/oa/${menu.id}`;
                 message.loading({
                   content: `正在切换到：${menu.name}`,
@@ -477,6 +504,8 @@ export default function AdminLayout() {
                   duration: 0,
                 });
                 router.push(target);
+                // 移动端选择菜单后收起覆盖层
+                if (isMobileViewport()) setCollapsed(true);
               }}
             />
             <Layout>
@@ -486,6 +515,7 @@ export default function AdminLayout() {
                   pageTitle={selectedMenu.name}
                   onOpenAppearance={() => setAppearanceOpen(true)}
                   onOpenAi={openAi}
+                  onToggleMenu={() => setCollapsed((value) => !value)}
                 />
                 {openTabsReady ? (
                   <PageTabBar
@@ -509,6 +539,8 @@ export default function AdminLayout() {
                     <KnowledgeBasePage kbId={kbId} />
                   ) : selectedMenu.componentKey === 'AI_WORKSPACE' ? (
                     <AiChatWorkspace role={role} />
+                  ) : selectedMenu.componentKey === 'MESSAGE_CENTER' ? (
+                    <NotificationPage />
                   ) : selectedMenu.componentKey === 'ACCESS_CONTROL' ? (
                     <AccessControlPage />
                   ) : selectedMenu.componentKey === 'TODO_LIST' ? (

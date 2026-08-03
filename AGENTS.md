@@ -4,8 +4,8 @@
 
 - `fronted-main` is the standalone marketing website program and runs on port `3000`.
 - `fonted-oa` is the standalone OA workbench program and runs on port `3001`.
-- The old `frontend` program has been split and must not be used as a shared App Router boundary.
-- Do not treat the homepage and OA as two pages in the same App Router app. They must remain independently runnable apps.
+- The old `frontend` program has been split and must not be used as a shared app boundary.
+- Do not treat the homepage and OA as two pages in the same app. They must remain independently runnable Vite SPA apps.
 - Home CTA buttons should enter `http://<host>:3001/oa`; the OA app root `/` redirects to `/oa`.
 
 本文件是本仓库的 AI 协作入口规范。任何 AI Agent、代码助手或自动化任务在修改本项目时，必须先遵循本文件，再按需读取 `docs/rules` 与 `docs/skills`。
@@ -14,7 +14,7 @@
 
 AI WorkMate 是企业级 AI 助手与 OA 工作台平台雏形：
 
-- 前端：Next.js 14、React 18、TypeScript、Tailwind CSS、Zustand、Ant Design、ECharts。
+- 前端：Vite 5 SPA、React 18/19、TypeScript、Tailwind CSS、Zustand、Ant Design、ECharts。
 - 后端：Spring Boot 3、Java 17、Spring AI、MyBatis-Plus、PostgreSQL、Redis、JWT。
 - 当前核心链路：营销官网、OA 工作台、登录注册、JWT 鉴权、SSE 流式聊天、对话与消息持久化。
 - 当前 OA 链路：`/oa` 独立工作台、Ant Design 中后台布局、菜单权限、ECharts 图表、AI 任务 plan/execute 接口。
@@ -83,12 +83,12 @@ docker compose -f docker-compose.yml up -d
 
 ### 前端
 
-- `fronted-main`：营销官网独立 Next.js 程序，默认端口 `3000`。
-- `fonted-oa`：OA 工作台独立 Next.js 程序，默认端口 `3001`。
-- `fronted-main/src/app`：营销官网 App Router 页面与布局。
-- `fonted-oa/src/app`：OA 工作台 App Router 页面与布局。
-- `fronted-main/src/app/page.tsx`：营销官网与旧 experience/chat 入口；“立即尝试”应进入 `/oa`。
-- `fonted-oa/src/app/oa/page.tsx`：企业 OA 工作台路由入口。
+- `fronted-main`：营销官网独立 Vite SPA 程序，默认端口 `3000`。
+- `fonted-oa`：OA 工作台独立 Vite SPA 程序，默认端口 `3001`。
+- `fronted-main/src/main.tsx`：营销官网入口，渲染 `src/components/home/HomePage`。
+- `fonted-oa/src/main.tsx` 与 `fonted-oa/src/App.tsx`：OA 入口与 React Router 路由定义。
+- `fronted-main/src/components/home/HomePage.tsx`：营销官网页面；“立即尝试”应进入 `/oa`。
+- `fonted-oa/src/App.tsx`：企业 OA 工作台路由入口（`/oa`、`/oa/:pageId`、`/oa/*`）。
 - `fronted-main/src/components`：官网、登录、聊天体验组件。
 - `fonted-oa/src/components`：OA 业务组件。
 - `fonted-oa/src/components/oa`：OA 工作台组件，包含布局、菜单、顶部栏、Dashboard、AI Drawer、外观 Drawer、ECharts 卡片等。
@@ -184,7 +184,7 @@ docker compose -f docker-compose.yml up -d
 - `antd`：OA 基础 UI 组件。
 - `@ant-design/icons`：OA 菜单与按钮图标。
 - `echarts`：OA 图表。
-- `eslint`、`eslint-config-next`：Next.js lint 验证。
+- `eslint`、`@typescript-eslint`、`eslint-plugin-react-hooks` 等：两个 Vite 前端 lint 验证。
 
 新增依赖必须有明确收益，不能为单个小效果引入大型库。
 

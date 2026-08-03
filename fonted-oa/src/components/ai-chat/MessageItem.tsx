@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Avatar, Button, Space, Tag, Tooltip, Typography } from 'antd';
 import { message as antMessage } from '@/lib/antdMessage';
 import {
@@ -14,6 +14,7 @@ import { updateMessageFeedback } from '@/lib/chatApi';
 import type { ChatMessage } from '@/types/chat';
 import AttachmentPreview from './AttachmentPreview';
 import MarkdownRenderer from './MarkdownRenderer';
+import CitationList, { extractCitedIndexes, type CitedItem } from './CitationList';
 import { OaIcon } from '@/components/OaIcon';
 
 interface MessageItemProps {
@@ -25,6 +26,16 @@ export default function MessageItem({ item, onRetry }: MessageItemProps) {
   const isAssistant = item.role === 'assistant';
   const { user } = useAuth();
   const [feedbackValue, setFeedbackValue] = useState(item.feedback);
+
+  // 末尾引用列表只展示正文中实际标注过的引用，保持与上标序号一一对应；
+  // 正文完全未标注时保底展示全部引用，避免丢失知识来源信息
+  const citedIndexes = useMemo(() => extractCitedIndexes(item.content), [item.content]);
+  const visibleCitations = useMemo<CitedItem[]>(() => {
+    const all = item.citations || [];
+    const withIndex = all.map((citation, i) => ({ index: i + 1, citation }));
+    if (!citedIndexes.size) return withIndex;
+    return withIndex.filter((entry) => citedIndexes.has(entry.index));
+  }, [item.citations, citedIndexes]);
 
   const setFeedback = async (feedback: 'like' | 'dislike' | 'none') => {
     if (typeof item.id !== 'number') return;
@@ -68,11 +79,17 @@ export default function MessageItem({ item, onRetry }: MessageItemProps) {
         )}
         <div className={`ai-message-content ${isAssistant && item.status === 'sending' ? 'ai-message-content-streaming' : ''}`}>
           {isAssistant ? (
-            <MarkdownRenderer content={item.content || (item.status === 'sending' ? '正在思考...' : '')} />
+            <MarkdownRenderer
+              content={item.content || (item.status === 'sending' ? '正在思考...' : '')}
+              citations={item.citations || []}
+            />
           ) : (
             <div className="ai-message-user-text">{item.content}</div>
           )}
         </div>
+        {isAssistant && item.status === 'success' && visibleCitations.length > 0 && (
+          <CitationList citations={visibleCitations} />
+        )}
         {isAssistant && item.status !== 'sending' && (
           <Space size={2} className="ai-message-actions">
             <Tooltip title="复制回复">
