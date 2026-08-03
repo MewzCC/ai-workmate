@@ -49,6 +49,11 @@ public class SiliconflowRerankService implements RerankService {
     }
 
     @Override
+    public String model() {
+        return rerankProperties.getModel();
+    }
+
+    @Override
     public List<RankedItem> rerank(String query, List<String> documents, int topN) {
         if (!configured()) {
             throw new BusinessException(ErrorCode.EMBEDDING_UNAVAILABLE, "重排服务未配置");
@@ -88,10 +93,6 @@ public class SiliconflowRerankService implements RerankService {
                     model(), documents.size(), ex);
             throw new BusinessException(ErrorCode.EMBEDDING_RESPONSE_INVALID);
         }
-    }
-
-    private String model() {
-        return rerankProperties.getModel();
     }
 
     private String apiKey() {

@@ -68,9 +68,10 @@ function matchTypeTag(matchType: string) {
 
 interface OverviewTabProps {
   base: KnowledgeBase;
+  embedding: EmbeddingStatus | null;
 }
 
-function OverviewTab({ base }: OverviewTabProps) {
+function OverviewTab({ base, embedding }: OverviewTabProps) {
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
       <Card className="oa-domain-card" size="small" title="统计信息">
@@ -104,7 +105,11 @@ function OverviewTab({ base }: OverviewTabProps) {
               : '-'}
           </Descriptions.Item>
           <Descriptions.Item label="重排序模型">
-            {base.rerankModel || <Typography.Text type="secondary">未启用</Typography.Text>}
+            {base.rerankModel
+              ? base.rerankModel
+              : embedding?.rerankEnabled
+                ? <span>{embedding.rerankModel} <Typography.Text type="secondary">（全局配置）</Typography.Text></span>
+                : <Typography.Text type="secondary">未启用</Typography.Text>}
           </Descriptions.Item>
           <Descriptions.Item label="分块大小">{base.chunkSize} 字符</Descriptions.Item>
           <Descriptions.Item label="分块重叠">{base.chunkOverlap} 字符</Descriptions.Item>
@@ -841,6 +846,7 @@ export default function KnowledgeBaseDetail({ kbId }: { kbId: number }) {
   const router = useRouter();
   const [base, setBase] = useState<KnowledgeBase | null>(null);
   const [loading, setLoading] = useState(true);
+  const [embedding, setEmbedding] = useState<EmbeddingStatus | null>(null);
 
   const loadBase = useCallback(async () => {
     setLoading(true);
@@ -853,9 +859,18 @@ export default function KnowledgeBaseDetail({ kbId }: { kbId: number }) {
     }
   }, [kbId]);
 
+  const loadEmbedding = useCallback(async () => {
+    try {
+      setEmbedding(await knowledgeApi.embeddingStatus());
+    } catch {
+      setEmbedding(null);
+    }
+  }, []);
+
   useEffect(() => {
     void loadBase();
-  }, [loadBase]);
+    void loadEmbedding();
+  }, [loadBase, loadEmbedding]);
 
   if (loading && !base) {
     return (
@@ -910,7 +925,7 @@ export default function KnowledgeBaseDetail({ kbId }: { kbId: number }) {
         <Tabs
           defaultActiveKey="overview"
           items={[
-            { key: 'overview', label: '概览', children: <OverviewTab base={base} /> },
+            { key: 'overview', label: '概览', children: <OverviewTab base={base} embedding={embedding} /> },
             { key: 'docs', label: '文档管理', children: <DocsTab kbId={kbId} onChanged={loadBase} /> },
             { key: 'query', label: '知识库查询', children: <QueryTab kbId={kbId} /> },
             { key: 'settings', label: '设置', children: <SettingsTab base={base} onSaved={loadBase} /> },
