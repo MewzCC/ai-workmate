@@ -1,4 +1,8 @@
 import '@testing-library/jest-dom/vitest';
+import i18n from '@/i18n';
+
+// 初始化 react-i18next 实例并强制中文，保证测试用例按 zh-CN 文案断言
+await i18n.changeLanguage('zh-CN');
 
 class ResizeObserverMock implements ResizeObserver {
   observe() {}
