@@ -478,9 +478,9 @@
 
 .leave-workflow-panel__identity {
   display: grid;
-  grid-template-columns: 44px minmax(0, 1fr) 16px 44px minmax(0, 1fr);
+  grid-template-columns: 44px minmax(0, 0.9fr) 12px 44px minmax(0, 1.1fr);
   align-items: center;
-  gap: 9px;
+  gap: 8px;
   margin-top: 22px;
 }
 
@@ -491,7 +491,12 @@
 }
 
 .leave-workflow-panel__identity .ant-badge {
-  white-space: nowrap;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.leave-workflow-panel__identity > div .ant-typography {
+  word-break: break-word;
 }
 
 .leave-workflow-panel__identity .ant-avatar {
@@ -952,12 +957,21 @@
     width: 100%;
   }
   .leave-workflow-panel__identity {
-    grid-template-columns: 44px 1fr;
+    grid-template-columns: 44px minmax(0, 1fr);
+    gap: 12px;
   }
-  .leave-workflow-panel__identity > .leave-workflow-panel__arrow,
+  .leave-workflow-panel__identity > .leave-workflow-panel__arrow {
+    display: none;
+  }
   .leave-workflow-panel__identity > .ant-avatar:nth-of-type(2),
   .leave-workflow-panel__identity > div:nth-of-type(2) {
-    display: none;
+    margin-top: 8px;
+  }
+  .leave-workflow-panel__identity > .ant-avatar:nth-of-type(2) {
+    grid-column: 1;
+  }
+  .leave-workflow-panel__identity > div:nth-of-type(2) {
+    grid-column: 2;
   }
   .leave-metric-strip {
     grid-template-columns: 1fr 1fr;
