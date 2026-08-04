@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button, Popover, Tooltip, Typography } from 'antd';
 import { message as antMessage } from '@/lib/antdMessage';
 import { CheckOutlined, CopyOutlined } from '@ant-design/icons';
@@ -25,6 +26,7 @@ function decorateCitations(content: string): string {
 }
 
 export default function MarkdownRenderer({ content, className = '', citations = [] }: MarkdownRendererProps) {
+  const { t } = useTranslation();
   const decorated = useMemo(() => decorateCitations(content), [content]);
   return (
     <div className={`ai-markdown ${className}`.trim()}>
@@ -47,9 +49,9 @@ export default function MarkdownRenderer({ content, className = '', citations = 
                   title={citation.source}
                   content={
                     <div className="ai-citation-content">
-                      <p className="ai-citation-text">{citation.text || '（无内容）'}</p>
+                      <p className="ai-citation-text">{citation.text || t('chat.noContent')}</p>
                       <Typography.Text type="secondary" className="ai-citation-meta">
-                        相似度 {Math.min(100, Math.max(0, citation.score * 100)).toFixed(1)}%
+                        {t('chat.similarity', { score: Math.min(100, Math.max(0, citation.score * 100)).toFixed(1) })}
                       </Typography.Text>
                     </div>
                   }
@@ -58,7 +60,7 @@ export default function MarkdownRenderer({ content, className = '', citations = 
                     className="ai-inline-citation"
                     role="button"
                     tabIndex={0}
-                    aria-label={`查看引用内容：${citation.source}`}
+                    aria-label={t('chat.viewCitation', { source: citation.source })}
                   >
                     {label}
                   </sup>
@@ -93,6 +95,7 @@ interface CodeBlockProps {
 }
 
 function CodeBlock({ language, value }: CodeBlockProps) {
+  const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
 
   const copy = async () => {
@@ -101,7 +104,7 @@ function CodeBlock({ language, value }: CodeBlockProps) {
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1600);
     } catch {
-      antMessage.error('代码复制失败');
+      antMessage.error(t('chat.codeCopyFailed'));
     }
   };
 
@@ -109,11 +112,11 @@ function CodeBlock({ language, value }: CodeBlockProps) {
     <section className="ai-code-block">
       <header className="ai-code-block-header">
         <span>{language || 'text'}</span>
-        <Tooltip title={copied ? '已复制' : '复制代码'}>
+        <Tooltip title={copied ? t('chat.copied') : t('chat.copyCode')}>
           <Button
             type="text"
             size="small"
-            aria-label="复制代码"
+            aria-label={t('chat.copyCode')}
             icon={copied ? <CheckOutlined /> : <CopyOutlined />}
             onClick={() => void copy()}
           />

@@ -1,6 +1,7 @@
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { useTranslation } from 'react-i18next';
 import type { Message } from '@/types';
 
 interface Props {
@@ -9,12 +10,13 @@ interface Props {
 }
 
 export default function MessageBubble({ message, isStreaming }: Props) {
+  const { t, i18n } = useTranslation();
   const isUser = message.role === 'user';
 
   return (
     <div className={`wm-msg ${isUser ? 'user' : 'assistant'}`}>
       {/* 头像 */}
-      <div className="wm-avatar">{isUser ? '我' : 'AI'}</div>
+      <div className="wm-avatar">{isUser ? t('chat.avatarUser') : t('chat.avatarAssistant')}</div>
 
       <div className="wm-msg-body">
         {/* 消息内容 */}
@@ -72,7 +74,7 @@ export default function MessageBubble({ message, isStreaming }: Props) {
 
         {/* 时间戳 */}
         <div className="wm-msg-time">
-          {new Date(message.timestamp).toLocaleTimeString('zh-CN', {
+          {new Date(message.timestamp).toLocaleTimeString(i18n.language, {
             hour: '2-digit',
             minute: '2-digit',
           })}
@@ -86,6 +88,7 @@ export default function MessageBubble({ message, isStreaming }: Props) {
  * 复制代码按钮
  */
 function CopyButton({ text }: { text: string }) {
+  const { t } = useTranslation();
   const copy = () => {
     navigator.clipboard.writeText(text);
   };
@@ -95,7 +98,8 @@ function CopyButton({ text }: { text: string }) {
       type="button"
       onClick={copy}
       className="hover:opacity-80 transition-opacity"
-      title="复制代码"
+      title={t('common.copyCode')}
+      aria-label={t('common.copyCode')}
     >
       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />

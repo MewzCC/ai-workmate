@@ -122,3 +122,17 @@ OA AI 接口不得再提供伪造成功的 mock 能力：
 - 权限管理接口必须要求 `access:manage`，所有角色、路由和用户角色变更必须写入 `access_audit_log`。
 - `SUPER_ADMIN` 权限不可裁剪，且必须保证至少保留一名有效超级管理员。
 - 路由路径、父子关系、唯一性和组件白名单必须由服务端校验，不信任前端请求。
+
+## 国际化（i18n）
+
+详细规范见 `docs/rules/i18n-rules.md`，后端必须遵守以下要点：
+
+- 使用 Spring `MessageSource`（`ResourceBundleMessageSource`），basename 为 `i18n/messages`，编码 UTF-8；资源文件放在 `backend/src/main/resources/i18n/`。
+- 配置 `AcceptHeaderLocaleResolver`，支持 `zh-CN`、`en-US`，默认回退 `zh-CN`；其他 locale 一律回退，不抛异常。
+- `ErrorCode` 枚举新增 `messageKey` 字段（如 `error.auth_required`），最终文案由 `MessageSource` 按 locale 解析；保留 `defaultMessage` 仅作最终回退。
+- `GlobalExceptionHandler` 注入 `MessageSource` 与 `LocaleResolver`，`BusinessException` 携带 `ErrorCode` 时按当前 locale 解析消息。
+- `@Valid` 校验失败消息走 `ValidationMessages.properties`，key 形如 `validation.password.size`，禁止在注解 `message` 中直接写中文。
+- 禁止在 controller/service 直接拼接中英文返回给前端；`Result.error(...)` 的消息必须来自 MessageSource 解析。
+- SSE 流中的错误事件同样按当前 locale 输出可读消息，禁止只抛中文。
+- 前端请求统一携带 `Accept-Language`，与当前 i18next 语言一致。
+- 携带不同 `Accept-Language` 请求时，错误响应 `message` 字段语言必须正确；`mvn test` 通过。

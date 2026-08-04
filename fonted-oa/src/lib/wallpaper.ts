@@ -1,4 +1,5 @@
 import type { Area } from 'react-easy-crop';
+import i18n from '@/i18n';
 
 const MAX_STORAGE_LENGTH = 3_800_000;
 const PRIMARY_WIDTH = 2560;
@@ -6,7 +7,7 @@ const PRIMARY_HEIGHT = 1440;
 
 export function createWallpaperSource(file: File): string {
   if (!file.type.startsWith('image/')) {
-    throw new Error('请选择图片文件');
+    throw new Error(i18n.t('errors.wallpaper.selectImage'));
   }
   return URL.createObjectURL(file);
 }
@@ -27,7 +28,7 @@ export async function createCroppedWallpaper(
 
   const compact = renderCrop(rotatedCanvas, crop, 1920, 1080, 0.72);
   if (compact.length > MAX_STORAGE_LENGTH) {
-    throw new Error('裁剪后的图片仍然过大，请缩小裁剪范围或选择尺寸更小的图片');
+    throw new Error(i18n.t('errors.wallpaper.cropTooLarge'));
   }
   return compact;
 }
@@ -36,7 +37,7 @@ function loadImage(source: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const image = new Image();
     image.onload = () => resolve(image);
-    image.onerror = () => reject(new Error('无法读取该图片'));
+    image.onerror = () => reject(new Error(i18n.t('errors.wallpaper.readImageFailed')));
     image.src = source;
   });
 }
@@ -85,6 +86,6 @@ function renderCrop(
 
 function getCanvasContext(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
   const context = canvas.getContext('2d');
-  if (!context) throw new Error('当前浏览器不支持壁纸裁剪');
+  if (!context) throw new Error(i18n.t('errors.wallpaper.canvasUnsupported'));
   return context;
 }

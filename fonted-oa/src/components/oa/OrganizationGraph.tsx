@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react';
 import { Graph as G6Graph, NodeEvent } from '@antv/g6';
 import type { NodeData } from '@antv/g6';
+import { useTranslation } from 'react-i18next';
 import type { DepartmentNode } from './OrganizationTreePage';
 
 interface OrganizationGraphProps {
@@ -203,7 +204,7 @@ interface FlatEdge {
   target: string;
 }
 
-function buildFlatData(roots: DepartmentNode[], selectedId?: number): {
+function buildFlatData(roots: DepartmentNode[], selectedId: number | undefined, virtualRootName: string): {
   nodes: FlatNode[];
   edges: FlatEdge[];
 } {
@@ -265,7 +266,7 @@ function buildFlatData(roots: DepartmentNode[], selectedId?: number): {
     nodes.push(
       makeNode(
         virtualId,
-        '集团',
+        virtualRootName,
         '',
         roots.reduce((s, r) => s + r.employeeCount, 0),
         roots.length,
@@ -290,6 +291,7 @@ export default function OrganizationGraph({
   onSelect,
   animKey,
 }: OrganizationGraphProps) {
+  const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
   const onSelectRef = useRef(onSelect);
   const selectedIdRef = useRef(selectedId);
@@ -345,7 +347,7 @@ export default function OrganizationGraph({
         return SIZES[Math.min(Math.max(level, 0), SIZES.length - 1)];
       };
 
-      const { nodes, edges } = buildFlatData(data, selectedIdRef.current);
+      const { nodes, edges } = buildFlatData(data, selectedIdRef.current, t('organization.graph.virtualRoot'));
 
       const getNodeStyle = (datum: NodeData): Record<string, unknown> => {
         const d = (datum.data || {}) as unknown as NodeCustomData;
@@ -360,7 +362,7 @@ export default function OrganizationGraph({
         // 徽标
         const badges: Record<string, unknown>[] = [];
         badges.push({
-          text: `${d.employeeCount}人`,
+          text: t('organization.graph.employeeCountBadge', { count: d.employeeCount }),
           placement: 'right-top',
           fill: '#ffffff',
           background: true,
@@ -374,7 +376,7 @@ export default function OrganizationGraph({
         });
         if (d.childrenCount > 0) {
           badges.push({
-            text: `${d.childrenCount} 子部门`,
+            text: t('organization.graph.childrenCountBadge', { count: d.childrenCount }),
             placement: 'right-bottom',
             fill: tokens.isDark ? '#a6adbb' : '#595959',
             background: true,

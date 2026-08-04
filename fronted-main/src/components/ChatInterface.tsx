@@ -1,20 +1,22 @@
 import { useState, useRef, useEffect } from 'react';
 import { ArrowUp, Code2, Sparkles, Database, Terminal } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useChatStore } from '@/store/chatStore';
 import MessageBubble from './MessageBubble';
 
-const SUGGESTIONS = [
-  { icon: Code2, text: '帮我写一个 Spring Boot 接口' },
-  { icon: Sparkles, text: '解释一下 RAG 是什么' },
-  { icon: Database, text: '如何优化 SQL 查询性能？' },
-  { icon: Terminal, text: '用 Python 写一个快速排序' },
-];
-
 export default function ChatInterface() {
+  const { t } = useTranslation();
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const { messages, isLoading, streamingContent, error, sendMessage } = useChatStore();
+
+  const SUGGESTIONS = [
+    { icon: Code2, text: t('chat.suggestions.0') },
+    { icon: Sparkles, text: t('chat.suggestions.1') },
+    { icon: Database, text: t('chat.suggestions.2') },
+    { icon: Terminal, text: t('chat.suggestions.3') },
+  ];
 
   // 自动滚动到底部
   useEffect(() => {
@@ -47,16 +49,16 @@ export default function ChatInterface() {
       {/* 顶部标题栏 */}
       <header className="wm-chat-header">
         <div className="wm-chat-head-left">
-          <span className="wm-chat-title">AI 对话</span>
+          <span className="wm-chat-title">{t('chat.title')}</span>
           <span className="wm-chat-model">
             <i className="wm-chat-dot" />
-            DeepSeek
+            {t('chat.model')}
           </span>
         </div>
         <div className="wm-chat-head-right">
           <span className="wm-chat-status">
             <i className={isLoading ? 'wm-is-busy' : ''} />
-            {isLoading ? '回复中...' : '在线'}
+            {isLoading ? t('chat.statusReplying') : t('chat.statusOnline')}
           </span>
         </div>
       </header>
@@ -68,10 +70,8 @@ export default function ChatInterface() {
             <div className="wm-chat-orb">
               <Sparkles className="h-8 w-8" />
             </div>
-            <h2 className="wm-chat-hello">开始和 AI 对话吧</h2>
-            <p>
-              我是你的企业 AI 助手，可以回答问题、编写代码、分析文档。选择一个示例，或直接输入消息开始。
-            </p>
+            <h2 className="wm-chat-hello">{t('chat.emptyTitle')}</h2>
+            <p>{t('chat.emptyDesc')}</p>
             <div className="wm-chat-suggest">
               {SUGGESTIONS.map((s, i) => (
                 <button
@@ -111,7 +111,7 @@ export default function ChatInterface() {
           {/* 加载中的打字指示器 */}
           {isLoading && !streamingContent && (
             <div className="wm-msg assistant">
-              <div className="wm-avatar">AI</div>
+              <div className="wm-avatar">{t('chat.avatarAssistant')}</div>
               <div className="wm-msg-body">
                 <div className="wm-typing">
                   <i />
@@ -137,7 +137,7 @@ export default function ChatInterface() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="输入消息，Shift+Enter 换行，Enter 发送"
+            placeholder={t('chat.placeholder')}
             rows={1}
             disabled={isLoading}
             className="wm-chat-textarea"
@@ -147,7 +147,7 @@ export default function ChatInterface() {
             onClick={handleSend}
             disabled={!input.trim() || isLoading}
             className="wm-chat-send"
-            aria-label="发送"
+            aria-label={t('common.send')}
           >
             {isLoading ? (
               <svg className="h-5 w-5 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -159,7 +159,7 @@ export default function ChatInterface() {
             )}
           </button>
         </div>
-        <p className="wm-chat-foot">AI WorkMate 可能产生不准确信息，请核实重要内容</p>
+        <p className="wm-chat-foot">{t('chat.foot')}</p>
       </div>
     </div>
   );

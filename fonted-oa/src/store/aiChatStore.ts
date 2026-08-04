@@ -10,6 +10,7 @@ import type { ChatAttachment, ChatConversation, ChatMessage, ChatMessageCitation
 import { DEFAULT_AI_MODEL, normalizeAiModel } from '@/config/aiModels';
 import { StreamTypewriter } from '@/lib/StreamTypewriter';
 import { uuid } from '@/lib/uuid';
+import i18n from '@/i18n';
 
 const SETTINGS_KEY = 'workmeta-ai-chat-settings';
 const controllers = new Map<number, AbortController>();
@@ -91,7 +92,7 @@ export const useAiChatStore = create<AiChatState>((set, get) => ({
       const messages = await listMessages(id);
       set((state) => ({ messagesByConversation: { ...state.messagesByConversation, [id]: messages } }));
     } catch (error) {
-      antMessage.error(error instanceof Error ? error.message : '聊天记录加载失败');
+      antMessage.error(error instanceof Error ? error.message : i18n.t('chat.loadHistoryFailed'));
     }
   },
 
@@ -134,7 +135,7 @@ export const useAiChatStore = create<AiChatState>((set, get) => ({
           messagesByConversation: { ...state.messagesByConversation, [conversation.id]: [] },
         }));
       } catch (error) {
-        antMessage.error(error instanceof Error ? error.message : '新建会话失败');
+        antMessage.error(error instanceof Error ? error.message : i18n.t('chat.createConversationFailed'));
         return;
       }
     }
@@ -147,7 +148,7 @@ export const useAiChatStore = create<AiChatState>((set, get) => ({
           [conversationId!]: [...(state.pendingAttachments[conversationId!] || []), attachment],
         } }));
       } catch (error) {
-        antMessage.error(`${file.name}：${error instanceof Error ? error.message : '上传失败'}`);
+        antMessage.error(`${file.name}：${error instanceof Error ? error.message : i18n.t('chat.uploadFailed')}`);
       }
     }
   },
@@ -176,13 +177,13 @@ export const useAiChatStore = create<AiChatState>((set, get) => ({
           messagesByConversation: { ...current.messagesByConversation, [conversation.id]: [] },
         }));
       } catch (error) {
-        antMessage.error(error instanceof Error ? error.message : '新建会话失败');
+        antMessage.error(error instanceof Error ? error.message : i18n.t('chat.createConversationFailed'));
         return;
       }
     }
     if (controllers.has(conversationId)) return;
     const attachments = state.pendingAttachments[conversationId] || [];
-    const content = rawContent.trim() || '请分析这些附件。';
+    const content = rawContent.trim() || i18n.t('chat.defaultAttachmentPrompt');
     const now = new Date().toISOString();
     const userId = `local-user-${uuid()}`;
     const assistantId = `local-assistant-${uuid()}`;
@@ -236,7 +237,7 @@ export const useAiChatStore = create<AiChatState>((set, get) => ({
       } else {
         await typewriter?.finish();
       }
-      if (!controller.signal.aborted) antMessage.error(error instanceof Error ? error.message : 'AI 回复失败');
+      if (!controller.signal.aborted) antMessage.error(error instanceof Error ? error.message : i18n.t('chat.aiReplyFailed'));
       updateMessage(set, conversationId, assistantId, { status: 'failed' });
     } finally {
       controllers.delete(conversationId);

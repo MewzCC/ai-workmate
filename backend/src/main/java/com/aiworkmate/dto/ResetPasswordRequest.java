@@ -7,10 +7,10 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 public record ResetPasswordRequest(
-        @NotBlank(message = "企业邮箱不能为空") @Email(message = "企业邮箱格式不正确") String email,
-        @NotBlank(message = "邮箱验证码不能为空")
-        @Pattern(regexp = "^\\d{6}$", message = "邮箱验证码必须为 6 位数字") String emailCode,
-        @NotBlank(message = "新密码不能为空")
-        @Size(min = 8, max = 32, message = "密码长度必须为 8-32 位")
+        @NotBlank(message = "{validation.email.notBlank}") @Email(message = "{validation.email.invalid}") String email,
+        @NotBlank(message = "{validation.emailCode.notBlank}")
+        @Pattern(regexp = "^\\d{6}$", message = "{validation.emailCode.pattern}") String emailCode,
+        @NotBlank(message = "{validation.newPassword.notBlank}")
+        @Size(min = 8, max = 32, message = "{validation.password.length}")
         @Pattern(regexp = PasswordPolicy.PASSWORD_REGEX, message = PasswordPolicy.PASSWORD_MESSAGE) String newPassword) {
 }

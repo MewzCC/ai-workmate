@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Alert, Button, Image, Modal, Spin, Typography } from 'antd';
 import { CloseOutlined } from '@ant-design/icons';
 import { loadAttachmentContent, loadAttachmentText } from '@/lib/chatApi';
@@ -15,6 +16,7 @@ interface AttachmentPreviewProps {
 }
 
 export default function AttachmentPreview({ attachment, removable, onRemove }: AttachmentPreviewProps) {
+  const { t } = useTranslation();
   const [source, setSource] = useState(attachment.previewUrl || '');
   const [loading, setLoading] = useState(attachment.type === 'image' && !attachment.previewUrl);
   const [markdownOpen, setMarkdownOpen] = useState(false);
@@ -60,7 +62,7 @@ export default function AttachmentPreview({ attachment, removable, onRemove }: A
     try {
       setMarkdownContent(await loadAttachmentText(attachment.id));
     } catch (error) {
-      setMarkdownError(error instanceof Error ? error.message : 'Markdown 文档加载失败');
+      setMarkdownError(error instanceof Error ? error.message : t('chat.markdownLoadFailed'));
     } finally {
       setMarkdownLoading(false);
     }
@@ -80,7 +82,7 @@ export default function AttachmentPreview({ attachment, removable, onRemove }: A
             icon={<span className="ai-attachment-file-icon"><OaIcon name={attachmentIcon(attachment)} /></span>}
             onClick={() => void openMarkdown()}
           >
-            <AttachmentMeta attachment={attachment} action="点击预览" />
+            <AttachmentMeta attachment={attachment} action={t('chat.clickToPreview')} />
           </Button>
         ) : (
           <>
@@ -93,7 +95,7 @@ export default function AttachmentPreview({ attachment, removable, onRemove }: A
             type="text"
             size="small"
             icon={<CloseOutlined />}
-            aria-label={`移除 ${attachment.name}`}
+            aria-label={t('chat.removeAttachment', { name: attachment.name })}
             onClick={onRemove}
           />
         )}
@@ -109,7 +111,7 @@ export default function AttachmentPreview({ attachment, removable, onRemove }: A
       >
         <Spin spinning={markdownLoading}>
           {markdownError ? (
-            <Alert type="error" showIcon title="文档预览失败" description={markdownError} />
+            <Alert type="error" showIcon title={t('chat.previewFailed')} description={markdownError} />
           ) : (
             <MarkdownRenderer content={markdownContent} className="ai-markdown-document" />
           )}
@@ -120,11 +122,12 @@ export default function AttachmentPreview({ attachment, removable, onRemove }: A
 }
 
 function AttachmentMeta({ attachment, action }: { attachment: ChatAttachment; action?: string }) {
+  const { t } = useTranslation();
   return (
     <span className="ai-attachment-meta">
       <Typography.Text ellipsis title={attachment.name}>{attachment.name}</Typography.Text>
       <Typography.Text type="secondary">
-        {formatBytes(attachment.size)} · {attachment.parsed ? '已解析' : '待解析'}{action ? ` · ${action}` : ''}
+        {formatBytes(attachment.size)} · {attachment.parsed ? t('chat.parsed') : t('chat.pendingParse')}{action ? ` · ${action}` : ''}
       </Typography.Text>
     </span>
   );

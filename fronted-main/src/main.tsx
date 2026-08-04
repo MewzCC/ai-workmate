@@ -1,6 +1,9 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import HomePage from '@/components/home/HomePage';
+import I18nProvider from '@/i18n/I18nProvider';
+// 初始化 i18next（必须在渲染前执行副作用）
+import '@/i18n';
 
 // 字体：用 @fontsource 本地打包，替代原 next/font/google
 // Inter: 300-900，对应原 --font-geist-sans
@@ -26,6 +29,8 @@ if (!container) throw new Error('Root container #root not found');
 
 createRoot(container).render(
   <StrictMode>
-    <HomePage />
+    <I18nProvider>
+      <HomePage />
+    </I18nProvider>
   </StrictMode>,
 );

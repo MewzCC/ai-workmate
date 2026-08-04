@@ -7,6 +7,7 @@ import {
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
 } from 'react';
+import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
 import { Button, Card, Space, Tag } from 'antd';
 import { OaIcon } from '@/components/OaIcon';
@@ -61,6 +62,7 @@ function readStoredPosition(): PanelPosition | null {
 }
 
 export default function AiMiniPanel({ onOpenAi }: AiMiniPanelProps) {
+  const { t } = useTranslation();
   const [mounted, setMounted] = useState(false);
   const [position, setPosition] = useState<PanelPosition | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -168,7 +170,7 @@ export default function AiMiniPanel({ onOpenAi }: AiMiniPanelProps) {
       ref={panelRef}
       className="oa-ai-mini"
       size="small"
-      aria-label="可拖动的 AI 快捷卡片"
+      aria-label={t('oa.aiMini.ariaLabel')}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={finishDragging}
@@ -188,15 +190,15 @@ export default function AiMiniPanel({ onOpenAi }: AiMiniPanelProps) {
         <div
           className="oa-ai-mini-drag-handle"
         >
-          <Tag color="purple">AI 快捷卡片</Tag>
+          <Tag color="purple">{t('oa.aiMini.tag')}</Tag>
           <span className="oa-ai-mini-drag-hint" aria-hidden="true">
             <span className="oa-ai-mini-grip" />
-            拖动
+            {t('oa.aiMini.drag')}
           </span>
         </div>
-        <strong>需要我接手当前流程吗？</strong>
-        <Button type="primary" icon={<OaIcon name="ai" />} onClick={() => onOpenAi('帮我总结当前工作台的风险和下一步动作')}>
-          生成建议
+        <strong>{t('oa.aiMini.question')}</strong>
+        <Button type="primary" icon={<OaIcon name="ai" />} onClick={() => onOpenAi(t('oa.aiMini.suggestionPrompt'))}>
+          {t('oa.aiMini.generateSuggestion')}
         </Button>
       </Space>
     </Card>,

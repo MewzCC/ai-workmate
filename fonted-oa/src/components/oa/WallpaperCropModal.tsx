@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Button, Modal, Segmented, Slider, Space, Typography } from 'antd';
 import { RedoOutlined, RotateLeftOutlined, RotateRightOutlined } from '@ant-design/icons';
+import { useTranslation } from 'react-i18next';
 import Cropper, { type Area, type Point } from 'react-easy-crop';
 
 const ASPECT_OPTIONS = [
@@ -26,6 +27,7 @@ export default function WallpaperCropModal({
   onCancel,
   onConfirm,
 }: WallpaperCropModalProps) {
+  const { t } = useTranslation();
   const [crop, setCrop] = useState<Point>({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [rotation, setRotation] = useState(0);
@@ -50,7 +52,7 @@ export default function WallpaperCropModal({
 
   return (
     <Modal
-      title="裁剪壁纸"
+      title={t('profile.crop.title')}
       width={880}
       open={open}
       destroyOnHidden
@@ -58,7 +60,7 @@ export default function WallpaperCropModal({
       closable={!confirming}
       onCancel={onCancel}
       footer={[
-        <Button key="cancel" disabled={confirming} onClick={onCancel}>取消</Button>,
+        <Button key="cancel" disabled={confirming} onClick={onCancel}>{t('common.cancel')}</Button>,
         <Button
           key="confirm"
           type="primary"
@@ -66,12 +68,12 @@ export default function WallpaperCropModal({
           disabled={!croppedArea}
           onClick={() => croppedArea && onConfirm(croppedArea, rotation)}
         >
-          应用裁剪
+          {t('profile.crop.apply')}
         </Button>,
       ]}
     >
       <Typography.Paragraph type="secondary">
-        拖动图片调整位置，通过下方控件调整大小、方向和裁剪比例。
+        {t('profile.crop.hint')}
       </Typography.Paragraph>
       <div className="oa-wallpaper-crop-stage">
         {source && (
@@ -90,7 +92,7 @@ export default function WallpaperCropModal({
       </div>
       <div className="oa-wallpaper-crop-controls">
         <div>
-          <Typography.Text>裁剪比例</Typography.Text>
+          <Typography.Text>{t('profile.crop.ratio')}</Typography.Text>
           <Segmented
             block
             options={ASPECT_OPTIONS}
@@ -99,17 +101,17 @@ export default function WallpaperCropModal({
           />
         </div>
         <div>
-          <Typography.Text>图片大小</Typography.Text>
+          <Typography.Text>{t('profile.crop.size')}</Typography.Text>
           <Slider min={1} max={3} step={0.01} value={zoom} onChange={setZoom} />
         </div>
         <div>
-          <Typography.Text>旋转角度</Typography.Text>
+          <Typography.Text>{t('profile.crop.rotation')}</Typography.Text>
           <Slider min={-180} max={180} step={1} value={rotation} onChange={setRotation} />
         </div>
         <Space wrap>
-          <Button icon={<RotateLeftOutlined />} onClick={() => setRotation((value) => Math.max(-180, value - 90))}>向左旋转</Button>
-          <Button icon={<RotateRightOutlined />} onClick={() => setRotation((value) => Math.min(180, value + 90))}>向右旋转</Button>
-          <Button icon={<RedoOutlined />} onClick={reset}>重置</Button>
+          <Button icon={<RotateLeftOutlined />} onClick={() => setRotation((value) => Math.max(-180, value - 90))}>{t('profile.crop.rotateLeft')}</Button>
+          <Button icon={<RotateRightOutlined />} onClick={() => setRotation((value) => Math.min(180, value + 90))}>{t('profile.crop.rotateRight')}</Button>
+          <Button icon={<RedoOutlined />} onClick={reset}>{t('common.reset')}</Button>
         </Space>
       </div>
     </Modal>

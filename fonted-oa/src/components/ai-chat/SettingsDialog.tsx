@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Alert, Button, Form, Input, InputNumber, Modal, Select, Space, Switch, Typography } from 'antd';
 import { AI_MODEL_OPTIONS } from '@/config/aiModels';
 import type { ChatSettings } from '@/types/chat';
@@ -14,36 +15,37 @@ interface SettingsDialogProps {
 }
 
 export default function SettingsDialog({ open, settings, onClose, onSave, onClearAll }: SettingsDialogProps) {
+  const { t } = useTranslation();
   const [form] = Form.useForm<ChatSettings>();
   useEffect(() => { if (open) form.setFieldsValue(settings); }, [form, open, settings]);
 
   return (
-    <Modal title="AI Workspace 设置" open={open} onCancel={onClose} onOk={() => form.submit()} okText="保存设置">
+    <Modal title={t('chat.settingsTitle')} open={open} onCancel={onClose} onOk={() => form.submit()} okText={t('chat.saveSettings')}>
       <Form form={form} layout="vertical" onFinish={(values) => { onSave({ ...settings, ...values }); onClose(); }}>
         <Form.Item label="API Key">
-          <Input.Password value="由服务端环境变量管理" disabled />
-          <Typography.Text type="secondary">密钥不会下发到浏览器，请通过后端 `AI_API_KEY` 配置。</Typography.Text>
+          <Input.Password value={t('chat.apiKeyManaged')} disabled />
+          <Typography.Text type="secondary">{t('chat.apiKeyHint')}</Typography.Text>
         </Form.Item>
-        <Form.Item name="model" label="对话模型" rules={[{ required: true, message: '请选择对话模型' }]}>
+        <Form.Item name="model" label={t('chat.model')} rules={[{ required: true, message: t('chat.selectModelRequired') }]}>
           <Select options={[...AI_MODEL_OPTIONS]} />
         </Form.Item>
-        <Form.Item name="maxContextRounds" label="最大上下文轮数" rules={[{ required: true }]}>
+        <Form.Item name="maxContextRounds" label={t('chat.maxContextRounds')} rules={[{ required: true }]}>
           <InputNumber min={1} max={20} className="ai-settings-number" />
         </Form.Item>
-        <Form.Item name="stream" label="流式输出" valuePropName="checked">
+        <Form.Item name="stream" label={t('chat.streamOutput')} valuePropName="checked">
           <Switch />
         </Form.Item>
-        <Alert type="info" showIcon title="接口地址由服务端 AI_BASE_URL 管理，避免凭据和内部网关信息暴露。" />
+        <Alert type="info" showIcon title={t('chat.baseUrlHint')} />
       </Form>
       <div className="ai-settings-danger">
         <Space orientation="vertical">
-          <Typography.Text strong>数据管理</Typography.Text>
+          <Typography.Text strong>{t('chat.dataManagement')}</Typography.Text>
           <Button danger onClick={() => Modal.confirm({
-            title: '清空全部聊天记录？',
-            content: '该操作会删除当前账号的全部会话、消息和附件，且无法恢复。',
-            okText: '确认清空', okButtonProps: { danger: true }, cancelText: '取消',
+            title: t('chat.clearAllTitle'),
+            content: t('chat.clearAllContent'),
+            okText: t('chat.confirmClear'), okButtonProps: { danger: true }, cancelText: t('common.cancel'),
             onOk: onClearAll,
-          })}>清空全部聊天记录</Button>
+          })}>{t('chat.clearAllRecords')}</Button>
         </Space>
       </div>
     </Modal>

@@ -2,14 +2,19 @@
 
 import { Avatar, Button, Dropdown, Layout, Space } from 'antd';
 import { MenuOutlined } from '@ant-design/icons';
+import { Languages } from 'lucide-react';
 import { message } from '@/lib/antdMessage';
 import type { MenuProps } from 'antd';
+import { useTranslation } from 'react-i18next';
 import type { OaRole } from '@/types/oa';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { OaIcon } from '@/components/OaIcon';
 import { useRouter } from '@/lib/nextCompat';
 import { useCallback, useEffect, useState } from 'react';
 import ProfileSettingsModal from '@/components/profile/ProfileSettingsModal';
+import LanguageSwitcher from '@/components/LanguageSwitcher';
+import { useLocale } from '@/i18n/useLocale';
+import type { AppLocale } from '@/i18n';
 import HelpDrawer from './HelpDrawer';
 import {
   fetchUnreadCount,
@@ -33,6 +38,8 @@ interface TopbarProps {
 export default function Topbar({ role, pageTitle, onOpenAppearance, onOpenAi, onToggleMenu }: TopbarProps) {
   const { user, logout } = useAuth();
   const router = useRouter();
+  const { t } = useTranslation();
+  const { locale, changeLanguage } = useLocale();
   const [profileOpen, setProfileOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -76,19 +83,19 @@ export default function Topbar({ role, pageTitle, onOpenAppearance, onOpenAi, on
   };
 
   const handleHelp = () => setHelpOpen(true);
-  const handleNewFlow = () => onOpenAi('帮我新建一个跨部门采购申请，并检查审批链是否完整');
-  const handleExport = () => message.warning('真实导出能力尚未接入');
+  const handleNewFlow = () => onOpenAi(t('oa.topbar.newFlowPrompt'));
+  const handleExport = () => message.warning(t('oa.topbar.exportUnavailable'));
 
   // 通知中心下拉内容（真实数据）
   const notifyContent = (
     <div className="oa-notify-panel">
       <div className="oa-notify-panel-head">
-        <span className="oa-notify-panel-title">通知中心</span>
-        <span className="oa-notify-panel-badge">{unreadCount} 条未读</span>
+        <span className="oa-notify-panel-title">{t('oa.topbar.notifyCenter')}</span>
+        <span className="oa-notify-panel-badge">{t('oa.topbar.unreadCount', { count: unreadCount })}</span>
       </div>
       <ul className="oa-notify-panel-list">
         {notifyItems.length === 0 ? (
-          <li className="oa-notify-empty">暂无通知</li>
+          <li className="oa-notify-empty">{t('oa.topbar.noNotifications')}</li>
         ) : notifyItems.map((item) => (
           <li
             key={item.id}
@@ -116,17 +123,17 @@ export default function Topbar({ role, pageTitle, onOpenAppearance, onOpenAi, on
       </ul>
       <div className="oa-notify-panel-foot">
         <button type="button" className="oa-notify-link" onClick={() => router.push('/oa/messages')}>
-          查看全部
+          {t('oa.topbar.viewAll')}
         </button>
       </div>
     </div>
   );
 
   const avatarMenuItems: MenuProps['items'] = [
-    { key: 'profile', icon: <OaIcon name="avatar" />, label: '个人资料' },
-    { key: 'appearance', icon: <OaIcon name="appearance" />, label: '外观设置' },
+    { key: 'profile', icon: <OaIcon name="avatar" />, label: t('oa.topbar.profile') },
+    { key: 'appearance', icon: <OaIcon name="appearance" />, label: t('oa.topbar.appearance') },
     { type: 'divider' },
-    { key: 'logout', icon: <OaIcon name="logout" />, label: '退出登录', danger: true },
+    { key: 'logout', icon: <OaIcon name="logout" />, label: t('oa.topbar.logout'), danger: true },
   ];
 
   const onAvatarMenuClick: MenuProps['onClick'] = ({ key }) => {
@@ -135,17 +142,20 @@ export default function Topbar({ role, pageTitle, onOpenAppearance, onOpenAi, on
     else if (key === 'logout') void handleLogout();
   };
 
-  // 移动端"更多"菜单：业务功能 + 个人/外观/退出
+  // 移动端"更多"菜单：业务功能 + 语言切换 + 个人/外观/退出
+  const nextLocale: AppLocale = locale === 'zh-CN' ? 'en-US' : 'zh-CN';
   const moreMenuItems: MenuProps['items'] = [
-    { key: 'newFlow', icon: <OaIcon name="add" />, label: '新建流程' },
-    { key: 'notify', icon: <OaIcon name="notification" />, label: '通知' },
-    { key: 'export', icon: <OaIcon name="export" />, label: '导出看板' },
-    { key: 'help', icon: <OaIcon name="help" />, label: '帮助文档' },
+    { key: 'newFlow', icon: <OaIcon name="add" />, label: t('oa.topbar.newFlow') },
+    { key: 'notify', icon: <OaIcon name="notification" />, label: t('oa.topbar.notify') },
+    { key: 'export', icon: <OaIcon name="export" />, label: t('oa.topbar.exportBoard') },
+    { key: 'help', icon: <OaIcon name="help" />, label: t('oa.topbar.help') },
     { type: 'divider' },
-    { key: 'profile', icon: <OaIcon name="avatar" />, label: '个人资料' },
-    { key: 'appearance', icon: <OaIcon name="appearance" />, label: '外观设置' },
+    { key: 'switchLanguage', icon: <Languages className="h-4 w-4" />, label: nextLocale === 'zh-CN' ? t('common.languageZh') : t('common.languageEn') },
     { type: 'divider' },
-    { key: 'logout', icon: <OaIcon name="logout" />, label: '退出登录', danger: true },
+    { key: 'profile', icon: <OaIcon name="avatar" />, label: t('oa.topbar.profile') },
+    { key: 'appearance', icon: <OaIcon name="appearance" />, label: t('oa.topbar.appearance') },
+    { type: 'divider' },
+    { key: 'logout', icon: <OaIcon name="logout" />, label: t('oa.topbar.logout'), danger: true },
   ];
 
   const onMoreMenuClick: MenuProps['onClick'] = ({ key }) => {
@@ -153,6 +163,7 @@ export default function Topbar({ role, pageTitle, onOpenAppearance, onOpenAi, on
     else if (key === 'notify') router.push('/oa/messages');
     else if (key === 'export') handleExport();
     else if (key === 'help') handleHelp();
+    else if (key === 'switchLanguage') changeLanguage(nextLocale);
     else if (key === 'profile') setProfileOpen(true);
     else if (key === 'appearance') onOpenAppearance();
     else if (key === 'logout') void handleLogout();
@@ -163,7 +174,7 @@ export default function Topbar({ role, pageTitle, onOpenAppearance, onOpenAi, on
       <Button
         type="text"
         className="oa-header-menu-btn"
-        aria-label="展开或收起菜单"
+        aria-label={t('oa.topbar.toggleMenu')}
         icon={<MenuOutlined />}
         onClick={onToggleMenu}
       />
@@ -173,14 +184,15 @@ export default function Topbar({ role, pageTitle, onOpenAppearance, onOpenAi, on
 
       <div className="oa-header-right">
         <Space wrap className="oa-header-actions">
+          <LanguageSwitcher />
           <Button icon={<OaIcon name="help" />} onClick={handleHelp}>
-            帮助文档
+            {t('oa.topbar.help')}
           </Button>
           <Button type="primary" icon={<OaIcon name="add" />} onClick={handleNewFlow}>
-            新建流程
+            {t('oa.topbar.newFlow')}
           </Button>
           <Button icon={<OaIcon name="export" />} onClick={handleExport}>
-            导出看板
+            {t('oa.topbar.exportBoard')}
           </Button>
         </Space>
 
@@ -191,7 +203,7 @@ export default function Topbar({ role, pageTitle, onOpenAppearance, onOpenAi, on
           placement="bottomRight"
           className="oa-header-more"
         >
-          <Button type="text" className="oa-header-more-btn" aria-label="更多操作">
+          <Button type="text" className="oa-header-more-btn" aria-label={t('oa.topbar.moreActions')}>
             <OaIcon name="more" />
           </Button>
         </Dropdown>
@@ -203,7 +215,7 @@ export default function Topbar({ role, pageTitle, onOpenAppearance, onOpenAi, on
           placement="bottomRight"
           className="oa-header-notify-desktop"
         >
-          <Button type="text" className="oa-notify-trigger" aria-label="通知">
+          <Button type="text" className="oa-notify-trigger" aria-label={t('oa.topbar.notifications')}>
             <OaIcon name="notification" />
             {unreadCount > 0 && <span className="oa-notify-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>}
           </Button>

@@ -20,6 +20,7 @@ import {
   type KnowledgeChunk,
   type KnowledgeDocumentDetail,
 } from '@/lib/knowledgeApi';
+import { useTranslation } from 'react-i18next';
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -40,6 +41,7 @@ export default function DocumentDetailDrawer({
   onClose,
   onChanged,
 }: DocumentDetailDrawerProps) {
+  const { t } = useTranslation();
   const [detail, setDetail] = useState<KnowledgeDocumentDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [deletingChunkId, setDeletingChunkId] = useState<number | null>(null);
@@ -51,11 +53,11 @@ export default function DocumentDetailDrawer({
     try {
       setDetail(await knowledgeApi.getDocument(documentId));
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '加载文档详情失败');
+      message.error(error instanceof Error ? error.message : t('knowledge.drawerLoadFailed'));
     } finally {
       setLoading(false);
     }
-  }, [open, documentId]);
+  }, [open, documentId, t]);
 
   useEffect(() => {
     void loadDetail();
@@ -64,20 +66,20 @@ export default function DocumentDetailDrawer({
   const confirmDeleteChunk = (chunk: KnowledgeChunk) => {
     if (documentId == null) return;
     Modal.confirm({
-      title: `确认删除第 ${chunk.chunkIndex + 1} 个分块？`,
-      content: '删除后该分块及其向量将被移除，后续分块序号会自动前移。',
-      okText: '确认删除',
+      title: t('knowledge.drawerConfirmDeleteChunkTitle', { index: chunk.chunkIndex + 1 }),
+      content: t('knowledge.drawerConfirmDeleteChunkContent'),
+      okText: t('knowledge.confirmDeleteOk'),
       okType: 'danger',
-      cancelText: '取消',
+      cancelText: t('common.cancel'),
       onOk: async () => {
         setDeletingChunkId(chunk.vectorId);
         try {
           await knowledgeApi.deleteChunk(documentId, chunk.vectorId);
-          message.success('分块已删除');
+          message.success(t('knowledge.drawerDeleteChunkSuccess'));
           await loadDetail();
           onChanged();
         } catch (error) {
-          message.error(error instanceof Error ? error.message : '删除分块失败');
+          message.error(error instanceof Error ? error.message : t('knowledge.drawerDeleteChunkFailed'));
         } finally {
           setDeletingChunkId(null);
         }
@@ -87,13 +89,13 @@ export default function DocumentDetailDrawer({
 
   const chunkColumns: ColumnsType<KnowledgeChunk> = [
     {
-      title: '序号',
+      title: t('knowledge.drawerColIndex'),
       dataIndex: 'chunkIndex',
       width: 80,
       render: (value: number) => value + 1,
     },
     {
-      title: '内容',
+      title: t('knowledge.drawerColContent'),
       dataIndex: 'content',
       render: (value: string) => (
         <Typography.Paragraph
@@ -105,20 +107,20 @@ export default function DocumentDetailDrawer({
       ),
     },
     {
-      title: '字符数',
+      title: t('knowledge.drawerColCharCount'),
       dataIndex: 'charCount',
       width: 100,
       render: (value: number) => value.toLocaleString(),
     },
     {
-      title: '操作',
+      title: t('common.actions'),
       key: 'actions',
       width: 200,
       fixed: 'right',
       render: (_, chunk) => (
         <Space size={4}>
           <Button size="small" icon={<OaIcon name="search" />} onClick={() => setChunkDetail(chunk)}>
-            查看详情
+            {t('knowledge.drawerViewDetail')}
           </Button>
           <Button
             size="small"
@@ -127,7 +129,7 @@ export default function DocumentDetailDrawer({
             loading={deletingChunkId === chunk.vectorId}
             onClick={() => confirmDeleteChunk(chunk)}
           >
-            删除
+            {t('common.delete')}
           </Button>
         </Space>
       ),
@@ -136,36 +138,36 @@ export default function DocumentDetailDrawer({
 
   return (
     <Drawer
-      title={detail ? `文档详情：${detail.filename}` : '文档详情'}
+      title={detail ? t('knowledge.drawerTitleWithName', { name: detail.filename }) : t('knowledge.drawerTitle')}
       open={open}
       onClose={onClose}
       width={880}
       destroyOnClose
     >
       {!detail ? (
-        <Empty description="加载中…" />
+        <Empty description={t('common.loading')} />
       ) : (
         <Space direction="vertical" size={16} style={{ width: '100%' }}>
           <Descriptions
             column={2}
             size="small"
             bordered
-            title="文档信息"
+            title={t('knowledge.drawerDocInfo')}
           >
-            <Descriptions.Item label="文档名称">{detail.filename}</Descriptions.Item>
-            <Descriptions.Item label="文件类型">
+            <Descriptions.Item label={t('knowledge.drawerDocName')}>{detail.filename}</Descriptions.Item>
+            <Descriptions.Item label={t('knowledge.drawerFileType')}>
               <Tag>{detail.fileType}</Tag>
             </Descriptions.Item>
-            <Descriptions.Item label="文件大小">{formatBytes(detail.fileSize)}</Descriptions.Item>
-            <Descriptions.Item label="分块数量">{detail.chunkCount}</Descriptions.Item>
-            <Descriptions.Item label="上传时间">
+            <Descriptions.Item label={t('knowledge.drawerFileSize')}>{formatBytes(detail.fileSize)}</Descriptions.Item>
+            <Descriptions.Item label={t('knowledge.drawerChunkCount')}>{detail.chunkCount}</Descriptions.Item>
+            <Descriptions.Item label={t('knowledge.drawerUploadedAt')}>
               {new Date(detail.createdAt).toLocaleString()}
             </Descriptions.Item>
-            <Descriptions.Item label="状态">
+            <Descriptions.Item label={t('common.status')}>
               {detail.status === 'READY' ? (
-                <Tag color="success">已就绪</Tag>
+                <Tag color="success">{t('knowledge.statusReady')}</Tag>
               ) : detail.status === 'PROCESSING' ? (
-                <Tag color="processing">处理中</Tag>
+                <Tag color="processing">{t('knowledge.statusProcessing')}</Tag>
               ) : (
                 <Tag color="error">{detail.status}</Tag>
               )}
@@ -173,7 +175,7 @@ export default function DocumentDetailDrawer({
           </Descriptions>
 
           <Typography.Title level={5} style={{ marginBottom: 0 }}>
-            分块列表（{detail.chunks.length}）
+            {t('knowledge.drawerChunksTitle', { count: detail.chunks.length })}
           </Typography.Title>
           <Table
             rowKey="vectorId"
@@ -181,7 +183,7 @@ export default function DocumentDetailDrawer({
             dataSource={detail.chunks}
             loading={loading}
             size="small"
-            locale={{ emptyText: <Empty description="该文档暂无分块" /> }}
+            locale={{ emptyText: <Empty description={t('knowledge.drawerNoChunks')} /> }}
             scroll={{ x: 760, y: 420 }}
             pagination={detail.chunks.length > 20 ? { pageSize: 20, showSizeChanger: false } : false}
           />
@@ -189,7 +191,7 @@ export default function DocumentDetailDrawer({
       )}
 
       <Modal
-        title={`分块详情（第 ${chunkDetail ? chunkDetail.chunkIndex + 1 : ''} 块）`}
+        title={t('knowledge.drawerChunkDetailTitle', { index: chunkDetail ? chunkDetail.chunkIndex + 1 : '' })}
         open={chunkDetail != null}
         onCancel={() => setChunkDetail(null)}
         footer={null}
@@ -198,11 +200,11 @@ export default function DocumentDetailDrawer({
         {chunkDetail && (
           <Space direction="vertical" size={16} style={{ width: '100%' }}>
             <Descriptions column={3} size="small" bordered>
-              <Descriptions.Item label="序号">{chunkDetail.chunkIndex + 1}</Descriptions.Item>
-              <Descriptions.Item label="字符数">
+              <Descriptions.Item label={t('knowledge.drawerColIndex')}>{chunkDetail.chunkIndex + 1}</Descriptions.Item>
+              <Descriptions.Item label={t('knowledge.drawerColCharCount')}>
                 {chunkDetail.charCount.toLocaleString()}
               </Descriptions.Item>
-              <Descriptions.Item label="向量ID">{chunkDetail.vectorId}</Descriptions.Item>
+              <Descriptions.Item label={t('knowledge.drawerVectorId')}>{chunkDetail.vectorId}</Descriptions.Item>
             </Descriptions>
             <Typography.Paragraph
               style={{ marginBottom: 0, whiteSpace: 'pre-wrap', maxHeight: 420, overflow: 'auto' }}

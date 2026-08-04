@@ -22,6 +22,7 @@ import {
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import type { EChartsOption } from 'echarts';
+import { useTranslation } from 'react-i18next';
 import { approvalRecords, oaMetrics, quickEntries, timelineSeed } from '@/mock/oaDashboard';
 import { can } from '@/mock/oaPermissions';
 import type { ApprovalRecord, OaRole } from '@/types/oa';
@@ -39,13 +40,14 @@ interface DashboardProps {
   onAddAudit: (text: string) => void;
 }
 
-const statusText: Record<ApprovalRecord['status'], string> = {
-  warning: '即将超时',
-  processing: '待审批',
-  success: '低风险',
-  error: '资料缺失',
-  default: '待补充',
-};
+const ACTION_PROCESS = 'process';
+const ACTION_VIEW = 'view';
+const ACTION_PRE_REVIEW = 'preReview';
+const ACTION_APPROVE = 'approve';
+const ACTION_RETURN = 'return';
+const ACTION_REMIND = 'remind';
+const APPROVAL_ACTIONS = [ACTION_PROCESS, ACTION_PRE_REVIEW, ACTION_APPROVE, ACTION_RETURN, ACTION_REMIND];
+const AI_ACTIONS = [ACTION_PROCESS, ACTION_PRE_REVIEW, ACTION_APPROVE];
 
 const tagColor: Record<ApprovalRecord['status'], string> = {
   warning: 'warning',
@@ -55,66 +57,119 @@ const tagColor: Record<ApprovalRecord['status'], string> = {
   default: 'default',
 };
 
+interface ChartLabels {
+  weekdays: string[];
+  totalModules: string;
+  moduleNames: {
+    flowApproval: string;
+    financeContract: string;
+    orgHr: string;
+    adminAsset: string;
+    platformIntegration: string;
+  };
+  systemRunningWell: string;
+}
+
 export default function Dashboard({ role, pageId, pageTitle, primaryColor, auditItems, onOpenAi, onAddAudit }: DashboardProps) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState('');
+
+  const statusText: Record<ApprovalRecord['status'], string> = {
+    warning: t('dashboard.status.warning'),
+    processing: t('dashboard.status.processing'),
+    success: t('dashboard.status.success'),
+    error: t('dashboard.status.error'),
+    default: t('dashboard.status.default'),
+  };
+
+  const getActionLabel = (action: string): string => {
+    const labels: Record<string, string> = {
+      [ACTION_PROCESS]: t('dashboard.actions.process'),
+      [ACTION_VIEW]: t('dashboard.actions.view'),
+      [ACTION_PRE_REVIEW]: t('dashboard.actions.preReview'),
+      [ACTION_APPROVE]: t('dashboard.actions.approve'),
+      [ACTION_RETURN]: t('dashboard.actions.return'),
+      [ACTION_REMIND]: t('dashboard.actions.remind'),
+    };
+    return labels[action] || action;
+  };
 
   const filteredRecords = approvalRecords.filter((record) => {
     if (!query.trim()) return true;
     return [record.name, record.applicant, record.department, record.node].some((value) => value.includes(query.trim()));
   });
 
-  const chartOptions = useMemo(() => createChartOptions(primaryColor), [primaryColor]);
+  const chartOptions = useMemo(
+    () => createChartOptions(primaryColor, {
+      weekdays: t('dashboard.chart.weekdays', { returnObjects: true }) as string[],
+      totalModules: t('dashboard.chart.totalModules'),
+      moduleNames: {
+        flowApproval: t('dashboard.chart.moduleNames.flowApproval'),
+        financeContract: t('dashboard.chart.moduleNames.financeContract'),
+        orgHr: t('dashboard.chart.moduleNames.orgHr'),
+        adminAsset: t('dashboard.chart.moduleNames.adminAsset'),
+        platformIntegration: t('dashboard.chart.moduleNames.platformIntegration'),
+      },
+      systemRunningWell: t('dashboard.chart.systemRunningWell'),
+    }),
+    [primaryColor, t],
+  );
 
   const handleAction = (action: string, record: ApprovalRecord) => {
-    const approveAction = ['处理', '预审', '通过', '退回', '催办'].includes(action);
+    const approveAction = APPROVAL_ACTIONS.includes(action);
     if (role === 'employee' && approveAction) {
-      message.warning('当前角色无权限执行审批类操作');
+      message.warning(t('dashboard.messages.noApprovalPermission'));
       return;
     }
 
-    if (['处理', '预审', '通过'].includes(action)) {
-      onOpenAi(`帮我${action}${record.name}，并检查节点 ${record.node} 的风险`);
+    if (AI_ACTIONS.includes(action)) {
+      onOpenAi(t('dashboard.aiPrompts.checkRisk', {
+        action: getActionLabel(action),
+        name: record.name,
+        node: record.node,
+      }));
       return;
     }
 
-    message.success(`${action}：${record.name}`);
-    onAddAudit(`${action} ${record.id}`);
+    const actionLabel = getActionLabel(action);
+    message.success(t('dashboard.messages.actionDone', { action: actionLabel, name: record.name }));
+    onAddAudit(t('dashboard.auditEntry', { action: actionLabel, id: record.id }));
   };
 
   const columns: ColumnsType<ApprovalRecord> = [
-    { title: '流程名称', dataIndex: 'name', key: 'name', ellipsis: true, minWidth: 160 },
-    { title: '发起人', dataIndex: 'applicant', key: 'applicant', width: 100 },
-    { title: '部门', dataIndex: 'department', key: 'department', width: 120, responsive: ['md'] },
-    { title: '当前节点', dataIndex: 'node', key: 'node', width: 120, responsive: ['lg'] },
+    { title: t('dashboard.columns.processName'), dataIndex: 'name', key: 'name', ellipsis: true, minWidth: 160 },
+    { title: t('dashboard.columns.applicant'), dataIndex: 'applicant', key: 'applicant', width: 100 },
+    { title: t('dashboard.columns.department'), dataIndex: 'department', key: 'department', width: 120, responsive: ['md'] },
+    { title: t('dashboard.columns.currentNode'), dataIndex: 'node', key: 'node', width: 120, responsive: ['lg'] },
     {
-      title: '状态',
+      title: t('common.status'),
       dataIndex: 'status',
       key: 'status',
       width: 110,
       render: (status: ApprovalRecord['status']) => <Tag color={tagColor[status]}>{statusText[status]}</Tag>,
     },
     {
-      title: '操作',
+      title: t('common.actions'),
       key: 'actions',
       width: 160,
       fixed: 'right',
       render: (_, record) => (
         <Space size={4}>
-          <Button size="small" type="primary" onClick={() => handleAction('处理', record)}>处理</Button>
-          <Button size="small" onClick={() => handleAction('查看', record)}>查看</Button>
+          <Button size="small" type="primary" onClick={() => handleAction(ACTION_PROCESS, record)}>{t('dashboard.actions.process')}</Button>
+          <Button size="small" onClick={() => handleAction(ACTION_VIEW, record)}>{t('dashboard.actions.view')}</Button>
           <Dropdown
             menu={{
               items: [
-                { key: '预审', label: '预审' },
-                { key: '通过', label: '通过' },
-                { key: '退回', label: '退回' },
-                { key: '催办', label: '催办' },
+                { key: ACTION_PRE_REVIEW, label: t('dashboard.actions.preReview') },
+                { key: ACTION_APPROVE, label: t('dashboard.actions.approve') },
+                { key: ACTION_RETURN, label: t('dashboard.actions.return') },
+                { key: ACTION_REMIND, label: t('dashboard.actions.remind') },
               ],
               onClick: ({ key: action }) => handleAction(action, record),
             }}
             trigger={['click']}
           >
-            <Button size="small" icon={<OaIcon name="more" />} aria-label="更多操作" />
+            <Button size="small" icon={<OaIcon name="more" />} aria-label={t('dashboard.moreActionsAria')} />
           </Dropdown>
         </Space>
       ),
@@ -126,13 +181,13 @@ export default function Dashboard({ role, pageId, pageTitle, primaryColor, audit
       <Card className="oa-card oa-placeholder-card">
         <Empty
           image={Empty.PRESENTED_IMAGE_SIMPLE}
-          description={`${pageTitle} 业务页面暂未展开，当前已完成菜单权限、标题切换和 AI 操作入口。`}
+          description={t('dashboard.placeholder.description', { pageTitle })}
         />
         <Space>
-          <Button type="primary" icon={<OaIcon name="ai" />} onClick={() => onOpenAi(`帮我分析 ${pageTitle} 页面当前可以自动化的操作`)}>
-            让 AI 分析本页
+          <Button type="primary" icon={<OaIcon name="ai" />} onClick={() => onOpenAi(t('dashboard.aiPrompts.analyzePage', { pageTitle }))}>
+            {t('dashboard.placeholder.aiAnalyzePage')}
           </Button>
-          <Button onClick={() => message.info('已记录页面访问审计')}>记录访问</Button>
+          <Button onClick={() => message.info(t('dashboard.messages.pageAuditRecorded'))}>{t('dashboard.placeholder.recordAccess')}</Button>
         </Space>
       </Card>
     );
@@ -143,20 +198,20 @@ export default function Dashboard({ role, pageId, pageTitle, primaryColor, audit
       <section className="oa-page-title">
         <div>
           <Typography.Text type="secondary">Enterprise OA Workspace</Typography.Text>
-          <Typography.Title level={2}>企业运营总览</Typography.Title>
+          <Typography.Title level={2}>{t('dashboard.title')}</Typography.Title>
           <Typography.Paragraph>
-            企业级 OA 工作台，支持审批、财务、人事、资产、联调和 AI 操作。看板当前为演示数据，AI 计划和执行仅调用后端真实能力。
+            {t('dashboard.description')}
           </Typography.Paragraph>
         </div>
         <Space className="oa-page-title-actions" wrap={false}>
-          <PermissionButton role={role} menuId="dashboard" action="export" icon={<OaIcon name="export" />} onClick={() => message.warning('真实导出能力尚未接入')}>
-            导出看板
+          <PermissionButton role={role} menuId="dashboard" action="export" icon={<OaIcon name="export" />} onClick={() => message.warning(t('dashboard.messages.exportNotAvailable'))}>
+            {t('dashboard.exportDashboard')}
           </PermissionButton>
-          <Button icon={<OaIcon name="audit" />} onClick={() => message.info('指标配置面板将在下一阶段接入')}>
-            配置指标
+          <Button icon={<OaIcon name="audit" />} onClick={() => message.info(t('dashboard.messages.metricsConfigComingSoon'))}>
+            {t('dashboard.configMetrics')}
           </Button>
-          <Button type="primary" icon={<OaIcon name="ai" />} onClick={() => onOpenAi('帮我预审当前列表，并输出风险排序')}>
-            让 AI 预审
+          <Button type="primary" icon={<OaIcon name="ai" />} onClick={() => onOpenAi(t('dashboard.aiPrompts.preReviewList'))}>
+            {t('dashboard.aiPreReview')}
           </Button>
         </Space>
       </section>
@@ -184,7 +239,7 @@ export default function Dashboard({ role, pageId, pageTitle, primaryColor, audit
                   event.stopPropagation();
                   onOpenAi(entry.prompt);
                 }}>
-                  AI 新建任务
+                  {t('dashboard.quickEntryAction')}
                 </Button>,
               ]}
             >
@@ -198,10 +253,10 @@ export default function Dashboard({ role, pageId, pageTitle, primaryColor, audit
         <Col xs={24}>
           <Card
             className="oa-card"
-            title="审批列表"
+            title={t('dashboard.cards.approvalList')}
             extra={
               <Input.Search
-                placeholder="查询流程、发起人、部门"
+                placeholder={t('dashboard.cards.searchPlaceholder')}
                 allowClear
                 onSearch={(value) => setQuery(value)}
                 style={{ maxWidth: 260 }}
@@ -222,10 +277,10 @@ export default function Dashboard({ role, pageId, pageTitle, primaryColor, audit
 
       <Row gutter={[16, 16]}>
         <Col xs={24}>
-          <Card className="oa-card" title="AI 执行与审计时间线">
+          <Card className="oa-card" title={t('dashboard.cards.timeline')}>
             <Timeline items={[...auditItems, ...timelineSeed]} />
             {!can(role, 'dashboard', 'ai_execute') && (
-              <Alert type="warning" showIcon title="当前角色 AI 执行能力受限，只允许查看和提交本人任务。" />
+              <Alert type="warning" showIcon title={t('dashboard.cards.aiLimitedAlert')} />
             )}
           </Card>
         </Col>
@@ -233,25 +288,25 @@ export default function Dashboard({ role, pageId, pageTitle, primaryColor, audit
 
       <Row gutter={[16, 16]}>
         <Col xs={24} lg={8}>
-          <EChartsCard title="流程趋势" option={chartOptions.line} />
+          <EChartsCard title={t('dashboard.charts.processTrend')} option={chartOptions.line} />
         </Col>
         <Col xs={24} lg={8}>
-          <EChartsCard title="模块分布" option={chartOptions.pie} />
+          <EChartsCard title={t('dashboard.charts.moduleDistribution')} option={chartOptions.pie} />
         </Col>
         <Col xs={24} lg={8}>
-          <EChartsCard title="系统健康度" option={chartOptions.gauge} />
+          <EChartsCard title={t('dashboard.charts.systemHealth')} option={chartOptions.gauge} />
         </Col>
       </Row>
 
       <Card className="oa-card">
         <Descriptions
-          title="当前联调状态"
+          title={t('dashboard.integration.title')}
           bordered
           column={{ xs: 1, md: 3 }}
           items={[
-            { key: 'backend', label: '后端接口', children: 'System / AI Tasks（JWT）' },
-            { key: 'charts', label: '图表引擎', children: 'ECharts' },
-            { key: 'permissions', label: '权限模型', children: '前端权限演示，后端鉴权优先' },
+            { key: 'backend', label: t('dashboard.integration.backendInterface'), children: 'System / AI Tasks（JWT）' },
+            { key: 'charts', label: t('dashboard.integration.chartEngine'), children: 'ECharts' },
+            { key: 'permissions', label: t('dashboard.integration.permissionModel'), children: t('dashboard.integration.permissionModelValue') },
           ]}
         />
         <Progress percent={86} strokeColor={primaryColor} className="oa-health-progress" />
@@ -260,7 +315,7 @@ export default function Dashboard({ role, pageId, pageTitle, primaryColor, audit
   );
 }
 
-function createChartOptions(primaryColor: string): Record<'line' | 'pie' | 'gauge', EChartsOption> {
+function createChartOptions(primaryColor: string, labels: ChartLabels): Record<'line' | 'pie' | 'gauge', EChartsOption> {
   return {
     line: {
       color: [primaryColor],
@@ -273,7 +328,7 @@ function createChartOptions(primaryColor: string): Record<'line' | 'pie' | 'gaug
       grid: { left: 36, right: 16, top: 24, bottom: 28 },
       xAxis: {
         type: 'category',
-        data: ['周一', '周二', '周三', '周四', '周五', '周六'],
+        data: labels.weekdays,
         axisLine: { lineStyle: { color: 'rgba(148, 163, 184, 0.4)' } },
         axisLabel: { color: '#94a3b8', fontSize: 11 },
         axisTick: { show: false },
@@ -343,7 +398,7 @@ function createChartOptions(primaryColor: string): Record<'line' | 'pie' | 'gaug
           left: 'center',
           top: '46%',
           style: {
-            text: '总模块',
+            text: labels.totalModules,
             fontSize: 11,
             fill: '#94a3b8',
           },
@@ -368,11 +423,11 @@ function createChartOptions(primaryColor: string): Record<'line' | 'pie' | 'gaug
             itemStyle: { shadowBlur: 16, shadowColor: 'rgba(15, 23, 42, 0.24)' },
           },
           data: [
-            { name: '流程审批', value: 36 },
-            { name: '财务合同', value: 22 },
-            { name: '组织人事', value: 18 },
-            { name: '行政资产', value: 14 },
-            { name: '平台联调', value: 10 },
+            { name: labels.moduleNames.flowApproval, value: 36 },
+            { name: labels.moduleNames.financeContract, value: 22 },
+            { name: labels.moduleNames.orgHr, value: 18 },
+            { name: labels.moduleNames.adminAsset, value: 14 },
+            { name: labels.moduleNames.platformIntegration, value: 10 },
           ],
         },
       ],
@@ -426,7 +481,7 @@ function createChartOptions(primaryColor: string): Record<'line' | 'pie' | 'gaug
             color: '#94a3b8',
             fontSize: 12,
           },
-          data: [{ value: 92, name: '系统运行良好' }],
+          data: [{ value: 92, name: labels.systemRunningWell }],
         },
       ],
     },

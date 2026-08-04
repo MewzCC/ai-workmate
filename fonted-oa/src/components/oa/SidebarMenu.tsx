@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
@@ -21,15 +23,17 @@ interface SidebarMenuProps {
   onSelect: (menu: OaMenuItem) => void;
 }
 
-function toMenuItems(menus: OaMenuItem[]): MenuProps['items'] {
+// 用 routeKey 作为 i18n key 翻译菜单名，未配置时回退到后端返回的 name。
+// 这样切换语言时菜单项即时翻译，不依赖后端数据库存储多语言。
+function toMenuItems(menus: OaMenuItem[], t: TFunction): MenuProps['items'] {
   return menus.map((menu) => {
     const hasChildren = menu.type !== 'page' && Boolean(menu.children?.length);
     const iconName = resolveOaMenuIcon(menu.id, menu.icon);
     return {
       key: menu.id,
       icon: iconName ? <OaIcon name={iconName} size={18} /> : undefined,
-      label: menu.name,
-      children: hasChildren ? toMenuItems(menu.children || []) : undefined,
+      label: t(`oa.menu.${menu.id}`, { defaultValue: menu.name }),
+      children: hasChildren ? toMenuItems(menu.children || [], t) : undefined,
     };
   });
 }
@@ -67,6 +71,7 @@ export default function SidebarMenu({
   onCollapse,
   onSelect,
 }: SidebarMenuProps) {
+  const { t } = useTranslation();
   const [openKeys, setOpenKeys] = useState<string[]>([]);
   const initialized = useRef(false);
   const lastSelectedKey = useRef(initialSelectedKey);
@@ -102,11 +107,11 @@ export default function SidebarMenu({
     >
       <div className={`oa-sider-brand ${collapsed ? 'is-collapsed' : 'is-expanded'}`}>
         <span className="oa-logo">
-          <OaIcon name="brand" size={30} title="WorkMate OA" />
+          <OaIcon name="brand" size={30} title={t('oa.sidebar.brand')} />
         </span>
         <div className="oa-sider-brand-text">
-          <strong>WorkMate OA</strong>
-          <small>Enterprise Console</small>
+          <strong>{t('oa.sidebar.brand')}</strong>
+          <small>{t('oa.sidebar.brandSub')}</small>
         </div>
       </div>
 
@@ -117,7 +122,7 @@ export default function SidebarMenu({
         onClick={() => onCollapse(!collapsed)}
         block
       >
-        <span className="oa-collapse-btn-text">{!collapsed && '收起菜单'}</span>
+        <span className="oa-collapse-btn-text">{!collapsed && t('oa.sidebar.collapse')}</span>
       </Button>
 
       <Menu
@@ -128,7 +133,7 @@ export default function SidebarMenu({
         selectedKeys={[selectedKey]}
         openKeys={collapsed ? undefined : openKeys}
         onOpenChange={collapsed ? undefined : changeOpenKeys}
-        items={toMenuItems(menus)}
+        items={toMenuItems(menus, t)}
         onClick={({ key }) => {
           const menu = findMenu(String(key), menus);
           if (menu) onSelect(menu);
