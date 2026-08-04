@@ -2,6 +2,7 @@
 
 import { Avatar, Button, Dropdown, Layout, Space } from 'antd';
 import { MenuOutlined } from '@ant-design/icons';
+import { Languages } from 'lucide-react';
 import { message } from '@/lib/antdMessage';
 import type { MenuProps } from 'antd';
 import { useTranslation } from 'react-i18next';
@@ -149,7 +150,7 @@ export default function Topbar({ role, pageTitle, onOpenAppearance, onOpenAi, on
     { key: 'export', icon: <OaIcon name="export" />, label: t('oa.topbar.exportBoard') },
     { key: 'help', icon: <OaIcon name="help" />, label: t('oa.topbar.help') },
     { type: 'divider' },
-    { key: 'switchLanguage', icon: <OaIcon name="global" />, label: nextLocale === 'zh-CN' ? t('common.languageZh') : t('common.languageEn') },
+    { key: 'switchLanguage', icon: <Languages className="h-4 w-4" />, label: nextLocale === 'zh-CN' ? t('common.languageZh') : t('common.languageEn') },
     { type: 'divider' },
     { key: 'profile', icon: <OaIcon name="avatar" />, label: t('oa.topbar.profile') },
     { key: 'appearance', icon: <OaIcon name="appearance" />, label: t('oa.topbar.appearance') },
