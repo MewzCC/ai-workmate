@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Avatar, Button, Form, Input, Modal, Space, Upload } from 'antd';
+import { useTranslation } from 'react-i18next';
 import { message } from '@/lib/antdMessage';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { profileApi } from '@/lib/profileApi';
@@ -21,6 +22,7 @@ interface ProfileForm {
 }
 
 export default function ProfileSettingsModal({ open, onClose }: ProfileSettingsModalProps) {
+  const { t } = useTranslation();
   const { user, setUser } = useAuth();
   const [form] = Form.useForm<ProfileForm>();
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
@@ -41,11 +43,11 @@ export default function ProfileSettingsModal({ open, onClose }: ProfileSettingsM
 
   const selectAvatar = (file: File) => {
     if (!AVATAR_TYPES.has(file.type)) {
-      message.error('头像仅支持 JPG、PNG 或 WebP');
+      message.error(t('profile.avatar.invalidType'));
       return Upload.LIST_IGNORE;
     }
     if (file.size > AVATAR_MAX_BYTES) {
-      message.error('头像大小不能超过 2MB');
+      message.error(t('profile.avatar.tooLarge', { max: '2MB' }));
       return Upload.LIST_IGNORE;
     }
     if (previewUrl) URL.revokeObjectURL(previewUrl);
@@ -60,10 +62,10 @@ export default function ProfileSettingsModal({ open, onClose }: ProfileSettingsM
       let updated = await profileApi.update(values.name);
       if (avatarFile) updated = await profileApi.uploadAvatar(avatarFile);
       setUser(updated);
-      message.success('个人资料已更新');
+      message.success(t('profile.message.profileUpdated'));
       onClose();
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '个人资料更新失败');
+      message.error(error instanceof Error ? error.message : t('profile.message.profileUpdateFailed'));
     } finally {
       setSaving(false);
     }
@@ -76,9 +78,9 @@ export default function ProfileSettingsModal({ open, onClose }: ProfileSettingsM
       setUser(updated);
       setAvatarFile(null);
       setPreviewUrl(null);
-      message.success('头像已移除');
+      message.success(t('profile.message.avatarRemoved'));
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '头像移除失败');
+      message.error(error instanceof Error ? error.message : t('profile.message.avatarRemoveFailed'));
     } finally {
       setDeleting(false);
     }
@@ -86,11 +88,11 @@ export default function ProfileSettingsModal({ open, onClose }: ProfileSettingsM
 
   return (
     <Modal
-      title="个人设置"
+      title={t('profile.title')}
       open={open}
       onCancel={onClose}
       onOk={() => form.submit()}
-      okText="保存资料"
+      okText={t('profile.okText')}
       confirmLoading={saving}
       destroyOnHidden
     >
@@ -103,7 +105,7 @@ export default function ProfileSettingsModal({ open, onClose }: ProfileSettingsM
             showUploadList={false}
             beforeUpload={selectAvatar}
           >
-            <Button icon={<OaIcon name="upload" />}>选择头像</Button>
+            <Button icon={<OaIcon name="upload" />}>{t('profile.avatar.select')}</Button>
           </Upload>
           {(user?.avatarUrl || avatarFile) && (
             <Button
@@ -112,24 +114,24 @@ export default function ProfileSettingsModal({ open, onClose }: ProfileSettingsM
               loading={deleting}
               onClick={() => void deleteAvatar()}
             >
-              移除
+              {t('profile.avatar.remove')}
             </Button>
           )}
         </Space>
-        <span>支持 JPG、PNG、WebP，最大 2MB</span>
+        <span>{t('profile.avatar.hint')}</span>
       </div>
       <Form form={form} layout="vertical" onFinish={save}>
         <Form.Item
           name="name"
-          label="姓名"
+          label={t('profile.field.name')}
           rules={[
-            { required: true, message: '请输入姓名' },
-            { max: 50, message: '姓名不能超过 50 个字符' },
+            { required: true, message: t('profile.validation.nameRequired') },
+            { max: 50, message: t('profile.validation.nameTooLong', { max: 50 }) },
           ]}
         >
-          <Input placeholder="请输入姓名" />
+          <Input placeholder={t('profile.field.namePlaceholder')} />
         </Form.Item>
-        <Form.Item name="email" label="企业邮箱">
+        <Form.Item name="email" label={t('profile.field.email')}>
           <Input disabled />
         </Form.Item>
       </Form>

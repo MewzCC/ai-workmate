@@ -1,17 +1,12 @@
 'use client';
 
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { Button, Space, Typography } from 'antd';
 import { PictureOutlined, WarningOutlined } from '@ant-design/icons';
 import type { ChatMessage } from '@/types/chat';
 import MessageItem from './MessageItem';
 import { OaIcon } from '@/components/OaIcon';
-
-const starters = [
-  { label: '帮我总结一份文档', icon: <OaIcon name="search" /> },
-  { label: '分析这张图片', icon: <PictureOutlined /> },
-  { label: '帮我写一段代码', icon: <OaIcon name="code" /> },
-  { label: '解释这个报错', icon: <WarningOutlined /> },
-];
 
 interface MessageListProps {
   messages: ChatMessage[];
@@ -20,14 +15,21 @@ interface MessageListProps {
 }
 
 export default function MessageList({ messages, onStarter, onRetry }: MessageListProps) {
+  const { t } = useTranslation();
+  const starters = [
+    { key: 'summarize', label: t('chat.starter.summarize'), icon: <OaIcon name="search" /> },
+    { key: 'analyzeImage', label: t('chat.starter.analyzeImage'), icon: <PictureOutlined /> },
+    { key: 'writeCode', label: t('chat.starter.writeCode'), icon: <OaIcon name="code" /> },
+    { key: 'explainError', label: t('chat.starter.explainError'), icon: <WarningOutlined /> },
+  ];
   if (!messages.length) {
     return (
       <div className="ai-chat-empty">
         <div className="ai-empty-mark"><OaIcon name="ai" size={30} title="WorkMate AI" /></div>
-        <Typography.Title level={2}>今天想一起完成什么？</Typography.Title>
-        <Typography.Paragraph type="secondary">可以直接提问，也可以上传图片、表格或文档作为上下文。</Typography.Paragraph>
+        <Typography.Title level={2}>{t('chat.emptyTitle')}</Typography.Title>
+        <Typography.Paragraph type="secondary">{t('chat.emptyDesc')}</Typography.Paragraph>
         <Space wrap className="ai-starter-list">
-          {starters.map((item) => <Button key={item.label} icon={item.icon} onClick={() => onStarter(item.label)}>{item.label}</Button>)}
+          {starters.map((item) => <Button key={item.key} icon={item.icon} onClick={() => onStarter(item.label)}>{item.label}</Button>)}
         </Space>
       </div>
     );
@@ -35,15 +37,15 @@ export default function MessageList({ messages, onStarter, onRetry }: MessageLis
   return (
     <div className="ai-message-list" role="log" aria-live="polite">
       {messages.map((item, index) => (
-        <MessageItem key={item.id} item={item} onRetry={() => onRetry(findPreviousUserPrompt(messages, index))} />
+        <MessageItem key={item.id} item={item} onRetry={() => onRetry(findPreviousUserPrompt(messages, index, t))} />
       ))}
     </div>
   );
 }
 
-function findPreviousUserPrompt(messages: ChatMessage[], currentIndex: number): string {
+function findPreviousUserPrompt(messages: ChatMessage[], currentIndex: number, t: TFunction): string {
   for (let index = currentIndex - 1; index >= 0; index -= 1) {
     if (messages[index].role === 'user') return messages[index].content;
   }
-  return '请重新回答上一条问题。';
+  return t('chat.retryPrevious');
 }

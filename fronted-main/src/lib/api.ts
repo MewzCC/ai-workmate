@@ -1,11 +1,13 @@
 import { ChatRequest, ApiResult, Conversation } from '@/types';
+import i18n from '@/i18n';
+import { buildApiHeaders } from '@/lib/apiHeaders';
 
 const BASE = '/api';
 
 // ========== Chat ==========
 
 function authHeaders(): HeadersInit {
-  return { 'Content-Type': 'application/json' };
+  return buildApiHeaders();
 }
 
 /**
@@ -19,12 +21,12 @@ export async function* chatStream(request: ChatRequest): AsyncGenerator<string> 
   });
 
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ message: '请求失败' }));
+    const err = await res.json().catch(() => ({ message: i18n.t('chat.requestFailed') }));
     throw new Error(err.message || `HTTP ${res.status}`);
   }
 
   const reader = res.body?.getReader();
-  if (!reader) throw new Error('无法读取响应流');
+  if (!reader) throw new Error(i18n.t('chat.cannotReadStream'));
 
   const decoder = new TextDecoder();
   let buffer = '';
@@ -45,8 +47,8 @@ export async function* chatStream(request: ChatRequest): AsyncGenerator<string> 
       const event = JSON.parse(raw) as ChatSseEvent;
       if (event.type === 'delta' && event.data) yield event.data;
       if (event.type === 'error') {
-        const trace = event.traceId ? `（追踪号：${event.traceId}）` : '';
-        throw new Error(`${event.data || 'AI 对话服务暂时不可用'}${trace}`);
+        const trace = event.traceId ? `（${i18n.t('chat.traceIdLabel')}：${event.traceId}）` : '';
+        throw new Error(`${event.data || i18n.t('chat.streamUnavailable')}${trace}`);
       }
       if (event.type === 'done') return;
     }

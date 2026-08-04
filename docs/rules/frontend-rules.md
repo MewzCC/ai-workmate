@@ -1,4 +1,4 @@
-﻿# Frontend Rules
+# Frontend Rules
 
 ## Frontend App Split
 
@@ -153,3 +153,18 @@ OA 工作台业务 UI 必须使用真实 Ant Design 组件：
 - 角色切换、菜单过滤、AI Drawer、ECharts 渲染可用。
 - 文案无新增乱码。
 - 组件没有引入不必要的全局副作用。
+
+## 国际化（i18n）
+
+详细规范见 `docs/rules/i18n-rules.md`，前端必须遵守以下要点：
+
+- 两个前端分别接入 `i18next` + `react-i18next` + `i18next-browser-languagedetector`；资源、Provider、`useLocale` 放在各自 `src/i18n` 目录。
+- 默认语言 `zh-CN`，第二语言 `en-US`；新增可见文案必须同步更新两个 locale 资源文件。
+- 任何渲染到 DOM、弹窗、message、notification、tooltip、placeholder、alt、aria-label 的中英文文本必须通过 `t('key')` 读取，禁止内联硬编码。
+- 禁止字符串拼接构造文案，必须使用插值 `t('key', { var })`。
+- 语言选择持久化到 localStorage `workmeta-locale`，两个前端共用；切换时同步 `document.documentElement.lang`。
+- `fonted-oa` 的 `I18nProvider` 必须同时包裹 `I18nextProvider` 与 Ant Design `ConfigProvider`，按 locale 传入 `zhCN`/`enUS`，确保内置组件（DatePicker、Pagination、Table、Modal、Notification）同步切换。
+- ECharts 图表中的标题、图例、单位也必须走 `t()`，不随 Ant Design locale 自动切换。
+- 通过 `App.useApp()` 创建的静态方法必须继承当前 `ConfigProvider.locale`，禁止绕过。
+- mock 数据（`fonted-oa/src/mock/*`）中的中文业务名称属于演示数据，不强制迁移；但渲染这些数据的组件标签、表头、按钮文案必须迁移。
+- 切换到 `en-US` 后页面无中文残留、无 key 暴露、无白屏。

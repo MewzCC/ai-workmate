@@ -99,7 +99,6 @@ export interface AiTaskExecuteResponse {
 
 export interface OaTheme {
   name: string;
-  label: string;
   primary: string;
   sidebar: string;
   siderText: string;

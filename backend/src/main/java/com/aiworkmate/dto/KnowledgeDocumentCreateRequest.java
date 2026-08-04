@@ -5,15 +5,15 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 public record KnowledgeDocumentCreateRequest(
-        @NotNull(message = "知识库 ID 不能为空")
+        @NotNull(message = "{validation.kb.id.notNull}")
         Long kbId,
 
-        @NotBlank(message = "文件名不能为空")
-        @Size(max = 255, message = "文件名不能超过 255 个字符")
+        @NotBlank(message = "{validation.kb.filename.notBlank}")
+        @Size(max = 255, message = "{validation.kb.filename.maxLength}")
         String filename,
 
-        @NotBlank(message = "知识内容不能为空")
-        @Size(max = 120000, message = "知识内容不能超过 120000 个字符")
+        @NotBlank(message = "{validation.kb.content.notBlank}")
+        @Size(max = 120000, message = "{validation.kb.content.maxLength}")
         String content
 ) {
 }

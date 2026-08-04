@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { Moon, Sun } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 type SiteTheme = 'day' | 'night';
 
@@ -17,6 +18,7 @@ interface Props {
  *  - Linear / Geist 配色：过渡 280ms cubic-bezier(0.16, 1, 0.3, 1)
  */
 export default function ThemeToggle({ theme, onChange }: Props) {
+  const { t } = useTranslation();
   const isNight = theme === 'night';
 
   const handleToggle = useCallback(() => {
@@ -28,7 +30,7 @@ export default function ThemeToggle({ theme, onChange }: Props) {
       type="button"
       role="switch"
       aria-checked={isNight}
-      aria-label={isNight ? '切换到日间模式' : '切换到夜间模式'}
+      aria-label={isNight ? t('theme.toDay') : t('theme.toNight')}
       onClick={handleToggle}
       className="wm-theme-toggle"
     >

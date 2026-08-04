@@ -1,6 +1,7 @@
 'use client';
 
 import { Fragment, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button, Card, Drawer, Empty, Image, Radio, Slider, Space, Spin, Switch, Tag, Typography, Upload } from 'antd';
 import { message } from '@/lib/antdMessage';
 import type { UploadProps } from 'antd';
@@ -28,6 +29,7 @@ interface AppearanceDrawerProps {
 }
 
 export default function AppearanceDrawer(props: AppearanceDrawerProps) {
+  const { t } = useTranslation();
   const [saving, setSaving] = useState(false);
   const [processingWallpaper, setProcessingWallpaper] = useState(false);
   const [cropSource, setCropSource] = useState<string | null>(null);
@@ -45,7 +47,7 @@ export default function AppearanceDrawer(props: AppearanceDrawerProps) {
         closeCropper();
         setCropSource(createWallpaperSource(file));
       } catch (error) {
-        message.error(error instanceof Error ? error.message : '无法读取图片');
+        message.error(error instanceof Error ? error.message : t('oa.appearance.readImageFailed'));
       }
       return false;
     },
@@ -61,9 +63,9 @@ export default function AppearanceDrawer(props: AppearanceDrawerProps) {
       props.onWallpaperChange(uploaded.wallpaperUrl);
       window.localStorage.removeItem('workmeta-oa-wallpaper');
       closeCropper();
-      message.success('壁纸已成功裁剪、压缩');
+      message.success(t('oa.appearance.wallpaperProcessed'));
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '壁纸处理失败');
+      message.error(error instanceof Error ? error.message : t('oa.appearance.wallpaperProcessFailed'));
     } finally {
       setProcessingWallpaper(false);
     }
@@ -75,9 +77,9 @@ export default function AppearanceDrawer(props: AppearanceDrawerProps) {
       await profileApi.deleteWallpaper();
       window.localStorage.removeItem('workmeta-oa-wallpaper');
       props.onWallpaperChange(null);
-      message.success('壁纸已清除');
+      message.success(t('oa.appearance.wallpaperCleared'));
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '壁纸清除失败');
+      message.error(error instanceof Error ? error.message : t('oa.appearance.wallpaperClearFailed'));
     } finally {
       setProcessingWallpaper(false);
     }
@@ -85,16 +87,16 @@ export default function AppearanceDrawer(props: AppearanceDrawerProps) {
 
   return (
     <Fragment>
-      <Drawer title="外观设置" size="default" styles={{ wrapper: { width: 420 } }} open={props.open} onClose={props.onClose}>
+      <Drawer title={t('oa.appearance.title')} size="default" styles={{ wrapper: { width: 420 } }} open={props.open} onClose={props.onClose}>
         <Space orientation="vertical" size={20} className="oa-drawer-stack">
           <section>
-            <Typography.Title level={5}>皮肤选择</Typography.Title>
+            <Typography.Title level={5}>{t('oa.appearance.themeSection')}</Typography.Title>
             <Radio.Group value={props.currentTheme} onChange={(event) => props.onThemeChange(event.target.value)}>
               <Space orientation="vertical" className="oa-theme-list">
                 {props.themes.map((theme) => (
                   <Card key={theme.name} size="small" className="oa-theme-option">
                     <Radio value={theme.name}>
-                      <Space><span className="oa-theme-swatch" style={{ background: theme.primary }} />{theme.label}</Space>
+                      <Space><span className="oa-theme-swatch" style={{ background: theme.primary }} />{t(`oa.theme.${theme.name}`)}</Space>
                     </Radio>
                   </Card>
                 ))}
@@ -103,55 +105,55 @@ export default function AppearanceDrawer(props: AppearanceDrawerProps) {
           </section>
 
           <section>
-            <Typography.Title level={5}>AI 小悬浮窗</Typography.Title>
-            <Switch checked={props.aiMiniEnabled} onChange={props.onAiMiniChange} checkedChildren="开启" unCheckedChildren="关闭" />
+            <Typography.Title level={5}>{t('oa.appearance.aiMiniSection')}</Typography.Title>
+            <Switch checked={props.aiMiniEnabled} onChange={props.onAiMiniChange} checkedChildren={t('oa.appearance.aiMiniOn')} unCheckedChildren={t('oa.appearance.aiMiniOff')} />
             <Typography.Paragraph type="secondary">
-              默认关闭。开启后会在工作台右下角显示轻量 AI 快捷卡片，主入口仍保留 FloatButton。
+              {t('oa.appearance.aiMiniDesc')}
             </Typography.Paragraph>
           </section>
 
           <section>
             <Space className="oa-wallpaper-heading">
-              <Typography.Title level={5}>壁纸上传</Typography.Title>
-              {props.wallpaper && <Tag color="success">已应用</Tag>}
+              <Typography.Title level={5}>{t('oa.appearance.wallpaperSection')}</Typography.Title>
+              {props.wallpaper && <Tag color="success">{t('oa.appearance.applied')}</Tag>}
             </Space>
             <Typography.Paragraph type="secondary">
-              图片会先在浏览器中裁剪压缩，再安全上传到 MinIO，并跟随当前账号同步。
+              {t('oa.appearance.wallpaperDesc')}
             </Typography.Paragraph>
             <div className="oa-wallpaper-preview" aria-live="polite">
-              <Spin spinning={processingWallpaper} description="正在处理壁纸">
+              <Spin spinning={processingWallpaper} description={t('oa.appearance.processingWallpaper')}>
                 {props.wallpaper ? (
-                  <Image src={props.wallpaper} alt="当前壁纸预览" width="100%" preview={{ mask: '查看大图' }} />
+                  <Image src={props.wallpaper} alt={t('oa.appearance.wallpaperPreviewAlt')} width="100%" preview={{ mask: t('oa.appearance.viewLarge') }} />
                 ) : (
-                  <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="上传并裁剪后将在这里预览" />
+                  <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('oa.appearance.emptyPreview')} />
                 )}
               </Spin>
             </div>
             <Space wrap>
               <Upload {...uploadProps}>
-                <Button icon={<OaIcon name="upload" />} disabled={processingWallpaper}>上传并裁剪</Button>
+                <Button icon={<OaIcon name="upload" />} disabled={processingWallpaper}>{t('oa.appearance.uploadCrop')}</Button>
               </Upload>
               <Button
                 icon={<OaIcon name="edit" />}
                 disabled={!props.wallpaper || processingWallpaper}
                 onClick={() => setCropSource(props.wallpaper)}
               >
-                重新裁剪
+                {t('oa.appearance.recrop')}
               </Button>
               <Button
                 icon={<OaIcon name="delete" />}
                 disabled={!props.wallpaper || processingWallpaper}
                 onClick={() => void clearWallpaper()}
               >
-                清除壁纸
+                {t('oa.appearance.clear')}
               </Button>
             </Space>
           </section>
 
           <section>
-            <Typography.Text>壁纸透明度</Typography.Text>
+            <Typography.Text>{t('oa.appearance.wallpaperOpacity')}</Typography.Text>
             <Slider min={0.1} max={0.8} step={0.05} value={props.wallpaperOpacity} onChange={props.onWallpaperOpacityChange} />
-            <Typography.Text>壁纸模糊度</Typography.Text>
+            <Typography.Text>{t('oa.appearance.wallpaperBlur')}</Typography.Text>
             <Slider min={0} max={18} value={props.wallpaperBlur} onChange={props.onWallpaperBlurChange} />
           </section>
 
@@ -162,12 +164,12 @@ export default function AppearanceDrawer(props: AppearanceDrawerProps) {
               setSaving(true);
               window.setTimeout(() => {
                 setSaving(false);
-                message.success('外观配置已保存');
+                message.success(t('oa.appearance.saveSuccess'));
                 props.onClose();
               }, 450);
             }}
           >
-            保存配置
+            {t('oa.appearance.save')}
           </Button>
         </Space>
       </Drawer>

@@ -43,7 +43,7 @@ public class Result<T> {
     }
 
     public static <T> Result<T> error(ErrorCode errorCode) {
-        return error(errorCode, errorCode.getDefaultMessage());
+        return error(errorCode, MessageUtils.resolve(errorCode.getMessageKey()));
     }
 
     public static <T> Result<T> error(ErrorCode errorCode, String message) {

@@ -5,6 +5,7 @@ import { Button, Card, Empty, Space, Spin, Table, Tag, Typography } from 'antd';
 import type { TableProps } from 'antd';
 import { message } from '@/lib/antdMessage';
 import { OaIcon } from '@/components/OaIcon';
+import { useTranslation } from 'react-i18next';
 import {
   fetchUnreadCount,
   listNotifications,
@@ -13,19 +14,15 @@ import {
   type NotificationItem,
 } from '@/lib/notificationApi';
 
-const TYPE_TAG: Record<string, { color: string; label: string }> = {
-  approval: { color: 'blue', label: '审批' },
-  system: { color: 'default', label: '系统' },
-  alert: { color: 'error', label: '告警' },
-  todo: { color: 'orange', label: '待办' },
+const TYPE_COLOR: Record<string, string> = {
+  approval: 'blue',
+  system: 'default',
+  alert: 'error',
+  todo: 'orange',
 };
 
-function typeTag(type: string) {
-  const config = TYPE_TAG[type] || { color: 'default', label: type };
-  return <Tag color={config.color}>{config.label}</Tag>;
-}
-
 export default function NotificationPage() {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [total, setTotal] = useState(0);
@@ -44,7 +41,7 @@ export default function NotificationPage() {
       setTotal(pageResult.total);
       setUnread(unreadCount);
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '加载通知失败');
+      message.error(error instanceof Error ? error.message : t('pages.notification.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -61,29 +58,34 @@ export default function NotificationPage() {
       await markNotificationRead(item.id);
       await load(page);
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '标记已读失败');
+      message.error(error instanceof Error ? error.message : t('pages.notification.markReadFailed'));
     }
   };
 
   const handleReadAll = async () => {
     try {
       await markAllNotificationsRead();
-      message.success('已全部标记为已读');
+      message.success(t('pages.notification.markAllReadSuccess'));
       await load(page);
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '操作失败');
+      message.error(error instanceof Error ? error.message : t('pages.notification.operationFailed'));
     }
   };
 
   const columns: TableProps<NotificationItem>['columns'] = [
     {
-      title: '类型',
+      title: t('pages.notification.columnType'),
       dataIndex: 'type',
       width: 90,
-      render: (type: string) => typeTag(type),
+      render: (type: string) => {
+        const color = TYPE_COLOR[type] || 'default';
+        const labelKey = `pages.notification.type.${type}`;
+        const label = t(labelKey);
+        return <Tag color={color}>{label === labelKey ? type : label}</Tag>;
+      },
     },
     {
-      title: '内容',
+      title: t('pages.notification.columnContent'),
       dataIndex: 'title',
       render: (title: string, item) => (
         <div className="oa-notification-cell">
@@ -96,20 +98,20 @@ export default function NotificationPage() {
       ),
     },
     {
-      title: '时间',
+      title: t('pages.notification.columnTime'),
       dataIndex: 'createdAt',
       width: 180,
       render: (value: string) => new Date(value).toLocaleString(),
     },
     {
-      title: '操作',
+      title: t('common.actions'),
       key: 'action',
       width: 110,
       render: (_, item) =>
         item.read ? (
-          <Typography.Text type="secondary">已读</Typography.Text>
+          <Typography.Text type="secondary">{t('pages.notification.read')}</Typography.Text>
         ) : (
-          <Button size="small" onClick={() => void handleRead(item)}>标记已读</Button>
+          <Button size="small" onClick={() => void handleRead(item)}>{t('pages.notification.markRead')}</Button>
         ),
     },
   ];
@@ -122,14 +124,14 @@ export default function NotificationPage() {
             <OaIcon name="messages" size={20} />
           </span>
           <div>
-            <Typography.Title level={4} style={{ marginBottom: 0 }}>消息中心</Typography.Title>
-            <Typography.Text type="secondary">未读 {unread} 条</Typography.Text>
+            <Typography.Title level={4} style={{ marginBottom: 0 }}>{t('pages.notification.title')}</Typography.Title>
+            <Typography.Text type="secondary">{t('pages.notification.unreadCount', { count: unread })}</Typography.Text>
           </div>
         </Space>
         <Space>
-          <Button icon={<OaIcon name="reload" />} onClick={() => void load(page)}>刷新</Button>
+          <Button icon={<OaIcon name="reload" />} onClick={() => void load(page)}>{t('common.refresh')}</Button>
           <Button type="primary" disabled={unread === 0} onClick={() => void handleReadAll()}>
-            全部已读
+            {t('pages.notification.markAllRead')}
           </Button>
         </Space>
       </div>
@@ -148,7 +150,7 @@ export default function NotificationPage() {
               onChange: setPage,
             }}
             locale={{
-              emptyText: <Empty description="暂无通知" image={Empty.PRESENTED_IMAGE_SIMPLE} />,
+              emptyText: <Empty description={t('pages.notification.empty')} image={Empty.PRESENTED_IMAGE_SIMPLE} />,
             }}
           />
         </Spin>

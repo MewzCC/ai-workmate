@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Avatar, Button, Space, Tag, Tooltip, Typography } from 'antd';
 import { message as antMessage } from '@/lib/antdMessage';
 import {
@@ -23,6 +24,7 @@ interface MessageItemProps {
 }
 
 export default function MessageItem({ item, onRetry }: MessageItemProps) {
+  const { t } = useTranslation();
   const isAssistant = item.role === 'assistant';
   const { user } = useAuth();
   const [feedbackValue, setFeedbackValue] = useState(item.feedback);
@@ -42,18 +44,18 @@ export default function MessageItem({ item, onRetry }: MessageItemProps) {
     try {
       await updateMessageFeedback(item.id, feedback);
       setFeedbackValue(feedback === 'none' ? null : feedback);
-      antMessage.success('反馈已记录');
+      antMessage.success(t('chat.feedbackRecorded'));
     } catch (error) {
-      antMessage.error(error instanceof Error ? error.message : '反馈提交失败');
+      antMessage.error(error instanceof Error ? error.message : t('chat.feedbackFailed'));
     }
   };
 
   const copyReply = async () => {
     try {
       await navigator.clipboard.writeText(item.content);
-      antMessage.success('回复已复制');
+      antMessage.success(t('chat.replyCopied'));
     } catch {
-      antMessage.error('回复复制失败');
+      antMessage.error(t('chat.replyCopyFailed'));
     }
   };
 
@@ -66,9 +68,9 @@ export default function MessageItem({ item, onRetry }: MessageItemProps) {
       />
       <div className="ai-message-body">
         <div className="ai-message-heading">
-          <Typography.Text strong>{isAssistant ? 'WorkMate AI' : '你'}</Typography.Text>
-          {item.status === 'sending' && <Tag color="processing">生成中</Tag>}
-          {item.status === 'failed' && <Tag color="error">未完成</Tag>}
+          <Typography.Text strong>{isAssistant ? t('chat.assistantName') : t('chat.you')}</Typography.Text>
+          {item.status === 'sending' && <Tag color="processing">{t('chat.statusGenerating')}</Tag>}
+          {item.status === 'failed' && <Tag color="error">{t('chat.statusIncomplete')}</Tag>}
         </div>
         {item.attachments.length > 0 && (
           <div className="ai-message-attachments">
@@ -80,7 +82,7 @@ export default function MessageItem({ item, onRetry }: MessageItemProps) {
         <div className={`ai-message-content ${isAssistant && item.status === 'sending' ? 'ai-message-content-streaming' : ''}`}>
           {isAssistant ? (
             <MarkdownRenderer
-              content={item.content || (item.status === 'sending' ? '正在思考...' : '')}
+              content={item.content || (item.status === 'sending' ? t('chat.thinking') : '')}
               citations={item.citations || []}
             />
           ) : (
@@ -92,26 +94,26 @@ export default function MessageItem({ item, onRetry }: MessageItemProps) {
         )}
         {isAssistant && item.status !== 'sending' && (
           <Space size={2} className="ai-message-actions">
-            <Tooltip title="复制回复">
-              <Button type="text" size="small" aria-label="复制回复" icon={<OaIcon name="copy" />} onClick={() => void copyReply()} />
+            <Tooltip title={t('chat.copyReply')}>
+              <Button type="text" size="small" aria-label={t('chat.copyReply')} icon={<OaIcon name="copy" />} onClick={() => void copyReply()} />
             </Tooltip>
-            <Tooltip title="重新生成">
-              <Button type="text" size="small" aria-label="重新生成" icon={<OaIcon name="reload" />} onClick={onRetry} />
+            <Tooltip title={t('chat.regenerate')}>
+              <Button type="text" size="small" aria-label={t('chat.regenerate')} icon={<OaIcon name="reload" />} onClick={onRetry} />
             </Tooltip>
-            <Tooltip title="有帮助">
+            <Tooltip title={t('chat.helpful')}>
               <Button
                 type="text"
                 size="small"
-                aria-label="有帮助"
+                aria-label={t('chat.helpful')}
                 icon={feedbackValue === 'like' ? <LikeFilled /> : <LikeOutlined />}
                 onClick={() => void setFeedback(feedbackValue === 'like' ? 'none' : 'like')}
               />
             </Tooltip>
-            <Tooltip title="需改进">
+            <Tooltip title={t('chat.needImprove')}>
               <Button
                 type="text"
                 size="small"
-                aria-label="需改进"
+                aria-label={t('chat.needImprove')}
                 icon={feedbackValue === 'dislike' ? <DislikeFilled /> : <DislikeOutlined />}
                 onClick={() => void setFeedback(feedbackValue === 'dislike' ? 'none' : 'dislike')}
               />

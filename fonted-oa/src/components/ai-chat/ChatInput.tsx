@@ -1,6 +1,8 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { Button, Input, Space, Tooltip, Upload } from 'antd';
 import { message } from '@/lib/antdMessage';
 import type { ChatAttachment } from '@/types/chat';
@@ -25,6 +27,7 @@ interface ChatInputProps {
 }
 
 export default function ChatInput({ pending, generating, onUpload, onRemoveAttachment, onSend, onStop }: ChatInputProps) {
+  const { t } = useTranslation();
   const [value, setValue] = useState('');
   const [dragging, setDragging] = useState(false);
   const dragDepth = useRef(0);
@@ -38,7 +41,7 @@ export default function ChatInput({ pending, generating, onUpload, onRemoveAttac
   };
 
   const acceptFiles = (files: File[]) => {
-    const valid = files.filter(validateFile);
+    const valid = files.filter((file) => validateFile(file, t));
     if (valid.length) onUpload(valid);
   };
 
@@ -58,7 +61,7 @@ export default function ChatInput({ pending, generating, onUpload, onRemoveAttac
       <Input.TextArea
         value={value}
         autoSize={{ minRows: 1, maxRows: 7 }}
-        placeholder="输入消息，或拖入图片和文档…"
+        placeholder={t('chat.inputPlaceholder')}
         onChange={(event) => setValue(event.target.value)}
         onPaste={(event) => {
           const files = Array.from(event.clipboardData.files);
@@ -74,38 +77,38 @@ export default function ChatInput({ pending, generating, onUpload, onRemoveAttac
             if (file.uid === list[0]?.uid) acceptFiles(list as File[]);
             return false;
           }}>
-            <Tooltip title="上传图片或文件">
+            <Tooltip title={t('chat.uploadFile')}>
               <Button
                 type="text"
                 icon={<OaIcon name="attachment" />}
-                aria-label="上传图片或文件"
+                aria-label={t('chat.uploadFile')}
               />
             </Tooltip>
           </Upload>
-          <span className="ai-composer-hint">Enter 发送 · Shift + Enter 换行</span>
+          <span className="ai-composer-hint">{t('chat.inputHint')}</span>
         </Space>
         {generating ? (
-          <Button danger icon={<OaIcon name="pause" />} onClick={onStop}>停止生成</Button>
+          <Button danger icon={<OaIcon name="pause" />} onClick={onStop}>{t('chat.stopGenerating')}</Button>
         ) : (
-          <Button type="primary" shape="circle" icon={<OaIcon name="send" />} disabled={!value.trim() && !pending.length} onClick={send} aria-label="发送消息" />
+          <Button type="primary" shape="circle" icon={<OaIcon name="send" />} disabled={!value.trim() && !pending.length} onClick={send} aria-label={t('chat.sendMessage')} />
         )}
       </div>
-      {dragging && <div className="ai-drop-mask">松开以上传文件</div>}
+      {dragging && <div className="ai-drop-mask">{t('chat.dropToUpload')}</div>}
     </div>
   );
 }
 
-function validateFile(file: File): boolean {
+function validateFile(file: File, t: TFunction): boolean {
   const dotIndex = file.name.lastIndexOf('.');
   const extension = dotIndex >= 0 ? file.name.slice(dotIndex).toLowerCase() : '';
   const image = IMAGE_TYPES.has(file.type);
   if (!SUPPORTED_EXTENSIONS.has(extension) && !image) {
-    message.error(`${file.name}：暂不支持该文件类型`);
+    message.error(t('chat.unsupportedFileType', { name: file.name }));
     return false;
   }
   const max = image ? 10 * 1024 * 1024 : 20 * 1024 * 1024;
   if (file.size > max) {
-    message.error(`${file.name} 超过${image ? ' 10MB' : ' 20MB'}限制`);
+    message.error(t('chat.fileSizeExceeded', { name: file.name, limit: image ? '10MB' : '20MB' }));
     return false;
   }
   return true;

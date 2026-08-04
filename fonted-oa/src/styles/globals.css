@@ -3140,13 +3140,35 @@ html.oa-wallpaper-active .ant-menu-submenu-popup .ant-menu-dark {
   display: none !important;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   border-radius: 999px !important;
   background: rgba(255, 255, 255, 0.16) !important;
   border: 1px solid rgba(255, 255, 255, 0.28) !important;
   color: #ffffff !important;
-  font-size: 18px;
+  font-size: 16px;
+}
+
+/* 语言切换按钮：与顶栏通知/头像按钮统一胶囊形态，适配所有皮肤 */
+.oa-lang-toggle {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 36px !important;
+  padding: 0 12px !important;
+  border-radius: 999px !important;
+  background: rgba(255, 255, 255, 0.16) !important;
+  border: 1px solid rgba(255, 255, 255, 0.28) !important;
+  color: #ffffff !important;
+  font-size: 14px;
+  transition: background 180ms ease, border-color 180ms ease;
+}
+
+.oa-lang-toggle:hover {
+  background: rgba(255, 255, 255, 0.28) !important;
+  border-color: rgba(255, 255, 255, 0.48) !important;
+  color: #ffffff !important;
 }
 
 .oa-header-more-btn:hover {
@@ -3176,7 +3198,7 @@ html.oa-wallpaper-active .ant-menu-submenu-popup .ant-menu-dark {
   background: rgba(255, 255, 255, 0.16) !important;
   border: 1px solid rgba(255, 255, 255, 0.28) !important;
   color: #ffffff !important;
-  height: 40px;
+  height: 36px !important;
 }
 
 .oa-profile-trigger:hover {

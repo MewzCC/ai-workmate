@@ -16,6 +16,7 @@ import { message } from '@/lib/antdMessage';
 import { OaIcon, oaKnowledgeBaseIconOptions, type OaIconName } from '@/components/OaIcon';
 import { knowledgeApi, type KnowledgeBase } from '@/lib/knowledgeApi';
 import { useRouter } from '@/lib/nextCompat';
+import { useTranslation } from 'react-i18next';
 import KnowledgeBaseDetail from './KnowledgeBaseDetail';
 
 interface CreateBaseValues {
@@ -26,6 +27,7 @@ interface CreateBaseValues {
 
 export default function KnowledgeBasePage({ kbId }: { kbId?: number }) {
   const router = useRouter();
+  const { t } = useTranslation();
   const [bases, setBases] = useState<KnowledgeBase[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -38,11 +40,11 @@ export default function KnowledgeBasePage({ kbId }: { kbId?: number }) {
     try {
       setBases(await knowledgeApi.listBases());
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '加载知识库失败');
+      message.error(error instanceof Error ? error.message : t('knowledge.loadFailed'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     // 列表视图挂载或从详情页返回时强制刷新，保证文档数/名称等变化可见
@@ -70,11 +72,11 @@ export default function KnowledgeBasePage({ kbId }: { kbId?: number }) {
         icon: values.icon ?? 'knowledge-base',
         description: values.description?.trim() || undefined,
       });
-      message.success('知识库已创建');
+      message.success(t('knowledge.createSuccess'));
       setCreateModalOpen(false);
       await loadBases();
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '创建知识库失败');
+      message.error(error instanceof Error ? error.message : t('knowledge.createFailed'));
     } finally {
       setCreating(false);
     }
@@ -82,19 +84,19 @@ export default function KnowledgeBasePage({ kbId }: { kbId?: number }) {
 
   const confirmDelete = (knowledgeBase: KnowledgeBase) => {
     Modal.confirm({
-      title: `确认删除知识库「${knowledgeBase.name}」？`,
-      content: `该知识库下的 ${knowledgeBase.docCount} 个文档及其向量分块将一并删除，无法恢复。`,
-      okText: '确认删除',
+      title: t('knowledge.confirmDeleteTitle', { name: knowledgeBase.name }),
+      content: t('knowledge.confirmDeleteContent', { count: knowledgeBase.docCount }),
+      okText: t('knowledge.confirmDeleteOk'),
       okType: 'danger',
-      cancelText: '取消',
+      cancelText: t('common.cancel'),
       onOk: async () => {
         setDeletingId(knowledgeBase.id);
         try {
           await knowledgeApi.deleteBase(knowledgeBase.id);
-          message.success('知识库已删除');
+          message.success(t('knowledge.deleteSuccess'));
           await loadBases();
         } catch (error) {
-          message.error(error instanceof Error ? error.message : '删除知识库失败');
+          message.error(error instanceof Error ? error.message : t('knowledge.deleteFailed'));
         } finally {
           setDeletingId(null);
         }
@@ -106,14 +108,14 @@ export default function KnowledgeBasePage({ kbId }: { kbId?: number }) {
     <section className="oa-domain-page">
       <div className="oa-domain-heading">
         <div>
-          <Typography.Title level={3}>知识库管理</Typography.Title>
+          <Typography.Title level={3}>{t('knowledge.title')}</Typography.Title>
           <Typography.Paragraph type="secondary">
-            管理您的所有知识库集合，在知识库内上传文档、查询与配置检索参数。
+            {t('knowledge.description')}
           </Typography.Paragraph>
         </div>
         <Space>
           <Button type="primary" icon={<OaIcon name="add" />} onClick={openCreate}>
-            新建知识库
+            {t('knowledge.createBase')}
           </Button>
         </Space>
       </div>
@@ -124,7 +126,7 @@ export default function KnowledgeBasePage({ kbId }: { kbId?: number }) {
         styles={{ body: { padding: 16 } }}
       >
         {bases.length === 0 ? (
-          <Empty description="暂无知识库，点击右上角「新建知识库」开始" style={{ padding: '32px 0' }} />
+          <Empty description={t('knowledge.empty')} style={{ padding: '32px 0' }} />
         ) : (
           <div
             style={{
@@ -184,15 +186,15 @@ export default function KnowledgeBasePage({ kbId }: { kbId?: number }) {
                 </Space>
                 <div style={{ display: 'flex', gap: 24, marginTop: 16 }}>
                   <div>
-                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>文档</Typography.Text>
+                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>{t('knowledge.statDocuments')}</Typography.Text>
                     <div><Typography.Text strong>{item.docCount}</Typography.Text></div>
                   </div>
                   <div>
-                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>分块</Typography.Text>
+                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>{t('knowledge.statChunks')}</Typography.Text>
                     <div><Typography.Text strong>{item.chunkCount}</Typography.Text></div>
                   </div>
                   <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
-                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>更新时间</Typography.Text>
+                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>{t('common.updatedAt')}</Typography.Text>
                     <div>
                       <Typography.Text style={{ fontSize: 12 }}>
                         {new Date(item.updatedAt).toLocaleDateString()}
@@ -207,34 +209,34 @@ export default function KnowledgeBasePage({ kbId }: { kbId?: number }) {
       </Card>
 
       <Modal
-        title="新建知识库"
+        title={t('knowledge.createBase')}
         open={createModalOpen}
         onCancel={() => setCreateModalOpen(false)}
         onOk={() => void submitCreate()}
-        okText="创建"
-        cancelText="取消"
+        okText={t('common.create')}
+        cancelText={t('common.cancel')}
         confirmLoading={creating}
         width={480}
       >
         <Form form={createForm} layout="vertical" style={{ marginTop: 8 }}>
           <Form.Item
             name="name"
-            label="知识库名称"
+            label={t('knowledge.fieldName')}
             rules={[
-              { required: true, message: '请输入知识库名称' },
-              { max: 80, message: '名称不能超过 80 个字符' },
+              { required: true, message: t('knowledge.validateNameRequired') },
+              { max: 80, message: t('knowledge.validateNameMax') },
             ]}
           >
-            <Input placeholder="例如：公司制度库" maxLength={80} />
+            <Input placeholder={t('knowledge.placeholderName')} maxLength={80} />
           </Form.Item>
-          <Form.Item name="icon" label="图标">
+          <Form.Item name="icon" label={t('knowledge.fieldIcon')}>
             <Select
               options={oaKnowledgeBaseIconOptions.map((option) => ({
                 value: option.value,
                 label: (
                   <Space>
                     <OaIcon name={option.value} />
-                    {option.label}
+                    {t(option.labelKey)}
                   </Space>
                 ),
               }))}
@@ -242,10 +244,10 @@ export default function KnowledgeBasePage({ kbId }: { kbId?: number }) {
           </Form.Item>
           <Form.Item
             name="description"
-            label="描述"
-            rules={[{ max: 500, message: '描述不能超过 500 个字符' }]}
+            label={t('knowledge.fieldDescription')}
+            rules={[{ max: 500, message: t('knowledge.validateDescriptionMax') }]}
           >
-            <Input.TextArea rows={3} placeholder="一句话说明这个知识库的用途（可选）" maxLength={500} />
+            <Input.TextArea rows={3} placeholder={t('knowledge.placeholderDescription')} maxLength={500} />
           </Form.Item>
         </Form>
       </Modal>

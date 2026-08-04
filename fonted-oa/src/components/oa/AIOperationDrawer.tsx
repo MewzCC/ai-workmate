@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Alert,
   Button,
@@ -48,6 +49,7 @@ export default function AIOperationDrawer({
   onOpenChangeComplete,
   onExecuted,
 }: AIOperationDrawerProps) {
+  const { t } = useTranslation();
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<ChatLine[]>([]);
   const [plan, setPlan] = useState<AiTaskPlanResponse | null>(null);
@@ -65,12 +67,12 @@ export default function AIOperationDrawer({
   const submitPlan = async (preset?: string) => {
     const value = (preset || input).trim();
     if (!value) {
-      message.warning('请输入 AI 任务');
+      message.warning(t('oa.ai.enterTask'));
       return;
     }
     if (isSensitiveEmployeeTask(role, value)) {
-      message.warning('当前角色无权限执行该操作');
-      setMessages((prev) => [...prev, { role: 'user', content: value }, { role: 'assistant', content: '当前角色无权限执行该操作。' }]);
+      message.warning(t('oa.ai.noPermission'));
+      setMessages((prev) => [...prev, { role: 'user', content: value }, { role: 'assistant', content: t('oa.ai.noPermission') }]);
       return;
     }
 
@@ -83,7 +85,7 @@ export default function AIOperationDrawer({
       const nextPlan = await planAiTask({ input: value, pageId });
       setPlan(nextPlan);
       setMessages((prev) => [...prev, { role: 'assistant', content: nextPlan.summary }]);
-      message.success('AI 执行计划已生成');
+      message.success(t('oa.ai.planGenerated'));
     } catch (error) {
       const errorMessage = formatOaApiError(error);
       setPlan(null);
@@ -97,25 +99,25 @@ export default function AIOperationDrawer({
 
   const confirmExecute = () => {
     if (!plan) {
-      message.warning('请先生成执行计划');
+      message.warning(t('oa.ai.generatePlanFirst'));
       return;
     }
     if (role === 'employee' && ['approve', 'delete', 'export'].includes(plan.type)) {
-      message.warning('当前角色无权限执行该操作');
+      message.warning(t('oa.ai.noPermission'));
       return;
     }
 
     Modal.confirm({
-      title: '确认执行 AI 计划',
-      content: `任务 ${plan.taskId} 风险等级为 ${plan.riskLevel}。确认后仅调用后端已注册的真实业务能力，并记录审计。`,
-      okText: '确认执行',
-      cancelText: '取消',
+      title: t('oa.ai.confirmTitle'),
+      content: t('oa.ai.confirmContent', { taskId: plan.taskId, riskLevel: plan.riskLevel }),
+      okText: t('oa.ai.confirmOk'),
+      cancelText: t('common.cancel'),
       onOk: async () => {
         try {
           setOperationError(null);
           const data = await executeAiTask({ taskId: plan.taskId, confirm: true });
           setResult(data);
-          onExecuted(`AI 执行 ${plan.type}：${data.auditId}`);
+          onExecuted(t('oa.ai.executedAudit', { type: plan.type, auditId: data.auditId }));
           message.success(data.message);
         } catch (error) {
           const errorMessage = formatOaApiError(error);
@@ -130,7 +132,7 @@ export default function AIOperationDrawer({
   return (
     <Drawer
       rootClassName="oa-ai-operation-drawer"
-      title="AI 操作面板"
+      title={t('oa.ai.panelTitle')}
       size="default"
       styles={{ wrapper: { width: 520 } }}
       open={open}
@@ -142,43 +144,43 @@ export default function AIOperationDrawer({
             rows={4}
             value={input}
             onChange={(event) => setInput(event.target.value)}
-            placeholder="例如：帮我预审当前列表，并输出风险排序"
+            placeholder={t('oa.ai.placeholder')}
           />
           <Space wrap>
             <Button type="primary" icon={<OaIcon name="send" />} loading={loading} onClick={() => submitPlan()}>
-              发送 / 生成计划
+              {t('oa.ai.send')}
             </Button>
             <Button icon={<OaIcon name="pause" />} onClick={() => {
               setPlan(null);
               setResult(null);
-              message.info('已取消当前计划');
+              message.info(t('oa.ai.cancelledPlan'));
             }}>
-              取消计划
+              {t('oa.ai.cancelPlan')}
             </Button>
           </Space>
         </Space>
       )}
     >
       <Space orientation="vertical" size={16} className="oa-drawer-stack">
-        <Card size="small" title="当前上下文">
+        <Card size="small" title={t('oa.ai.contextTitle')}>
           <Descriptions
             size="small"
             column={1}
             items={[
-              { key: 'page', label: '当前页面', children: pageTitle },
-              { key: 'role', label: '当前角色', children: role },
-              { key: 'scope', label: '数据范围', children: roleDataScope[role] },
-              { key: 'confirm', label: '高风险动作', children: '需要二次确认' },
+              { key: 'page', label: t('oa.ai.currentPage'), children: pageTitle },
+              { key: 'role', label: t('oa.ai.currentRole'), children: role },
+              { key: 'scope', label: t('oa.ai.dataScope'), children: roleDataScope[role] },
+              { key: 'confirm', label: t('oa.ai.highRiskActions'), children: t('oa.ai.requiresConfirm') },
             ]}
           />
           <Space wrap className="oa-ai-tags">
-            {allowedActions.length ? allowedActions.map((action) => <Tag color="blue" key={action.actionId}>{action.name}</Tag>) : <Tag>暂无可执行动作</Tag>}
+            {allowedActions.length ? allowedActions.map((action) => <Tag color="blue" key={action.actionId}>{action.name}</Tag>) : <Tag>{t('oa.ai.noActions')}</Tag>}
           </Space>
         </Card>
 
-        <Card size="small" title="快捷指令">
+        <Card size="small" title={t('oa.ai.quickCommands')}>
           <Space wrap>
-            {['预审当前列表', '新建采购申请', '修改员工部门', '排查接口异常', '导出审批摘要'].map((command) => (
+            {(t('oa.ai.commands', { returnObjects: true }) as string[]).map((command) => (
               <Button key={command} icon={<OaIcon name="ai" />} onClick={() => submitPlan(command)}>
                 {command}
               </Button>
@@ -187,29 +189,29 @@ export default function AIOperationDrawer({
         </Card>
 
         {role === 'employee' && (
-          <Alert type="warning" showIcon title="普通员工角色下，审批、删除、权限修改、敏感导出等高风险 AI 操作会被拦截。" />
+          <Alert type="warning" showIcon title={t('oa.ai.employeeWarning')} />
         )}
 
         {operationError && (
           <Alert
             type="error"
             showIcon
-            title="AI 能力调用失败"
+            title={t('oa.ai.callFailed')}
             description={operationError.message}
-            action={operationError.retryable ? <Button size="small" onClick={() => submitPlan()}>重试</Button> : undefined}
+            action={operationError.retryable ? <Button size="small" onClick={() => submitPlan()}>{t('common.retry')}</Button> : undefined}
           />
         )}
 
-        <Card size="small" title="消息区">
+        <Card size="small" title={t('oa.ai.messageArea')}>
           {messages.length === 0 ? (
-            <Empty description="输入任务后这里会显示用户消息与 AI 返回" />
+            <Empty description={t('oa.ai.emptyMessages')} />
           ) : (
             <ul className="oa-ai-message-list">
               {messages.map((item, index) => (
                 <li key={index} className="oa-ai-message-item">
                   <div className="oa-ai-message-meta">
-                    <Tag color={item.role === 'user' ? 'geekblue' : 'purple'}>{item.role === 'user' ? '你' : 'AI'}</Tag>
-                    <Typography.Text type="secondary">{item.role === 'user' ? '用户输入' : 'AI 返回'}</Typography.Text>
+                    <Tag color={item.role === 'user' ? 'geekblue' : 'purple'}>{item.role === 'user' ? t('oa.ai.you') : 'AI'}</Tag>
+                    <Typography.Text type="secondary">{item.role === 'user' ? t('oa.ai.userInput') : t('oa.ai.aiReply')}</Typography.Text>
                   </div>
                   <Typography.Paragraph className="oa-ai-message-content">{item.content}</Typography.Paragraph>
                 </li>
@@ -219,12 +221,12 @@ export default function AIOperationDrawer({
         </Card>
 
         {plan && (
-          <Card size="small" title="执行计划">
+          <Card size="small" title={t('oa.ai.planTitle')}>
             <Typography.Paragraph>{plan.summary}</Typography.Paragraph>
             <Space wrap>
               <Tag color={plan.riskLevel === 'high' ? 'red' : 'orange'}>{plan.riskLevel}</Tag>
               <Tag color="processing">{plan.type}</Tag>
-              {plan.requireConfirm && <Tag color="warning">需要确认</Tag>}
+              {plan.requireConfirm && <Tag color="warning">{t('oa.ai.requireConfirmTag')}</Tag>}
             </Space>
             <Steps
               direction="vertical"
@@ -233,7 +235,7 @@ export default function AIOperationDrawer({
               items={plan.steps.map((step) => ({ title: step.title, description: step.description }))}
             />
             <Button type="primary" icon={<OaIcon name="ai" />} onClick={confirmExecute}>
-              确认执行
+              {t('oa.ai.confirmExecute')}
             </Button>
           </Card>
         )}
@@ -242,11 +244,11 @@ export default function AIOperationDrawer({
           <Result
             status="success"
             title={result.message}
-            subTitle={`审计编号：${result.auditId}`}
+            subTitle={t('oa.ai.auditNo', { id: result.auditId })}
             extra={[
-              <Tag color="success" key="success">成功 {result.result.successCount}</Tag>,
-              <Tag color="warning" key="pending">待确认 {result.result.pendingConfirmCount}</Tag>,
-              <Tag color="error" key="reject">建议退回 {result.result.rejectSuggestCount}</Tag>,
+              <Tag color="success" key="success">{t('oa.ai.successTag', { count: result.result.successCount })}</Tag>,
+              <Tag color="warning" key="pending">{t('oa.ai.pendingTag', { count: result.result.pendingConfirmCount })}</Tag>,
+              <Tag color="error" key="reject">{t('oa.ai.rejectTag', { count: result.result.rejectSuggestCount })}</Tag>,
             ]}
           />
         )}

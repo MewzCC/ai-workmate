@@ -1,3 +1,6 @@
+import i18n from '@/i18n';
+import { buildApiHeaders } from '@/lib/apiHeaders';
+
 interface ApiResult<T> {
   code: number;
   errorCode?: string;
@@ -29,14 +32,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${BASE}${path}`, {
     ...init,
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json', ...(init?.headers || {}) },
+    headers: buildApiHeaders(Boolean(init?.body), init?.headers),
   });
   const body = (await response.json().catch(() => null)) as ApiResult<T> | null;
   if (!response.ok || !body || body.code !== 200) {
     if (response.status === 401) {
       window.dispatchEvent(new CustomEvent('oa-auth-expired'));
     }
-    throw new Error(body?.message || '通知请求失败');
+    throw new Error(body?.message || i18n.t('errors.notification.requestFailed'));
   }
   return body.data as T;
 }
