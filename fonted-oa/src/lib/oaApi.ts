@@ -4,7 +4,8 @@ import type {
   AiTaskPlanRequest,
   AiTaskPlanResponse,
 } from '@/types/oa';
-import { uuid } from '@/lib/uuid';
+import { buildApiHeaders } from '@/lib/apiHeaders';
+import i18n from '@/i18n';
 
 const BASE = '/api';
 
@@ -60,19 +61,11 @@ function statusErrorCode(status: number): string {
 }
 
 function statusMessage(status: number): string {
-  if (status === 401) return '请先登录后再继续操作';
-  if (status === 403) return '当前账号没有执行该操作的权限';
-  if (status === 409) return '数据状态已变化，请刷新后重试';
-  if (status === 429) return '请求过于频繁，请稍后重试';
-  return '服务暂时不可用，请稍后重试';
-}
-
-function requestHeaders(): HeadersInit {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    'X-Request-Id': uuid().replaceAll('-', ''),
-  };
-  return headers;
+  if (status === 401) return i18n.t('errors.oa.statusUnauthorized');
+  if (status === 403) return i18n.t('errors.oa.statusForbidden');
+  if (status === 409) return i18n.t('errors.oa.statusConflict');
+  if (status === 429) return i18n.t('errors.oa.statusTooManyRequests');
+  return i18n.t('errors.oa.statusServer');
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -82,17 +75,17 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       credentials: 'include',
       cache: 'no-store',
       ...init,
-      headers: init?.body ? { ...requestHeaders(), ...init.headers } : init?.headers,
+      headers: buildApiHeaders(Boolean(init?.body), init?.headers),
     });
   } catch {
-    throw new OaApiError('无法连接 OA 服务，请确认后端已经启动', 0, 'SERVICE_UNAVAILABLE');
+    throw new OaApiError(i18n.t('errors.oa.serviceUnavailable'), 0, 'SERVICE_UNAVAILABLE');
   }
   return parseResult<T>(res);
 }
 
 export function formatOaApiError(error: unknown): string {
-  if (!(error instanceof OaApiError)) return '请求失败，请稍后重试';
-  const trace = error.traceId ? `（追踪号：${error.traceId}）` : '';
+  if (!(error instanceof OaApiError)) return i18n.t('errors.oa.requestFailedRetry');
+  const trace = error.traceId ? i18n.t('errors.oa.traceIdSuffix', { traceId: error.traceId }) : '';
   return `${error.message}${trace}`;
 }
 
@@ -104,7 +97,7 @@ export async function getSystemHealth(): Promise<{ status: string; service: stri
 export async function planAiTask(request: AiTaskPlanRequest): Promise<AiTaskPlanResponse> {
   const res = await fetch(`${BASE}/ai/tasks/plan`, {
     method: 'POST',
-    headers: requestHeaders(),
+    headers: buildApiHeaders(),
     body: JSON.stringify(request),
   });
   return parseResult(res);
@@ -113,7 +106,7 @@ export async function planAiTask(request: AiTaskPlanRequest): Promise<AiTaskPlan
 export async function executeAiTask(request: AiTaskExecuteRequest): Promise<AiTaskExecuteResponse> {
   const res = await fetch(`${BASE}/ai/tasks/execute`, {
     method: 'POST',
-    headers: requestHeaders(),
+    headers: buildApiHeaders(),
     body: JSON.stringify(request),
   });
   return parseResult(res);

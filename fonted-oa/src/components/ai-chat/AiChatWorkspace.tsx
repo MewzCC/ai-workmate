@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button, Drawer, Tooltip } from 'antd';
 import { message } from '@/lib/antdMessage';
 import { MenuUnfoldOutlined } from '@ant-design/icons';
@@ -20,6 +21,7 @@ interface AiChatWorkspaceProps {
 }
 
 export default function AiChatWorkspace({ role }: AiChatWorkspaceProps) {
+  const { t } = useTranslation();
   const store = useAiChatStore();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [mobileSessionsOpen, setMobileSessionsOpen] = useState(false);
@@ -33,7 +35,7 @@ export default function AiChatWorkspace({ role }: AiChatWorkspaceProps) {
   useEffect(() => {
     setSidebarCollapsed(localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true');
     store.loadConversations().catch((error) => {
-      message.error(error instanceof Error ? error.message : '会话加载失败');
+      message.error(error instanceof Error ? error.message : t('chat.conversationsLoadFailed'));
     });
     knowledgeApi.listBases()
       .then(setKbOptions)
@@ -75,24 +77,24 @@ export default function AiChatWorkspace({ role }: AiChatWorkspaceProps) {
     >
       <div className="ai-desktop-sidebar">
         {sidebarCollapsed ? (
-          <aside className="ai-chat-sidebar-rail" aria-label="会话栏快捷操作">
-            <Tooltip title="展开会话栏" placement="right">
+          <aside className="ai-chat-sidebar-rail" aria-label={t('chat.sidebarRailAriaLabel')}>
+            <Tooltip title={t('chat.expandSidebar')} placement="right">
               <Button
                 type="text"
                 icon={<MenuUnfoldOutlined />}
-                aria-label="展开会话栏"
+                aria-label={t('chat.expandSidebar')}
                 onClick={() => updateSidebarCollapsed(false)}
               />
             </Tooltip>
-            <Tooltip title="新建聊天" placement="right">
-              <Button type="text" icon={<OaIcon name="add" />} aria-label="新建聊天" onClick={() => void store.newConversation()} />
+            <Tooltip title={t('chat.newChat')} placement="right">
+              <Button type="text" icon={<OaIcon name="add" />} aria-label={t('chat.newChat')} onClick={() => void store.newConversation()} />
             </Tooltip>
-            <Tooltip title="设置" placement="right">
+            <Tooltip title={t('chat.settings')} placement="right">
               <Button
                 className="ai-sidebar-rail-settings"
                 type="text"
                 icon={<OaIcon name="settings" />}
-                aria-label="设置"
+                aria-label={t('chat.settings')}
                 onClick={() => setSettingsOpen(true)}
               />
             </Tooltip>
@@ -100,7 +102,7 @@ export default function AiChatWorkspace({ role }: AiChatWorkspaceProps) {
         ) : sidebar}
       </div>
       <ChatWindow
-        title={active?.title || '新对话'}
+        title={active?.title || t('chat.newConversation')}
         model={store.settings.model}
         kbId={store.settings.kbId}
         kbOptions={kbOptions}
@@ -116,7 +118,7 @@ export default function AiChatWorkspace({ role }: AiChatWorkspaceProps) {
         onKbChange={(kbId: number | null) => store.updateSettings({ ...store.settings, kbId })}
       />
       <Drawer
-        title="历史会话"
+        title={t('chat.historySessions')}
         placement="left"
         size="default"
         styles={{ wrapper: { width: 320 } }}

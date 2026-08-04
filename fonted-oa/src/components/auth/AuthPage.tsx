@@ -10,20 +10,19 @@ import {
   WechatOutlined,
 } from '@ant-design/icons';
 import { App, Button, Checkbox, ConfigProvider, Form, Input, Modal, Result } from 'antd';
+import { useTranslation } from 'react-i18next';
 import { authApi, AuthApiError, type CaptchaData, type CodeScene } from '@/lib/authApi';
 import { uuid } from '@/lib/uuid';
 import { useAuth } from './AuthProvider';
 import {
   AuthNotice,
   CaptchaInput,
-  EMAIL_CODE_MESSAGE,
   EMAIL_CODE_PATTERN,
   EmailCodeInput,
   FormInput,
   GlassTabs,
   PasswordInput,
   PasswordStrength,
-  PASSWORD_MESSAGE,
   PASSWORD_PATTERN,
 } from './AuthControls';
 
@@ -43,6 +42,7 @@ function safeRedirect(value: string | null) {
 export default function AuthPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { t } = useTranslation();
   const { message } = App.useApp();
   const { user, loading: authLoading, setUser } = useAuth();
   const [mainMode, setMainMode] = useState<MainMode>('login');
@@ -83,14 +83,14 @@ export default function AuthPage() {
     try {
       setCaptcha(await authApi.captcha());
     } catch (reason) {
-      const message = reason instanceof Error ? reason.message : '图形验证码加载失败';
+      const message = reason instanceof Error ? reason.message : t('auth.message.captchaLoadFailed');
       setCaptcha(null);
       setError(message);
       setCaptchaError(message);
     } finally {
       setCaptchaLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (riskCaptcha) void loadCaptcha();
@@ -98,12 +98,12 @@ export default function AuthPage() {
 
   const completeLogin = (currentUser: Awaited<ReturnType<typeof authApi.passwordLogin>>) => {
     setUser(currentUser);
-    message.success('登录成功');
+    message.success(t('auth.message.loginSuccess'));
     router.replace(redirect);
   };
 
   const handleError = (reason: unknown) => {
-    const text = reason instanceof Error ? reason.message : '操作失败，请稍后重试';
+    const text = reason instanceof Error ? reason.message : t('auth.message.operationFailed');
     setError(text);
     if (reason instanceof AuthApiError && reason.errorCode === 'AUTH_CAPTCHA_REQUIRED') {
       setRiskCaptcha(true);
@@ -126,11 +126,11 @@ export default function AuthPage() {
 
   const confirmSendCode = async () => {
     if (!pendingCodeRequest || !captcha) {
-      setCaptchaError('图形验证码尚未加载，请点击重新加载');
+      setCaptchaError(t('auth.captchaModal.notLoaded'));
       return;
     }
     if (!captchaCode.trim()) {
-      setCaptchaError('请输入图形验证码');
+      setCaptchaError(t('auth.validation.captchaRequired'));
       return;
     }
     try {
@@ -143,12 +143,12 @@ export default function AuthPage() {
         captchaCode: captchaCode.trim(),
       });
       setCooldown(59);
-      message.success('验证码已发送，请检查邮箱');
+      message.success(t('auth.message.codeSent'));
       setCaptchaModalOpen(false);
       if (pendingCodeRequest.scene === 'reset_password') setResetStep(1);
     } catch (reason) {
       setCooldown(0);
-      setCaptchaError(reason instanceof Error ? reason.message : '验证码发送失败');
+      setCaptchaError(reason instanceof Error ? reason.message : t('auth.message.codeSendFailed'));
       setCaptchaCode('');
       await loadCaptcha();
     } finally {
@@ -186,7 +186,7 @@ export default function AuthPage() {
         password: values.password, agreement: values.agreement, requestId,
       });
       setUser(currentUser);
-      message.success('企业账号创建成功');
+      message.success(t('auth.message.registerSuccess'));
       router.replace(redirect);
     } catch (reason) {
       setRequestId(uuid());
@@ -207,9 +207,9 @@ export default function AuthPage() {
     setMainMode(mode); setView('account'); setError(''); setCooldown(0); setResetStep(0); setCaptchaModalOpen(false);
   };
 
-  const heading = mainMode === 'register' ? ['创建企业账号', '使用工作邮箱注册并加入您的组织。']
-    : view === 'forgot' ? ['找回密码', '验证企业邮箱后，设置新的登录密码。']
-      : ['欢迎回来', '登录企业工作台，继续处理审批与协作任务。'];
+  const heading = mainMode === 'register' ? [t('auth.heading.registerTitle'), t('auth.heading.registerSubtitle')]
+    : view === 'forgot' ? [t('auth.heading.forgotTitle'), t('auth.heading.forgotSubtitle')]
+      : [t('auth.heading.loginTitle'), t('auth.heading.loginSubtitle')];
 
   return (
     <ConfigProvider theme={{ token: { colorPrimary: '#315b9b', borderRadius: 12, fontFamily: 'Inter, "PingFang SC", "Microsoft YaHei", sans-serif' } }}>
@@ -222,63 +222,63 @@ export default function AuthPage() {
 
           {mainMode === 'login' && view === 'account' && <>
             <div className="auth-login-tabs">
-              <Button type="text" className={loginMode === 'password' ? 'active' : ''} onClick={() => { setLoginMode('password'); setError(''); }}>密码登录</Button>
-              <Button type="text" className={loginMode === 'code' ? 'active' : ''} onClick={() => { setLoginMode('code'); setError(''); }}>验证码登录</Button>
+              <Button type="text" className={loginMode === 'password' ? 'active' : ''} onClick={() => { setLoginMode('password'); setError(''); }}>{t('auth.loginMode.password')}</Button>
+              <Button type="text" className={loginMode === 'code' ? 'active' : ''} onClick={() => { setLoginMode('code'); setError(''); }}>{t('auth.loginMode.code')}</Button>
             </div>
             {loginMode === 'password' ? <Form form={passwordForm} layout="vertical" initialValues={{ remember: true }} onFinish={submitPasswordLogin} requiredMark={false}>
-              <Form.Item label="企业邮箱" name="email" rules={[{ required: true, type: 'email', message: '请输入有效的企业邮箱' }]}><FormInput placeholder="name@company.com" autoComplete="email" /></Form.Item>
-              <Form.Item label="登录密码" name="password" rules={[{ required: true, message: '请输入登录密码' }]}><PasswordInput placeholder="请输入登录密码" autoComplete="current-password" /></Form.Item>
-              {riskCaptcha && <Form.Item label="安全验证" name="captchaCode" rules={[{ required: true, message: '请输入图形验证码' }]}><CaptchaInput image={captcha?.image} loading={captchaLoading} onRefresh={loadCaptcha} /></Form.Item>}
-              <div className="auth-form-meta"><Form.Item name="remember" valuePropName="checked" noStyle><Checkbox>记住登录状态</Checkbox></Form.Item><Button type="link" onClick={() => { setView('forgot'); setResetStep(0); setError(''); }}>忘记密码？</Button></div>
-              <AuthNotice>{error}</AuthNotice><Button htmlType="submit" type="primary" block size="large" loading={submitting}>登录工作台</Button>
+              <Form.Item label={t('auth.field.email')} name="email" rules={[{ required: true, type: 'email', message: t('auth.validation.emailInvalid') }]}><FormInput placeholder="name@company.com" autoComplete="email" /></Form.Item>
+              <Form.Item label={t('auth.field.password')} name="password" rules={[{ required: true, message: t('auth.validation.passwordRequired') }]}><PasswordInput placeholder={t('auth.field.passwordPlaceholder')} autoComplete="current-password" /></Form.Item>
+              {riskCaptcha && <Form.Item label={t('auth.field.captcha')} name="captchaCode" rules={[{ required: true, message: t('auth.validation.captchaRequired') }]}><CaptchaInput image={captcha?.image} loading={captchaLoading} onRefresh={loadCaptcha} /></Form.Item>}
+              <div className="auth-form-meta"><Form.Item name="remember" valuePropName="checked" noStyle><Checkbox>{t('auth.field.remember')}</Checkbox></Form.Item><Button type="link" onClick={() => { setView('forgot'); setResetStep(0); setError(''); }}>{t('auth.copy.forgotPassword')}</Button></div>
+              <AuthNotice>{error}</AuthNotice><Button htmlType="submit" type="primary" block size="large" loading={submitting}>{t('auth.button.login')}</Button>
             </Form> : <Form form={codeForm} layout="vertical" initialValues={{ remember: true }} onFinish={submitCodeLogin} requiredMark={false}>
-              <Form.Item label="企业邮箱" name="email" rules={[{ required: true, type: 'email', message: '请输入有效的企业邮箱' }]}><FormInput placeholder="name@company.com" /></Form.Item>
-              <Form.Item label="邮箱验证码" name="emailCode" rules={[{ required: true, message: EMAIL_CODE_MESSAGE }, { pattern: EMAIL_CODE_PATTERN, message: EMAIL_CODE_MESSAGE }]}><EmailCodeInput cooldown={cooldown} loading={sendingCode} onSend={() => void beginSendCode('login', codeForm)} /></Form.Item>
-              <Form.Item name="remember" valuePropName="checked"><Checkbox>记住登录状态</Checkbox></Form.Item>
-              <AuthNotice>{error}</AuthNotice><Button htmlType="submit" type="primary" block size="large" loading={submitting}>验证并登录</Button>
+              <Form.Item label={t('auth.field.email')} name="email" rules={[{ required: true, type: 'email', message: t('auth.validation.emailInvalid') }]}><FormInput placeholder="name@company.com" /></Form.Item>
+              <Form.Item label={t('auth.field.emailCode')} name="emailCode" rules={[{ required: true, message: t('auth.emailCodeRuleMessage') }, { pattern: EMAIL_CODE_PATTERN, message: t('auth.emailCodeRuleMessage') }]}><EmailCodeInput cooldown={cooldown} loading={sendingCode} onSend={() => void beginSendCode('login', codeForm)} /></Form.Item>
+              <Form.Item name="remember" valuePropName="checked"><Checkbox>{t('auth.field.remember')}</Checkbox></Form.Item>
+              <AuthNotice>{error}</AuthNotice><Button htmlType="submit" type="primary" block size="large" loading={submitting}>{t('auth.button.codeLogin')}</Button>
             </Form>}
-            <div className="auth-divider"><span>其他登录方式</span></div>
-            <div className="auth-social"><Button icon={<WechatOutlined />} onClick={() => message.info('企业微信登录尚未接入')}>企业微信</Button><Button icon={<DingdingOutlined />} onClick={() => message.info('钉钉登录尚未接入')}>钉钉</Button><Button icon={<BankOutlined />} onClick={() => message.info('企业 SSO 尚未接入')}>企业 SSO</Button></div>
-            <p className="auth-switch-copy">还没有账号？<Button type="link" onClick={() => switchMainMode('register')}>使用邮箱注册</Button></p>
+            <div className="auth-divider"><span>{t('auth.social.divider')}</span></div>
+            <div className="auth-social"><Button icon={<WechatOutlined />} onClick={() => message.info(t('auth.social.wechatUnavailable'))}>{t('auth.social.wechat')}</Button><Button icon={<DingdingOutlined />} onClick={() => message.info(t('auth.social.dingtalkUnavailable'))}>{t('auth.social.dingtalk')}</Button><Button icon={<BankOutlined />} onClick={() => message.info(t('auth.social.ssoUnavailable'))}>{t('auth.social.sso')}</Button></div>
+            <p className="auth-switch-copy">{t('auth.copy.noAccount')}<Button type="link" onClick={() => switchMainMode('register')}>{t('auth.button.registerWithEmail')}</Button></p>
           </>}
 
           {mainMode === 'register' && <Form form={registerForm} layout="vertical" onFinish={submitRegister} requiredMark={false}>
-            <Form.Item label="姓名" name="name" rules={[{ required: true, message: '请输入姓名' }]}><FormInput placeholder="请输入真实姓名" /></Form.Item>
-            <Form.Item label="企业邮箱" name="email" rules={[{ required: true, type: 'email', message: '请输入有效的企业邮箱' }]}><FormInput placeholder="name@company.com" /></Form.Item>
-            <Form.Item label="邮箱验证码" name="emailCode" rules={[{ required: true, message: EMAIL_CODE_MESSAGE }, { pattern: EMAIL_CODE_PATTERN, message: EMAIL_CODE_MESSAGE }]}><EmailCodeInput cooldown={cooldown} loading={sendingCode} onSend={() => void beginSendCode('register', registerForm)} /></Form.Item>
-            <Form.Item label="设置密码" name="password" rules={[{ required: true, message: '请输入密码' }, { pattern: PASSWORD_PATTERN, message: PASSWORD_MESSAGE }]}><PasswordInput placeholder="8-32 位，至少包含字母和数字" onChange={(event) => setRegisterPassword(event.target.value)} /></Form.Item>
+            <Form.Item label={t('auth.field.name')} name="name" rules={[{ required: true, message: t('auth.validation.nameRequired') }]}><FormInput placeholder={t('auth.field.namePlaceholder')} /></Form.Item>
+            <Form.Item label={t('auth.field.email')} name="email" rules={[{ required: true, type: 'email', message: t('auth.validation.emailInvalid') }]}><FormInput placeholder="name@company.com" /></Form.Item>
+            <Form.Item label={t('auth.field.emailCode')} name="emailCode" rules={[{ required: true, message: t('auth.emailCodeRuleMessage') }, { pattern: EMAIL_CODE_PATTERN, message: t('auth.emailCodeRuleMessage') }]}><EmailCodeInput cooldown={cooldown} loading={sendingCode} onSend={() => void beginSendCode('register', registerForm)} /></Form.Item>
+            <Form.Item label={t('auth.field.setName')} name="password" rules={[{ required: true, message: t('auth.validation.setPasswordRequired') }, { pattern: PASSWORD_PATTERN, message: t('auth.passwordRuleMessage') }]}><PasswordInput placeholder={t('auth.field.passwordSetPlaceholder')} onChange={(event) => setRegisterPassword(event.target.value)} /></Form.Item>
             <PasswordStrength value={registerPassword} />
-            <Form.Item label="确认密码" name="confirmPassword" dependencies={['password']} rules={[{ required: true }, ({ getFieldValue }) => ({ validator(_, value) { return !value || getFieldValue('password') === value ? Promise.resolve() : Promise.reject(new Error('两次输入的密码不一致')); } })]}><PasswordInput placeholder="再次输入密码" /></Form.Item>
-            <Form.Item name="agreement" valuePropName="checked" rules={[{ validator: (_, value) => value ? Promise.resolve() : Promise.reject(new Error('请先同意服务协议和隐私政策')) }]}><Checkbox>我已阅读并同意《服务协议》和《隐私政策》</Checkbox></Form.Item>
-            <AuthNotice>{error}</AuthNotice><Button htmlType="submit" type="primary" block size="large" loading={submitting}>创建账号</Button>
-            <p className="auth-switch-copy">已有账号？<Button type="link" onClick={() => switchMainMode('login')}>返回登录</Button></p>
+            <Form.Item label={t('auth.field.confirmPassword')} name="confirmPassword" dependencies={['password']} rules={[{ required: true }, ({ getFieldValue }) => ({ validator(_, value) { return !value || getFieldValue('password') === value ? Promise.resolve() : Promise.reject(new Error(t('auth.validation.passwordMismatch'))); } })]}><PasswordInput placeholder={t('auth.field.confirmPasswordPlaceholder')} /></Form.Item>
+            <Form.Item name="agreement" valuePropName="checked" rules={[{ validator: (_, value) => value ? Promise.resolve() : Promise.reject(new Error(t('auth.validation.agreementRequired'))) }]}><Checkbox>{t('auth.copy.agreement')}</Checkbox></Form.Item>
+            <AuthNotice>{error}</AuthNotice><Button htmlType="submit" type="primary" block size="large" loading={submitting}>{t('auth.button.createAccount')}</Button>
+            <p className="auth-switch-copy">{t('auth.copy.hasAccount')}<Button type="link" onClick={() => switchMainMode('login')}>{t('auth.button.backToLogin')}</Button></p>
           </Form>}
 
           {mainMode === 'login' && view === 'forgot' && <>
-            {resetStep === 2 ? <Result status="success" icon={<CheckCircleFilled />} title="密码修改成功" subTitle="请使用新密码重新登录企业工作台。" extra={<Button type="primary" onClick={() => { setView('account'); setResetStep(0); }}>返回登录</Button>} /> : <Form form={resetForm} layout="vertical" onFinish={submitReset} requiredMark={false}>
-              <Form.Item label="企业邮箱" name="email" rules={[{ required: true, type: 'email', message: '请输入有效的企业邮箱' }]}><FormInput placeholder="name@company.com" disabled={resetStep === 1} /></Form.Item>
-              {resetStep === 0 && <Button block size="large" loading={sendingCode} onClick={() => void beginSendCode('reset_password', resetForm)}>发送邮箱验证码</Button>}
-              {resetStep === 1 && <><Form.Item label="邮箱验证码" name="emailCode" rules={[{ required: true, message: EMAIL_CODE_MESSAGE }, { pattern: EMAIL_CODE_PATTERN, message: EMAIL_CODE_MESSAGE }]}><Input size="large" placeholder="请输入 6 位验证码" maxLength={6} inputMode="numeric" /></Form.Item><div className="auth-form-grid"><Form.Item label="新密码" name="newPassword" rules={[{ required: true, message: '请输入新密码' }, { pattern: PASSWORD_PATTERN, message: PASSWORD_MESSAGE }]}><PasswordInput placeholder="8-32 位，至少包含字母和数字" /></Form.Item><Form.Item label="确认新密码" name="confirmPassword" dependencies={['newPassword']} rules={[{ required: true }, ({ getFieldValue }) => ({ validator(_, value) { return !value || getFieldValue('newPassword') === value ? Promise.resolve() : Promise.reject(new Error('两次输入的密码不一致')); } })]}><PasswordInput placeholder="再次输入" /></Form.Item></div><Button htmlType="submit" type="primary" block size="large" loading={submitting}>确认修改</Button></>}
+            {resetStep === 2 ? <Result status="success" icon={<CheckCircleFilled />} title={t('auth.reset.successTitle')} subTitle={t('auth.reset.successSubtitle')} extra={<Button type="primary" onClick={() => { setView('account'); setResetStep(0); }}>{t('auth.button.backToLogin')}</Button>} /> : <Form form={resetForm} layout="vertical" onFinish={submitReset} requiredMark={false}>
+              <Form.Item label={t('auth.field.email')} name="email" rules={[{ required: true, type: 'email', message: t('auth.validation.emailInvalid') }]}><FormInput placeholder="name@company.com" disabled={resetStep === 1} /></Form.Item>
+              {resetStep === 0 && <Button block size="large" loading={sendingCode} onClick={() => void beginSendCode('reset_password', resetForm)}>{t('auth.button.sendEmailCode')}</Button>}
+              {resetStep === 1 && <><Form.Item label={t('auth.field.emailCode')} name="emailCode" rules={[{ required: true, message: t('auth.emailCodeRuleMessage') }, { pattern: EMAIL_CODE_PATTERN, message: t('auth.emailCodeRuleMessage') }]}><Input size="large" placeholder={t('auth.field.emailCodeShortPlaceholder')} maxLength={6} inputMode="numeric" /></Form.Item><div className="auth-form-grid"><Form.Item label={t('auth.field.newPassword')} name="newPassword" rules={[{ required: true, message: t('auth.validation.newPasswordRequired') }, { pattern: PASSWORD_PATTERN, message: t('auth.passwordRuleMessage') }]}><PasswordInput placeholder={t('auth.field.newPasswordPlaceholder')} /></Form.Item><Form.Item label={t('auth.field.confirmNewPassword')} name="confirmPassword" dependencies={['newPassword']} rules={[{ required: true }, ({ getFieldValue }) => ({ validator(_, value) { return !value || getFieldValue('newPassword') === value ? Promise.resolve() : Promise.reject(new Error(t('auth.validation.passwordMismatch'))); } })]}><PasswordInput placeholder={t('auth.field.confirmNewPasswordPlaceholder')} /></Form.Item></div><Button htmlType="submit" type="primary" block size="large" loading={submitting}>{t('auth.button.confirmModify')}</Button></>}
               <AuthNotice>{error}</AuthNotice>
             </Form>}
-            {resetStep !== 2 && <Button type="link" className="auth-back-login" onClick={() => { setView('account'); setResetStep(0); setError(''); }}>返回登录</Button>}
+            {resetStep !== 2 && <Button type="link" className="auth-back-login" onClick={() => { setView('account'); setResetStep(0); setError(''); }}>{t('auth.button.backToLogin')}</Button>}
           </>}
-          <footer className="auth-security"><SafetyCertificateOutlined /> 企业级加密与安全策略保护</footer>
+          <footer className="auth-security"><SafetyCertificateOutlined /> {t('auth.footer')}</footer>
         </section>
         <Modal
           className="auth-captcha-modal"
           width={456}
-          title="完成安全验证"
+          title={t('auth.captchaModal.title')}
           open={captchaModalOpen}
-          okText="验证并发送"
-          cancelText="取消"
+          okText={t('auth.button.verifyAndSend')}
+          cancelText={t('common.cancel')}
           confirmLoading={sendingCode}
           okButtonProps={{ disabled: captchaLoading || !captcha }}
           onOk={() => void confirmSendCode()}
           onCancel={() => { setCaptchaModalOpen(false); setCaptchaError(''); }}
           destroyOnHidden
         >
-          <p className="auth-captcha-hint">发送邮箱验证码前，请先输入下图中的字符。</p>
+          <p className="auth-captcha-hint">{t('auth.captchaModal.hint')}</p>
           <CaptchaInput
             image={captcha?.image}
             loading={captchaLoading}

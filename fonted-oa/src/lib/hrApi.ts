@@ -1,3 +1,6 @@
+import i18n from '@/i18n';
+import { buildApiHeaders } from '@/lib/apiHeaders';
+
 export interface HrDepartment {
   id: number;
   code: string;
@@ -42,13 +45,13 @@ interface ApiResult<T> {
 
 export const hrApi = {
   overview: async (): Promise<OrganizationOverview> => {
-    const res = await fetch('/api/hr/organization', { credentials: 'include' });
+    const res = await fetch('/api/hr/organization', { credentials: 'include', headers: buildApiHeaders(false) });
     if (res.status === 401 && typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('oa-auth-expired'));
     }
     const json = await res.json().catch(() => null) as ApiResult<OrganizationOverview> | null;
     if (!res.ok || !json || json.code !== 200 || json.data === null) {
-      throw new Error(json?.message || '组织架构数据加载失败');
+      throw new Error(json?.message || i18n.t('errors.hr.organizationLoadFailed'));
     }
     return json.data;
   },

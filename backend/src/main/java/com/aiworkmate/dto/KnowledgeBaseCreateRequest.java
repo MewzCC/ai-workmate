@@ -4,14 +4,14 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 public record KnowledgeBaseCreateRequest(
-        @NotBlank(message = "知识库名称不能为空")
-        @Size(max = 80, message = "知识库名称不能超过 80 个字符")
+        @NotBlank(message = "{validation.kb.name.notBlank}")
+        @Size(max = 80, message = "{validation.kb.name.maxLength}")
         String name,
 
-        @Size(max = 40, message = "图标标识不能超过 40 个字符")
+        @Size(max = 40, message = "{validation.kb.icon.maxLength}")
         String icon,
 
-        @Size(max = 500, message = "描述不能超过 500 个字符")
+        @Size(max = 500, message = "{validation.kb.description.maxLength}")
         String description
 ) {
 }

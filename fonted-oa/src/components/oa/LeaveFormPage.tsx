@@ -31,6 +31,8 @@ import {
 } from '@/lib/oaApi';
 import { OaIcon } from '@/components/OaIcon';
 import LeaveWorkflowPanel from './LeaveWorkflowPanel';
+import { useTranslation } from 'react-i18next';
+import i18n from '@/i18n';
 
 interface FormValues {
   leaveType: LeaveType;
@@ -42,20 +44,17 @@ interface FormValues {
   reason: string;
 }
 
-const leaveTypeOptions = [
-  ['ANNUAL', '年假'], ['PERSONAL', '事假'], ['SICK', '病假'],
-  ['MARRIAGE', '婚假'], ['MATERNITY', '产假'], ['PATERNITY', '陪产假'],
-  ['BEREAVEMENT', '丧假'], ['COMPENSATORY', '调休'], ['OTHER', '其他'],
-].map(([value, label]) => ({ value, label }));
-
-const periodOptions = [
-  { value: 'AM', label: '上午' },
-  { value: 'PM', label: '下午' },
+const LEAVE_TYPE_KEYS: LeaveType[] = [
+  'ANNUAL', 'PERSONAL', 'SICK', 'MARRIAGE', 'MATERNITY',
+  'PATERNITY', 'BEREAVEMENT', 'COMPENSATORY', 'OTHER',
 ];
+
+const PERIOD_KEYS: HalfDayPeriod[] = ['AM', 'PM'];
 
 export default function LeaveFormPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { t } = useTranslation();
   const editingId = Number(searchParams.get('id')) || undefined;
   const [form] = Form.useForm<FormValues>();
   const [application, setApplication] = useState<LeaveApplication | null>(null);
@@ -64,6 +63,15 @@ export default function LeaveFormPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const values = Form.useWatch([], form);
+
+  const leaveTypeOptions = LEAVE_TYPE_KEYS.map((value) => ({
+    value,
+    label: t(`approval.leaveType.${value}`),
+  }));
+  const periodOptions = PERIOD_KEYS.map((value) => ({
+    value,
+    label: t(`approval.period.${value}`),
+  }));
 
   useEffect(() => {
     const today = dayjs();
@@ -87,7 +95,7 @@ export default function LeaveFormPage() {
     if (editingId) {
       requests.push(
         leaveApi.detail(editingId).then((item) => {
-          if (!item.canEdit) throw new Error('当前申请不是可编辑草稿');
+          if (!item.canEdit) throw new Error(t('approval.form.notEditableDraft'));
           setApplication(item);
           form.setFieldsValue({
             leaveType: item.leaveType,
@@ -134,7 +142,7 @@ export default function LeaveFormPage() {
     try {
       const saved = await persist();
       setApplication(saved);
-      message.success('请假草稿已保存');
+      message.success(t('approval.form.draftSaved'));
       router.replace(`/oa/leave-application?id=${saved.id}`);
     } catch (error) {
       message.error(formatOaApiError(error));
@@ -151,17 +159,23 @@ export default function LeaveFormPage() {
       return;
     }
     Modal.confirm({
-      title: '确认提交请假申请？',
-      content: `${valid.startDate.format('YYYY-MM-DD')} ${periodLabel(valid.startPeriod)} 至 ${valid.endDate.format('YYYY-MM-DD')} ${periodLabel(valid.endPeriod)}，共 ${duration / 2} 天。提交后将生成唯一审批待办。`,
-      okText: '确认提交',
-      cancelText: '继续编辑',
+      title: t('approval.form.submitConfirmTitle'),
+      content: t('approval.form.submitConfirmContent', {
+        start: valid.startDate.format('YYYY-MM-DD'),
+        startPeriod: periodLabel(valid.startPeriod),
+        end: valid.endDate.format('YYYY-MM-DD'),
+        endPeriod: periodLabel(valid.endPeriod),
+        days: duration / 2,
+      }),
+      okText: t('approval.form.submitConfirmOk'),
+      cancelText: t('approval.form.submitConfirmCancel'),
       onOk: async () => {
         setSaving(true);
         try {
           const saved = await persist();
           const submitted = await leaveApi.submit(saved.id, saved.version);
           setApplication(submitted);
-          message.success('申请已提交，审批流程已启动');
+          message.success(t('approval.form.submitSuccess'));
           router.push('/oa/my-applications');
         } catch (error) {
           message.error(formatOaApiError(error));
@@ -180,15 +194,15 @@ export default function LeaveFormPage() {
             <span>OA · LEAVE REQUEST</span>
           </div>
           <Typography.Title level={2}>
-            {application ? '继续编辑请假草稿' : '发起请假申请'}
+            {application ? t('approval.form.titleEdit') : t('approval.form.titleCreate')}
           </Typography.Title>
           <Typography.Paragraph>
-            自主选择有效审批人，提交后生成唯一待办，所有处理节点、意见与状态变化完整留痕。
+            {t('approval.form.heroDescription')}
           </Typography.Paragraph>
         </div>
         <div className="leave-page-hero__serial">
-          <span>申请编号</span>
-          <strong>{application ? `LV-${String(application.id).padStart(6, '0')}` : '保存后生成'}</strong>
+          <span>{t('approval.form.serialLabel')}</span>
+          <strong>{application ? `LV-${String(application.id).padStart(6, '0')}` : t('approval.form.serialPending')}</strong>
         </div>
       </header>
 
@@ -198,8 +212,8 @@ export default function LeaveFormPage() {
             <div className="leave-section-title">
               <span className="leave-section-title__index">01</span>
               <div>
-                <Typography.Title level={4}>申请信息</Typography.Title>
-                <Typography.Text type="secondary">请确认时间与事由准确，提交后不可修改</Typography.Text>
+                <Typography.Title level={4}>{t('approval.form.sectionApplicationTitle')}</Typography.Title>
+                <Typography.Text type="secondary">{t('approval.form.sectionApplicationHint')}</Typography.Text>
               </div>
             </div>
 
@@ -208,31 +222,31 @@ export default function LeaveFormPage() {
                 className="leave-inline-alert"
                 showIcon
                 type="error"
-                title="审批链路尚未配置"
-                description="请联系管理员配置组织关系并授予审批权限，当前无法保存或提交申请。"
+                title={t('approval.form.approvalChainMissing')}
+                description={t('approval.form.approvalChainMissingDesc')}
               />
             )}
 
             <Form form={form} layout="vertical" className="leave-enterprise-form">
-              <Form.Item name="leaveType" label="请假类型" rules={[{ required: true }]}>
-                <Select size="large" options={leaveTypeOptions} placeholder="选择请假类型" />
+              <Form.Item name="leaveType" label={t('approval.form.leaveTypeLabel')} rules={[{ required: true }]}>
+                <Select size="large" options={leaveTypeOptions} placeholder={t('approval.form.leaveTypePlaceholder')} />
               </Form.Item>
 
               <Form.Item
                 name="approverUserId"
-                label="本次审批人"
-                rules={[{ required: true, message: '请选择审批人' }]}
-                extra="候选人来自您所在部门及上级部门"
+                label={t('approval.form.approverLabel')}
+                rules={[{ required: true, message: t('approval.form.approverRequired') }]}
+                extra={t('approval.form.approverExtra')}
               >
                 <Select
                   size="large"
                   showSearch
                   optionFilterProp="label"
-                  placeholder="输入姓名、部门或岗位搜索"
-                  notFoundContent="暂无符合组织与权限规则的审批人"
+                  placeholder={t('approval.form.approverSearchPlaceholder')}
+                  notFoundContent={t('approval.form.approverNotFound')}
                   options={approvers.map((approver) => ({
                     value: approver.id,
-                    label: `${approver.name} · ${approver.departmentName || '未配置部门'} · ${approver.positionName || '未配置岗位'}${approver.recommended ? '（推荐）' : ''}`,
+                    label: `${approver.name} · ${approver.departmentName || t('approval.form.departmentUnset')} · ${approver.positionName || t('approval.form.positionUnset')}${approver.recommended ? t('approval.form.approverRecommended') : ''}`,
                     avatarUrl: approver.avatarUrl,
                     name: approver.name,
                   }))}
@@ -248,14 +262,14 @@ export default function LeaveFormPage() {
               <div className="leave-time-range">
                 <div className="leave-time-range__node">
                   <span className="leave-time-range__dot" />
-                  <Typography.Text strong>开始时间</Typography.Text>
+                  <Typography.Text strong>{t('approval.form.startTime')}</Typography.Text>
                 </div>
                 <div className="leave-time-range__fields">
-                  <Form.Item name="startDate" rules={[{ required: true, message: '请选择开始日期' }]}>
+                  <Form.Item name="startDate" rules={[{ required: true, message: t('approval.form.startDateRequired') }]}>
                     <DatePicker
                       size="large"
                       className="leave-control-full"
-                      format="YYYY年MM月DD日"
+                      format={t('common.dateFormat')}
                       disabledDate={(current) => isDateBeforeToday(current)}
                       onChange={(date) => {
                         const endDate = form.getFieldValue('endDate');
@@ -272,14 +286,14 @@ export default function LeaveFormPage() {
                 <div className="leave-time-range__line" />
                 <div className="leave-time-range__node">
                   <span className="leave-time-range__dot leave-time-range__dot--end" />
-                  <Typography.Text strong>结束时间</Typography.Text>
+                  <Typography.Text strong>{t('approval.form.endTime')}</Typography.Text>
                 </div>
                 <div className="leave-time-range__fields">
-                  <Form.Item name="endDate" rules={[{ required: true, message: '请选择结束日期' }]}>
+                  <Form.Item name="endDate" rules={[{ required: true, message: t('approval.form.endDateRequired') }]}>
                     <DatePicker
                       size="large"
                       className="leave-control-full"
-                      format="YYYY年MM月DD日"
+                      format={t('common.dateFormat')}
                       disabledDate={(current) => {
                         const startDate = form.getFieldValue('startDate') as Dayjs | undefined;
                         const minimum = startDate?.startOf('day') || dayjs().startOf('day');
@@ -296,17 +310,17 @@ export default function LeaveFormPage() {
               <div className={`leave-duration-strip ${duration <= 0 ? 'is-invalid' : ''}`}>
                 <div>
                   <OaIcon name="attendance" />
-                  <span>系统核算时长</span>
+                  <span>{t('approval.form.durationLabel')}</span>
                 </div>
-                <strong>{duration > 0 ? `${duration / 2} 天` : '时间范围无效'}</strong>
-                <small>连续日历半天计算，周末计入</small>
+                <strong>{duration > 0 ? t('approval.daysCount', { days: duration / 2 }) : t('approval.form.durationInvalid')}</strong>
+                <small>{t('approval.form.durationHint')}</small>
               </div>
 
               <Form.Item
                 name="reason"
-                label="请假事由"
+                label={t('approval.form.reasonLabel')}
                 rules={[
-                  { required: true, whitespace: true, message: '请输入请假事由' },
+                  { required: true, whitespace: true, message: t('approval.form.reasonRequired') },
                   { max: 500 },
                 ]}
               >
@@ -314,13 +328,13 @@ export default function LeaveFormPage() {
                   rows={6}
                   showCount
                   maxLength={500}
-                  placeholder="请说明请假原因及必要的工作交接安排"
+                  placeholder={t('approval.form.reasonPlaceholder')}
                 />
               </Form.Item>
 
               <div className="leave-form-footer">
                 <Typography.Text type="secondary">
-                  提交即表示确认信息真实准确
+                  {t('approval.form.footerConfirm')}
                 </Typography.Text>
                 <Space wrap>
                   <Button
@@ -329,7 +343,7 @@ export default function LeaveFormPage() {
                     loading={saving}
                     onClick={() => void saveDraft()}
                   >
-                    保存草稿
+                    {t('approval.form.saveDraft')}
                   </Button>
                   <Button
                     size="large"
@@ -339,7 +353,7 @@ export default function LeaveFormPage() {
                     disabled={duration <= 0 || !approvers.length}
                     onClick={() => void submit()}
                   >
-                    提交审批
+                    {t('approval.form.submit')}
                   </Button>
                 </Space>
               </div>
@@ -371,5 +385,5 @@ export function isDateBeforeToday(date: Dayjs, today: Dayjs = dayjs()): boolean 
 }
 
 function periodLabel(period: HalfDayPeriod) {
-  return period === 'AM' ? '上午' : '下午';
+  return i18n.t('approval.period.' + period);
 }

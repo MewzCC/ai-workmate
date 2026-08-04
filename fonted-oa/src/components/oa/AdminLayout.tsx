@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { usePathname, useRouter } from '@/lib/nextCompat';
 import { ConfigProvider, FloatButton, Layout, theme as antdTheme } from 'antd';
 import { message } from '@/lib/antdMessage';
@@ -38,18 +39,9 @@ function isMobileViewport(): boolean {
   return window.matchMedia(MOBILE_BREAKPOINT).matches;
 }
 
-const dashboardMenu: OaMenuItem = {
-  id: 'dashboard',
-  name: '企业驾驶舱',
-  type: 'page',
-  sort: 1,
-  visible: true,
-};
-
 const themes: OaTheme[] = [
   {
     name: 'enterprise-blue',
-    label: '企业蓝',
     primary: '#1677ff',
     sidebar: '#0f1f3d',
     siderText: '#d7e7ff',
@@ -62,7 +54,6 @@ const themes: OaTheme[] = [
   },
   {
     name: 'deep-green',
-    label: '深青绿',
     primary: '#0f766e',
     sidebar: '#0b2f2c',
     siderText: '#d7fbf4',
@@ -75,7 +66,6 @@ const themes: OaTheme[] = [
   },
   {
     name: 'premium-purple',
-    label: '高级紫',
     primary: '#7048e8',
     sidebar: '#251451',
     siderText: '#ece6ff',
@@ -88,7 +78,6 @@ const themes: OaTheme[] = [
   },
   {
     name: 'ink-gray',
-    label: '石墨灰',
     primary: '#343a40',
     sidebar: '#181a1f',
     siderText: '#f1f3f5',
@@ -101,7 +90,6 @@ const themes: OaTheme[] = [
   },
   {
     name: 'warm-orange',
-    label: '暖棕橙',
     primary: '#d9480f',
     sidebar: '#3b1f10',
     siderText: '#fff0e6',
@@ -114,7 +102,6 @@ const themes: OaTheme[] = [
   },
   {
     name: 'home-style',
-    label: '首页风格',
     primary: '#111111',
     sidebar: '#17120d',
     siderText: '#fff4e6',
@@ -127,7 +114,6 @@ const themes: OaTheme[] = [
   },
   {
     name: 'home-night',
-    label: '黑夜风格',
     primary: '#8b5cf6',
     sidebar: '#080911',
     siderText: '#f4f0ff',
@@ -149,6 +135,14 @@ function readStorage(key: string, fallback: string): string {
 export default function AdminLayout() {
   const router = useRouter();
   const pathname = usePathname();
+  const { t } = useTranslation();
+  const dashboardMenu = useMemo<OaMenuItem>(() => ({
+    id: 'dashboard',
+    name: t('oa.dashboard'),
+    type: 'page',
+    sort: 1,
+    visible: true,
+  }), [t]);
   const approvalTaskId = useMemo(() => {
     const match = pathname.match(/^\/oa\/approval-tasks\/(\d+)$/);
     return match ? Number(match[1]) : undefined;
@@ -209,7 +203,7 @@ export default function AdminLayout() {
         if (!active) return;
         setMenus([]);
         setNavigationLoaded(true);
-        message.error(error instanceof Error ? error.message : '导航菜单加载失败');
+        message.error(error instanceof Error ? error.message : t('oa.errors.navLoadFailed'));
       });
     return () => {
       active = false;
@@ -245,7 +239,7 @@ export default function AdminLayout() {
       } catch (error) {
         if (!active) return;
         setWallpaper(null);
-        message.error(error instanceof Error ? error.message : '壁纸加载失败');
+        message.error(error instanceof Error ? error.message : t('oa.errors.wallpaperLoadFailed'));
       }
     };
     void loadWallpaper();
@@ -275,8 +269,8 @@ export default function AdminLayout() {
   }, [currentPageId, menus, navigationLoaded, router]);
 
   useEffect(() => {
-    document.title = `AI WorkMate OA - ${approvalTaskId ? '审批详情' : kbId ? '知识库详情' : selectedMenu.name}`;
-  }, [approvalTaskId, kbId, selectedMenu.name]);
+    document.title = `${t('oa.pageTitle.brand')} - ${approvalTaskId ? t('oa.pageTitle.approvalDetail') : kbId ? t('oa.pageTitle.knowledgeDetail') : t(`oa.menu.${selectedMenu.id}`, { defaultValue: selectedMenu.name })}`;
+  }, [approvalTaskId, kbId, selectedMenu.id, selectedMenu.name, t]);
 
   useEffect(() => {
     if (!navigationLoaded || openTabsReady) return;
@@ -329,7 +323,7 @@ export default function AdminLayout() {
     if (!navigationLoaded) return;
     message.destroy('oa-route-switch');
     if (selectedMenu.id === currentPageId) {
-      message.info(`已切换到：${selectedMenu.name}`, 1.5);
+      message.info(t('oa.switchedTo', { name: t(`oa.menu.${selectedMenu.id}`, { defaultValue: selectedMenu.name }) }), 1.5);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname, navigationLoaded]);
@@ -384,7 +378,7 @@ export default function AdminLayout() {
   const navigateToPage = (tab: OaPageTab) => {
     if (tab.id === currentPageId) return;
     message.loading({
-      content: `正在切换到：${tab.name}`,
+      content: t('oa.switchingTo', { name: t(`oa.menu.${tab.id}`, { defaultValue: tab.name }) }),
       key: 'oa-route-switch',
       duration: 0,
     });
@@ -499,7 +493,7 @@ export default function AdminLayout() {
                 }
                 const target = menu.path || `/oa/${menu.id}`;
                 message.loading({
-                  content: `正在切换到：${menu.name}`,
+                  content: t('oa.switchingTo', { name: t(`oa.menu.${menu.id}`, { defaultValue: menu.name }) }),
                   key: 'oa-route-switch',
                   duration: 0,
                 });
@@ -512,7 +506,7 @@ export default function AdminLayout() {
               <div className="oa-top-stack">
                 <Topbar
                   role={role}
-                  pageTitle={selectedMenu.name}
+                  pageTitle={t(`oa.menu.${selectedMenu.id}`, { defaultValue: selectedMenu.name })}
                   onOpenAppearance={() => setAppearanceOpen(true)}
                   onOpenAi={openAi}
                   onToggleMenu={() => setCollapsed((value) => !value)}
@@ -559,7 +553,7 @@ export default function AdminLayout() {
                     <Dashboard
                       role={role}
                       pageId={selectedMenu.id}
-                      pageTitle={selectedMenu.name}
+                      pageTitle={t(`oa.menu.${selectedMenu.id}`, { defaultValue: selectedMenu.name })}
                       primaryColor={currentTheme.primary}
                       auditItems={auditItems}
                       onOpenAi={openAi}
@@ -574,7 +568,7 @@ export default function AdminLayout() {
           {selectedMenu.id !== 'ai-workspace' && <FloatButton
             type="primary"
             icon={<OaIcon name="ai" size={20} />}
-            tooltip="打开 AI 操作面板"
+            tooltip={t('oa.ai.openPanel')}
             onClick={() => openAi()}
           />}
 
@@ -604,7 +598,7 @@ export default function AdminLayout() {
             open={aiOpen}
             role={role}
             pageId={selectedMenu.id}
-            pageTitle={selectedMenu.name}
+            pageTitle={t(`oa.menu.${selectedMenu.id}`, { defaultValue: selectedMenu.name })}
             initialPrompt={aiPrompt}
             onClose={() => setAiOpen(false)}
             onOpenChangeComplete={setAiDrawerPresent}

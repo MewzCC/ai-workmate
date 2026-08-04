@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { Message } from '@/types';
 import { chatStream } from '@/lib/api';
+import i18n from '@/i18n';
 
 interface ChatState {
   // 消息列表
@@ -77,7 +78,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       set({
         isLoading: false,
         streamingContent: '',
-        error: err.message || '发送失败',
+        error: err.message || i18n.t('chat.sendFailed'),
       });
     }
   },

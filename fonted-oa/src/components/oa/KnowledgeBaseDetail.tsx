@@ -38,6 +38,7 @@ import {
   type KnowledgeSearchItem,
 } from '@/lib/knowledgeApi';
 import { useRouter } from '@/lib/nextCompat';
+import { useTranslation } from 'react-i18next';
 import DocumentDetailDrawer from './DocumentDetailDrawer';
 
 const { TextArea } = Input;
@@ -53,17 +54,19 @@ function formatBytes(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-function statusTag(status: string) {
-  if (status === 'READY') return <Tag color="success">已就绪</Tag>;
-  if (status === 'PROCESSING') return <Tag color="processing">处理中</Tag>;
-  if (status === 'FAILED') return <Tag color="error">失败</Tag>;
+function StatusTag({ status }: { status: string }) {
+  const { t } = useTranslation();
+  if (status === 'READY') return <Tag color="success">{t('knowledge.statusReady')}</Tag>;
+  if (status === 'PROCESSING') return <Tag color="processing">{t('knowledge.statusProcessing')}</Tag>;
+  if (status === 'FAILED') return <Tag color="error">{t('knowledge.statusFailed')}</Tag>;
   return <Tag>{status}</Tag>;
 }
 
-function matchTypeTag(matchType: string) {
-  if (matchType === 'HYBRID') return <Tag color="purple">混合</Tag>;
-  if (matchType === 'SPARSE') return <Tag color="orange">稀疏</Tag>;
-  return <Tag color="blue">稠密</Tag>;
+function MatchTypeTag({ matchType }: { matchType: string }) {
+  const { t } = useTranslation();
+  if (matchType === 'HYBRID') return <Tag color="purple">{t('knowledge.matchHybrid')}</Tag>;
+  if (matchType === 'SPARSE') return <Tag color="orange">{t('knowledge.matchSparse')}</Tag>;
+  return <Tag color="blue">{t('knowledge.matchDense')}</Tag>;
 }
 
 interface OverviewTabProps {
@@ -72,49 +75,50 @@ interface OverviewTabProps {
 }
 
 function OverviewTab({ base, embedding }: OverviewTabProps) {
+  const { t } = useTranslation();
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
-      <Card className="oa-domain-card" size="small" title="统计信息">
+      <Card className="oa-domain-card" size="small" title={t('knowledge.overviewStatistics')}>
         <Space size={48} wrap>
-          <Statistic title="文档数量" value={base.docCount} />
-          <Statistic title="分块数量" value={base.chunkCount} />
+          <Statistic title={t('knowledge.overviewDocCount')} value={base.docCount} />
+          <Statistic title={t('knowledge.overviewChunkCount')} value={base.chunkCount} />
         </Space>
       </Card>
-      <Card className="oa-domain-card" size="small" title="基本信息">
+      <Card className="oa-domain-card" size="small" title={t('knowledge.overviewBasicInfo')}>
         <Descriptions column={2}>
-          <Descriptions.Item label="名称">{base.name}</Descriptions.Item>
-          <Descriptions.Item label="图标">
+          <Descriptions.Item label={t('common.name')}>{base.name}</Descriptions.Item>
+          <Descriptions.Item label={t('knowledge.fieldIcon')}>
             <OaIcon name={(base.icon || 'knowledge-base') as OaIconName} />
           </Descriptions.Item>
-          <Descriptions.Item label="创建时间">
+          <Descriptions.Item label={t('common.createdAt')}>
             {new Date(base.createdAt).toLocaleString()}
           </Descriptions.Item>
-          <Descriptions.Item label="更新时间">
+          <Descriptions.Item label={t('common.updatedAt')}>
             {new Date(base.updatedAt).toLocaleString()}
           </Descriptions.Item>
-          <Descriptions.Item label="描述" span={2}>
+          <Descriptions.Item label={t('knowledge.fieldDescription')} span={2}>
             {base.description || '-'}
           </Descriptions.Item>
         </Descriptions>
       </Card>
-      <Card className="oa-domain-card" size="small" title="模型配置">
+      <Card className="oa-domain-card" size="small" title={t('knowledge.overviewModelConfig')}>
         <Descriptions column={2}>
-          <Descriptions.Item label="嵌入模型">
+          <Descriptions.Item label={t('knowledge.overviewEmbeddingModel')}>
             {base.embeddingProvider && base.embeddingModel
               ? `${base.embeddingProvider} / ${base.embeddingModel}`
               : '-'}
           </Descriptions.Item>
-          <Descriptions.Item label="重排序模型">
+          <Descriptions.Item label={t('knowledge.overviewRerankModel')}>
             {base.rerankModel
               ? base.rerankModel
               : embedding?.rerankEnabled
-                ? <span>{embedding.rerankModel} <Typography.Text type="secondary">（全局配置）</Typography.Text></span>
-                : <Typography.Text type="secondary">未启用</Typography.Text>}
+                ? <span>{embedding.rerankModel} <Typography.Text type="secondary">{t('knowledge.overviewGlobalConfig')}</Typography.Text></span>
+                : <Typography.Text type="secondary">{t('knowledge.overviewNotEnabled')}</Typography.Text>}
           </Descriptions.Item>
-          <Descriptions.Item label="分块大小">{base.chunkSize} 字符</Descriptions.Item>
-          <Descriptions.Item label="分块重叠">{base.chunkOverlap} 字符</Descriptions.Item>
-          <Descriptions.Item label="稠密检索数量">{base.denseTopK}</Descriptions.Item>
-          <Descriptions.Item label="稀疏检索数量">{base.sparseTopK}</Descriptions.Item>
+          <Descriptions.Item label={t('knowledge.overviewChunkSize')}>{base.chunkSize} {t('knowledge.charUnit')}</Descriptions.Item>
+          <Descriptions.Item label={t('knowledge.overviewChunkOverlap')}>{base.chunkOverlap} {t('knowledge.charUnit')}</Descriptions.Item>
+          <Descriptions.Item label={t('knowledge.overviewDenseTopK')}>{base.denseTopK}</Descriptions.Item>
+          <Descriptions.Item label={t('knowledge.overviewSparseTopK')}>{base.sparseTopK}</Descriptions.Item>
         </Descriptions>
       </Card>
     </Space>
@@ -132,6 +136,7 @@ interface CreateFormValues {
 }
 
 function DocsTab({ kbId, onChanged }: DocsTabProps) {
+  const { t } = useTranslation();
   const [embedding, setEmbedding] = useState<EmbeddingStatus | null>(null);
   const [documents, setDocuments] = useState<KnowledgeDocument[]>([]);
   const [loading, setLoading] = useState(true);
@@ -163,11 +168,11 @@ function DocsTab({ kbId, onChanged }: DocsTabProps) {
       setDocuments(response.records);
       setTotal(response.total);
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '加载知识文档失败');
+      message.error(error instanceof Error ? error.message : t('knowledge.docsLoadFailed'));
     } finally {
       setLoading(false);
     }
-  }, [kbId, page]);
+  }, [kbId, page, t]);
 
   useEffect(() => {
     void loadEmbedding();
@@ -196,7 +201,7 @@ function DocsTab({ kbId, onChanged }: DocsTabProps) {
         .map((item) => item.originFileObj)
         .filter((file): file is RcFile => file != null);
       if (files.length === 0) {
-        message.warning('请先选择要上传的文件');
+        message.warning(t('knowledge.docsSelectFileFirst'));
         return;
       }
       setCreating(true);
@@ -206,7 +211,7 @@ function DocsTab({ kbId, onChanged }: DocsTabProps) {
         const failed: string[] = [];
         for (let index = 0; index < files.length; index++) {
           const file = files[index];
-          setUploadStatus(`正在上传 ${index + 1}/${files.length}：${file.name}`);
+          setUploadStatus(t('knowledge.docsUploading', { index: index + 1, total: files.length, name: file.name }));
           try {
             await knowledgeApi.upload(kbId, file, (percent) => {
               setUploadProgress(Math.round(((index + percent / 100) / files.length) * 100));
@@ -214,13 +219,13 @@ function DocsTab({ kbId, onChanged }: DocsTabProps) {
             setUploadProgress(Math.round(((index + 1) / files.length) * 100));
             success += 1;
           } catch (error) {
-            failed.push(`${file.name}：${error instanceof Error ? error.message : '上传失败'}`);
+            failed.push(`${file.name}：${error instanceof Error ? error.message : t('knowledge.docsUploadFailed')}`);
           }
         }
         if (success > 0) {
           message.success(success === files.length
-            ? `已上传 ${success} 个文件并完成解析与向量化`
-            : `已上传 ${success} 个文件，${failed.length} 个失败`);
+            ? t('knowledge.docsUploadAllSuccess', { count: success })
+            : t('knowledge.docsUploadPartialSuccess', { success, failed: failed.length }));
         }
         if (failed.length > 0) {
           message.error(failed.slice(0, 3).join('；') + (failed.length > 3 ? '…' : ''));
@@ -244,13 +249,13 @@ function DocsTab({ kbId, onChanged }: DocsTabProps) {
         filename: values.filename.trim(),
         content: values.content,
       });
-      message.success('知识文档已创建并完成向量化');
+      message.success(t('knowledge.docsCreateSuccess'));
       closeCreate();
       setPage(1);
       await loadDocuments();
       onChanged();
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '创建知识文档失败');
+      message.error(error instanceof Error ? error.message : t('knowledge.docsCreateFailed'));
     } finally {
       setCreating(false);
     }
@@ -258,19 +263,19 @@ function DocsTab({ kbId, onChanged }: DocsTabProps) {
 
   const confirmDelete = (document: KnowledgeDocument) => {
     Modal.confirm({
-      title: `确认删除「${document.filename}」？`,
-      content: '删除后该文档及其向量分块将被移除，无法恢复。',
-      okText: '确认删除',
+      title: t('knowledge.docsConfirmDeleteTitle', { name: document.filename }),
+      content: t('knowledge.docsConfirmDeleteContent'),
+      okText: t('knowledge.confirmDeleteOk'),
       okType: 'danger',
-      cancelText: '取消',
+      cancelText: t('common.cancel'),
       onOk: async () => {
         try {
           await knowledgeApi.remove(document.id);
-          message.success('文档已删除');
+          message.success(t('knowledge.docsDeleteSuccess'));
           await loadDocuments();
           onChanged();
         } catch (error) {
-          message.error(error instanceof Error ? error.message : '删除文档失败');
+          message.error(error instanceof Error ? error.message : t('knowledge.docsDeleteFailed'));
         }
       },
     });
@@ -280,10 +285,10 @@ function DocsTab({ kbId, onChanged }: DocsTabProps) {
     setReindexingId(document.id);
     try {
       await knowledgeApi.reindex(document.id);
-      message.success('文档已按当前向量模型重新向量化');
+      message.success(t('knowledge.docsReindexSuccess'));
       await loadDocuments();
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '重新向量化失败');
+      message.error(error instanceof Error ? error.message : t('knowledge.docsReindexFailed'));
     } finally {
       setReindexingId(null);
     }
@@ -296,21 +301,21 @@ function DocsTab({ kbId, onChanged }: DocsTabProps) {
   const confirmBatchDelete = () => {
     const ids = selectedIds();
     Modal.confirm({
-      title: `确认删除选中的 ${ids.length} 个文档？`,
-      content: '删除后这些文档及其向量分块将被移除，无法恢复。',
-      okText: '确认删除',
+      title: t('knowledge.docsConfirmBatchDeleteTitle', { count: ids.length }),
+      content: t('knowledge.docsConfirmBatchDeleteContent'),
+      okText: t('knowledge.confirmDeleteOk'),
       okType: 'danger',
-      cancelText: '取消',
+      cancelText: t('common.cancel'),
       onOk: async () => {
         try {
           const deleted = await knowledgeApi.batchDelete(ids);
-          message.success(`已删除 ${deleted} 个文档`);
+          message.success(t('knowledge.docsBatchDeleteSuccess', { count: deleted }));
           setSelectedRowKeys([]);
           setPage(1);
           await loadDocuments();
           onChanged();
         } catch (error) {
-          message.error(error instanceof Error ? error.message : '批量删除失败');
+          message.error(error instanceof Error ? error.message : t('knowledge.docsBatchDeleteFailed'));
         }
       },
     });
@@ -319,41 +324,41 @@ function DocsTab({ kbId, onChanged }: DocsTabProps) {
   const confirmBatchReindex = () => {
     const ids = selectedIds();
     Modal.confirm({
-      title: `确认重建选中的 ${ids.length} 个文档？`,
-      content: '将按当前向量模型重新向量化全部选中文档，请耐心等待完成。',
-      okText: '确认重建',
-      cancelText: '取消',
+      title: t('knowledge.docsConfirmBatchReindexTitle', { count: ids.length }),
+      content: t('knowledge.docsConfirmBatchReindexContent'),
+      okText: t('knowledge.docsConfirmReindexOk'),
+      cancelText: t('common.cancel'),
       onOk: async () => {
         try {
           await knowledgeApi.batchReindex(ids);
-          message.success(`已重建 ${ids.length} 个文档`);
+          message.success(t('knowledge.docsBatchReindexSuccess', { count: ids.length }));
           setSelectedRowKeys([]);
           await loadDocuments();
         } catch (error) {
-          message.error(error instanceof Error ? error.message : '批量重建失败');
+          message.error(error instanceof Error ? error.message : t('knowledge.docsBatchReindexFailed'));
         }
       },
     });
   };
 
   const columns: ColumnsType<KnowledgeDocument> = [
-    { title: '文件名', dataIndex: 'filename', ellipsis: true },
+    { title: t('knowledge.colFilename'), dataIndex: 'filename', ellipsis: true },
     {
-      title: '类型',
+      title: t('knowledge.colType'),
       dataIndex: 'fileType',
       width: 100,
       render: (value: string) => <Tag>{value}</Tag>,
     },
     {
-      title: '大小',
+      title: t('knowledge.colSize'),
       dataIndex: 'fileSize',
       width: 110,
       render: (value: number) => formatBytes(value),
     },
-    { title: '分块数', dataIndex: 'chunkCount', width: 90 },
-    { title: '状态', dataIndex: 'status', width: 100, render: statusTag },
+    { title: t('knowledge.colChunkCount'), dataIndex: 'chunkCount', width: 90 },
+    { title: t('common.status'), dataIndex: 'status', width: 100, render: (value: string) => <StatusTag status={value} /> },
     {
-      title: '向量模型',
+      title: t('knowledge.colEmbedding'),
       key: 'embedding',
       width: 190,
       render: (_, item) =>
@@ -362,13 +367,13 @@ function DocsTab({ kbId, onChanged }: DocsTabProps) {
           : '-',
     },
     {
-      title: '创建时间',
+      title: t('common.createdAt'),
       dataIndex: 'createdAt',
       width: 180,
       render: (value: string) => new Date(value).toLocaleString(),
     },
     {
-      title: '操作',
+      title: t('common.actions'),
       key: 'actions',
       width: 240,
       fixed: 'right',
@@ -379,7 +384,7 @@ function DocsTab({ kbId, onChanged }: DocsTabProps) {
             icon={<OaIcon name="search" />}
             onClick={() => setDetailDocumentId(item.id)}
           >
-            详情
+            {t('knowledge.actionDetail')}
           </Button>
           <Button
             size="small"
@@ -388,7 +393,7 @@ function DocsTab({ kbId, onChanged }: DocsTabProps) {
             disabled={item.status !== 'READY'}
             onClick={() => void reindex(item)}
           >
-            重建
+            {t('knowledge.actionReindex')}
           </Button>
           <Button
             size="small"
@@ -396,7 +401,7 @@ function DocsTab({ kbId, onChanged }: DocsTabProps) {
             icon={<OaIcon name="delete" />}
             onClick={() => confirmDelete(item)}
           >
-            删除
+            {t('common.delete')}
           </Button>
         </Space>
       ),
@@ -409,17 +414,17 @@ function DocsTab({ kbId, onChanged }: DocsTabProps) {
         <Alert
           type="warning"
           showIcon
-          message="Embedding 服务未启用"
-          description="请在服务端配置 EMBEDDING_ENABLED=true 及对应的提供方（local / api）后，才能向量化文档。"
+          message={t('knowledge.embeddingDisabled')}
+          description={t('knowledge.embeddingDisabledDesc')}
         />
       )}
 
       <Space wrap>
         <Button type="primary" icon={<OaIcon name="upload" />} onClick={() => openCreate('file')}>
-          上传文件
+          {t('knowledge.docsUploadFiles')}
         </Button>
         <Button icon={<OaIcon name="add" />} onClick={() => openCreate('text')}>
-          新建文档
+          {t('knowledge.docsCreateDocument')}
         </Button>
       </Space>
 
@@ -434,16 +439,16 @@ function DocsTab({ kbId, onChanged }: DocsTabProps) {
             background: 'var(--oa-fill-secondary, rgba(128,128,128,0.08))',
           }}
         >
-          <Typography.Text strong>已选 {selectedRowKeys.length} 项</Typography.Text>
+          <Typography.Text strong>{t('knowledge.docsSelectedCount', { count: selectedRowKeys.length })}</Typography.Text>
           <Space>
             <Button size="small" icon={<OaIcon name="reload" />} onClick={confirmBatchReindex}>
-              批量重建
+              {t('knowledge.docsBatchReindex')}
             </Button>
             <Button size="small" danger icon={<OaIcon name="delete" />} onClick={confirmBatchDelete}>
-              批量删除
+              {t('knowledge.docsBatchDelete')}
             </Button>
             <Button size="small" type="link" onClick={() => setSelectedRowKeys([])}>
-              取消选择
+              {t('knowledge.docsClearSelection')}
             </Button>
           </Space>
         </div>
@@ -458,7 +463,7 @@ function DocsTab({ kbId, onChanged }: DocsTabProps) {
           selectedRowKeys,
           onChange: setSelectedRowKeys,
         }}
-        locale={{ emptyText: <Empty description="暂无知识文档，点击上方「上传文件」或「新建文档」开始" /> }}
+        locale={{ emptyText: <Empty description={t('knowledge.docsEmpty')} /> }}
         scroll={{ x: 1280 }}
         pagination={{
           current: page,
@@ -470,12 +475,12 @@ function DocsTab({ kbId, onChanged }: DocsTabProps) {
       />
 
       <Modal
-        title={createMode === 'file' ? '上传知识文档' : '新建知识文档'}
+        title={createMode === 'file' ? t('knowledge.docsUploadTitle') : t('knowledge.docsCreateTitle')}
         open={createModalOpen}
         onCancel={closeCreate}
         onOk={() => void submitCreate()}
-        okText={createMode === 'file' ? '上传并向量化' : '创建并向量化'}
-        cancelText="取消"
+        okText={createMode === 'file' ? t('knowledge.docsUploadOk') : t('knowledge.docsCreateOk')}
+        cancelText={t('common.cancel')}
         confirmLoading={creating}
         width={640}
       >
@@ -485,8 +490,8 @@ function DocsTab({ kbId, onChanged }: DocsTabProps) {
           disabled={creating}
           onChange={(value) => setCreateMode(value as CreateMode)}
           options={[
-            { label: '纯文本', value: 'text' },
-            { label: '上传文件', value: 'file' },
+            { label: t('knowledge.docsPlainText'), value: 'text' },
+            { label: t('knowledge.docsUploadFile'), value: 'file' },
           ]}
           style={{ marginTop: 8, marginBottom: 16 }}
         />
@@ -499,7 +504,7 @@ function DocsTab({ kbId, onChanged }: DocsTabProps) {
               fileList={uploadFileList}
               beforeUpload={(file) => {
                 if (file.size > MAX_UPLOAD_BYTES) {
-                  message.error(`${file.name} 超过 20MB，已忽略`);
+                  message.error(t('knowledge.docsFileTooLarge', { name: file.name }));
                   return Upload.LIST_IGNORE;
                 }
                 return false;
@@ -509,9 +514,9 @@ function DocsTab({ kbId, onChanged }: DocsTabProps) {
               <p className="ant-upload-drag-icon">
                 <OaIcon name="upload" size={40} />
               </p>
-              <p className="ant-upload-text">点击或拖拽文件到此区域上传</p>
+              <p className="ant-upload-text">{t('knowledge.docsDraggerText')}</p>
               <p className="ant-upload-hint">
-                支持 TXT、PDF、Word（.doc / .docx）等文本文档，可一次选择多个文件，单个不超过 20MB
+                {t('knowledge.docsDraggerHint')}
               </p>
             </Dragger>
             {creating && (
@@ -526,7 +531,7 @@ function DocsTab({ kbId, onChanged }: DocsTabProps) {
             )}
             {!creating && (
               <Typography.Paragraph type="secondary" style={{ marginTop: 12, marginBottom: 0 }}>
-                文件将自动解析文本、分块并向量化，AI 工作空间提问时可检索到其中的内容。
+                {t('knowledge.docsUploadHint')}
               </Typography.Paragraph>
             )}
           </>
@@ -534,25 +539,25 @@ function DocsTab({ kbId, onChanged }: DocsTabProps) {
           <Form form={createForm} layout="vertical">
             <Form.Item
               name="filename"
-              label="文件名"
+              label={t('knowledge.docsFieldFilename')}
               rules={[
-                { required: true, message: '请输入文件名' },
-                { max: 255, message: '文件名不能超过 255 个字符' },
+                { required: true, message: t('knowledge.docsValidateFilenameRequired') },
+                { max: 255, message: t('knowledge.docsValidateFilenameMax') },
               ]}
             >
-              <Input placeholder="例如：员工手册.md" maxLength={255} />
+              <Input placeholder={t('knowledge.docsPlaceholderFilename')} maxLength={255} />
             </Form.Item>
             <Form.Item
               name="content"
-              label="知识内容"
+              label={t('knowledge.docsFieldContent')}
               rules={[
-                { required: true, message: '请输入知识内容' },
-                { max: 120000, message: '内容不能超过 120000 个字符' },
+                { required: true, message: t('knowledge.docsValidateContentRequired') },
+                { max: 120000, message: t('knowledge.docsValidateContentMax') },
               ]}
             >
               <TextArea
                 rows={10}
-                placeholder="粘贴需要入库的知识文本（支持纯文本 / Markdown），保存后将自动分块并向量化"
+                placeholder={t('knowledge.docsPlaceholderContent')}
                 maxLength={120000}
                 showCount
               />
@@ -579,6 +584,7 @@ interface QueryTabProps {
 }
 
 function QueryTab({ kbId }: QueryTabProps) {
+  const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState('');
   const [resultLimit, setResultLimit] = useState(10);
   const [minScore, setMinScore] = useState<number | null>(0.35);
@@ -587,7 +593,7 @@ function QueryTab({ kbId }: QueryTabProps) {
 
   const runSearch = async () => {
     if (!searchQuery.trim()) {
-      message.warning('请输入检索问题');
+      message.warning(t('knowledge.querySearchRequired'));
       return;
     }
     setSearching(true);
@@ -599,7 +605,7 @@ function QueryTab({ kbId }: QueryTabProps) {
       });
       setSearchItems(response.records);
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '检索失败');
+      message.error(error instanceof Error ? error.message : t('knowledge.queryFailed'));
       setSearchItems([]);
     } finally {
       setSearching(false);
@@ -612,16 +618,16 @@ function QueryTab({ kbId }: QueryTabProps) {
         <Input
           value={searchQuery}
           onChange={(event) => setSearchQuery(event.target.value)}
-          placeholder="输入检索问题，例如：公司请假制度"
+          placeholder={t('knowledge.queryInputPlaceholder')}
           onPressEnter={() => void runSearch()}
         />
         <Button type="primary" loading={searching} onClick={() => void runSearch()}>
-          检索
+          {t('knowledge.queryButton')}
         </Button>
       </Space.Compact>
       <Space wrap size="large">
         <Space size={4}>
-          <Typography.Text type="secondary">返回结果数量</Typography.Text>
+          <Typography.Text type="secondary">{t('knowledge.queryResultLimit')}</Typography.Text>
           <InputNumber
             min={1}
             max={20}
@@ -631,7 +637,7 @@ function QueryTab({ kbId }: QueryTabProps) {
           />
         </Space>
         <Space size={4}>
-          <Typography.Text type="secondary">最低相关度</Typography.Text>
+          <Typography.Text type="secondary">{t('knowledge.queryMinScore')}</Typography.Text>
           <InputNumber
             min={0}
             max={1}
@@ -642,15 +648,15 @@ function QueryTab({ kbId }: QueryTabProps) {
           />
         </Space>
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-          数量受知识库设置的稠密/稀疏检索数量限制
+          {t('knowledge.queryLimitHint')}
         </Typography.Text>
       </Space>
       <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
-        检索同时执行稠密（向量语义）与稀疏（关键词全文）召回并按相关度融合排序。
+        {t('knowledge.queryDescription')}
       </Typography.Paragraph>
       {searchItems.length === 0 ? (
         <Empty
-          description={searching ? '检索中…' : '输入问题后点击「检索」，查看召回结果'}
+          description={searching ? t('knowledge.querySearching') : t('knowledge.queryEmptyHint')}
           style={{ padding: '32px 0' }}
         />
       ) : (
@@ -662,8 +668,8 @@ function QueryTab({ kbId }: QueryTabProps) {
             title={
               <Space>
                 <Typography.Text strong>{item.filename}</Typography.Text>
-                <Tag>分块 {item.chunkIndex + 1}</Tag>
-                {matchTypeTag(item.matchType)}
+                <Tag>{t('knowledge.queryChunkTag', { index: item.chunkIndex + 1 })}</Tag>
+                <MatchTypeTag matchType={item.matchType} />
                 <Tag color="blue">{(item.score * 100).toFixed(1)}%</Tag>
               </Space>
             }
@@ -697,6 +703,7 @@ interface SettingsTabProps {
 }
 
 function SettingsTab({ base, onSaved }: SettingsTabProps) {
+  const { t } = useTranslation();
   const [saving, setSaving] = useState(false);
   const [settingsForm] = Form.useForm<SettingsFormValues>();
 
@@ -713,10 +720,10 @@ function SettingsTab({ base, onSaved }: SettingsTabProps) {
         denseTopK: values.denseTopK,
         sparseTopK: values.sparseTopK,
       });
-      message.success('知识库设置已保存');
+      message.success(t('knowledge.settingsSaved'));
       onSaved();
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '保存设置失败');
+      message.error(error instanceof Error ? error.message : t('knowledge.settingsSaveFailed'));
     } finally {
       setSaving(false);
     }
@@ -738,25 +745,25 @@ function SettingsTab({ base, onSaved }: SettingsTabProps) {
           sparseTopK: base.sparseTopK,
         }}
       >
-        <Card className="oa-domain-card" size="small" title="基本信息" style={{ marginBottom: 16 }}>
+        <Card className="oa-domain-card" size="small" title={t('knowledge.settingsBasicInfo')} style={{ marginBottom: 16 }}>
           <Form.Item
             name="name"
-            label="知识库名称"
+            label={t('knowledge.fieldName')}
             rules={[
-              { required: true, message: '请输入知识库名称' },
-              { max: 80, message: '名称不能超过 80 个字符' },
+              { required: true, message: t('knowledge.validateNameRequired') },
+              { max: 80, message: t('knowledge.validateNameMax') },
             ]}
           >
             <Input maxLength={80} />
           </Form.Item>
-          <Form.Item name="icon" label="图标">
+          <Form.Item name="icon" label={t('knowledge.fieldIcon')}>
             <Select
               options={oaKnowledgeBaseIconOptions.map((option) => ({
                 value: option.value,
                 label: (
                   <Space>
                     <OaIcon name={option.value} />
-                    {option.label}
+                    {t(option.labelKey)}
                   </Space>
                 ),
               }))}
@@ -764,41 +771,41 @@ function SettingsTab({ base, onSaved }: SettingsTabProps) {
           </Form.Item>
           <Form.Item
             name="description"
-            label="描述"
-            rules={[{ max: 500, message: '描述不能超过 500 个字符' }]}
+            label={t('knowledge.fieldDescription')}
+            rules={[{ max: 500, message: t('knowledge.validateDescriptionMax') }]}
           >
             <Input.TextArea rows={3} maxLength={500} />
           </Form.Item>
         </Card>
 
-        <Card className="oa-domain-card" size="small" title="检索与分块参数">
+        <Card className="oa-domain-card" size="small" title={t('knowledge.settingsRetrieval')}>
           <Typography.Paragraph type="secondary" style={{ marginTop: 0 }}>
-            分块参数只影响之后新入库的文档；检索数量即时生效。
+            {t('knowledge.settingsChunkHint')}
           </Typography.Paragraph>
           <Form.Item
             name="chunkSize"
-            label="分块大小（字符）"
-            tooltip="每个知识分块的最大字符数，建议 500-1500"
+            label={t('knowledge.settingsChunkSizeLabel')}
+            tooltip={t('knowledge.settingsChunkSizeTooltip')}
             rules={[
-              { required: true, message: '请输入分块大小' },
-              { type: 'number', min: 100, max: 8000, message: '范围 100-8000' },
+              { required: true, message: t('knowledge.settingsChunkSizeRequired') },
+              { type: 'number', min: 100, max: 8000, message: t('knowledge.settingsChunkSizeRange') },
             ]}
           >
             <InputNumber style={{ width: '100%' }} min={100} max={8000} />
           </Form.Item>
           <Form.Item
             name="chunkOverlap"
-            label="分块重叠（字符）"
-            tooltip="相邻分块之间重复保留的字符数，必须小于分块大小"
+            label={t('knowledge.settingsChunkOverlapLabel')}
+            tooltip={t('knowledge.settingsChunkOverlapTooltip')}
             dependencies={['chunkSize']}
             rules={[
-              { required: true, message: '请输入分块重叠' },
-              { type: 'number', min: 0, max: 4000, message: '范围 0-4000' },
+              { required: true, message: t('knowledge.settingsChunkOverlapRequired') },
+              { type: 'number', min: 0, max: 4000, message: t('knowledge.settingsChunkOverlapRange') },
               ({ getFieldValue }) => ({
                 validator(_, value) {
                   const chunkSize = getFieldValue('chunkSize');
                   if (value != null && chunkSize != null && value >= chunkSize) {
-                    return Promise.reject(new Error('分块重叠必须小于分块大小'));
+                    return Promise.reject(new Error(t('knowledge.settingsChunkOverlapLessThanSize')));
                   }
                   return Promise.resolve();
                 },
@@ -809,22 +816,22 @@ function SettingsTab({ base, onSaved }: SettingsTabProps) {
           </Form.Item>
           <Form.Item
             name="denseTopK"
-            label="稠密检索数量"
-            tooltip="向量语义召回的最大条数"
+            label={t('knowledge.settingsDenseTopKLabel')}
+            tooltip={t('knowledge.settingsDenseTopKTooltip')}
             rules={[
-              { required: true, message: '请输入稠密检索数量' },
-              { type: 'number', min: 1, max: 50, message: '范围 1-50' },
+              { required: true, message: t('knowledge.settingsDenseTopKRequired') },
+              { type: 'number', min: 1, max: 50, message: t('knowledge.settingsDenseTopKRange') },
             ]}
           >
             <InputNumber style={{ width: '100%' }} min={1} max={50} />
           </Form.Item>
           <Form.Item
             name="sparseTopK"
-            label="稀疏检索数量"
-            tooltip="关键词全文召回的最大条数，设为 0 表示仅使用稠密检索"
+            label={t('knowledge.settingsSparseTopKLabel')}
+            tooltip={t('knowledge.settingsSparseTopKTooltip')}
             rules={[
-              { required: true, message: '请输入稀疏检索数量' },
-              { type: 'number', min: 0, max: 50, message: '范围 0-50' },
+              { required: true, message: t('knowledge.settingsSparseTopKRequired') },
+              { type: 'number', min: 0, max: 50, message: t('knowledge.settingsSparseTopKRange') },
             ]}
           >
             <InputNumber style={{ width: '100%' }} min={0} max={50} />
@@ -834,9 +841,9 @@ function SettingsTab({ base, onSaved }: SettingsTabProps) {
 
       <Space>
         <Button type="primary" loading={saving} onClick={() => void submitSettings()}>
-          保存设置
+          {t('knowledge.settingsSave')}
         </Button>
-        <Button onClick={() => settingsForm.resetFields()}>重置</Button>
+        <Button onClick={() => settingsForm.resetFields()}>{t('common.reset')}</Button>
       </Space>
     </Space>
   );
@@ -844,6 +851,7 @@ function SettingsTab({ base, onSaved }: SettingsTabProps) {
 
 export default function KnowledgeBaseDetail({ kbId }: { kbId: number }) {
   const router = useRouter();
+  const { t } = useTranslation();
   const [base, setBase] = useState<KnowledgeBase | null>(null);
   const [loading, setLoading] = useState(true);
   const [embedding, setEmbedding] = useState<EmbeddingStatus | null>(null);
@@ -853,11 +861,11 @@ export default function KnowledgeBaseDetail({ kbId }: { kbId: number }) {
     try {
       setBase(await knowledgeApi.getBase(kbId));
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '加载知识库失败');
+      message.error(error instanceof Error ? error.message : t('knowledge.loadFailed'));
     } finally {
       setLoading(false);
     }
-  }, [kbId]);
+  }, [kbId, t]);
 
   const loadEmbedding = useCallback(async () => {
     try {
@@ -884,8 +892,8 @@ export default function KnowledgeBaseDetail({ kbId }: { kbId: number }) {
     return (
       <Result
         status="404"
-        title="知识库不存在"
-        extra={<Button onClick={() => router.push('/oa/knowledge-base')}>返回知识库列表</Button>}
+        title={t('knowledge.notFound')}
+        extra={<Button onClick={() => router.push('/oa/knowledge-base')}>{t('knowledge.backToList')}</Button>}
       />
     );
   }
@@ -895,7 +903,7 @@ export default function KnowledgeBaseDetail({ kbId }: { kbId: number }) {
       <div className="oa-domain-heading">
         <Space align="center" size={12}>
           <Button icon={<OaIcon name="previous" />} onClick={() => router.push('/oa/knowledge-base')}>
-            返回
+            {t('common.back')}
           </Button>
           <span
             style={{
@@ -925,10 +933,10 @@ export default function KnowledgeBaseDetail({ kbId }: { kbId: number }) {
         <Tabs
           defaultActiveKey="overview"
           items={[
-            { key: 'overview', label: '概览', children: <OverviewTab base={base} embedding={embedding} /> },
-            { key: 'docs', label: '文档管理', children: <DocsTab kbId={kbId} onChanged={loadBase} /> },
-            { key: 'query', label: '知识库查询', children: <QueryTab kbId={kbId} /> },
-            { key: 'settings', label: '设置', children: <SettingsTab base={base} onSaved={loadBase} /> },
+            { key: 'overview', label: t('knowledge.tabOverview'), children: <OverviewTab base={base} embedding={embedding} /> },
+            { key: 'docs', label: t('knowledge.tabDocuments'), children: <DocsTab kbId={kbId} onChanged={loadBase} /> },
+            { key: 'query', label: t('knowledge.tabQuery'), children: <QueryTab kbId={kbId} /> },
+            { key: 'settings', label: t('knowledge.tabSettings'), children: <SettingsTab base={base} onSaved={loadBase} /> },
           ]}
         />
       </Card>

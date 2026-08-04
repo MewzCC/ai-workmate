@@ -3,9 +3,11 @@
 import { useEffect } from 'react';
 import { usePathname, useRouter } from '@/lib/nextCompat';
 import { Spin } from 'antd';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from './AuthProvider';
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
+  const { t } = useTranslation();
   const { user, loading } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
@@ -17,7 +19,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   }, [loading, pathname, router, user]);
 
   if (loading || !user) {
-    return <div className="auth-route-loading"><Spin size="large" description="正在验证登录状态" /></div>;
+    return <div className="auth-route-loading"><Spin size="large" description={t('auth.guard.verifying')} /></div>;
   }
   return children;
 }

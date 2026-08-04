@@ -13,10 +13,10 @@ import java.util.List;
 public class ChatRequest {
 
     /** 对话 ID，新对话为空 */
-    @NotNull(message = "会话 ID 不能为空")
+    @NotNull(message = "{validation.conversationId.notNull}")
     private Long conversationId;
 
-    @NotBlank(message = "消息内容不能为空")
+    @NotBlank(message = "{validation.message.notBlank}")
     private String message;
 
     /** 模型名称，默认从配置读取 */
@@ -25,10 +25,10 @@ public class ChatRequest {
     /** 指定检索的知识库 ID；为空时检索当前用户全部知识库 */
     private Long kbId;
 
-    @Size(max = 10, message = "单条消息最多包含 10 个附件")
+    @Size(max = 10, message = "{validation.attachmentIds.maxSize}")
     private List<Long> attachmentIds = List.of();
 
-    @Min(value = 1, message = "上下文轮数不能小于 1")
-    @Max(value = 20, message = "上下文轮数不能超过 20")
+    @Min(value = 1, message = "{validation.maxContextRounds.min}")
+    @Max(value = 20, message = "{validation.maxContextRounds.max}")
     private int maxContextRounds = 10;
 }

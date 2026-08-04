@@ -1,6 +1,8 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { Button, Dropdown, Empty, Input, Modal, Spin, Tooltip, Typography } from 'antd';
 import {
   LoadingOutlined,
@@ -32,7 +34,7 @@ interface SessionGroup {
   items: ChatConversation[];
 }
 
-function groupConversations(conversations: ChatConversation[]): SessionGroup[] {
+function groupConversations(conversations: ChatConversation[], t: TFunction): SessionGroup[] {
   const now = new Date();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
   const sevenDaysAgo = todayStart - 7 * 24 * 60 * 60 * 1000;
@@ -54,46 +56,47 @@ function groupConversations(conversations: ChatConversation[]): SessionGroup[] {
   }
 
   const result: SessionGroup[] = [
-    { key: 'today', label: '今天', items: groups.today },
-    { key: 'seven', label: '过去 7 天', items: groups.seven },
-    { key: 'thirty', label: '过去 30 天', items: groups.thirty },
-    { key: 'earlier', label: '更早', items: groups.earlier },
+    { key: 'today', label: t('chat.groupToday'), items: groups.today },
+    { key: 'seven', label: t('chat.groupLast7Days'), items: groups.seven },
+    { key: 'thirty', label: t('chat.groupLast30Days'), items: groups.thirty },
+    { key: 'earlier', label: t('chat.groupEarlier'), items: groups.earlier },
   ];
   return result.filter((g) => g.items.length > 0);
 }
 
-function pickPreview(messages: ChatMessage[] | undefined): string {
+function pickPreview(messages: ChatMessage[] | undefined, t: TFunction): string {
   if (messages?.length) {
     const text = (messages[messages.length - 1].content || '').trim();
     if (text) return text.length > 40 ? `${text.slice(0, 40)}…` : text;
   }
-  return '暂无消息';
+  return t('chat.noMessages');
 }
 
 export default function ChatSidebar(props: ChatSidebarProps) {
+  const { t } = useTranslation();
   const [search, setSearch] = useState('');
 
-  const groups = useMemo(() => groupConversations(props.conversations), [props.conversations]);
+  const groups = useMemo(() => groupConversations(props.conversations, t), [props.conversations, t]);
 
   const rename = (conversation: ChatConversation) => {
     let title = conversation.title;
     Modal.confirm({
-      title: '重命名会话',
+      title: t('chat.renameConversation'),
       icon: <OaIcon name="edit" />,
       content: <Input defaultValue={title} maxLength={100} onChange={(event) => { title = event.target.value; }} />,
-      okText: '保存',
-      cancelText: '取消',
+      okText: t('common.save'),
+      cancelText: t('common.cancel'),
       onOk: () => title.trim()
         ? props.onRename(conversation.id, title.trim())
-        : Promise.reject(new Error('标题不能为空')),
+        : Promise.reject(new Error(t('chat.titleRequired'))),
     });
   };
 
   const remove = (conversation: ChatConversation) => Modal.confirm({
-    title: '删除该会话？',
-    content: `“${conversation.title}”及其消息和附件将永久删除。`,
-    okText: '删除',
-    cancelText: '取消',
+    title: t('chat.deleteConversationTitle'),
+    content: t('chat.deleteConversationContent', { title: conversation.title }),
+    okText: t('common.delete'),
+    cancelText: t('common.cancel'),
     okButtonProps: { danger: true },
     onOk: () => props.onDelete(conversation.id),
   });
@@ -104,7 +107,7 @@ export default function ChatSidebar(props: ChatSidebarProps) {
     // 优先用完整消息列表（已点击加载过），否则用预览（preloadPreviews 预加载的最近一条）
     const messages = props.messagesByConversation?.[item.id];
     const previewMessages = props.previewByConversation?.[item.id];
-    const preview = pickPreview(messages || previewMessages);
+    const preview = pickPreview(messages || previewMessages, t);
     // 消息数：只有完整列表才知道准确数量，预览模式不显示
     const messageCount = messages?.length || 0;
 
@@ -118,10 +121,10 @@ export default function ChatSidebar(props: ChatSidebarProps) {
         <div className="ai-session-copy">
           <div className="ai-session-title-row">
             <Typography.Text ellipsis className="ai-session-title">
-              {item.title || '新对话'}
+              {item.title || t('chat.newConversation')}
             </Typography.Text>
             {isGenerating && (
-              <Tooltip title="生成中">
+              <Tooltip title={t('chat.generating')}>
                 <LoadingOutlined className="ai-session-generating" />
               </Tooltip>
             )}
@@ -130,7 +133,7 @@ export default function ChatSidebar(props: ChatSidebarProps) {
             {preview}
           </Typography.Text>
           <div className="ai-session-meta">
-            <span className="ai-session-time">{formatDate(item.updatedAt)}</span>
+            <span className="ai-session-time">{formatDate(item.updatedAt, t)}</span>
             {messageCount > 0 && (
               <span className="ai-session-count">
                 <MessageOutlined /> {messageCount}
@@ -142,8 +145,8 @@ export default function ChatSidebar(props: ChatSidebarProps) {
           trigger={['click']}
           menu={{
             items: [
-              { key: 'rename', label: '重命名', icon: <OaIcon name="edit" />, onClick: () => rename(item) },
-              { key: 'delete', label: '删除', danger: true, icon: <OaIcon name="delete" />, onClick: () => remove(item) },
+              { key: 'rename', label: t('chat.rename'), icon: <OaIcon name="edit" />, onClick: () => rename(item) },
+              { key: 'delete', label: t('common.delete'), danger: true, icon: <OaIcon name="delete" />, onClick: () => remove(item) },
             ],
           }}
         >
@@ -152,7 +155,7 @@ export default function ChatSidebar(props: ChatSidebarProps) {
             size="small"
             className="ai-session-more"
             icon={<OaIcon name="more" />}
-            aria-label={`管理会话 ${item.title}`}
+            aria-label={t('chat.manageConversation', { title: item.title })}
             onClick={(event) => event.stopPropagation()}
           />
         </Dropdown>
@@ -163,13 +166,13 @@ export default function ChatSidebar(props: ChatSidebarProps) {
   return (
     <aside className="ai-chat-sidebar">
       <div className="ai-sidebar-primary-actions">
-        <Button type="primary" icon={<OaIcon name="add" />} block onClick={props.onNew}>新建聊天</Button>
+        <Button type="primary" icon={<OaIcon name="add" />} block onClick={props.onNew}>{t('chat.newChat')}</Button>
         {props.onCollapse && (
-          <Tooltip title="收起会话栏">
+          <Tooltip title={t('chat.collapseSidebar')}>
             <Button
               className="ai-sidebar-collapse-button"
               icon={<MenuFoldOutlined />}
-              aria-label="收起会话栏"
+              aria-label={t('chat.collapseSidebar')}
               onClick={props.onCollapse}
             />
           </Tooltip>
@@ -179,7 +182,7 @@ export default function ChatSidebar(props: ChatSidebarProps) {
         allowClear
         prefix={<OaIcon name="search" />}
         value={search}
-        placeholder="搜索会话与消息"
+        placeholder={t('chat.searchSessions')}
         onChange={(event) => setSearch(event.target.value)}
         onPressEnter={() => props.onSearch(search)}
         onClear={() => props.onSearch('')}
@@ -196,20 +199,20 @@ export default function ChatSidebar(props: ChatSidebarProps) {
               ))}
             </div>
           ) : (
-            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无会话" />
+            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('chat.noSessions')} />
           )}
         </Spin>
       </div>
-      <Tooltip title="模型、上下文与数据设置">
+      <Tooltip title={t('chat.settingsTooltip')}>
         <Button className="ai-sidebar-settings" type="text" icon={<OaIcon name="settings" />} block onClick={props.onSettings}>
-          设置
+          {t('chat.settings')}
         </Button>
       </Tooltip>
     </aside>
   );
 }
 
-function formatDate(value: string): string {
+function formatDate(value: string, t: TFunction): string {
   const date = new Date(value);
   const today = new Date();
   if (date.toDateString() === today.toDateString()) {
@@ -218,7 +221,7 @@ function formatDate(value: string): string {
   const yesterday = new Date(today);
   yesterday.setDate(today.getDate() - 1);
   if (date.toDateString() === yesterday.toDateString()) {
-    return '昨天';
+    return t('chat.yesterday');
   }
   return date.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' });
 }

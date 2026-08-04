@@ -1,5 +1,6 @@
 import type { ChatAttachment, ChatConversation, ChatMessage, ChatStreamEvent } from '@/types/chat';
-import { uuid } from '@/lib/uuid';
+import { buildApiHeaders } from '@/lib/apiHeaders';
+import i18n from '@/i18n';
 
 const BASE = '/api';
 
@@ -19,9 +20,7 @@ export class ChatApiError extends Error {
 }
 
 function headers(json = true): HeadersInit {
-  const result: Record<string, string> = { 'X-Request-Id': uuid().replaceAll('-', '') };
-  if (json) result['Content-Type'] = 'application/json';
-  return result;
+  return buildApiHeaders(json);
 }
 
 async function parse<T>(response: Response): Promise<T> {
@@ -30,7 +29,7 @@ async function parse<T>(response: Response): Promise<T> {
     if (response.status === 401 && typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('oa-auth-expired'));
     }
-    throw new ChatApiError(body?.message || '请求失败', response.status, body?.errorCode, body?.traceId);
+    throw new ChatApiError(body?.message || i18n.t('errors.requestFailed'), response.status, body?.errorCode, body?.traceId);
   }
   return body.data as T;
 }
@@ -69,7 +68,7 @@ export async function uploadAttachment(conversationId: number, file: File): Prom
 
 export async function loadAttachmentContent(id: number, signal?: AbortSignal): Promise<string> {
   const response = await fetch(`${BASE}/attachments/${id}/content`, { headers: headers(false), signal });
-  if (!response.ok) throw new ChatApiError('附件加载失败', response.status);
+  if (!response.ok) throw new ChatApiError(i18n.t('errors.chat.attachmentLoadFailed'), response.status);
   return URL.createObjectURL(await response.blob());
 }
 
@@ -78,7 +77,7 @@ export async function loadAttachmentText(id: number, signal?: AbortSignal): Prom
   if (response.status === 401 && typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('oa-auth-expired'));
   }
-  if (!response.ok) throw new ChatApiError('Markdown 文档加载失败', response.status);
+  if (!response.ok) throw new ChatApiError(i18n.t('errors.chat.markdownLoadFailed'), response.status);
   return response.text();
 }
 
@@ -106,7 +105,7 @@ export async function streamChat(
     method: 'POST', headers: headers(), body: JSON.stringify(request), signal,
   });
   if (!response.ok) await parse<never>(response);
-  if (!response.body) throw new ChatApiError('浏览器无法读取流式响应', 500);
+  if (!response.body) throw new ChatApiError(i18n.t('errors.chat.streamUnavailable'), 500);
 
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
@@ -136,5 +135,5 @@ function parseSseEvent(raw: string, onEvent: (event: ChatStreamEvent) => void): 
   if (!data) return;
   const event = JSON.parse(data) as ChatStreamEvent;
   onEvent(event);
-  if (event.type === 'error') throw new ChatApiError(event.data || 'AI 服务暂时不可用', 503, event.errorCode || undefined, event.traceId);
+  if (event.type === 'error') throw new ChatApiError(event.data || i18n.t('errors.chat.aiServiceUnavailable'), 503, event.errorCode || undefined, event.traceId);
 }
