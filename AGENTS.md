@@ -1,4 +1,4 @@
-﻿# AI WorkMate Agent Rules
+# AI WorkMate Agent Rules
 
 ## Frontend App Split
 
@@ -38,6 +38,7 @@ AI WorkMate 是企业级 AI 助手与 OA 工作台平台雏形：
 - 前端规范：`docs/rules/frontend-rules.md`
 - 后端规范：`docs/rules/backend-rules.md`
 - AI Agent 规范：`docs/rules/agent-rules.md`
+- 国际化规范：`docs/rules/i18n-rules.md`
 
 ## 可用 Skills
 
@@ -184,9 +185,21 @@ docker compose -f docker-compose.yml up -d
 - `antd`：OA 基础 UI 组件。
 - `@ant-design/icons`：OA 菜单与按钮图标。
 - `echarts`：OA 图表。
+- `i18next`、`react-i18next`、`i18next-browser-languagedetector`：两个前端的国际化引擎与 React 绑定。
 - `eslint`、`@typescript-eslint`、`eslint-plugin-react-hooks` 等：两个 Vite 前端 lint 验证。
 
 新增依赖必须有明确收益，不能为单个小效果引入大型库。
+
+## 国际化（i18n）约束
+
+- 所有可见文案（按钮、标题、表头、placeholder、tooltip、message、notification、aria-label）禁止硬编码中英文，必须通过 `t('key')` 读取；规范见 `docs/rules/i18n-rules.md`。
+- 默认语言 `zh-CN`，第二语言 `en-US`；locale 标识统一使用 `zh-CN`/`en-US`，禁止混用 `zh`、`en`、`zh_CN`。
+- 两个前端的 i18n 资源、Provider 与语言切换分别放在 `fronted-main/src/i18n`、`fonted-oa/src/i18n`。
+- 语言选择持久化到 localStorage `workmeta-locale`，两个前端共用。
+- `fonted-oa` 切换语言时必须同步 Ant Design `ConfigProvider.locale`，不得让内置组件停留在默认中文。
+- 后端 `ErrorCode`、`BusinessException`、`GlobalExceptionHandler`、`@Valid` 校验消息必须走 `MessageSource`，按 `Accept-Language` 解析；禁止在 controller/service 直接拼中文。
+- 前端请求必须携带 `Accept-Language`，与当前 i18next 语言一致。
+- 新增可见文案时必须同步更新 `zh-CN` 与 `en-US` 两个资源文件，缺一不可。
 
 ## 完成标准
 

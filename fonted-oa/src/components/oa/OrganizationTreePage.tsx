@@ -23,6 +23,7 @@ import { ReloadOutlined, SearchOutlined } from '@ant-design/icons';
 import { hrApi, type HrDepartment, type HrEmployee, type OrganizationOverview } from '@/lib/hrApi';
 import { message } from '@/lib/antdMessage';
 import { OaIcon } from '@/components/OaIcon';
+import { useTranslation } from 'react-i18next';
 
 const OrganizationGraph = lazy(() => import('./OrganizationGraph'));
 
@@ -32,6 +33,7 @@ export interface DepartmentNode extends HrDepartment {
 }
 
 export default function OrganizationTreePage() {
+  const { t } = useTranslation();
   const [overview, setOverview] = useState<OrganizationOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedDepartmentId, setSelectedDepartmentId] = useState<number | undefined>();
@@ -46,7 +48,7 @@ export default function OrganizationTreePage() {
       setOverview(data);
       setAnimKey((k) => k + 1);
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '组织架构加载失败');
+      message.error(error instanceof Error ? error.message : t('organization.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -116,7 +118,7 @@ export default function OrganizationTreePage() {
 
   const columns: ColumnsType<HrEmployee> = [
     {
-      title: '员工',
+      title: t('organization.column.employee'),
       key: 'employee',
       align: 'center',
       render: (_, emp) => (
@@ -130,21 +132,21 @@ export default function OrganizationTreePage() {
       ),
     },
     {
-      title: '部门',
+      title: t('organization.column.department'),
       dataIndex: 'departmentId',
       align: 'center',
       render: (deptId: number | undefined) =>
         deptId ? departmentMap.get(deptId)?.name || '-' : '-',
     },
     {
-      title: '岗位',
+      title: t('organization.column.position'),
       dataIndex: 'positionId',
       align: 'center',
       render: (posId: number | undefined) =>
         posId ? positionMap.get(posId) || '-' : '-',
     },
     {
-      title: '直属审批人',
+      title: t('organization.column.approver'),
       dataIndex: 'approverName',
       align: 'center',
       render: (name: string | undefined, emp) => {
@@ -159,12 +161,12 @@ export default function OrganizationTreePage() {
       },
     },
     {
-      title: '状态',
+      title: t('common.status'),
       dataIndex: 'status',
       align: 'center',
       width: 90,
       render: (status: number) => (
-        <Badge status={status === 1 ? 'success' : 'default'} text={status === 1 ? '在岗' : '停用'} />
+        <Badge status={status === 1 ? 'success' : 'default'} text={status === 1 ? t('organization.status.active') : t('organization.status.inactive')} />
       ),
     },
   ];
@@ -173,13 +175,13 @@ export default function OrganizationTreePage() {
     <section className="oa-org-page">
       <header className="oa-domain-heading">
         <div>
-          <Typography.Title level={3}>组织架构</Typography.Title>
+          <Typography.Title level={3}>{t('organization.title')}</Typography.Title>
           <Typography.Paragraph type="secondary">
-            直观展示部门层级关系与员工分布，点击架构图中的部门卡片可筛选下方员工列表。
+            {t('organization.description')}
           </Typography.Paragraph>
         </div>
         <Button icon={<ReloadOutlined />} onClick={() => void load()} loading={loading}>
-          刷新
+          {t('common.refresh')}
         </Button>
       </header>
 
@@ -187,35 +189,35 @@ export default function OrganizationTreePage() {
         <Row gutter={[16, 16]} className="oa-org-stats">
           <Col xs={12} sm={6}>
             <Card>
-              <Statistic title="部门总数" value={stats.departments} prefix={<OaIcon name="organization" />} />
+              <Statistic title={t('organization.stats.departments')} value={stats.departments} prefix={<OaIcon name="organization" />} />
             </Card>
           </Col>
           <Col xs={12} sm={6}>
             <Card>
-              <Statistic title="员工总数" value={stats.employees} prefix={<OaIcon name="user" />} />
+              <Statistic title={t('organization.stats.employees')} value={stats.employees} prefix={<OaIcon name="user" />} />
             </Card>
           </Col>
           <Col xs={12} sm={6}>
             <Card>
-              <Statistic title="在岗人数" value={stats.active} valueStyle={{ color: '#52c41a' }} />
+              <Statistic title={t('organization.stats.active')} value={stats.active} valueStyle={{ color: '#52c41a' }} />
             </Card>
           </Col>
           <Col xs={12} sm={6}>
             <Card>
-              <Statistic title="岗位类型" value={stats.positions} />
+              <Statistic title={t('organization.stats.positions')} value={stats.positions} />
             </Card>
           </Col>
         </Row>
 
-        <Card className="oa-org-tree-card" title="部门架构图" extra={
+        <Card className="oa-org-tree-card" title={t('organization.graph.cardTitle')} extra={
           <Typography.Text type="secondary" className="oa-org-tree-hint">
-            Ctrl + 滚轮缩放 · 拖拽移动 · 点击节点筛选员工 · 共 {stats.departments} 个部门
+            {t('organization.graph.hint', { count: stats.departments })}
           </Typography.Text>
         }>
           {departmentTree.length === 0 ? (
-            <Empty description="暂无部门数据" />
+            <Empty description={t('organization.graph.empty')} />
           ) : (
-            <Suspense fallback={<Spin tip="加载架构图..." />}>
+            <Suspense fallback={<Spin tip={t('organization.graph.loading')} />}>
               <OrganizationGraph
                 data={departmentTree}
                 selectedId={selectedDepartmentId}
@@ -231,7 +233,7 @@ export default function OrganizationTreePage() {
             <Space wrap>
               <Select
                 allowClear
-                placeholder="按部门筛选"
+                placeholder={t('organization.filter.departmentPlaceholder')}
                 style={{ width: 200 }}
                 value={selectedDepartmentId}
                 options={overview?.departments.map((dept) => ({ value: dept.id, label: dept.name })) || []}
@@ -239,7 +241,7 @@ export default function OrganizationTreePage() {
               />
               <Input
                 allowClear
-                placeholder="搜索姓名或邮箱"
+                placeholder={t('organization.filter.searchPlaceholder')}
                 style={{ width: 240 }}
                 prefix={<SearchOutlined />}
                 value={keyword}
@@ -247,11 +249,11 @@ export default function OrganizationTreePage() {
               />
               {selectedDepartmentId !== undefined && (
                 <Button type="link" onClick={() => setSelectedDepartmentId(undefined)}>
-                  清除部门筛选
+                  {t('organization.filter.clearDepartment')}
                 </Button>
               )}
             </Space>
-            <Tag variant="filled">共 {filteredEmployees.length} 人</Tag>
+            <Tag variant="filled">{t('organization.filter.totalEmployees', { count: filteredEmployees.length })}</Tag>
           </div>
           <Table
             rowKey="id"

@@ -20,11 +20,13 @@ import dayjs from 'dayjs';
 import { formatOaApiError, todoApi, type TodoItem } from '@/lib/oaApi';
 import { leaveTypeLabel } from './MyApplicationsPage';
 import { OaIcon } from '@/components/OaIcon';
+import { useTranslation } from 'react-i18next';
 
 const { RangePicker } = DatePicker;
 
 export default function TodoListPage() {
   const router = useRouter();
+  const { t } = useTranslation();
   const [records, setRecords] = useState<TodoItem[]>([]);
   const [status, setStatus] = useState('PENDING');
   const [range, setRange] = useState<[string, string]>();
@@ -57,7 +59,7 @@ export default function TodoListPage() {
 
   const columns: ColumnsType<TodoItem> = [
     {
-      title: '待审批事项',
+      title: t('pages.todo.columnSubject'),
       key: 'subject',
       width: 260,
       render: (_, item) => (
@@ -66,48 +68,48 @@ export default function TodoListPage() {
           <div>
             <Space>
               <Avatar size="small" src={item.applicantAvatarUrl || undefined}>{item.applicantName.slice(0, 1).toUpperCase()}</Avatar>
-              <Typography.Text strong>{item.applicantName}的{leaveTypeLabel(item.leaveType)}申请</Typography.Text>
+              <Typography.Text strong>{t('pages.todo.subjectTitle', { name: item.applicantName, type: leaveTypeLabel(item.leaveType) })}</Typography.Text>
             </Space>
             <Typography.Text type="secondary">
-              TK-{String(item.id).padStart(6, '0')} · 申请 #{item.applicationId}
+              TK-{String(item.id).padStart(6, '0')} · {t('pages.todo.applicationIdLabel', { id: item.applicationId })}
             </Typography.Text>
           </div>
         </div>
       ),
     },
     {
-      title: '申请时长',
+      title: t('pages.todo.columnDuration'),
       dataIndex: 'durationHalfDays',
       width: 110,
-      render: (value) => <Typography.Text strong>{value / 2} 天</Typography.Text>,
+      render: (value) => <Typography.Text strong>{t('pages.todo.durationValue', { count: value / 2 })}</Typography.Text>,
     },
     {
-      title: '提交时间',
+      title: t('pages.todo.columnSubmittedAt'),
       dataIndex: 'submittedAt',
       width: 170,
       render: formatTime,
     },
     {
-      title: '处理时限',
+      title: t('pages.todo.columnSla'),
       key: 'sla',
       width: 190,
       render: (_, item) => (
         <div className="todo-sla-cell">
-          <Typography.Text>{item.dueAt ? formatTime(item.dueAt) : '未配置'}</Typography.Text>
+          <Typography.Text>{item.dueAt ? formatTime(item.dueAt) : t('pages.todo.slaUnset')}</Typography.Text>
           {item.overdue
-            ? <Tag color="error">已超时</Tag>
-            : item.status === 'PENDING' && <Tag color="processing">计时中</Tag>}
+            ? <Tag color="error">{t('pages.todo.slaOverdue')}</Tag>
+            : item.status === 'PENDING' && <Tag color="processing">{t('pages.todo.slaRunning')}</Tag>}
         </div>
       ),
     },
     {
-      title: '状态',
+      title: t('common.status'),
       dataIndex: 'status',
       width: 110,
       render: (value) => <TodoStatusTag status={value} />,
     },
     {
-      title: '操作',
+      title: t('common.actions'),
       width: 130,
       fixed: 'right',
       render: (_, item) => (
@@ -116,7 +118,7 @@ export default function TodoListPage() {
           size="small"
           onClick={() => router.push(`/oa/approval-tasks/${item.id}?from=todo`)}
         >
-          {item.status === 'PENDING' ? '立即处理' : '查看详情'}
+          {item.status === 'PENDING' ? t('pages.todo.actionProcess') : t('pages.todo.actionView')}
         </Button>
       ),
     },
@@ -127,15 +129,15 @@ export default function TodoListPage() {
       <header className="leave-list-hero todo-list-hero">
         <div>
           <span className="leave-list-hero__kicker">APPROVAL INBOX</span>
-          <Typography.Title level={2}>审批工作台</Typography.Title>
+          <Typography.Title level={2}>{t('pages.todo.title')}</Typography.Title>
           <Typography.Paragraph>
-            仅展示分配给当前账号的真实任务，按处理时限优先完成审批。
+            {t('pages.todo.description')}
           </Typography.Paragraph>
         </div>
         <div className="todo-hero-indicator">
-          <span>当前待处理</span>
+          <span>{t('pages.todo.heroPendingLabel')}</span>
           <strong>{status === 'PENDING' ? total : records.filter((item) => item.status === 'PENDING').length}</strong>
-          <small>{overdueCount > 0 ? `${overdueCount} 项已超时` : '暂无超时任务'}</small>
+          <small>{overdueCount > 0 ? t('pages.todo.heroOverdue', { count: overdueCount }) : t('pages.todo.heroNoOverdue')}</small>
         </div>
       </header>
 
@@ -144,11 +146,11 @@ export default function TodoListPage() {
           <Segmented
             value={status}
             options={[
-              { value: 'PENDING', label: '待处理' },
-              { value: 'APPROVED', label: '已通过' },
-              { value: 'REJECTED', label: '已退回' },
-              { value: 'CANCELLED', label: '已取消' },
-              { value: '', label: '全部' },
+              { value: 'PENDING', label: t('pages.todo.statusPending') },
+              { value: 'APPROVED', label: t('pages.todo.statusApproved') },
+              { value: 'REJECTED', label: t('pages.todo.statusRejected') },
+              { value: 'CANCELLED', label: t('pages.todo.statusCancelled') },
+              { value: '', label: t('common.all') },
             ]}
             onChange={(value) => { setStatus(String(value)); setPage(1); }}
           />
@@ -162,7 +164,7 @@ export default function TodoListPage() {
                 setPage(1);
               }}
             />
-            <Button icon={<OaIcon name="reload" />} onClick={() => void load()}>刷新</Button>
+            <Button icon={<OaIcon name="reload" />} onClick={() => void load()}>{t('common.refresh')}</Button>
           </Space>
         </div>
         <Table
@@ -173,7 +175,7 @@ export default function TodoListPage() {
           locale={{
             emptyText: (
               <Empty
-                description={status === 'PENDING' ? '当前没有待处理任务' : '当前筛选下暂无记录'}
+                description={status === 'PENDING' ? t('pages.todo.emptyPending') : t('pages.todo.emptyFiltered')}
               />
             ),
           }}
@@ -183,7 +185,7 @@ export default function TodoListPage() {
             pageSize: 20,
             total,
             showSizeChanger: false,
-            showTotal: (value) => `共 ${value} 项任务`,
+            showTotal: (value) => t('pages.todo.totalTasks', { count: value }),
             onChange: setPage,
           }}
         />
@@ -193,14 +195,23 @@ export default function TodoListPage() {
 }
 
 function TodoStatusTag({ status }: { status: string }) {
-  const config: Record<string, { color: string; label: string }> = {
-    PENDING: { color: 'processing', label: '待处理' },
-    APPROVED: { color: 'success', label: '已通过' },
-    REJECTED: { color: 'error', label: '已退回' },
-    CANCELLED: { color: 'default', label: '已取消' },
+  const { t } = useTranslation();
+  const colorMap: Record<string, string> = {
+    PENDING: 'processing',
+    APPROVED: 'success',
+    REJECTED: 'error',
+    CANCELLED: 'default',
   };
-  const item = config[status] || { color: 'default', label: status };
-  return <Tag color={item.color}>{item.label}</Tag>;
+  const labelKeyMap: Record<string, string> = {
+    PENDING: 'pages.todo.statusPending',
+    APPROVED: 'pages.todo.statusApproved',
+    REJECTED: 'pages.todo.statusRejected',
+    CANCELLED: 'pages.todo.statusCancelled',
+  };
+  const color = colorMap[status] || 'default';
+  const labelKey = labelKeyMap[status];
+  const label = labelKey ? t(labelKey) : status;
+  return <Tag color={color}>{label}</Tag>;
 }
 
 function formatTime(value?: string) {

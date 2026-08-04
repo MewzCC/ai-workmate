@@ -36,21 +36,27 @@ import {
   type AccessUser,
   type SaveRoutePayload,
 } from '@/lib/accessControlApi';
+import { useTranslation } from 'react-i18next';
 import { OaIcon, oaMenuIconOptions } from '@/components/OaIcon';
 
-const componentOptions = [
-  { value: 'DASHBOARD', label: '通用 OA 页面' },
-  { value: 'AI_WORKSPACE', label: 'AI 工作空间' },
-  { value: 'ACCESS_CONTROL', label: '权限配置中心' },
-  { value: 'TODO_LIST', label: '我的待办' },
-  { value: 'LEAVE_FORM', label: '请假申请' },
-  { value: 'MY_APPLICATIONS', label: '我的申请' },
-  { value: 'AUDIT_CENTER', label: '审计中心' },
-  { value: 'ORG_TREE', label: '组织架构' },
-  { value: 'KNOWLEDGE_BASE', label: '知识库管理' },
-];
+const COMPONENT_VALUES = [
+  'DASHBOARD',
+  'AI_WORKSPACE',
+  'ACCESS_CONTROL',
+  'TODO_LIST',
+  'LEAVE_FORM',
+  'MY_APPLICATIONS',
+  'AUDIT_CENTER',
+  'ORG_TREE',
+  'KNOWLEDGE_BASE',
+] as const;
 
 export default function AccessControlPage() {
+  const { t } = useTranslation();
+  const componentOptions = COMPONENT_VALUES.map((value) => ({
+    value,
+    label: t(`access.componentTypes.${value}`),
+  }));
   const [overview, setOverview] = useState<AccessControlOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedRoleCode, setSelectedRoleCode] = useState('');
@@ -84,7 +90,7 @@ export default function AccessControlPage() {
       setSelectedRoleCode(selected?.code || '');
       setSelectedPermissions(selected?.permissions || []);
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '权限配置加载失败');
+      message.error(error instanceof Error ? error.message : t('access.messages.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -120,7 +126,7 @@ export default function AccessControlPage() {
       (user) => removedIds.includes(user.id) && user.roles.length <= 1,
     );
     if (orphanedUser) {
-      message.warning(`${orphanedUser.name}仅有当前角色，不能移除`);
+      message.warning(t('access.messages.userOnlyRole', { name: orphanedUser.name }));
       return;
     }
     setSelectedMemberIds(nextIds);
@@ -135,9 +141,9 @@ export default function AccessControlPage() {
         ...current,
         roles: current.roles.map((role) => role.code === updated.code ? updated : role),
       }));
-      message.success('角色权限已保存');
+      message.success(t('access.messages.permissionsSaved'));
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '角色权限保存失败');
+      message.error(error instanceof Error ? error.message : t('access.messages.permissionsSaveFailed'));
     } finally {
       setSavingPermissions(false);
     }
@@ -152,9 +158,9 @@ export default function AccessControlPage() {
         selectedMemberIds,
       );
       setOverview(updatedOverview);
-      message.success('角色成员已更新');
+      message.success(t('access.messages.membersUpdated'));
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '角色成员保存失败');
+      message.error(error instanceof Error ? error.message : t('access.messages.membersSaveFailed'));
     } finally {
       setSavingMembers(false);
     }
@@ -169,9 +175,9 @@ export default function AccessControlPage() {
       await load();
       setSelectedRoleCode(created.code);
       setSelectedPermissions([]);
-      message.success('角色已创建，可立即分配页面权限');
+      message.success(t('access.messages.roleCreated'));
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '角色创建失败');
+      message.error(error instanceof Error ? error.message : t('access.messages.roleCreateFailed'));
     }
   };
 
@@ -204,9 +210,9 @@ export default function AccessControlPage() {
       setRouteModalOpen(false);
       routeForm.resetFields();
       await load();
-      message.success(page ? '页面路由已保存，请为角色勾选对应页面权限' : '菜单节点已保存');
+      message.success(page ? t('access.messages.pageRouteSaved') : t('access.messages.menuNodeSaved'));
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '路由保存失败');
+      message.error(error instanceof Error ? error.message : t('access.messages.routeSaveFailed'));
     }
   };
 
@@ -221,19 +227,21 @@ export default function AccessControlPage() {
       setOrganizationModal(undefined);
       organizationForm.resetFields();
       await load();
-      message.success(organizationModal === 'department' ? '部门已保存' : '岗位已保存');
+      message.success(organizationModal === 'department' ? t('access.messages.departmentSaved') : t('access.messages.positionSaved'));
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '组织信息保存失败');
+      message.error(error instanceof Error ? error.message : t('access.messages.orgSaveFailed'));
     }
   };
 
   const confirmDeleteOrganization = (item: { id: number; name: string }, kind: 'department' | 'position') => {
     Modal.confirm({
-      title: `确认删除${kind === 'department' ? '部门' : '岗位'}？`,
-      content: `「${item.name}」将被删除。若该${kind === 'department' ? '部门' : '岗位'}下仍有用户或子节点，删除将被服务端拒绝。`,
-      okText: '确认删除',
+      title: kind === 'department' ? t('access.confirm.deleteDepartment') : t('access.confirm.deletePosition'),
+      content: kind === 'department'
+        ? t('access.confirm.deleteDepartmentContent', { name: item.name })
+        : t('access.confirm.deletePositionContent', { name: item.name }),
+      okText: t('access.confirm.confirmDelete'),
       okType: 'danger',
-      cancelText: '取消',
+      cancelText: t('common.cancel'),
       onOk: async () => {
         setDeletingOrganizationId(item.id);
         try {
@@ -243,9 +251,9 @@ export default function AccessControlPage() {
             await accessControlApi.deletePosition(item.id);
           }
           await load();
-          message.success(kind === 'department' ? '部门已删除' : '岗位已删除');
+          message.success(kind === 'department' ? t('access.messages.departmentDeleted') : t('access.messages.positionDeleted'));
         } catch (error) {
-          message.error(error instanceof Error ? error.message : '删除失败');
+          message.error(error instanceof Error ? error.message : t('access.messages.deleteFailed'));
         } finally {
           setDeletingOrganizationId(null);
         }
@@ -283,7 +291,7 @@ export default function AccessControlPage() {
       }
       if (orgChanged) {
         if (!values.departmentId || !values.positionId) {
-          message.warning('部门和岗位不能为空');
+          message.warning(t('access.messages.departmentAndPositionRequired'));
           setSavingUser(false);
           return;
         }
@@ -301,10 +309,10 @@ export default function AccessControlPage() {
       setEditingUser(null);
       userForm.resetFields();
       if (roleChanged || orgChanged) {
-        message.success('用户信息已更新');
+        message.success(t('access.messages.userUpdated'));
       }
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '用户信息保存失败');
+      message.error(error instanceof Error ? error.message : t('access.messages.userSaveFailed'));
     } finally {
       setSavingUser(false);
     }
@@ -312,13 +320,15 @@ export default function AccessControlPage() {
 
   const toggleUserStatus = (user: AccessUser) => {
     const nextStatus = user.status === 1 ? 0 : 1;
-    const action = nextStatus === 0 ? '禁用' : '启用';
+    const isEnabling = nextStatus === 1;
     Modal.confirm({
-      title: `确认${action}用户？`,
-      content: `「${user.name}」将被${action}。`,
-      okText: `确认${action}`,
-      okType: nextStatus === 0 ? 'danger' : 'primary',
-      cancelText: '取消',
+      title: isEnabling ? t('access.confirm.enableUser') : t('access.confirm.disableUser'),
+      content: isEnabling
+        ? t('access.confirm.enableUserContent', { name: user.name })
+        : t('access.confirm.disableUserContent', { name: user.name }),
+      okText: isEnabling ? t('access.confirm.confirmEnable') : t('access.confirm.confirmDisable'),
+      okType: isEnabling ? 'primary' : 'danger',
+      cancelText: t('common.cancel'),
       onOk: async () => {
         setTogglingUserId(user.id);
         try {
@@ -327,9 +337,9 @@ export default function AccessControlPage() {
             ...current,
             users: current.users.map((item) => item.id === user.id ? updated : item),
           }));
-          message.success(`用户已${action}`);
+          message.success(isEnabling ? t('access.messages.userEnabled') : t('access.messages.userDisabled'));
         } catch (error) {
-          message.error(error instanceof Error ? error.message : `用户${action}失败`);
+          message.error(error instanceof Error ? error.message : (isEnabling ? t('access.messages.userEnableFailed') : t('access.messages.userDisableFailed')));
         } finally {
           setTogglingUserId(null);
         }
@@ -339,7 +349,7 @@ export default function AccessControlPage() {
 
   const userColumns: ColumnsType<AccessUser> = [
     {
-      title: '用户',
+      title: t('access.columns.user'),
       key: 'user',
       width: 240,
       render: (_, user) => (
@@ -353,16 +363,16 @@ export default function AccessControlPage() {
       ),
     },
     {
-      title: '状态',
+      title: t('common.status'),
       dataIndex: 'status',
       width: 90,
       align: 'center',
       render: (status: number) => (
-        <Badge status={status === 1 ? 'success' : 'default'} text={status === 1 ? '正常' : '停用'} />
+        <Badge status={status === 1 ? 'success' : 'default'} text={status === 1 ? t('access.status.normal') : t('access.status.disabled')} />
       ),
     },
     {
-      title: '角色',
+      title: t('access.userModal.role'),
       dataIndex: 'roles',
       width: 240,
       align: 'center',
@@ -380,7 +390,7 @@ export default function AccessControlPage() {
       },
     },
     {
-      title: '部门',
+      title: t('access.columns.department'),
       dataIndex: 'departmentId',
       width: 140,
       align: 'center',
@@ -389,7 +399,7 @@ export default function AccessControlPage() {
       ),
     },
     {
-      title: '岗位',
+      title: t('access.columns.position'),
       dataIndex: 'positionId',
       width: 140,
       align: 'center',
@@ -398,7 +408,7 @@ export default function AccessControlPage() {
       ),
     },
     {
-      title: '直属审批人',
+      title: t('access.columns.directApprover'),
       dataIndex: 'approverUserId',
       width: 160,
       render: (value: number | undefined) => {
@@ -417,21 +427,21 @@ export default function AccessControlPage() {
       },
     },
     {
-      title: '操作',
+      title: t('common.actions'),
       key: 'actions',
       width: 140,
       align: 'center',
       fixed: 'right',
       render: (_, user) => (
         <Space size={0}>
-          <Button type="link" onClick={() => openUserEditor(user)}>编辑</Button>
+          <Button type="link" onClick={() => openUserEditor(user)}>{t('common.edit')}</Button>
           <Button
             type="link"
             danger={user.status === 1}
             loading={togglingUserId === user.id}
             onClick={() => toggleUserStatus(user)}
           >
-            {user.status === 1 ? '禁用' : '启用'}
+            {user.status === 1 ? t('common.disable') : t('common.enable')}
           </Button>
         </Space>
       ),
@@ -440,7 +450,7 @@ export default function AccessControlPage() {
 
   const routeColumns: ColumnsType<AccessRoute> = [
     {
-      title: '名称 / 编码',
+      title: t('access.columns.routeNameCode'),
       key: 'route',
       align: 'center',
       render: (_, route) => (
@@ -450,45 +460,45 @@ export default function AccessControlPage() {
         </Space>
       ),
     },
-    { title: '父级', dataIndex: 'parentKey', width: 140, align: 'center', render: (value) => value || '-' },
+    { title: t('access.columns.parent'), dataIndex: 'parentKey', width: 140, align: 'center', render: (value) => value || '-' },
     {
-      title: '类型',
+      title: t('access.columns.type'),
       dataIndex: 'routeType',
       width: 90,
       align: 'center',
       render: (value) => <Tag className="oa-access-type-tag" variant="filled">{value}</Tag>,
     },
     {
-      title: '路径',
+      title: t('access.columns.path'),
       dataIndex: 'path',
       align: 'center',
       render: (value) => <span className="oa-access-path">{value || '-'}</span>,
     },
     {
-      title: '组件',
+      title: t('access.columns.component'),
       dataIndex: 'componentKey',
       width: 160,
       align: 'center',
       render: (value) => <span className="oa-access-code">{value || '-'}</span>,
     },
     {
-      title: '状态',
+      title: t('common.status'),
       dataIndex: 'enabled',
       width: 80,
       align: 'center',
-      render: (enabled) => <Badge status={enabled ? 'success' : 'default'} text={enabled ? '启用' : '停用'} />,
+      render: (enabled) => <Badge status={enabled ? 'success' : 'default'} text={enabled ? t('common.enable') : t('access.status.disabled')} />,
     },
     {
-      title: '操作',
+      title: t('common.actions'),
       width: 72,
       align: 'center',
       render: (_, route) => (
-        <Tooltip title="编辑路由">
+        <Tooltip title={t('access.editRouteTooltip')}>
           <Button
             type="text"
             shape="circle"
             icon={<OaIcon name="edit" />}
-            aria-label={`编辑${route.name}`}
+            aria-label={t('access.editRouteAriaLabel', { name: route.name })}
             onClick={() => openRouteEditor(route)}
           />
         </Tooltip>
@@ -500,27 +510,27 @@ export default function AccessControlPage() {
     <section className="oa-access-page">
       <header className="oa-access-header">
         <div>
-          <Typography.Title level={3}>角色、权限与动态路由</Typography.Title>
+          <Typography.Title level={3}>{t('access.header.title')}</Typography.Title>
           <Typography.Paragraph type="secondary">
-            从角色出发维护成员与权限，变更由服务端实时生效并同步控制菜单和直接 URL。
+            {t('access.header.description')}
           </Typography.Paragraph>
         </div>
         <Space>
           <Tag className="oa-access-service-tag" icon={<OaIcon name="access-control" />} variant="filled">
-            服务端 RBAC
+            {t('access.header.serverRbacTag')}
           </Tag>
           <Button type="primary" icon={<OaIcon name="add" />} onClick={() => setRoleModalOpen(true)}>
-            新建角色
+            {t('access.header.createRole')}
           </Button>
         </Space>
       </header>
 
       <Spin spinning={loading}>
-        {!overview ? <Empty description="暂无权限配置数据" /> : (
+        {!overview ? <Empty description={t('access.empty')} /> : (
           <Tabs defaultActiveKey="roles" items={[
             {
               key: 'roles',
-              label: <span><OaIcon name="role" /> 角色工作台</span>,
+              label: <span><OaIcon name="role" /> {t('access.tabs.roles')}</span>,
               children: (
                 <div className="oa-role-card-grid">
                   {roles.map((role) => {
@@ -532,7 +542,7 @@ export default function AccessControlPage() {
                           <div className="oa-role-card-title">
                             <Space size={8} wrap>
                               <Typography.Title level={5}>{role.name}</Typography.Title>
-                              {role.builtin && <Tag variant="filled">内置</Tag>}
+                              {role.builtin && <Tag variant="filled">{t('access.roleCard.builtin')}</Tag>}
                             </Space>
                             <Typography.Text className="oa-access-code">{role.code}</Typography.Text>
                           </div>
@@ -541,8 +551,8 @@ export default function AccessControlPage() {
                           {role.description}
                         </Typography.Paragraph>
                         <div className="oa-role-card-summary">
-                          <div><strong>{members.length}</strong><span>位成员</span></div>
-                          <div><strong>{role.permissions.length}</strong><span>项权限</span></div>
+                          <div><strong>{members.length}</strong><span>{t('access.roleCard.membersCount')}</span></div>
+                          <div><strong>{role.permissions.length}</strong><span>{t('access.roleCard.permissionsCount')}</span></div>
                         </div>
                         <div className="oa-role-member-preview">
                           <Avatar.Group max={{ count: 4 }}>
@@ -553,17 +563,17 @@ export default function AccessControlPage() {
                             ))}
                           </Avatar.Group>
                           <Typography.Text type="secondary">
-                            {members.length ? `已关联 ${members.length} 位用户` : '暂未分配成员'}
+                            {members.length ? t('access.roleCard.associatedUsers', { count: members.length }) : t('access.roleCard.noMembers')}
                           </Typography.Text>
                         </div>
                         <div className="oa-role-card-actions">
                           <Button icon={<OaIcon name="user" />}
                             onClick={() => openRoleWorkspace(role, 'members')}>
-                            管理成员
+                            {t('access.roleCard.manageMembers')}
                           </Button>
                           <Button type="primary" ghost icon={<OaIcon name="access-control" />}
                             onClick={() => openRoleWorkspace(role, 'permissions')}>
-                            配置权限
+                            {t('access.roleCard.configurePermissions')}
                           </Button>
                         </div>
                       </Card>
@@ -574,13 +584,13 @@ export default function AccessControlPage() {
             },
             {
               key: 'organization',
-              label: <span><OaIcon name="organization" /> 组织与审批人</span>,
+              label: <span><OaIcon name="organization" /> {t('access.tabs.organization')}</span>,
               children: (
                 <>
                   <div className="oa-access-toolbar">
                     <Button type="primary" icon={<OaIcon name="add" />}
                       onClick={() => setOrganizationModal('department')}>
-                      新增或更新部门
+                      {t('access.organization.addOrUpdateDepartment')}
                     </Button>
                   </div>
                   <Table
@@ -588,16 +598,16 @@ export default function AccessControlPage() {
                     dataSource={overview.departments}
                     pagination={false}
                     columns={[
-                      { title: '部门编码', dataIndex: 'code', align: 'center' as const },
-                      { title: '部门名称', dataIndex: 'name', align: 'center' as const },
+                      { title: t('access.columns.departmentCode'), dataIndex: 'code', align: 'center' as const },
+                      { title: t('access.columns.departmentName'), dataIndex: 'name', align: 'center' as const },
                       {
-                        title: '默认审批人',
+                        title: t('access.columns.defaultApprover'),
                         dataIndex: 'defaultApproverUserId',
                         align: 'center' as const,
                         render: (value) => overview.users.find((user) => user.id === value)?.name || '-',
                       },
                       {
-                        title: '操作',
+                        title: t('common.actions'),
                         width: 140,
                         align: 'center' as const,
                         render: (_, item) => (
@@ -606,7 +616,7 @@ export default function AccessControlPage() {
                               organizationForm.setFieldsValue(item);
                               setOrganizationModal('department');
                             }}>
-                              编辑
+                              {t('common.edit')}
                             </Button>
                             <Button
                               type="link"
@@ -614,7 +624,7 @@ export default function AccessControlPage() {
                               loading={deletingOrganizationId === item.id}
                               onClick={() => confirmDeleteOrganization(item, 'department')}
                             >
-                              删除
+                              {t('common.delete')}
                             </Button>
                           </Space>
                         ),
@@ -625,7 +635,7 @@ export default function AccessControlPage() {
                   <div className="oa-access-toolbar">
                     <Button type="primary" icon={<OaIcon name="add" />}
                       onClick={() => setOrganizationModal('position')}>
-                      新增或更新岗位
+                      {t('access.organization.addOrUpdatePosition')}
                     </Button>
                   </div>
                   <Table
@@ -633,10 +643,10 @@ export default function AccessControlPage() {
                     dataSource={overview.positions}
                     pagination={false}
                     columns={[
-                      { title: '岗位编码', dataIndex: 'code', align: 'center' as const },
-                      { title: '岗位名称', dataIndex: 'name', align: 'center' as const },
+                      { title: t('access.columns.positionCode'), dataIndex: 'code', align: 'center' as const },
+                      { title: t('access.columns.positionName'), dataIndex: 'name', align: 'center' as const },
                       {
-                        title: '操作',
+                        title: t('common.actions'),
                         width: 140,
                         align: 'center' as const,
                         render: (_, item) => (
@@ -645,7 +655,7 @@ export default function AccessControlPage() {
                               organizationForm.setFieldsValue(item);
                               setOrganizationModal('position');
                             }}>
-                              编辑
+                              {t('common.edit')}
                             </Button>
                             <Button
                               type="link"
@@ -653,7 +663,7 @@ export default function AccessControlPage() {
                               loading={deletingOrganizationId === item.id}
                               onClick={() => confirmDeleteOrganization(item, 'position')}
                             >
-                              删除
+                              {t('common.delete')}
                             </Button>
                           </Space>
                         ),
@@ -665,12 +675,12 @@ export default function AccessControlPage() {
             },
             {
               key: 'users',
-              label: <span><OaIcon name="user" /> 用户批量配置</span>,
+              label: <span><OaIcon name="user" /> {t('access.tabs.users')}</span>,
               children: (
                 <>
                   <div className="oa-access-toolbar">
                     <Alert type="info" showIcon
-                      title="集中维护用户角色、部门、岗位和直属审批人；每位用户必须至少保留一个角色。" />
+                      title={t('access.usersAlert')} />
                   </div>
                   <Table
                     className="oa-access-table"
@@ -686,14 +696,14 @@ export default function AccessControlPage() {
             },
             {
               key: 'routes',
-              label: <span><OaIcon name="organization" /> 动态路由</span>,
+              label: <span><OaIcon name="organization" /> {t('access.tabs.routes')}</span>,
               children: (
                 <>
                   <div className="oa-access-toolbar">
                     <Alert className="oa-access-hint" type="info" showIcon
-                      title="新增 PAGE 会自动创建对应页面权限；角色勾选后，该页面才会出现在菜单中。" />
+                      title={t('access.routesAlert')} />
                     <Button type="primary" icon={<OaIcon name="add" />} onClick={() => openRouteEditor()}>
-                      新增路由
+                      {t('access.addRoute')}
                     </Button>
                   </div>
                   <Table
@@ -719,25 +729,25 @@ export default function AccessControlPage() {
             <Typography.Text strong>{selectedRole.name}</Typography.Text>
             <Typography.Text className="oa-access-code"> · {selectedRole.code}</Typography.Text>
           </div>
-        ) : '角色工作区'}
+        ) : t('access.drawer.roleWorkspace')}
         open={Boolean(roleWorkspaceMode)}
         size={640}
         onClose={() => setRoleWorkspaceMode(undefined)}
         extra={roleWorkspaceMode && (
-          <Tag variant="filled">{roleWorkspaceMode === 'members' ? '成员管理' : '权限配置'}</Tag>
+          <Tag variant="filled">{roleWorkspaceMode === 'members' ? t('access.drawer.membersManagement') : t('access.drawer.permissionsConfig')}</Tag>
         )}
         footer={selectedRole && (
           <div className="oa-role-workspace-footer">
-            <Button onClick={() => setRoleWorkspaceMode(undefined)}>取消</Button>
+            <Button onClick={() => setRoleWorkspaceMode(undefined)}>{t('common.cancel')}</Button>
             {roleWorkspaceMode === 'members' ? (
               <Button type="primary" icon={<OaIcon name="save" />} loading={savingMembers}
                 onClick={() => void saveMembers()}>
-                保存成员
+                {t('access.drawer.saveMembers')}
               </Button>
             ) : selectedRole.code !== 'SUPER_ADMIN' && (
               <Button type="primary" icon={<OaIcon name="save" />} loading={savingPermissions}
                 onClick={() => void savePermissions()}>
-                保存权限
+                {t('access.drawer.savePermissions')}
               </Button>
             )}
           </div>
@@ -748,15 +758,15 @@ export default function AccessControlPage() {
             <Alert
               type="info"
               showIcon
-              title="可按姓名或邮箱搜索并选择多人。停用成员可从角色移除，但不能重新加入。"
+              title={t('access.drawer.membersAlert')}
             />
             <div className="oa-role-workspace-summary">
-              <span>当前已选</span>
+              <span>{t('access.drawer.currentlySelected')}</span>
               <strong>{selectedMemberIds.length}</strong>
-              <span>位成员</span>
+              <span>{t('access.roleCard.membersCount')}</span>
             </div>
             <Form layout="vertical">
-              <Form.Item label="角色成员">
+              <Form.Item label={t('access.drawer.roleMembersLabel')}>
                 <Select
                   mode="multiple"
                   showSearch
@@ -764,13 +774,13 @@ export default function AccessControlPage() {
                   optionFilterProp="label"
                   value={selectedMemberIds}
                   maxTagCount="responsive"
-                  placeholder="输入姓名或邮箱搜索"
+                  placeholder={t('access.drawer.searchMembersPlaceholder')}
                   onChange={changeSelectedMembers}
                   options={overview?.users
                     .filter((user) => user.status === 1 || selectedMemberIds.includes(user.id))
                     .map((user) => ({
                       value: user.id,
-                      label: `${user.name} · ${user.email}${user.status === 1 ? '' : ' · 已停用'}`,
+                      label: `${user.name} · ${user.email}${user.status === 1 ? '' : t('access.drawer.disabledOptionSuffix')}`,
                     }))}
                 />
               </Form.Item>
@@ -786,7 +796,7 @@ export default function AccessControlPage() {
                       <Typography.Text type="secondary">{user.email}</Typography.Text>
                     </div>
                     <Badge status={user.status === 1 ? 'success' : 'default'}
-                      text={user.status === 1 ? '正常' : '停用'} />
+                      text={user.status === 1 ? t('access.status.normal') : t('access.status.disabled')} />
                   </div>
                 ))}
             </div>
@@ -796,12 +806,12 @@ export default function AccessControlPage() {
         {selectedRole && roleWorkspaceMode === 'permissions' && (
           <div className="oa-role-workspace">
             {selectedRole.code === 'SUPER_ADMIN' && (
-              <Alert type="info" showIcon title="超级管理员始终拥有全部权限，无需手动配置。" />
+              <Alert type="info" showIcon title={t('access.drawer.superAdminAlert')} />
             )}
             <div className="oa-role-workspace-summary">
-              <span>当前已选</span>
+              <span>{t('access.drawer.currentlySelected')}</span>
               <strong>{selectedPermissions.length}</strong>
-              <span>项权限</span>
+              <span>{t('access.roleCard.permissionsCount')}</span>
             </div>
             <Checkbox.Group
               value={selectedPermissions}
@@ -828,50 +838,50 @@ export default function AccessControlPage() {
         )}
       </Drawer>
 
-      <Modal title="新建角色" open={roleModalOpen} onCancel={() => setRoleModalOpen(false)}
-        onOk={() => void createRole()} okText="创建">
+      <Modal title={t('access.roleModal.title')} open={roleModalOpen} onCancel={() => setRoleModalOpen(false)}
+        onOk={() => void createRole()} okText={t('common.create')}>
         <Form form={roleForm} layout="vertical">
-          <Form.Item name="code" label="角色编码"
+          <Form.Item name="code" label={t('access.roleModal.roleCode')}
             rules={[
-              { required: true, message: '请输入角色编码' },
-              { pattern: /^[A-Z][A-Z0-9_]{2,39}$/, message: '使用 3-40 位大写字母、数字或下划线' },
+              { required: true, message: t('access.roleModal.roleCodeRequired') },
+              { pattern: /^[A-Z][A-Z0-9_]{2,39}$/, message: t('access.roleModal.roleCodePattern') },
             ]}>
-            <Input placeholder="例如 DEPARTMENT_MANAGER" />
+            <Input placeholder={t('access.roleModal.roleCodePlaceholder')} />
           </Form.Item>
-          <Form.Item name="name" label="角色名称" rules={[{ required: true }]}>
-            <Input placeholder="例如 部门主管" />
+          <Form.Item name="name" label={t('access.roleModal.roleName')} rules={[{ required: true }]}>
+            <Input placeholder={t('access.roleModal.roleNamePlaceholder')} />
           </Form.Item>
-          <Form.Item name="description" label="职责说明" rules={[{ required: true }]}>
-            <Input.TextArea rows={3} placeholder="说明该角色的职责边界" />
+          <Form.Item name="description" label={t('access.roleModal.responsibilityDescription')} rules={[{ required: true }]}>
+            <Input.TextArea rows={3} placeholder={t('access.roleModal.responsibilityPlaceholder')} />
           </Form.Item>
         </Form>
       </Modal>
 
       <Modal
-        title={organizationModal === 'department' ? '部门配置' : '岗位配置'}
+        title={organizationModal === 'department' ? t('access.organizationModal.departmentConfig') : t('access.organizationModal.positionConfig')}
         open={Boolean(organizationModal)}
         onCancel={() => { setOrganizationModal(undefined); organizationForm.resetFields(); }}
         onOk={() => void saveOrganizationItem()}
-        okText="保存"
+        okText={t('common.save')}
       >
         <Form form={organizationForm} layout="vertical">
-          <Form.Item name="code" label="编码" rules={[
+          <Form.Item name="code" label={t('access.organizationModal.code')} rules={[
             { required: true },
-            { pattern: /^[A-Za-z][A-Za-z0-9_-]{1,59}$/, message: '使用字母、数字、下划线或连字符' },
+            { pattern: /^[A-Za-z][A-Za-z0-9_-]{1,59}$/, message: t('access.organizationModal.codePattern') },
           ]}>
             <Input />
           </Form.Item>
-          <Form.Item name="name" label="名称" rules={[{ required: true }, { max: 100 }]}>
+          <Form.Item name="name" label={t('common.name')} rules={[{ required: true }, { max: 100 }]}>
             <Input />
           </Form.Item>
           {organizationModal === 'department' && (
             <>
-              <Form.Item name="parentId" label="上级部门">
+              <Form.Item name="parentId" label={t('access.organizationModal.parentDepartment')}>
                 <Select allowClear options={(overview?.departments || []).map((item) => ({
                   value: item.id, label: item.name,
                 }))} />
               </Form.Item>
-              <Form.Item name="defaultApproverUserId" label="部门默认审批人">
+              <Form.Item name="defaultApproverUserId" label={t('access.organizationModal.departmentDefaultApprover')}>
                 <Select allowClear options={(overview?.users || [])
                   .filter((item) => item.status === 1)
                   .map((item) => ({ value: item.id, label: item.name }))} />
@@ -881,65 +891,68 @@ export default function AccessControlPage() {
         </Form>
       </Modal>
 
-      <Modal title={editingRoute ? '编辑路由' : '新增路由'} open={routeModalOpen}
-        onCancel={() => setRouteModalOpen(false)} onOk={() => void saveRoute()} okText="保存" width={620}>
+      <Modal title={editingRoute ? t('access.routeModal.editTitle') : t('access.routeModal.addTitle')} open={routeModalOpen}
+        onCancel={() => setRouteModalOpen(false)} onOk={() => void saveRoute()} okText={t('common.save')} width={620}>
         <Form form={routeForm} layout="vertical">
-          <Form.Item name="routeKey" label="路由编码"
+          <Form.Item name="routeKey" label={t('access.routeModal.routeCode')}
             rules={[
               { required: true },
-              { pattern: /^[a-z][a-z0-9-]{1,59}$/, message: '使用小写字母、数字或连字符' },
+              { pattern: /^[a-z][a-z0-9-]{1,59}$/, message: t('access.routeModal.routeCodePattern') },
             ]}>
-            <Input disabled={Boolean(editingRoute)} placeholder="例如 sales-report" />
+            <Input disabled={Boolean(editingRoute)} placeholder={t('access.routeModal.routeCodePlaceholder')} />
           </Form.Item>
           <div className="oa-route-form-grid">
-            <Form.Item name="name" label="显示名称" rules={[{ required: true }]}>
+            <Form.Item name="name" label={t('access.routeModal.displayName')} rules={[{ required: true }]}>
               <Input />
             </Form.Item>
-            <Form.Item name="routeType" label="节点类型" rules={[{ required: true }]}>
+            <Form.Item name="routeType" label={t('access.routeModal.nodeType')} rules={[{ required: true }]}>
               <Select options={[
-                { value: 'GROUP', label: '一级分组' },
-                { value: 'MENU', label: '菜单目录' },
-                { value: 'PAGE', label: '可访问页面' },
+                { value: 'GROUP', label: t('access.routeModal.routeTypes.GROUP') },
+                { value: 'MENU', label: t('access.routeModal.routeTypes.MENU') },
+                { value: 'PAGE', label: t('access.routeModal.routeTypes.PAGE') },
               ]} />
             </Form.Item>
           </div>
           <div className="oa-route-form-grid">
-            <Form.Item name="parentKey" label="父级节点">
+            <Form.Item name="parentKey" label={t('access.routeModal.parentNode')}>
               <Select allowClear showSearch options={overview?.routes
                 .filter((route) => route.routeKey !== editingRoute?.routeKey && route.routeType !== 'PAGE')
                 .map((route) => ({ value: route.routeKey, label: `${route.name} (${route.routeKey})` }))} />
             </Form.Item>
-            <Form.Item name="sortOrder" label="排序" rules={[{ required: true }]}>
+            <Form.Item name="sortOrder" label={t('access.routeModal.sortOrder')} rules={[{ required: true }]}>
               <InputNumber min={0} max={9999} style={{ width: '100%' }} />
             </Form.Item>
           </div>
           <Form.Item noStyle shouldUpdate={(prev, next) => prev.routeType !== next.routeType}>
             {({ getFieldValue }) => getFieldValue('routeType') === 'PAGE' && (
               <div className="oa-route-form-grid">
-                <Form.Item name="path" label="页面路径"
+                <Form.Item name="path" label={t('access.routeModal.pagePath')}
                   rules={[
                     { required: true },
-                    { pattern: /^\/oa\/[a-z][a-z0-9-]{1,59}$/, message: '格式应为 /oa/page-key' },
+                    { pattern: /^\/oa\/[a-z][a-z0-9-]{1,59}$/, message: t('access.routeModal.pagePathPattern') },
                   ]}>
                   <Input placeholder="/oa/sales-report" />
                 </Form.Item>
-                <Form.Item name="componentKey" label="页面组件" rules={[{ required: true }]}>
+                <Form.Item name="componentKey" label={t('access.routeModal.pageComponent')} rules={[{ required: true }]}>
                   <Select options={componentOptions} />
                 </Form.Item>
               </div>
             )}
           </Form.Item>
           <div className="oa-route-form-grid">
-            <Form.Item name="icon" label="图标编码">
+            <Form.Item name="icon" label={t('access.routeModal.iconCode')}>
               <Select
                 allowClear
                 showSearch
                 optionFilterProp="label"
-                options={oaMenuIconOptions}
-                placeholder="选择语义图标"
+                options={oaMenuIconOptions.map((option) => ({
+                  value: option.value,
+                  label: t(option.labelKey),
+                }))}
+                placeholder={t('access.routeModal.iconPlaceholder')}
               />
             </Form.Item>
-            <Form.Item name="enabled" label="启用" valuePropName="checked">
+            <Form.Item name="enabled" label={t('common.enable')} valuePropName="checked">
               <Switch />
             </Form.Item>
           </div>
@@ -947,12 +960,12 @@ export default function AccessControlPage() {
       </Modal>
 
       <Modal
-        title={editingUser ? `编辑用户 - ${editingUser.name}` : '编辑用户'}
+        title={editingUser ? t('access.userModal.editTitleWithName', { name: editingUser.name }) : t('access.userModal.editTitle')}
         open={userModalOpen}
         onCancel={() => { setUserModalOpen(false); setEditingUser(null); userForm.resetFields(); }}
         onOk={() => void saveUser()}
-        okText="保存"
-        cancelText="取消"
+        okText={t('common.save')}
+        cancelText={t('common.cancel')}
         confirmLoading={savingUser}
         width={520}
       >
@@ -963,29 +976,29 @@ export default function AccessControlPage() {
           </div>
         )}
         <Form form={userForm} layout="vertical">
-          <Form.Item name="roles" label="角色" rules={[{ required: true, message: '请至少分配一个角色' }]}>
+          <Form.Item name="roles" label={t('access.userModal.role')} rules={[{ required: true, message: t('access.userModal.roleRequired') }]}>
             <Select
               mode="multiple"
               options={roles.map((role) => ({ value: role.code, label: `${role.name} (${role.code})` }))}
               maxTagCount="responsive"
-              placeholder="选择角色"
+              placeholder={t('access.userModal.rolePlaceholder')}
             />
           </Form.Item>
           <div className="oa-route-form-grid">
-            <Form.Item name="departmentId" label="部门" rules={[{ required: true, message: '请选择部门' }]}>
+            <Form.Item name="departmentId" label={t('access.columns.department')} rules={[{ required: true, message: t('access.userModal.departmentRequired') }]}>
               <Select
                 options={(overview?.departments || []).map((item) => ({ value: item.id, label: item.name }))}
-                placeholder="选择部门"
+                placeholder={t('access.userModal.departmentPlaceholder')}
               />
             </Form.Item>
-            <Form.Item name="positionId" label="岗位" rules={[{ required: true, message: '请选择岗位' }]}>
+            <Form.Item name="positionId" label={t('access.columns.position')} rules={[{ required: true, message: t('access.userModal.positionRequired') }]}>
               <Select
                 options={(overview?.positions || []).map((item) => ({ value: item.id, label: item.name }))}
-                placeholder="选择岗位"
+                placeholder={t('access.userModal.positionPlaceholder')}
               />
             </Form.Item>
           </div>
-          <Form.Item name="approverUserId" label="直属审批人">
+          <Form.Item name="approverUserId" label={t('access.columns.directApprover')}>
             <Select
               allowClear
               showSearch
@@ -999,7 +1012,7 @@ export default function AccessControlPage() {
                     label: `${item.name} · ${item.email}${deptName ? ` · ${deptName}` : ''}`,
                   };
                 })}
-              placeholder="选择直属审批人（可按姓名或邮箱搜索）"
+              placeholder={t('access.userModal.directApproverPlaceholder')}
             />
           </Form.Item>
         </Form>

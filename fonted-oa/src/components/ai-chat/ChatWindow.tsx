@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button, Select, Typography } from 'antd';
 import { DatabaseOutlined, MenuOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
 import { AI_MODEL_OPTIONS, type AiModelId } from '@/config/aiModels';
@@ -27,6 +28,7 @@ interface ChatWindowProps {
 }
 
 export default function ChatWindow(props: ChatWindowProps) {
+  const { t } = useTranslation();
   const scrollRef = useRef<HTMLDivElement>(null);
   const latestContent = props.messages[props.messages.length - 1]?.content;
 
@@ -41,12 +43,12 @@ export default function ChatWindow(props: ChatWindowProps) {
         <Button className="ai-mobile-session-button" type="text" icon={<MenuOutlined />} onClick={props.onOpenSessions} />
         <div>
           <Typography.Title level={5} title={props.title}>{props.title}</Typography.Title>
-          <Typography.Text type="secondary"><SafetyCertificateOutlined /> 权限由服务端校验</Typography.Text>
+          <Typography.Text type="secondary"><SafetyCertificateOutlined /> {t('chat.serverValidated')}</Typography.Text>
         </div>
         <Select<number | null>
-          aria-label="选择知识库"
+          aria-label={t('chat.selectKnowledgeBase')}
           className="ai-kb-select"
-          placeholder="全部知识库"
+          placeholder={t('chat.allKnowledgeBases')}
           value={props.kbId ?? undefined}
           allowClear
           showSearch
@@ -57,7 +59,7 @@ export default function ChatWindow(props: ChatWindowProps) {
           disabled={props.generating}
         />
         <Select<AiModelId>
-          aria-label="切换对话模型"
+          aria-label={t('chat.switchModel')}
           className="ai-model-select"
           value={props.model}
           options={[...AI_MODEL_OPTIONS]}
@@ -77,7 +79,7 @@ export default function ChatWindow(props: ChatWindowProps) {
           onSend={props.onSend}
           onStop={props.onStop}
         />
-        <Typography.Text type="secondary" className="ai-disclaimer">AI 可能出错；涉及审批、财务或权限变更时请核对执行计划。</Typography.Text>
+        <Typography.Text type="secondary" className="ai-disclaimer">{t('chat.disclaimer')}</Typography.Text>
       </div>
     </section>
   );

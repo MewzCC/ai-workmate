@@ -1,3 +1,5 @@
+import i18n from '@/i18n';
+import { buildApiHeaders } from '@/lib/apiHeaders';
 import type { AuthUser } from './authApi';
 
 interface ApiResult<T> {
@@ -27,36 +29,41 @@ export const profileApi = {
   update: (name: string) => parse<AuthUser>(fetch('/api/profile', {
     method: 'PUT',
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
+    headers: buildApiHeaders(),
     body: JSON.stringify({ name }),
-  }), '用户资料更新失败'),
+  }), i18n.t('errors.profile.updateFailed')),
   uploadAvatar: (file: File) => {
     const form = new FormData();
     form.append('file', file);
     return parse<AuthUser>(fetch('/api/profile/avatar', {
       method: 'POST',
       credentials: 'include',
+      headers: buildApiHeaders(false),
       body: form,
-    }), '头像上传失败');
+    }), i18n.t('errors.profile.avatarUploadFailed'));
   },
   deleteAvatar: () => parse<AuthUser>(fetch('/api/profile/avatar', {
     method: 'DELETE',
     credentials: 'include',
-  }), '头像删除失败'),
+    headers: buildApiHeaders(false),
+  }), i18n.t('errors.profile.avatarDeleteFailed')),
   getWallpaper: () => parse<WallpaperResponse>(fetch('/api/profile/wallpaper', {
     credentials: 'include',
-  }), '壁纸加载失败'),
+    headers: buildApiHeaders(false),
+  }), i18n.t('errors.profile.wallpaperLoadFailed')),
   uploadWallpaper: (file: Blob) => {
     const form = new FormData();
     form.append('file', file, 'wallpaper.webp');
     return parse<WallpaperResponse>(fetch('/api/profile/wallpaper', {
       method: 'POST',
       credentials: 'include',
+      headers: buildApiHeaders(false),
       body: form,
-    }), '壁纸上传失败');
+    }), i18n.t('errors.profile.wallpaperUploadFailed'));
   },
   deleteWallpaper: () => parse<WallpaperResponse>(fetch('/api/profile/wallpaper', {
     method: 'DELETE',
     credentials: 'include',
-  }), '壁纸删除失败'),
+    headers: buildApiHeaders(false),
+  }), i18n.t('errors.profile.wallpaperDeleteFailed')),
 };

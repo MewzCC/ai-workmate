@@ -1,3 +1,6 @@
+import i18n from '@/i18n';
+import { buildApiHeaders } from '@/lib/apiHeaders';
+
 export interface AccessUser {
   id: number;
   name: string;
@@ -82,7 +85,7 @@ async function request<T>(path = '', init?: RequestInit): Promise<T> {
   const response = await fetch(`/api/admin/access-control${path}`, {
     credentials: 'include',
     ...init,
-    headers: init?.body ? { 'Content-Type': 'application/json', ...init.headers } : init?.headers,
+    headers: buildApiHeaders(Boolean(init?.body), init?.headers),
   });
   const result = await response.json().catch(() => null) as ApiResult<T> | null;
   if (response.status === 401 && typeof window !== 'undefined') {
@@ -91,7 +94,7 @@ async function request<T>(path = '', init?: RequestInit): Promise<T> {
   const isVoidResponse = init?.method === 'DELETE';
   if (!response.ok || !result || result.code !== 200
       || (!isVoidResponse && result.data === null)) {
-    throw new Error(result?.message || '权限配置请求失败');
+    throw new Error(result?.message || i18n.t('errors.access.requestFailed'));
   }
   return (result.data ?? null) as T;
 }

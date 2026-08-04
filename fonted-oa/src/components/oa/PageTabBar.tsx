@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button, Dropdown, Space, Tabs } from 'antd';
 import type { MenuProps, TabsProps } from 'antd';
 import { OaIcon, resolveOaMenuIcon } from '@/components/OaIcon';
@@ -35,6 +36,7 @@ export default function PageTabBar({
   onRefresh,
   onReorder,
 }: PageTabBarProps) {
+  const { t } = useTranslation();
   const navRef = useRef<HTMLElement>(null);
   const [hasOverflow, setHasOverflow] = useState(false);
   // 被拖动的标签 id（仅用于触发 label 上的 class）
@@ -257,13 +259,14 @@ export default function PageTabBar({
     const isPinned = tab.id === pinnedKey;
     const canDrag = !!onReorder && !isPinned;
     const isDragging = draggingId === tab.id;
+    const tabLabel = t(`oa.menu.${tab.id}`, { defaultValue: tab.name });
     return {
       key: tab.id,
       closable: tab.id !== pinnedKey,
       label: (
         <span
           className={`oa-page-tab-label${isDragging ? ' is-dragging' : ''}`}
-          title={tab.name}
+          title={tabLabel}
           data-tab-key={tab.id}
           draggable={canDrag}
           onDragStart={
@@ -280,7 +283,7 @@ export default function PageTabBar({
           onDragEnd={handleDragEnd}
         >
           {iconName ? <OaIcon name={iconName} size={15} /> : null}
-          <span>{tab.name}</span>
+          <span>{tabLabel}</span>
         </span>
       ),
     };
@@ -289,13 +292,13 @@ export default function PageTabBar({
   const menuItems: MenuProps['items'] = [
     {
       type: 'group',
-      label: '切换已打开页面',
+      label: t('oa.tabs.switchPages'),
       children: tabs.map((tab) => {
         const iconName = resolveOaMenuIcon(tab.id, tab.icon);
         return {
           key: `navigate:${tab.id}`,
           icon: iconName ? <OaIcon name={iconName} /> : undefined,
-          label: tab.name,
+          label: t(`oa.menu.${tab.id}`, { defaultValue: tab.name }),
           disabled: tab.id === activeKey,
         };
       }),
@@ -304,25 +307,25 @@ export default function PageTabBar({
     {
       key: 'refresh',
       icon: <OaIcon name="reload" />,
-      label: '刷新当前页面',
+      label: t('oa.tabs.refresh'),
     },
     { type: 'divider' },
     {
       key: 'close-current',
       icon: <OaIcon name="delete" />,
-      label: '关闭当前页面',
+      label: t('oa.tabs.closeCurrent'),
       disabled: !activeTab || activeTab.id === pinnedKey,
     },
     {
       key: 'close-others',
       icon: <OaIcon name="copy" />,
-      label: '关闭其他页面',
+      label: t('oa.tabs.closeOthers'),
       disabled: tabs.length <= 1,
     },
     {
       key: 'close-all',
       icon: <OaIcon name="logout" />,
-      label: '关闭全部页面',
+      label: t('oa.tabs.closeAll'),
       disabled: closeableTabs.length === 0,
     },
   ];
@@ -344,7 +347,7 @@ export default function PageTabBar({
   };
 
   return (
-    <nav ref={navRef} className="oa-page-tabs" aria-label="已打开页面">
+    <nav ref={navRef} className="oa-page-tabs" aria-label={t('oa.tabs.openPages')}>
       <Tabs
         type="editable-card"
         hideAdd
@@ -369,8 +372,8 @@ export default function PageTabBar({
                     icon={<OaIcon name="previous" />}
                     disabled={activeIndex <= 0}
                     onClick={() => navigateByOffset(-1)}
-                    aria-label="切换到上一个页面"
-                    title="上一个页面"
+                    aria-label={t('oa.tabs.prevPage')}
+                    title={t('oa.tabs.prevPage')}
                   />
                   <Button
                     type="text"
@@ -378,8 +381,8 @@ export default function PageTabBar({
                     icon={<OaIcon name="next" />}
                     disabled={activeIndex < 0 || activeIndex >= tabs.length - 1}
                     onClick={() => navigateByOffset(1)}
-                    aria-label="切换到下一个页面"
-                    title="下一个页面"
+                    aria-label={t('oa.tabs.nextPage')}
+                    title={t('oa.tabs.nextPage')}
                   />
                 </>
               ) : null}
@@ -392,8 +395,8 @@ export default function PageTabBar({
                   type="text"
                   className="oa-page-tabs-manage"
                   icon={<OaIcon name="more" />}
-                  aria-label="切换或管理已打开页面"
-                  title="切换或管理已打开页面"
+                  aria-label={t('oa.tabs.manage')}
+                  title={t('oa.tabs.manage')}
                 />
               </Dropdown>
             </Space>

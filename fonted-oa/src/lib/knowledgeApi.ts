@@ -1,3 +1,6 @@
+import i18n from '@/i18n';
+import { buildApiHeaders } from '@/lib/apiHeaders';
+
 interface ApiResult<T> {
   code: number;
   errorCode?: string;
@@ -110,7 +113,7 @@ export interface KnowledgeSearchResponse {
 
 function resolveResult<T>(result: ApiResult<T> | null, ok: boolean, isVoid: boolean): T {
   if (!ok || !result || result.code !== 200 || (!isVoid && result.data === null)) {
-    throw new Error(result?.message || '知识库请求失败');
+    throw new Error(result?.message || i18n.t('errors.knowledge.requestFailed'));
   }
   return (result.data ?? null) as T;
 }
@@ -120,9 +123,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`/api/knowledge${path}`, {
     credentials: 'include',
     ...init,
-    headers: isFormData
-      ? init?.headers
-      : { 'Content-Type': 'application/json', ...init?.headers },
+    headers: buildApiHeaders(!isFormData, init?.headers),
   });
   const result = await response.json().catch(() => null) as ApiResult<T> | null;
   if (response.status === 401 && typeof window !== 'undefined') {
@@ -162,8 +163,8 @@ function requestWithProgress<T>(
         reject(error);
       }
     };
-    xhr.onerror = () => reject(new Error('上传失败，请检查网络连接'));
-    xhr.ontimeout = () => reject(new Error('上传超时，请重试'));
+    xhr.onerror = () => reject(new Error(i18n.t('errors.knowledge.uploadFailed')));
+    xhr.ontimeout = () => reject(new Error(i18n.t('errors.knowledge.uploadTimeout')));
     xhr.send(form);
   });
 }

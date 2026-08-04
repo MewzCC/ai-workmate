@@ -1,3 +1,6 @@
+import i18n from '@/i18n';
+import { buildApiHeaders } from '@/lib/apiHeaders';
+
 export interface NavigationRoute {
   routeKey: string;
   parentKey?: string;
@@ -23,13 +26,14 @@ export async function getNavigation(): Promise<NavigationRoute[]> {
   const response = await fetch('/api/navigation', {
     credentials: 'include',
     cache: 'no-store',
+    headers: buildApiHeaders(false),
   });
   const result = await response.json().catch(() => null) as ApiResult<NavigationRoute[]> | null;
   if (response.status === 401 && typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('oa-auth-expired'));
   }
   if (!response.ok || !result || result.code !== 200 || !result.data) {
-    throw new Error(result?.message || '导航菜单加载失败');
+    throw new Error(result?.message || i18n.t('errors.navigation.loadFailed'));
   }
   return result.data;
 }
