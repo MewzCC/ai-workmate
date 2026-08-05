@@ -49,6 +49,7 @@ const COMPONENT_VALUES = [
   'AUDIT_CENTER',
   'ORG_TREE',
   'KNOWLEDGE_BASE',
+  'SYSTEM_CONFIG',
 ] as const;
 
 export default function AccessControlPage() {

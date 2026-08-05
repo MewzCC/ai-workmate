@@ -617,6 +617,20 @@ CREATE TABLE IF NOT EXISTS user_role (
 CREATE INDEX IF NOT EXISTS idx_user_role_tenant_role
     ON user_role(tenant_id, role_code, user_id);
 
+-- 用户系统偏好设置（键值存储，例如 OCR 解析策略）
+CREATE TABLE IF NOT EXISTS user_setting (
+    id            BIGSERIAL PRIMARY KEY,
+    user_id       BIGINT NOT NULL REFERENCES app_user(id) ON DELETE CASCADE,
+    setting_key   VARCHAR(64) NOT NULL,
+    setting_value VARCHAR(255) NOT NULL,
+    updated_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, setting_key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_setting_user ON user_setting(user_id);
+
+COMMENT ON TABLE user_setting IS '用户偏好设置（键值）';
+
 CREATE TABLE IF NOT EXISTS data_scope (
     id          BIGSERIAL PRIMARY KEY,
     tenant_id   BIGINT NOT NULL REFERENCES tenant(id) ON DELETE RESTRICT,
@@ -985,6 +999,53 @@ INSERT INTO rbac_role_permission(role_code, permission_code, tenant_id)
 SELECT 'SUPER_ADMIN', code, tenant_id
 FROM rbac_permission
 WHERE code = 'route:knowledge-base'
+ON CONFLICT DO NOTHING;
+
+-- ============================================
+-- Phase 1: 系统配置页（系统设置目录，可在此目录持续扩展设置页）
+-- ============================================
+INSERT INTO rbac_permission(code, name, module, description, tenant_id) VALUES
+    ('route:system-config', '访问系统配置', '系统设置', '允许访问系统配置页面',
+        (SELECT id FROM tenant WHERE code = 'DEFAULT'))
+ON CONFLICT (code) DO UPDATE SET
+    name = EXCLUDED.name,
+    module = EXCLUDED.module,
+    description = EXCLUDED.description,
+    tenant_id = EXCLUDED.tenant_id;
+
+INSERT INTO rbac_route(
+    route_key, parent_key, name, path, icon, route_type, component_key,
+    permission_code, sort_order, enabled, tenant_id
+) VALUES
+    ('system-config', 'settings', '系统配置', '/oa/system-config', 'settings',
+        'PAGE', 'SYSTEM_CONFIG', 'route:system-config', 7, TRUE,
+        (SELECT id FROM tenant WHERE code = 'DEFAULT'))
+ON CONFLICT (route_key) DO UPDATE SET
+    parent_key = EXCLUDED.parent_key,
+    name = EXCLUDED.name,
+    path = EXCLUDED.path,
+    icon = EXCLUDED.icon,
+    component_key = EXCLUDED.component_key,
+    permission_code = EXCLUDED.permission_code,
+    sort_order = EXCLUDED.sort_order,
+    enabled = TRUE,
+    tenant_id = EXCLUDED.tenant_id,
+    updated_at = CURRENT_TIMESTAMP;
+
+INSERT INTO rbac_role_permission(role_code, permission_code, tenant_id)
+SELECT role_code, permission_code, t.id
+FROM tenant t
+CROSS JOIN (
+    VALUES
+        ('SYSTEM_ADMIN', 'route:system-config')
+) AS defaults(role_code, permission_code)
+WHERE t.code = 'DEFAULT'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO rbac_role_permission(role_code, permission_code, tenant_id)
+SELECT 'SUPER_ADMIN', code, tenant_id
+FROM rbac_permission
+WHERE code = 'route:system-config'
 ON CONFLICT DO NOTHING;
 
 -- ============================================

@@ -138,6 +138,7 @@ export default {
     dictionary: 'Dictionary',
     'access-control': 'Roles & Routes',
     'knowledge-base': 'Knowledge Base',
+    'system-config': 'System Configuration',
   },
 
   tabs: {

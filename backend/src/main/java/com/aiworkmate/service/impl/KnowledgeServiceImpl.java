@@ -74,7 +74,10 @@ public class KnowledgeServiceImpl implements KnowledgeService {
             Map.entry("text/plain", "TXT"),
             Map.entry("text/markdown", "MD"),
             Map.entry("text/csv", "CSV"),
-            Map.entry("application/csv", "CSV")
+            Map.entry("application/csv", "CSV"),
+            Map.entry("image/jpeg", "JPG"),
+            Map.entry("image/png", "PNG"),
+            Map.entry("image/webp", "WEBP")
     );
 
     private final KnowledgeDocumentMapper documentMapper;
@@ -107,10 +110,9 @@ public class KnowledgeServiceImpl implements KnowledgeService {
         Path tempFile = createTempFile(file);
         try {
             String filename = safeDisplayName(file);
-            ParsedFile parsed = fileParserService.parse(tempFile, filename);
-            if (parsed.image()) {
-                throw new BusinessException(ErrorCode.REQUEST_INVALID,
-                        "不支持图片文件，请上传 TXT、PDF 或 Word 文档");
+            ParsedFile parsed = fileParserService.parse(tempFile, filename, userId);
+            if (parsed.image() && (parsed.extractedText() == null || parsed.extractedText().isBlank())) {
+                throw new BusinessException(ErrorCode.REQUEST_INVALID, "error.knowledge_image_no_text");
             }
             String content = parsed.extractedText() == null ? "" : parsed.extractedText().strip();
             if (content.isBlank()) {

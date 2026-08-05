@@ -124,6 +124,7 @@ export default {
     AUDIT_CENTER: 'Audit Center',
     ORG_TREE: 'Organization Tree',
     KNOWLEDGE_BASE: 'Knowledge Base',
+    SYSTEM_CONFIG: 'System Configuration',
   },
   messages: {
     loadFailed: 'Failed to load access control configuration',

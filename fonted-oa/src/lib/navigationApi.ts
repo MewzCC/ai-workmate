@@ -10,7 +10,7 @@ export interface NavigationRoute {
   routeType: 'GROUP' | 'MENU' | 'PAGE';
   componentKey?: 'DASHBOARD' | 'AI_WORKSPACE' | 'ACCESS_CONTROL'
     | 'TODO_LIST' | 'LEAVE_FORM' | 'MY_APPLICATIONS' | 'AUDIT_CENTER'
-    | 'ORG_TREE' | 'KNOWLEDGE_BASE' | 'MESSAGE_CENTER';
+    | 'ORG_TREE' | 'KNOWLEDGE_BASE' | 'MESSAGE_CENTER' | 'SYSTEM_CONFIG';
   permissionCode?: string;
   sortOrder: number;
   children: NavigationRoute[];

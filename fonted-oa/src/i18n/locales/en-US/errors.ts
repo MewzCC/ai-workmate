@@ -31,6 +31,8 @@ export default {
     markdownLoadFailed: 'Failed to load Markdown document.',
     streamUnavailable: 'The browser cannot read the streaming response.',
     aiServiceUnavailable: 'AI service is temporarily unavailable.',
+    ocrSettingsLoadFailed: 'Failed to load OCR settings.',
+    ocrSettingsSaveFailed: 'Failed to save OCR settings.',
   },
 
   hr: {

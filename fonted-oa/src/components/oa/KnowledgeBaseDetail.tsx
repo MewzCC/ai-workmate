@@ -498,7 +498,7 @@ function DocsTab({ kbId, onChanged }: DocsTabProps) {
         {createMode === 'file' ? (
           <>
             <Dragger
-              accept=".txt,.pdf,.doc,.docx,.md,.markdown,.csv"
+              accept=".txt,.pdf,.doc,.docx,.md,.markdown,.csv,.jpeg,.jpg,.png,.webp"
               multiple
               disabled={creating}
               fileList={uploadFileList}

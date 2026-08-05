@@ -124,6 +124,7 @@ export default {
     AUDIT_CENTER: '审计中心',
     ORG_TREE: '组织架构',
     KNOWLEDGE_BASE: '知识库管理',
+    SYSTEM_CONFIG: '系统配置',
   },
   messages: {
     loadFailed: '权限配置加载失败',
