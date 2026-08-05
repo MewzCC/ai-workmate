@@ -87,6 +87,7 @@ echo   Backend : http://localhost:8080
 echo   Main    : http://localhost:3000
 echo   OA      : http://localhost:3001/oa
 echo   MinIO   : http://localhost:9001  (console)
+echo   OCR     : ocr-service container (internal :8686, no public port)
 echo ============================================================
 echo.
 echo   Useful commands:

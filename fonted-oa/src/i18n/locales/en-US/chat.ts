@@ -15,6 +15,8 @@ export default {
   previewFailed: 'Document preview failed',
   parsed: 'Parsed',
   pendingParse: 'Pending',
+  ocrParsed: 'Parsed via OCR',
+  ocrPending: 'OCR unavailable',
 
   // ChatInput
   inputPlaceholder: 'Type a message, or drag in images and documents…',

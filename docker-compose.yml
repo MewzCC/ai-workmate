@@ -61,6 +61,24 @@ services:
       timeout: 5s
       retries: 5
 
+  # ========== OCR 图片识别（PaddleOCR 微服务） ==========
+  # 仅后端内网调用，不映射公网端口；首次启动需下载模型并完成初始化
+  ocr-service:
+    build:
+      context: ./deploy/ocr-service
+    container_name: aiworkmate-ocr
+    environment:
+      OCR_SERVICE_API_KEY: ${OCR_API_KEY:-}
+      OCR_USE_GPU: ${OCR_USE_GPU:-0}
+      OCR_MIN_CONFIDENCE: ${OCR_MIN_CONFIDENCE:-0.6}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8686/healthz')"]
+      interval: 30s
+      timeout: 10s
+      start_period: 120s
+      retries: 3
+    restart: unless-stopped
+
   # ========== 后端 ==========
   backend:
     build:
@@ -76,6 +94,7 @@ services:
       DB_USERNAME: ${DB_USERNAME:-postgres}
       REDIS_URL: redis://redis:6379
       MINIO_ENDPOINT: http://minio:9000
+      OCR_BASE_URL: http://ocr-service:8686
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
     ports:
       - "8080:8080"
@@ -85,6 +104,8 @@ services:
       redis:
         condition: service_healthy
       minio:
+        condition: service_started
+      ocr-service:
         condition: service_started
     restart: unless-stopped
 

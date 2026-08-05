@@ -15,6 +15,8 @@ export default {
   previewFailed: '文档预览失败',
   parsed: '已解析',
   pendingParse: '待解析',
+  ocrParsed: '已通过 OCR 解析',
+  ocrPending: '图片识别不可用',
 
   // ChatInput
   inputPlaceholder: '输入消息，或拖入图片和文档…',

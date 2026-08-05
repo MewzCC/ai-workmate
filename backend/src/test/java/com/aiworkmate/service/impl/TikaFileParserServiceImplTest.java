@@ -2,14 +2,18 @@ package com.aiworkmate.service.impl;
 
 import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.config.UploadProperties;
+import com.aiworkmate.service.OcrService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.mockito.Mockito;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 
 class TikaFileParserServiceImplTest {
 
@@ -41,6 +45,9 @@ class TikaFileParserServiceImplTest {
     private TikaFileParserServiceImpl parser() {
         UploadProperties properties = new UploadProperties();
         properties.setExtractedTextMaxChars(120_000);
-        return new TikaFileParserServiceImpl(properties);
+        OcrService ocrService = Mockito.mock(OcrService.class);
+        when(ocrService.isAvailable()).thenReturn(true);
+        when(ocrService.recognize(any(), any())).thenReturn("识别文本");
+        return new TikaFileParserServiceImpl(properties, ocrService);
     }
 }

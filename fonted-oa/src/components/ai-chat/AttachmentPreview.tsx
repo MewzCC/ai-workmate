@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Alert, Button, Image, Modal, Spin, Typography } from 'antd';
+import { Alert, Button, Image, Modal, Spin, Tag, Typography } from 'antd';
 import { CloseOutlined } from '@ant-design/icons';
 import { loadAttachmentContent, loadAttachmentText } from '@/lib/chatApi';
 import type { ChatAttachment } from '@/types/chat';
@@ -74,6 +74,11 @@ export default function AttachmentPreview({ attachment, removable, onRemove }: A
         {attachment.type === 'image' ? (
           <Spin spinning={loading} size="small">
             {source && <Image src={source} alt={attachment.name} preview width={88} height={64} />}
+            {attachment.hasText ? (
+              <Tag color="blue" className="ai-attachment-ocr-tag">{t('chat.ocrParsed')}</Tag>
+            ) : (
+              <Tag className="ai-attachment-ocr-tag">{t('chat.ocrPending')}</Tag>
+            )}
           </Spin>
         ) : markdown ? (
           <Button

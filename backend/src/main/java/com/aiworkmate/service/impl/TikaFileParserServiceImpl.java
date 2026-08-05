@@ -4,6 +4,7 @@ import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.common.ErrorCode;
 import com.aiworkmate.config.UploadProperties;
 import com.aiworkmate.service.FileParserService;
+import com.aiworkmate.service.OcrService;
 import com.aiworkmate.service.model.ParsedFile;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -33,6 +34,7 @@ public class TikaFileParserServiceImpl implements FileParserService {
     );
 
     private final UploadProperties properties;
+    private final OcrService ocrService;
     private final Tika tika = new Tika();
 
     @Override
@@ -45,7 +47,10 @@ public class TikaFileParserServiceImpl implements FileParserService {
             try (InputStream input = Files.newInputStream(path)) {
                 mimeType = tika.detect(input, filename);
             }
-            if (IMAGE_TYPES.contains(mimeType)) return new ParsedFile(mimeType, null, true);
+            if (IMAGE_TYPES.contains(mimeType)) {
+                String text = ocrService.recognize(path, filename);
+                return new ParsedFile(mimeType, text, true);
+            }
             if (!DOCUMENT_TYPES.contains(mimeType)) {
                 throw new BusinessException(ErrorCode.REQUEST_INVALID, "不支持该文件类型：" + mimeType);
             }
