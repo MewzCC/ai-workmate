@@ -3,6 +3,7 @@ package com.aiworkmate.service.impl;
 import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.common.ErrorCode;
 import com.aiworkmate.config.AiRuntimeProperties;
+import com.aiworkmate.entity.Attachment;
 import com.aiworkmate.entity.Conversation;
 import com.aiworkmate.mapper.ConversationMapper;
 import com.aiworkmate.mapper.MessageMapper;
@@ -21,6 +22,8 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verifyNoInteractions;
 
@@ -75,10 +78,10 @@ class ChatServiceImplTest {
                 List.of(new KnowledgeContext.Reference("10", "20", "handbook.txt", 0.91, "Annual leave policy")));
 
         var method = ChatServiceImpl.class.getDeclaredMethod("buildSystemPrompt",
-                String.class, KnowledgeContext.class, List.class);
+                String.class, KnowledgeContext.class, List.class, boolean.class);
         method.setAccessible(true);
         @SuppressWarnings("unchecked")
-        String prompt = (String) method.invoke(chatService, "USER", knowledge, List.of());
+        String prompt = (String) method.invoke(chatService, "USER", knowledge, List.of(), false);
 
         assertThat(prompt).contains("像学术论文引用一样精确标注来源");
         assertThat(prompt).contains("每个[知识来源N]均标注了来源文件名、分块序号与内容摘录");
@@ -87,5 +90,47 @@ class ChatServiceImplTest {
         assertThat(prompt).contains("未实际使用的内容不得标注为引用");
         // 引用规则必须与知识片段之间用换行分隔，不能粘连
         assertThat(prompt).contains("未实际使用的内容不得标注为引用。\n[知识来源1：handbook.txt，分块 0]");
+    }
+
+    @Test
+    void shouldRejectImageWithoutOcrTextForTextOnlyModel() {
+        Conversation conversation = new Conversation();
+        conversation.setId(2001L);
+        conversation.setUserId(1001L);
+        when(conversationMapper.selectOne(any())).thenReturn(conversation);
+        when(aiRuntimeProperties.configured()).thenReturn(true);
+        Attachment image = new Attachment();
+        image.setType("image");
+        image.setName("scan.png");
+        image.setExtractedText(null);
+        when(attachmentService.requireOwned(eq(1001L), eq(2001L), anyList())).thenReturn(List.of(image));
+        when(knowledgeContextService.retrieve(eq(1001L), any(), eq(null))).thenReturn(KnowledgeContext.empty());
+
+        assertThatThrownBy(() -> chatService.chat(
+                1001L, "USER", 2001L, "帮我看这张图", "deepseek-chat", null, List.of(99L), 10))
+                .isInstanceOfSatisfying(BusinessException.class, ex ->
+                        assertThat(ex.getErrorCode())
+                                .isEqualTo(ErrorCode.OCR_CAPABILITY_UNAVAILABLE.getErrorCode()));
+    }
+
+    @Test
+    void shouldInjectOcrTextForTextOnlyModelAndSkipForMultimodal() throws Exception {
+        Attachment image = new Attachment();
+        image.setType("image");
+        image.setName("scan.png");
+        image.setExtractedText("请假一天，事假");
+        List<Attachment> attachments = List.of(image);
+        KnowledgeContext knowledge = KnowledgeContext.empty();
+
+        var method = ChatServiceImpl.class.getDeclaredMethod("buildSystemPrompt",
+                String.class, KnowledgeContext.class, List.class, boolean.class);
+        method.setAccessible(true);
+        @SuppressWarnings("unchecked")
+        String textOnlyPrompt = (String) method.invoke(chatService, "USER", knowledge, attachments, false);
+        assertThat(textOnlyPrompt).contains("附件：scan.png").contains("请假一天，事假");
+
+        @SuppressWarnings("unchecked")
+        String multimodalPrompt = (String) method.invoke(chatService, "USER", knowledge, attachments, true);
+        assertThat(multimodalPrompt).doesNotContain("请假一天，事假");
     }
 }

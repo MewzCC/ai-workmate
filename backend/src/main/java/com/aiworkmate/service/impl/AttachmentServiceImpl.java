@@ -203,6 +203,7 @@ public class AttachmentServiceImpl implements AttachmentService {
                 attachment.getSize(), attachment.getMimeType(),
                 "/api/attachments/" + attachment.getId() + "/content",
                 attachment.getType().equals("image") || attachment.getExtractedText() != null,
+                attachment.getExtractedText() != null,
                 attachment.getCreatedAt());
     }
 

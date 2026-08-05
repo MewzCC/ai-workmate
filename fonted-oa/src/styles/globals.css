@@ -4776,6 +4776,7 @@ html.oa-wallpaper-active .ant-menu-submenu-popup .ant-menu-dark {
 
 .ai-attachment-image { width: 240px; }
 .ai-attachment-image .ant-image-img { object-fit: cover; border-radius: 4px; }
+.ai-attachment-ocr-tag { margin-top: 4px; font-size: 11px; line-height: 18px; }
 .ai-attachment-file-icon { display: grid; width: 38px; height: 38px; flex: none; place-items: center; border-radius: 5px; color: var(--oa-primary, #1677ff); background: color-mix(in srgb, var(--oa-primary, #1677ff) 10%, transparent); }
 .ai-attachment-meta { display: flex; flex: 1; flex-direction: column; min-width: 0; }
 .ai-attachment-meta .ant-typography-secondary { font-size: 12px; }

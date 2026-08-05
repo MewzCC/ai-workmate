@@ -11,6 +11,8 @@ public record AttachmentResponse(
         String mimeType,
         String contentUrl,
         boolean parsed,
+        /** 附件是否已提取文本；图片表示 OCR 识别成功 */
+        boolean hasText,
         LocalDateTime createdAt
 ) {
 }

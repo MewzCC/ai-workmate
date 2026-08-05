@@ -13,6 +13,8 @@ export interface ChatAttachment {
   mimeType: string;
   contentUrl: string;
   parsed: boolean;
+  /** 附件是否已提取文本；图片表示 OCR 识别成功 */
+  hasText: boolean;
   createdAt: string;
   previewUrl?: string;
 }

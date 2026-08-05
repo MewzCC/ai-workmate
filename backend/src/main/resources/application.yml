@@ -134,6 +134,12 @@ app:
       connect-timeout-ms: ${RERANK_CONNECT_TIMEOUT_MS:3000}
       read-timeout-ms: ${RERANK_READ_TIMEOUT_MS:30000}
       top-n: ${RERANK_TOP_N:5}
+  ocr:
+    enabled: ${OCR_ENABLED:true}
+    base-url: ${OCR_BASE_URL:http://127.0.0.1:8686}
+    api-key: ${OCR_API_KEY:}
+    timeout-ms: ${OCR_TIMEOUT_MS:30000}
+    min-confidence: ${OCR_MIN_CONFIDENCE:0.6}
 
 # ========== JWT 配置 ==========
 jwt:
