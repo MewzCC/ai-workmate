@@ -168,12 +168,19 @@ jobs:
           DB_PASSWORD: postgres
         run: |
           nohup mvn spring-boot:run > ../phase-1-e2e-backend.log 2>&1 &
+          backend_pid=$!
           for attempt in {1..60}; do
             if curl --fail --silent http://localhost:8080/api/system/health > /dev/null; then
               exit 0
             fi
+            if ! kill -0 "$backend_pid" 2>/dev/null; then
+              echo "Backend process exited before becoming healthy"
+              cat ../phase-1-e2e-backend.log
+              exit 1
+            fi
             sleep 2
           done
+          echo "Backend health check timed out"
           cat ../phase-1-e2e-backend.log
           exit 1
       - working-directory: fonted-oa
