@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, Drawer, Tooltip } from 'antd';
+import { Button, Drawer, Dropdown, Tooltip } from 'antd';
+import type { MenuProps } from 'antd';
 import { message } from '@/lib/antdMessage';
 import { MenuUnfoldOutlined } from '@ant-design/icons';
 import { useAiChatStore } from '@/store/aiChatStore';
@@ -15,6 +16,10 @@ import SettingsDialog from './SettingsDialog';
 import { OaIcon } from '@/components/OaIcon';
 
 const SIDEBAR_COLLAPSED_KEY = 'workmeta-ai-chat-sidebar-collapsed';
+/** 收起侧栏时最近会话快捷跳转的上限（LRU，最近使用优先） */
+const RECENT_LIMIT = 10;
+/** 下拉菜单中会话标题的最大展示长度 */
+const RECENT_TITLE_MAX = 18;
 
 interface AiChatWorkspaceProps {
   role: OaRole;
@@ -31,6 +36,25 @@ export default function AiChatWorkspace({ role }: AiChatWorkspaceProps) {
     () => store.conversations.find((item) => item.id === store.activeId),
     [store.activeId, store.conversations],
   );
+
+  // 最近会话（LRU）：按 updatedAt 降序取前 RECENT_LIMIT 条。
+  // 后端会话列表本身按 updated_at 降序返回，此处防御性重排；再次对话时后端会刷新 updatedAt。
+  const recentConversations = useMemo(
+    () => [...store.conversations]
+      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+      .slice(0, RECENT_LIMIT),
+    [store.conversations],
+  );
+
+  const recentMenuItems: MenuProps['items'] = recentConversations.length
+    ? recentConversations.map((item) => {
+        const title = item.title?.trim() || t('chat.newConversation');
+        return {
+          key: String(item.id),
+          label: title.length > RECENT_TITLE_MAX ? `${title.slice(0, RECENT_TITLE_MAX)}…` : title,
+        };
+      })
+    : [{ key: 'empty', label: t('chat.recentsEmpty'), disabled: true }];
 
   useEffect(() => {
     setSidebarCollapsed(localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true');
@@ -89,6 +113,21 @@ export default function AiChatWorkspace({ role }: AiChatWorkspaceProps) {
             <Tooltip title={t('chat.newChat')} placement="right">
               <Button type="text" icon={<OaIcon name="add" />} aria-label={t('chat.newChat')} onClick={() => void store.newConversation()} />
             </Tooltip>
+            <Dropdown
+              menu={{
+                items: recentMenuItems,
+                onClick: ({ key }) => {
+                  if (key === 'empty') return;
+                  void store.selectConversation(Number(key));
+                },
+              }}
+              trigger={['click']}
+              placement="right"
+            >
+              <Tooltip title={t('chat.recents')} placement="right">
+                <Button type="text" icon={<OaIcon name="history" />} aria-label={t('chat.recents')} />
+              </Tooltip>
+            </Dropdown>
             <Tooltip title={t('chat.settings')} placement="right">
               <Button
                 className="ai-sidebar-rail-settings"

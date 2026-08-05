@@ -1,20 +1,20 @@
 'use client';
 
 import { Avatar, Button, Dropdown, Layout, Space } from 'antd';
-import { MenuOutlined } from '@ant-design/icons';
+import { CheckOutlined, MenuOutlined } from '@ant-design/icons';
 import { message } from '@/lib/antdMessage';
 import type { MenuProps } from 'antd';
 import { useTranslation } from 'react-i18next';
 import type { OaRole } from '@/types/oa';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { OaIcon } from '@/components/OaIcon';
-import { FlagIcon } from '@/components/CountryFlag';
 import { useRouter } from '@/lib/nextCompat';
 import { useCallback, useEffect, useState } from 'react';
 import ProfileSettingsModal from '@/components/profile/ProfileSettingsModal';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
 import { useLocale } from '@/i18n/useLocale';
 import type { AppLocale } from '@/i18n';
+import { SUPPORTED_LANGUAGES } from '@/i18n/languages';
 import HelpDrawer from './HelpDrawer';
 import {
   fetchUnreadCount,
@@ -142,15 +142,23 @@ export default function Topbar({ role, pageTitle, onOpenAppearance, onOpenAi, on
     else if (key === 'logout') void handleLogout();
   };
 
-  // 移动端"更多"菜单：业务功能 + 语言切换 + 个人/外观/退出
-  const nextLocale: AppLocale = locale === 'zh-CN' ? 'en-US' : 'zh-CN';
+  // 移动端"更多"菜单：业务功能 + 语言选择（子菜单，与 PC 下拉一致）+ 个人/外观/退出
   const moreMenuItems: MenuProps['items'] = [
     { key: 'newFlow', icon: <OaIcon name="add" />, label: t('oa.topbar.newFlow') },
     { key: 'notify', icon: <OaIcon name="notification" />, label: t('oa.topbar.notify') },
     { key: 'export', icon: <OaIcon name="export" />, label: t('oa.topbar.exportBoard') },
     { key: 'help', icon: <OaIcon name="help" />, label: t('oa.topbar.help') },
     { type: 'divider' },
-    { key: 'switchLanguage', icon: <FlagIcon locale={nextLocale} className="oa-lang-flag" />, label: nextLocale === 'zh-CN' ? t('common.languageZh') : t('common.languageEn') },
+    {
+      key: 'switchLanguage',
+      icon: <OaIcon name="global" />,
+      label: t('common.language'),
+      children: SUPPORTED_LANGUAGES.map((option) => ({
+        key: `lang-${option.code}`,
+        label: t(option.labelKey),
+        icon: option.code === locale ? <CheckOutlined /> : undefined,
+      })),
+    },
     { type: 'divider' },
     { key: 'profile', icon: <OaIcon name="avatar" />, label: t('oa.topbar.profile') },
     { key: 'appearance', icon: <OaIcon name="appearance" />, label: t('oa.topbar.appearance') },
@@ -163,7 +171,7 @@ export default function Topbar({ role, pageTitle, onOpenAppearance, onOpenAi, on
     else if (key === 'notify') router.push('/oa/messages');
     else if (key === 'export') handleExport();
     else if (key === 'help') handleHelp();
-    else if (key === 'switchLanguage') changeLanguage(nextLocale);
+    else if (key.startsWith('lang-')) changeLanguage(key.slice('lang-'.length) as AppLocale);
     else if (key === 'profile') setProfileOpen(true);
     else if (key === 'appearance') onOpenAppearance();
     else if (key === 'logout') void handleLogout();

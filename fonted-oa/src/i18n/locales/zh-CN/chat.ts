@@ -7,6 +7,8 @@ export default {
   settings: '设置',
   newConversation: '新对话',
   historySessions: '历史会话',
+  recents: '最近会话',
+  recentsEmpty: '暂无最近会话',
 
   // AttachmentPreview
   markdownLoadFailed: 'Markdown 文档加载失败',
