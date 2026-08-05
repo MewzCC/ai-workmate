@@ -7,6 +7,8 @@ export default {
   settings: 'Settings',
   newConversation: 'New conversation',
   historySessions: 'History',
+  recents: 'Recent chats',
+  recentsEmpty: 'No recent chats',
 
   // AttachmentPreview
   markdownLoadFailed: 'Failed to load the Markdown document',
