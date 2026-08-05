@@ -72,7 +72,8 @@ class ChatStreamSecurityTest {
     @Test
     void shouldKeepAuthenticatedStreamAvailableDuringAsyncDispatch() throws Exception {
         when(chatService.chatStream(anyLong(), anyString(), anyLong(), anyString(),
-                anyString(), org.mockito.ArgumentMatchers.nullable(Long.class), anyList(), anyInt()))
+                anyString(), org.mockito.ArgumentMatchers.nullable(Long.class), anyList(), anyInt(),
+                org.mockito.ArgumentMatchers.any()))
                 .thenReturn(Flux.just(
                         ChatChunk.metadata(2001L, 3001L),
                         ChatChunk.delta("stream-ok", 2001L, 3001L)

@@ -254,3 +254,36 @@ OA 侧边栏菜单名、顶部页面标签、路由切换提示虽来自后端 `
 - 后端新增 `rbac_route` 记录时，前端必须同步在 `zh-CN/oa.ts` 和 `en-US/oa.ts` 的 `menu` 命名空间添加对应 `routeKey` 的翻译，缺一不可。
 - 若未添加翻译 key，前端会回退到后端 `name`（通常是中文），切换 `en-US` 时该菜单项仍显示中文。
 - 侧边栏品牌名与副标题用 `oa.sidebar.brand`、`oa.sidebar.brandSub`，不得在 `SidebarMenu.tsx` 硬编码 `WorkMate OA` 或 `Enterprise Console`。
+
+## 14. AI 提示词语言约束
+
+AI 回答必须跟随用户界面语言：界面切换为 `en-US` 时，AI 回复必须使用英文；界面为 `zh-CN` 时使用中文。本规则适用所有面向 LLM 的链路，包括但不限于：SSE 流式聊天（`/api/chat/stream`）、非流式聊天（`/api/chat`）、后续的 RAG 回答、OA AI 任务 `plan`/`execute`、Agent Tool Calling。
+
+### 14.1 system prompt 必须注入界面语言
+
+- 所有 system prompt 必须包含“当前用户界面语言”指令，并强约束回复语言；禁止不带语言指令的中文固定模板。
+- 语言指令必须说明语言名与规范 locale 标识，例如：
+  - `zh-CN` → `当前用户界面语言：简体中文（zh-CN）。除非用户明确要求使用其他语言，否则必须始终使用该语言回答。`
+  - `en-US` → `当前用户界面语言：English (en-US)。除非用户明确要求使用其他语言，否则必须始终使用该语言回答。`
+- 语言指令出现在 system prompt 而非 user prompt，保证对历史轮次与引用规则同样生效。
+
+### 14.2 语言来源与解析
+
+- 后端从请求头 `Accept-Language` 解析语言（复用 `LocaleConfig` 的支持列表：仅 `zh-CN`/`en-US`，默认 `zh-CN`），与错误消息解析共用同一来源。
+- 解析必须在 Controller 层完成一次并显式传入 Service（如 `ChatController.resolveLanguage`，使用 `Locale.lookup` + `Locale.LanguageRange.parse` 规范化），禁止在响应式订阅回调（如 `Flux` 的 `doOnNext`、`map`）中读取 `LocaleContextHolder`——线程本地在响应式线程切换时不可靠。
+- 前端无需额外传参：请求头 `Accept-Language` 必须与当前 i18next 语言一致（见 9.4），前端 API 客户端统一经 `buildApiHeaders` 构造。
+- 新增 AI 链路时，Service 签名必须携带语言参数（如 `Locale language`），并在最终系统提示词中体现。
+
+### 14.3 实现位置
+
+| 位置 | 文件 | 说明 |
+| --- | --- | --- |
+| 语言解析 | `ChatController.java` | `resolveLanguage(acceptLanguage)`，规范化后传入 Service |
+| 语言指令注入 | `ChatServiceImpl.java` | `SYSTEM_PROMPT` 模板含 `%s` 语言占位；`buildSystemPrompt(role, knowledge, attachments, multimodal, language)` |
+| 语言名映射 | `ChatServiceImpl.java` | `languageName(Locale)`：`Locale.US` → `English (en-US)`，其余 → `简体中文（zh-CN）` |
+
+### 14.4 验证要求
+
+- 切换 `en-US` 后向 AI 提问，回复必须为英文；切回 `zh-CN` 后必须为中文（除非用户显式要求其他语言）。
+- 新增 AI 相关测试必须断言 system prompt 包含语言指令（参考 `ChatServiceImplTest.shouldInjectUiLanguageIntoSystemPrompt`）。
+- 修改聊天链路（新增模型、改模板、新增工具调用）不得移除或弱化语言指令。
