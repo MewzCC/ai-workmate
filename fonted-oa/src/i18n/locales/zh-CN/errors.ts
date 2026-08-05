@@ -31,6 +31,8 @@ export default {
     markdownLoadFailed: 'Markdown 文档加载失败',
     streamUnavailable: '浏览器无法读取流式响应',
     aiServiceUnavailable: 'AI 服务暂时不可用',
+    ocrSettingsLoadFailed: 'OCR 设置加载失败',
+    ocrSettingsSaveFailed: 'OCR 设置保存失败',
   },
 
   hr: {

@@ -23,6 +23,7 @@ export default {
   // ChatInput
   inputPlaceholder: 'Type a message, or drag in images and documents…',
   uploadFile: 'Upload image or file',
+  uploading: 'Uploading',
   inputHint: 'Enter to send · Shift + Enter for new line',
   stopGenerating: 'Stop generating',
   sendMessage: 'Send message',
@@ -93,15 +94,19 @@ export default {
     explainError: 'Explain this error',
   },
 
-  // SettingsDialog
+  // SystemSettingsPage
   settingsTitle: 'AI Workspace Settings',
   saveSettings: 'Save settings',
+  settingsSaved: 'Settings saved',
+  ocrSettings: 'OCR Recognition',
   apiKeyManaged: 'Managed by server environment variable',
   apiKeyHint: 'The key is never sent to the browser. Configure it via the backend `AI_API_KEY`.',
   model: 'Conversation model',
   selectModelRequired: 'Please select a conversation model',
   maxContextRounds: 'Max context rounds',
   streamOutput: 'Stream output',
+  forcePdfOcr: 'Always OCR PDF files',
+  forcePdfOcrHint: 'When enabled, all PDFs (including those with a text layer) go through OCR; when disabled, only scanned PDFs are OCRed automatically.',
   baseUrlHint: 'The API base URL is managed by the server AI_BASE_URL to avoid exposing credentials or internal gateway details.',
   dataManagement: 'Data management',
   clearAllTitle: 'Clear all chat history?',

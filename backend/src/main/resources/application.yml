@@ -93,6 +93,8 @@ app:
     image-max-bytes: 10485760
     file-max-bytes: 20971520
     extracted-text-max-chars: 120000
+    attachment-max-age-days: ${ATTACHMENT_MAX_AGE_DAYS:30}
+    attachment-cleanup-cron: ${ATTACHMENT_CLEANUP_CRON:0 30 3 * * *}
   profile:
     avatar-storage-prefix: ${USER_AVATAR_PREFIX:user-avatars/}
     avatar-max-bytes: 2097152

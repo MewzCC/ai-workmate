@@ -9,6 +9,7 @@ import type { KnowledgeBase } from '@/lib/knowledgeApi';
 import type { ChatAttachment, ChatMessage } from '@/types/chat';
 import ChatInput from './ChatInput';
 import MessageList from './MessageList';
+import type { UploadProgressItem } from '@/store/aiChatStore';
 
 interface ChatWindowProps {
   title: string;
@@ -17,6 +18,7 @@ interface ChatWindowProps {
   kbOptions: KnowledgeBase[];
   messages: ChatMessage[];
   pending: ChatAttachment[];
+  uploading: UploadProgressItem[];
   generating: boolean;
   onOpenSessions: () => void;
   onUpload: (files: File[]) => void;
@@ -73,6 +75,7 @@ export default function ChatWindow(props: ChatWindowProps) {
       <div className="ai-composer-wrap">
         <ChatInput
           pending={props.pending}
+          uploading={props.uploading}
           generating={props.generating}
           onUpload={props.onUpload}
           onRemoveAttachment={props.onRemoveAttachment}

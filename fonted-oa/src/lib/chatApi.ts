@@ -59,11 +59,48 @@ export async function listMessages(conversationId: number): Promise<ChatMessage[
   return parse(await fetch(`${BASE}/conversations/${conversationId}/messages`, { headers: headers(false) }));
 }
 
-export async function uploadAttachment(conversationId: number, file: File): Promise<ChatAttachment> {
+export async function uploadAttachment(
+  conversationId: number,
+  file: File,
+  onProgress?: (percent: number) => void,
+): Promise<ChatAttachment> {
   const form = new FormData();
   form.append('conversationId', String(conversationId));
   form.append('file', file);
-  return parse(await fetch(`${BASE}/attachments`, { method: 'POST', headers: headers(false), body: form }));
+  return new Promise<ChatAttachment>((resolve, reject) => {
+    // fetch 不暴露上传进度，改用 XHR 上报 onprogress
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `${BASE}/attachments`);
+    xhr.withCredentials = true;
+    const requestHeaders = buildApiHeaders(false);
+    for (const [name, value] of Object.entries(requestHeaders)) {
+      xhr.setRequestHeader(name, value);
+    }
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable && onProgress) {
+        onProgress(Math.min(99, Math.round((event.loaded / event.total) * 100)));
+      }
+    };
+    xhr.onload = () => {
+      let body: ApiResult<ChatAttachment> | null = null;
+      try {
+        body = JSON.parse(xhr.responseText) as ApiResult<ChatAttachment>;
+      } catch {
+        body = null;
+      }
+      if (xhr.status === 401 && typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('oa-auth-expired'));
+      }
+      if (xhr.status >= 200 && xhr.status < 300 && body && body.code === 200) {
+        resolve(body.data as ChatAttachment);
+      } else {
+        reject(new ChatApiError(body?.message || i18n.t('errors.requestFailed'), xhr.status, body?.errorCode, body?.traceId));
+      }
+    };
+    xhr.onerror = () => reject(new ChatApiError(i18n.t('errors.chat.uploadFailed'), 0));
+    xhr.ontimeout = () => reject(new ChatApiError(i18n.t('errors.requestFailed'), 0));
+    xhr.send(form);
+  });
 }
 
 export async function loadAttachmentContent(id: number, signal?: AbortSignal): Promise<string> {

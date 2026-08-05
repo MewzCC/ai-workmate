@@ -4784,6 +4784,17 @@ html.oa-wallpaper-active .ant-menu-submenu-popup .ant-menu-dark {
   margin-bottom: 10px;
 }
 
+.ai-attachment-uploading .ant-progress {
+  display: block;
+  margin-top: 2px;
+}
+.ai-attachment-percent {
+  flex: none;
+  font-size: 12px;
+  color: var(--oa-secondary-text, #6b7280);
+  font-variant-numeric: tabular-nums;
+}
+
 .ai-attachment {
   display: flex;
   align-items: center;

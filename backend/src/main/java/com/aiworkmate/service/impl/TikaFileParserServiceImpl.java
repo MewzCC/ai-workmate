@@ -5,6 +5,7 @@ import com.aiworkmate.common.ErrorCode;
 import com.aiworkmate.config.UploadProperties;
 import com.aiworkmate.service.FileParserService;
 import com.aiworkmate.service.OcrService;
+import com.aiworkmate.service.UserSettingsService;
 import com.aiworkmate.service.model.ParsedFile;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,10 +36,11 @@ public class TikaFileParserServiceImpl implements FileParserService {
 
     private final UploadProperties properties;
     private final OcrService ocrService;
+    private final UserSettingsService userSettingsService;
     private final Tika tika = new Tika();
 
     @Override
-    public ParsedFile parse(Path path, String filename) {
+    public ParsedFile parse(Path path, String filename, Long userId) {
         try {
             if (isMarkdown(filename)) {
                 return new ParsedFile("text/markdown", readMarkdown(path), false);
@@ -50,6 +52,23 @@ public class TikaFileParserServiceImpl implements FileParserService {
             if (IMAGE_TYPES.contains(mimeType)) {
                 String text = ocrService.recognize(path, filename);
                 return new ParsedFile(mimeType, text, true);
+            }
+            if (isPdf(mimeType)) {
+                String text = tika.parseToString(path).strip();
+                boolean forceOcr = userSettingsService.isForcePdfOcr(userId);
+                if (forceOcr || text.isBlank()) {
+                    // 强制 OCR（用户设置）或扫描版 PDF 无文本层：交由 OCR 服务渲染页面逐页识别；
+                    // 强制模式下 OCR 失败时回退文本层，避免上传因 OCR 抖动失败
+                    String ocrText = ocrService.recognize(path, filename);
+                    if (ocrText != null && !ocrText.isBlank()) {
+                        return new ParsedFile(mimeType, limit(ocrText), false);
+                    }
+                    if (!text.isBlank()) {
+                        return new ParsedFile(mimeType, limit(text), false);
+                    }
+                    throw new IOException("No extractable text");
+                }
+                return new ParsedFile(mimeType, limit(text), false);
             }
             if (!DOCUMENT_TYPES.contains(mimeType)) {
                 throw new BusinessException(ErrorCode.REQUEST_INVALID, "不支持该文件类型：" + mimeType);
@@ -79,6 +98,10 @@ public class TikaFileParserServiceImpl implements FileParserService {
             text = text.substring(1);
         }
         return limit(text.strip());
+    }
+
+    private boolean isPdf(String mimeType) {
+        return "application/pdf".equals(mimeType);
     }
 
     private boolean isMarkdown(String filename) {

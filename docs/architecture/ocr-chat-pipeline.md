@@ -1,12 +1,12 @@
-# OCR 图片识别接入（图片 → 纯文本 LLM）
+# OCR 识别接入（图片 / 扫描版 PDF → 纯文本 LLM）
 
 ## 目标
 
-AI WorkMate 的聊天支持上传图片附件。当前 `TikaFileParserServiceImpl` 对图片只标记
-`image=true` 并返回空文本，`ChatServiceImpl` 只能通过 `user.media()` 原图直传——这条
-路径仅对多模态模型有效。本项目默认模型（`deepseek-v4-flash` / `deepseek-v4-pro`）为
-纯文本模型，图片必须先在服务端做 OCR 提取文本，再以附件文本形式注入提示词，才能
-被理解。
+AI WorkMate 的聊天支持上传图片附件，知识库支持上传图片与扫描版 PDF。当前
+`TikaFileParserServiceImpl` 对图片与无文本层的 PDF 只能通过 OCR 提取文字：
+`ChatServiceImpl` 在纯文本模型（`deepseek-v4-flash` / `deepseek-v4-pro`）下把 OCR
+文本注入 system prompt（伪多模态），多模态模型仍走 `user.media()` 原图直传；知识库
+上传则把 OCR 文本作为文档内容分块向量化。
 
 本方案只允许通过服务端环境变量接入 OCR 引擎，API Key 不进入前端或数据库；OCR
 服务不可用时明确报错，不存在本地 mock 或失败后伪造识别成功。
@@ -39,23 +39,24 @@ AI WorkMate 的聊天支持上传图片附件。当前 `TikaFileParserServiceImp
 ## 架构总览
 
 ```text
-用户 ──上传图片──> AttachmentController
-                        │
-                        ▼
-             TikaFileParserServiceImpl.parse()
-             图片分支 ──> OcrService（HTTP）
-                              │ POST /ocr/recognize
-                              ▼
-                    PaddleOCR 微服务（FastAPI，内网 :8686）
-                              │ PP-OCRv4 模型
-                              ▼
-                  返回逐行文本 + 分块置信度
-                        │
-                        ▼
-             attachment.extracted_text（复用现有字段，零 DDL）
-                        │
-                        ▼
-             ChatServiceImpl.buildSystemPrompt 附件文本注入（现有逻辑）
+用户 ──上传图片/扫描版 PDF──> AttachmentController / KnowledgeController
+                                    │
+                                    ▼
+                         TikaFileParserServiceImpl.parse()
+       图片分支 / 无文本层 PDF 分支 ──> OcrService（HTTP）
+                                            │ POST /ocr/recognize
+                                            ▼
+                            PaddleOCR 微服务（FastAPI，内网 :8686）
+                                            │ PP-OCRv4 + PyMuPDF
+                                            ▼
+                            返回逐行文本（PDF 按页拼接，`[Page N]` 分隔）
+                                            │
+                                            ▼
+                     attachment.extracted_text / 知识库文档内容（零 DDL）
+                                            │
+                                            ▼
+            聊天：ChatServiceImpl.buildSystemPrompt 附件文本注入（伪多模态）
+            知识库：KnowledgeChunker 分块 → embedding → pgvector 检索
 ```
 
 ## OCR 微服务契约（Python 侧，内部接口）
@@ -65,30 +66,35 @@ POST /ocr/recognize
 Content-Type: application/octet-stream
 X-API-Key: <服务端配置，可选>
 Body: 图片二进制（jpeg / png / webp，≤ 10MB）
+      或 PDF 二进制（≤ 30MB，≤ OCR_MAX_PAGES 页，默认 20）
 
 200 {
-  "text": "识别全文（按视觉行序，行间以换行分隔）",
+  "text": "识别全文（按视觉行序，行间以换行分隔；PDF 按页拼接并带 [Page N] 标记）",
   "blocks": [
     { "text": "...", "confidence": 0.98, "box": [x1, y1, x2, y2, x3, y3, x4, y4] }
   ],
+  "pageCount": 1,
   "language": "ch",
   "engine": "ppocr-v4",
   "latencyMs": 152
 }
 
-400 非图片或读取失败
+400 非图片/PDF、读取失败、PDF 页数超限
 429 超过并发上限
 503 模型未加载 / 引擎不可用
 ```
 
 约定：
 
-- `text` 为 blocks 按视觉行序（从上到下、从左到右）拼接的纯文本，是 Java 侧唯一
-  必读字段；`blocks` 仅供前端展示或将来做版面还原。
+- `text` 是 Java 侧唯一必读字段；`blocks` 仅供前端展示，PDF 场景返回空列表。
+- PDF 识别流程：PyMuPDF 按 2x 缩放将每页渲染为位图 → 逐页 PaddleOCR → 文本以
+  `[Page N]` 标记拼接，知识库分块与引用可据此保留页码信息。
 - `confidence` 低于服务端 `min-confidence` 的 block 不出现在 `text` 中（由 Python
   侧过滤，Java 侧不再二次过滤）。
-- 图片为空白或无可识别文本时返回 `200` 且 `text` 为空字符串，不报错。
+- 文件为空白或无可识别文本时返回 `200` 且 `text` 为空字符串，不报错。
 - 微服务启动时懒加载 PP-OCRv4 检测+识别模型；`GET /healthz` 返回模型就绪状态。
+- 环境变量：`OCR_SERVICE_API_KEY`、`OCR_USE_GPU`、`OCR_MIN_CONFIDENCE`、
+  `OCR_MAX_PAGES`（单个 PDF 最多 OCR 页数）。
 
 ## Java 后端接口
 
@@ -131,11 +137,40 @@ if (IMAGE_TYPES.contains(mimeType)) {
             ? null : ocrService.recognize(path, filename);
     return new ParsedFile(mimeType, text, true);
 }
+if (isPdf(mimeType)) {
+    String text = tika.parseToString(path).strip();
+    if (text.isBlank()) {
+        // 扫描版 PDF 无文本层：交由 OCR 服务渲染页面逐页识别
+        String ocrText = ocrService.recognize(path, filename);
+        if (ocrText == null || ocrText.isBlank()) {
+            throw new IOException("No extractable text");
+        }
+        return new ParsedFile(mimeType, limit(ocrText), false);
+    }
+    return new ParsedFile(mimeType, limit(text), false);
+}
 ```
 
 - 图片分支在 OCR 不可用或识别为空时保持 `extractedText=null`，**上传不阻塞**：
   多模态模型仍可用原图，纯文本模型在对话时才明确报错。
+- PDF 分支：默认优先使用文本层（带文字层的 PDF 不消耗 OCR 资源）；仅当文本层为空
+  （扫描版）才整份 PDF 走 OCR。OCR 仍无文本时保持原失败语义（上传报错）。
+- 用户可开启「PDF 始终 OCR」（`PUT /api/settings/ocr`，按 userId 存入 `user_setting`
+  表）：强制模式下所有 PDF 都先走 OCR，OCR 失败/无文本时回退文本层，两者皆空才报错，
+  避免上传因 OCR 抖动失败。
 - `ParsedFile` 与 `attachment` 表结构不变（复用 `extracted_text`）。
+
+## 用户 OCR 设置接口（前端设置页可调）
+
+```http
+GET /api/settings/ocr          # 返回 { forcePdfOcr: boolean }
+PUT /api/settings/ocr          # body { forcePdfOcr: boolean }，保存后立即可用
+```
+
+- 开关按用户维度存储（`user_setting` 表，key = `ocr.forcePdfOcr`），聊天附件与
+  知识库上传共用；接口受 JWT 保护，写入当前登录用户自己的设置。
+- 前端入口：AI Workspace 设置对话框（SettingsDialog）新增「PDF 文件始终通过 OCR
+  识别」Switch，打开对话框时拉取、保存时提交。
 
 ### 修改 `AiModelCatalog`
 
@@ -175,9 +210,19 @@ if (AiModelCatalog.isMultimodal(selectedModel)) {
 | 场景 | 处理 |
 | --- | --- |
 | 多模态模型 + 图片 | `user.media()` 原图直传 |
-| 纯文本模型 + 图片（有 OCR 文本） | 文本注入 system prompt，图片不直传 |
+| 纯文本模型 + 图片（有 OCR 文本） | 文本注入 system prompt，图片不直传（伪多模态） |
 | 纯文本模型 + 图片（无 OCR 文本） | 返回 `OCR_CAPABILITY_UNAVAILABLE` |
+| 扫描版 PDF 附件（OCR 兜底成功） | 按普通附件文本注入，与 PDF/Word/TXT 同路径 |
 | 非图片附件（PDF/Word/TXT） | 现有 `extractedText` 注入，不受影响 |
+
+## 知识库 OCR（RAG）
+
+- 知识库上传允许图片（jpeg/png/webp）与扫描版 PDF：`KnowledgeServiceImpl.upload`
+  通过 `FileParserService` 拿到 OCR 文本后按文档流程分块、embedding、入库；
+  `FILE_TYPE_BY_MIME` 已登记 `JPG/PNG/WEBP`。
+- 图片 OCR 无结果时返回 `error.knowledge_image_no_text`（三语言资源已同步），不会
+  静默入库空文档。
+- 前端上传控件 `accept` 已包含图片扩展名，拖拽提示说明图片自动 OCR。
 
 ## 前端改动
 
@@ -191,13 +236,17 @@ if (AiModelCatalog.isMultimodal(selectedModel)) {
 
 ## 数据库
 
-零 DDL。图片附件沿用 `attachment.extracted_text`，与文档附件共用同一列；不需要新增
-引擎或置信度列，避免过度设计。
+零 DDL。附件沿用 `attachment.extracted_text`，与文档附件共用同一列；知识库沿用
+`knowledge_document.content`（OCR 文本作为文档内容分块存储）；不需要新增引擎或
+置信度列，避免过度设计。
 
 ## 错误与降级策略
 
-- OCR 微服务不可用：上传成功（图片可预览），纯文本模型对话引用该图时明确报错。
+- OCR 微服务不可用：聊天图片上传成功（图片可预览），纯文本模型对话引用该图时
+  明确报错；知识库图片上传返回 `error.knowledge_image_no_text`。
 - 识别结果为空（空白图/纯装饰图）：`text=""`，对话时按无 OCR 文本处理并提示。
+- PDF 页数超过 `OCR_MAX_PAGES`（默认 20）：OCR 服务返回 400，Java 侧按解析失败
+  报错，避免 CPU 长尾占用。
 - 超时/429/503：全部按不可用处理，不重试、不缓存失败结果。
 - 多模态模型路径永远不受 OCR 可用性影响。
 
@@ -207,11 +256,16 @@ if (AiModelCatalog.isMultimodal(selectedModel)) {
    - 纯文本模型：图片 OCR 文本注入 prompt，不调用 `media()`；
    - 多模态模型：走 `media()`，不注入 OCR 文本；
    - OCR 不可用 + 纯文本模型：返回 `OCR_CAPABILITY_UNAVAILABLE`；
-   - 超时/5xx：按不可用降级，上传仍成功。
-2. 集成测试：本地启动 PaddleOCR 微服务，上传中文截图 → 对话验证识别内容进入回答。
-3. 回归：PDF/Word 附件、知识库上传（仍拒绝图片）、多模态路径（如配置视觉模型）
-   不受影响。
-4. 验证命令：`cd backend && mvn test`；两个前端 `npm run lint && npm run build`。
+   - 超时/5xx：按不可用降级，上传仍成功；
+   - 扫描版 PDF（无文本层）：走 OCR 兜底，OCR 文本进入 `extractedText`；
+   - OCR 仍无文本的扫描版 PDF：保持解析失败语义；
+   - 知识库：图片有 OCR 文本 → 入库成功（fileType=PNG）；图片无 OCR 文本 → 拒绝。
+2. 集成测试：本地启动 PaddleOCR 微服务，上传中文截图与扫描版 PDF → 对话与知识库
+   验证识别内容进入回答/检索。
+3. 回归：带文本层 PDF/Word 附件（不消耗 OCR）、知识库普通文档、多模态路径
+   （如配置视觉模型）不受影响。
+4. 验证命令：`cd backend && mvn test`；两个前端 `npm run lint && npm run build`；
+   `python -m py_compile deploy/ocr-service/app.py`。
 
 ## 实施清单
 
@@ -220,19 +274,24 @@ if (AiModelCatalog.isMultimodal(selectedModel)) {
 - `config/OcrProperties.java`（新增）
 - `service/OcrService.java`（新增）
 - `service/impl/HttpOcrClient.java`（新增）
-- `service/impl/TikaFileParserServiceImpl.java`（修改：图片分支调 OCR）
+- `service/impl/TikaFileParserServiceImpl.java`（修改：图片分支调 OCR + PDF 扫描版兜底）
 - `service/model/AiModelCatalog.java`（修改：新增 `isMultimodal`）
 - `service/impl/ChatServiceImpl.java`（修改：模型路由分流）
+- `service/impl/KnowledgeServiceImpl.java`（修改：允许图片入库、图片类型映射、空文本错误 key）
 - `common/ErrorCode.java`（修改：新增 `OCR_CAPABILITY_UNAVAILABLE`）
-- `application*.yml`、`.env.example`、`.env.docker.example`（修改：`app.ocr.*`）
+- `i18n/messages*.properties`（修改：新增 `error.knowledge_image_no_text`）
+- `application*.yml`、`.env.example`、`.env.docker.example`（修改：`app.ocr.*`、`OCR_MAX_PAGES`）
 
 ### Python 微服务（`deploy/ocr-service/`）
 
-- `app.py`：FastAPI + PaddleOCR（PP-OCRv4），懒加载模型，`/ocr/recognize`、`/healthz`
-- `requirements.txt`、`Dockerfile`
-- `docker-compose.yml`：新增 `ocr-service` 服务（内网暴露，不映射公网）
+- `app.py`：FastAPI + PaddleOCR（PP-OCRv4）+ PyMuPDF（PDF 逐页渲染 OCR），
+  懒加载模型，`/ocr/recognize`、`/healthz`
+- `requirements.txt`（新增 `PyMuPDF`）、`Dockerfile`
+- `docker-compose.yml`：`ocr-service` 注入 `OCR_MAX_PAGES`（内网暴露，不映射公网）
 
 ### 前端（`fonted-oa`）
 
 - `src/config/aiModels.ts`（修改：多模态标记）
 - `src/components/ai-chat/AttachmentPreview.tsx`（可选：OCR 标签）
+- `src/components/oa/KnowledgeBaseDetail.tsx`（修改：上传 `accept` 增加图片扩展名）
+- `src/i18n/locales/{zh-CN,en-US}/knowledge.ts`（修改：拖拽提示支持图片 OCR）

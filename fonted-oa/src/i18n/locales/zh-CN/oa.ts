@@ -138,6 +138,7 @@ export default {
     dictionary: '数据字典',
     'access-control': '角色权限与路由',
     'knowledge-base': '知识库管理',
+    'system-config': '系统配置',
   },
 
   tabs: {

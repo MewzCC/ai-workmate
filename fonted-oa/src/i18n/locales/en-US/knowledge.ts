@@ -90,7 +90,7 @@ export default {
   docsCreateOk: 'Create & Vectorize',
   docsFileTooLarge: '{{name}} exceeds 20MB and was ignored',
   docsDraggerText: 'Click or drag files to this area to upload',
-  docsDraggerHint: 'Supports TXT, PDF, Word (.doc / .docx) and other text documents. Multiple files can be selected at once, each up to 20MB.',
+  docsDraggerHint: 'Supports TXT, PDF, Word (.doc / .docx) and other text documents, as well as JPG / PNG images (auto OCR). Multiple files can be selected at once, each up to 20MB.',
   docsUploadHint: 'Files will be automatically parsed, chunked and vectorized. The content will be retrievable when asking questions in the AI workspace.',
   docsFieldFilename: 'File Name',
   docsFieldContent: 'Knowledge Content',

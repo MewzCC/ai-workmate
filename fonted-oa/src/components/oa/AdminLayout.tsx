@@ -28,6 +28,7 @@ import ApprovalDetailPage from './ApprovalDetailPage';
 import AuditCenterPage from './AuditCenterPage';
 import OrganizationTreePage from './OrganizationTreePage';
 import KnowledgeBasePage from './KnowledgeBasePage';
+import SystemSettingsPage from './SystemSettingsPage';
 
 const { Content } = Layout;
 const OPEN_TABS_STORAGE_KEY = 'workmeta-oa-open-tabs';
@@ -549,6 +550,8 @@ export default function AdminLayout() {
                     <OrganizationTreePage />
                   ) : selectedMenu.componentKey === 'KNOWLEDGE_BASE' ? (
                     <KnowledgeBasePage />
+                  ) : selectedMenu.componentKey === 'SYSTEM_CONFIG' ? (
+                    <SystemSettingsPage />
                   ) : (
                     <Dashboard
                       role={role}

@@ -157,10 +157,11 @@ curl -X POST http://localhost:8080/api/chat/stream \
   -d '{"message":"Hello!"}'
 ```
 
-### 6. 启动 OCR 图片识别服务（可选，图片对话需要）
+### 6. 启动 OCR 识别服务（可选，图片/扫描版 PDF 对话与知识库需要）
 
-聊天上传图片时，纯文本模型（deepseek-v4-flash / pro）需要 OCR 提取图片文字。
-OCR 微服务位于 `deploy/ocr-service`（PaddleOCR PP-OCRv4，接口契约见
+聊天上传图片或扫描版 PDF 时，纯文本模型（deepseek-v4-flash / pro）需要 OCR 提取
+文字；知识库也支持图片与扫描版 PDF 通过 OCR 入库（RAG）。
+OCR 微服务位于 `deploy/ocr-service`（PaddleOCR PP-OCRv4 + PyMuPDF，接口契约见
 `docs/architecture/ocr-chat-pipeline.md`）：
 
 > 提示：使用一键启动脚本（`start.bat`）时无需手动安装依赖。
@@ -179,7 +180,7 @@ uvicorn app:app --host 0.0.0.0 --port 8686
 
 - 首次识别会自动下载 PP-OCRv4 模型（约 40MB）并完成加载，之后单张约 1~3 秒（CPU）。
 - 可选环境变量：`OCR_SERVICE_API_KEY`（开启鉴权，需与后端 `OCR_API_KEY` 一致）、
-  `OCR_USE_GPU=1`（GPU 加速）。
+  `OCR_USE_GPU=1`（GPU 加速）、`OCR_MAX_PAGES=20`（单个 PDF 最多识别页数）。
 - 后端默认连接 `http://127.0.0.1:8686`，无需额外配置；OCR 不可用时图片对话会
   明确返回 `OCR_CAPABILITY_UNAVAILABLE`，不会静默失败。
 - Docker 部署时由 `docker compose` 自动启动 `ocr-service`，无需手动安装。
@@ -194,7 +195,7 @@ uvicorn app:app --host 0.0.0.0 --port 8686
 | Markdown | react-markdown + react-syntax-highlighter | 代码高亮 |
 | 后端 | Spring Boot 3.3 + Java 17 | REST API |
 | AI | Spring AI + DeepSeek（OpenAI 兼容） | SSE 流式输出 |
-| OCR | PaddleOCR PP-OCRv4（FastAPI 微服务） | 图片对话文字提取 |
+| OCR | PaddleOCR PP-OCRv4 + PyMuPDF（FastAPI 微服务） | 图片 / 扫描版 PDF 文字提取 |
 | ORM | MyBatis-Plus 3.5 | 数据库操作 |
 | 数据库 | PostgreSQL + pgvector | 向量检索（第2月） |
 | 缓存 | Redis | 对话记忆（第2月） |

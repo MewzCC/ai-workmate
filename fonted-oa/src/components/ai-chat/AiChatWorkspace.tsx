@@ -12,8 +12,8 @@ import type { OaRole } from '@/types/oa';
 import type { AiModelId } from '@/config/aiModels';
 import ChatSidebar from './ChatSidebar';
 import ChatWindow from './ChatWindow';
-import SettingsDialog from './SettingsDialog';
 import { OaIcon } from '@/components/OaIcon';
+import { useRouter } from '@/lib/nextCompat';
 
 const SIDEBAR_COLLAPSED_KEY = 'workmeta-ai-chat-sidebar-collapsed';
 /** 收起侧栏时最近会话快捷跳转的上限（LRU，最近使用优先） */
@@ -27,8 +27,8 @@ interface AiChatWorkspaceProps {
 
 export default function AiChatWorkspace({ role }: AiChatWorkspaceProps) {
   const { t } = useTranslation();
+  const router = useRouter();
   const store = useAiChatStore();
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [mobileSessionsOpen, setMobileSessionsOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [kbOptions, setKbOptions] = useState<KnowledgeBase[]>([]);
@@ -89,7 +89,7 @@ export default function AiChatWorkspace({ role }: AiChatWorkspaceProps) {
       }}
       onRename={store.rename}
       onDelete={store.remove}
-      onSettings={() => setSettingsOpen(true)}
+      onSettings={() => router.push('/oa/system-config')}
       onCollapse={() => updateSidebarCollapsed(true)}
     />
   );
@@ -134,7 +134,7 @@ export default function AiChatWorkspace({ role }: AiChatWorkspaceProps) {
                 type="text"
                 icon={<OaIcon name="settings" />}
                 aria-label={t('chat.settings')}
-                onClick={() => setSettingsOpen(true)}
+                onClick={() => router.push('/oa/system-config')}
               />
             </Tooltip>
           </aside>
@@ -147,6 +147,7 @@ export default function AiChatWorkspace({ role }: AiChatWorkspaceProps) {
         kbOptions={kbOptions}
         messages={store.activeId ? store.messagesByConversation[store.activeId] || [] : []}
         pending={store.activeId ? store.pendingAttachments[store.activeId] || [] : []}
+        uploading={store.activeId ? store.uploading[store.activeId] || [] : []}
         generating={store.activeId ? store.generatingIds.includes(store.activeId) : false}
         onOpenSessions={() => setMobileSessionsOpen(true)}
         onUpload={store.upload}
@@ -179,16 +180,9 @@ export default function AiChatWorkspace({ role }: AiChatWorkspaceProps) {
           }}
           onRename={store.rename}
           onDelete={store.remove}
-          onSettings={() => setSettingsOpen(true)}
+          onSettings={() => router.push('/oa/system-config')}
         />
       </Drawer>
-      <SettingsDialog
-        open={settingsOpen}
-        settings={store.settings}
-        onClose={() => setSettingsOpen(false)}
-        onSave={store.updateSettings}
-        onClearAll={store.clearAll}
-      />
     </div>
   );
 }

@@ -90,7 +90,7 @@ export default {
   docsCreateOk: '创建并向量化',
   docsFileTooLarge: '{{name}} 超过 20MB，已忽略',
   docsDraggerText: '点击或拖拽文件到此区域上传',
-  docsDraggerHint: '支持 TXT、PDF、Word（.doc / .docx）等文本文档，可一次选择多个文件，单个不超过 20MB',
+  docsDraggerHint: '支持 TXT、PDF、Word（.doc / .docx）等文本文档及 JPG / PNG 等图片（自动 OCR 识别），可一次选择多个文件，单个不超过 20MB',
   docsUploadHint: '文件将自动解析文本、分块并向量化，AI 工作空间提问时可检索到其中的内容。',
   docsFieldFilename: '文件名',
   docsFieldContent: '知识内容',

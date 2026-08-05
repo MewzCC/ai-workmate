@@ -3,9 +3,11 @@
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
-import { Button, Input, Space, Tooltip, Upload } from 'antd';
+import { Button, Input, Progress, Space, Tooltip, Typography, Upload } from 'antd';
+import { LoadingOutlined } from '@ant-design/icons';
 import { message } from '@/lib/antdMessage';
 import type { ChatAttachment } from '@/types/chat';
+import type { UploadProgressItem } from '@/store/aiChatStore';
 import AttachmentPreview from './AttachmentPreview';
 import { OaIcon } from '@/components/OaIcon';
 
@@ -19,6 +21,7 @@ const ACCEPT = Array.from(SUPPORTED_EXTENSIONS).join(',');
 
 interface ChatInputProps {
   pending: ChatAttachment[];
+  uploading: UploadProgressItem[];
   generating: boolean;
   onUpload: (files: File[]) => void;
   onRemoveAttachment: (id: number) => void;
@@ -26,7 +29,7 @@ interface ChatInputProps {
   onStop: () => void;
 }
 
-export default function ChatInput({ pending, generating, onUpload, onRemoveAttachment, onSend, onStop }: ChatInputProps) {
+export default function ChatInput({ pending, uploading, generating, onUpload, onRemoveAttachment, onSend, onStop }: ChatInputProps) {
   const { t } = useTranslation();
   const [value, setValue] = useState('');
   const [dragging, setDragging] = useState(false);
@@ -53,8 +56,20 @@ export default function ChatInput({ pending, generating, onUpload, onRemoveAttac
       onDragOver={(event) => event.preventDefault()}
       onDrop={(event) => { event.preventDefault(); dragDepth.current = 0; setDragging(false); acceptFiles(Array.from(event.dataTransfer.files)); }}
     >
-      {pending.length > 0 && (
+      {(pending.length > 0 || uploading.length > 0) && (
         <div className="ai-composer-attachments">
+          {uploading.map((item) => (
+            <div key={item.key} className="ai-attachment ai-attachment-uploading" role="status">
+              <div className="ai-attachment-file-icon"><LoadingOutlined /></div>
+              <div className="ai-attachment-meta">
+                <Tooltip title={t('chat.uploading')}>
+                  <Typography.Text ellipsis>{item.name}</Typography.Text>
+                </Tooltip>
+                <Progress percent={item.percent} size="small" showInfo={false} status="active" />
+              </div>
+              <span className="ai-attachment-percent">{item.percent}%</span>
+            </div>
+          ))}
           {pending.map((item) => <AttachmentPreview key={item.id} attachment={item} removable onRemove={() => onRemoveAttachment(item.id)} />)}
         </div>
       )}

@@ -23,6 +23,7 @@ export default {
   // ChatInput
   inputPlaceholder: '输入消息，或拖入图片和文档…',
   uploadFile: '上传图片或文件',
+  uploading: '上传中',
   inputHint: 'Enter 发送 · Shift + Enter 换行',
   stopGenerating: '停止生成',
   sendMessage: '发送消息',
@@ -93,15 +94,19 @@ export default {
     explainError: '解释这个报错',
   },
 
-  // SettingsDialog
+  // SystemSettingsPage
   settingsTitle: 'AI Workspace 设置',
   saveSettings: '保存设置',
+  settingsSaved: '设置已保存',
+  ocrSettings: 'OCR 识别',
   apiKeyManaged: '由服务端环境变量管理',
   apiKeyHint: '密钥不会下发到浏览器，请通过后端 `AI_API_KEY` 配置。',
   model: '对话模型',
   selectModelRequired: '请选择对话模型',
   maxContextRounds: '最大上下文轮数',
   streamOutput: '流式输出',
+  forcePdfOcr: 'PDF 文件始终通过 OCR 识别',
+  forcePdfOcrHint: '开启后所有 PDF（含带文字层）都走 OCR 识别；关闭时仅扫描版 PDF 自动 OCR。',
   baseUrlHint: '接口地址由服务端 AI_BASE_URL 管理，避免凭据和内部网关信息暴露。',
   dataManagement: '数据管理',
   clearAllTitle: '清空全部聊天记录？',

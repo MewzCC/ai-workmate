@@ -61,7 +61,7 @@ services:
       timeout: 5s
       retries: 5
 
-  # ========== OCR 图片识别（PaddleOCR 微服务） ==========
+  # ========== OCR 识别服务（PaddleOCR + PyMuPDF，图片/PDF） ==========
   # 仅后端内网调用，不映射公网端口；首次启动需下载模型并完成初始化
   ocr-service:
     build:
@@ -71,6 +71,7 @@ services:
       OCR_SERVICE_API_KEY: ${OCR_API_KEY:-}
       OCR_USE_GPU: ${OCR_USE_GPU:-0}
       OCR_MIN_CONFIDENCE: ${OCR_MIN_CONFIDENCE:-0.6}
+      OCR_MAX_PAGES: ${OCR_MAX_PAGES:-20}
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8686/healthz')"]
       interval: 30s

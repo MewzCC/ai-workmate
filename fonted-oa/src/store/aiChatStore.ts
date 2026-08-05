@@ -16,6 +16,13 @@ const SETTINGS_KEY = 'workmeta-ai-chat-settings';
 const controllers = new Map<number, AbortController>();
 const typewriters = new Map<number, StreamTypewriter>();
 
+export interface UploadProgressItem {
+  /** 唯一标识，用于进度更新与移除 */
+  key: string;
+  name: string;
+  percent: number;
+}
+
 interface AiChatState {
   conversations: ChatConversation[];
   activeId: number | null;
@@ -23,6 +30,8 @@ interface AiChatState {
   messagesByConversation: Record<number, ChatMessage[]>;
   previewByConversation: Record<number, ChatMessage[]>;
   pendingAttachments: Record<number, ChatAttachment[]>;
+  /** 每个会话正在上传的文件与实时进度（percent 0~99，完成后移除） */
+  uploading: Record<number, UploadProgressItem[]>;
   generatingIds: number[];
   loading: boolean;
   settings: ChatSettings;
@@ -61,6 +70,7 @@ export const useAiChatStore = create<AiChatState>((set, get) => ({
   messagesByConversation: {},
   previewByConversation: {},
   pendingAttachments: {},
+  uploading: {},
   generatingIds: [],
   loading: false,
   settings: readSettings(),
@@ -139,18 +149,35 @@ export const useAiChatStore = create<AiChatState>((set, get) => ({
         return;
       }
     }
-    for (const file of files) {
+    const convId = conversationId;
+    await Promise.all(files.map(async (file) => {
+      const key = uuid();
+      const item: UploadProgressItem = { key, name: file.name, percent: 0 };
+      set((state) => ({ uploading: {
+        ...state.uploading,
+        [convId]: [...(state.uploading[convId] || []), item],
+      } }));
       try {
-        const attachment = await uploadAttachment(conversationId, file);
+        const attachment = await uploadAttachment(convId, file, (percent) => {
+          set((state) => ({ uploading: {
+            ...state.uploading,
+            [convId]: (state.uploading[convId] || []).map((it) => it.key === key ? { ...it, percent } : it),
+          } }));
+        });
         attachment.previewUrl = file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined;
         set((state) => ({ pendingAttachments: {
           ...state.pendingAttachments,
-          [conversationId!]: [...(state.pendingAttachments[conversationId!] || []), attachment],
+          [convId]: [...(state.pendingAttachments[convId] || []), attachment],
         } }));
       } catch (error) {
         antMessage.error(`${file.name}：${error instanceof Error ? error.message : i18n.t('chat.uploadFailed')}`);
+      } finally {
+        set((state) => ({ uploading: {
+          ...state.uploading,
+          [convId]: (state.uploading[convId] || []).filter((it) => it.key !== key),
+        } }));
       }
-    }
+    }));
   },
 
   removePendingAttachment: (attachmentId) => {
@@ -263,7 +290,7 @@ export const useAiChatStore = create<AiChatState>((set, get) => ({
     typewriters.forEach((typewriter) => typewriter.cancel());
     controllers.clear();
     typewriters.clear();
-    set({ conversations: [], activeId: null, draftMode: false, messagesByConversation: {}, previewByConversation: {}, pendingAttachments: {}, generatingIds: [] });
+    set({ conversations: [], activeId: null, draftMode: false, messagesByConversation: {}, previewByConversation: {}, pendingAttachments: {}, uploading: {}, generatingIds: [] });
   },
 }));
 
