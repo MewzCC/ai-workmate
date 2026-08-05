@@ -816,6 +816,80 @@
     outline-offset: 2px;
   }
 
+  /* 语言下拉：按钮上展示当前语言国旗，面板两项国旗+名称，当前项高亮 */
+  .wm-lang-wrap {
+    position: relative;
+    flex: 0 0 auto;
+  }
+
+  .wm-lang-flag {
+    width: 18px;
+    height: 13.5px;
+    border-radius: 2px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+    flex: 0 0 auto;
+  }
+
+  .wm-lang-toggle .wm-lang-chevron {
+    width: 14px;
+    height: 14px;
+    opacity: 0.65;
+    transition: transform 200ms ease;
+  }
+
+  .wm-lang-toggle .wm-lang-chevron-open {
+    transform: rotate(180deg);
+  }
+
+  .wm-lang-menu {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    z-index: 30;
+    min-width: 172px;
+    padding: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    border: 1px solid var(--wm-line-strong);
+    border-radius: 14px;
+    background: color-mix(in srgb, var(--wm-card-strong) 94%, transparent);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.16);
+  }
+
+  .wm-lang-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 10px;
+    border: none;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--wm-ink);
+    font-size: 13px;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+    transition: background 160ms ease, color 160ms ease;
+  }
+
+  .wm-lang-item:hover {
+    background: color-mix(in srgb, var(--wm-ink) 8%, transparent);
+  }
+
+  .wm-lang-item-active {
+    color: var(--wm-accent);
+  }
+
+  .wm-lang-item .wm-lang-check {
+    width: 15px;
+    height: 15px;
+    margin-left: auto;
+    flex: 0 0 auto;
+  }
+
   @media (max-width: 560px) {
     .wm-lang-toggle {
       height: 36px;
@@ -826,6 +900,15 @@
     .wm-lang-toggle svg {
       width: 16px;
       height: 16px;
+    }
+
+    .wm-lang-flag {
+      width: 16px;
+      height: 12px;
+    }
+
+    .wm-lang-menu {
+      min-width: 152px;
     }
   }
 
