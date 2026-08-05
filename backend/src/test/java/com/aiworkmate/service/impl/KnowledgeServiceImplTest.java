@@ -1,4 +1,4 @@
-﻿package com.aiworkmate.service.impl;
+package com.aiworkmate.service.impl;
 
 import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.config.EmbeddingProperties;
