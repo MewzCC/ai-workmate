@@ -18,6 +18,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.ai.chat.client.ChatClient;
 
 import java.util.List;
+import java.util.Locale;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -49,7 +50,8 @@ class ChatServiceImplTest {
         when(aiRuntimeProperties.configured()).thenReturn(false);
 
         assertThatThrownBy(() -> chatService.chat(
-                1001L, "USER", 2001L, "你好", "deepseek-chat", null, List.of(), 10))
+                1001L, "USER", 2001L, "你好", "deepseek-chat", null, List.of(), 10,
+                Locale.SIMPLIFIED_CHINESE))
                 .isInstanceOfSatisfying(BusinessException.class, ex ->
                         org.assertj.core.api.Assertions.assertThat(ex.getErrorCode())
                                 .isEqualTo(ErrorCode.AI_CHAT_UNAVAILABLE.getErrorCode()));
@@ -64,7 +66,8 @@ class ChatServiceImplTest {
         when(aiRuntimeProperties.configured()).thenReturn(true);
 
         assertThatThrownBy(() -> chatService.chat(
-                1001L, "USER", 2001L, "你好", "unknown-model", null, List.of(), 10))
+                1001L, "USER", 2001L, "你好", "unknown-model", null, List.of(), 10,
+                Locale.SIMPLIFIED_CHINESE))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("不支持的 AI 模型");
 
@@ -78,10 +81,11 @@ class ChatServiceImplTest {
                 List.of(new KnowledgeContext.Reference("10", "20", "handbook.txt", 0.91, "Annual leave policy")));
 
         var method = ChatServiceImpl.class.getDeclaredMethod("buildSystemPrompt",
-                String.class, KnowledgeContext.class, List.class, boolean.class);
+                String.class, KnowledgeContext.class, List.class, boolean.class, Locale.class);
         method.setAccessible(true);
         @SuppressWarnings("unchecked")
-        String prompt = (String) method.invoke(chatService, "USER", knowledge, List.of(), false);
+        String prompt = (String) method.invoke(chatService, "USER", knowledge, List.of(), false,
+                Locale.SIMPLIFIED_CHINESE);
 
         assertThat(prompt).contains("像学术论文引用一样精确标注来源");
         assertThat(prompt).contains("每个[知识来源N]均标注了来源文件名、分块序号与内容摘录");
@@ -107,7 +111,8 @@ class ChatServiceImplTest {
         when(knowledgeContextService.retrieve(eq(1001L), any(), eq(null))).thenReturn(KnowledgeContext.empty());
 
         assertThatThrownBy(() -> chatService.chat(
-                1001L, "USER", 2001L, "帮我看这张图", "deepseek-chat", null, List.of(99L), 10))
+                1001L, "USER", 2001L, "帮我看这张图", "deepseek-chat", null, List.of(99L), 10,
+                Locale.SIMPLIFIED_CHINESE))
                 .isInstanceOfSatisfying(BusinessException.class, ex ->
                         assertThat(ex.getErrorCode())
                                 .isEqualTo(ErrorCode.OCR_CAPABILITY_UNAVAILABLE.getErrorCode()));
@@ -123,14 +128,34 @@ class ChatServiceImplTest {
         KnowledgeContext knowledge = KnowledgeContext.empty();
 
         var method = ChatServiceImpl.class.getDeclaredMethod("buildSystemPrompt",
-                String.class, KnowledgeContext.class, List.class, boolean.class);
+                String.class, KnowledgeContext.class, List.class, boolean.class, Locale.class);
         method.setAccessible(true);
         @SuppressWarnings("unchecked")
-        String textOnlyPrompt = (String) method.invoke(chatService, "USER", knowledge, attachments, false);
+        String textOnlyPrompt = (String) method.invoke(chatService, "USER", knowledge, attachments, false,
+                Locale.SIMPLIFIED_CHINESE);
         assertThat(textOnlyPrompt).contains("附件：scan.png").contains("请假一天，事假");
 
         @SuppressWarnings("unchecked")
-        String multimodalPrompt = (String) method.invoke(chatService, "USER", knowledge, attachments, true);
+        String multimodalPrompt = (String) method.invoke(chatService, "USER", knowledge, attachments, true,
+                Locale.SIMPLIFIED_CHINESE);
         assertThat(multimodalPrompt).doesNotContain("请假一天，事假");
+    }
+
+    @Test
+    void shouldInjectUiLanguageIntoSystemPrompt() throws Exception {
+        var method = ChatServiceImpl.class.getDeclaredMethod("buildSystemPrompt",
+                String.class, KnowledgeContext.class, List.class, boolean.class, Locale.class);
+        method.setAccessible(true);
+
+        @SuppressWarnings("unchecked")
+        String zhPrompt = (String) method.invoke(chatService, "USER", KnowledgeContext.empty(), List.of(), false,
+                Locale.SIMPLIFIED_CHINESE);
+        assertThat(zhPrompt).contains("当前用户界面语言：简体中文（zh-CN）");
+        assertThat(zhPrompt).contains("除非用户明确要求使用其他语言，否则必须始终使用该语言回答");
+
+        @SuppressWarnings("unchecked")
+        String enPrompt = (String) method.invoke(chatService, "USER", KnowledgeContext.empty(), List.of(), false,
+                Locale.US);
+        assertThat(enPrompt).contains("当前用户界面语言：English (en-US)");
     }
 }
