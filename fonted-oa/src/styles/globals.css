@@ -3171,6 +3171,28 @@ html.oa-wallpaper-active .ant-menu-submenu-popup .ant-menu-dark {
   color: #ffffff !important;
 }
 
+/* 语言下拉：国旗与菜单项样式（菜单底色/文字由 Ant token 驱动，随主题自动适配） */
+.oa-lang-flag {
+  width: 18px;
+  height: 13.5px;
+  border-radius: 2px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  flex: 0 0 auto;
+}
+
+.oa-lang-menu-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 120px;
+}
+
+.oa-lang-btn-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .oa-header-more-btn:hover {
   background: rgba(255, 255, 255, 0.28) !important;
   border-color: rgba(255, 255, 255, 0.48) !important;
