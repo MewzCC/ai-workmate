@@ -25,6 +25,8 @@ fronted-main/build/
 fonted-oa/build/
 *.tsbuildinfo
 deploy/
+__pycache__/
+*.py[cod]
 
 # Java / Maven build output
 target/
