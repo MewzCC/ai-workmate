@@ -1,4 +1,4 @@
-﻿# AI WorkMate — 企业 AI 助手平台
+# AI WorkMate — 企业 AI 助手平台
 
 
 ## Frontend Split
@@ -59,7 +59,7 @@ ai-workmate/
 - Maven 3.9+
 - PostgreSQL 16+ (需安装 pgvector 扩展)
 - Redis 7+
-- Python 3.10+（仅 OCR 图片识别服务需要，可选）
+- 64 位 Python 3.10/3.11（仅本地安装可选 OCR 时需要）
 
 ### 1. 启动基础设施
 
@@ -161,29 +161,32 @@ curl -X POST http://localhost:8080/api/chat/stream \
 
 聊天上传图片或扫描版 PDF 时，纯文本模型（deepseek-v4-flash / pro）需要 OCR 提取
 文字；知识库也支持图片与扫描版 PDF 通过 OCR 入库（RAG）。
-OCR 微服务位于 `deploy/ocr-service`（PaddleOCR PP-OCRv4 + PyMuPDF，接口契约见
-`docs/architecture/ocr-chat-pipeline.md`）：
-
-> 提示：使用一键启动脚本（`start.bat`）时无需手动安装依赖。
-> 首次运行会询问是否自动创建 venv 并安装依赖，之后每次启动自动拉起 OCR 服务。
+OCR 微服务源码统一维护在 `docker/ocr-service`（PaddleOCR PP-OCRv4 + PyMuPDF，
+接口契约见 `docs/architecture/ocr-chat-pipeline.md`）。本地安装产物默认生成到
+`deploy/ocr-service`
+> OCR 是可选能力。`start.bat` 会询问是否安装；选择跳过、安装失败或 Python 环境不满足时，
+> 后端、官网和 OA 仍会正常启动。安装路径保存在本地 `deploy/.ocr-install-path`。
 
 ```bash
-cd deploy/ocr-service
-python -m venv .venv
-.venv/Scripts/activate            # Windows
-# source .venv/bin/activate       # Linux / macOS
+# 缺少 Python 时可先安装
+winget install -e --id Python.Python.3.11
 
-pip install -r requirements.txt   # 国内加速: -i https://pypi.tuna.tsinghua.edu.cn/simple
+# 本地一键安装/重新选择目录
+start.bat --install-ocr
 
-uvicorn app:app --host 0.0.0.0 --port 8686
+# Docker Compose 默认不启动 OCR
+docker compose up -d --build
+
+# 需要 OCR 时直接启用 Compose profile
+docker compose --profile ocr up -d --build
 ```
 
 - 首次识别会自动下载 PP-OCRv4 模型（约 40MB）并完成加载，之后单张约 1~3 秒（CPU）。
 - 可选环境变量：`OCR_SERVICE_API_KEY`（开启鉴权，需与后端 `OCR_API_KEY` 一致）、
   `OCR_USE_GPU=1`（GPU 加速）、`OCR_MAX_PAGES=20`（单个 PDF 最多识别页数）。
-- 后端默认连接 `http://127.0.0.1:8686`，无需额外配置；OCR 不可用时图片对话会
-  明确返回 `OCR_CAPABILITY_UNAVAILABLE`，不会静默失败。
-- Docker 部署时由 `docker compose` 自动启动 `ocr-service`，无需手动安装。
+- `start.bat` 会根据用户选择设置 `OCR_ENABLED`；手动启动后端时也可通过该变量关闭
+  OCR。未安装 OCR 不影响其他功能，调用识别能力时会明确返回不可用，不会伪造成功。
+- Docker OCR 已直接定义在 `docker-compose.yml` 的 `ocr` profile 中，构建上下文来自 `docker/ocr-service`
 
 ## 技术栈
 
