@@ -177,8 +177,8 @@ export default function HomePage() {
           <ThemeToggle theme={theme} onChange={setTheme} />
           <LanguageSwitcher />
           <button type="button" className="wm-login" onClick={enterOa}>{t('common.login')}</button>
-          <button type="button" className="wm-try wm-try-nav" onClick={enterOa}>
-            {t('common.tryNow')}
+          <button type="button" className="wm-try wm-try-nav" onClick={enterOa} aria-label={t('common.tryNow')}>
+            <span className="wm-try-nav-text">{t('common.tryNow')}</span>
             <ArrowRight className="h-4 w-4" />
           </button>
         </div>
