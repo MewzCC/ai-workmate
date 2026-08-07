@@ -349,7 +349,11 @@ VALUES
     ('route:ai-permission', '访问 AI 操作权限', '页面访问', '允许访问 AI 操作权限页面'),
     ('route:audit-center', '访问审计中心', '页面访问', '允许访问审计中心页面'),
     ('route:tenant-config', '访问租户配置', '页面访问', '允许访问租户配置页面'),
-    ('route:dictionary', '访问数据字典', '页面访问', '允许访问数据字典页面')
+    ('route:dictionary', '访问数据字典', '页面访问', '允许访问数据字典页面'),
+    ('route:attendance-clock', '访问考勤打卡', '页面访问', '允许访问考勤打卡页面'),
+    ('route:attendance-exception', '访问异常考勤', '页面访问', '允许访问异常考勤页面'),
+    ('route:attendance-reissue', '访问补卡申请', '页面访问', '允许访问补卡申请页面'),
+    ('route:attendance-statistics', '访问考勤统计', '页面访问', '允许访问考勤统计页面')
 ON CONFLICT (code) DO UPDATE SET
     name = EXCLUDED.name,
     module = EXCLUDED.module,
@@ -388,7 +392,7 @@ VALUES
     ('approval-rules', 'approval', '审批规则', '/oa/approval-rules', NULL, 'PAGE', 'DASHBOARD', 'route:approval-rules', 4),
     ('org-tree', 'hr', '组织架构', '/oa/org-tree', NULL, 'PAGE', 'ORG_TREE', 'route:org-tree', 1),
     ('employee-files', 'hr', '员工档案', '/oa/employee-files', NULL, 'PAGE', 'DASHBOARD', 'route:employee-files', 2),
-    ('attendance', 'hr', '考勤假勤', '/oa/attendance', NULL, 'PAGE', 'DASHBOARD', 'route:attendance', 3),
+    ('attendance', 'hr', '考勤管理', NULL, NULL, 'GROUP', NULL, NULL, 3),
     ('employee-change', 'hr', '入转调离', '/oa/employee-change', NULL, 'PAGE', 'DASHBOARD', 'route:employee-change', 4),
     ('asset-ledger', 'assets', '资产台账', '/oa/asset-ledger', NULL, 'PAGE', 'DASHBOARD', 'route:asset-ledger', 1),
     ('meeting-room', 'assets', '会议室', '/oa/meeting-room', NULL, 'PAGE', 'DASHBOARD', 'route:meeting-room', 2),
@@ -407,7 +411,11 @@ VALUES
     ('ai-permission', 'settings', 'AI 操作权限', '/oa/ai-permission', NULL, 'PAGE', 'DASHBOARD', 'route:ai-permission', 3),
     ('audit-center', 'settings', '审计中心', '/oa/audit-center', NULL, 'PAGE', 'DASHBOARD', 'route:audit-center', 4),
     ('tenant-config', 'settings', '租户配置', '/oa/tenant-config', NULL, 'PAGE', 'DASHBOARD', 'route:tenant-config', 5),
-    ('dictionary', 'settings', '数据字典', '/oa/dictionary', NULL, 'PAGE', 'DASHBOARD', 'route:dictionary', 6)
+    ('dictionary', 'settings', '数据字典', '/oa/dictionary', NULL, 'PAGE', 'DASHBOARD', 'route:dictionary', 6),
+    ('attendance-clock', 'attendance', '打卡', '/oa/attendance-clock', NULL, 'PAGE', 'ATTENDANCE_CLOCK', 'route:attendance-clock', 1),
+    ('attendance-exception', 'attendance', '异常考勤', '/oa/attendance-exception', NULL, 'PAGE', 'ATTENDANCE_EXCEPTION', 'route:attendance-exception', 2),
+    ('attendance-reissue', 'attendance', '补卡申请', '/oa/attendance-reissue', NULL, 'PAGE', 'ATTENDANCE_REISSUE', 'route:attendance-reissue', 3),
+    ('attendance-statistics', 'attendance', '考勤统计', '/oa/attendance-statistics', NULL, 'PAGE', 'ATTENDANCE_STATISTICS', 'route:attendance-statistics', 4)
 ON CONFLICT (route_key) DO UPDATE SET
     parent_key = EXCLUDED.parent_key, name = EXCLUDED.name, path = EXCLUDED.path,
     icon = EXCLUDED.icon, route_type = EXCLUDED.route_type,
@@ -435,7 +443,15 @@ FROM (
         ('PROCESS_ADMIN', 'approval-rules'), ('PROCESS_ADMIN', 'page-actions'), ('PROCESS_ADMIN', 'runtime-logs'),
         ('FINANCE_ADMIN', 'dashboard'), ('FINANCE_ADMIN', 'ai-workspace'), ('FINANCE_ADMIN', 'todo'), ('FINANCE_ADMIN', 'messages'),
         ('FINANCE_ADMIN', 'approval-list'), ('FINANCE_ADMIN', 'expense'), ('FINANCE_ADMIN', 'budget'),
-        ('FINANCE_ADMIN', 'contracts'), ('FINANCE_ADMIN', 'suppliers')
+        ('FINANCE_ADMIN', 'contracts'), ('FINANCE_ADMIN', 'suppliers'),
+        ('EMPLOYEE', 'attendance-clock'), ('EMPLOYEE', 'attendance-exception'),
+        ('EMPLOYEE', 'attendance-reissue'), ('EMPLOYEE', 'attendance-statistics'),
+        ('SYSTEM_ADMIN', 'attendance-clock'), ('SYSTEM_ADMIN', 'attendance-exception'),
+        ('SYSTEM_ADMIN', 'attendance-reissue'), ('SYSTEM_ADMIN', 'attendance-statistics'),
+        ('PROCESS_ADMIN', 'attendance-clock'), ('PROCESS_ADMIN', 'attendance-exception'),
+        ('PROCESS_ADMIN', 'attendance-reissue'), ('PROCESS_ADMIN', 'attendance-statistics'),
+        ('FINANCE_ADMIN', 'attendance-clock'), ('FINANCE_ADMIN', 'attendance-exception'),
+        ('FINANCE_ADMIN', 'attendance-reissue'), ('FINANCE_ADMIN', 'attendance-statistics')
 ) AS defaults(role_code, route_key)
 ON CONFLICT DO NOTHING;
 
@@ -823,6 +839,60 @@ CREATE INDEX IF NOT EXISTS idx_business_audit_actor_time
     ON business_audit_log(tenant_id, actor_user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_business_audit_resource
     ON business_audit_log(tenant_id, resource_type, resource_id);
+
+-- ============================================
+-- 考勤管理：打卡记录与补卡申请
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS attendance_record (
+    id                  BIGSERIAL PRIMARY KEY,
+    tenant_id           BIGINT NOT NULL REFERENCES tenant(id) ON DELETE RESTRICT,
+    user_id             BIGINT NOT NULL REFERENCES app_user(id) ON DELETE RESTRICT,
+    clock_date          DATE NOT NULL,
+    clock_in_time       TIMESTAMP,
+    clock_out_time      TIMESTAMP,
+    clock_in_ip         VARCHAR(64),
+    clock_out_ip        VARCHAR(64),
+    status              VARCHAR(20) NOT NULL DEFAULT 'NORMAL',
+    late_minutes        INTEGER NOT NULL DEFAULT 0,
+    early_leave_minutes INTEGER NOT NULL DEFAULT 0,
+    source              VARCHAR(20) NOT NULL DEFAULT 'WEB',
+    created_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT ck_attendance_status CHECK (
+        status IN ('NORMAL', 'LATE', 'EARLY_LEAVE', 'LATE_AND_EARLY', 'MISSING_CLOCK')
+    ),
+    CONSTRAINT ck_attendance_source CHECK (source IN ('WEB', 'H5', 'API')),
+    CONSTRAINT uk_attendance_user_date UNIQUE (tenant_id, user_id, clock_date)
+);
+
+CREATE INDEX IF NOT EXISTS idx_attendance_user_date
+    ON attendance_record(tenant_id, user_id, clock_date DESC);
+CREATE INDEX IF NOT EXISTS idx_attendance_date_status
+    ON attendance_record(tenant_id, clock_date, status);
+
+CREATE TABLE IF NOT EXISTS attendance_reissue (
+    id                  BIGSERIAL PRIMARY KEY,
+    tenant_id           BIGINT NOT NULL REFERENCES tenant(id) ON DELETE RESTRICT,
+    applicant_user_id   BIGINT NOT NULL REFERENCES app_user(id) ON DELETE RESTRICT,
+    approver_user_id    BIGINT REFERENCES app_user(id) ON DELETE SET NULL,
+    clock_date          DATE NOT NULL,
+    clock_type          VARCHAR(10) NOT NULL,
+    reason              VARCHAR(500) NOT NULL,
+    status              VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+    approver_comment    VARCHAR(500),
+    submitted_at        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    decided_at          TIMESTAMP,
+    created_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT ck_reissue_clock_type CHECK (clock_type IN ('CLOCK_IN', 'CLOCK_OUT')),
+    CONSTRAINT ck_reissue_status CHECK (status IN ('PENDING', 'APPROVED', 'REJECTED', 'WITHDRAWN'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_reissue_applicant_status
+    ON attendance_reissue(tenant_id, applicant_user_id, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_reissue_approver_status
+    ON attendance_reissue(tenant_id, approver_user_id, status, submitted_at DESC);
 
 INSERT INTO workflow_definition(tenant_id, code, name, business_type, version)
 SELECT id, 'LEAVE_SINGLE_APPROVAL', '请假单级审批', 'LEAVE_APPLICATION', 1
