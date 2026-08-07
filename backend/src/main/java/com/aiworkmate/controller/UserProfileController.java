@@ -2,6 +2,7 @@ package com.aiworkmate.controller;
 
 import com.aiworkmate.common.Result;
 import com.aiworkmate.dto.AuthUserResponse;
+import com.aiworkmate.dto.ChangePasswordRequest;
 import com.aiworkmate.dto.UpdateProfileRequest;
 import com.aiworkmate.dto.WallpaperResponse;
 import com.aiworkmate.security.AuthenticatedUser;
@@ -34,6 +35,13 @@ public class UserProfileController {
     public Result<AuthUserResponse> update(@Valid @RequestBody UpdateProfileRequest request,
                                            @AuthenticationPrincipal AuthenticatedUser user) {
         return Result.ok(userProfileService.update(user.userId(), request));
+    }
+
+    @PostMapping("/password")
+    public Result<Void> changePassword(@Valid @RequestBody ChangePasswordRequest request,
+                                       @AuthenticationPrincipal AuthenticatedUser user) {
+        userProfileService.changePassword(user.userId(), request);
+        return Result.ok();
     }
 
     @PostMapping(value = "/avatar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

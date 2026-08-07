@@ -1,6 +1,10 @@
 export default {
   title: 'Profile settings',
   okText: 'Save profile',
+  tabs: {
+    profile: 'Profile',
+    password: 'Change password',
+  },
   avatar: {
     select: 'Select avatar',
     remove: 'Remove',
@@ -16,12 +20,28 @@ export default {
   validation: {
     nameRequired: 'Please enter your name',
     nameTooLong: 'Name cannot exceed {{max}} characters',
+    newPasswordRequired: 'Please enter the new password',
+  },
+  password: {
+    oldPassword: 'Current password',
+    oldPlaceholder: 'Enter your current password',
+    oldRequired: 'Please enter your current password',
+    newPassword: 'New password',
+    newPlaceholder: 'Enter the new password',
+    confirmPassword: 'Confirm new password',
+    confirmPlaceholder: 'Re-enter the new password',
+    confirmRequired: 'Please re-enter the new password',
+    mismatch: 'The two passwords do not match',
+    policyHint: '8-32 characters, must contain both letters and digits, no spaces',
+    submit: 'Change password',
   },
   message: {
     profileUpdated: 'Profile updated',
     profileUpdateFailed: 'Failed to update profile',
     avatarRemoved: 'Avatar removed',
     avatarRemoveFailed: 'Failed to remove avatar',
+    passwordChanged: 'Password changed',
+    passwordChangeFailed: 'Failed to change password',
   },
   crop: {
     title: 'Crop wallpaper',

@@ -13,16 +13,16 @@ export interface WallpaperResponse {
   wallpaperUrl: string | null;
 }
 
-async function parse<T>(responsePromise: Promise<Response>, fallbackMessage: string): Promise<T> {
+async function parse<T>(responsePromise: Promise<Response>, fallbackMessage: string, requireData = true): Promise<T> {
   const response = await responsePromise;
   const result = await response.json().catch(() => null) as ApiResult<T> | null;
-  if (!response.ok || !result || result.code !== 200 || !result.data) {
+  if (!response.ok || !result || result.code !== 200 || (requireData && !result.data)) {
     if (response.status === 401 && typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('oa-auth-expired'));
     }
     throw new Error(result?.message || fallbackMessage);
   }
-  return result.data;
+  return result.data as T;
 }
 
 export const profileApi = {
@@ -32,6 +32,12 @@ export const profileApi = {
     headers: buildApiHeaders(),
     body: JSON.stringify({ name }),
   }), i18n.t('errors.profile.updateFailed')),
+  changePassword: (oldPassword: string, newPassword: string) => parse<void>(fetch('/api/profile/password', {
+    method: 'POST',
+    credentials: 'include',
+    headers: buildApiHeaders(),
+    body: JSON.stringify({ oldPassword, newPassword }),
+  }), i18n.t('errors.profile.passwordChangeFailed'), false),
   uploadAvatar: (file: File) => {
     const form = new FormData();
     form.append('file', file);
