@@ -265,7 +265,7 @@ if (AiModelCatalog.isMultimodal(selectedModel)) {
 3. 回归：带文本层 PDF/Word 附件（不消耗 OCR）、知识库普通文档、多模态路径
    （如配置视觉模型）不受影响。
 4. 验证命令：`cd backend && mvn test`；两个前端 `npm run lint && npm run build`；
-   `python -m py_compile deploy/ocr-service/app.py`。
+   `python -m py_compile docker/ocr-service/app.py`。
 
 ## 实施清单
 
@@ -282,12 +282,14 @@ if (AiModelCatalog.isMultimodal(selectedModel)) {
 - `i18n/messages*.properties`（修改：新增 `error.knowledge_image_no_text`）
 - `application*.yml`、`.env.example`、`.env.docker.example`（修改：`app.ocr.*`、`OCR_MAX_PAGES`）
 
-### Python 微服务（`deploy/ocr-service/`）
+### Python 微服务（`docker/ocr-service/`）
 
 - `app.py`：FastAPI + PaddleOCR（PP-OCRv4）+ PyMuPDF（PDF 逐页渲染 OCR），
   懒加载模型，`/ocr/recognize`、`/healthz`
 - `requirements.txt`（新增 `PyMuPDF`）、`Dockerfile`
-- `docker-compose.yml`：`ocr-service` 注入 `OCR_MAX_PAGES`（内网暴露，不映射公网）
+- `scripts/install-ocr.ps1`：本地可选安装到用户指定目录，安装产物不进入 Git
+- `docker-compose.yml`：`ocr-service` 位于可选 `ocr` profile，注入 `OCR_MAX_PAGES`
+  （内网暴露，不映射公网）
 
 ### 前端（`fonted-oa`）
 

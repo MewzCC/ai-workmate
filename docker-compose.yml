@@ -81,15 +81,19 @@ services:
 
   # ========== OCR 识别服务（PaddleOCR + PyMuPDF，图片/PDF） ==========
   # 仅后端内网调用，不映射公网端口；首次启动需下载模型并完成初始化
+  # OCR 为可选能力：docker compose --profile ocr up -d --build
   ocr-service:
+    profiles: ["ocr"]
     build:
-      context: ./deploy/ocr-service
+      context: ./docker/ocr-service
     container_name: aiworkmate-ocr
     environment:
       OCR_SERVICE_API_KEY: ${OCR_API_KEY:-}
       OCR_USE_GPU: ${OCR_USE_GPU:-0}
       OCR_MIN_CONFIDENCE: ${OCR_MIN_CONFIDENCE:-0.6}
       OCR_MAX_PAGES: ${OCR_MAX_PAGES:-20}
+    volumes:
+      - ocr_model_data:/app/models
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8686/healthz')"]
       interval: 30s
@@ -119,6 +123,7 @@ services:
       DB_USERNAME: ${DB_USERNAME:-postgres}
       REDIS_URL: redis://redis:6379
       MINIO_ENDPOINT: http://minio:9000
+      OCR_ENABLED: ${OCR_ENABLED:-true}
       OCR_BASE_URL: http://ocr-service:8686
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
     ports:
@@ -129,8 +134,6 @@ services:
       redis:
         condition: service_healthy
       minio:
-        condition: service_started
-      ocr-service:
         condition: service_started
     restart: unless-stopped
     deploy:
@@ -186,3 +189,4 @@ volumes:
   postgres_data:
   redis_data:
   minio_data:
+  ocr_model_data:
