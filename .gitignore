@@ -57,6 +57,7 @@ backend/src/main/resources/application-local.yaml
 # IDE / editor
 .idea/
 .vscode/
+.trae/
 .reasonix/
 reasonix.toml
 *.iml

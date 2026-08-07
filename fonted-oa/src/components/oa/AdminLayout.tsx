@@ -29,6 +29,10 @@ import AuditCenterPage from './AuditCenterPage';
 import OrganizationTreePage from './OrganizationTreePage';
 import KnowledgeBasePage from './KnowledgeBasePage';
 import SystemSettingsPage from './SystemSettingsPage';
+import AttendanceClockPage from './AttendanceClockPage';
+import AttendanceExceptionPage from './AttendanceExceptionPage';
+import AttendanceReissuePage from './AttendanceReissuePage';
+import AttendanceStatisticsPage from './AttendanceStatisticsPage';
 
 const { Content } = Layout;
 const OPEN_TABS_STORAGE_KEY = 'workmeta-oa-open-tabs';
@@ -552,6 +556,14 @@ export default function AdminLayout() {
                     <KnowledgeBasePage />
                   ) : selectedMenu.componentKey === 'SYSTEM_CONFIG' ? (
                     <SystemSettingsPage />
+                  ) : selectedMenu.componentKey === 'ATTENDANCE_CLOCK' ? (
+                    <AttendanceClockPage />
+                  ) : selectedMenu.componentKey === 'ATTENDANCE_EXCEPTION' ? (
+                    <AttendanceExceptionPage />
+                  ) : selectedMenu.componentKey === 'ATTENDANCE_REISSUE' ? (
+                    <AttendanceReissuePage />
+                  ) : selectedMenu.componentKey === 'ATTENDANCE_STATISTICS' ? (
+                    <AttendanceStatisticsPage />
                   ) : (
                     <Dashboard
                       role={role}

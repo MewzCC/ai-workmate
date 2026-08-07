@@ -68,7 +68,7 @@ function statusMessage(status: number): string {
   return i18n.t('errors.oa.statusServer');
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let res: Response;
   try {
     res = await fetch(`${BASE}${path}`, {
@@ -242,7 +242,7 @@ export interface AuditRecord {
   createdAt: string;
 }
 
-function queryString(params: Record<string, string | number | undefined>): string {
+export function queryString(params: Record<string, string | number | undefined>): string {
   const search = new URLSearchParams();
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== '') search.set(key, String(value));
