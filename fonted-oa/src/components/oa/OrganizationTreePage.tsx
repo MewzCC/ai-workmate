@@ -120,15 +120,15 @@ export default function OrganizationTreePage() {
     {
       title: t('organization.column.employee'),
       key: 'employee',
-      align: 'center',
+      width: 240,
       render: (_, emp) => (
-        <Space size={8}>
+        <div className="oa-access-user-cell">
           <Avatar size="small" src={emp.avatarUrl || undefined}>{emp.name.slice(0, 1).toUpperCase()}</Avatar>
-          <div>
-            <Typography.Text strong>{emp.name}</Typography.Text>
-            <Typography.Text type="secondary">{emp.email}</Typography.Text>
+          <div className="oa-access-user-cell__info">
+            <Typography.Text strong className="oa-access-user-cell__name">{emp.name}</Typography.Text>
+            <Typography.Text type="secondary" className="oa-access-user-cell__email">{emp.email}</Typography.Text>
           </div>
-        </Space>
+        </div>
       ),
     },
     {
@@ -149,14 +149,17 @@ export default function OrganizationTreePage() {
       title: t('organization.column.approver'),
       dataIndex: 'approverName',
       align: 'center',
+      width: 160,
       render: (name: string | undefined, emp) => {
         if (!name) return '-';
         const initial = name.slice(0, 1).toUpperCase();
         return (
-          <Space size={6}>
+          <div className="oa-access-user-cell">
             <Avatar size="small" src={emp.approverAvatarUrl || undefined}>{initial}</Avatar>
-            <Typography.Text>{name}</Typography.Text>
-          </Space>
+            <div className="oa-access-user-cell__info">
+              <Typography.Text strong className="oa-access-user-cell__name">{name}</Typography.Text>
+            </div>
+          </div>
         );
       },
     },
