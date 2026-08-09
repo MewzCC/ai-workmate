@@ -14,6 +14,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
@@ -44,12 +45,16 @@ class UserProfileServiceImplTest {
     @Mock
     private ObjectStorageService objectStorageService;
 
+    @Mock
+    private PasswordEncoder passwordEncoder;
+
     private UserProfileServiceImpl profileService;
 
     @BeforeEach
     void setUp() {
         ProfileProperties properties = new ProfileProperties();
-        profileService = new UserProfileServiceImpl(userMapper, properties, userAccessService, objectStorageService);
+        profileService = new UserProfileServiceImpl(userMapper, properties, userAccessService,
+                objectStorageService, passwordEncoder);
         org.mockito.Mockito.lenient()
                 .when(userAccessService.permissionsForRole(org.mockito.ArgumentMatchers.anyString()))
                 .thenReturn(java.util.List.of());
@@ -133,7 +138,8 @@ class UserProfileServiceImplTest {
     void shouldRejectOversizedWallpaperBeforeStorage() {
         ProfileProperties properties = new ProfileProperties();
         properties.setWallpaperMaxBytes(4);
-        profileService = new UserProfileServiceImpl(userMapper, properties, userAccessService, objectStorageService);
+        profileService = new UserProfileServiceImpl(userMapper, properties, userAccessService,
+                objectStorageService, passwordEncoder);
         MockMultipartFile file = new MockMultipartFile(
                 "file", "wallpaper.png", "image/png", ONE_PIXEL_PNG);
 

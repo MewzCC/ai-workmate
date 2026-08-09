@@ -60,6 +60,7 @@ export default {
     wallpaperLoadFailed: '壁纸加载失败',
     wallpaperUploadFailed: '壁纸上传失败',
     wallpaperDeleteFailed: '壁纸删除失败',
+    passwordChangeFailed: '密码修改失败',
   },
 
   wallpaper: {

@@ -10,6 +10,7 @@ import chat from './chat';
 import auth from './auth';
 import profile from './profile';
 import errors from './errors';
+import attendance from './attendance';
 
 const enUS = {
   common,
@@ -24,6 +25,7 @@ const enUS = {
   auth,
   profile,
   errors,
+  attendance,
 };
 
 export default enUS;

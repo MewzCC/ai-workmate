@@ -57,9 +57,9 @@ export default function LanguageSwitcher({ className }: Props) {
         aria-expanded={open}
         title={t('language.label')}
       >
-        <Languages className="h-5 w-5" />
+        <Languages className="wm-lang-globe h-5 w-5" />
         <FlagIcon locale={locale} className="wm-lang-flag" />
-        <span>{locale === 'zh-CN' ? '中' : 'EN'}</span>
+        <span className="wm-lang-short">{locale === 'zh-CN' ? '中' : 'EN'}</span>
         <ChevronDown className={`wm-lang-chevron ${open ? 'wm-lang-chevron-open' : ''}`} />
       </button>
 
