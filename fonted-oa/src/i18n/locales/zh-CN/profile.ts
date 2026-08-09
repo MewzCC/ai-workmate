@@ -1,6 +1,10 @@
 export default {
   title: '个人设置',
   okText: '保存资料',
+  tabs: {
+    profile: '个人资料',
+    password: '修改密码',
+  },
   avatar: {
     select: '选择头像',
     remove: '移除',
@@ -16,12 +20,28 @@ export default {
   validation: {
     nameRequired: '请输入姓名',
     nameTooLong: '姓名不能超过 {{max}} 个字符',
+    newPasswordRequired: '请输入新密码',
+  },
+  password: {
+    oldPassword: '当前密码',
+    oldPlaceholder: '请输入当前密码',
+    oldRequired: '请输入当前密码',
+    newPassword: '新密码',
+    newPlaceholder: '请输入新密码',
+    confirmPassword: '确认新密码',
+    confirmPlaceholder: '请再次输入新密码',
+    confirmRequired: '请再次输入新密码',
+    mismatch: '两次输入的密码不一致',
+    policyHint: '8-32 位，需同时包含字母和数字，不能包含空格',
+    submit: '修改密码',
   },
   message: {
     profileUpdated: '个人资料已更新',
     profileUpdateFailed: '个人资料更新失败',
     avatarRemoved: '头像已移除',
     avatarRemoveFailed: '头像移除失败',
+    passwordChanged: '密码已修改',
+    passwordChangeFailed: '密码修改失败',
   },
   crop: {
     title: '裁剪壁纸',

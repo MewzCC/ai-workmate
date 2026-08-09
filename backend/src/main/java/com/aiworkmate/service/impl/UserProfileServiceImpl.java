@@ -4,6 +4,7 @@ import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.common.ErrorCode;
 import com.aiworkmate.config.ProfileProperties;
 import com.aiworkmate.dto.AuthUserResponse;
+import com.aiworkmate.dto.ChangePasswordRequest;
 import com.aiworkmate.dto.UpdateProfileRequest;
 import com.aiworkmate.dto.WallpaperResponse;
 import com.aiworkmate.entity.User;
@@ -17,6 +18,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.tika.Tika;
 import org.springframework.core.io.Resource;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -52,6 +54,7 @@ public class UserProfileServiceImpl implements UserProfileService {
     private final ProfileProperties properties;
     private final UserAccessService userAccessService;
     private final ObjectStorageService objectStorageService;
+    private final PasswordEncoder passwordEncoder;
     private final Tika tika = new Tika();
 
     @Override
@@ -63,6 +66,24 @@ public class UserProfileServiceImpl implements UserProfileService {
         userMapper.updateById(user);
         log.info("User profile updated, userId={}", userId);
         return toResponse(user);
+    }
+
+    @Override
+    @Transactional
+    public void changePassword(Long userId, ChangePasswordRequest request) {
+        User user = requireActiveUser(userId);
+        String currentHash = user.getPassword();
+        if (currentHash == null || currentHash.isBlank()
+                || !passwordEncoder.matches(request.oldPassword(), currentHash)) {
+            throw new BusinessException(ErrorCode.PASSWORD_INCORRECT);
+        }
+        if (passwordEncoder.matches(request.newPassword(), currentHash)) {
+            throw new BusinessException(ErrorCode.PASSWORD_SAME_AS_OLD);
+        }
+        user.setPassword(passwordEncoder.encode(request.newPassword()));
+        user.setUpdatedAt(LocalDateTime.now());
+        userMapper.updateById(user);
+        log.info("User password changed, userId={}", userId);
     }
 
     @Override

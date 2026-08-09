@@ -60,6 +60,7 @@ export default {
     wallpaperLoadFailed: 'Failed to load wallpaper.',
     wallpaperUploadFailed: 'Failed to upload wallpaper.',
     wallpaperDeleteFailed: 'Failed to delete wallpaper.',
+    passwordChangeFailed: 'Failed to change password.',
   },
 
   wallpaper: {

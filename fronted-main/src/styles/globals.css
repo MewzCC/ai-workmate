@@ -918,7 +918,7 @@
     left: 0;
     right: 0;
     z-index: 60;
-    width: 100vw;
+    width: 100%;
     min-height: 64px;
     margin: 0 auto;
     padding: 6px clamp(16px, 4vw, 48px);
@@ -949,6 +949,14 @@
     font-size: 17px;
     font-weight: 700;
     letter-spacing: -0.025em;
+    white-space: nowrap;
+    flex: 0 1 auto;
+    min-width: 0;
+  }
+
+  .wm-brand strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .wm-mark {
@@ -2122,6 +2130,47 @@
     align-items: stretch;
     flex-direction: column;
     padding: 14px;
+  }
+}
+
+/* 极窄屏（< 420px）：顶部栏控件密度优化，防止溢出裁切 */
+@media (max-width: 420px) {
+  .wm-nav {
+    gap: 8px;
+    padding: 6px 12px;
+  }
+
+  .wm-brand {
+    font-size: 14px;
+    gap: 8px;
+  }
+
+  .wm-actions {
+    gap: 6px;
+  }
+
+  /* 语言切换：隐藏 globe 图标和 chevron，只保留国旗 + 短文字 */
+  .wm-lang-globe,
+  .wm-lang-chevron {
+    display: none;
+  }
+
+  .wm-lang-toggle {
+    padding: 0 8px;
+  }
+
+  /* 主 CTA：隐藏文字，仅保留箭头图标，靠 aria-label 暴露语义 */
+  .wm-try-nav-text {
+    display: none;
+  }
+
+  .wm-try-nav {
+    width: 32px;
+    height: 32px;
+    min-height: 32px;
+    padding: 0;
+    flex: 0 0 32px;
+    border-radius: 50%;
   }
 }
 
