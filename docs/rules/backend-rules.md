@@ -15,6 +15,7 @@
 - 修改 Spring Boot、Spring Security、JWT、MyBatis-Plus、SSE、RAG、Agent 后端能力时，读取 `docs/skills/backend-engineering-skill.md`。
 - 修改 OA AI 后端接口、`SystemController`、`AiTaskController`、`AiTaskService` 或 `AiTask*DTO` 时，必须读取 `docs/skills/oa-workbench-skill.md`。
 - 修改真实 Agent、Tool Calling、RAG 权限和提示词边界时，读取 `docs/skills/agent-engineering-skill.md`。
+- 实施 Phase 2 Tool Registry、任务引擎、Policy Guard、确认凭证或写工具时，必须读取 `docs/roadmap/phase-2-agent-security-boundary.md`。
 
 ## 分层规范
 
@@ -50,7 +51,10 @@ OA AI 接口不得再提供伪造成功的 mock 能力：
 
 - `GET /api/system/health`
 - `POST /api/ai/tasks/plan`
-- `POST /api/ai/tasks/execute`
+- `POST /api/ai/tasks/{taskId}/confirmation-token`
+- `POST /api/ai/tasks/{taskId}/execute`
+- `GET /api/ai/tasks`、`GET /api/ai/tasks/{taskId}`、`POST /api/ai/tasks/{taskId}/cancel`
+- `GET /api/ai/tasks/{taskId}/events`
 
 约束：
 
@@ -59,7 +63,8 @@ OA AI 接口不得再提供伪造成功的 mock 能力：
 - `AiTaskService` 表达 plan/execute 能力。
 - 禁止确定性 mock 数据和 fallback mock。
 - `plan` 必须基于真实能力或明确返回能力不可用。
-- `execute` 必须要求 `confirm=true`。
+- Phase 2A L0 从 PLAN_READY 原子入队；Phase 2B L1/L2 必须校验一次性 confirmationToken，不再依赖可伪造的 `confirm=true` 布尔值。
+- 当前旧 `POST /api/ai/tasks/execute` 仅允许在同版本迁移完成前存在，不得扩展新工具或保留伪成功兼容层。
 - 真实执行前必须完成鉴权、权限、幂等、审计和高风险确认。
 - 没有真实 `ChatClient`、`AI_API_KEY` 或业务依赖时必须返回可解释失败。
 - 不得伪造真实审批、真实导出、真实上传成功。
@@ -73,6 +78,9 @@ OA AI 接口不得再提供伪造成功的 mock 能力：
 - 用户只能访问自己的 conversation、message、knowledge_doc。
 - 工具调用必须白名单化，参数必须校验。
 - 模型输出不能直接执行为工具调用。
+- 工具 schema 禁止 userId、tenantId、role、permission、dataScope、任意 URL、SQL、文件路径、脚本和动态 class/bean 名称；身份与租户只能来自认证上下文。
+- Phase 2 工具不得提供任意 SQL、代码执行、文件系统、任意网络请求、权限修改、删除、批量操作、敏感导出、外部消息或后台自治能力。
+- Phase 2B 一个任务最多一个写步骤；用户确认不能替代实时权限、资源归属和领域状态校验。
 - `SecurityConfig` 仅允许放行：
   - `/api/auth/**`
   - `/api/system/**`

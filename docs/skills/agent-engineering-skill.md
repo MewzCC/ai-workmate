@@ -6,6 +6,8 @@
 
 如果任务涉及 OA AI 操作面板、AI plan/execute、AI 动作权限、AI 审计时间线，请同时读取 `docs/skills/oa-workbench-skill.md`。
 
+如果任务涉及 Phase 2 Tool Registry、任务引擎、Policy Guard、确认凭证或写工具，必须同时完整读取 `docs/roadmap/phase-2-agent-security-boundary.md`，其安全不变量优先于 Prompt、数据库配置和业务便利性。
+
 ## Agent 设计模板
 
 新增 Agent 前先写清楚：
@@ -70,6 +72,14 @@ OA AI 必须作为受控企业助手能力接入，不得伪造执行结果：
 6. 执行工具。
 7. 把工具结果压缩成模型可用上下文。
 8. 输出用户可理解结果。
+
+## Phase 2 自治上限
+
+- Phase 2A 最高为 A1 受控只读。
+- Phase 2B 最高为 A2 单一受控写入，一个任务最多一个写步骤。
+- 禁止循环规划、递归工具调用、后台自治、任意 SQL/代码/文件/URL、权限修改、删除、批量操作、敏感导出和外部消息。
+- 用户确认不是授权，工具执行前必须重新解析实时权限和资源归属。
+- Vibe Coding 生成代码必须经过失败路径测试和人工安全评审，生成 Agent 不得自行批准写工具上线。
 
 ## Prompt 要求
 

@@ -54,6 +54,7 @@ if errorlevel 1 (
 )
 
 REM ---------- Optional OCR ----------
+echo [CHECK] Checking optional OCR installation. Please wait...
 call :prepare_optional_ocr
 
 REM ---------- Service tabs ----------
@@ -83,36 +84,54 @@ set "OCR_SERVICE="
 if exist "%OCR_PATH_FILE%" set /p "OCR_SERVICE="<"%OCR_PATH_FILE%"
 
 if not defined OCR_SERVICE goto offer_ocr_install
+echo [OCR] Found installation path: !OCR_SERVICE!
 set "OCR_PY=%OCR_SERVICE%\.venv\Scripts\python.exe"
 if not exist "%OCR_PY%" goto offer_ocr_repair
 if not exist "%OCR_SERVICE%\app.py" goto offer_ocr_repair
 if not exist "%OCR_SERVICE%\requirements.txt" goto offer_ocr_repair
+echo [OCR] Checking installation files...
 fc /b "%OCR_SOURCE%\app.py" "%OCR_SERVICE%\app.py" >nul 2>nul
 if errorlevel 1 goto offer_ocr_repair
 fc /b "%OCR_SOURCE%\requirements.txt" "%OCR_SERVICE%\requirements.txt" >nul 2>nul
 if errorlevel 1 goto offer_ocr_repair
 
+echo [OCR] Checking Python dependencies. This may take a moment...
 "%OCR_PY%" -c "import fastapi, fitz, paddle, paddleocr, PIL, uvicorn" >nul 2>nul
 if errorlevel 1 goto offer_ocr_repair
 
+echo [OCR] OCR installation verified. Checking port 8686...
 call :release_port 8686 "OCR"
-if errorlevel 1 exit /b 0
+if errorlevel 1 (
+    echo [WARN] OCR port 8686 could not be released. OCR will be skipped.
+    exit /b 0
+)
 set "OCR_STARTED=1"
 set "OCR_BACKEND_ENABLED=true"
+echo [OCR] OCR is ready and will be started on port 8686.
 exit /b 0
 
 :offer_ocr_install
+echo [OCR] No existing installation was found.
 set "OCR_CHOICE=Y"
 set /p "OCR_CHOICE=OCR is not installed. Press Enter to install, or N to skip: "
-if /I "%OCR_CHOICE%"=="N" exit /b 0
+if /I "%OCR_CHOICE%"=="N" (
+    echo [OCR] OCR was skipped.
+    exit /b 0
+)
+echo [OCR] Opening the OCR installer in a new window...
 call :open_ocr_installer ""
 set "OCR_BACKEND_ENABLED=true"
 exit /b 0
 
 :offer_ocr_repair
+echo [OCR] The existing OCR installation is incomplete.
 set "OCR_CHOICE=Y"
 set /p "OCR_CHOICE=OCR installation is incomplete. Press Enter to repair, or N to skip: "
-if /I "%OCR_CHOICE%"=="N" exit /b 0
+if /I "%OCR_CHOICE%"=="N" (
+    echo [OCR] OCR was skipped.
+    exit /b 0
+)
+echo [OCR] Opening the OCR repair installer in a new window...
 call :open_ocr_installer "%OCR_SERVICE%"
 set "OCR_BACKEND_ENABLED=true"
 exit /b 0

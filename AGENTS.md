@@ -38,6 +38,7 @@ AI WorkMate 是企业级 AI 助手与 OA 工作台平台雏形：
 - 前端规范：`docs/rules/frontend-rules.md`
 - 后端规范：`docs/rules/backend-rules.md`
 - AI Agent 规范：`docs/rules/agent-rules.md`
+- Phase 2 Agent 安全边界：`docs/roadmap/phase-2-agent-security-boundary.md`
 - 国际化规范：`docs/rules/i18n-rules.md`
 
 ## 可用 Skills
@@ -177,8 +178,11 @@ docker compose -f docker-compose.yml up -d
 - 普通员工不得看到系统设置，不得执行审批、删除、权限修改、敏感导出等高风险 AI 操作。
 - AI Drawer 必须展示当前页面、当前角色、数据范围、可执行动作和高风险确认提示。
 - AI 计划生成调用 `POST /api/ai/tasks/plan`；接口失败时禁止本地 fallback mock，必须提示真实错误或能力不可用。
-- AI 确认执行调用 `POST /api/ai/tasks/execute`；高风险动作必须二次确认。
+- Phase 2 目标执行接口为 `POST /api/ai/tasks/{taskId}/execute`；L1/L2 先调用 `POST /api/ai/tasks/{taskId}/confirmation-token` 并进行二次确认。当前旧 `/execute` 只允许在同版本迁移完成前存在，不得继续扩展。
 - 未接真实数据库、真实审批接口、真实文件上传、真实导出或真实 LLM 时，不得模拟成功；必须明确返回能力不可用。
+- 实施 Phase 2 Tool Calling、任务引擎或写工具前必须读取 `docs/roadmap/phase-2-agent-security-boundary.md`；永久禁止能力和运行上限不得被 Prompt、数据库配置、租户配置、角色权限或二次确认覆盖。
+- Phase 2 Agent 不得拥有任意 SQL、代码执行、文件系统、任意 URL、权限修改、删除、批量操作、敏感导出、外部消息或后台自治能力。
+- Phase 2A 自治等级上限为受控只读；Phase 2B 一个任务最多一个写步骤，且写工具默认关闭，必须经过独立人工发布门。
 
 ## 新增依赖说明
 

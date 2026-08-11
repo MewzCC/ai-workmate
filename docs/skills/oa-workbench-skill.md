@@ -17,7 +17,7 @@
 - OA 菜单、角色权限、按钮权限、AI 动作权限。
 - ECharts 图表。
 - OA AI 操作面板、计划生成、确认执行、审计时间线。
-- `GET /api/system/health`、`POST /api/ai/tasks/plan`、`POST /api/ai/tasks/execute`。
+- `GET /api/system/health`、`POST /api/ai/tasks/plan` 以及 Phase 2 的 taskId 路径确认、执行、查询和 SSE 接口。
 
 ## 当前实现范围
 
@@ -32,6 +32,8 @@
 - 后端服务：`AiTaskService` 及其真实实现。
 
 AI plan/execute 不再允许 mock 成功；未接入真实数据库、审批系统、文件上传、导出或 LLM 时，必须明确失败并提示当前能力不可用。
+
+实施 Phase 2 Tool Registry、持久任务引擎、确认凭证或写工具时，必须同时读取 `docs/roadmap/phase-2-agent-security-boundary.md`。Phase 2A 只允许受控只读；Phase 2B 一个任务最多一个写步骤，永久禁止能力不得因前端确认或高权限角色解除。
 
 ## 首页与 OA 端口切分
 
@@ -198,10 +200,12 @@ AI 计划生成：
 
 AI 确认执行：
 
-- 调用 `POST /api/ai/tasks/execute`。
+- Phase 2 调用 `POST /api/ai/tasks/{taskId}/execute`；L1/L2 在用户确认后先调用 `POST /api/ai/tasks/{taskId}/confirmation-token`。
 - 高风险操作必须使用 `Modal.confirm` 二次确认。
 - 执行完成后更新首页 Timeline 或审计记录。
 - 普通员工敏感操作必须在前端拦截，不调用 execute。
+- 前端拦截和 `Modal.confirm` 只用于降低误操作，不是安全边界；服务端仍需在凭证签发、execute 和 Worker 执行前实时鉴权。
+- confirmationToken 只允许保存在当前组件内存，禁止写入 localStorage、URL、日志或 SSE。
 
 ## 后端实现规范
 
@@ -215,7 +219,12 @@ AI 确认执行：
 - `PUT /api/admin/access-control/roles/{roleCode}/permissions`
 - `PUT /api/admin/access-control/routes/{routeKey}`
 - `POST /api/ai/tasks/plan`
-- `POST /api/ai/tasks/execute`
+- `POST /api/ai/tasks/{taskId}/confirmation-token`
+- `POST /api/ai/tasks/{taskId}/execute`
+- `GET /api/ai/tasks`
+- `GET /api/ai/tasks/{taskId}`
+- `POST /api/ai/tasks/{taskId}/cancel`
+- `GET /api/ai/tasks/{taskId}/events`
 
 实现边界：
 
