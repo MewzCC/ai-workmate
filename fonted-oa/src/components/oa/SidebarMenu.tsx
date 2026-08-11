@@ -1,13 +1,15 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
+  SearchOutlined,
+  CloseOutlined,
 } from '@ant-design/icons';
-import { Button, Layout, Menu } from 'antd';
+import { Button, Input, Layout, Menu } from 'antd';
 import type { MenuProps } from 'antd';
 import type { OaMenuItem } from '@/types/oa';
 import { OaIcon, resolveOaMenuIcon } from '@/components/OaIcon';
@@ -63,6 +65,21 @@ function isPageReload(): boolean {
   return navigation?.type === 'reload';
 }
 
+// Flatten all page menus into a flat list for search
+function flattenMenus(menus: OaMenuItem[]): OaMenuItem[] {
+  return menus.flatMap((m) => [
+    ...(m.type === 'page' ? [m] : []),
+    ...flattenMenus(m.children || []),
+  ]);
+}
+
+// Case-insensitive match against label and name
+function menuMatches(menu: OaMenuItem, keyword: string, t: TFunction): boolean {
+  const label = t(`oa.menu.${menu.id}`, { defaultValue: menu.name });
+  const lower = keyword.toLowerCase();
+  return label.toLowerCase().includes(lower) || menu.name.toLowerCase().includes(lower);
+}
+
 export default function SidebarMenu({
   menus,
   selectedKey,
@@ -75,6 +92,9 @@ export default function SidebarMenu({
   const [openKeys, setOpenKeys] = useState<string[]>([]);
   const initialized = useRef(false);
   const lastSelectedKey = useRef(initialSelectedKey);
+  const [searchExpanded, setSearchExpanded] = useState(false);
+  const [searchKeyword, setSearchKeyword] = useState('');
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (initialized.current || !menus.length) return;
@@ -95,6 +115,34 @@ export default function SidebarMenu({
   const changeOpenKeys: MenuProps['onOpenChange'] = (keys) => {
     setOpenKeys(keys.map(String));
   };
+
+  const toggleSearch = useCallback(() => {
+    if (collapsed) {
+      onCollapse(false);
+      setSearchExpanded(true);
+      setTimeout(() => searchInputRef.current?.focus(), 140);
+      return;
+    }
+    setSearchExpanded((prev) => {
+      const next = !prev;
+      if (next) {
+        setTimeout(() => searchInputRef.current?.focus(), 80);
+      } else {
+        setSearchKeyword('');
+      }
+      return next;
+    });
+  }, [collapsed, onCollapse]);
+
+  const matchedMenus = searchKeyword.trim()
+    ? flattenMenus(menus).filter((m) => menuMatches(m, searchKeyword.trim(), t))
+    : [];
+
+  const handleSearchResultClick = useCallback((menu: OaMenuItem) => {
+    onSelect(menu);
+    setSearchExpanded(false);
+    setSearchKeyword('');
+  }, [onSelect]);
 
   return (
     <Sider
@@ -125,6 +173,56 @@ export default function SidebarMenu({
         <span className="oa-collapse-btn-text">{!collapsed && t('oa.sidebar.collapse')}</span>
       </Button>
 
+      {searchExpanded && !collapsed ? (
+        <div className="oa-sidebar-search-expanded">
+          <Input
+            ref={searchInputRef as any}
+            className="oa-sidebar-search-input"
+            prefix={<SearchOutlined className="oa-sidebar-search-icon" />}
+            suffix={<CloseOutlined className="oa-sidebar-search-close" onClick={toggleSearch} />}
+            placeholder={t('oa.sidebar.searchPlaceholder')}
+            allowClear
+            value={searchKeyword}
+            onChange={(e) => setSearchKeyword(e.target.value)}
+            onPressEnter={() => {
+              if (matchedMenus.length) handleSearchResultClick(matchedMenus[0]);
+            }}
+          />
+          {matchedMenus.length > 0 && (
+            <div className="oa-sidebar-search-results">
+              {matchedMenus.map((menu) => {
+                const resultIcon = resolveOaMenuIcon(menu.id, menu.icon);
+                return (
+                  <div
+                    key={menu.id}
+                    className={`oa-sidebar-search-result-item ${menu.id === selectedKey ? 'is-active' : ''}`}
+                    onClick={() => handleSearchResultClick(menu)}
+                  >
+                    {resultIcon && <span className="oa-sidebar-search-result-icon"><OaIcon name={resultIcon} size={14} /></span>}
+                    <span>{t(`oa.menu.${menu.id}`, { defaultValue: menu.name })}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {searchKeyword.trim() && matchedMenus.length === 0 && (
+            <div className="oa-sidebar-search-empty">
+              {t('oa.sidebar.searchEmpty')}
+            </div>
+          )}
+        </div>
+      ) : (
+        <Button
+          className="oa-collapse-btn"
+          type="text"
+          icon={<SearchOutlined />}
+          onClick={toggleSearch}
+          block
+        >
+          <span className="oa-collapse-btn-text">{!collapsed && t('oa.sidebar.search')}</span>
+        </Button>
+      )}
+
       <Menu
         mode="inline"
         theme="dark"
@@ -142,3 +240,4 @@ export default function SidebarMenu({
     </Sider>
   );
 }
+

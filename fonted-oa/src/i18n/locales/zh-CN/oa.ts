@@ -88,6 +88,9 @@ export default {
     collapse: '收起菜单',
     brand: 'WorkMate OA',
     brandSub: '企业控制台',
+    search: '搜索',
+    searchPlaceholder: '搜索菜单…',
+    searchEmpty: '未找到匹配菜单',
   },
 
   // 菜单项翻译：key 对应后端 rbac_route.routeKey，
