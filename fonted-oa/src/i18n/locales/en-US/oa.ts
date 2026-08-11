@@ -88,6 +88,9 @@ export default {
     collapse: 'Collapse menu',
     brand: 'WorkMate OA',
     brandSub: 'Enterprise Console',
+    search: 'Search',
+    searchPlaceholder: 'Search menus…',
+    searchEmpty: 'No matching menu found',
   },
 
   // Menu item translations: keys map to backend rbac_route.routeKey.
