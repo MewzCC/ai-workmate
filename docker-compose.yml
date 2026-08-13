@@ -1,11 +1,16 @@
 # 一键部署 AI WorkMate：基础设施 + 后端 + 两个前端
 # 用法：
-#   1. 复制 .env.docker.example 为 .env，填入生产密钥
-#      cp .env.docker.example .env
-#   2. docker compose up -d --build
-#   3. 访问 http://<host>:3000（主站）、http://<host>:3001/oa/（OA）
+#   1. 复制 .env.docker.example 为 .env.docker，填入生产密钥
+#      cp .env.docker.example .env.docker
+#   2. docker compose --env-file .env.docker up -d --build
+#   3. 访问 http://<host>:3000（主站）、http://<host>:3001/oa/（OA 分端口形态）
+#      或同端口反代形态：外部 nginx 用 location /oa/ 转发到 fonted-oa 容器，
+#      主站"立即尝试"按钮跳 /oa/（在 .env.docker 设 VITE_OA_URL=/oa/）
 # 端口约定（与 AGENTS.md 一致）：主站 3000、OA 3001、后端 8080、基础设施按需暴露
-# 注意：Docker 部署会覆盖本地开发的 .env，本地开发时请从 .env.example 重新复制。
+# 注意：必须用 --env-file .env.docker 启动。docker compose 的变量插值默认只读
+#       同目录 .env，不读 .env.docker；不加该参数时 .env.docker 里的 VITE_OA_URL
+#       等构建期变量无法注入 fronted-main 镜像（backend 运行时变量靠 env_file 不受影响）。
+#       本地开发时请从 .env.example 重新复制，不要复用 .env.docker。
 
 services:
   # ========== 基础设施 ==========
@@ -113,8 +118,8 @@ services:
     build:
       context: ./backend
     container_name: aiworkmate-backend
-    # 从根目录 .env.docker 读取配置注入容器
-    # 注意：docker compose 默认还会读取 .env 做变量插值，如需隔离可在命令行指定 --env-file .env.docker
+    # 从根目录 .env.docker 读取配置注入容器运行时环境（env_file 仅影响容器启动环境，
+    # 不参与 build args 变量插值；fronted-main 的构建期变量需靠顶部 --env-file .env.docker 注入）
     env_file:
       - .env.docker
     environment:
@@ -153,6 +158,7 @@ services:
         # 留空：主站 3000 / OA 3001 分离部署，代码按 hostname 自动拼 3001
         # 同端口反代场景：设为 /oa/（外部 nginx 用 location /oa/ 转发到 fonted-oa 容器）
         # 独立域名部署：设为完整 URL，如 https://oa.example.com/oa/
+        # 此变量来自 .env.docker，必须用 docker compose --env-file .env.docker 启动才会注入
         VITE_OA_URL: ${VITE_OA_URL:-}
     container_name: aiworkmate-main
     ports:
