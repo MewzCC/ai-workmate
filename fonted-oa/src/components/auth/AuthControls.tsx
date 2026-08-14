@@ -113,3 +113,14 @@ export function GlassTabs({ active, onChange }: { active: 'login' | 'register'; 
     </div>
   );
 }
+
+export function LoginModeTabs({ active, onChange }: { active: 'password' | 'code'; onChange: (value: 'password' | 'code') => void }) {
+  const { t } = useTranslation();
+  return (
+    <div className={`auth-login-tabs ${active === 'code' ? 'is-code' : ''}`} role="tablist" aria-label={t('auth.aria.loginMethod')}>
+      <span className="auth-login-indicator" aria-hidden="true" />
+      <Button type="text" role="tab" aria-selected={active === 'password'} onClick={() => onChange('password')}>{t('auth.loginMode.password')}</Button>
+      <Button type="text" role="tab" aria-selected={active === 'code'} onClick={() => onChange('code')}>{t('auth.loginMode.code')}</Button>
+    </div>
+  );
+}

@@ -6,6 +6,34 @@
   "description": "",
   "glyphs": [
     {
+      "icon_id": "48326202",
+      "name": "attendance-statistics",
+      "font_class": "attendance-statistics",
+      "unicode": "e648",
+      "unicode_decimal": 58952
+    },
+    {
+      "icon_id": "48326203",
+      "name": "attendance-reissue",
+      "font_class": "attendance-reissue",
+      "unicode": "e649",
+      "unicode_decimal": 58953
+    },
+    {
+      "icon_id": "48326201",
+      "name": "attendance-clock",
+      "font_class": "attendance-clock",
+      "unicode": "e64a",
+      "unicode_decimal": 58954
+    },
+    {
+      "icon_id": "48326200",
+      "name": "attendance-exception",
+      "font_class": "attendance-exception",
+      "unicode": "e64b",
+      "unicode_decimal": 58955
+    },
+    {
       "icon_id": "48169002",
       "name": "data-permission",
       "font_class": "data-permission",

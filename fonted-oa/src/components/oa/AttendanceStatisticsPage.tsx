@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Card, DatePicker, Empty, Space, Spin, Statistic, Table } from 'antd';
+import { Card, DatePicker, Empty, Spin, Statistic, Table } from 'antd';
 import { message } from '@/lib/antdMessage';
 import { useTranslation } from 'react-i18next';
 import dayjs from 'dayjs';
@@ -14,6 +14,7 @@ import {
 } from '@/lib/attendanceApi';
 import { formatOaApiError } from '@/lib/oaApi';
 import { useAuth } from '@/components/auth/AuthProvider';
+import AttendancePageShell from './AttendancePageShell';
 
 export default function AttendanceStatisticsPage() {
   const { t } = useTranslation();
@@ -80,27 +81,33 @@ export default function AttendanceStatisticsPage() {
   ];
 
   return (
-    <Spin spinning={loading}>
-      <Space orientation="vertical" size="large" style={{ width: '100%' }}>
+    <AttendancePageShell
+      eyebrow={t('attendance.eyebrow')}
+      title={t('attendance.statistics.title')}
+      description={t('attendance.statistics.description')}
+      actions={(
+        <DatePicker
+          picker="month"
+          value={month}
+          onChange={(val) => {
+            if (val) {
+              setMonth(val);
+              load(val);
+            }
+          }}
+          allowClear={false}
+        />
+      )}
+    >
+      <Spin spinning={loading}>
+        <div className="oa-attendance-stack">
         <Card
+          className="oa-attendance-card"
           title={t('attendance.statistics.title')}
           variant="outlined"
-          extra={
-            <DatePicker
-              picker="month"
-              value={month}
-              onChange={(val) => {
-                if (val) {
-                  setMonth(val);
-                  load(val);
-                }
-              }}
-              allowClear={false}
-            />
-          }
         >
           {stats?.personal ? (
-            <Space size="large" wrap>
+            <div className="oa-attendance-metrics">
               <Statistic
                 title={t('attendance.statistics.totalDays')}
                 value={stats.personal.totalDays}
@@ -130,7 +137,7 @@ export default function AttendanceStatisticsPage() {
                 value={stats.personal.pendingReissueCount}
                 valueStyle={{ color: stats.personal.pendingReissueCount > 0 ? '#1677ff' : undefined }}
               />
-            </Space>
+            </div>
           ) : (
             <Empty description={t('attendance.common.noData')} />
           )}
@@ -148,7 +155,8 @@ export default function AttendanceStatisticsPage() {
             />
           </Card>
         )}
-      </Space>
-    </Spin>
+        </div>
+      </Spin>
+    </AttendancePageShell>
   );
 }

@@ -21,10 +21,12 @@ import {
   EmailCodeInput,
   FormInput,
   GlassTabs,
+  LoginModeTabs,
   PasswordInput,
   PasswordStrength,
   PASSWORD_PATTERN,
 } from './AuthControls';
+import { AuthLegalDocument, type LegalDocumentType } from './AuthLegalDocument';
 
 type MainMode = 'login' | 'register';
 type LoginMode = 'password' | 'code';
@@ -62,6 +64,7 @@ export default function AuthPage() {
   const [resetStep, setResetStep] = useState<0 | 1 | 2>(0);
   const [registerPassword, setRegisterPassword] = useState('');
   const [requestId, setRequestId] = useState(() => uuid());
+  const [legalDocument, setLegalDocument] = useState<LegalDocumentType | null>(null);
   const [passwordForm] = Form.useForm<PasswordLoginValues>();
   const [codeForm] = Form.useForm<CodeLoginValues>();
   const [registerForm] = Form.useForm<RegisterValues>();
@@ -221,10 +224,7 @@ export default function AuthPage() {
           <GlassTabs active={mainMode} onChange={switchMainMode} />
 
           {mainMode === 'login' && view === 'account' && <>
-            <div className="auth-login-tabs">
-              <Button type="text" className={loginMode === 'password' ? 'active' : ''} onClick={() => { setLoginMode('password'); setError(''); }}>{t('auth.loginMode.password')}</Button>
-              <Button type="text" className={loginMode === 'code' ? 'active' : ''} onClick={() => { setLoginMode('code'); setError(''); }}>{t('auth.loginMode.code')}</Button>
-            </div>
+            <LoginModeTabs active={loginMode} onChange={(mode) => { setLoginMode(mode); setError(''); }} />
             {loginMode === 'password' ? <Form form={passwordForm} layout="vertical" initialValues={{ remember: true }} onFinish={submitPasswordLogin} requiredMark={false}>
               <Form.Item label={t('auth.field.email')} name="email" rules={[{ required: true, type: 'email', message: t('auth.validation.emailInvalid') }]}><FormInput placeholder="name@company.com" autoComplete="email" /></Form.Item>
               <Form.Item label={t('auth.field.password')} name="password" rules={[{ required: true, message: t('auth.validation.passwordRequired') }]}><PasswordInput placeholder={t('auth.field.passwordPlaceholder')} autoComplete="current-password" /></Form.Item>
@@ -249,7 +249,16 @@ export default function AuthPage() {
             <Form.Item label={t('auth.field.setName')} name="password" rules={[{ required: true, message: t('auth.validation.setPasswordRequired') }, { pattern: PASSWORD_PATTERN, message: t('auth.passwordRuleMessage') }]}><PasswordInput placeholder={t('auth.field.passwordSetPlaceholder')} onChange={(event) => setRegisterPassword(event.target.value)} /></Form.Item>
             <PasswordStrength value={registerPassword} />
             <Form.Item label={t('auth.field.confirmPassword')} name="confirmPassword" dependencies={['password']} rules={[{ required: true }, ({ getFieldValue }) => ({ validator(_, value) { return !value || getFieldValue('password') === value ? Promise.resolve() : Promise.reject(new Error(t('auth.validation.passwordMismatch'))); } })]}><PasswordInput placeholder={t('auth.field.confirmPasswordPlaceholder')} /></Form.Item>
-            <Form.Item name="agreement" valuePropName="checked" rules={[{ validator: (_, value) => value ? Promise.resolve() : Promise.reject(new Error(t('auth.validation.agreementRequired'))) }]}><Checkbox>{t('auth.copy.agreement')}</Checkbox></Form.Item>
+            <Form.Item className="auth-agreement-item" name="agreement" valuePropName="checked" rules={[{ validator: (_, value) => value ? Promise.resolve() : Promise.reject(new Error(t('auth.validation.agreementRequired'))) }]}>
+              <Checkbox>
+                <span className="auth-agreement-copy">
+                  {t('auth.copy.agreementPrefix')}
+                  <Button type="link" onClick={(event) => { event.preventDefault(); event.stopPropagation(); setLegalDocument('service'); }}>{t('auth.legal.serviceLink')}</Button>
+                  {t('auth.copy.agreementConnector')}
+                  <Button type="link" onClick={(event) => { event.preventDefault(); event.stopPropagation(); setLegalDocument('privacy'); }}>{t('auth.legal.privacyLink')}</Button>
+                </span>
+              </Checkbox>
+            </Form.Item>
             <AuthNotice>{error}</AuthNotice><Button htmlType="submit" type="primary" block size="large" loading={submitting}>{t('auth.button.createAccount')}</Button>
             <p className="auth-switch-copy">{t('auth.copy.hasAccount')}<Button type="link" onClick={() => switchMainMode('login')}>{t('auth.button.backToLogin')}</Button></p>
           </Form>}
@@ -287,6 +296,17 @@ export default function AuthPage() {
             onRefresh={() => { setCaptchaCode(''); setCaptchaError(''); void loadCaptcha(); }}
           />
           <AuthNotice>{captchaError}</AuthNotice>
+        </Modal>
+        <Modal
+          className="auth-legal-modal"
+          width={720}
+          title={legalDocument ? t(`auth.legal.${legalDocument}.title`) : undefined}
+          open={legalDocument !== null}
+          footer={<Button type="primary" onClick={() => setLegalDocument(null)}>{t('auth.legal.acknowledge')}</Button>}
+          onCancel={() => setLegalDocument(null)}
+          destroyOnHidden
+        >
+          {legalDocument && <AuthLegalDocument type={legalDocument} />}
         </Modal>
       </main>
     </ConfigProvider>

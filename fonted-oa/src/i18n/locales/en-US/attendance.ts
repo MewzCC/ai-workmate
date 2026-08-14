@@ -1,4 +1,5 @@
 export default {
+  eyebrow: 'TIME · ATTENDANCE · APPROVAL',
   common: {
     date: 'Date',
     status: 'Status',
@@ -12,6 +13,8 @@ export default {
     noData: 'No data',
   },
   clock: {
+    title: 'Attendance Clock',
+    description: 'Clock in and out each workday and review your recent seven-day attendance history.',
     todayStatus: 'Today Status',
     clockIn: 'Clock In',
     clockOut: 'Clock Out',
@@ -31,8 +34,12 @@ export default {
   },
   exception: {
     title: 'Attendance Exceptions',
+    description: 'Review late arrivals, early departures, and missing punches within a selected period.',
+    listTitle: 'Exception Records',
   },
   reissue: {
+    title: 'Punch Correction',
+    description: 'Submit missing-punch corrections and track your requests and pending approvals.',
     myApplications: 'My Applications',
     pendingApproval: 'Pending Approval',
     create: 'New Reissue Request',
@@ -64,6 +71,7 @@ export default {
   },
   statistics: {
     title: 'Attendance Statistics',
+    description: 'Summarize monthly personal and team attendance and identify exception trends.',
     teamTitle: 'Team Attendance',
     totalDays: 'Total Days',
     normalDays: 'Normal Days',
