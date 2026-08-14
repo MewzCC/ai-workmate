@@ -1,8 +1,10 @@
 export default {
   title: '组织架构',
+  eyebrow: '人员 · 组织 · 审批关系',
   description: '直观展示部门层级关系与员工分布，点击架构图中的部门卡片可筛选下方员工列表。',
   loadFailed: '组织架构加载失败',
   stats: {
+    summary: '组织概览',
     departments: '部门总数',
     employees: '员工总数',
     active: '在岗人数',
@@ -10,12 +12,18 @@ export default {
   },
   graph: {
     cardTitle: '部门架构图',
+    description: '查看层级关系并点击部门筛选成员',
     hint: 'Ctrl + 滚轮缩放 · 拖拽移动 · 点击节点筛选员工 · 共 {{count}} 个部门',
     empty: '暂无部门数据',
     loading: '加载架构图…',
     virtualRoot: '集团',
     employeeCountBadge: '{{count}} 人',
     childrenCountBadge: '{{count}} 子部门',
+  },
+  members: {
+    title: '组织成员',
+    description: '按部门、姓名或邮箱快速定位成员',
+    empty: '当前筛选条件下暂无成员',
   },
   filter: {
     departmentPlaceholder: '按部门筛选',

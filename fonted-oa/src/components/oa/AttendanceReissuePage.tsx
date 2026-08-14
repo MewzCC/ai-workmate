@@ -239,8 +239,9 @@ export default function AttendanceReissuePage() {
   ];
 
   return (
-    <Spin spinning={loading}>
-      <Card variant="outlined">
+    <div className="oa-fill-page">
+      <Spin spinning={loading}>
+      <Card className="oa-fill-card" variant="outlined">
         <Tabs
           activeKey={activeTab}
           onChange={handleTabChange}
@@ -389,6 +390,7 @@ export default function AttendanceReissuePage() {
           </Form.Item>
         </Form>
       </Modal>
-    </Spin>
+      </Spin>
+    </div>
   );
 }

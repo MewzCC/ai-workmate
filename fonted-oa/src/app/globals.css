@@ -135,7 +135,7 @@
 @media (max-width: 620px) { .auth-page { align-items: start; padding: max(10px,env(safe-area-inset-top)) 10px max(10px,env(safe-area-inset-bottom)); overflow-y: auto; } .auth-card { width: 100%; max-height: none; padding: 25px 20px 20px; border-radius: 22px; transform: none; } .auth-heading { margin: 20px 0; } .auth-heading h1 { font-size: 27px; } .auth-brand small { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .auth-card .ant-input { font-size: 16px; } .auth-form-grid { grid-template-columns: 1fr; gap: 0; } .auth-code-row, .auth-captcha-row { grid-template-columns: minmax(0,1fr) 124px; } .auth-social { grid-template-columns: 1fr; } .auth-social .ant-btn { min-height: 44px; } }
 @media (prefers-reduced-motion: reduce) { .auth-ambient { animation: none; } .auth-tab-slider { transition: none; } }
 
-.oa-domain-page { display: grid; gap: 18px; max-width: 1480px; margin: 0 auto; }
+.oa-domain-page { display: grid; width: 100%; min-height: 100%; gap: 18px; margin: 0; }
 .oa-domain-page > * { min-width: 0; }
 .oa-domain-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
 .oa-domain-heading .ant-typography { margin-top: 0; }
@@ -148,6 +148,43 @@
 .oa-detail-actions { margin-top: 22px; }
 .oa-detail-grid .ant-timeline { margin-top: 8px; }
 .oa-wallpaper-active .oa-domain-card { background: color-mix(in srgb, var(--oa-card) 78%, transparent); backdrop-filter: blur(18px); }
+
+/* 路由页面统一占满主工作区，避免空数据时页面卡片收缩到顶部。 */
+.oa-fill-page {
+  display: flex;
+  width: 100%;
+  min-height: 100%;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+
+.oa-fill-page > .ant-spin-nested-loading,
+.oa-fill-page > .ant-spin-nested-loading > .ant-spin-container {
+  display: flex;
+  min-height: 100%;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+
+.oa-fill-card.ant-card {
+  min-height: 100%;
+  flex: 1 1 auto;
+}
+
+.oa-fill-card.ant-card > .ant-card-body,
+.oa-fill-card .ant-tabs,
+.oa-fill-card .ant-tabs-content-holder,
+.oa-fill-card .ant-tabs-content,
+.oa-fill-card .ant-tabs-tabpane-active {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+
+.oa-fill-card .ant-table-wrapper {
+  min-width: 0;
+}
 
 /* Access control · user table cell */
 .oa-access-user-cell { display: flex; align-items: center; gap: 10px; min-width: 0; }

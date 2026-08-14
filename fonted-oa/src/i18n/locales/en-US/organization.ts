@@ -1,8 +1,10 @@
 export default {
   title: 'Organization',
+  eyebrow: 'PEOPLE · STRUCTURE · APPROVAL',
   description: 'Visualize department hierarchy and employee distribution. Click a department card in the graph to filter the employee list below.',
   loadFailed: 'Failed to load organization',
   stats: {
+    summary: 'Organization overview',
     departments: 'Departments',
     employees: 'Employees',
     active: 'Active',
@@ -10,12 +12,18 @@ export default {
   },
   graph: {
     cardTitle: 'Department Structure',
+    description: 'Explore reporting lines and select a department to filter members',
     hint: 'Ctrl + scroll to zoom · Drag to pan · Click a node to filter employees · {{count}} departments',
     empty: 'No department data',
     loading: 'Loading graph…',
     virtualRoot: 'Group',
     employeeCountBadge: '{{count}}',
     childrenCountBadge: '{{count}} sub-departments',
+  },
+  members: {
+    title: 'Organization Members',
+    description: 'Find members by department, name, or email',
+    empty: 'No members match the current filters',
   },
   filter: {
     departmentPlaceholder: 'Filter by department',

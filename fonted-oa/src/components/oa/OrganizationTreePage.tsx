@@ -6,10 +6,8 @@ import {
   Badge,
   Button,
   Card,
-  Col,
   Empty,
   Input,
-  Row,
   Select,
   Space,
   Spin,
@@ -176,96 +174,125 @@ export default function OrganizationTreePage() {
 
   return (
     <section className="oa-org-page">
-      <header className="oa-domain-heading">
-        <div>
-          <Typography.Title level={3}>{t('organization.title')}</Typography.Title>
-          <Typography.Paragraph type="secondary">
-            {t('organization.description')}
-          </Typography.Paragraph>
+      <header className="oa-org-heading">
+        <div className="oa-org-heading__identity">
+          <span className="oa-org-heading__icon" aria-hidden="true">
+            <OaIcon name="organization" size={22} />
+          </span>
+          <div>
+            <Typography.Text className="oa-org-heading__eyebrow">
+              {t('organization.eyebrow')}
+            </Typography.Text>
+            <Typography.Title level={3}>{t('organization.title')}</Typography.Title>
+            <Typography.Paragraph type="secondary">
+              {t('organization.description')}
+            </Typography.Paragraph>
+          </div>
         </div>
         <Button icon={<ReloadOutlined />} onClick={() => void load()} loading={loading}>
           {t('common.refresh')}
         </Button>
       </header>
 
-      <Spin spinning={loading}>
-        <Row gutter={[16, 16]} className="oa-org-stats">
-          <Col xs={12} sm={6}>
+      <Spin spinning={loading} wrapperClassName="oa-org-loading">
+        <div className="oa-org-workspace">
+          <div className="oa-org-stats" aria-label={t('organization.stats.summary')}>
             <Card>
               <Statistic title={t('organization.stats.departments')} value={stats.departments} prefix={<OaIcon name="organization" />} />
             </Card>
-          </Col>
-          <Col xs={12} sm={6}>
             <Card>
               <Statistic title={t('organization.stats.employees')} value={stats.employees} prefix={<OaIcon name="user" />} />
             </Card>
-          </Col>
-          <Col xs={12} sm={6}>
-            <Card>
-              <Statistic title={t('organization.stats.active')} value={stats.active} valueStyle={{ color: '#52c41a' }} />
+            <Card className="oa-org-stat-active">
+              <Statistic title={t('organization.stats.active')} value={stats.active} prefix={<Badge status="success" />} />
             </Card>
-          </Col>
-          <Col xs={12} sm={6}>
             <Card>
-              <Statistic title={t('organization.stats.positions')} value={stats.positions} />
+              <Statistic title={t('organization.stats.positions')} value={stats.positions} prefix={<OaIcon name="employee-files" />} />
             </Card>
-          </Col>
-        </Row>
-
-        <Card className="oa-org-tree-card" title={t('organization.graph.cardTitle')} extra={
-          <Typography.Text type="secondary" className="oa-org-tree-hint">
-            {t('organization.graph.hint', { count: stats.departments })}
-          </Typography.Text>
-        }>
-          {departmentTree.length === 0 ? (
-            <Empty description={t('organization.graph.empty')} />
-          ) : (
-            <Suspense fallback={<Spin tip={t('organization.graph.loading')} />}>
-              <OrganizationGraph
-                data={departmentTree}
-                selectedId={selectedDepartmentId}
-                onSelect={setSelectedDepartmentId}
-                animKey={animKey}
-              />
-            </Suspense>
-          )}
-        </Card>
-
-        <Card className="oa-org-employees-card">
-          <div className="oa-access-toolbar">
-            <Space wrap>
-              <Select
-                allowClear
-                placeholder={t('organization.filter.departmentPlaceholder')}
-                style={{ width: 200 }}
-                value={selectedDepartmentId}
-                options={overview?.departments.map((dept) => ({ value: dept.id, label: dept.name })) || []}
-                onChange={(value) => setSelectedDepartmentId(value)}
-              />
-              <Input
-                allowClear
-                placeholder={t('organization.filter.searchPlaceholder')}
-                style={{ width: 240 }}
-                prefix={<SearchOutlined />}
-                value={keyword}
-                onChange={(e) => setKeyword(e.target.value)}
-              />
-              {selectedDepartmentId !== undefined && (
-                <Button type="link" onClick={() => setSelectedDepartmentId(undefined)}>
-                  {t('organization.filter.clearDepartment')}
-                </Button>
-              )}
-            </Space>
-            <Tag variant="filled">{t('organization.filter.totalEmployees', { count: filteredEmployees.length })}</Tag>
           </div>
-          <Table
-            rowKey="id"
-            columns={columns}
-            dataSource={filteredEmployees}
-            size="middle"
-            pagination={{ pageSize: 10, hideOnSinglePage: true, showSizeChanger: false }}
-          />
-        </Card>
+
+          <Card
+            className="oa-org-tree-card"
+            title={(
+              <div className="oa-org-section-title">
+                <span className="oa-org-section-title__icon"><OaIcon name="organization" /></span>
+                <span>
+                  <strong>{t('organization.graph.cardTitle')}</strong>
+                  <small>{t('organization.graph.description')}</small>
+                </span>
+              </div>
+            )}
+            extra={
+              <Typography.Text type="secondary" className="oa-org-tree-hint">
+                {t('organization.graph.hint', { count: stats.departments })}
+              </Typography.Text>
+            }
+          >
+            {departmentTree.length === 0 ? (
+              <Empty description={t('organization.graph.empty')} />
+            ) : (
+              <Suspense fallback={<Spin tip={t('organization.graph.loading')} />}>
+                <OrganizationGraph
+                  data={departmentTree}
+                  selectedId={selectedDepartmentId}
+                  onSelect={setSelectedDepartmentId}
+                  animKey={animKey}
+                />
+              </Suspense>
+            )}
+          </Card>
+
+          <Card
+            className="oa-org-employees-card"
+            title={(
+              <div className="oa-org-section-title">
+                <span className="oa-org-section-title__icon"><OaIcon name="user" /></span>
+                <span>
+                  <strong>{t('organization.members.title')}</strong>
+                  <small>{t('organization.members.description')}</small>
+                </span>
+              </div>
+            )}
+            extra={<Tag variant="filled">{t('organization.filter.totalEmployees', { count: filteredEmployees.length })}</Tag>}
+          >
+            <div className="oa-access-toolbar oa-org-member-toolbar">
+              <Space wrap>
+                <Select
+                  allowClear
+                  showSearch
+                  optionFilterProp="label"
+                  placeholder={t('organization.filter.departmentPlaceholder')}
+                  className="oa-org-department-filter"
+                  value={selectedDepartmentId}
+                  options={overview?.departments.map((dept) => ({ value: dept.id, label: dept.name })) || []}
+                  onChange={(value) => setSelectedDepartmentId(value)}
+                />
+                <Input
+                  allowClear
+                  placeholder={t('organization.filter.searchPlaceholder')}
+                  className="oa-org-employee-search"
+                  prefix={<SearchOutlined />}
+                  value={keyword}
+                  onChange={(e) => setKeyword(e.target.value)}
+                />
+                {selectedDepartmentId !== undefined && (
+                  <Button type="link" onClick={() => setSelectedDepartmentId(undefined)}>
+                    {t('organization.filter.clearDepartment')}
+                  </Button>
+                )}
+              </Space>
+            </div>
+            <Table
+              rowKey="id"
+              columns={columns}
+              dataSource={filteredEmployees}
+              size="middle"
+              scroll={{ x: 880 }}
+              pagination={{ pageSize: 10, hideOnSinglePage: true, showSizeChanger: false }}
+              locale={{ emptyText: <Empty description={t('organization.members.empty')} /> }}
+            />
+          </Card>
+        </div>
       </Spin>
     </section>
   );
