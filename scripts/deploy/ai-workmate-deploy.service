@@ -1,0 +1,12 @@
+[Unit]
+Description=AI WorkMate auto deploy
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=galangel
+WorkingDirectory=/home/galangel/galangel/ai-workmate
+Environment=REMOTE=origin
+Environment=BRANCH=main
+ExecStart=/home/galangel/galangel/ai-workmate/scripts/auto-deploy.sh
