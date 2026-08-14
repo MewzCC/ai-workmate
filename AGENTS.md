@@ -121,7 +121,17 @@ docker compose -f docker-compose.yml up -d
 - `backend/src/main/java/com/aiworkmate/dto`：请求与响应对象。
 - `backend/src/main/java/com/aiworkmate/dto/AiTask*`：OA AI 任务 plan/execute DTO。
 - `backend/src/main/java/com/aiworkmate/common`：统一响应、异常处理、公共模型。
-- `backend/src/main/resources/db/init.sql`：唯一数据库初始化与升级入口；禁止新增版本化 SQL 文件。
+- `backend/src/main/resources/db/init.sql`：历史幂等初始化脚本，仅供手工建库与 CI 幂等性校验参考；部署环境 schema 一律由 Flyway 管理，不再是自动执行入口。
+- `backend/src/main/resources/db/migration`：Flyway 版本化迁移脚本（`V*__*.sql`），数据库结构、索引与种子数据变更的唯一入口。
+
+## 数据库迁移（Flyway）
+
+- 后端启动时自动执行 Flyway 迁移，脚本位于 `backend/src/main/resources/db/migration`，命名 `V<版本>__<描述>.sql`（如 `V1__init_baseline.sql`、`V2__attendance_module.sql`）。
+- 已启用 `baseline-on-migrate: true`、`baseline-version: 0`：由旧版 `init.sql` 初始化过、尚无 schema history 的既有数据库在首次启动时自动基线，再执行剩余迁移（迁移脚本保持幂等，重复执行安全）。
+- 任何结构或种子数据变更必须新增一个 Flyway 迁移脚本，禁止修改已发布的历史 `V*__*.sql`（checksum 校验会失败）；迁移由 Flyway 统一管理事务，脚本内不要再写 `BEGIN;`/`COMMIT;`。
+- 迁移脚本与旧版 `init.sql` 的幂等约定保持一致（`IF NOT EXISTS`、`ON CONFLICT`、`ALTER ... ADD COLUMN IF NOT EXISTS`），保证新库、旧库、手工执行过 `init.sql` 的库三种场景均可安全升级。
+- docker-compose 不再把 `init.sql` 挂载到 PostgreSQL 的 `docker-entrypoint-initdb.d`，避免与 Flyway 双重复执行造成冲突。
+- 新增/变更迁移后必须在本机 PostgreSQL 空库验证：首次执行 + 重复执行均通过后再提交。
 
 ## OA 工作台约束
 

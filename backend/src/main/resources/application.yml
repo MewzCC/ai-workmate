@@ -16,6 +16,14 @@ spring:
       maximum-pool-size: 20
       minimum-idle: 5
 
+  # ========== 数据库迁移 Flyway ==========
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    # 既有数据库（由 init.sql 初始化过、无 schema history）启动时自动基线，再执行剩余迁移
+    baseline-on-migrate: true
+    baseline-version: 0
+
   # ========== Redis ==========
   data:
     redis:
