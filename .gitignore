@@ -24,7 +24,7 @@ frontend/build/
 fronted-main/build/
 fonted-oa/build/
 *.tsbuildinfo
-deploy/
+/deploy/
 __pycache__/
 *.py[cod]
 
