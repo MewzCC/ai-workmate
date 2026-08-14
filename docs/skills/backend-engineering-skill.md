@@ -74,6 +74,6 @@ OA AI 后端必须接入真实认证、权限、审计和可观测流程：
 
 ## 数据库脚本
 
-- 只维护 `backend/src/main/resources/db/init.sql`。
-- 新表、字段、索引、约束和种子数据统一追加到该文件，禁止创建版本化迁移 SQL。
-- SQL 必须支持新库初始化和旧库重复执行，优先使用事务、`IF NOT EXISTS`、条件 `DO` 块和 `ON CONFLICT`。
+- 数据库结构、索引与种子数据变更统一通过 Flyway 版本化迁移 `backend/src/main/resources/db/migration/V*__*.sql` 管理；后端启动自动执行，禁止修改已发布的历史迁移（checksum 校验会失败）。
+- 旧版 `backend/src/main/resources/db/init.sql` 保留为幂等基线参考与手工建库脚本，不再追加新结构变更。
+- 新迁移必须保持幂等，支持新库初始化和旧库重复执行，优先使用事务、`IF NOT EXISTS`、条件 `DO` 块和 `ON CONFLICT`；迁移由 Flyway 统一管理事务，脚本内不要再写 `BEGIN;`/`COMMIT;`。
