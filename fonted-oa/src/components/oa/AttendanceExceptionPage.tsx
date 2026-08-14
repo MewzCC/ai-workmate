@@ -115,8 +115,10 @@ export default function AttendanceExceptionPage() {
   ];
 
   return (
-    <Spin spinning={loading}>
+    <div className="oa-fill-page">
+      <Spin spinning={loading}>
       <Card
+        className="oa-fill-card"
         title={t('attendance.exception.title')}
         variant="outlined"
         extra={
@@ -154,6 +156,7 @@ export default function AttendanceExceptionPage() {
           locale={{ emptyText: <Empty description={t('attendance.common.noData')} /> }}
         />
       </Card>
-    </Spin>
+      </Spin>
+    </div>
   );
 }
