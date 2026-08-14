@@ -1,0 +1,9 @@
+# 强制 shell 脚本使用 LF 换行，防止 Windows 编辑器/提交引入 CRLF
+# 导致 Linux 上执行报 $'\r' 或 "bad interpreter" 错误
+*.sh text eol=lf
+*.bash text eol=lf
+
+# Dockerfile / Compose 同样保持 LF（CRLF 偶发导致解析异常）
+Dockerfile text eol=lf
+*.dockerfile text eol=lf
+docker-compose*.yml text eol=lf
