@@ -101,9 +101,10 @@ OA AI 接口不得再提供伪造成功的 mock 能力：
 
 - 新表必须包含主键、必要索引、创建时间、更新时间，或说明为什么不需要。
 - 高频查询必须建立索引。
-- 数据库只维护 `backend/src/main/resources/db/init.sql` 一个入口，禁止新增 `V*__*.sql` 或其他分散脚本。
-- 所有结构升级与种子数据变更必须合并到 `init.sql`，使用事务、`IF NOT EXISTS` 与 `ON CONFLICT` 保证可重复执行。
-- 破坏性变更必须在 `init.sql` 中提供前向兼容处理，并在对应设计文档中说明人工回滚方案。
+- 数据库结构、索引与种子数据变更的唯一入口为 Flyway 迁移脚本 `backend/src/main/resources/db/migration/V*__*.sql`，禁止修改已发布的历史迁移（checksum 校验会失败），也禁止在 `init.sql` 中追加新结构变更。
+- 新迁移必须保持幂等（`IF NOT EXISTS`、`ON CONFLICT`、`ALTER ... ADD COLUMN IF NOT EXISTS`），保证新库、旧库、手工执行过 `init.sql` 的库均可安全升级；迁移由 Flyway 统一管理事务，脚本内不要再写 `BEGIN;`/`COMMIT;`。
+- 破坏性变更必须在对应迁移脚本中提供前向兼容处理，并在对应设计文档中说明人工回滚方案。
+- 旧版 `backend/src/main/resources/db/init.sql` 仅作为幂等基线参考与手工建库脚本，不再是部署自动执行入口。
 - 避免使用 `"user"` 这类需要转义的保留字作为新表名。
 - RAG chunk 表必须包含 doc_id、chunk_index、content、embedding、metadata。
 

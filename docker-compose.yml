@@ -15,6 +15,8 @@
 services:
   # ========== 基础设施 ==========
   # PostgreSQL + pgvector
+  # schema 由后端 Flyway 在启动时自动迁移（db/migration 下的版本化脚本），
+  # 不再挂载 init.sql 到 docker-entrypoint-initdb.d，避免与 Flyway 重复执行冲突。
   postgres:
     image: pgvector/pgvector:pg16
     container_name: aiworkmate-db
@@ -26,7 +28,6 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./backend/src/main/resources/db/init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-postgres}"]
       interval: 5s
