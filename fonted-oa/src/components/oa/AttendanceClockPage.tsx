@@ -14,6 +14,7 @@ import {
   type AttendanceTodayStatus,
 } from '@/lib/attendanceApi';
 import { formatOaApiError } from '@/lib/oaApi';
+import AttendancePageShell from './AttendancePageShell';
 
 const STATUS_TAG_COLOR: Record<AttendanceStatus, string> = {
   NORMAL: 'success',
@@ -119,9 +120,14 @@ export default function AttendanceClockPage() {
   ];
 
   return (
-    <Spin spinning={loading}>
-      <Space orientation="vertical" size="large" style={{ width: '100%' }}>
-        <Card title={t('attendance.clock.todayStatus')} variant="outlined">
+    <AttendancePageShell
+      eyebrow={t('attendance.eyebrow')}
+      title={t('attendance.clock.title')}
+      description={t('attendance.clock.description')}
+    >
+      <Spin spinning={loading}>
+        <div className="oa-attendance-stack">
+          <Card className="oa-attendance-card" title={t('attendance.clock.todayStatus')} variant="outlined">
           {status ? (
             <>
               <Descriptions column={2} size="small" style={{ marginBottom: 16 }}>
@@ -182,19 +188,21 @@ export default function AttendanceClockPage() {
           ) : (
             <Empty description={t('attendance.clock.notClockedYet')} />
           )}
-        </Card>
+          </Card>
 
-        <Card title={t('attendance.clock.recentRecords')} variant="outlined">
-          <Table
-            rowKey="id"
-            columns={columns}
-            dataSource={records}
-            pagination={false}
-            size="middle"
-            locale={{ emptyText: t('attendance.common.noData') }}
-          />
-        </Card>
-      </Space>
-    </Spin>
+          <Card className="oa-attendance-card oa-attendance-card--grow" title={t('attendance.clock.recentRecords')} variant="outlined">
+            <Table
+              rowKey="id"
+              columns={columns}
+              dataSource={records}
+              pagination={false}
+              size="middle"
+              scroll={{ x: 780 }}
+              locale={{ emptyText: <Empty description={t('attendance.common.noData')} /> }}
+            />
+          </Card>
+        </div>
+      </Spin>
+    </AttendancePageShell>
   );
 }

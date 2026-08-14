@@ -412,10 +412,10 @@ VALUES
     ('audit-center', 'settings', '审计中心', '/oa/audit-center', NULL, 'PAGE', 'DASHBOARD', 'route:audit-center', 4),
     ('tenant-config', 'settings', '租户配置', '/oa/tenant-config', NULL, 'PAGE', 'DASHBOARD', 'route:tenant-config', 5),
     ('dictionary', 'settings', '数据字典', '/oa/dictionary', NULL, 'PAGE', 'DASHBOARD', 'route:dictionary', 6),
-    ('attendance-clock', 'attendance', '打卡', '/oa/attendance-clock', NULL, 'PAGE', 'ATTENDANCE_CLOCK', 'route:attendance-clock', 1),
-    ('attendance-exception', 'attendance', '异常考勤', '/oa/attendance-exception', NULL, 'PAGE', 'ATTENDANCE_EXCEPTION', 'route:attendance-exception', 2),
-    ('attendance-reissue', 'attendance', '补卡申请', '/oa/attendance-reissue', NULL, 'PAGE', 'ATTENDANCE_REISSUE', 'route:attendance-reissue', 3),
-    ('attendance-statistics', 'attendance', '考勤统计', '/oa/attendance-statistics', NULL, 'PAGE', 'ATTENDANCE_STATISTICS', 'route:attendance-statistics', 4)
+    ('attendance-clock', 'attendance', '打卡', '/oa/attendance-clock', 'attendance-clock', 'PAGE', 'ATTENDANCE_CLOCK', 'route:attendance-clock', 1),
+    ('attendance-exception', 'attendance', '异常考勤', '/oa/attendance-exception', 'attendance-exception', 'PAGE', 'ATTENDANCE_EXCEPTION', 'route:attendance-exception', 2),
+    ('attendance-reissue', 'attendance', '补卡申请', '/oa/attendance-reissue', 'attendance-reissue', 'PAGE', 'ATTENDANCE_REISSUE', 'route:attendance-reissue', 3),
+    ('attendance-statistics', 'attendance', '考勤统计', '/oa/attendance-statistics', 'attendance-statistics', 'PAGE', 'ATTENDANCE_STATISTICS', 'route:attendance-statistics', 4)
 ON CONFLICT (route_key) DO UPDATE SET
     parent_key = EXCLUDED.parent_key, name = EXCLUDED.name, path = EXCLUDED.path,
     icon = EXCLUDED.icon, route_type = EXCLUDED.route_type,

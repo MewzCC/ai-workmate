@@ -1,4 +1,5 @@
 export default {
+  eyebrow: '考勤 · 出勤 · 审批',
   common: {
     date: '日期',
     status: '状态',
@@ -12,6 +13,8 @@ export default {
     noData: '暂无数据',
   },
   clock: {
+    title: '考勤打卡',
+    description: '完成每日上下班打卡，并查看最近七天的出勤记录。',
     todayStatus: '今日打卡',
     clockIn: '上班打卡',
     clockOut: '下班打卡',
@@ -31,8 +34,12 @@ export default {
   },
   exception: {
     title: '异常考勤',
+    description: '按日期范围查看迟到、早退与缺卡记录，及时处理考勤异常。',
+    listTitle: '异常记录',
   },
   reissue: {
+    title: '补卡申请',
+    description: '提交缺卡修正申请，并跟踪本人申请与待处理审批。',
     myApplications: '我的申请',
     pendingApproval: '待我审批',
     create: '新建补卡申请',
@@ -64,6 +71,7 @@ export default {
   },
   statistics: {
     title: '考勤统计',
+    description: '汇总月度个人与团队考勤表现，快速识别异常趋势。',
     teamTitle: '团队考勤',
     totalDays: '出勤天数',
     normalDays: '正常天数',

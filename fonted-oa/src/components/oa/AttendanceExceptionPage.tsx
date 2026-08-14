@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Card, DatePicker, Empty, Space, Spin, Table, Tag } from 'antd';
+import { Card, DatePicker, Empty, Spin, Table, Tag } from 'antd';
 import { message } from '@/lib/antdMessage';
 import { useTranslation } from 'react-i18next';
 import dayjs from 'dayjs';
@@ -14,6 +14,7 @@ import {
 } from '@/lib/attendanceApi';
 import { formatOaApiError } from '@/lib/oaApi';
 import { useAuth } from '@/components/auth/AuthProvider';
+import AttendancePageShell from './AttendancePageShell';
 
 const { RangePicker } = DatePicker;
 
@@ -115,48 +116,51 @@ export default function AttendanceExceptionPage() {
   ];
 
   return (
-    <div className="oa-fill-page">
-      <Spin spinning={loading}>
-      <Card
-        className="oa-fill-card"
-        title={t('attendance.exception.title')}
-        variant="outlined"
-        extra={
-          <Space>
-            <RangePicker
-              value={range}
-              onChange={(val) => {
-                if (val && val[0] && val[1]) {
-                  const r: [Dayjs, Dayjs] = [val[0], val[1]];
-                  setRange(r);
-                  load(1, size, r);
-                }
-              }}
-              allowClear={false}
-            />
-          </Space>
-        }
-      >
-        <Table
-          rowKey="id"
-          columns={columns}
-          dataSource={records}
-          size="middle"
-          pagination={{
-            current: page,
-            pageSize: size,
-            total,
-            showSizeChanger: true,
-            onChange: (p, s) => {
-              setPage(p);
-              setSize(s);
-              load(p, s);
-            },
+    <AttendancePageShell
+      eyebrow={t('attendance.eyebrow')}
+      title={t('attendance.exception.title')}
+      description={t('attendance.exception.description')}
+      actions={(
+        <RangePicker
+          value={range}
+          onChange={(val) => {
+            if (val && val[0] && val[1]) {
+              const r: [Dayjs, Dayjs] = [val[0], val[1]];
+              setRange(r);
+              load(1, size, r);
+            }
           }}
-          locale={{ emptyText: <Empty description={t('attendance.common.noData')} /> }}
+          allowClear={false}
         />
-      </Card>
+      )}
+    >
+      <Spin spinning={loading}>
+        <Card
+          className="oa-attendance-card oa-attendance-card--fill"
+          title={t('attendance.exception.listTitle')}
+          variant="outlined"
+        >
+          <Table
+            rowKey="id"
+            columns={columns}
+            dataSource={records}
+            size="middle"
+            scroll={{ x: 900 }}
+            pagination={{
+              current: page,
+              pageSize: size,
+              total,
+              showSizeChanger: true,
+              onChange: (p, s) => {
+                setPage(p);
+                setSize(s);
+                load(p, s);
+              },
+            }}
+            locale={{ emptyText: <Empty description={t('attendance.common.noData')} /> }}
+          />
+        </Card>
       </Spin>
-    </div>
+    </AttendancePageShell>
   );
 }

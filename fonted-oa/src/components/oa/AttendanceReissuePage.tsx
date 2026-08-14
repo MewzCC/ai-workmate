@@ -10,7 +10,6 @@ import {
   Input,
   Modal,
   Select,
-  Space,
   Spin,
   Table,
   Tabs,
@@ -28,6 +27,7 @@ import {
   type AttendanceReissueStatus,
 } from '@/lib/attendanceApi';
 import { formatOaApiError } from '@/lib/oaApi';
+import AttendancePageShell from './AttendancePageShell';
 
 const STATUS_TAG_COLOR: Record<AttendanceReissueStatus, string> = {
   PENDING: 'processing',
@@ -239,9 +239,18 @@ export default function AttendanceReissuePage() {
   ];
 
   return (
-    <div className="oa-fill-page">
+    <AttendancePageShell
+      eyebrow={t('attendance.eyebrow')}
+      title={t('attendance.reissue.title')}
+      description={t('attendance.reissue.description')}
+      actions={(
+        <Button type="primary" onClick={() => setCreateOpen(true)}>
+          {t('attendance.reissue.create')}
+        </Button>
+      )}
+    >
       <Spin spinning={loading}>
-      <Card className="oa-fill-card" variant="outlined">
+        <Card className="oa-attendance-card oa-attendance-card--fill" variant="outlined">
         <Tabs
           activeKey={activeTab}
           onChange={handleTabChange}
@@ -251,11 +260,6 @@ export default function AttendanceReissuePage() {
               label: t('attendance.reissue.myApplications'),
               children: (
                 <>
-                  <Space style={{ marginBottom: 16 }}>
-                    <Button type="primary" onClick={() => setCreateOpen(true)}>
-                      {t('attendance.reissue.create')}
-                    </Button>
-                  </Space>
                   <Table
                     rowKey="id"
                     columns={mineColumns}
@@ -293,7 +297,7 @@ export default function AttendanceReissuePage() {
             },
           ]}
         />
-      </Card>
+        </Card>
 
       <Modal
         title={t('attendance.reissue.create')}
@@ -391,6 +395,6 @@ export default function AttendanceReissuePage() {
         </Form>
       </Modal>
       </Spin>
-    </div>
+    </AttendancePageShell>
   );
 }
