@@ -13,12 +13,13 @@ export default {
   graph: {
     cardTitle: '部门架构图',
     description: '查看层级关系并点击部门筛选成员',
-    hint: 'Ctrl + 滚轮缩放 · 拖拽移动 · 点击节点筛选员工 · 共 {{count}} 个部门',
+    hint: '拖拽移动 · 双指捏合或 Ctrl+滚轮缩放 · 点击节点筛选员工 · 共 {{count}} 个部门',
     empty: '暂无部门数据',
     loading: '加载架构图…',
     virtualRoot: '集团',
     employeeCountBadge: '{{count}} 人',
     childrenCountBadge: '{{count}} 子部门',
+    fitView: '适应视图',
   },
   members: {
     title: '组织成员',

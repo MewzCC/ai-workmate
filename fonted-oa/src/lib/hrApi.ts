@@ -37,6 +37,44 @@ export interface OrganizationOverview {
   employees: HrEmployee[];
 }
 
+export interface EmployeeAttendanceOverview {
+  totalDays: number;
+  normalDays: number;
+  lateDays: number;
+  earlyLeaveDays: number;
+  lateAndEarlyDays: number;
+  missingClockDays: number;
+}
+
+export interface EmployeeActivityRecord {
+  id: number;
+  type: 'LEAVE' | 'REISSUE';
+  title: string;
+  status: string;
+  startDate: string;
+  endDate: string;
+  createdAt: string | null;
+}
+
+export interface EmployeeDetail {
+  id: number;
+  name: string;
+  email: string;
+  role: string;
+  status: number;
+  avatarUrl: string | null;
+  createdAt: string | null;
+  departmentId?: number;
+  departmentName?: string | null;
+  positionId?: number;
+  positionName?: string | null;
+  approverUserId?: number;
+  approverName?: string | null;
+  approverAvatarUrl?: string | null;
+  attendance: EmployeeAttendanceOverview;
+  recentActivities: EmployeeActivityRecord[];
+}
+
 interface ApiResult<T> {
   code: number;
   message: string;
@@ -52,6 +90,20 @@ export const hrApi = {
     const json = await res.json().catch(() => null) as ApiResult<OrganizationOverview> | null;
     if (!res.ok || !json || json.code !== 200 || json.data === null) {
       throw new Error(json?.message || i18n.t('errors.hr.organizationLoadFailed'));
+    }
+    return json.data;
+  },
+  detail: async (id: number): Promise<EmployeeDetail> => {
+    const res = await fetch(`/api/hr/employees/${id}`, {
+      credentials: 'include',
+      headers: buildApiHeaders(false),
+    });
+    if (res.status === 401 && typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('oa-auth-expired'));
+    }
+    const json = await res.json().catch(() => null) as ApiResult<EmployeeDetail> | null;
+    if (!res.ok || !json || json.code !== 200 || json.data === null) {
+      throw new Error(json?.message || i18n.t('errors.hr.employeeLoadFailed'));
     }
     return json.data;
   },

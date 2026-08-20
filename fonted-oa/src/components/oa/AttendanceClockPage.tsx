@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Button, Card, Descriptions, Empty, Space, Spin, Table, Tag } from 'antd';
+import { useCallback, useEffect, useState } from 'react';
+import { Button, Card, Empty, Modal, Spin, Table, Tag } from 'antd';
 import { message } from '@/lib/antdMessage';
 import { useTranslation } from 'react-i18next';
 import dayjs from 'dayjs';
@@ -10,6 +10,7 @@ import {
   attendanceApi,
   type AttendanceClockType,
   type AttendanceRecord,
+  type AttendanceSettings,
   type AttendanceStatus,
   type AttendanceTodayStatus,
 } from '@/lib/attendanceApi';
@@ -24,44 +25,110 @@ const STATUS_TAG_COLOR: Record<AttendanceStatus, string> = {
   MISSING_CLOCK: 'error',
 };
 
+/** 取 HH:mm（兼容 ISO 字符串）。 */
+function hhmm(value?: string | null): string | null {
+  if (!value) return null;
+  const d = dayjs(value);
+  return d.isValid() ? d.format('HH:mm') : value.slice(0, 5);
+}
+
+function toMin(hhmmValue: string): number {
+  const [h, m] = hhmmValue.split(':').map(Number);
+  return h * 60 + (Number.isNaN(m) ? 0 : m);
+}
+
+function fmtMin(minutes: number): string {
+  const m = ((Math.round(minutes) % 1440) + 1440) % 1440;
+  return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+}
+
+/** 预计下班时间：弹性联动开启时 = max(实际打卡, 标准上班) + 工时；否则为标准下班时间。 */
+function expectedClockOut(clockIn: string | null, settings: AttendanceSettings): string {
+  const duration = toMin(settings.workEndTime) - toMin(settings.workStartTime);
+  if (!settings.flexLinked || !clockIn) return settings.workEndTime;
+  const base = Math.max(toMin(hhmm(clockIn) || settings.workStartTime), toMin(settings.workStartTime));
+  return fmtMin(base + duration);
+}
+
 function formatTime(value?: string | null): string {
-  if (!value) return '-';
-  return dayjs(value).format('HH:mm:ss');
+  const t = hhmm(value);
+  return t ? t : '-';
 }
 
 export default function AttendanceClockPage() {
   const { t } = useTranslation();
   const [status, setStatus] = useState<AttendanceTodayStatus | null>(null);
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
+  const [settings, setSettings] = useState<AttendanceSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [clocking, setClocking] = useState(false);
+  const [now, setNow] = useState(() => dayjs());
 
-  const loadAll = async () => {
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(dayjs()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const loadAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [today, week] = await Promise.all([
+      const [today, week, cfg] = await Promise.all([
         attendanceApi.getTodayStatus(),
         attendanceApi.listRecords({
           from: dayjs().subtract(6, 'day').format('YYYY-MM-DD'),
           to: dayjs().format('YYYY-MM-DD'),
           size: 50,
         }),
+        attendanceApi.getSettings(),
       ]);
       setStatus(today);
       setRecords(week.records);
+      setSettings(cfg);
     } catch (err) {
       message.error(formatOaApiError(err));
     } finally {
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    loadAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    void loadAll();
+  }, [loadAll]);
+
+  const askConfirm = async (content: string): Promise<boolean> =>
+    new Promise<boolean>((resolve) => {
+      Modal.confirm({
+        title: t('attendance.clock.confirmTitle'),
+        content,
+        okText: t('common.confirm'),
+        cancelText: t('common.cancel'),
+        onOk: () => resolve(true),
+        onCancel: () => resolve(false),
+      });
+    });
+
   const handleClock = async (clockType: AttendanceClockType) => {
+    if (!settings || clocking) return;
+    const nowMin = now.hour() * 60 + now.minute();
+    const startMin = toMin(settings.workStartTime);
+    const endMin = toMin(settings.workEndTime);
+    let confirmed = true;
+
+    if (clockType === 'CLOCK_IN') {
+      if (nowMin < startMin) {
+        confirmed = await askConfirm(t('attendance.clock.confirmEarlyClockIn', { time: settings.workStartTime }));
+      } else if (nowMin > endMin) {
+        confirmed = await askConfirm(t('attendance.clock.confirmLateClockIn', { time: settings.workEndTime }));
+      }
+    } else {
+      const out = expectedClockOut(hhmm(status?.clockInTime), settings);
+      const flexEnd = Math.max(0, toMin(out) - settings.endFlexMinutes);
+      if (nowMin < flexEnd) {
+        confirmed = await askConfirm(t('attendance.clock.confirmEarlyClockOut', { time: out }));
+      }
+    }
+    if (!confirmed) return;
+
     setClocking(true);
     try {
       await attendanceApi.clock({ clockType });
@@ -76,6 +143,26 @@ export default function AttendanceClockPage() {
     }
   };
 
+  const expectedOutDisplay = settings ? expectedClockOut(hhmm(status?.clockInTime), settings) : '-';
+
+  // 单按钮：可上班打卡时=上班打卡；已上班未下班=下班打卡；均已打卡=完成态
+  const action: AttendanceClockType | null = !status
+    ? null
+    : status.canClockIn
+      ? 'CLOCK_IN'
+      : status.canClockOut
+        ? 'CLOCK_OUT'
+        : null;
+  const actionLabel = action === 'CLOCK_IN'
+    ? t('attendance.clock.clockIn')
+    : action === 'CLOCK_OUT'
+      ? t('attendance.clock.clockOut')
+      : t('attendance.clock.done');
+  const statusLine = !status?.clockInTime
+    ? t('attendance.clock.tapToClock')
+    : !status?.clockOutTime
+      ? `${t('attendance.clock.clockedAt')} ${formatTime(status.clockInTime)} · ${t('attendance.clock.readyClockOut')}`
+      : t('attendance.clock.clockedDone');
   const columns: ColumnsType<AttendanceRecord> = [
     {
       title: t('attendance.common.date'),
@@ -128,66 +215,75 @@ export default function AttendanceClockPage() {
       <Spin spinning={loading}>
         <div className="oa-attendance-stack">
           <Card className="oa-attendance-card" title={t('attendance.clock.todayStatus')} variant="outlined">
-          {status ? (
-            <>
-              <Descriptions column={2} size="small" style={{ marginBottom: 16 }}>
-                <Descriptions.Item label={t('attendance.common.date')}>
-                  {dayjs(status.clockDate).format('YYYY-MM-DD')}
-                </Descriptions.Item>
-                <Descriptions.Item label={t('attendance.common.status')}>
-                  {status.status ? (
-                    <Tag color={STATUS_TAG_COLOR[status.status]}>
-                      {t(`attendance.status.${status.status}`, { defaultValue: status.status })}
-                    </Tag>
-                  ) : (
-                    <Tag>{t('attendance.clock.notClockedYet')}</Tag>
-                  )}
-                </Descriptions.Item>
-                <Descriptions.Item label={t('attendance.clock.clockInTime')}>
-                  {formatTime(status.clockInTime)}
-                </Descriptions.Item>
-                <Descriptions.Item label={t('attendance.clock.clockOutTime')}>
-                  {formatTime(status.clockOutTime)}
-                </Descriptions.Item>
-                {status.lateMinutes > 0 && (
-                  <Descriptions.Item label={t('attendance.common.lateMinutes')}>
-                    {status.lateMinutes} {t('attendance.common.minute')}
-                  </Descriptions.Item>
+            {status && settings ? (
+              <>
+                <div className="oa-clock-hero">
+                  <Button
+                    type="primary"
+                    shape="circle"
+                    className="oa-clock-circle"
+                    disabled={!action}
+                    loading={clocking}
+                    onClick={() => action && void handleClock(action)}
+                  >
+                    <span className="oa-clock-circle__time">{now.format('HH:mm:ss')}</span>
+                    <span className="oa-clock-circle__label">{actionLabel}</span>
+                    <span className="oa-clock-circle__hint">{statusLine}</span>
+                  </Button>
+                </div>
+
+                {settings.flexLinked && (
+                  <div className="oa-clock-flex-note">{t('attendance.clock.flexHint')}</div>
                 )}
-                {status.earlyLeaveMinutes > 0 && (
-                  <Descriptions.Item label={t('attendance.common.earlyLeaveMinutes')}>
-                    {status.earlyLeaveMinutes} {t('attendance.common.minute')}
-                  </Descriptions.Item>
-                )}
-              </Descriptions>
-              <Space>
-                <Button
-                  type="primary"
-                  size="large"
-                  disabled={!status.canClockIn}
-                  loading={clocking}
-                  onClick={() => handleClock('CLOCK_IN')}
-                >
-                  {status.clockInTime
-                    ? `${t('attendance.clock.clockIn')} ${formatTime(status.clockInTime)}`
-                    : t('attendance.clock.clockIn')}
-                </Button>
-                <Button
-                  type="primary"
-                  size="large"
-                  disabled={!status.canClockOut}
-                  loading={clocking}
-                  onClick={() => handleClock('CLOCK_OUT')}
-                >
-                  {status.clockOutTime
-                    ? `${t('attendance.clock.clockOut')} ${formatTime(status.clockOutTime)}`
-                    : t('attendance.clock.clockOut')}
-                </Button>
-              </Space>
-            </>
-          ) : (
-            <Empty description={t('attendance.clock.notClockedYet')} />
-          )}
+
+                <div className="oa-clock-summary">
+                  <div className="oa-clock-chip">
+                    <span className="oa-clock-chip__label">{t('attendance.common.date')}</span>
+                    <span className="oa-clock-chip__value">{dayjs(status.clockDate).format('YYYY-MM-DD')}</span>
+                  </div>
+                  <div className="oa-clock-chip">
+                    <span className="oa-clock-chip__label">{t('attendance.common.status')}</span>
+                    <span className="oa-clock-chip__value">
+                      {status.status ? (
+                        <Tag color={STATUS_TAG_COLOR[status.status]}>
+                          {t(`attendance.status.${status.status}`, { defaultValue: status.status })}
+                        </Tag>
+                      ) : (
+                        <Tag>{t('attendance.clock.notClockedYet')}</Tag>
+                      )}
+                    </span>
+                  </div>
+                  <div className="oa-clock-chip">
+                    <span className="oa-clock-chip__label">{t('attendance.clock.clockInTime')}</span>
+                    <span className="oa-clock-chip__value">{formatTime(status.clockInTime)}</span>
+                  </div>
+                  <div className="oa-clock-chip">
+                    <span className="oa-clock-chip__label">
+                      {status.clockInTime && !status.clockOutTime
+                        ? t('attendance.clock.expectedOut')
+                        : t('attendance.clock.clockOutTime')}
+                    </span>
+                    <span className="oa-clock-chip__value">
+                      {status.clockOutTime ? formatTime(status.clockOutTime) : expectedOutDisplay}
+                    </span>
+                  </div>
+                  <div className="oa-clock-chip">
+                    <span className="oa-clock-chip__label">{t('attendance.common.lateMinutes')}</span>
+                    <span className="oa-clock-chip__value">
+                      {status.lateMinutes > 0 ? `${status.lateMinutes} ${t('attendance.common.minute')}` : '-'}
+                    </span>
+                  </div>
+                  <div className="oa-clock-chip">
+                    <span className="oa-clock-chip__label">{t('attendance.common.earlyLeaveMinutes')}</span>
+                    <span className="oa-clock-chip__value">
+                      {status.earlyLeaveMinutes > 0 ? `${status.earlyLeaveMinutes} ${t('attendance.common.minute')}` : '-'}
+                    </span>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <Empty description={t('attendance.clock.notClockedYet')} />
+            )}
           </Card>
 
           <Card className="oa-attendance-card oa-attendance-card--grow" title={t('attendance.clock.recentRecords')} variant="outlined">
@@ -197,7 +293,7 @@ export default function AttendanceClockPage() {
               dataSource={records}
               pagination={false}
               size="middle"
-              scroll={{ x: 780 }}
+              scroll={{ x: 720 }}
               locale={{ emptyText: <Empty description={t('attendance.common.noData')} /> }}
             />
           </Card>
