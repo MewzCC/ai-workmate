@@ -3,6 +3,8 @@
 import { useEffect, useRef } from 'react';
 import { Graph as G6Graph, NodeEvent } from '@antv/g6';
 import type { NodeData } from '@antv/g6';
+import { Button, Tooltip } from 'antd';
+import { CompressOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import type { DepartmentNode } from './OrganizationTreePage';
 
@@ -293,6 +295,7 @@ export default function OrganizationGraph({
 }: OrganizationGraphProps) {
   const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
+  const graphRef = useRef<G6Graph | null>(null);
   const onSelectRef = useRef(onSelect);
   const selectedIdRef = useRef(selectedId);
 
@@ -533,11 +536,20 @@ export default function OrganizationGraph({
             'drag-canvas',
             {
               type: 'zoom-canvas',
+              key: 'zoom-mouse',
               trigger: ['Control'],
               // 关闭 G6 默认的 preventDefault：它会在所有滚轮事件上阻止默认行为，
               // 导致用户不按 Ctrl 时也无法用滚轮滚动页面。
               // 改为下方自定义监听器，仅在按住 Ctrl 时阻止默认行为（避免浏览器原生页面缩放）。
               preventDefault: false,
+            },
+            // 移动端新增：双指捏合缩放，弥补桌面 Ctrl + 滚轮在触摸设备上无法触发的场景
+            {
+              type: 'zoom-canvas',
+              key: 'zoom-pinch',
+              // 'pinch' 为 G6 内置的双指捏合事件（CommonEvent.PINCH），仅在触摸可用
+              trigger: ['pinch'],
+              sensitivity: 1,
             },
             'collapse-expand',
             {
@@ -564,6 +576,9 @@ export default function OrganizationGraph({
             onSelectRef.current(id);
           }
         }) as (event: unknown) => void);
+
+        // 保留图实例引用，供外部「适应视图」按钮调用
+        graphRef.current = graph;
 
         // 仅在按住 Ctrl 时阻止滚轮默认行为（避免浏览器原生页面缩放），
         // 不按 Ctrl 时放行，让页面正常滚动。
@@ -605,9 +620,28 @@ export default function OrganizationGraph({
         }
         graph = null;
       }
+      graphRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, animKey]);
 
-  return <div ref={containerRef} className="oa-org-graph" />;
+  return (
+    <div ref={containerRef} className="oa-org-graph">
+      <Tooltip title={t('organization.graph.fitView')}>
+        <Button
+          type="text"
+          className="oa-org-graph__fit"
+          aria-label={t('organization.graph.fitView')}
+          icon={<CompressOutlined />}
+          onClick={() => {
+            try {
+              graphRef.current?.fitView({ direction: 'both' });
+            } catch (e) {
+              console.error('[OrganizationGraph] fitView error:', e);
+            }
+          }}
+        />
+      </Tooltip>
+    </div>
+  );
 }

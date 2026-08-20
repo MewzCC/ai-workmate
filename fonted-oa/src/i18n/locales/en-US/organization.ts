@@ -13,12 +13,13 @@ export default {
   graph: {
     cardTitle: 'Department Structure',
     description: 'Explore reporting lines and select a department to filter members',
-    hint: 'Ctrl + scroll to zoom · Drag to pan · Click a node to filter employees · {{count}} departments',
+    hint: 'Drag to pan · Pinch or Ctrl+scroll to zoom · Click a node to filter employees · {{count}} departments',
     empty: 'No department data',
     loading: 'Loading graph…',
     virtualRoot: 'Group',
     employeeCountBadge: '{{count}}',
     childrenCountBadge: '{{count}} sub-departments',
+    fitView: 'Fit view',
   },
   members: {
     title: 'Organization Members',

@@ -5594,6 +5594,8 @@ html.oa-wallpaper-active .oa-ai-operation-drawer .ant-drawer-footer {
   cursor: grab;
   border-radius: 14px;
   overflow: hidden;
+  /* 让触摸设备上的拖拽与双指捏合手势交给 G6，而不是被浏览器滚动/捏合页面抢占 */
+  touch-action: none;
   background:
     radial-gradient(ellipse at 50% 0%, color-mix(in srgb, var(--oa-primary, #1677ff) 6%, transparent), transparent 55%),
     color-mix(in srgb, var(--oa-surface, #f4f7fb) 84%, var(--oa-card, #ffffff));
@@ -5621,6 +5623,39 @@ html.oa-wallpaper-active .oa-ai-operation-drawer .ant-drawer-footer {
 .oa-org-graph > canvas {
   position: relative;
   z-index: 1;
+}
+
+/* 「适应视图」工具栏按钮：固定在右上角，便于移动端捏合放大后快速回到全图 */
+.oa-org-graph__fit {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  color: var(--oa-muted, #64748b);
+  background: color-mix(in srgb, var(--oa-card, #ffffff) 62%, transparent);
+  backdrop-filter: blur(8px) saturate(140%);
+  -webkit-backdrop-filter: blur(8px) saturate(140%);
+  border: 1px solid var(--oa-border, rgba(15, 23, 42, 0.12));
+  padding: 0;
+  transition: color 0.2s ease, background 0.2s ease, transform 0.15s ease;
+}
+
+.oa-org-graph__fit:hover {
+  color: var(--oa-primary, #1677ff);
+}
+
+.oa-org-graph__fit:active {
+  transform: scale(0.92);
+}
+
+.oa-org-graph__fit .anticon {
+  font-size: 16px;
 }
 
 /* 壁纸模式适配 */
