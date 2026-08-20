@@ -126,7 +126,8 @@ docker compose -f docker-compose.yml up -d
 
 ## 数据库迁移（Flyway）
 
-- 后端启动时自动执行 Flyway 迁移，脚本位于 `backend/src/main/resources/db/migration`，命名 `V<版本>__<描述>.sql`（如 `V1__init_baseline.sql`、`V2__attendance_module.sql`）。
+- 后端启动时自动执行 Flyway 迁移，脚本位于 `backend/src/main/resources/db/migration`。**新迁移优先使用时间戳版本号 `VYYYYMMDDHHMM__<描述>.sql`**（如 `V202609011030__xxx.sql`），以分钟为粒度，避免多人并行开发各自新增 `V5/V6` 造成版本号冲突；同一天多次新增时随时间递增，必要时手动错开（+1 分钟）。
+- **已在任何环境执行过的迁移不得重命名**：其文件名/版本必须与 `flyway_schema_history` 记录一一对应，否则校验失败。当前已执行基线：`V1__init_baseline.sql`、`V2__attendance_module.sql`、`V3__attendance_settings.sql`、`V4__attendance_top_level_and_flex_link.sql`，文件名不得改动。仅「尚未在任何环境执行过」的新迁移采用时间戳版本命名；若误改且旧版本已执行，先删除对应 `flyway_schema_history` 记录再重启（脚本幂等可安全重放），且禁止版本回退，保证历史版本单调递增。新增/重命名迁移后必须用 Flyway 本体对真实库 `.validate()` 复核（如 `ValidateFlyway`），确认已执行版本校验和一致、待应用版本状态为 PENDING。
 - 已启用 `baseline-on-migrate: true`、`baseline-version: 0`：由旧版 `init.sql` 初始化过、尚无 schema history 的既有数据库在首次启动时自动基线，再执行剩余迁移（迁移脚本保持幂等，重复执行安全）。
 - 任何结构或种子数据变更必须新增一个 Flyway 迁移脚本，禁止修改已发布的历史 `V*__*.sql`（checksum 校验会失败）；迁移由 Flyway 统一管理事务，脚本内不要再写 `BEGIN;`/`COMMIT;`。
 - 迁移脚本与旧版 `init.sql` 的幂等约定保持一致（`IF NOT EXISTS`、`ON CONFLICT`、`ALTER ... ADD COLUMN IF NOT EXISTS`），保证新库、旧库、手工执行过 `init.sql` 的库三种场景均可安全升级。

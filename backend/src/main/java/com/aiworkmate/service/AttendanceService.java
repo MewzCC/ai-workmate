@@ -7,6 +7,8 @@ import com.aiworkmate.dto.AttendanceReissueDecisionRequest;
 import com.aiworkmate.dto.AttendanceReissueRequest;
 import com.aiworkmate.dto.AttendanceReissueResponse;
 import com.aiworkmate.dto.AttendanceRecordResponse;
+import com.aiworkmate.dto.AttendanceSettingsRequest;
+import com.aiworkmate.dto.AttendanceSettingsResponse;
 import com.aiworkmate.dto.AttendanceStatisticsResponse;
 import com.aiworkmate.dto.AttendanceTodayStatusResponse;
 
@@ -49,4 +51,10 @@ public interface AttendanceService {
 
     /** 考勤统计。普通员工返回个人统计；管理员额外返回团队成员统计。 */
     AttendanceStatisticsResponse getStatistics(Long userId, Integer year, Integer month);
+
+    /** 读取当前租户的上下班时间配置（不存在时返回默认 09:00 / 18:00、弹性 0 分钟）。 */
+    AttendanceSettingsResponse getSettings(Long userId);
+
+    /** 更新当前租户的上下班时间配置。仅 {@code SUPER_ADMIN}/{@code SYSTEM_ADMIN} 可操作。 */
+    AttendanceSettingsResponse updateSettings(Long userId, AttendanceSettingsRequest request);
 }

@@ -33,6 +33,7 @@ import AttendanceClockPage from './AttendanceClockPage';
 import AttendanceExceptionPage from './AttendanceExceptionPage';
 import AttendanceReissuePage from './AttendanceReissuePage';
 import AttendanceStatisticsPage from './AttendanceStatisticsPage';
+import AttendanceSettingsPage from './AttendanceSettingsPage';
 
 const { Content } = Layout;
 const OPEN_TABS_STORAGE_KEY = 'workmeta-oa-open-tabs';
@@ -564,6 +565,8 @@ export default function AdminLayout() {
                     <AttendanceReissuePage />
                   ) : selectedMenu.componentKey === 'ATTENDANCE_STATISTICS' ? (
                     <AttendanceStatisticsPage />
+                  ) : selectedMenu.componentKey === 'ATTENDANCE_SETTINGS' ? (
+                    <AttendanceSettingsPage />
                   ) : (
                     <Dashboard
                       role={role}

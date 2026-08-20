@@ -311,6 +311,111 @@
   gap: 18px;
 }
 
+/* Attendance clock · 大圆形打卡按钮 */
+.oa-clock-hero {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 48px;
+  padding: 20px 8px 8px;
+}
+
+.oa-clock-circle.ant-btn {
+  width: 200px;
+  height: 200px;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border-radius: 50%;
+  box-shadow: 0 22px 46px -18px color-mix(in srgb, var(--oa-primary) 62%, transparent);
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+
+.oa-clock-circle.ant-btn:not(:disabled):hover {
+  transform: translateY(-4px);
+  box-shadow: 0 28px 52px -18px color-mix(in srgb, var(--oa-primary) 72%, transparent);
+}
+
+.oa-clock-circle.ant-btn.ant-btn-default {
+  border: 1px solid color-mix(in srgb, var(--oa-primary) 40%, var(--oa-border));
+  background: var(--oa-card);
+}
+
+.oa-clock-circle__time {
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--oa-text);
+}
+
+.oa-clock-circle__label {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  color: var(--oa-primary);
+}
+
+.oa-clock-circle__hint {
+  font-size: 12px;
+  color: var(--oa-muted);
+}
+
+.oa-clock-flex-note {
+  margin: 6px auto 4px;
+  max-width: 560px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--oa-primary);
+  padding: 8px 14px;
+  border: 1px dashed color-mix(in srgb, var(--oa-primary) 40%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--oa-primary) 7%, transparent);
+}
+
+.oa-clock-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.oa-clock-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1px solid var(--oa-border);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--oa-card) 62%, transparent);
+}
+
+.oa-clock-chip__label {
+  font-size: 12px;
+  color: var(--oa-muted);
+}
+
+.oa-clock-chip__value {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--oa-text);
+}
+
+@media (max-width: 980px) {
+  .oa-clock-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 720px) {
+  .oa-clock-hero { gap: 22px; }
+  .oa-clock-circle.ant-btn { width: 152px; height: 152px; }
+  .oa-clock-circle__time { font-size: 24px; }
+  .oa-clock-summary { grid-template-columns: 1fr; }
+}
+
 .oa-attendance-card.ant-card {
   min-width: 0;
   border-color: var(--oa-border);
