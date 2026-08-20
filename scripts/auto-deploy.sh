@@ -25,7 +25,7 @@ HEALTH_RETRIES="${HEALTH_RETRIES:-30}"
 HEALTH_INTERVAL="${HEALTH_INTERVAL:-10}"
 HEALTH_BACKEND="${HEALTH_BACKEND:-http://127.0.0.1:8080/api/system/health}"
 HEALTH_MAIN="${HEALTH_MAIN:-http://127.0.0.1:3000/}"
-HEALTH_OA="${HEALTH_OA:-http://127.0.0.1:3001/oa}"
+HEALTH_OA="${HEALTH_OA:-http://127.0.0.1:3001/oa/}"
 
 LOCK_FILE="${LOCK_FILE:-/tmp/ai-workmate-deploy.lock}"
 # env 文件名（位于仓库根目录）；如需改用其他文件，设置 ENV_FILE 环境变量
