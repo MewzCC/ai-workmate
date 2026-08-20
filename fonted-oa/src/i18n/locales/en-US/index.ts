@@ -12,6 +12,7 @@ import auth from './auth';
 import profile from './profile';
 import errors from './errors';
 import attendance from './attendance';
+import adminAssets from './adminAssets';
 
 const enUS = {
   common,
@@ -28,6 +29,7 @@ const enUS = {
   profile,
   errors,
   attendance,
+  adminAssets,
 };
 
 export default enUS;

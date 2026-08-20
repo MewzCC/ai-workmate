@@ -12,6 +12,7 @@ import auth from './auth';
 import profile from './profile';
 import errors from './errors';
 import attendance from './attendance';
+import adminAssets from './adminAssets';
 
 const zhCN = {
   common,
@@ -28,6 +29,7 @@ const zhCN = {
   profile,
   errors,
   attendance,
+  adminAssets,
 };
 
 export default zhCN;
