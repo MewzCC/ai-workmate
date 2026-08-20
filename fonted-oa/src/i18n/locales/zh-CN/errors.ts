@@ -37,6 +37,7 @@ export default {
 
   hr: {
     organizationLoadFailed: '组织架构数据加载失败',
+    employeeLoadFailed: '员工档案加载失败',
   },
 
   knowledge: {

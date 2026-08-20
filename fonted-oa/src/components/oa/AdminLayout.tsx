@@ -27,6 +27,7 @@ import MyApplicationsPage from './MyApplicationsPage';
 import ApprovalDetailPage from './ApprovalDetailPage';
 import AuditCenterPage from './AuditCenterPage';
 import OrganizationTreePage from './OrganizationTreePage';
+import EmployeeFilePage from './EmployeeFilePage';
 import KnowledgeBasePage from './KnowledgeBasePage';
 import SystemSettingsPage from './SystemSettingsPage';
 import AttendanceClockPage from './AttendanceClockPage';
@@ -553,6 +554,8 @@ export default function AdminLayout() {
                     <AuditCenterPage />
                   ) : selectedMenu.componentKey === 'ORG_TREE' ? (
                     <OrganizationTreePage />
+                  ) : selectedMenu.componentKey === 'EMPLOYEE_FILES' ? (
+                    <EmployeeFilePage />
                   ) : selectedMenu.componentKey === 'KNOWLEDGE_BASE' ? (
                     <KnowledgeBasePage />
                   ) : selectedMenu.componentKey === 'SYSTEM_CONFIG' ? (

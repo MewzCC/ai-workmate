@@ -5788,3 +5788,200 @@ html.oa-wallpaper-active .oa-ai-operation-drawer .ant-drawer-footer {
     width: 100%;
   }
 }
+
+/* ===================== 员工档案 ===================== */
+.oa-employee-file {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  min-height: 0;
+  height: 100%;
+}
+
+.oa-employee-file__list-card {
+  width: 300px;
+  flex: 0 0 300px;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--oa-border);
+  background: var(--oa-card);
+}
+
+.oa-employee-file__list-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.oa-employee-file__list-title {
+  margin: 0 !important;
+  color: var(--oa-text) !important;
+}
+
+.oa-employee-file__list-count {
+  font-size: 12px;
+}
+
+.oa-employee-file__search {
+  margin-bottom: 12px;
+}
+
+.oa-employee-file__list-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.oa-employee-file__list-body .oa-employee-file__person {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  /* 覆盖 AntD .ant-list-item 默认 space-between，让 meta 紧贴头像右侧 */
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 12px 16px !important;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.oa-employee-file__person .ant-avatar {
+  flex-shrink: 0;
+}
+
+.oa-employee-file__person-meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 2px;
+}
+
+.oa-employee-file__person:hover {
+  background: var(--oa-border);
+}
+
+.oa-employee-file__person.is-selected {
+  background: color-mix(in srgb, var(--oa-primary) 14%, transparent);
+}
+
+.oa-employee-file__person-name {
+  color: var(--oa-text);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.oa-employee-file__person-sub {
+  font-size: 12px;
+}
+
+.oa-employee-file__main-card {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  overflow-y: auto;
+  border: 1px solid var(--oa-border);
+  background: var(--oa-card);
+}
+
+.oa-employee-file__stack {
+  width: 100%;
+}
+
+.oa-employee-file__overview {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.oa-employee-file__overview-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.oa-employee-file__overview-name {
+  margin: 0 !important;
+  color: var(--oa-text) !important;
+}
+
+.oa-employee-file__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.oa-employee-file__section {
+  border: 1px solid var(--oa-border) !important;
+  background: var(--oa-card) !important;
+}
+
+.oa-employee-file__section .ant-card-head-title {
+  color: var(--oa-text);
+}
+
+.oa-employee-file__attendance {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.oa-employee-file__attendance-item {
+  padding: 12px;
+  border: 1px solid var(--oa-border);
+  border-radius: 8px;
+  background: var(--oa-surface);
+}
+
+.oa-employee-file__attendance-item .ant-statistic-title {
+  font-size: 12px;
+}
+
+.oa-employee-file__empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 0;
+}
+
+.oa-employee-file__select-prompt {
+  padding: 48px 0;
+}
+
+@media (max-width: 768px) {
+  .oa-employee-file {
+    flex-direction: column;
+    height: auto;
+  }
+
+  .oa-employee-file__list-card {
+    width: 100%;
+    flex: none;
+    height: auto;
+    max-height: 280px;
+  }
+
+  .oa-employee-file__main-card {
+    width: 100%;
+    height: auto;
+    overflow-y: visible;
+  }
+
+  .oa-employee-file__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .oa-employee-file__attendance {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* 组织成员表格整行可点击进入员工档案 */
+.oa-org-employee-clickable tbody tr {
+  cursor: pointer;
+}
