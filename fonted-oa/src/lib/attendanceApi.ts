@@ -106,6 +106,24 @@ export interface AttendanceStatistics {
   team?: AttendanceTeamMemberStats[] | null;
 }
 
+export interface AttendanceSettings {
+  tenantId: number;
+  workStartTime: string;
+  workEndTime: string;
+  startFlexMinutes: number;
+  endFlexMinutes: number;
+  flexLinked: boolean;
+  updatedAt?: string | null;
+}
+
+export interface AttendanceSettingsPayload {
+  workStartTime: string;
+  workEndTime: string;
+  startFlexMinutes: number;
+  endFlexMinutes: number;
+  flexLinked: boolean;
+}
+
 // ==================== API 封装 ====================
 
 export const attendanceApi = {
@@ -156,4 +174,13 @@ export const attendanceApi = {
 
   getStatistics: (params: { year?: number; month?: number } = {}) =>
     request<AttendanceStatistics>(`/attendance/statistics${queryString(params)}`),
+
+  getSettings: () =>
+    request<AttendanceSettings>('/attendance/settings'),
+
+  updateSettings: (payload: AttendanceSettingsPayload) =>
+    request<AttendanceSettings>('/attendance/settings', {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }),
 };

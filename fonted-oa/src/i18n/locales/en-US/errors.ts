@@ -37,6 +37,7 @@ export default {
 
   hr: {
     organizationLoadFailed: 'Failed to load organization data.',
+    employeeLoadFailed: 'Failed to load employee profile.',
   },
 
   knowledge: {
