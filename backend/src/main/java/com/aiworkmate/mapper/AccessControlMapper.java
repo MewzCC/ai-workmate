@@ -14,6 +14,7 @@ import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 
@@ -119,6 +120,13 @@ public interface AccessControlMapper {
             ORDER BY u.created_at, u.id
             """)
     List<AccessUserRow> selectUsers(Long tenantId);
+
+    @Select("""
+            SELECT created_at
+            FROM app_user
+            WHERE tenant_id = #{tenantId} AND id = #{id}
+            """)
+    LocalDateTime selectUserCreatedAt(@Param("tenantId") Long tenantId, @Param("id") Long id);
 
     @Select("""
             SELECT id, code, name, parent_id AS parentId,

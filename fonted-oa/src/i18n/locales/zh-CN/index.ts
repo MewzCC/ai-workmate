@@ -5,6 +5,7 @@ import access from './access';
 import knowledge from './knowledge';
 import approval from './approval';
 import organization from './organization';
+import employeeFile from './employeeFile';
 import pages from './pages';
 import chat from './chat';
 import auth from './auth';
@@ -20,6 +21,7 @@ const zhCN = {
   knowledge,
   approval,
   organization,
+  employeeFile,
   pages,
   chat,
   auth,
