@@ -35,6 +35,10 @@ import AttendanceExceptionPage from './AttendanceExceptionPage';
 import AttendanceReissuePage from './AttendanceReissuePage';
 import AttendanceStatisticsPage from './AttendanceStatisticsPage';
 import AttendanceSettingsPage from './AttendanceSettingsPage';
+import AssetLedgerPage from './AssetLedgerPage';
+import MeetingRoomPage from './MeetingRoomPage';
+import VisitorBookingPage from './VisitorBookingPage';
+import SealUsagePage from './SealUsagePage';
 
 const { Content } = Layout;
 const OPEN_TABS_STORAGE_KEY = 'workmeta-oa-open-tabs';
@@ -570,6 +574,14 @@ export default function AdminLayout() {
                     <AttendanceStatisticsPage />
                   ) : selectedMenu.componentKey === 'ATTENDANCE_SETTINGS' ? (
                     <AttendanceSettingsPage />
+                  ) : selectedMenu.componentKey === 'ASSET_LEDGER' ? (
+                    <AssetLedgerPage />
+                  ) : selectedMenu.componentKey === 'MEETING_ROOM' ? (
+                    <MeetingRoomPage />
+                  ) : selectedMenu.componentKey === 'VISITOR_BOOKING' ? (
+                    <VisitorBookingPage />
+                  ) : selectedMenu.componentKey === 'SEAL_USAGE' ? (
+                    <SealUsagePage />
                   ) : (
                     <Dashboard
                       role={role}

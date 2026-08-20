@@ -13,7 +13,8 @@ export interface NavigationRoute {
     | 'ORG_TREE' | 'KNOWLEDGE_BASE' | 'MESSAGE_CENTER' | 'SYSTEM_CONFIG'
     | 'ATTENDANCE_CLOCK' | 'ATTENDANCE_EXCEPTION' | 'ATTENDANCE_REISSUE'
     | 'ATTENDANCE_STATISTICS' | 'ATTENDANCE_SETTINGS'
-    | 'EMPLOYEE_FILES';
+    | 'EMPLOYEE_FILES'
+    | 'ASSET_LEDGER' | 'MEETING_ROOM' | 'VISITOR_BOOKING' | 'SEAL_USAGE';
   permissionCode?: string;
   sortOrder: number;
   children: NavigationRoute[];
