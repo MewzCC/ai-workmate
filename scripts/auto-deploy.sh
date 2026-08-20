@@ -28,6 +28,8 @@ HEALTH_MAIN="${HEALTH_MAIN:-http://127.0.0.1:3000/}"
 HEALTH_OA="${HEALTH_OA:-http://127.0.0.1:3001/oa/}"
 
 LOCK_FILE="${LOCK_FILE:-/tmp/ai-workmate-deploy.lock}"
+# 构建/健康检查失败标记：存在时即使本地与远端一致也会强制重新构建，直到成功才清除
+FAIL_MARKER="${FAIL_MARKER:-$REPO_DIR/logs/auto-deploy-failed}"
 # env 文件名（位于仓库根目录）；如需改用其他文件，设置 ENV_FILE 环境变量
 ENV_FILE="${ENV_FILE:-.env.docker}"
 # 用数组承载 compose 命令，避免字符串被当作单个命令名传给 timeout
@@ -55,11 +57,20 @@ git fetch "$REMOTE" "$BRANCH" --quiet
 LOCAL_HEAD="$(git rev-parse HEAD)"
 REMOTE_HEAD="$(git rev-parse FETCH_HEAD)"
 
-if [ "$LOCAL_HEAD" = "$REMOTE_HEAD" ]; then
+# 若上次构建/健康检查失败，即使本地与远端一致也要强制重建，直到成功
+FORCE_RETRY=0
+if [ -f "$FAIL_MARKER" ]; then
+  log "INFO" "检测到上次部署失败标记，强制重新构建（HEAD=$LOCAL_HEAD）"
+  FORCE_RETRY=1
+fi
+
+if [ "$LOCAL_HEAD" = "$REMOTE_HEAD" ] && [ "$FORCE_RETRY" -eq 0 ]; then
   log "INFO" "无更新（HEAD=$LOCAL_HEAD），退出"
   exit 0
 fi
-log "INFO" "检测到更新: $LOCAL_HEAD -> $REMOTE_HEAD"
+if [ "$FORCE_RETRY" -eq 0 ]; then
+  log "INFO" "检测到更新: $LOCAL_HEAD -> $REMOTE_HEAD"
+fi
 
 # ---------- 2. 检查工作区是否干净 ----------
 if [ -n "$(git status --porcelain)" ]; then
@@ -84,7 +95,11 @@ if [ "$DEPLOY_INCLUDE_OCR" = "1" ]; then
 fi
 
 log "INFO" "docker compose 构建启动中（timeout=${BUILD_TIMEOUT}s, ocr=$DEPLOY_INCLUDE_OCR）"
-timeout "$BUILD_TIMEOUT" "${COMPOSE_CMD[@]}" "${COMPOSE_PROFILE_ARGS[@]}" up -d --build
+if ! timeout "$BUILD_TIMEOUT" "${COMPOSE_CMD[@]}" "${COMPOSE_PROFILE_ARGS[@]}" up -d --build; then
+  touch "$FAIL_MARKER"
+  log "ERROR" "docker compose 构建失败，已写入失败标记（下次轮询自动重试）"
+  exit 1
+fi
 
 # ---------- 5. 健康检查 ----------
 check_http() {
@@ -107,10 +122,12 @@ check_http "fronted-main" "$HEALTH_MAIN" || FAILED=1
 check_http "fonted-oa"   "$HEALTH_OA"   || FAILED=1
 
 if [ "$FAILED" -eq 0 ]; then
+  rm -f "$FAIL_MARKER"
   log "INFO" "=== 部署完成（HEAD=$NEW_HEAD） ==="
   "${COMPOSE_CMD[@]}" ps
 else
-  log "ERROR" "=== 部署完成但健康检查未全部通过，请检查容器状态 ==="
+  touch "$FAIL_MARKER"
+  log "ERROR" "=== 部署完成但健康检查未全部通过，已写入失败标记（下次轮询自动重试） ==="
   "${COMPOSE_CMD[@]}" ps
   exit 1
 fi
