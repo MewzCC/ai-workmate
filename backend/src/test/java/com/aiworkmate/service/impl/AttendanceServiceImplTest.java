@@ -70,6 +70,15 @@ class AttendanceServiceImplTest {
     void clockIn_shouldInsertRecordWithTimestamps() {
         when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(ACTOR);
         when(recordMapper.selectOne(any())).thenReturn(null);
+        // 设定 23:59:59.999999999 为上班/下班时间，使任何时刻打卡都不算迟到，
+        // 避免测试对执行时间敏感（默认 09:00 上班时，UTC 09:05 执行会被判 LATE）。
+        AttendanceSetting lateShift = new AttendanceSetting();
+        lateShift.setWorkStartTime(LocalTime.MAX);
+        lateShift.setWorkEndTime(LocalTime.MAX);
+        lateShift.setStartFlexMinutes(0);
+        lateShift.setEndFlexMinutes(0);
+        lateShift.setFlexLinked(false);
+        when(attendanceSettingMapper.selectOne(any())).thenReturn(lateShift);
 
         AttendanceClockResponse response =
                 attendanceService.clock(USER_ID, new AttendanceClockRequest("CLOCK_IN"), "127.0.0.1");
