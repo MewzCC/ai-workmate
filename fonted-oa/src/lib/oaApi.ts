@@ -94,6 +94,15 @@ export async function getSystemHealth(): Promise<{ status: string; service: stri
   return parseResult(res);
 }
 
+/**
+ * 服务器时间接口：返回 epoch 毫秒与 ISO 字符串。
+ * 前端可用 epochMillis 与 Date.now() 计算偏移，让按钮显示与后端落库一致的服务器时间。
+ */
+export async function getServerTime(): Promise<{ epochMillis: number; iso: string }> {
+  const res = await fetch(`${BASE}/system/time`);
+  return parseResult(res);
+}
+
 export async function planAiTask(request: AiTaskPlanRequest): Promise<AiTaskPlanResponse> {
   const res = await fetch(`${BASE}/ai/tasks/plan`, {
     method: 'POST',
