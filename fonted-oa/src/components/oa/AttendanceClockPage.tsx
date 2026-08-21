@@ -14,7 +14,7 @@ import {
   type AttendanceStatus,
   type AttendanceTodayStatus,
 } from '@/lib/attendanceApi';
-import { formatOaApiError } from '@/lib/oaApi';
+import { formatOaApiError, getServerTime } from '@/lib/oaApi';
 import AttendancePageShell from './AttendancePageShell';
 
 const STATUS_TAG_COLOR: Record<AttendanceStatus, string> = {
@@ -62,12 +62,42 @@ export default function AttendanceClockPage() {
   const [settings, setSettings] = useState<AttendanceSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [clocking, setClocking] = useState(false);
+  // 服务器时间偏移：serverEpoch - Date.now()，按钮显示 = Date.now() + offset
+  // 这样按钮时间与后端落库时间使用同一时间源，避免浏览器时钟与服务器时钟不一致
+  const [serverOffsetMs, setServerOffsetMs] = useState(0);
   const [now, setNow] = useState(() => dayjs());
 
+  // 启动时同步一次服务器时间，计算偏移；每 5 分钟重新校准一次防止时钟漂移
   useEffect(() => {
-    const timer = window.setInterval(() => setNow(dayjs()), 1000);
-    return () => window.clearInterval(timer);
+    let cancelled = false;
+    const sync = async () => {
+      try {
+        const t0 = Date.now();
+        const { epochMillis } = await getServerTime();
+        const t1 = Date.now();
+        if (cancelled) return;
+        // 用往返中点作为客户端采样时刻，减小网络延迟误差
+        const clientNow = Math.round((t0 + t1) / 2);
+        setServerOffsetMs(epochMillis - clientNow);
+      } catch {
+        // 同步失败时静默回退到浏览器本地时间
+      }
+    };
+    void sync();
+    const syncTimer = window.setInterval(sync, 5 * 60 * 1000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(syncTimer);
+    };
   }, []);
+
+  useEffect(() => {
+    const timer = window.setInterval(
+      () => setNow(dayjs(Date.now() + serverOffsetMs)),
+      1000,
+    );
+    return () => window.clearInterval(timer);
+  }, [serverOffsetMs]);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
