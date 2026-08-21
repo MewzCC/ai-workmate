@@ -323,26 +323,6 @@
   isolation: isolate;
 }
 
-/* 按钮周围的环境光斑（液态玻璃需要光才能折射） */
-.oa-clock-hero::before {
-  content: '';
-  position: absolute;
-  inset: -28px -16px 0;
-  z-index: 0;
-  pointer-events: none;
-  background:
-    radial-gradient(circle at 18% 22%, color-mix(in srgb, var(--oa-primary) 24%, transparent), transparent 52%),
-    radial-gradient(circle at 82% 78%, color-mix(in srgb, var(--oa-primary) 18%, transparent), transparent 56%);
-  filter: blur(46px);
-  opacity: .85;
-  animation: oa-clock-aura 9s ease-in-out infinite alternate;
-}
-
-@keyframes oa-clock-aura {
-  0% { transform: translate3d(-6px, -4px, 0) scale(.96); opacity: .7; }
-  100% { transform: translate3d(8px, 6px, 0) scale(1.04); opacity: .95; }
-}
-
 .oa-clock-circle.ant-btn,
 .oa-clock-circle.ant-btn.ant-btn-primary,
 .oa-clock-circle.ant-btn.ant-btn-default {
@@ -356,49 +336,42 @@
   justify-content: center;
   gap: 7px;
   border-radius: 50%;
-  border: 1px solid color-mix(in srgb, var(--oa-primary) 22%, rgba(255, 255, 255, .6));
-  /* 液态玻璃底色：斜向渐变 + 顶部高光 */
+  border: 1px solid color-mix(in srgb, var(--oa-primary) 16%, rgba(255, 255, 255, .55));
+  /* 玻璃质感：底色做半透明，让背景光真正透出来被背模糊折射，而不是盖死 */
   background:
-    radial-gradient(circle at 30% 22%, rgba(255, 255, 255, .6), transparent 46%),
-    radial-gradient(circle at 72% 88%, color-mix(in srgb, var(--oa-primary) 18%, transparent), transparent 55%),
-    linear-gradient(145deg,
-      color-mix(in srgb, var(--oa-primary) 16%, var(--oa-card)) 0%,
-      color-mix(in srgb, var(--oa-primary) 4%, var(--oa-card)) 48%,
-      color-mix(in srgb, var(--oa-primary) 14%, var(--oa-card)) 100%);
-  /* 玻璃折射：背模糊 + 高饱和 */
-  backdrop-filter: blur(26px) saturate(180%);
-  -webkit-backdrop-filter: blur(26px) saturate(180%);
-  /* 多层投影：内高光 + 内底阴影 + 外细环 + 主柔光 + 远扩散 */
+    radial-gradient(circle at 28% 18%, rgba(255, 255, 255, .5) 0%, rgba(255, 255, 255, .06) 44%, transparent 60%),
+    linear-gradient(155deg,
+      color-mix(in srgb, var(--oa-primary) 14%, rgba(255, 255, 255, .16)) 0%,
+      color-mix(in srgb, var(--oa-primary) 4%, rgba(255, 255, 255, .03)) 50%,
+      color-mix(in srgb, var(--oa-primary) 12%, rgba(255, 255, 255, .1)) 100%);
+  backdrop-filter: blur(36px) saturate(190%) brightness(1.02);
+  -webkit-backdrop-filter: blur(36px) saturate(190%) brightness(1.02);
+  /* 只保留一道顶部内高光强调玻璃边缘，外扩散阴影一律去掉，避免页面杂乱 */
   box-shadow:
-    inset 0 1px 1px rgba(255, 255, 255, .85),
-    inset 0 -10px 24px rgba(15, 23, 42, .05),
-    0 0 0 1px color-mix(in srgb, var(--oa-primary) 8%, transparent),
-    0 22px 46px -18px color-mix(in srgb, var(--oa-primary) 62%, transparent),
-    0 34px 72px -24px color-mix(in srgb, var(--oa-primary) 38%, transparent);
+    inset 0 1px 1px rgba(255, 255, 255, .92),
+    inset 0 -16px 32px rgba(255, 255, 255, .05),
+    0 1px 0 color-mix(in srgb, var(--oa-primary) 6%, transparent);
   transition: transform .28s cubic-bezier(.22, .78, .24, 1),
-              box-shadow .35s cubic-bezier(.22, .78, .24, 1),
+              box-shadow .3s ease,
               filter .25s ease,
               border-color .25s ease;
 }
 
 .oa-clock-circle.ant-btn:not(:disabled):hover {
-  transform: translateY(-5px) scale(1.02);
-  filter: saturate(124%) brightness(1.04);
-  border-color: color-mix(in srgb, var(--oa-primary) 36%, rgba(255, 255, 255, .7));
+  transform: translateY(-3px);
+  filter: saturate(130%) brightness(1.05);
+  border-color: color-mix(in srgb, var(--oa-primary) 30%, rgba(255, 255, 255, .68));
   box-shadow:
-    inset 0 1px 1px rgba(255, 255, 255, .92),
-    inset 0 -10px 26px rgba(15, 23, 42, .06),
-    0 0 0 1px color-mix(in srgb, var(--oa-primary) 14%, transparent),
-    0 28px 56px -18px color-mix(in srgb, var(--oa-primary) 74%, transparent),
-    0 42px 84px -22px color-mix(in srgb, var(--oa-primary) 50%, transparent);
+    inset 0 1px 1px rgba(255, 255, 255, .96),
+    inset 0 -16px 32px rgba(255, 255, 255, .07),
+    0 8px 18px -10px color-mix(in srgb, var(--oa-primary) 22%, transparent);
 }
 
 .oa-clock-circle.ant-btn:not(:disabled):active {
   transform: translateY(-1px) scale(.992);
   box-shadow:
-    inset 0 3px 10px rgba(15, 23, 42, .1),
-    inset 0 1px 1px rgba(255, 255, 255, .55),
-    0 8px 18px -12px color-mix(in srgb, var(--oa-primary) 56%, transparent);
+    inset 0 4px 14px rgba(15, 23, 42, .08),
+    inset 0 1px 1px rgba(255, 255, 255, .6);
 }
 
 .oa-clock-circle.ant-btn:disabled {
@@ -486,14 +459,13 @@
 .oa-wallpaper-active .oa-clock-circle.ant-btn.ant-btn-primary,
 .oa-wallpaper-active .oa-clock-circle.ant-btn.ant-btn-default {
   background:
-    radial-gradient(circle at 30% 22%, rgba(255, 255, 255, .35), transparent 50%),
-    radial-gradient(circle at 72% 88%, color-mix(in srgb, var(--oa-primary) 22%, transparent), transparent 58%),
-    linear-gradient(145deg,
-      color-mix(in srgb, var(--oa-card) 55%, transparent) 0%,
-      color-mix(in srgb, var(--oa-card) 38%, transparent) 50%,
-      color-mix(in srgb, var(--oa-card) 52%, transparent) 100%);
-  backdrop-filter: blur(32px) saturate(160%);
-  -webkit-backdrop-filter: blur(32px) saturate(160%);
+    radial-gradient(circle at 28% 18%, rgba(255, 255, 255, .4) 0%, rgba(255, 255, 255, .06) 44%, transparent 62%),
+    linear-gradient(155deg,
+      color-mix(in srgb, var(--oa-card) 42%, transparent) 0%,
+      color-mix(in srgb, var(--oa-card) 24%, transparent) 50%,
+      color-mix(in srgb, var(--oa-card) 38%, transparent) 100%);
+  backdrop-filter: blur(40px) saturate(180%) brightness(1.04);
+  -webkit-backdrop-filter: blur(40px) saturate(180%) brightness(1.04);
 }
 
 .oa-wallpaper-active .oa-clock-chip {
@@ -520,23 +492,20 @@
   .oa-clock-summary { grid-template-columns: 1fr; }
 }
 
-/* 暗色主题：按钮使用更深的玻璃底色让光斑更亮 */
+/* 暗色主题：使用更深的半透明玻璃底，让背模糊折射亮光，阴影收敛 */
 [data-theme='dark'] .oa-clock-circle.ant-btn,
 [data-theme='dark'] .oa-clock-circle.ant-btn.ant-btn-primary,
 [data-theme='dark'] .oa-clock-circle.ant-btn.ant-btn-default {
   background:
-    radial-gradient(circle at 30% 22%, rgba(255, 255, 255, .14), transparent 50%),
-    radial-gradient(circle at 72% 88%, color-mix(in srgb, var(--oa-primary) 28%, transparent), transparent 58%),
-    linear-gradient(145deg,
-      color-mix(in srgb, var(--oa-primary) 18%, var(--oa-card)) 0%,
-      color-mix(in srgb, var(--oa-primary) 6%, var(--oa-card)) 50%,
-      color-mix(in srgb, var(--oa-primary) 16%, var(--oa-card)) 100%);
+    radial-gradient(circle at 28% 18%, rgba(255, 255, 255, .16) 0%, rgba(255, 255, 255, .02) 46%, transparent 62%),
+    linear-gradient(155deg,
+      color-mix(in srgb, var(--oa-primary) 20%, rgba(255, 255, 255, .05)) 0%,
+      color-mix(in srgb, var(--oa-primary) 7%, rgba(0, 0, 0, .16)) 50%,
+      color-mix(in srgb, var(--oa-primary) 18%, rgba(255, 255, 255, .04)) 100%);
   box-shadow:
-    inset 0 1px 1px rgba(255, 255, 255, .12),
-    inset 0 -10px 26px rgba(0, 0, 0, .18),
-    0 0 0 1px color-mix(in srgb, var(--oa-primary) 16%, transparent),
-    0 22px 46px -18px color-mix(in srgb, var(--oa-primary) 56%, transparent),
-    0 34px 72px -24px color-mix(in srgb, var(--oa-primary) 36%, transparent);
+    inset 0 1px 1px rgba(255, 255, 255, .16),
+    inset 0 -16px 32px rgba(0, 0, 0, .2),
+    0 1px 0 color-mix(in srgb, var(--oa-primary) 10%, transparent);
 }
 
 [data-theme='dark'] .oa-clock-circle__time {
