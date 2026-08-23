@@ -60,6 +60,75 @@
           AND l.id = #{id}
     </select>
 
+    <sql id="leaveApplicationStatusFilter">
+        <if test="status != null and status != ''">
+            AND l.status = #{status}
+        </if>
+        <if test="from != null">
+            AND l.submitted_at &gt;= #{from}
+        </if>
+        <if test="to != null">
+            AND l.submitted_at &lt;= #{to}
+        </if>
+    </sql>
+
+    <!-- 管理端审批列表：租户内全部审批单（含草稿），按提交时间倒序 -->
+    <select id="selectAll"
+            resultType="com.aiworkmate.dto.LeaveApplicationView">
+        SELECT <include refid="leaveApplicationViewColumns"/>
+        FROM leave_application l
+        <include refid="leaveApplicationViewJoins"/>
+        WHERE l.tenant_id = #{tenantId}
+        <include refid="leaveApplicationStatusFilter"/>
+        <if test="keyword != null and keyword != ''">
+            AND (
+                COALESCE(NULLIF(applicant.display_name, ''), applicant.username) ILIKE CONCAT('%', #{keyword}, '%') ESCAPE '\'
+                OR COALESCE(l.reason, '') ILIKE CONCAT('%', #{keyword}, '%') ESCAPE '\'
+            )
+        </if>
+        <if test="leaveType != null and leaveType != ''">
+            AND l.leave_type = #{leaveType}
+        </if>
+        ORDER BY l.submitted_at DESC NULLS LAST, l.created_at DESC, l.id DESC
+        LIMIT #{size} OFFSET #{offset}
+    </select>
+
+    <select id="countAll" resultType="long">
+        SELECT COUNT(*)
+        FROM leave_application
+        WHERE tenant_id = #{tenantId}
+        <if test="status != null and status != ''">
+            AND status = #{status}
+        </if>
+        <if test="from != null">
+            AND submitted_at &gt;= #{from}
+        </if>
+        <if test="to != null">
+            AND submitted_at &lt;= #{to}
+        </if>
+        <if test="keyword != null and keyword != ''">
+            AND (
+                COALESCE(NULLIF((
+                    SELECT display_name FROM app_user u WHERE u.id = leave_application.applicant_user_id
+                ), ''), (
+                    SELECT username FROM app_user u WHERE u.id = leave_application.applicant_user_id
+                )) ILIKE CONCAT('%', #{keyword}, '%') ESCAPE '\'
+                OR COALESCE(reason, '') ILIKE CONCAT('%', #{keyword}, '%') ESCAPE '\'
+            )
+        </if>
+        <if test="leaveType != null and leaveType != ''">
+            AND leave_type = #{leaveType}
+        </if>
+    </select>
+
+    <select id="selectStatusCounts"
+            resultType="com.aiworkmate.dto.ApprovalStatusCountResponse">
+        SELECT status, COUNT(*) AS count
+        FROM leave_application
+        WHERE tenant_id = #{tenantId}
+        GROUP BY status
+    </select>
+
     <select id="selectMine"
             resultType="com.aiworkmate.dto.LeaveApplicationView">
         SELECT <include refid="leaveApplicationViewColumns"/>
