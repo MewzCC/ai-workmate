@@ -37,7 +37,7 @@ export class OaApiError extends Error {
 
 async function parseResult<T>(res: Response): Promise<T> {
   const json = await res.json().catch(() => null) as ApiResult<T> | null;
-  if (!res.ok || !json || json.code !== 200 || json.data === null) {
+  if (!res.ok || !json || json.code !== 200) {
     const status = res.status || 500;
     const error = new OaApiError(
       json?.message || statusMessage(status),
@@ -49,7 +49,8 @@ async function parseResult<T>(res: Response): Promise<T> {
     if (status === 401 && typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('oa-auth-expired'));
     throw error;
   }
-  return json.data;
+  // DELETE 等空数据响应的 data 为 null，属正常成功场景（chatApi.parse 同此处理）
+  return json.data as T;
 }
 
 function statusErrorCode(status: number): string {
@@ -238,6 +239,11 @@ export interface WorkflowTimelineItem {
   createdAt: string;
 }
 
+export interface ApprovalStatusCount {
+  status: LeaveStatus;
+  count: number;
+}
+
 export interface AuditRecord {
   id: number;
   actorUserId: number;
@@ -320,4 +326,18 @@ export const auditApi = {
     page?: number;
     size?: number;
   } = {}) => request<PageResponse<AuditRecord>>(`/audit-records${queryString(params)}`),
+};
+
+/** 管理端审批列表：租户内全部审批单（需 approval:read）。 */
+export const approvalApi = {
+  list: (params: {
+    status?: LeaveStatus | '';
+    keyword?: string;
+    leaveType?: LeaveType;
+    from?: string;
+    to?: string;
+    page?: number;
+    size?: number;
+  } = {}) => request<PageResponse<LeaveApplication>>(`/approval-tasks${queryString(params)}`),
+  stats: () => request<ApprovalStatusCount[]>('/approval-tasks/stats'),
 };

@@ -22,9 +22,14 @@ import { profileApi } from '@/lib/profileApi';
 import { OaIcon } from '@/components/OaIcon';
 import PageTabBar, { type OaPageTab } from './PageTabBar';
 import TodoListPage from './TodoListPage';
+import ApprovalListPage from './ApprovalListPage';
+import FormEnginePage from './FormEnginePage';
+import ProcessConfigPage from './ProcessConfigPage';
+import ApprovalRulesPage from './ApprovalRulesPage';
 import LeaveFormPage from './LeaveFormPage';
 import MyApplicationsPage from './MyApplicationsPage';
 import ApprovalDetailPage from './ApprovalDetailPage';
+import ApprovalStartPage from './ApprovalStartPage';
 import AuditCenterPage from './AuditCenterPage';
 import OrganizationTreePage from './OrganizationTreePage';
 import EmployeeFilePage from './EmployeeFilePage';
@@ -550,6 +555,16 @@ export default function AdminLayout() {
                     <AccessControlPage />
                   ) : selectedMenu.componentKey === 'TODO_LIST' ? (
                     <TodoListPage />
+                  ) : selectedMenu.componentKey === 'APPROVAL_LIST' ? (
+                    <ApprovalListPage />
+                  ) : selectedMenu.componentKey === 'APPROVAL_START' ? (
+                    <ApprovalStartPage />
+                  ) : selectedMenu.componentKey === 'FORM_ENGINE' ? (
+                    <FormEnginePage />
+                  ) : selectedMenu.componentKey === 'PROCESS_CONFIG' ? (
+                    <ProcessConfigPage />
+                  ) : selectedMenu.componentKey === 'APPROVAL_RULES' ? (
+                    <ApprovalRulesPage />
                   ) : selectedMenu.componentKey === 'LEAVE_FORM' ? (
                     <LeaveFormPage />
                   ) : selectedMenu.componentKey === 'MY_APPLICATIONS' ? (
