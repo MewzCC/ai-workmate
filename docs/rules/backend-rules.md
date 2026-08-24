@@ -15,7 +15,7 @@
 - 修改 Spring Boot、Spring Security、JWT、MyBatis-Plus、SSE、RAG、Agent 后端能力时，读取 `docs/skills/backend-engineering-skill.md`。
 - 修改 OA AI 后端接口、`SystemController`、`AiTaskController`、`AiTaskService` 或 `AiTask*DTO` 时，必须读取 `docs/skills/oa-workbench-skill.md`。
 - 修改真实 Agent、Tool Calling、RAG 权限和提示词边界时，读取 `docs/skills/agent-engineering-skill.md`。
-- 实施 Phase 2 Tool Registry、任务引擎、Policy Guard、确认凭证或写工具时，必须读取 `docs/roadmap/phase-2-agent-security-boundary.md`。
+- 实施 Phase 2 Tool Registry、Tool Gateway、任务引擎、Policy Guard、确认凭证或写工具时，必须读取 `docs/roadmap/phase-2-agent-security-boundary.md`；涉及 Tool Gateway/ToolHandler 时还必须读取 `docs/architecture/agent-tool-gateway.md`。
 
 ## 分层规范
 
@@ -81,6 +81,11 @@ OA AI 接口不得再提供伪造成功的 mock 能力：
 - 工具 schema 禁止 userId、tenantId、role、permission、dataScope、任意 URL、SQL、文件路径、脚本和动态 class/bean 名称；身份与租户只能来自认证上下文。
 - Phase 2 工具不得提供任意 SQL、代码执行、文件系统、任意网络请求、权限修改、删除、批量操作、敏感导出、外部消息或后台自治能力。
 - Phase 2B 一个任务最多一个写步骤；用户确认不能替代实时权限、资源归属和领域状态校验。
+- Phase 2 Agent 工具调用必须通过进程内 `ToolGateway`；禁止暴露公共网关 Controller、管理员代执行接口或通用 toolCode+args 执行方法。
+- Worker 只能向网关传递服务端 stepId 和 Worker lease；userId、tenantId、toolCode、args、riskLevel、权限和确认状态必须由网关从数据库任务快照重建。
+- 只有 gateway 包可以依赖 ToolHandler；必须使用 ArchUnit 或等价测试阻止 Controller、Planner、Task Service、Worker 绕过网关。
+- Tool Gateway 前置 ALLOW/DENY 审计失败、权限/Registry/Policy/限流异常时 fail closed；不得 fallback 直接调用 handler。
+- 网关校验不能替代领域 Service 的 tenantId、资源归属、实时权限和业务状态条件校验。
 - `SecurityConfig` 仅允许放行：
   - `/api/auth/**`
   - `/api/system/**`

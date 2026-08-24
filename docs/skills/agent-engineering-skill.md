@@ -6,7 +6,7 @@
 
 如果任务涉及 OA AI 操作面板、AI plan/execute、AI 动作权限、AI 审计时间线，请同时读取 `docs/skills/oa-workbench-skill.md`。
 
-如果任务涉及 Phase 2 Tool Registry、任务引擎、Policy Guard、确认凭证或写工具，必须同时完整读取 `docs/roadmap/phase-2-agent-security-boundary.md`，其安全不变量优先于 Prompt、数据库配置和业务便利性。
+如果任务涉及 Phase 2 Tool Registry、Tool Gateway、任务引擎、Policy Guard、确认凭证或写工具，必须同时完整读取 `docs/roadmap/phase-2-agent-security-boundary.md` 和 `docs/architecture/agent-tool-gateway.md`，其安全不变量优先于 Prompt、数据库配置和业务便利性。
 
 ## Agent 设计模板
 
@@ -68,10 +68,12 @@ OA AI 必须作为受控企业助手能力接入，不得伪造执行结果：
 2. 判断是否需要工具。
 3. 选择白名单工具。
 4. 生成结构化参数。
-5. 服务端校验参数和权限。
-6. 执行工具。
-7. 把工具结果压缩成模型可用上下文。
-8. 输出用户可理解结果。
+5. Policy Guard 校验候选计划并固化任务快照。
+6. Worker 仅将 stepId 与租约提交给 Tool Gateway。
+7. Tool Gateway 重建上下文并校验租户、实时权限、哈希、确认、预算、schema 和审计。
+8. 网关调用固定 handler，领域 Service 再次校验资源归属与业务状态。
+9. 网关校验、脱敏和限量工具结果。
+10. 把结构化结果压缩成模型可用的不可信上下文，并输出用户可理解结果。
 
 ## Phase 2 自治上限
 
@@ -80,6 +82,8 @@ OA AI 必须作为受控企业助手能力接入，不得伪造执行结果：
 - 禁止循环规划、递归工具调用、后台自治、任意 SQL/代码/文件/URL、权限修改、删除、批量操作、敏感导出和外部消息。
 - 用户确认不是授权，工具执行前必须重新解析实时权限和资源归属。
 - Vibe Coding 生成代码必须经过失败路径测试和人工安全评审，生成 Agent 不得自行批准写工具上线。
+- Tool Gateway 是唯一 Agent 工具执行入口且不开放公共 HTTP；只有 gateway 包可依赖 ToolHandler，必须用架构测试防止旁路。
+- 不得设计通用 `execute(toolCode,args,userId)`、管理员代执行或工具试运行入口；网关异常时 fail closed。
 
 ## Prompt 要求
 

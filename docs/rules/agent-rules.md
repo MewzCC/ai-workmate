@@ -25,6 +25,10 @@
 - Phase 2A 只允许受控只读；Phase 2B 一个任务最多一个写步骤，禁止循环、递归、多写步骤和后台自治。
 - 任意 SQL、代码执行、文件系统、任意 URL、权限修改、删除、批量操作、敏感导出、外部消息和 Agent 自我扩权属于永久禁止能力，即使 `SUPER_ADMIN` 或二次确认也不能解除。
 - 工具、租户配置和 Prompt 只能收窄能力，不能突破代码注册表、安全附件和平台运行上限。
+- 所有 Agent 工具调用必须经过进程内 `ToolGateway`，网关不得提供公共 HTTP、管理员代执行或通用 `execute(toolCode,args,userId)` 接口。
+- Worker 只提交服务端 stepId 与租约；网关从持久任务重建身份、工具、参数、风险和确认状态，调用者不得覆盖。
+- 只有 Tool Gateway 可以持有 ToolHandler 映射；通过架构测试禁止 Controller、Planner、Task Service 和 Worker 直接依赖 handler。
+- 网关校验通过后领域 Service 仍要执行租户、资源归属、实时权限和业务状态校验，避免网关成为唯一授权点。
 
 ## OA AI 操作边界
 
@@ -76,7 +80,7 @@ OA AI 不再允许 mock 联调能力：
 
 工具执行规则：
 
-- 先校验参数，再执行业务。
+- 先由 Tool Gateway 校验任务、租约、实时权限、不可变哈希、确认、预算和参数，再由领域 Service 二次鉴权并执行业务。
 - 工具失败返回可解释错误，不抛给模型原始堆栈。
 - 多工具链路需要 traceId。
 - 写操作必须记录审计日志。
