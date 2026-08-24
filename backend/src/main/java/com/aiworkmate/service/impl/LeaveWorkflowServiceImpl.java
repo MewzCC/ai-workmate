@@ -6,6 +6,7 @@ import com.aiworkmate.common.PageResponse;
 import com.aiworkmate.common.TraceContext;
 import com.aiworkmate.common.AvatarUrls;
 import com.aiworkmate.dto.ApprovalDecisionRequest;
+import com.aiworkmate.dto.ApprovalStatusCountResponse;
 import com.aiworkmate.dto.ApproverCandidateResponse;
 import com.aiworkmate.dto.LeaveApplicationRequest;
 import com.aiworkmate.dto.LeaveApplicationResponse;
@@ -183,6 +184,32 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
                 .stream().map(view -> response(actor, view)).toList();
         long total = leaveMapper.countMine(actor.tenantId(), actor.userId(), normalize(status));
         return PageResponse.of(records, total, safePage, safeSize);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<LeaveApplicationResponse> adminList(Long userId, String status,
+                                                            LocalDateTime from, LocalDateTime to,
+                                                            String keyword, String leaveType,
+                                                            int page, int size) {
+        ResolvedUserAccess actor = requirePermission(userId, "approval:read");
+        int safePage = Math.max(1, page);
+        int safeSize = Math.min(100, Math.max(1, size));
+        int offset = (safePage - 1) * safeSize;
+        List<LeaveApplicationResponse> records = leaveMapper.selectAll(
+                        actor.tenantId(), normalize(status), from, to, normalizeKeyword(keyword),
+                        normalizeLeaveType(leaveType), safeSize, offset)
+                .stream().map(view -> response(actor, view)).toList();
+        long total = leaveMapper.countAll(actor.tenantId(), normalize(status), from, to,
+                normalizeKeyword(keyword), normalizeLeaveType(leaveType));
+        return PageResponse.of(records, total, safePage, safeSize);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ApprovalStatusCountResponse> adminStats(Long userId) {
+        ResolvedUserAccess actor = requirePermission(userId, "approval:read");
+        return leaveMapper.selectStatusCounts(actor.tenantId());
     }
 
     @Override
@@ -667,5 +694,16 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
 
     private String normalize(String value) {
         return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private String normalizeKeyword(String value) {
+        String normalized = normalize(value);
+        return normalized == null ? null
+                : normalized.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+    }
+
+    private String normalizeLeaveType(String value) {
+        String normalized = normalize(value);
+        return normalized == null ? null : normalized.toUpperCase(java.util.Locale.ROOT);
     }
 }

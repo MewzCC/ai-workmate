@@ -8,6 +8,7 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Mapper
@@ -16,6 +17,27 @@ public interface LeaveApplicationMapper extends BaseMapper<LeaveApplication> {
     LeaveApplicationView selectView(
             @Param("tenantId") Long tenantId,
             @Param("id") Long id);
+
+    List<LeaveApplicationView> selectAll(
+            @Param("tenantId") Long tenantId,
+            @Param("status") String status,
+            @Param("from") LocalDateTime from,
+            @Param("to") LocalDateTime to,
+            @Param("keyword") String keyword,
+            @Param("leaveType") String leaveType,
+            @Param("size") int size,
+            @Param("offset") int offset);
+
+    long countAll(
+            @Param("tenantId") Long tenantId,
+            @Param("status") String status,
+            @Param("from") LocalDateTime from,
+            @Param("to") LocalDateTime to,
+            @Param("keyword") String keyword,
+            @Param("leaveType") String leaveType);
+
+    List<com.aiworkmate.dto.ApprovalStatusCountResponse> selectStatusCounts(
+            @Param("tenantId") Long tenantId);
 
     List<LeaveApplicationView> selectMine(
             @Param("tenantId") Long tenantId,

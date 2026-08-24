@@ -128,6 +128,9 @@ services:
       - .env.docker
     environment:
       # 容器内通过服务名连接基础设施（覆盖 application.yml 的 localhost 默认值）
+      # TZ 必须设为东八区：后端用 LocalDateTime.now() 记录打卡/业务时间，
+      # 容器默认 UTC 会导致记录时间比北京时间慢 8 小时（打卡显示 07:55 而非 15:55）
+      TZ: Asia/Shanghai
       DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ai_workmate_dev}
       DB_USERNAME: ${DB_USERNAME:-postgres}
       REDIS_URL: redis://redis:6379

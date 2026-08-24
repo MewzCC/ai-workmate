@@ -67,10 +67,13 @@ export default function ApprovalDetailPage({ taskId }: { taskId: number }) {
   const { target: returnTarget, label: returnLabel } = useMemo(() => {
     if (fromTodo) return { target: '/oa/todo', label: t('approval.approvalDetail.backToTodo') };
     if (fromMyApplications) return { target: '/oa/my-applications', label: t('approval.approvalDetail.backToMyApplications') };
+    if (searchParams.get('from') === 'approval-list') {
+      return { target: '/oa/approval-list', label: t('approval.approvalDetail.backToApprovalList') };
+    }
     return application?.canApprove
       ? { target: '/oa/todo', label: t('approval.approvalDetail.backToTodo') }
       : { target: '/oa/my-applications', label: t('approval.approvalDetail.backToMyApplications') };
-  }, [fromTodo, fromMyApplications, application?.canApprove, t]);
+  }, [fromTodo, fromMyApplications, application?.canApprove, searchParams, t]);
 
   const submitDecision = async () => {
     if (application?.taskVersion == null || application.taskVersion < 0) return;
