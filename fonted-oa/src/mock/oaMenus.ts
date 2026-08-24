@@ -39,12 +39,13 @@ export const oaMenus: OaMenuItem[] = [
         children: [
           { id: 'approval-list', parentId: 'approval', name: '审批中心', type: 'page', componentKey: 'APPROVAL_LIST', sort: 1, visible: true, roles: [...allRoles], actions: ['read', 'approve', 'export', 'ai_execute'] },
           { id: 'approval-start', parentId: 'approval', name: '发起审批', type: 'page', componentKey: 'APPROVAL_START', sort: 2, visible: true, roles: [...allRoles], actions: ['read', 'create'] },
+          { id: 'approval-form', parentId: 'approval', name: '申请', type: 'page', componentKey: 'APPROVAL_FORM', sort: 3, visible: true, roles: [...allRoles], actions: ['read', 'create'] },
           {
             id: 'process-manage',
             parentId: 'approval',
             name: '流程管理',
             type: 'menu',
-            sort: 3,
+            sort: 4,
             visible: true,
             roles: ['super_admin', 'system_admin', 'process_admin'],
             children: [

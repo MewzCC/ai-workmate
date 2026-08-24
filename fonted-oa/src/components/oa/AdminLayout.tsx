@@ -30,6 +30,7 @@ import LeaveFormPage from './LeaveFormPage';
 import MyApplicationsPage from './MyApplicationsPage';
 import ApprovalDetailPage from './ApprovalDetailPage';
 import ApprovalStartPage from './ApprovalStartPage';
+import ApprovalFormPage from './ApprovalFormPage';
 import AuditCenterPage from './AuditCenterPage';
 import OrganizationTreePage from './OrganizationTreePage';
 import EmployeeFilePage from './EmployeeFilePage';
@@ -559,6 +560,8 @@ export default function AdminLayout() {
                     <ApprovalListPage />
                   ) : selectedMenu.componentKey === 'APPROVAL_START' ? (
                     <ApprovalStartPage />
+                  ) : selectedMenu.componentKey === 'APPROVAL_FORM' ? (
+                    <ApprovalFormPage />
                   ) : selectedMenu.componentKey === 'FORM_ENGINE' ? (
                     <FormEnginePage />
                   ) : selectedMenu.componentKey === 'PROCESS_CONFIG' ? (

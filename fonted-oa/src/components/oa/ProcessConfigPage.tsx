@@ -150,6 +150,7 @@ export default function ProcessConfigPage() {
       title: t('common.actions'),
       key: 'action',
       width: 130,
+      fixed: 'right',
       render: (_, record) =>
         record.canEdit ? (
           <Space>

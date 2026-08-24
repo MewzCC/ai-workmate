@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.aiworkmate.mapper.ApprovalApplicationMapper">
+
+    <sql id="approvalApplicationViewColumns">
+        a.id,
+        a.applicant_user_id AS applicantUserId,
+        COALESCE(NULLIF(applicant.display_name, ''), applicant.username) AS applicantName,
+        a.form_id AS formId,
+        a.form_key AS formKey,
+        a.form_name AS formName,
+        a.title,
+        a.data_json AS dataJson,
+        a.status,
+        a.version,
+        task.id AS taskId,
+        task.version AS taskVersion,
+        task.status AS taskStatus,
+        task.due_at AS taskDueAt,
+        assignee.id AS taskAssigneeUserId,
+        COALESCE(NULLIF(assignee.display_name, ''), assignee.username) AS taskAssigneeName,
+        instance.status AS workflowStatus,
+        a.workflow_instance_id AS workflowInstanceId,
+        a.submitted_at AS submittedAt,
+        a.completed_at AS completedAt,
+        a.created_at AS createdAt,
+        a.updated_at AS updatedAt
+    </sql>
+
+    <sql id="approvalApplicationViewJoins">
+        JOIN app_user applicant ON applicant.id = a.applicant_user_id
+        LEFT JOIN LATERAL (
+            SELECT wt.id, wt.version, wt.status, wt.due_at, wt.assignee_user_id
+            FROM workflow_task wt
+            WHERE wt.tenant_id = a.tenant_id
+              AND wt.business_type = 'GENERIC_APPROVAL'
+              AND wt.business_id = a.id
+            ORDER BY wt.created_at DESC, wt.id DESC
+            LIMIT 1
+        ) task ON TRUE
+        LEFT JOIN app_user assignee ON assignee.id = task.assignee_user_id
+        LEFT JOIN workflow_instance instance
+          ON instance.id = a.workflow_instance_id
+         AND instance.tenant_id = a.tenant_id
+    </sql>
+
+    <select id="selectView"
+            resultType="com.aiworkmate.dto.ApprovalApplicationView">
+        SELECT <include refid="approvalApplicationViewColumns"/>
+        FROM approval_application a
+        <include refid="approvalApplicationViewJoins"/>
+        WHERE a.tenant_id = #{tenantId}
+          AND a.id = #{id}
+    </select>
+
+    <!-- 我的通用申请：按创建时间倒序 -->
+    <select id="selectMine"
+            resultType="com.aiworkmate.dto.ApprovalApplicationView">
+        SELECT <include refid="approvalApplicationViewColumns"/>
+        FROM approval_application a
+        <include refid="approvalApplicationViewJoins"/>
+        WHERE a.tenant_id = #{tenantId}
+          AND a.applicant_user_id = #{userId}
+        <if test="status != null and status != ''">
+            AND a.status = #{status}
+        </if>
+        ORDER BY a.created_at DESC, a.id DESC
+        LIMIT #{size} OFFSET #{offset}
+    </select>
+
+    <select id="countMine" resultType="long">
+        SELECT COUNT(*)
+        FROM approval_application
+        WHERE tenant_id = #{tenantId}
+          AND applicant_user_id = #{userId}
+        <if test="status != null and status != ''">
+            AND status = #{status}
+        </if>
+    </select>
+
+    <!-- 角色审批人：同租户在职用户中取最小 id，排除申请人 -->
+    <select id="resolveRoleApprover" resultType="long">
+        SELECT ur.user_id
+        FROM user_role ur
+        JOIN app_user u
+          ON u.id = ur.user_id
+         AND u.tenant_id = ur.tenant_id
+         AND u.status = 1
+        WHERE ur.tenant_id = #{tenantId}
+          AND ur.role_code = #{roleCode}
+          AND ur.user_id &lt;&gt; #{excludeUserId}
+        ORDER BY ur.user_id
+        LIMIT 1
+    </select>
+
+    <select id="selectGenericDefinitionId" resultType="long">
+        SELECT id
+        FROM workflow_definition
+        WHERE tenant_id = #{tenantId}
+          AND code = 'GENERIC_FORM_APPROVAL'
+          AND enabled = TRUE
+        ORDER BY version DESC
+        LIMIT 1
+    </select>
+
+</mapper>

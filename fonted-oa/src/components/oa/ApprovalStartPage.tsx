@@ -6,8 +6,6 @@ import {
   Alert,
   Button,
   Card,
-  Descriptions,
-  Drawer,
   Empty,
   Input,
   Space,
@@ -15,7 +13,11 @@ import {
   Typography,
 } from 'antd';
 import { useTranslation } from 'react-i18next';
-import { approvalEngineApi, type ApprovalForm, type ApprovalProcess } from '@/lib/approvalEngineApi';
+import {
+  approvalEngineApi,
+  type ApprovalForm,
+  type ApprovalProcess,
+} from '@/lib/approvalEngineApi';
 import { formatOaApiError } from '@/lib/oaApi';
 import { OaIcon, type OaIconName } from '@/components/OaIcon';
 
@@ -41,21 +43,6 @@ const CATEGORY_ICON: Record<TemplateCategory, OaIconName> = {
 
 const CATEGORIES: TemplateCategory[] = ['hr', 'finance', 'admin', 'purchase', 'other'];
 
-interface SchemaField {
-  name?: string;
-  label?: string;
-  type?: string;
-}
-
-function parseSchemaFields(schemaJson: string): SchemaField[] {
-  try {
-    const parsed = JSON.parse(schemaJson) as { fields?: SchemaField[] };
-    return Array.isArray(parsed.fields) ? parsed.fields.filter((f) => f && f.name) : [];
-  } catch {
-    return [];
-  }
-}
-
 /** 打车内置请假模板入口：请假表单路由对所有登录角色开放。 */
 const LEAVE_FORM_KEY = 'leave-application';
 
@@ -66,7 +53,6 @@ export default function ApprovalStartPage() {
   const [processes, setProcesses] = useState<ApprovalProcess[]>([]);
   const [loadError, setLoadError] = useState<string>();
   const [keyword, setKeyword] = useState('');
-  const [detail, setDetail] = useState<{ form: ApprovalForm; process?: ApprovalProcess }>();
 
   const load = useCallback(async () => {
     setLoadError(undefined);
@@ -112,12 +98,13 @@ export default function ApprovalStartPage() {
       return rank(a.formKey) - rank(b.formKey);
     });
 
+  /** 请假走专用页面；其余模板进入通用申请页按 form_key 动态渲染。 */
   const openTemplate = (form: ApprovalForm) => {
     if (form.formKey === LEAVE_FORM_KEY) {
       router.push('/oa/leave-application');
       return;
     }
-    setDetail({ form, process: processByFormId.get(form.id) });
+    router.push(`/oa/approval-form?formKey=${encodeURIComponent(form.formKey)}`);
   };
 
   return (
@@ -204,75 +191,8 @@ export default function ApprovalStartPage() {
           })}
         </>
       )}
-
-      <Drawer
-        className="approval-template-drawer"
-        title={detail?.form.formName}
-        width={520}
-        open={Boolean(detail)}
-        onClose={() => setDetail(undefined)}
-      >
-        {detail && (
-          <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-            <Alert
-              showIcon
-              type="info"
-              message={t('approval.start.notWiredTitle')}
-              description={t('approval.start.notWiredDesc')}
-            />
-            <Card className="oa-domain-card" variant="borderless" title={t('approval.start.templateInfo')}>
-              <Descriptions column={1} size="small">
-                <Descriptions.Item label={t('approval.config.form.formKey')}>
-                  <Typography.Text code>{detail.form.formKey}</Typography.Text>
-                </Descriptions.Item>
-                <Descriptions.Item label={t('approval.start.fieldCount')}>
-                  {t('approval.start.fieldCountValue', { count: parseSchemaFields(detail.form.schemaJson).length })}
-                </Descriptions.Item>
-                <Descriptions.Item label={t('approval.start.boundProcess')}>
-                  {detail.process
-                    ? (
-                      <Space size={6}>
-                        <Tag color="success" bordered={false}>{detail.process.processName}</Tag>
-                        <Typography.Text type="secondary">
-                          {t('approval.start.processNodes', { count: parseNodeCount(detail.process.nodeJson) })}
-                        </Typography.Text>
-                      </Space>
-                    )
-                    : <Tag bordered={false}>{t('approval.start.unboundProcess')}</Tag>}
-                </Descriptions.Item>
-              </Descriptions>
-            </Card>
-            <Card className="oa-domain-card" variant="borderless" title={t('approval.start.formFields')}>
-              {parseSchemaFields(detail.form.schemaJson).length === 0 ? (
-                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('approval.start.emptyFields')} />
-              ) : (
-                <div className="approval-template-fields">
-                  {parseSchemaFields(detail.form.schemaJson).map((field) => (
-                    <div key={field.name}>
-                      <Typography.Text>{field.label || field.name}</Typography.Text>
-                      <Tag bordered={false}>{t(`approval.start.fieldType.${field.type}`, { defaultValue: field.type })}</Tag>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </Card>
-            <Button block type="primary" disabled icon={<OaIcon name="send" />}>
-              {t('approval.start.submitDisabled')}
-            </Button>
-          </Space>
-        )}
-      </Drawer>
     </section>
   );
-}
-
-function parseNodeCount(nodeJson: string): number {
-  try {
-    const parsed = JSON.parse(nodeJson);
-    return Array.isArray(parsed) ? parsed.length : 0;
-  } catch {
-    return 0;
-  }
 }
 
 function TemplateCard({

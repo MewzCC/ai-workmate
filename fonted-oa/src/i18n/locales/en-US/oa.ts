@@ -111,6 +111,7 @@ export default {
     approval: 'Approvals',
     'approval-list': 'Approval Center',
     'approval-start': 'New Request',
+    'approval-form': 'Request Form',
     'process-manage': 'Processes',
     'form-engine': 'Form Management',
     'process-config': 'Process List',

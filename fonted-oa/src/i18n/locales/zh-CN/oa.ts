@@ -111,6 +111,7 @@ export default {
     approval: '流程审批',
     'approval-list': '审批中心',
     'approval-start': '发起审批',
+    'approval-form': '申请',
     'process-manage': '流程管理',
     'form-engine': '表单管理',
     'process-config': '流程列表',
