@@ -117,6 +117,39 @@ export interface ApprovalRule {
   canDelete: boolean;
 }
 
+// ==================== 通用审批提交 ====================
+
+export interface ApprovalSubmitPayload {
+  formKey: string;
+  /** 可选：缺省时后端自动选择该表单绑定的第一个启用流程 */
+  processKey?: string;
+  formData: Record<string, unknown>;
+}
+
+export interface ApprovalApplication {
+  id: number;
+  applicantUserId: number;
+  applicantName: string;
+  formKey: string;
+  formName: string;
+  title: string;
+  dataJson: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'WITHDRAWN' | 'CANCELLED';
+  version: number;
+  taskId?: number | null;
+  taskVersion?: number | null;
+  taskStatus?: string | null;
+  taskDueAt?: string | null;
+  overdue: boolean;
+  taskAssigneeUserId?: number | null;
+  taskAssigneeName?: string | null;
+  workflowStatus?: string | null;
+  submittedAt?: string | null;
+  completedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // ==================== API 封装 ====================
 
 export const approvalEngineApi = {
@@ -191,4 +224,23 @@ export const approvalEngineApi = {
 
   deleteRule: (id: number) =>
     request<void>(`/approval-config/rules/${id}`, { method: 'DELETE' }),
+
+  // ---------- 通用审批提交 ----------
+  submitApplication: (payload: ApprovalSubmitPayload) =>
+    request<ApprovalApplication>('/approval-applications', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  listMyApplications: (params: {
+    status?: ApprovalApplication['status'];
+    page?: number;
+    size?: number;
+  } = {}) =>
+    request<PageResponse<ApprovalApplication>>(
+      `/approval-applications/mine${queryString(params)}`,
+    ),
+
+  getApplication: (id: number) =>
+    request<ApprovalApplication>(`/approval-applications/${id}`),
 };
