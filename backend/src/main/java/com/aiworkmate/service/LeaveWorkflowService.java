@@ -2,6 +2,7 @@ package com.aiworkmate.service;
 
 import com.aiworkmate.common.PageResponse;
 import com.aiworkmate.dto.ApprovalDecisionRequest;
+import com.aiworkmate.dto.ApprovalStatusCountResponse;
 import com.aiworkmate.dto.ApproverCandidateResponse;
 import com.aiworkmate.dto.LeaveApplicationRequest;
 import com.aiworkmate.dto.LeaveApprovalContextResponse;
@@ -26,6 +27,12 @@ public interface LeaveWorkflowService {
     LeaveApplicationResponse getApplication(Long userId, Long id);
 
     PageResponse<LeaveApplicationResponse> mine(Long userId, String status, int page, int size);
+
+    PageResponse<LeaveApplicationResponse> adminList(Long userId, String status, LocalDateTime from,
+                                                     LocalDateTime to, String keyword, String leaveType,
+                                                     int page, int size);
+
+    List<ApprovalStatusCountResponse> adminStats(Long userId);
 
     LeaveApplicationResponse submit(Long userId, Long id, VersionRequest request);
 

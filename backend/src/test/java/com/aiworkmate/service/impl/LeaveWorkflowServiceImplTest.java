@@ -35,6 +35,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
@@ -259,6 +260,79 @@ class LeaveWorkflowServiceImplTest {
         verify(actionLogMapper).insert(logCaptor.capture());
         assertThat(logCaptor.getValue().getAction()).isEqualTo("WITHDRAW");
         assertThat(logCaptor.getValue().getToStatus()).isEqualTo("WITHDRAWN");
+    }
+
+    @Test
+    void shouldListAllApplicationsForApprovalManager() {
+        when(userAccessService.resolveActiveUser(APPROVER_ID)).thenReturn(approverAccess());
+        when(leaveMapper.selectAll(TENANT_ID, null, null, null, null, null, 20, 0))
+                .thenReturn(List.of(
+                        view("PENDING", APPROVER_ID, 30L, 0, "PENDING", 1),
+                        view("APPROVED", APPROVER_ID, 31L, 1, "APPROVED", 2)));
+        when(leaveMapper.countAll(TENANT_ID, null, null, null, null, null)).thenReturn(2L);
+
+        var response = service.adminList(APPROVER_ID, null, null, null, null, null, 1, 20);
+
+        assertThat(response.total()).isEqualTo(2);
+        assertThat(response.records()).hasSize(2);
+        assertThat(response.records().get(0).status()).isEqualTo("PENDING");
+        assertThat(response.records().get(1).status()).isEqualTo("APPROVED");
+        verify(leaveMapper).selectAll(TENANT_ID, null, null, null, null, null, 20, 0);
+        verify(leaveMapper).countAll(TENANT_ID, null, null, null, null, null);
+    }
+
+    @Test
+    void shouldListApplicationsWithKeywordAndLeaveTypeFilters() {
+        when(userAccessService.resolveActiveUser(APPROVER_ID)).thenReturn(approverAccess());
+        when(leaveMapper.selectAll(TENANT_ID, "pending", null, null, "张", "ANNUAL", 20, 0))
+                .thenReturn(List.of(view("PENDING", APPROVER_ID, 30L, 0, "PENDING", 1)));
+        when(leaveMapper.countAll(TENANT_ID, "pending", null, null, "张", "ANNUAL")).thenReturn(1L);
+
+        var response = service.adminList(APPROVER_ID, "pending", null, null, " 张 ", "annual", 1, 20);
+
+        assertThat(response.total()).isEqualTo(1);
+        verify(leaveMapper).selectAll(TENANT_ID, "pending", null, null, "张", "ANNUAL", 20, 0);
+        verify(leaveMapper).countAll(TENANT_ID, "pending", null, null, "张", "ANNUAL");
+    }
+
+    @Test
+    void shouldSanitizeKeywordWildcards() {
+        when(userAccessService.resolveActiveUser(APPROVER_ID)).thenReturn(approverAccess());
+        when(leaveMapper.selectAll(TENANT_ID, null, null, null, "100\\%", null, 20, 0))
+                .thenReturn(List.of());
+        when(leaveMapper.countAll(TENANT_ID, null, null, null, "100\\%", null)).thenReturn(0L);
+
+        var response = service.adminList(APPROVER_ID, null, null, null, "100%", null, 1, 20);
+
+        assertThat(response.records()).isEmpty();
+        verify(leaveMapper).selectAll(TENANT_ID, null, null, null, "100\\%", null, 20, 0);
+    }
+
+    @Test
+    void shouldRequireApprovalReadPermissionForAdminList() {
+        when(userAccessService.resolveActiveUser(APPLICANT_ID)).thenReturn(applicantAccess());
+
+        assertThatThrownBy(() -> service.adminList(APPLICANT_ID, null, null, null, null, null, 1, 20))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        error -> assertThat(error.getErrorCode()).isEqualTo("PERMISSION_DENIED"));
+
+        verify(leaveMapper, never()).selectAll(anyLong(), any(), any(), any(), any(), any(), anyInt(), anyInt());
+    }
+
+    @Test
+    void shouldReturnStatusCountsForApprovalManager() {
+        when(userAccessService.resolveActiveUser(APPROVER_ID)).thenReturn(approverAccess());
+        when(leaveMapper.selectStatusCounts(TENANT_ID))
+                .thenReturn(List.of(
+                        new com.aiworkmate.dto.ApprovalStatusCountResponse("PENDING", 3),
+                        new com.aiworkmate.dto.ApprovalStatusCountResponse("APPROVED", 7)));
+
+        var response = service.adminStats(APPROVER_ID);
+
+        assertThat(response).hasSize(2);
+        assertThat(response.get(0).status()).isEqualTo("PENDING");
+        assertThat(response.get(0).count()).isEqualTo(3);
+        verify(leaveMapper).selectStatusCounts(TENANT_ID);
     }
 
     private ResolvedUserAccess applicantAccess() {
