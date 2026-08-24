@@ -39,6 +39,7 @@ AI WorkMate 是企业级 AI 助手与 OA 工作台平台雏形：
 - 后端规范：`docs/rules/backend-rules.md`
 - AI Agent 规范：`docs/rules/agent-rules.md`
 - Phase 2 Agent 安全边界：`docs/roadmap/phase-2-agent-security-boundary.md`
+- Phase 2 Tool Gateway 架构：`docs/architecture/agent-tool-gateway.md`
 - 国际化规范：`docs/rules/i18n-rules.md`
 
 ## 可用 Skills
@@ -194,6 +195,9 @@ docker compose -f docker-compose.yml up -d
 - 实施 Phase 2 Tool Calling、任务引擎或写工具前必须读取 `docs/roadmap/phase-2-agent-security-boundary.md`；永久禁止能力和运行上限不得被 Prompt、数据库配置、租户配置、角色权限或二次确认覆盖。
 - Phase 2 Agent 不得拥有任意 SQL、代码执行、文件系统、任意 URL、权限修改、删除、批量操作、敏感导出、外部消息或后台自治能力。
 - Phase 2A 自治等级上限为受控只读；Phase 2B 一个任务最多一个写步骤，且写工具默认关闭，必须经过独立人工发布门。
+- Phase 2 所有 Agent 工具调用必须经过进程内 `ToolGateway`；该网关不开放公共 HTTP API，Worker 只能提交服务端 stepId 与租约，Controller、Planner、Task Service 和 Worker 均不得直接调用或注入 `ToolHandler`。
+- `ToolGateway` 必须重新加载任务快照并校验租户、用户、实时权限、Worker 租约、attempt、plan/tool/schema/args 哈希、确认、预算、Kill Switch 和审计；通过后领域 Service 仍须再次校验资源归属和业务状态。
+- 必须使用 ArchUnit 或等价架构测试阻止绕过 Tool Gateway；权限、Registry、策略、限流或前置审计异常时 fail closed，禁止 fallback 直调 handler。
 
 ## 新增依赖说明
 

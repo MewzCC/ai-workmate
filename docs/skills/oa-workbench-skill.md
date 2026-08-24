@@ -35,6 +35,8 @@ AI plan/execute 不再允许 mock 成功；未接入真实数据库、审批系�
 
 实施 Phase 2 Tool Registry、持久任务引擎、确认凭证或写工具时，必须同时读取 `docs/roadmap/phase-2-agent-security-boundary.md`。Phase 2A 只允许受控只读；Phase 2B 一个任务最多一个写步骤，永久禁止能力不得因前端确认或高权限角色解除。
 
+Phase 2 的 Tool Gateway 是后端进程内安全边界，不提供前端 API。OA 前端只能调用任务 plan/confirmation/execute/query/events 接口，禁止直接传 toolCode、args、userId、tenantId 或调用 ToolHandler。
+
 ## 首页与 OA 端口切分
 
 - 首页默认运行在 `3000`。

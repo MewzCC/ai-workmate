@@ -6,6 +6,8 @@
 
 如果任务涉及 OA AI 接口、`AiTaskController`、`SystemController`、`AiTaskService`、`AiTask*DTO`，请同时读取 `docs/skills/oa-workbench-skill.md`。
 
+如果任务涉及 Phase 2 Tool Gateway 或 ToolHandler，必须同时读取 `docs/roadmap/phase-2-agent-security-boundary.md` 与 `docs/architecture/agent-tool-gateway.md`。
+
 ## 当前后端结构
 
 - 包名：`com.aiworkmate`。
@@ -55,6 +57,10 @@ OA AI 后端必须接入真实认证、权限、审计和可观测流程：
 - 真实写操作必须先完成权限校验、幂等设计、人工确认和审计记录。
 - 真实 LLM 接入必须通过环境变量配置 `AI_API_KEY`、`AI_BASE_URL`、`AI_MODEL`。
 - 安全配置不得为了联调放开全部接口。
+- 所有 Agent ToolHandler 必须由进程内 Tool Gateway 分派；Worker 只传 stepId 与租约，网关不开放公共 HTTP API。
+- 只有 gateway 包可以依赖 handler；使用 ArchUnit 或等价测试阻止 Controller、Planner、Task Service、Worker 直接调用。
+- Tool Gateway 必须实时校验租户、用户权限、任务/步骤状态、租约、attempt、不可变哈希、确认、预算和前置审计；异常 fail closed。
+- 网关不是领域鉴权替代品，handler 调用的领域 Service 仍须执行资源归属和业务状态条件校验。
 
 ## Spring AI 规范
 
