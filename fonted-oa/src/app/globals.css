@@ -311,6 +311,242 @@
   gap: 18px;
 }
 
+/* Attendance clock · 大圆形打卡按钮（液态玻璃质感） */
+.oa-clock-hero {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 48px;
+  padding: 22px 8px 8px;
+  isolation: isolate;
+}
+
+/* 按钮周围的环境光斑（液态玻璃需要光才能折射） */
+.oa-clock-hero::before {
+  content: '';
+  position: absolute;
+  inset: -28px -16px 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 18% 22%, color-mix(in srgb, var(--oa-primary) 24%, transparent), transparent 52%),
+    radial-gradient(circle at 82% 78%, color-mix(in srgb, var(--oa-primary) 18%, transparent), transparent 56%);
+  filter: blur(46px);
+  opacity: .85;
+  animation: oa-clock-aura 9s ease-in-out infinite alternate;
+}
+
+@keyframes oa-clock-aura {
+  0% { transform: translate3d(-6px, -4px, 0) scale(.96); opacity: .7; }
+  100% { transform: translate3d(8px, 6px, 0) scale(1.04); opacity: .95; }
+}
+
+.oa-clock-circle.ant-btn,
+.oa-clock-circle.ant-btn.ant-btn-primary,
+.oa-clock-circle.ant-btn.ant-btn-default {
+  position: relative;
+  z-index: 1;
+  width: 220px;
+  height: 220px;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--oa-primary) 22%, rgba(255, 255, 255, .6));
+  /* 液态玻璃底色：斜向渐变 + 顶部高光 */
+  background:
+    radial-gradient(circle at 30% 22%, rgba(255, 255, 255, .6), transparent 46%),
+    radial-gradient(circle at 72% 88%, color-mix(in srgb, var(--oa-primary) 18%, transparent), transparent 55%),
+    linear-gradient(145deg,
+      color-mix(in srgb, var(--oa-primary) 16%, var(--oa-card)) 0%,
+      color-mix(in srgb, var(--oa-primary) 4%, var(--oa-card)) 48%,
+      color-mix(in srgb, var(--oa-primary) 14%, var(--oa-card)) 100%);
+  /* 玻璃折射：背模糊 + 高饱和 */
+  backdrop-filter: blur(26px) saturate(180%);
+  -webkit-backdrop-filter: blur(26px) saturate(180%);
+  /* 多层投影：内高光 + 内底阴影 + 外细环 + 主柔光 + 远扩散 */
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, .85),
+    inset 0 -10px 24px rgba(15, 23, 42, .05),
+    0 0 0 1px color-mix(in srgb, var(--oa-primary) 8%, transparent),
+    0 22px 46px -18px color-mix(in srgb, var(--oa-primary) 62%, transparent),
+    0 34px 72px -24px color-mix(in srgb, var(--oa-primary) 38%, transparent);
+  transition: transform .28s cubic-bezier(.22, .78, .24, 1),
+              box-shadow .35s cubic-bezier(.22, .78, .24, 1),
+              filter .25s ease,
+              border-color .25s ease;
+}
+
+.oa-clock-circle.ant-btn:not(:disabled):hover {
+  transform: translateY(-5px) scale(1.02);
+  filter: saturate(124%) brightness(1.04);
+  border-color: color-mix(in srgb, var(--oa-primary) 36%, rgba(255, 255, 255, .7));
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, .92),
+    inset 0 -10px 26px rgba(15, 23, 42, .06),
+    0 0 0 1px color-mix(in srgb, var(--oa-primary) 14%, transparent),
+    0 28px 56px -18px color-mix(in srgb, var(--oa-primary) 74%, transparent),
+    0 42px 84px -22px color-mix(in srgb, var(--oa-primary) 50%, transparent);
+}
+
+.oa-clock-circle.ant-btn:not(:disabled):active {
+  transform: translateY(-1px) scale(.992);
+  box-shadow:
+    inset 0 3px 10px rgba(15, 23, 42, .1),
+    inset 0 1px 1px rgba(255, 255, 255, .55),
+    0 8px 18px -12px color-mix(in srgb, var(--oa-primary) 56%, transparent);
+}
+
+.oa-clock-circle.ant-btn:disabled {
+  opacity: .7;
+  filter: saturate(80%);
+}
+
+.oa-clock-circle__time {
+  font-size: 36px;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--oa-text);
+  text-shadow: 0 1px 1px rgba(255, 255, 255, .42);
+}
+
+.oa-clock-circle__label {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  color: var(--oa-primary);
+  text-shadow: 0 1px 2px color-mix(in srgb, var(--oa-primary) 22%, transparent);
+}
+
+.oa-clock-circle__hint {
+  font-size: 12px;
+  color: var(--oa-muted);
+  text-shadow: 0 1px 1px rgba(255, 255, 255, .32);
+}
+
+.oa-clock-flex-note {
+  position: relative;
+  z-index: 1;
+  margin: 8px auto 4px;
+  max-width: 560px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--oa-primary);
+  padding: 8px 16px;
+  border: 1px solid color-mix(in srgb, var(--oa-primary) 32%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--oa-primary) 8%, transparent);
+  backdrop-filter: blur(10px) saturate(140%);
+  -webkit-backdrop-filter: blur(10px) saturate(140%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .35);
+}
+
+.oa-clock-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.oa-clock-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1px solid color-mix(in srgb, var(--oa-border) 80%, transparent);
+  border-radius: 12px;
+  background:
+    linear-gradient(180deg,
+      color-mix(in srgb, var(--oa-card) 72%, transparent),
+      color-mix(in srgb, var(--oa-card) 52%, transparent));
+  backdrop-filter: blur(12px) saturate(140%);
+  -webkit-backdrop-filter: blur(12px) saturate(140%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .4);
+}
+
+.oa-clock-chip__label {
+  font-size: 12px;
+  color: var(--oa-muted);
+}
+
+.oa-clock-chip__value {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--oa-text);
+}
+
+/* 壁纸模式下打卡按钮进一步透明，让玻璃折射壁纸颜色 */
+.oa-wallpaper-active .oa-clock-circle.ant-btn,
+.oa-wallpaper-active .oa-clock-circle.ant-btn.ant-btn-primary,
+.oa-wallpaper-active .oa-clock-circle.ant-btn.ant-btn-default {
+  background:
+    radial-gradient(circle at 30% 22%, rgba(255, 255, 255, .35), transparent 50%),
+    radial-gradient(circle at 72% 88%, color-mix(in srgb, var(--oa-primary) 22%, transparent), transparent 58%),
+    linear-gradient(145deg,
+      color-mix(in srgb, var(--oa-card) 55%, transparent) 0%,
+      color-mix(in srgb, var(--oa-card) 38%, transparent) 50%,
+      color-mix(in srgb, var(--oa-card) 52%, transparent) 100%);
+  backdrop-filter: blur(32px) saturate(160%);
+  -webkit-backdrop-filter: blur(32px) saturate(160%);
+}
+
+.oa-wallpaper-active .oa-clock-chip {
+  background:
+    linear-gradient(180deg,
+      color-mix(in srgb, var(--oa-card) 60%, transparent),
+      color-mix(in srgb, var(--oa-card) 40%, transparent));
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+}
+
+@media (max-width: 980px) {
+  .oa-clock-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 720px) {
+  .oa-clock-hero { gap: 22px; }
+  .oa-clock-circle.ant-btn,
+  .oa-clock-circle.ant-btn.ant-btn-primary,
+  .oa-clock-circle.ant-btn.ant-btn-default { width: 168px; height: 168px; }
+  .oa-clock-circle__time { font-size: 26px; }
+  .oa-clock-circle__label { font-size: 13px; }
+  .oa-clock-circle__hint { font-size: 11px; }
+  .oa-clock-summary { grid-template-columns: 1fr; }
+}
+
+/* 暗色主题：按钮使用更深的玻璃底色让光斑更亮 */
+[data-theme='dark'] .oa-clock-circle.ant-btn,
+[data-theme='dark'] .oa-clock-circle.ant-btn.ant-btn-primary,
+[data-theme='dark'] .oa-clock-circle.ant-btn.ant-btn-default {
+  background:
+    radial-gradient(circle at 30% 22%, rgba(255, 255, 255, .14), transparent 50%),
+    radial-gradient(circle at 72% 88%, color-mix(in srgb, var(--oa-primary) 28%, transparent), transparent 58%),
+    linear-gradient(145deg,
+      color-mix(in srgb, var(--oa-primary) 18%, var(--oa-card)) 0%,
+      color-mix(in srgb, var(--oa-primary) 6%, var(--oa-card)) 50%,
+      color-mix(in srgb, var(--oa-primary) 16%, var(--oa-card)) 100%);
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, .12),
+    inset 0 -10px 26px rgba(0, 0, 0, .18),
+    0 0 0 1px color-mix(in srgb, var(--oa-primary) 16%, transparent),
+    0 22px 46px -18px color-mix(in srgb, var(--oa-primary) 56%, transparent),
+    0 34px 72px -24px color-mix(in srgb, var(--oa-primary) 36%, transparent);
+}
+
+[data-theme='dark'] .oa-clock-circle__time {
+  text-shadow: 0 1px 2px rgba(0, 0, 0, .4);
+}
+
+[data-theme='dark'] .oa-clock-circle__hint {
+  text-shadow: 0 1px 1px rgba(0, 0, 0, .3);
+}
+
 .oa-attendance-card.ant-card {
   min-width: 0;
   border-color: var(--oa-border);
@@ -1277,4 +1513,151 @@
 @keyframes leave-enter {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+/* Admin assets module · shared full-height workbench */
+.oa-admin-assets-page {
+  display: grid;
+  width: 100%;
+  min-height: calc(100dvh - 156px);
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 18px;
+}
+
+.oa-admin-assets-heading {
+  display: flex;
+  min-height: 78px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 4px 2px;
+}
+
+.oa-admin-assets-heading__identity {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 14px;
+}
+
+.oa-admin-assets-heading__icon {
+  display: inline-flex;
+  width: 46px;
+  height: 46px;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  color: var(--oa-primary);
+  border: 1px solid color-mix(in srgb, var(--oa-primary) 16%, var(--oa-border));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--oa-primary) 10%, var(--oa-card));
+}
+
+.oa-admin-assets-heading__eyebrow {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--oa-primary) !important;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .12em;
+}
+
+.oa-admin-assets-heading h3 {
+  margin: 0 0 2px !important;
+  color: var(--oa-text) !important;
+  font-size: 22px;
+  letter-spacing: -.02em;
+}
+
+.oa-admin-assets-heading .ant-typography-secondary {
+  max-width: 760px;
+  margin: 0;
+  color: var(--oa-muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.oa-admin-assets-heading__actions {
+  display: flex;
+  align-items: center;
+  flex: none;
+}
+
+.oa-admin-assets-content,
+.oa-admin-assets-content > .ant-spin-nested-loading,
+.oa-admin-assets-content > .ant-spin-nested-loading > .ant-spin-container {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+
+.oa-admin-assets-card.ant-card {
+  min-width: 0;
+  flex: 1 1 auto;
+  min-height: 0;
+  border-color: var(--oa-border);
+  border-radius: 16px;
+  background: var(--oa-card);
+  box-shadow: 0 10px 30px rgba(15, 23, 42, .045);
+  overflow: hidden;
+}
+
+.oa-admin-assets-card.ant-card > .ant-card-body {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  padding: 20px 22px;
+}
+
+.oa-admin-assets-card--fill.ant-card > .ant-card-body,
+.oa-admin-assets-card--fill .ant-table-wrapper,
+.oa-admin-assets-card--fill .ant-spin-nested-loading {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+
+.oa-admin-assets-filters {
+  margin-bottom: 4px;
+}
+
+.oa-wallpaper-active .oa-admin-assets-card.ant-card {
+  background: color-mix(in srgb, var(--oa-card) 78%, transparent);
+  backdrop-filter: blur(18px);
+}
+
+@media (max-width: 720px) {
+  .oa-admin-assets-page {
+    min-height: calc(100dvh - 136px);
+    gap: 14px;
+  }
+
+  .oa-admin-assets-heading {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .oa-admin-assets-heading__icon {
+    width: 40px;
+    height: 40px;
+  }
+
+  .oa-admin-assets-heading h3 {
+    font-size: 20px;
+  }
+
+  .oa-admin-assets-heading__actions > *,
+  .oa-admin-assets-filters .ant-input,
+  .oa-admin-assets-filters .ant-select {
+    width: 100% !important;
+  }
+
+  .oa-admin-assets-card.ant-card > .ant-card-body {
+    padding: 16px;
+  }
 }

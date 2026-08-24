@@ -27,12 +27,18 @@ import MyApplicationsPage from './MyApplicationsPage';
 import ApprovalDetailPage from './ApprovalDetailPage';
 import AuditCenterPage from './AuditCenterPage';
 import OrganizationTreePage from './OrganizationTreePage';
+import EmployeeFilePage from './EmployeeFilePage';
 import KnowledgeBasePage from './KnowledgeBasePage';
 import SystemSettingsPage from './SystemSettingsPage';
 import AttendanceClockPage from './AttendanceClockPage';
 import AttendanceExceptionPage from './AttendanceExceptionPage';
 import AttendanceReissuePage from './AttendanceReissuePage';
 import AttendanceStatisticsPage from './AttendanceStatisticsPage';
+import AttendanceSettingsPage from './AttendanceSettingsPage';
+import AssetLedgerPage from './AssetLedgerPage';
+import MeetingRoomPage from './MeetingRoomPage';
+import VisitorBookingPage from './VisitorBookingPage';
+import SealUsagePage from './SealUsagePage';
 
 const { Content } = Layout;
 const OPEN_TABS_STORAGE_KEY = 'workmeta-oa-open-tabs';
@@ -552,6 +558,8 @@ export default function AdminLayout() {
                     <AuditCenterPage />
                   ) : selectedMenu.componentKey === 'ORG_TREE' ? (
                     <OrganizationTreePage />
+                  ) : selectedMenu.componentKey === 'EMPLOYEE_FILES' ? (
+                    <EmployeeFilePage />
                   ) : selectedMenu.componentKey === 'KNOWLEDGE_BASE' ? (
                     <KnowledgeBasePage />
                   ) : selectedMenu.componentKey === 'SYSTEM_CONFIG' ? (
@@ -564,6 +572,16 @@ export default function AdminLayout() {
                     <AttendanceReissuePage />
                   ) : selectedMenu.componentKey === 'ATTENDANCE_STATISTICS' ? (
                     <AttendanceStatisticsPage />
+                  ) : selectedMenu.componentKey === 'ATTENDANCE_SETTINGS' ? (
+                    <AttendanceSettingsPage />
+                  ) : selectedMenu.componentKey === 'ASSET_LEDGER' ? (
+                    <AssetLedgerPage />
+                  ) : selectedMenu.componentKey === 'MEETING_ROOM' ? (
+                    <MeetingRoomPage />
+                  ) : selectedMenu.componentKey === 'VISITOR_BOOKING' ? (
+                    <VisitorBookingPage />
+                  ) : selectedMenu.componentKey === 'SEAL_USAGE' ? (
+                    <SealUsagePage />
                   ) : (
                     <Dashboard
                       role={role}

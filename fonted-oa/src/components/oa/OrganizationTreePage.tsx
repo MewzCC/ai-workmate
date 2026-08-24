@@ -21,6 +21,7 @@ import { ReloadOutlined, SearchOutlined } from '@ant-design/icons';
 import { hrApi, type HrDepartment, type HrEmployee, type OrganizationOverview } from '@/lib/hrApi';
 import { message } from '@/lib/antdMessage';
 import { OaIcon } from '@/components/OaIcon';
+import { useRouter } from '@/lib/nextCompat';
 import { useTranslation } from 'react-i18next';
 
 const OrganizationGraph = lazy(() => import('./OrganizationGraph'));
@@ -32,6 +33,7 @@ export interface DepartmentNode extends HrDepartment {
 
 export default function OrganizationTreePage() {
   const { t } = useTranslation();
+  const router = useRouter();
   const [overview, setOverview] = useState<OrganizationOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedDepartmentId, setSelectedDepartmentId] = useState<number | undefined>();
@@ -284,12 +286,16 @@ export default function OrganizationTreePage() {
             </div>
             <Table
               rowKey="id"
+              rowClassName="oa-org-employee-clickable"
               columns={columns}
               dataSource={filteredEmployees}
               size="middle"
               scroll={{ x: 880 }}
               pagination={{ pageSize: 10, hideOnSinglePage: true, showSizeChanger: false }}
               locale={{ emptyText: <Empty description={t('organization.members.empty')} /> }}
+              onRow={(emp) => ({
+                onClick: () => router.push(`/oa/employee-files?id=${emp.id}`),
+              })}
             />
           </Card>
         </div>

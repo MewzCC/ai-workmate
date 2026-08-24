@@ -9,13 +9,17 @@ import com.aiworkmate.dto.AttendanceReissueDecisionRequest;
 import com.aiworkmate.dto.AttendanceReissueRequest;
 import com.aiworkmate.dto.AttendanceReissueResponse;
 import com.aiworkmate.dto.AttendanceRecordResponse;
+import com.aiworkmate.dto.AttendanceSettingsRequest;
+import com.aiworkmate.dto.AttendanceSettingsResponse;
 import com.aiworkmate.dto.AttendanceStatisticsResponse;
 import com.aiworkmate.dto.AttendanceTodayStatusResponse;
 import com.aiworkmate.entity.AttendanceRecord;
 import com.aiworkmate.entity.AttendanceReissue;
+import com.aiworkmate.entity.AttendanceSetting;
 import com.aiworkmate.entity.User;
 import com.aiworkmate.mapper.AttendanceRecordMapper;
 import com.aiworkmate.mapper.AttendanceReissueMapper;
+import com.aiworkmate.mapper.AttendanceSettingMapper;
 import com.aiworkmate.mapper.UserMapper;
 import com.aiworkmate.service.AttendanceService;
 import com.aiworkmate.service.UserAccessService;
@@ -41,15 +45,17 @@ import java.util.stream.Collectors;
 /**
  * 考勤管理服务实现。
  *
- * <p>打卡规则（常量 {@link #WORK_START} / {@link #WORK_END}，后续可配置化）：
+ * <p>打卡规则（上下班时间与弹性宽限读取 {@code attendance_setting} 配置，
+ * 未配置时回落默认 09:00 / 18:00、弹性 0 分钟）：
  * <ul>
- *   <li>上班打卡晚于 09:00 记为迟到；下班打卡早于 18:00 记为早退；</li>
+ *   <li>上班打卡晚于「上班时间 + 弹性上班宽限」记为迟到；下班打卡早于「预期下班 - 弹性下班宽限」记为早退；
+ *       开启「弹性联动下班」时，预期下班随实际上班顺延（9:00 上班 → 18:00 下班；9:30 上班 → 18:30 下班）；</li>
  *   <li>未打上班卡就打下班卡记为 MISSING_CLOCK；</li>
  *   <li>同一天同一类型不可重复打卡。</li>
  * </ul>
  *
  * <p>补卡审批为独立流程（不接入 workflow 体系），由申请人直属上级审批；
- * 审批通过后自动补写打卡记录（视为准时 09:00 / 18:00）。
+ * 审批通过后自动补写打卡记录（视为准时「配置的上班/下班时间」）。
  */
 @Service
 @RequiredArgsConstructor
@@ -62,6 +68,7 @@ public class AttendanceServiceImpl implements AttendanceService {
 
     private final AttendanceRecordMapper recordMapper;
     private final AttendanceReissueMapper reissueMapper;
+    private final AttendanceSettingMapper attendanceSettingMapper;
     private final UserMapper userMapper;
     private final UserAccessService userAccessService;
 
@@ -74,6 +81,7 @@ public class AttendanceServiceImpl implements AttendanceService {
         LocalDate today = LocalDate.now();
         LocalDateTime now = LocalDateTime.now();
         boolean isClockIn = "CLOCK_IN".equals(request.clockType());
+        WorkHours workHours = loadWorkHours(actor.tenantId());
 
         AttendanceRecord record = findTodayRecord(actor, today);
         if (record == null) {
@@ -90,7 +98,7 @@ public class AttendanceServiceImpl implements AttendanceService {
                 record = newRecord(actor, today);
                 record.setClockInTime(now);
                 record.setClockInIp(clientIp);
-                recomputeStatus(record);
+                recomputeStatus(record, workHours);
                 recordMapper.insert(record);
             }
         } else {
@@ -107,7 +115,8 @@ public class AttendanceServiceImpl implements AttendanceService {
                 record.setClockOutTime(now);
                 record.setClockOutIp(clientIp);
             }
-            recomputeStatus(record);
+            record.setUpdatedAt(now);
+            recomputeStatus(record, workHours);
             recordMapper.updateById(record);
         }
         return toClockResponse(record);
@@ -205,7 +214,10 @@ public class AttendanceServiceImpl implements AttendanceService {
         reissue.setClockType(request.clockType());
         reissue.setReason(request.reason());
         reissue.setStatus("PENDING");
-        reissue.setSubmittedAt(LocalDateTime.now());
+        LocalDateTime now = LocalDateTime.now();
+        reissue.setSubmittedAt(now);
+        reissue.setCreatedAt(now);
+        reissue.setUpdatedAt(now);
         reissueMapper.insert(reissue);
         return toReissueResponse(reissue, actor.userId());
     }
@@ -294,6 +306,64 @@ public class AttendanceServiceImpl implements AttendanceService {
         return new AttendanceStatisticsResponse(start, end, personal, team);
     }
 
+    // ==================== 上下班时间配置 ====================
+
+    @Override
+    @Transactional(readOnly = true)
+    public AttendanceSettingsResponse getSettings(Long userId) {
+        ResolvedUserAccess actor = requireActiveUser(userId);
+        WorkHours wh = loadWorkHours(actor.tenantId());
+        AttendanceSetting row = attendanceSettingMapper.selectOne(new LambdaQueryWrapper<AttendanceSetting>()
+                .eq(AttendanceSetting::getTenantId, actor.tenantId()));
+        return new AttendanceSettingsResponse(actor.tenantId(), wh.start(), wh.end(),
+                wh.startFlex(), wh.endFlex(), wh.linked(), row != null ? row.getUpdatedAt() : null);
+    }
+
+    @Override
+    @Transactional
+    public AttendanceSettingsResponse updateSettings(Long userId, AttendanceSettingsRequest request) {
+        ResolvedUserAccess actor = requireActiveUser(userId);
+        if (request.workStartTime() == null || request.workEndTime() == null) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.attendance.workStartTime.required");
+        }
+        if (request.startFlexMinutes() == null || request.endFlexMinutes() == null) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.attendance.flex.invalid");
+        }
+        if (request.flexLinked() == null) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.attendance.flexLinked.required");
+        }
+        if (!request.workStartTime().isBefore(request.workEndTime())) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.attendance.workHoursOrder.invalid");
+        }
+        if (!isManager(actor)) {
+            throw new BusinessException(ErrorCode.PERMISSION_DENIED);
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        AttendanceSetting row = attendanceSettingMapper.selectOne(new LambdaQueryWrapper<AttendanceSetting>()
+                .eq(AttendanceSetting::getTenantId, actor.tenantId()));
+        if (row == null) {
+            row = new AttendanceSetting();
+            row.setTenantId(actor.tenantId());
+            row.setCreatedAt(now);
+        }
+        row.setWorkStartTime(request.workStartTime());
+        row.setWorkEndTime(request.workEndTime());
+        row.setStartFlexMinutes(request.startFlexMinutes());
+        row.setEndFlexMinutes(request.endFlexMinutes());
+        row.setFlexLinked(request.flexLinked());
+        row.setUpdatedBy(actor.userId());
+        row.setUpdatedAt(now);
+        if (row.getId() == null) {
+            attendanceSettingMapper.insert(row);
+        } else {
+            attendanceSettingMapper.updateById(row);
+        }
+        return new AttendanceSettingsResponse(actor.tenantId(), row.getWorkStartTime(), row.getWorkEndTime(),
+                nullToZero(row.getStartFlexMinutes()), nullToZero(row.getEndFlexMinutes()),
+                Boolean.TRUE.equals(row.getFlexLinked()), row.getUpdatedAt());
+    }
+
     // ==================== 辅助方法 ====================
 
     private ResolvedUserAccess requireActiveUser(Long userId) {
@@ -316,6 +386,7 @@ public class AttendanceServiceImpl implements AttendanceService {
     }
 
     private AttendanceRecord newRecord(ResolvedUserAccess actor, LocalDate today) {
+        LocalDateTime now = LocalDateTime.now();
         AttendanceRecord record = new AttendanceRecord();
         record.setTenantId(actor.tenantId());
         record.setUserId(actor.userId());
@@ -323,11 +394,13 @@ public class AttendanceServiceImpl implements AttendanceService {
         record.setSource("WEB");
         record.setLateMinutes(0);
         record.setEarlyLeaveMinutes(0);
+        record.setCreatedAt(now);
+        record.setUpdatedAt(now);
         return record;
     }
 
-    /** 根据当前打卡时间重新计算 status / late_minutes / early_leave_minutes。 */
-    private void recomputeStatus(AttendanceRecord record) {
+    /** 根据当前打卡时间重新计算 status / late_minutes / early_leave_minutes（按配置的上下班时间与弹性宽限）。 */
+    private void recomputeStatus(AttendanceRecord record, WorkHours wh) {
         LocalDateTime clockIn = record.getClockInTime();
         LocalDateTime clockOut = record.getClockOutTime();
 
@@ -343,16 +416,20 @@ public class AttendanceServiceImpl implements AttendanceService {
             record.setEarlyLeaveMinutes(0);
             return;
         }
-        boolean late = clockIn.toLocalTime().isAfter(WORK_START);
+        // 弹性宽限：上班晚于「上班时间 + 弹性上班宽限」才迟到；早于「预期下班 - 弹性下班宽限」才早退
+        LocalTime flexStart = wh.start().plusMinutes(wh.startFlex());
+        LocalTime referenceOut = expectedClockOut(clockIn.toLocalTime(), wh);
+        LocalTime flexEnd = referenceOut.minusMinutes(wh.endFlex());
+        boolean late = clockIn.toLocalTime().isAfter(flexStart);
         int lateMinutes = late
-                ? (int) Duration.between(LocalDateTime.of(record.getClockDate(), WORK_START), clockIn).toMinutes()
+                ? maxZero(Duration.between(LocalDateTime.of(record.getClockDate(), flexStart), clockIn).toMinutes())
                 : 0;
         int earlyMinutes = 0;
         boolean early = false;
         if (clockOut != null) {
-            early = clockOut.toLocalTime().isBefore(WORK_END);
+            early = clockOut.toLocalTime().isBefore(flexEnd);
             earlyMinutes = early
-                    ? (int) Duration.between(clockOut, LocalDateTime.of(record.getClockDate(), WORK_END)).toMinutes()
+                    ? maxZero(Duration.between(clockOut, LocalDateTime.of(record.getClockDate(), flexEnd)).toMinutes())
                     : 0;
         }
         String status;
@@ -370,14 +447,29 @@ public class AttendanceServiceImpl implements AttendanceService {
         record.setEarlyLeaveMinutes(earlyMinutes);
     }
 
-    /** 补卡审批通过后，把补卡信息写回打卡记录（视为准时 09:00 / 18:00）。 */
+    /**
+     * 预期下班时间：开启弹性联动后，按下班 = max(实际打卡时间, 标准上班时间) + 工时
+     * （9:00 上班 → 18:00 下班；9:30 上班 → 18:30 下班）；关闭联动则返回标准下班时间。
+     */
+    private LocalTime expectedClockOut(LocalTime clockIn, WorkHours wh) {
+        if (!wh.linked()) {
+            return wh.end();
+        }
+        long durationMinutes = Duration.between(wh.start(), wh.end()).toMinutes();
+        LocalTime arrivalBase = clockIn.isBefore(wh.start()) ? wh.start() : clockIn;
+        return arrivalBase.plusMinutes((int) durationMinutes);
+    }
+
+    /** 补卡审批通过后，把补卡信息写回打卡记录（视为准时「配置的上班/下班时间」）。 */
     private void applyReissueToRecord(AttendanceReissue reissue) {
+        WorkHours wh = loadWorkHours(reissue.getTenantId());
         AttendanceRecord record = recordMapper.selectOne(new LambdaQueryWrapper<AttendanceRecord>()
                 .eq(AttendanceRecord::getTenantId, reissue.getTenantId())
                 .eq(AttendanceRecord::getUserId, reissue.getApplicantUserId())
                 .eq(AttendanceRecord::getClockDate, reissue.getClockDate()));
         boolean isClockIn = "CLOCK_IN".equals(reissue.getClockType());
         if (record == null) {
+            LocalDateTime now = LocalDateTime.now();
             record = new AttendanceRecord();
             record.setTenantId(reissue.getTenantId());
             record.setUserId(reissue.getApplicantUserId());
@@ -385,20 +477,39 @@ public class AttendanceServiceImpl implements AttendanceService {
             record.setSource("WEB");
             record.setLateMinutes(0);
             record.setEarlyLeaveMinutes(0);
+            record.setCreatedAt(now);
+            record.setUpdatedAt(now);
+        } else {
+            record.setUpdatedAt(LocalDateTime.now());
         }
         if (isClockIn) {
-            record.setClockInTime(LocalDateTime.of(reissue.getClockDate(), WORK_START));
+            record.setClockInTime(LocalDateTime.of(reissue.getClockDate(), wh.start()));
             record.setClockInIp("REISSUE");
         } else {
-            record.setClockOutTime(LocalDateTime.of(reissue.getClockDate(), WORK_END));
+            record.setClockOutTime(LocalDateTime.of(reissue.getClockDate(), wh.end()));
             record.setClockOutIp("REISSUE");
         }
-        recomputeStatus(record);
+        recomputeStatus(record, wh);
         if (record.getId() == null) {
             recordMapper.insert(record);
         } else {
             recordMapper.updateById(record);
         }
+    }
+
+    /** 读取租户的上下班时间配置；未配置时回落默认 09:00 / 18:00、弹性 0 分钟。 */
+    private WorkHours loadWorkHours(Long tenantId) {
+        AttendanceSetting setting = attendanceSettingMapper.selectOne(new LambdaQueryWrapper<AttendanceSetting>()
+                .eq(AttendanceSetting::getTenantId, tenantId));
+        if (setting == null) {
+            return WorkHours.DEFAULTS;
+        }
+        return new WorkHours(
+                setting.getWorkStartTime() != null ? setting.getWorkStartTime() : WORK_START,
+                setting.getWorkEndTime() != null ? setting.getWorkEndTime() : WORK_END,
+                nullToZero(setting.getStartFlexMinutes()),
+                nullToZero(setting.getEndFlexMinutes()),
+                Boolean.TRUE.equals(setting.getFlexLinked()));
     }
 
     private LambdaQueryWrapper<AttendanceRecord> buildRecordWrapper(ResolvedUserAccess actor,
@@ -559,5 +670,14 @@ public class AttendanceServiceImpl implements AttendanceService {
 
     private int nullToZero(Integer value) {
         return value == null ? 0 : value;
+    }
+
+    private int maxZero(long value) {
+        return (int) Math.max(0L, value);
+    }
+
+    /** 租户上下班时间、弹性宽限与联动开关；缺省 09:00 / 18:00、宽限 0、不联动。 */
+    private record WorkHours(LocalTime start, LocalTime end, int startFlex, int endFlex, boolean linked) {
+        static final WorkHours DEFAULTS = new WorkHours(WORK_START, WORK_END, 0, 0, false);
     }
 }

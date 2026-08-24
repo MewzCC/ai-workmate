@@ -10,7 +10,11 @@ export interface NavigationRoute {
   routeType: 'GROUP' | 'MENU' | 'PAGE';
   componentKey?: 'DASHBOARD' | 'AI_WORKSPACE' | 'ACCESS_CONTROL'
     | 'TODO_LIST' | 'LEAVE_FORM' | 'MY_APPLICATIONS' | 'AUDIT_CENTER'
-    | 'ORG_TREE' | 'KNOWLEDGE_BASE' | 'MESSAGE_CENTER' | 'SYSTEM_CONFIG';
+    | 'ORG_TREE' | 'KNOWLEDGE_BASE' | 'MESSAGE_CENTER' | 'SYSTEM_CONFIG'
+    | 'ATTENDANCE_CLOCK' | 'ATTENDANCE_EXCEPTION' | 'ATTENDANCE_REISSUE'
+    | 'ATTENDANCE_STATISTICS' | 'ATTENDANCE_SETTINGS'
+    | 'EMPLOYEE_FILES'
+    | 'ASSET_LEDGER' | 'MEETING_ROOM' | 'VISITOR_BOOKING' | 'SEAL_USAGE';
   permissionCode?: string;
   sortOrder: number;
   children: NavigationRoute[];

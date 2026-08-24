@@ -8,6 +8,8 @@ import com.aiworkmate.dto.AttendanceReissueDecisionRequest;
 import com.aiworkmate.dto.AttendanceReissueRequest;
 import com.aiworkmate.dto.AttendanceReissueResponse;
 import com.aiworkmate.dto.AttendanceRecordResponse;
+import com.aiworkmate.dto.AttendanceSettingsRequest;
+import com.aiworkmate.dto.AttendanceSettingsResponse;
 import com.aiworkmate.dto.AttendanceStatisticsResponse;
 import com.aiworkmate.dto.AttendanceTodayStatusResponse;
 import com.aiworkmate.security.AuthenticatedUser;
@@ -19,6 +21,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -113,6 +116,19 @@ public class AttendanceController {
             @RequestParam(required = false) Integer year,
             @RequestParam(required = false) Integer month) {
         return Result.ok(attendanceService.getStatistics(user.userId(), year, month));
+    }
+
+    @GetMapping("/settings")
+    public Result<AttendanceSettingsResponse> settings(
+            @AuthenticationPrincipal AuthenticatedUser user) {
+        return Result.ok(attendanceService.getSettings(user.userId()));
+    }
+
+    @PutMapping("/settings")
+    public Result<AttendanceSettingsResponse> updateSettings(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @Valid @RequestBody AttendanceSettingsRequest request) {
+        return Result.ok(attendanceService.updateSettings(user.userId(), request));
     }
 
     /** 解析客户端 IP，优先取 X-Forwarded-For 首段。 */
