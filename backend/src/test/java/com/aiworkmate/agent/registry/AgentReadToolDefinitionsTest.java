@@ -68,4 +68,24 @@ class AgentReadToolDefinitionsTest {
         assertThat(validator.valid(definition.inputSchema(),
                 objectMapper.readTree("{\"size\":51}"))).isFalse();
     }
+
+    @Test
+    void knowledgeSearchDefinitionCapsRetrievalAndMarksContentUntrusted() throws Exception {
+        ObjectMapper objectMapper = new ObjectMapper();
+        ToolDefinition definition = new AgentReadToolDefinitions()
+                .knowledgeSearchToolDefinition(objectMapper);
+        ToolSchemaValidator validator = new ToolSchemaValidator();
+
+        assertThat(definition.schemaHash()).isEqualTo(
+                "sha256:3f65a4f7a015f1ca051fd5fad0776ed4aeed9228cf5b1059aa63ee84dab9d30f");
+        assertThat(definition.requiredPermissions()).containsExactly("knowledge:search");
+        assertThat(definition.maxResultItems()).isEqualTo(10);
+        assertThat(definition.outputSchema().at("/properties/untrustedContent/const").asBoolean()).isTrue();
+        assertThat(validator.valid(definition.inputSchema(),
+                objectMapper.readTree("{\"query\":\"policy\",\"topK\":10}"))).isTrue();
+        assertThat(validator.valid(definition.inputSchema(),
+                objectMapper.readTree("{\"query\":\"policy\",\"topK\":11}"))).isFalse();
+        assertThat(validator.valid(definition.inputSchema(),
+                objectMapper.readTree("{\"query\":\"policy\",\"url\":\"https://evil.invalid\"}"))).isFalse();
+    }
 }
