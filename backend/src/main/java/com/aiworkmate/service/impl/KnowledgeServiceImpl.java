@@ -318,7 +318,7 @@ public class KnowledgeServiceImpl implements KnowledgeService {
 
     @Override
     public KnowledgeSearchResponse search(Long userId, KnowledgeSearchRequest request) {
-        ResolvedUserAccess access = requireAccess(userId);
+        ResolvedUserAccess access = requireSearchAccess(userId);
         String query = request.query().strip();
         EmbeddingDescriptor descriptor = embeddingService.current();
         Long availableDocuments = documentMapper.selectCount(
@@ -334,7 +334,7 @@ public class KnowledgeServiceImpl implements KnowledgeService {
         }
         EmbeddingResult embedding = embeddingService.embed(List.of(query));
         validateEmbeddingResult(descriptor, embedding, 1);
-        int topK = request.topK() == null ? properties.getRetrievalTopK() : request.topK();
+        int topK = Math.min(10, request.topK() == null ? properties.getRetrievalTopK() : request.topK());
         double minScore = request.minScore() == null
                 ? properties.getRetrievalMinScore() : request.minScore();
         List<KnowledgeSearchRow> rows = documentMapper.search(
@@ -485,7 +485,19 @@ public class KnowledgeServiceImpl implements KnowledgeService {
         if (userId == null) {
             throw new BusinessException(ErrorCode.AUTH_REQUIRED);
         }
-        return userAccessService.resolveActiveUser(userId);
+        ResolvedUserAccess access = userAccessService.resolveActiveUser(userId);
+        if (access == null) {
+            throw new BusinessException(ErrorCode.AUTH_REQUIRED);
+        }
+        return access;
+    }
+
+    private ResolvedUserAccess requireSearchAccess(Long userId) {
+        ResolvedUserAccess access = requireAccess(userId);
+        if (!access.permissions().contains("knowledge:search")) {
+            throw new BusinessException(ErrorCode.PERMISSION_DENIED);
+        }
+        return access;
     }
 
     private KnowledgeBase requireKnowledgeBase(ResolvedUserAccess access, Long kbId) {

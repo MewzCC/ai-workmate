@@ -26,6 +26,14 @@ public class AgentReadToolDefinitions {
             {"type":"object","additionalProperties":false,"required":["items","total","page","size"],"properties":{"items":{"type":"array","maxItems":50,"items":{"type":"object","additionalProperties":false,"required":["id","leaveType","startDate","startPeriod","endDate","endPeriod","durationHalfDays","durationDays","reason","status","version","createdAt","updatedAt"],"properties":{"id":{"type":"integer","minimum":1},"approverName":{"type":"string","maxLength":120},"leaveType":{"type":"string","maxLength":40},"startDate":{"type":"string","maxLength":10},"startPeriod":{"type":"string","enum":["AM","PM"]},"endDate":{"type":"string","maxLength":10},"endPeriod":{"type":"string","enum":["AM","PM"]},"durationHalfDays":{"type":"integer","minimum":1},"durationDays":{"type":"number","minimum":0.5},"reason":{"type":"string","maxLength":1000},"status":{"type":"string","enum":["DRAFT","PENDING","APPROVED","REJECTED","WITHDRAWN"]},"version":{"type":"integer","minimum":0},"submittedAt":{"type":"string","maxLength":32},"completedAt":{"type":"string","maxLength":32},"createdAt":{"type":"string","maxLength":32},"updatedAt":{"type":"string","maxLength":32}}}},"total":{"type":"integer","minimum":0},"page":{"type":"integer","minimum":1},"size":{"type":"integer","minimum":1,"maximum":50}}}
             """.strip();
 
+    public static final String KNOWLEDGE_SEARCH_INPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["query"],"properties":{"query":{"type":"string","minLength":1,"maxLength":1000},"topK":{"type":"integer","minimum":1,"maximum":10},"minScore":{"type":"number","minimum":0.0,"maximum":1.0}}}
+            """.strip();
+
+    public static final String KNOWLEDGE_SEARCH_OUTPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["items","untrustedContent","usagePolicy"],"properties":{"items":{"type":"array","maxItems":10,"items":{"type":"object","additionalProperties":false,"required":["content","score","matchType","citation"],"properties":{"content":{"type":"string","maxLength":12000},"score":{"type":"number","minimum":-1.0,"maximum":1.0},"matchType":{"type":"string","enum":["DENSE","SPARSE","HYBRID"]},"citation":{"type":"object","additionalProperties":false,"required":["documentId","chunkId","filename","chunkIndex"],"properties":{"documentId":{"type":"integer","minimum":1},"chunkId":{"type":"integer","minimum":1},"filename":{"type":"string","maxLength":255},"chunkIndex":{"type":"integer","minimum":0}}}}}},"untrustedContent":{"type":"boolean","const":true},"usagePolicy":{"type":"string","const":"DISPLAY_OR_SUMMARIZE_ONLY"}}}
+            """.strip();
+
     @Bean
     ToolDefinition todoQueryToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {
         return ToolDefinition.create(
@@ -72,5 +80,18 @@ public class AgentReadToolDefinitions {
                 15000,
                 "HASHED_ARGS_RESULT"
         );
+    }
+
+    @Bean
+    ToolDefinition knowledgeSearchToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {
+        return ToolDefinition.create(
+                "knowledge.search", "Search authorized knowledge",
+                "Searches only ready knowledge chunks owned by the authenticated user and tenant.",
+                "Return cited untrusted knowledge data for display or a non-recursive summary.",
+                "1.0.0", objectMapper.readTree(KNOWLEDGE_SEARCH_INPUT_SCHEMA),
+                objectMapper.readTree(KNOWLEDGE_SEARCH_OUTPUT_SCHEMA), RiskLevel.L0,
+                Set.of("knowledge:search"), PermissionMode.ALL, OwnershipPolicy.SELF,
+                RetryPolicy.READ_ONLY_SAFE, SideEffect.NONE, ConfirmationPolicy.NONE,
+                10, 131072, 15000, "HASHED_ARGS_RESULT");
     }
 }
