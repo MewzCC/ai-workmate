@@ -2,6 +2,8 @@ package com.aiworkmate.agent.task;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Insert;
+import org.apache.ibatis.annotations.Options;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
@@ -11,6 +13,15 @@ import java.util.List;
 
 @Mapper
 public interface AgentTaskMapper extends BaseMapper<AgentTask> {
+
+    @Insert("""
+            INSERT INTO agent_task(task_no, tenant_id, user_id, page_id, input, page_context,
+                plan_version, max_risk_level, status, attempt_count, tool_call_count, trace_id, version)
+            VALUES(#{taskNo}, #{tenantId}, #{userId}, #{pageId}, #{input}, CAST(#{pageContext} AS jsonb),
+                #{planVersion}, #{maxRiskLevel}, #{status}, #{attemptCount}, #{toolCallCount}, #{traceId}, #{version})
+            """)
+    @Options(useGeneratedKeys = true, keyProperty = "id")
+    int insertReceived(AgentTask task);
 
     @Select("""
             SELECT * FROM agent_task
@@ -29,6 +40,29 @@ public interface AgentTaskMapper extends BaseMapper<AgentTask> {
                    @Param("expectedStatus") String expectedStatus,
                    @Param("targetStatus") String targetStatus,
                    @Param("expectedVersion") Long expectedVersion);
+
+    @Update("""
+            UPDATE agent_task SET plan=CAST(#{plan} AS jsonb), plan_hash=#{planHash},
+                max_risk_level=#{riskLevel}, status=#{status}, planner_model=#{plannerModel},
+                prompt_version=#{promptVersion}, planning_latency_ms=#{latencyMs},
+                tool_call_count=#{toolCalls}, version=version+1, updated_at=CURRENT_TIMESTAMP
+            WHERE id=#{taskId} AND status='PLANNING' AND version=#{version}
+            """)
+    int finalizePlan(@Param("taskId") long taskId, @Param("version") long version,
+                     @Param("plan") String plan, @Param("planHash") String planHash,
+                     @Param("riskLevel") String riskLevel, @Param("status") String status,
+                     @Param("plannerModel") String plannerModel, @Param("promptVersion") String promptVersion,
+                     @Param("latencyMs") long latencyMs, @Param("toolCalls") int toolCalls);
+
+    @Update("""
+            UPDATE agent_task SET status='QUEUED', timeout_at=#{timeoutAt}, version=version+1,
+                updated_at=CURRENT_TIMESTAMP
+            WHERE id=#{taskId} AND tenant_id=#{tenantId} AND user_id=#{userId}
+              AND status='PLAN_READY' AND plan_version=#{planVersion} AND plan_hash=#{planHash}
+            """)
+    int queuePlanReady(@Param("taskId") long taskId, @Param("tenantId") long tenantId,
+                       @Param("userId") long userId, @Param("planVersion") int planVersion,
+                       @Param("planHash") String planHash, @Param("timeoutAt") LocalDateTime timeoutAt);
 
     @Select("""
             <script>

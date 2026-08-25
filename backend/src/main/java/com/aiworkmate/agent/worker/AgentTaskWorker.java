@@ -7,12 +7,15 @@ import com.aiworkmate.agent.gateway.WorkerLease;
 import com.aiworkmate.agent.task.AgentHashing;
 import com.aiworkmate.agent.task.AgentTask;
 import com.aiworkmate.agent.task.AgentTaskStep;
+import com.aiworkmate.agent.task.AgentTaskQueuedEvent;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
@@ -65,6 +68,11 @@ public class AgentTaskWorker {
             activeCount.decrementAndGet();
             // The persisted lease is deliberately left for the recovery pass.
         }
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void wakeAfterCommit(AgentTaskQueuedEvent event) {
+        poll();
     }
 
     @Scheduled(fixedDelayString = "${agent.worker.heartbeat-delay-ms:5000}")

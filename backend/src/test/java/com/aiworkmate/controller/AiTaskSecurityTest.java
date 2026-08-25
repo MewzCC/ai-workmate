@@ -102,32 +102,79 @@ class AiTaskSecurityTest {
     }
 
     @Test
-    void shouldRejectEmployeeExecution() throws Exception {
+    void shouldAllowAuthenticatedOwnerToQueueReadOnlyPlan() throws Exception {
+        when(aiTaskService.execute(eq("00000000-0000-4000-8000-000000000001"), any(), eq("execute-key-123"), any()))
+                .thenReturn(new com.aiworkmate.dto.AiTaskExecuteResponse(
+                        "00000000-0000-4000-8000-000000000001", "QUEUED", "/status", "/events"));
+        mockMvc.perform(post("/api/ai/tasks/00000000-0000-4000-8000-000000000001/execute")
+                        .header("Authorization", "Bearer " + TOKEN)
+                        .header("Idempotency-Key", "execute-key-123")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"planVersion\":1,\"planHash\":\"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}"))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.data.status").value("QUEUED"));
+
+        verify(aiTaskService).execute(eq("00000000-0000-4000-8000-000000000001"), any(),
+                eq("execute-key-123"), any());
+    }
+
+    @Test
+    void shouldRemoveLegacyExecuteEndpoint() throws Exception {
         mockMvc.perform(post("/api/ai/tasks/execute")
                         .header("Authorization", "Bearer " + TOKEN)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"taskId\":\"task-1\",\"confirm\":true}"))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.errorCode").value("PERMISSION_DENIED"));
-
-        verifyNoInteractions(aiTaskService);
+                .andExpect(status().isMethodNotAllowed());
     }
 
     @Test
     void shouldReturnCapabilityUnavailableWithoutCreatingFakePlan() throws Exception {
         when(userAccessService.resolveActiveUser(1001L))
                 .thenReturn(new ResolvedUserAccess(1001L, "alice", "SYSTEM_ADMIN", java.util.List.of()));
-        when(aiTaskService.plan(any(), any()))
+        when(aiTaskService.plan(any(), any(), any()))
                 .thenThrow(new BusinessException(ErrorCode.AI_TASK_CAPABILITY_UNAVAILABLE));
 
         mockMvc.perform(post("/api/ai/tasks/plan")
                         .header("Authorization", "Bearer " + TOKEN)
+                        .header("Idempotency-Key", "plan-key-123")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"input\":\"查看待办\",\"pageId\":\"dashboard\",\"role\":\"SUPER_ADMIN\"}"))
                 .andExpect(status().isServiceUnavailable())
                 .andExpect(jsonPath("$.errorCode").value("AI_TASK_CAPABILITY_UNAVAILABLE"))
                 .andExpect(jsonPath("$.data").doesNotExist())
                 .andExpect(jsonPath("$.traceId").isNotEmpty());
+    }
+
+    @Test
+    void shouldRequireIndependentIdempotencyHeaders() throws Exception {
+        mockMvc.perform(post("/api/ai/tasks/plan")
+                        .header("Authorization", "Bearer " + TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"input\":\"查看待办\",\"pageId\":\"dashboard\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("REQUEST_INVALID"));
+
+        mockMvc.perform(post("/api/ai/tasks/00000000-0000-4000-8000-000000000001/execute")
+                        .header("Authorization", "Bearer " + TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"planVersion\":1,\"planHash\":\"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("REQUEST_INVALID"));
+
+        verifyNoInteractions(aiTaskService);
+    }
+
+    @Test
+    void shouldMapIdempotencyHashConflictToStable409() throws Exception {
+        when(aiTaskService.plan(any(), eq("reused-key-123"), any()))
+                .thenThrow(new com.aiworkmate.agent.task.IdempotencyConflictException());
+        mockMvc.perform(post("/api/ai/tasks/plan")
+                        .header("Authorization", "Bearer " + TOKEN)
+                        .header("Idempotency-Key", "reused-key-123")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"input\":\"查看待办\",\"pageId\":\"dashboard\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.errorCode").value("IDEMPOTENCY_CONFLICT"));
     }
 
     @Test

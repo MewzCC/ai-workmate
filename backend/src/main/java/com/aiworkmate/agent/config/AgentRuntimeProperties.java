@@ -40,6 +40,10 @@ public class AgentRuntimeProperties {
         @Max(3)
         private int maxPlanSteps = 3;
 
+        @Min(100)
+        @Max(15000)
+        private int plannerTimeoutMs = 15000;
+
         @Min(1)
         @Max(5)
         private int maxToolCalls = 5;
