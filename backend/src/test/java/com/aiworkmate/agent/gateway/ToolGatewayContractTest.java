@@ -1,6 +1,7 @@
 package com.aiworkmate.agent.gateway;
 
 import com.aiworkmate.agent.config.AgentRuntimeProperties;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
@@ -25,7 +26,18 @@ class ToolGatewayContractTest {
     @Test
     void disabledGatewayMustFailClosed() {
         AgentRuntimeProperties properties = new AgentRuntimeProperties();
-        DefaultToolGateway gateway = new DefaultToolGateway(properties);
+        DefaultToolGateway gateway = new DefaultToolGateway(
+                properties,
+                mock(GatewayExecutionSnapshotMapper.class),
+                mock(com.aiworkmate.agent.registry.ToolRegistry.class),
+                mock(com.aiworkmate.service.UserAccessService.class),
+                new com.aiworkmate.agent.task.AgentHashing(new ObjectMapper()),
+                new ToolSchemaValidator(),
+                new ToolOutputGuard(),
+                new HandlerResolver(List.of()),
+                mock(GatewayAuditWriter.class),
+                new ObjectMapper()
+        );
 
         ToolGatewayResult result = gateway.execute(
                 10L, new WorkerLease("worker-1", 0, "0123456789abcdef0123456789abcdef")
