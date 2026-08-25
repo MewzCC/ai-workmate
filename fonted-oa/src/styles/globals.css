@@ -5091,6 +5091,50 @@ html.oa-wallpaper-active .ant-menu-submenu-popup .ant-menu-dark {
   margin-top: 12px;
 }
 
+.oa-ai-context-card,
+.oa-ai-plan-card,
+.oa-ai-progress-card {
+  border-color: color-mix(in srgb, var(--oa-primary, #1677ff) 18%, var(--oa-border, #e5e7eb));
+}
+
+.oa-ai-plan-heading {
+  margin-bottom: 18px;
+  padding: 12px 14px;
+  border-left: 3px solid var(--oa-primary, #1677ff);
+  background: color-mix(in srgb, var(--oa-primary, #1677ff) 6%, var(--oa-card, #ffffff));
+  border-radius: 0 8px 8px 0;
+}
+
+.oa-ai-plan-heading .ant-typography {
+  margin-bottom: 10px;
+}
+
+.oa-ai-status-strip {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+  padding: 12px 14px;
+  border: 1px solid var(--oa-border, rgba(15, 23, 42, 0.08));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--oa-card, #ffffff) 92%, var(--oa-primary, #1677ff));
+}
+
+.oa-ai-status-strip > span {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.oa-ai-status-strip .ant-typography {
+  overflow-wrap: anywhere;
+}
+
+.oa-ai-event-feed {
+  margin-top: 8px;
+}
+
 .oa-ai-message-list {
   list-style: none;
   margin: 0;
