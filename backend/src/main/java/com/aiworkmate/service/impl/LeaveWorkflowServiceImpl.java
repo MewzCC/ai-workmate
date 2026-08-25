@@ -174,10 +174,21 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
 
     @Override
     @Transactional(readOnly = true)
+    public LeaveApplicationResponse getMine(Long userId, Long id) {
+        ResolvedUserAccess actor = requirePermission(userId, "leave:read:self");
+        LeaveApplicationView view = requireView(actor.tenantId(), id);
+        if (!actor.userId().equals(view.applicantUserId())) {
+            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        }
+        return response(actor, view);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public PageResponse<LeaveApplicationResponse> mine(Long userId, String status, int page, int size) {
         ResolvedUserAccess actor = requirePermission(userId, "leave:read:self");
         int safePage = Math.max(1, page);
-        int safeSize = Math.min(100, Math.max(1, size));
+        int safeSize = Math.min(50, Math.max(1, size));
         int offset = (safePage - 1) * safeSize;
         List<LeaveApplicationResponse> records = leaveMapper.selectMine(
                         actor.tenantId(), actor.userId(), normalize(status), safeSize, offset)

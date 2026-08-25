@@ -46,4 +46,26 @@ class AgentReadToolDefinitionsTest {
         assertThat(validator.valid(definition.inputSchema(),
                 objectMapper.readTree("{\"filters\":{\"$ref\":\"file:///etc/passwd\"}}"))).isFalse();
     }
+
+    @Test
+    void leaveMineDefinitionAndExclusiveListDetailSchemaAreFrozen() throws Exception {
+        ObjectMapper objectMapper = new ObjectMapper();
+        ToolDefinition definition = new AgentReadToolDefinitions()
+                .leaveMineToolDefinition(objectMapper);
+        ToolSchemaValidator validator = new ToolSchemaValidator();
+
+        assertThat(definition.schemaHash()).isEqualTo(
+                "sha256:9b1d1ce3ec13c9c67f969c939c86eb4ab87659bee011ef2d32eded8a40bd26bf");
+        assertThat(definition.requiredPermissions()).containsExactly("leave:read:self");
+        assertThat(definition.ownershipPolicy()).isEqualTo(OwnershipPolicy.SELF);
+        assertThat(validator.valid(definition.inputSchema(), objectMapper.readTree("{}"))).isTrue();
+        assertThat(validator.valid(definition.inputSchema(),
+                objectMapper.readTree("{\"applicationId\":10}"))).isTrue();
+        assertThat(validator.valid(definition.inputSchema(),
+                objectMapper.readTree("{\"applicationId\":10,\"page\":1}"))).isFalse();
+        assertThat(validator.valid(definition.inputSchema(),
+                objectMapper.readTree("{\"applicationId\":10,\"userId\":7}"))).isFalse();
+        assertThat(validator.valid(definition.inputSchema(),
+                objectMapper.readTree("{\"size\":51}"))).isFalse();
+    }
 }

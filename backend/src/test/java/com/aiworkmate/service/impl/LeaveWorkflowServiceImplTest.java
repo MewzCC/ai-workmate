@@ -321,6 +321,44 @@ class LeaveWorkflowServiceImplTest {
     }
 
     @Test
+    void shouldReadOnlyOwnedLeaveDetailForAgentSelfScope() {
+        when(userAccessService.resolveActiveUser(APPLICANT_ID)).thenReturn(applicantAccess());
+        when(leaveMapper.selectView(TENANT_ID, 10L))
+                .thenReturn(view("PENDING", APPROVER_ID, 30L, 0, "PENDING", 1));
+
+        var response = service.getMine(APPLICANT_ID, 10L);
+
+        assertThat(response.id()).isEqualTo(10L);
+        assertThat(response.applicantUserId()).isEqualTo(APPLICANT_ID);
+        verify(leaveMapper).selectView(TENANT_ID, 10L);
+    }
+
+    @Test
+    void shouldHideOtherUsersLeaveFromSelfDetail() {
+        when(userAccessService.resolveActiveUser(9999L)).thenReturn(unrelatedAccess());
+        when(leaveMapper.selectView(TENANT_ID, 10L))
+                .thenReturn(view("PENDING", APPROVER_ID, 30L, 0, "PENDING", 1));
+
+        assertThatThrownBy(() -> service.getMine(9999L, 10L))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        error -> assertThat(error.getErrorCode()).isEqualTo("RESOURCE_NOT_FOUND"));
+    }
+
+    @Test
+    void shouldQueryMineByResolvedTenantAndUserWithFiftyItemLimit() {
+        when(userAccessService.resolveActiveUser(APPLICANT_ID)).thenReturn(applicantAccess());
+        when(leaveMapper.selectMine(TENANT_ID, APPLICANT_ID, "PENDING", 50, 50))
+                .thenReturn(List.of(view("PENDING", APPROVER_ID, 30L, 0, "PENDING", 1)));
+        when(leaveMapper.countMine(TENANT_ID, APPLICANT_ID, "PENDING")).thenReturn(1L);
+
+        var response = service.mine(APPLICANT_ID, "PENDING", 2, 500);
+
+        assertThat(response.size()).isEqualTo(50);
+        verify(leaveMapper).selectMine(TENANT_ID, APPLICANT_ID, "PENDING", 50, 50);
+        verify(leaveMapper).countMine(TENANT_ID, APPLICANT_ID, "PENDING");
+    }
+
+    @Test
     void shouldQueryOnlyAssignedTodosInResolvedTenantAndCapPageSize() {
         when(userAccessService.resolveActiveUser(APPROVER_ID)).thenReturn(approverAccess());
         LocalDateTime from = LocalDateTime.of(2026, 8, 1, 0, 0);
@@ -387,7 +425,7 @@ class LeaveWorkflowServiceImplTest {
     private ResolvedUserAccess unrelatedAccess() {
         return new ResolvedUserAccess(
                 9999L, "other@example.com", TENANT_ID, "EMPLOYEE",
-                List.of("EMPLOYEE"), List.of("leave:create"),
+                List.of("EMPLOYEE"), List.of("leave:create", "leave:read:self"),
                 List.of("SELF"), 1L);
     }
 
