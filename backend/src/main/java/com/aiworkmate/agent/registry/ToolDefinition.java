@@ -72,6 +72,8 @@ public record ToolDefinition(
         require(notBlank(handlerVersion), "handlerVersion is required");
         requireClosedObjectSchema(inputSchema, "inputSchema");
         requireClosedObjectSchema(outputSchema, "outputSchema");
+        validateSchemaSafety(inputSchema);
+        validateSchemaSafety(outputSchema);
         require(requiredPermissions != null && !requiredPermissions.isEmpty(), "requiredPermissions is required");
         require(requiredPermissions.stream().noneMatch(p -> p == null || p.isBlank() || p.equals("*") || p.startsWith("route:")),
                 "Tool permissions must be explicit business permissions");
@@ -115,6 +117,21 @@ public record ToolDefinition(
         if (branches.isArray()) {
             branches.forEach(ToolDefinition::validatePropertyNames);
         }
+    }
+
+    private static void validateSchemaSafety(JsonNode node) {
+        if (node == null || !node.isContainerNode()) {
+            return;
+        }
+        if (node.isArray()) {
+            node.forEach(ToolDefinition::validateSchemaSafety);
+            return;
+        }
+        node.properties().forEach(entry -> {
+            require(!Set.of("$ref", "$dynamicRef", "$recursiveRef", "contentEncoding", "contentMediaType")
+                    .contains(entry.getKey()), "External or executable schema features are forbidden");
+            validateSchemaSafety(entry.getValue());
+        });
     }
 
     private static void require(boolean condition, String message) {

@@ -51,6 +51,23 @@ class ToolDefinitionTest {
                 .hasMessageContaining("close additional properties");
     }
 
+    @Test
+    void shouldRejectSchemaReferencesAndExecutableContentHints() throws Exception {
+        JsonNode referencedSchema = objectMapper.readTree("""
+                {"type":"object","properties":{"page":{"$ref":"https://attacker.invalid/schema"}},"additionalProperties":false}
+                """);
+        assertThatThrownBy(() -> definition(referencedSchema, Set.of("todo:read")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("schema features");
+
+        JsonNode executableSchema = objectMapper.readTree("""
+                {"type":"object","properties":{"page":{"type":"string","contentMediaType":"text/html"}},"additionalProperties":false}
+                """);
+        assertThatThrownBy(() -> definition(executableSchema, Set.of("todo:read")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("schema features");
+    }
+
     private JsonNode schema(String property) throws Exception {
         return objectMapper.readTree("""
                 {"type":"object","properties":{"%s":{"type":"integer"}},"additionalProperties":false}

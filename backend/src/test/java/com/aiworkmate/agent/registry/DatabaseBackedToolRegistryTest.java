@@ -67,6 +67,44 @@ class DatabaseBackedToolRegistryTest {
     }
 
     @Test
+    void shouldApplyOnlyRiskPermissionAndLimitNarrowing() {
+        AgentTool platform = row("L1", true);
+        platform.setConfirmationPolicy("EXPLICIT");
+        platform.setRequiredPermissions("[\"todo:read\",\"agent:restricted\"]");
+        platform.setMaxResultItems(10);
+        platform.setMaxResultBytes(8192);
+        platform.setTimeoutMs(5000);
+        when(toolMapper.selectPlatformTool("todo.query")).thenReturn(platform);
+
+        ToolDefinition effective = registry.resolveExecutableTool(1L, "todo.query").orElseThrow();
+
+        assertThat(effective.riskLevel()).isEqualTo(RiskLevel.L1);
+        assertThat(effective.confirmationPolicy()).isEqualTo(ConfirmationPolicy.EXPLICIT);
+        assertThat(effective.requiredPermissions()).containsExactlyInAnyOrder("todo:read", "agent:restricted");
+        assertThat(effective.maxResultItems()).isEqualTo(10);
+        assertThat(effective.maxResultBytes()).isEqualTo(8192);
+        assertThat(effective.timeoutMs()).isEqualTo(5000);
+    }
+
+    @Test
+    void tenantOverrideMustBelongToTenantAndNeverRelaxPlatformPolicy() {
+        AgentTool platform = row("L1", true);
+        platform.setConfirmationPolicy("EXPLICIT");
+        when(toolMapper.selectPlatformTool("todo.query")).thenReturn(platform);
+
+        AgentTool wrongTenant = row("L1", true);
+        wrongTenant.setConfirmationPolicy("EXPLICIT");
+        wrongTenant.setTenantId(2L);
+        when(toolMapper.selectTenantTool(1L, "todo.query")).thenReturn(wrongTenant);
+        assertThat(registry.resolveExecutableTool(1L, "todo.query")).isEmpty();
+
+        AgentTool relaxed = row("L0", true);
+        relaxed.setTenantId(1L);
+        when(toolMapper.selectTenantTool(1L, "todo.query")).thenReturn(relaxed);
+        assertThat(registry.resolveExecutableTool(1L, "todo.query")).isEmpty();
+    }
+
+    @Test
     void shouldFailClosedWhenGlobalOrTenantSwitchIsOff() {
         when(toolMapper.selectPlatformTool("todo.query")).thenReturn(row("L0", true));
         properties.setEnabled(false);

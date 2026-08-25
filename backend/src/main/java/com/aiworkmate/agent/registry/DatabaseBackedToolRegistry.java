@@ -43,8 +43,9 @@ public class DatabaseBackedToolRegistry implements ToolRegistry {
                 : PAGE_TOOLS.getOrDefault(pageId, Set.of());
         return catalog.all().stream()
                 .filter(definition -> pageTools.contains(definition.code()))
+                .map(definition -> resolveExecutableTool(access.tenantId(), definition.code()).orElse(null))
+                .filter(java.util.Objects::nonNull)
                 .filter(definition -> hasPermissions(access.permissions(), definition))
-                .filter(definition -> resolveExecutableTool(access.tenantId(), definition.code()).isPresent())
                 .toList();
     }
 
@@ -59,15 +60,18 @@ public class DatabaseBackedToolRegistry implements ToolRegistry {
             return Optional.empty();
         }
         AgentTool platform = toolMapper.selectPlatformTool(toolCode);
-        if (!matchesCodeDefinition(platform, definition)) {
+        ToolDefinition effective = platform != null && platform.getTenantId() == null ? narrow(definition, platform) : null;
+        if (effective == null) {
             return Optional.empty();
         }
         AgentTool tenant = toolMapper.selectTenantTool(tenantId, toolCode);
         if (tenant == null) {
-            return Optional.of(definition);
+            return Optional.of(effective);
         }
         try {
-            return tenantNarrows(platform, tenant) ? Optional.of(definition) : Optional.empty();
+            return tenantId.equals(tenant.getTenantId())
+                    ? Optional.ofNullable(narrow(effective, tenant))
+                    : Optional.empty();
         } catch (RuntimeException exception) {
             return Optional.empty();
         }
@@ -84,43 +88,60 @@ public class DatabaseBackedToolRegistry implements ToolRegistry {
                 : definition.requiredPermissions().stream().anyMatch(permissions::contains);
     }
 
-    private boolean matchesCodeDefinition(AgentTool row, ToolDefinition definition) {
-        if (row == null || !Boolean.TRUE.equals(row.getEnabled())) {
-            return false;
+    private ToolDefinition narrow(ToolDefinition definition, AgentTool row) {
+        if (row == null || !Boolean.TRUE.equals(row.getEnabled()) || !definition.code().equals(row.getCode())) {
+            return null;
         }
         try {
-            return definition.handlerVersion().equals(row.getHandlerVersion())
+            RiskLevel risk = RiskLevel.valueOf(row.getRiskLevel());
+            ConfirmationPolicy confirmation = ConfirmationPolicy.valueOf(row.getConfirmationPolicy());
+            PermissionMode permissionMode = PermissionMode.valueOf(row.getPermissionMode());
+            RetryPolicy retryPolicy = RetryPolicy.valueOf(row.getRetryPolicy());
+            Set<String> permissions = jsonPermissions(row.getRequiredPermissions());
+            boolean valid = definition.handlerVersion().equals(row.getHandlerVersion())
                     && definition.schemaHash().equals(row.getSchemaHash())
-                    && definition.riskLevel().name().equals(row.getRiskLevel())
-                    && definition.permissionMode().name().equals(row.getPermissionMode())
+                    && risk.ordinal() >= definition.riskLevel().ordinal()
+                    && strongerPermissionMode(definition.permissionMode(), permissionMode)
                     && definition.ownershipPolicy().name().equals(row.getDataScopePolicy())
-                    && definition.retryPolicy().name().equals(row.getRetryPolicy())
+                    && strongerRetryPolicy(definition.retryPolicy(), retryPolicy)
                     && definition.sideEffect().name().equals(row.getSideEffect())
-                    && definition.confirmationPolicy().name().equals(row.getConfirmationPolicy())
+                    && confirmation.ordinal() >= definition.confirmationPolicy().ordinal()
+                    && confirmationForRisk(risk, confirmation)
                     && row.getMaxResultItems() <= definition.maxResultItems()
                     && row.getMaxResultBytes() <= definition.maxResultBytes()
                     && row.getTimeoutMs() <= definition.timeoutMs()
-                    && jsonPermissions(row.getRequiredPermissions()).equals(definition.requiredPermissions());
+                    && permissions.containsAll(definition.requiredPermissions());
+            if (!valid) {
+                return null;
+            }
+            ToolDefinition narrowed = new ToolDefinition(
+                    definition.code(), definition.name(), definition.description(), definition.purpose(),
+                    definition.handlerVersion(), definition.inputSchema(), definition.outputSchema(), definition.schemaHash(),
+                    risk, permissions, permissionMode, definition.ownershipPolicy(), retryPolicy,
+                    definition.sideEffect(), confirmation, row.getMaxResultItems(), row.getMaxResultBytes(),
+                    row.getTimeoutMs(), definition.auditPolicy()
+            );
+            narrowed.validate();
+            return narrowed;
         } catch (RuntimeException exception) {
-            return false;
+            return null;
+        }
     }
-}
 
-    private boolean tenantNarrows(AgentTool platform, AgentTool tenant) {
-        return Boolean.TRUE.equals(tenant.getEnabled())
-                && platform.getCode().equals(tenant.getCode())
-                && platform.getHandlerVersion().equals(tenant.getHandlerVersion())
-                && platform.getSchemaHash().equals(tenant.getSchemaHash())
-                && platform.getRiskLevel().equals(tenant.getRiskLevel())
-                && platform.getPermissionMode().equals(tenant.getPermissionMode())
-                && platform.getDataScopePolicy().equals(tenant.getDataScopePolicy())
-                && platform.getRetryPolicy().equals(tenant.getRetryPolicy())
-                && platform.getSideEffect().equals(tenant.getSideEffect())
-                && platform.getConfirmationPolicy().equals(tenant.getConfirmationPolicy())
-                && tenant.getMaxResultItems() <= platform.getMaxResultItems()
-                && tenant.getMaxResultBytes() <= platform.getMaxResultBytes()
-                && tenant.getTimeoutMs() <= platform.getTimeoutMs()
-                && jsonPermissions(tenant.getRequiredPermissions()).containsAll(jsonPermissions(platform.getRequiredPermissions()));
+    private boolean strongerPermissionMode(PermissionMode baseline, PermissionMode candidate) {
+        return baseline == candidate || (baseline == PermissionMode.ANY && candidate == PermissionMode.ALL);
+    }
+
+    private boolean strongerRetryPolicy(RetryPolicy baseline, RetryPolicy candidate) {
+        return baseline == candidate || candidate == RetryPolicy.NEVER;
+    }
+
+    private boolean confirmationForRisk(RiskLevel risk, ConfirmationPolicy confirmation) {
+        return switch (risk) {
+            case L0 -> true;
+            case L1 -> confirmation.ordinal() >= ConfirmationPolicy.EXPLICIT.ordinal();
+            case L2 -> confirmation == ConfirmationPolicy.SECONDARY;
+        };
     }
 
     private Set<String> jsonPermissions(String json) {
