@@ -32,16 +32,19 @@ public class AgentTaskWorker {
     private final ToolGateway gateway;
     private final AgentHashing hashing;
     private final ObjectMapper objectMapper;
+    private final AgentWorkerTransitionService transitions;
     private final TaskExecutor executor;
 
     public AgentTaskWorker(AgentRuntimeProperties properties, AgentWorkerMapper mapper,
                            ToolGateway gateway, AgentHashing hashing, ObjectMapper objectMapper,
+                           AgentWorkerTransitionService transitions,
                            @Qualifier("agentTaskExecutor") TaskExecutor executor) {
         this.properties = properties;
         this.mapper = mapper;
         this.gateway = gateway;
         this.hashing = hashing;
         this.objectMapper = objectMapper;
+        this.transitions = transitions;
         this.executor = executor;
     }
 
@@ -77,23 +80,20 @@ public class AgentTaskWorker {
         try {
             WorkerLease lease = new WorkerLease(workerId, task.getAttemptCount(), token);
             while (true) {
-                AgentTaskStep step = mapper.startNextStep(task.getId(), workerId, hash,
-                        task.getAttemptCount(), LocalDateTime.now().plus(
-                                java.time.Duration.ofMillis(properties.getLimits().getDefaultToolTimeoutMs())));
+                AgentTaskStep step = transitions.startNextStep(task, workerId, hash, LocalDateTime.now().plus(
+                        java.time.Duration.ofMillis(properties.getLimits().getDefaultToolTimeoutMs())));
                 if (step == null) {
-                    mapper.completeTask(task.getId(), workerId, hash);
+                    transitions.completeTask(task, workerId, hash);
                     return;
                 }
                 var result = gateway.execute(step.getId(), lease);
                 if (result.decision() == GatewayDecision.ALLOW) {
-                    if (mapper.completeStep(step.getId(), task.getAttemptCount(), workerId, hash,
-                            json(result.output())) != 1) return;
+                    if (!transitions.completeStep(task, step, workerId, hash, json(result.output()))) return;
                     continue;
                 }
                 if (result.decision() == GatewayDecision.UNAVAILABLE
-                        && mapper.retryReadOnly(step.getId(), task.getAttemptCount(), workerId, hash) == 1) return;
-                mapper.fail(step.getId(), task.getAttemptCount(), workerId, hash,
-                        result.code().name(), "Tool execution rejected");
+                        && transitions.retryReadOnly(task, step, workerId, hash)) return;
+                transitions.fail(task, step, workerId, hash, result.code().name());
                 return;
             }
         } catch (RuntimeException exception) {

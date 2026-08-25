@@ -11,6 +11,13 @@ import java.util.List;
 public interface AgentTaskEventMapper extends BaseMapper<AgentTaskEvent> {
 
     @Select("""
+            INSERT INTO agent_task_event(task_id, event_type, payload, trace_id)
+            VALUES (#{taskId}, #{eventType}, CAST(#{payload} AS jsonb), #{traceId})
+            RETURNING *
+            """)
+    AgentTaskEvent insertEvent(AgentTaskEvent event);
+
+    @Select("""
             SELECT event.*
             FROM agent_task_event event
             JOIN agent_task task ON task.id = event.task_id
