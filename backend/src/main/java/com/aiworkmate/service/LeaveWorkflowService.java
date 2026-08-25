@@ -26,6 +26,8 @@ public interface LeaveWorkflowService {
 
     LeaveApplicationResponse getApplication(Long userId, Long id);
 
+    LeaveApplicationResponse getMine(Long userId, Long id);
+
     PageResponse<LeaveApplicationResponse> mine(Long userId, String status, int page, int size);
 
     PageResponse<LeaveApplicationResponse> adminList(Long userId, String status, LocalDateTime from,
