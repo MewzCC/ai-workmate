@@ -34,6 +34,14 @@ public class AgentReadToolDefinitions {
             {"type":"object","additionalProperties":false,"required":["items","untrustedContent","usagePolicy"],"properties":{"items":{"type":"array","maxItems":10,"items":{"type":"object","additionalProperties":false,"required":["content","score","matchType","citation"],"properties":{"content":{"type":"string","maxLength":12000},"score":{"type":"number","minimum":-1.0,"maximum":1.0},"matchType":{"type":"string","enum":["DENSE","SPARSE","HYBRID"]},"citation":{"type":"object","additionalProperties":false,"required":["documentId","chunkId","filename","chunkIndex"],"properties":{"documentId":{"type":"integer","minimum":1},"chunkId":{"type":"integer","minimum":1},"filename":{"type":"string","maxLength":255},"chunkIndex":{"type":"integer","minimum":0}}}}}},"untrustedContent":{"type":"boolean","const":true},"usagePolicy":{"type":"string","const":"DISPLAY_OR_SUMMARIZE_ONLY"}}}
             """.strip();
 
+    public static final String NOTIFICATION_MINE_INPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"properties":{"page":{"type":"integer","minimum":1,"maximum":10000},"size":{"type":"integer","minimum":1,"maximum":50}}}
+            """.strip();
+
+    public static final String NOTIFICATION_MINE_OUTPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["items","total","page","size"],"properties":{"items":{"type":"array","maxItems":50,"items":{"type":"object","additionalProperties":false,"required":["id","type","title","content","read","createdAt"],"properties":{"id":{"type":"integer","minimum":1},"type":{"type":"string","maxLength":40},"title":{"type":"string","maxLength":200},"content":{"type":"string","maxLength":2000},"businessType":{"type":"string","maxLength":40},"read":{"type":"boolean"},"createdAt":{"type":"string","maxLength":32}}}},"total":{"type":"integer","minimum":0},"page":{"type":"integer","minimum":1},"size":{"type":"integer","minimum":1,"maximum":50}}}
+            """.strip();
+
     @Bean
     ToolDefinition todoQueryToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {
         return ToolDefinition.create(
@@ -93,5 +101,18 @@ public class AgentReadToolDefinitions {
                 Set.of("knowledge:search"), PermissionMode.ALL, OwnershipPolicy.SELF,
                 RetryPolicy.READ_ONLY_SAFE, SideEffect.NONE, ConfirmationPolicy.NONE,
                 10, 131072, 15000, "HASHED_ARGS_RESULT");
+    }
+
+    @Bean
+    ToolDefinition notificationMineToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {
+        return ToolDefinition.create(
+                "notification.mine", "Query my notifications",
+                "Returns notifications owned by the authenticated user in the authenticated tenant.",
+                "Display a bounded read-only notification list without internal business identifiers.",
+                "1.0.0", objectMapper.readTree(NOTIFICATION_MINE_INPUT_SCHEMA),
+                objectMapper.readTree(NOTIFICATION_MINE_OUTPUT_SCHEMA), RiskLevel.L0,
+                Set.of("notification:read:self"), PermissionMode.ALL, OwnershipPolicy.SELF,
+                RetryPolicy.READ_ONLY_SAFE, SideEffect.NONE, ConfirmationPolicy.NONE,
+                50, 65536, 15000, "HASHED_ARGS_RESULT");
     }
 }
