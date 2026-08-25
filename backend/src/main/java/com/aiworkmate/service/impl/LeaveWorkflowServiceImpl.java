@@ -333,9 +333,9 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
     @Transactional(readOnly = true)
     public PageResponse<TodoResponse> todos(Long userId, String status, LocalDateTime from,
                                             LocalDateTime to, int page, int size) {
-        ResolvedUserAccess actor = requireAccess(userId);
+        ResolvedUserAccess actor = requirePermission(userId, "todo:read");
         int safePage = Math.max(1, page);
-        int safeSize = Math.min(100, Math.max(1, size));
+        int safeSize = Math.min(50, Math.max(1, size));
         int offset = (safePage - 1) * safeSize;
         List<TodoResponse> records = taskMapper.selectTodos(
                 actor.tenantId(), actor.userId(), normalize(status), from, to, safeSize, offset).stream()

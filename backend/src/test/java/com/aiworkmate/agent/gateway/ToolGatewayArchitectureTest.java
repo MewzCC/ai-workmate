@@ -22,12 +22,9 @@ class ToolGatewayArchitectureTest {
     @Test
     void handlersMustNotDependOnInfrastructureEscapeHatches() {
         noClasses().that().resideInAPackage("..agent.tool.internal..")
-                .should().dependOnClassesThat().haveSimpleNameEndingWith("Mapper")
-                .check(classes);
-
-        noClasses().that().resideInAPackage("..agent.tool.internal..")
                 .should().dependOnClassesThat().resideInAnyPackage(
                         "..mapper..",
+                        "com.baomidou.mybatisplus.core.mapper..",
                         "..controller..",
                         "java.io..",
                         "java.nio.file..",

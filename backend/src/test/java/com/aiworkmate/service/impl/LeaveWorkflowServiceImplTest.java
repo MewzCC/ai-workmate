@@ -4,6 +4,7 @@ import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.dto.ApprovalDecisionRequest;
 import com.aiworkmate.dto.LeaveApplicationRequest;
 import com.aiworkmate.dto.LeaveApplicationView;
+import com.aiworkmate.dto.TodoResponse;
 import com.aiworkmate.dto.VersionRequest;
 import com.aiworkmate.entity.LeaveApplication;
 import com.aiworkmate.entity.WorkflowActionLog;
@@ -320,6 +321,40 @@ class LeaveWorkflowServiceImplTest {
     }
 
     @Test
+    void shouldQueryOnlyAssignedTodosInResolvedTenantAndCapPageSize() {
+        when(userAccessService.resolveActiveUser(APPROVER_ID)).thenReturn(approverAccess());
+        LocalDateTime from = LocalDateTime.of(2026, 8, 1, 0, 0);
+        LocalDateTime to = LocalDateTime.of(2026, 8, 31, 23, 59);
+        TodoResponse todo = new TodoResponse(
+                30L, 10L, APPLICANT_ID, "测试员工", "PERSONAL", 2,
+                "PENDING", 0, from.plusDays(1), to.minusDays(1), false,
+                null, null, null);
+        when(taskMapper.selectTodos(TENANT_ID, APPROVER_ID, "PENDING", from, to, 50, 50))
+                .thenReturn(List.of(todo));
+        when(taskMapper.countTodos(TENANT_ID, APPROVER_ID, "PENDING", from, to)).thenReturn(1L);
+
+        var response = service.todos(APPROVER_ID, "PENDING", from, to, 2, 500);
+
+        assertThat(response.records()).hasSize(1);
+        assertThat(response.size()).isEqualTo(50);
+        verify(taskMapper).selectTodos(TENANT_ID, APPROVER_ID, "PENDING", from, to, 50, 50);
+        verify(taskMapper).countTodos(TENANT_ID, APPROVER_ID, "PENDING", from, to);
+    }
+
+    @Test
+    void shouldFailClosedWhenTodoPermissionIsMissing() {
+        when(userAccessService.resolveActiveUser(APPLICANT_ID)).thenReturn(applicantAccess());
+
+        assertThatThrownBy(() -> service.todos(APPLICANT_ID, null, null, null, 1, 20))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        error -> assertThat(error.getErrorCode()).isEqualTo("PERMISSION_DENIED"));
+
+        verify(taskMapper, never()).selectTodos(
+                anyLong(), anyLong(), any(), any(), any(), anyInt(), anyInt());
+        verify(taskMapper, never()).countTodos(anyLong(), anyLong(), any(), any(), any());
+    }
+
+    @Test
     void shouldReturnStatusCountsForApprovalManager() {
         when(userAccessService.resolveActiveUser(APPROVER_ID)).thenReturn(approverAccess());
         when(leaveMapper.selectStatusCounts(TENANT_ID))
@@ -345,7 +380,7 @@ class LeaveWorkflowServiceImplTest {
     private ResolvedUserAccess approverAccess() {
         return new ResolvedUserAccess(
                 APPROVER_ID, "approver@example.com", TENANT_ID, "PROCESS_ADMIN",
-                List.of("PROCESS_ADMIN"), List.of("approval:act", "approval:read"),
+                List.of("PROCESS_ADMIN"), List.of("approval:act", "approval:read", "todo:read"),
                 List.of("DEPARTMENT"), 1L);
     }
 
