@@ -1,5 +1,6 @@
 package com.aiworkmate.agent.gateway;
 
+import com.aiworkmate.agent.worker.AgentWorkerMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,6 +25,9 @@ class GatewayPersistenceIntegrationTest {
 
     @Autowired
     private GatewayAuditWriter auditWriter;
+
+    @Autowired
+    private AgentWorkerMapper workerMapper;
 
     @DynamicPropertySource
     static void databaseProperties(DynamicPropertyRegistry registry) {
@@ -79,5 +83,77 @@ class GatewayPersistenceIntegrationTest {
                 WHERE decision_id = ? AND handler_invoked AND outcome = 'SUCCEEDED'
                 """, Integer.class, decisionId);
         assertThat(rows).isEqualTo(1);
+
+        Long queuedTaskId = jdbcTemplate.queryForObject("""
+                INSERT INTO agent_task(
+                    task_no, tenant_id, user_id, page_id, input, page_context, plan, plan_hash,
+                    status, timeout_at, trace_id
+                ) VALUES (
+                    '0191f69c-7a33-7b45-9c62-a07f82d8a007', ?, ?, 'todo-list', 'query', '{}'::jsonb,
+                    '{"planVersion":1,"steps":[]}'::jsonb, 'sha256:plan', 'QUEUED', ?,
+                    'trace-worker-integration'
+                ) RETURNING id
+                """, Long.class, tenantId, userId,
+                Timestamp.valueOf(LocalDateTime.now().plusMinutes(1)));
+        Long queuedStepId = jdbcTemplate.queryForObject("""
+                INSERT INTO agent_task_step(
+                    task_id, sequence_no, tool_code, tool_version, schema_hash, args, args_hash,
+                    risk_level, status, trace_id
+                ) VALUES (?, 1, 'todo.query', '1.0.0', 'sha256:schema', '{}'::jsonb,
+                          'sha256:args', 'L0', 'PENDING', 'trace-worker-integration') RETURNING id
+                """, Long.class, queuedTaskId);
+
+        var claimed = workerMapper.claim("worker-2", "sha256:new-lease",
+                LocalDateTime.now().plusSeconds(30), 2);
+        assertThat(claimed.getId()).isEqualTo(queuedTaskId);
+        assertThat(workerMapper.claim("worker-3", "sha256:blocked",
+                LocalDateTime.now().plusSeconds(30), 2)).isNull();
+        assertThat(workerMapper.startNextStep(queuedTaskId, "worker-2", "sha256:new-lease", 0,
+                LocalDateTime.now().plusSeconds(15)).getId()).isEqualTo(queuedStepId);
+        jdbcTemplate.update("UPDATE agent_task SET lease_until=? WHERE id=?",
+                Timestamp.valueOf(LocalDateTime.now().minusSeconds(1)), queuedTaskId);
+        assertThat(workerMapper.closeTimedOutOrUnsafe()).isZero();
+        assertThat(workerMapper.recoverExpiredReadOnly()).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT status || '|' || attempt_count FROM agent_task WHERE id=?",
+                String.class, queuedTaskId)).isEqualTo("QUEUED|1");
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT status || '|' || attempt_count FROM agent_task_step WHERE id=?",
+                String.class, queuedStepId)).isEqualTo("PENDING|1");
+        jdbcTemplate.update("UPDATE agent_task_step SET status='SUCCEEDED' WHERE id=?", queuedStepId);
+        jdbcTemplate.update("UPDATE agent_task SET status='SUCCEEDED', finished_at=CURRENT_TIMESTAMP WHERE id=?",
+                queuedTaskId);
+
+        Long unsafeTaskId = jdbcTemplate.queryForObject("""
+                INSERT INTO agent_task(
+                    task_no, tenant_id, user_id, page_id, input, page_context, plan, plan_hash,
+                    status, timeout_at, trace_id
+                ) VALUES (
+                    '0191f69c-7a33-7b45-9c62-a07f82d8a008', ?, ?, 'leave-list', 'draft', '{}'::jsonb,
+                    '{"planVersion":1,"steps":[]}'::jsonb, 'sha256:unsafe-plan', 'QUEUED', ?,
+                    'trace-worker-unsafe-integration'
+                ) RETURNING id
+                """, Long.class, tenantId, userId,
+                Timestamp.valueOf(LocalDateTime.now().plusMinutes(1)));
+        Long unsafeStepId = jdbcTemplate.queryForObject("""
+                INSERT INTO agent_task_step(
+                    task_id, sequence_no, tool_code, tool_version, schema_hash, args, args_hash,
+                    risk_level, status, trace_id
+                ) VALUES (?, 1, 'leave.createDraft', '1.0.0', 'sha256:unsafe-schema', '{}'::jsonb,
+                          'sha256:unsafe-args', 'L1', 'PENDING', 'trace-worker-unsafe-integration') RETURNING id
+                """, Long.class, unsafeTaskId);
+        var unsafeClaim = workerMapper.claim("worker-unsafe", "sha256:unsafe-lease",
+                LocalDateTime.now().plusSeconds(30), 2);
+        assertThat(unsafeClaim.getId()).isEqualTo(unsafeTaskId);
+        assertThat(workerMapper.startNextStep(unsafeTaskId, "worker-unsafe", "sha256:unsafe-lease", 0,
+                LocalDateTime.now().plusSeconds(15)).getId()).isEqualTo(unsafeStepId);
+        jdbcTemplate.update("UPDATE agent_task SET lease_until=? WHERE id=?",
+                Timestamp.valueOf(LocalDateTime.now().minusSeconds(1)), unsafeTaskId);
+        assertThat(workerMapper.closeTimedOutOrUnsafe()).isEqualTo(1);
+        assertThat(workerMapper.recoverExpiredReadOnly()).isZero();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT status FROM agent_task WHERE id=?", String.class, unsafeTaskId)).isEqualTo("TIMED_OUT");
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT status FROM agent_task_step WHERE id=?", String.class, unsafeStepId)).isEqualTo("TIMED_OUT");
     }
 }
