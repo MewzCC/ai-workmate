@@ -111,18 +111,25 @@ public interface AgentWorkerMapper {
                   @Param("leaseHash") String leaseHash, @Param("leaseUntil") LocalDateTime leaseUntil);
 
     @Update("""
-            WITH reset_steps AS (
+            WITH candidates AS (
+                SELECT task.id FROM agent_task task
+                WHERE task.status='RUNNING' AND task.lease_until<=CURRENT_TIMESTAMP
+                  AND task.timeout_at>CURRENT_TIMESTAMP AND task.attempt_count<2
+                  AND NOT EXISTS (SELECT 1 FROM agent_task_step unsafe
+                                  WHERE unsafe.task_id=task.id AND unsafe.status='RUNNING'
+                                    AND unsafe.risk_level<>'L0')
+                FOR UPDATE SKIP LOCKED
+            ), reset_steps AS (
                 UPDATE agent_task_step step SET status='PENDING', attempt_count=step.attempt_count+1,
                     timeout_at=NULL, started_at=NULL, version=step.version+1, updated_at=CURRENT_TIMESTAMP
-                FROM agent_task task WHERE step.task_id=task.id AND task.status='RUNNING'
-                  AND task.lease_until<=CURRENT_TIMESTAMP AND task.timeout_at>CURRENT_TIMESTAMP
+                FROM candidates WHERE step.task_id=candidates.id
                   AND step.status='RUNNING' AND step.risk_level='L0' AND step.attempt_count<2
-                RETURNING task.id
+                RETURNING step.task_id
             )
             UPDATE agent_task task SET status='QUEUED', attempt_count=task.attempt_count+1,
                 worker_id=NULL, lease_token_hash=NULL, lease_until=NULL, heartbeat_at=NULL,
                 version=task.version+1, updated_at=CURRENT_TIMESTAMP
-            FROM reset_steps WHERE task.id=reset_steps.id
+            FROM candidates WHERE task.id=candidates.id
             """)
     int recoverExpiredReadOnly();
 

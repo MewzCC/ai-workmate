@@ -155,5 +155,36 @@ class GatewayPersistenceIntegrationTest {
                 "SELECT status FROM agent_task WHERE id=?", String.class, unsafeTaskId)).isEqualTo("TIMED_OUT");
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT status FROM agent_task_step WHERE id=?", String.class, unsafeStepId)).isEqualTo("TIMED_OUT");
+
+        Long unstartedTaskId = jdbcTemplate.queryForObject("""
+                INSERT INTO agent_task(
+                    task_no, tenant_id, user_id, page_id, input, page_context, plan, plan_hash,
+                    status, timeout_at, trace_id
+                ) VALUES (
+                    '0191f69c-7a33-7b45-9c62-a07f82d8a009', ?, ?, 'todo-list', 'query', '{}'::jsonb,
+                    '{"planVersion":1,"steps":[]}'::jsonb, 'sha256:unstarted-plan', 'QUEUED', ?,
+                    'trace-worker-unstarted-integration'
+                ) RETURNING id
+                """, Long.class, tenantId, userId,
+                Timestamp.valueOf(LocalDateTime.now().plusMinutes(1)));
+        Long unstartedStepId = jdbcTemplate.queryForObject("""
+                INSERT INTO agent_task_step(
+                    task_id, sequence_no, tool_code, tool_version, schema_hash, args, args_hash,
+                    risk_level, status, trace_id
+                ) VALUES (?, 1, 'todo.query', '1.0.0', 'sha256:unstarted-schema', '{}'::jsonb,
+                          'sha256:unstarted-args', 'L0', 'PENDING', 'trace-worker-unstarted-integration') RETURNING id
+                """, Long.class, unstartedTaskId);
+        assertThat(workerMapper.claim("worker-rejected", "sha256:rejected-lease",
+                LocalDateTime.now().plusSeconds(30), 2).getId()).isEqualTo(unstartedTaskId);
+        jdbcTemplate.update("UPDATE agent_task SET lease_until=? WHERE id=?",
+                Timestamp.valueOf(LocalDateTime.now().minusSeconds(1)), unstartedTaskId);
+        assertThat(workerMapper.closeTimedOutOrUnsafe()).isZero();
+        assertThat(workerMapper.recoverExpiredReadOnly()).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT status || '|' || attempt_count FROM agent_task WHERE id=?",
+                String.class, unstartedTaskId)).isEqualTo("QUEUED|1");
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT status || '|' || attempt_count FROM agent_task_step WHERE id=?",
+                String.class, unstartedStepId)).isEqualTo("PENDING|0");
     }
 }

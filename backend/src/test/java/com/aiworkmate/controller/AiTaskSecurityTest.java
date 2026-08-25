@@ -8,6 +8,7 @@ import com.aiworkmate.config.SecurityConfig;
 import com.aiworkmate.security.JwtAuthenticationFilter;
 import com.aiworkmate.security.JwtValidationStatus;
 import com.aiworkmate.service.AiTaskService;
+import com.aiworkmate.agent.task.AgentTaskApiService;
 import com.aiworkmate.service.UserAccessService;
 import com.aiworkmate.service.model.ResolvedUserAccess;
 import com.aiworkmate.util.JwtUtil;
@@ -18,15 +19,22 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import jakarta.servlet.http.Cookie;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 
 @WebMvcTest(AiTaskController.class)
 @Import({SecurityConfig.class, JwtAuthenticationFilter.class, RequestTraceFilter.class, GlobalExceptionHandler.class})
@@ -39,6 +47,9 @@ class AiTaskSecurityTest {
 
     @MockBean
     private AiTaskService aiTaskService;
+
+    @MockBean
+    private AgentTaskApiService agentTaskApiService;
 
     @MockBean
     private JwtUtil jwtUtil;
@@ -118,4 +129,68 @@ class AiTaskSecurityTest {
                 .andExpect(jsonPath("$.data").doesNotExist())
                 .andExpect(jsonPath("$.traceId").isNotEmpty());
     }
+
+    @Test
+    void shouldRejectAnonymousEventSubscription() throws Exception {
+        mockMvc.perform(get("/api/ai/tasks/00000000-0000-4000-8000-000000000001/events")
+                        .accept(MediaType.TEXT_EVENT_STREAM))
+                .andExpect(status().isUnauthorized());
+
+        verifyNoInteractions(agentTaskApiService);
+    }
+
+    @Test
+    void shouldUseCookieAuthenticationAndLastEventHeaderForSse() throws Exception {
+        when(agentTaskApiService.events(any(), eq("00000000-0000-4000-8000-000000000001"), eq(42L)))
+                .thenReturn(new SseEmitter(60_000L));
+
+        mockMvc.perform(get("/api/ai/tasks/00000000-0000-4000-8000-000000000001/events")
+                        .cookie(new Cookie("oa_session", TOKEN))
+                        .header("Last-Event-ID", "42")
+                        .accept(MediaType.TEXT_EVENT_STREAM))
+                .andExpect(status().isOk())
+                .andExpect(request().asyncStarted());
+
+        verify(agentTaskApiService).events(any(),
+                eq("00000000-0000-4000-8000-000000000001"), eq(42L));
+    }
+
+    @Test
+    void shouldRejectMalformedConfirmationBeforeServiceCall() throws Exception {
+        mockMvc.perform(post("/api/ai/tasks/00000000-0000-4000-8000-000000000001/confirmation-token")
+                        .header("Authorization", "Bearer " + TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"planVersion\":0,\"planHash\":\"forged\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("REQUEST_INVALID"));
+
+        verifyNoInteractions(agentTaskApiService);
+    }
+
+    @Test
+    void shouldReturnLocalizedSseErrorForMalformedResumeHeader() throws Exception {
+        mockMvc.perform(get("/api/ai/tasks/00000000-0000-4000-8000-000000000001/events")
+                        .cookie(new Cookie("oa_session", TOKEN))
+                        .header("Last-Event-ID", "forged")
+                        .header("Accept-Language", "en-US")
+                        .accept(MediaType.TEXT_EVENT_STREAM))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("REQUEST_INVALID")));
+
+        verifyNoInteractions(agentTaskApiService);
+    }
+
+    @Test
+    void shouldHideCrossOwnerSseTaskAsNotFoundEvent() throws Exception {
+        when(agentTaskApiService.events(any(), eq("00000000-0000-4000-8000-000000000099"), eq(0L)))
+                .thenThrow(new BusinessException(ErrorCode.RESOURCE_NOT_FOUND));
+
+        mockMvc.perform(get("/api/ai/tasks/00000000-0000-4000-8000-000000000099/events")
+                        .cookie(new Cookie("oa_session", TOKEN))
+                        .header("Accept-Language", "zh-CN")
+                        .accept(MediaType.TEXT_EVENT_STREAM))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("RESOURCE_NOT_FOUND")));
+    }
+
 }

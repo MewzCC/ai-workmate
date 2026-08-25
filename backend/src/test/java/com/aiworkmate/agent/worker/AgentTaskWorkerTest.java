@@ -28,13 +28,14 @@ class AgentTaskWorkerTest {
     private final AgentWorkerMapper mapper = mock(AgentWorkerMapper.class);
     private final ToolGateway gateway = mock(ToolGateway.class);
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final AgentWorkerTransitionService transitions = mock(AgentWorkerTransitionService.class);
     private final AgentRuntimeProperties properties = new AgentRuntimeProperties();
     private AgentTaskWorker worker;
 
     @BeforeEach
     void setUp() {
         worker = new AgentTaskWorker(properties, mapper, gateway,
-                new AgentHashing(objectMapper), objectMapper, new SyncTaskExecutor());
+                new AgentHashing(objectMapper), objectMapper, transitions, new SyncTaskExecutor());
     }
 
     @Test
@@ -52,17 +53,17 @@ class AgentTaskWorkerTest {
         AgentTask task = task();
         AgentTaskStep step = step();
         when(mapper.claim(anyString(), anyString(), any(), anyInt())).thenReturn(task);
-        when(mapper.startNextStep(anyLong(), anyString(), anyString(), anyInt(), any()))
+        when(transitions.startNextStep(any(), anyString(), anyString(), any()))
                 .thenReturn(step).thenReturn(null);
         when(gateway.execute(anyLong(), any())).thenReturn(new ToolGatewayResult(
                 GatewayDecision.ALLOW, GatewayDecisionCode.ALLOWED,
                 objectMapper.createObjectNode().put("ok", true)));
-        when(mapper.completeStep(anyLong(), anyInt(), anyString(), anyString(), anyString())).thenReturn(1);
+        when(transitions.completeStep(any(), any(), anyString(), anyString(), anyString())).thenReturn(true);
 
         worker.poll();
 
         verify(gateway).execute(org.mockito.ArgumentMatchers.eq(20L), any());
-        verify(mapper).completeTask(org.mockito.ArgumentMatchers.eq(10L), anyString(), anyString());
+        verify(transitions).completeTask(any(), anyString(), anyString());
     }
 
     @Test
@@ -72,16 +73,15 @@ class AgentTaskWorkerTest {
         AgentTask task = task();
         AgentTaskStep step = step();
         when(mapper.claim(anyString(), anyString(), any(), anyInt())).thenReturn(task);
-        when(mapper.startNextStep(anyLong(), anyString(), anyString(), anyInt(), any())).thenReturn(step);
+        when(transitions.startNextStep(any(), anyString(), anyString(), any())).thenReturn(step);
         when(gateway.execute(anyLong(), any())).thenReturn(ToolGatewayResult.unavailable(
                 GatewayDecisionCode.GATEWAY_UNAVAILABLE));
-        when(mapper.retryReadOnly(anyLong(), anyInt(), anyString(), anyString())).thenReturn(1);
+        when(transitions.retryReadOnly(any(), any(), anyString(), anyString())).thenReturn(true);
 
         worker.poll();
 
-        verify(mapper).retryReadOnly(org.mockito.ArgumentMatchers.eq(20L),
-                org.mockito.ArgumentMatchers.eq(0), anyString(), anyString());
-        verify(mapper, never()).fail(anyLong(), anyInt(), anyString(), anyString(), anyString(), anyString());
+        verify(transitions).retryReadOnly(any(), any(), anyString(), anyString());
+        verify(transitions, never()).fail(any(), any(), anyString(), anyString(), anyString());
     }
 
     @Test
@@ -102,7 +102,7 @@ class AgentTaskWorkerTest {
         properties.setExecutionEnabled(true);
         when(mapper.claim(anyString(), anyString(), any(), anyInt())).thenReturn(task());
         worker = new AgentTaskWorker(properties, mapper, gateway,
-                new AgentHashing(objectMapper), objectMapper,
+                new AgentHashing(objectMapper), objectMapper, transitions,
                 command -> { throw new TaskRejectedException("saturated"); });
 
         worker.poll();
@@ -115,6 +115,8 @@ class AgentTaskWorkerTest {
         AgentTask task = new AgentTask();
         task.setId(10L);
         task.setAttemptCount(0);
+        task.setTaskNo("00000000-0000-4000-8000-000000000010");
+        task.setTraceId("trace-worker-test");
         return task;
     }
 
@@ -122,6 +124,9 @@ class AgentTaskWorkerTest {
         AgentTaskStep step = new AgentTaskStep();
         step.setId(20L);
         step.setRiskLevel("L0");
+        step.setSequenceNo(1);
+        step.setToolCode("todo.query");
+        step.setTraceId("trace-worker-step-test");
         return step;
     }
 }
