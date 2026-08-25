@@ -88,4 +88,18 @@ class AgentReadToolDefinitionsTest {
         assertThat(validator.valid(definition.inputSchema(),
                 objectMapper.readTree("{\"query\":\"policy\",\"url\":\"https://evil.invalid\"}"))).isFalse();
     }
+
+    @Test
+    void notificationMineDefinitionRejectsIdentityAndOverLimit() throws Exception {
+        ObjectMapper objectMapper = new ObjectMapper();
+        ToolDefinition definition = new AgentReadToolDefinitions()
+                .notificationMineToolDefinition(objectMapper);
+        ToolSchemaValidator validator = new ToolSchemaValidator();
+        assertThat(definition.schemaHash()).isEqualTo(
+                "sha256:14131b81768944254704a23d89ff3ee3498936a000ef2d595c1427b501ed13a1");
+        assertThat(definition.requiredPermissions()).containsExactly("notification:read:self");
+        assertThat(validator.valid(definition.inputSchema(), objectMapper.readTree("{\"size\":50}"))).isTrue();
+        assertThat(validator.valid(definition.inputSchema(), objectMapper.readTree("{\"size\":51}"))).isFalse();
+        assertThat(validator.valid(definition.inputSchema(), objectMapper.readTree("{\"userId\":9}"))).isFalse();
+    }
 }
