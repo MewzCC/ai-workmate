@@ -5,6 +5,8 @@ import type {
   AiTaskEvent,
   AiTaskPlanRequest,
   AiTaskPlanResponse,
+  AgentTaskDetail,
+  AgentTaskSummary,
 } from '@/types/oa';
 import { buildApiHeaders } from '@/lib/apiHeaders';
 import i18n from '@/i18n';
@@ -420,6 +422,15 @@ export function queryString(params: Record<string, string | number | undefined>)
   const encoded = search.toString();
   return encoded ? `?${encoded}` : '';
 }
+
+export const agentTaskApi = {
+  list: (params: { status?: string; from?: string; to?: string; page?: number; size?: number } = {}) =>
+    request<PageResponse<AgentTaskSummary>>(`/ai/tasks${queryString(params)}`),
+  detail: (taskId: string) =>
+    request<AgentTaskDetail>(`/ai/tasks/${encodeURIComponent(taskId)}`),
+  cancel: (taskId: string) =>
+    request<AgentTaskDetail>(`/ai/tasks/${encodeURIComponent(taskId)}/cancel`, { method: 'POST' }),
+};
 
 export const leaveApi = {
   approvalContext: () => request<LeaveApprovalContext>('/leave-applications/approval-context'),

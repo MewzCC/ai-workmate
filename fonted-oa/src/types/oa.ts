@@ -32,6 +32,7 @@ export interface OaMenuItem {
   icon?: string;
   path?: string;
   componentKey?: 'DASHBOARD' | 'AI_WORKSPACE' | 'ACCESS_CONTROL'
+    | 'AI_TASK_CENTER'
     | 'TODO_LIST' | 'LEAVE_FORM' | 'MY_APPLICATIONS' | 'AUDIT_CENTER'
     | 'APPROVAL_LIST' | 'APPROVAL_START' | 'APPROVAL_FORM' | 'FORM_ENGINE' | 'PROCESS_CONFIG' | 'APPROVAL_RULES'
     | 'ORG_TREE' | 'KNOWLEDGE_BASE' | 'MESSAGE_CENTER' | 'SYSTEM_CONFIG'
@@ -121,6 +122,49 @@ export interface AiTaskEvent {
   id: string;
   type: string;
   data: Record<string, unknown>;
+}
+
+export interface AgentTaskSummary {
+  taskId: string;
+  pageId: string;
+  status: AgentTaskStatus;
+  riskLevel: AgentRiskLevel | null;
+  planVersion: number | null;
+  createdAt: string;
+  updatedAt: string;
+  finishedAt: string | null;
+  errorCode: string | null;
+}
+
+export interface AgentTaskDetailStep {
+  sequence: number;
+  toolCode: string;
+  riskLevel: AgentRiskLevel;
+  status: string;
+  arguments: Record<string, unknown>;
+  result: unknown;
+  resultSummary: string | null;
+  errorCode: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+}
+
+export interface AgentTaskDetail {
+  taskId: string;
+  pageId: string;
+  input: string;
+  pageContext: unknown;
+  plan: unknown;
+  planHash: string | null;
+  planVersion: number | null;
+  riskLevel: AgentRiskLevel | null;
+  status: AgentTaskStatus;
+  steps: AgentTaskDetailStep[];
+  timeoutAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  finishedAt: string | null;
+  errorCode: string | null;
 }
 
 export interface OaTheme {

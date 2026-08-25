@@ -117,6 +117,7 @@ export default {
   componentTypes: {
     DASHBOARD: '通用 OA 页面',
     AI_WORKSPACE: 'AI 工作空间',
+    AI_TASK_CENTER: 'AI 任务中心',
     ACCESS_CONTROL: '权限配置中心',
     TODO_LIST: '我的待办',
     LEAVE_FORM: '请假申请',
