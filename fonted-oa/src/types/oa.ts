@@ -68,38 +68,59 @@ export interface ApprovalRecord {
 }
 
 export interface AiPlanStep {
+  sequence: number;
+  toolCode: string;
   title: string;
-  description: string;
+  arguments: Record<string, unknown>;
 }
 
 export interface AiTaskPlanRequest {
   input: string;
   pageId: string;
+  pageContext?: Record<string, unknown>;
 }
+
+export type AgentRiskLevel = 'L0' | 'L1' | 'L2';
+
+export type AgentTaskStatus =
+  | 'RECEIVED' | 'PLANNING' | 'PLAN_READY' | 'WAITING_CONFIRMATION'
+  | 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'PARTIALLY_SUCCEEDED'
+  | 'FAILED' | 'TIMED_OUT' | 'REJECTED' | 'EXPIRED' | 'CANCELLED';
 
 export interface AiTaskPlanResponse {
   taskId: string;
-  type: AiTaskType;
-  riskLevel: RiskLevel;
-  requireConfirm: boolean;
+  status: AgentTaskStatus;
+  planVersion: number;
+  planHash: string;
+  riskLevel: AgentRiskLevel;
+  confirmationRequired: boolean;
+  expiresAt: string | null;
   summary: string;
   steps: AiPlanStep[];
 }
 
 export interface AiTaskExecuteRequest {
-  taskId: string;
-  confirm: boolean;
+  planVersion: number;
+  planHash: string;
+  confirmationToken?: string;
 }
 
 export interface AiTaskExecuteResponse {
-  success: boolean;
-  auditId: string;
-  message: string;
-  result: {
-    successCount: number;
-    pendingConfirmCount: number;
-    rejectSuggestCount: number;
-  };
+  taskId: string;
+  status: AgentTaskStatus;
+  statusUrl: string;
+  eventsUrl: string;
+}
+
+export interface AiTaskConfirmationResponse {
+  token: string;
+  expiresAt: string;
+}
+
+export interface AiTaskEvent {
+  id: string;
+  type: string;
+  data: Record<string, unknown>;
 }
 
 export interface OaTheme {

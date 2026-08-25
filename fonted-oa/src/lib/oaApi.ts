@@ -1,6 +1,8 @@
 import type {
   AiTaskExecuteRequest,
   AiTaskExecuteResponse,
+  AiTaskConfirmationResponse,
+  AiTaskEvent,
   AiTaskPlanRequest,
   AiTaskPlanResponse,
 } from '@/types/oa';
@@ -104,22 +106,175 @@ export async function getServerTime(): Promise<{ epochMillis: number; iso: strin
   return parseResult(res);
 }
 
-export async function planAiTask(request: AiTaskPlanRequest): Promise<AiTaskPlanResponse> {
-  const res = await fetch(`${BASE}/ai/tasks/plan`, {
-    method: 'POST',
-    headers: buildApiHeaders(),
-    body: JSON.stringify(request),
-  });
-  return parseResult(res);
+export function createIdempotencyKey(): string {
+  return crypto.randomUUID();
 }
 
-export async function executeAiTask(request: AiTaskExecuteRequest): Promise<AiTaskExecuteResponse> {
-  const res = await fetch(`${BASE}/ai/tasks/execute`, {
+export async function planAiTask(
+  payload: AiTaskPlanRequest,
+  idempotencyKey = createIdempotencyKey(),
+): Promise<AiTaskPlanResponse> {
+  return request<AiTaskPlanResponse>('/ai/tasks/plan', {
     method: 'POST',
-    headers: buildApiHeaders(),
-    body: JSON.stringify(request),
+    headers: { 'Idempotency-Key': idempotencyKey },
+    body: JSON.stringify(payload),
   });
-  return parseResult(res);
+}
+
+export async function issueAiTaskConfirmation(
+  taskId: string,
+  payload: Pick<AiTaskExecuteRequest, 'planVersion' | 'planHash'>,
+): Promise<AiTaskConfirmationResponse> {
+  return request<AiTaskConfirmationResponse>(`/ai/tasks/${encodeURIComponent(taskId)}/confirmation-token`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function executeAiTask(
+  taskId: string,
+  payload: AiTaskExecuteRequest,
+  idempotencyKey = createIdempotencyKey(),
+): Promise<AiTaskExecuteResponse> {
+  return request<AiTaskExecuteResponse>(`/ai/tasks/${encodeURIComponent(taskId)}/execute`, {
+    method: 'POST',
+    headers: { 'Idempotency-Key': idempotencyKey },
+    body: JSON.stringify(payload),
+  });
+}
+
+export interface AiTaskEventSubscription {
+  onEvent: (event: AiTaskEvent) => void;
+  onError: (error: OaApiError) => void;
+  onConnected?: () => void;
+}
+
+const TERMINAL_AGENT_STATUSES = new Set([
+  'SUCCEEDED', 'PARTIALLY_SUCCEEDED', 'FAILED', 'TIMED_OUT', 'REJECTED', 'EXPIRED', 'CANCELLED',
+]);
+
+function parseSseFrame(frame: string): AiTaskEvent | null {
+  let id = '';
+  let type = 'message';
+  const dataLines: string[] = [];
+  for (const line of frame.split('\n')) {
+    if (!line || line.startsWith(':')) continue;
+    const separator = line.indexOf(':');
+    const field = separator < 0 ? line : line.slice(0, separator);
+    const value = separator < 0 ? '' : line.slice(separator + 1).replace(/^ /, '');
+    if (field === 'id') id = value;
+    if (field === 'event') type = value;
+    if (field === 'data') dataLines.push(value);
+  }
+  if (!id && dataLines.length === 0) return null;
+  let data: Record<string, unknown> = {};
+  if (dataLines.length) {
+    try {
+      const parsed = JSON.parse(dataLines.join('\n')) as unknown;
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        data = parsed as Record<string, unknown>;
+      }
+    } catch {
+      data = {};
+    }
+  }
+  return { id, type, data };
+}
+
+function isTerminalEvent(event: AiTaskEvent): boolean {
+  return event.type === 'task-completed'
+    || event.type === 'task-failed'
+    || (typeof event.data.status === 'string' && TERMINAL_AGENT_STATUSES.has(event.data.status));
+}
+
+async function retryDelay(milliseconds: number, signal: AbortSignal): Promise<void> {
+  await new Promise<void>((resolve) => {
+    const timeout = window.setTimeout(resolve, milliseconds);
+    signal.addEventListener('abort', () => {
+      window.clearTimeout(timeout);
+      resolve();
+    }, { once: true });
+  });
+}
+
+/**
+ * 使用认证 Cookie 的 fetch 流读取任务事件。确认凭证不会进入 URL；断线时仅通过
+ * Last-Event-ID 续传，且在浏览器内对事件 id 去重。
+ */
+export function subscribeAiTaskEvents(
+  taskId: string,
+  handlers: AiTaskEventSubscription,
+): () => void {
+  const controller = new AbortController();
+  const seenIds = new Set<string>();
+  const seenOrder: string[] = [];
+  let lastEventId = '';
+  let terminal = false;
+
+  const connect = async () => {
+    let retryMilliseconds = 750;
+    while (!controller.signal.aborted && !terminal) {
+      try {
+        const headers: Record<string, string> = { Accept: 'text/event-stream' };
+        if (lastEventId) headers['Last-Event-ID'] = lastEventId;
+        const response = await fetch(`${BASE}/ai/tasks/${encodeURIComponent(taskId)}/events`, {
+          method: 'GET',
+          credentials: 'include',
+          cache: 'no-store',
+          headers: buildApiHeaders(false, headers),
+          signal: controller.signal,
+        });
+        if (!response.ok || !response.body) {
+          if (response.status === 401 && typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('oa-auth-expired'));
+          }
+          throw new OaApiError(statusMessage(response.status), response.status, statusErrorCode(response.status));
+        }
+        handlers.onConnected?.();
+        retryMilliseconds = 750;
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        while (!controller.signal.aborted && !terminal) {
+          const { done, value } = await reader.read();
+          buffer += decoder.decode(value, { stream: !done }).replaceAll('\r\n', '\n');
+          let boundary = buffer.indexOf('\n\n');
+          while (boundary >= 0) {
+            const event = parseSseFrame(buffer.slice(0, boundary));
+            buffer = buffer.slice(boundary + 2);
+            if (event && (!event.id || !seenIds.has(event.id))) {
+              if (event.id) {
+                lastEventId = event.id;
+                seenIds.add(event.id);
+                seenOrder.push(event.id);
+                if (seenOrder.length > 512) seenIds.delete(seenOrder.shift() as string);
+              }
+              handlers.onEvent(event);
+              terminal = isTerminalEvent(event);
+            }
+            boundary = buffer.indexOf('\n\n');
+          }
+          if (done) break;
+        }
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        const apiError = error instanceof OaApiError
+          ? error
+          : new OaApiError(i18n.t('errors.oa.serviceUnavailable'), 0, 'SERVICE_UNAVAILABLE');
+        if (apiError.status > 0 && !apiError.retryable) {
+          handlers.onError(apiError);
+          return;
+        }
+      }
+      if (!terminal && !controller.signal.aborted) {
+        await retryDelay(retryMilliseconds, controller.signal);
+        retryMilliseconds = Math.min(retryMilliseconds * 2, 5_000);
+      }
+    }
+  };
+
+  void connect();
+  return () => controller.abort();
 }
 
 export type LeaveType =
