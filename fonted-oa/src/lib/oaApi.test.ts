@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  agentTaskApi,
   executeAiTask,
   formatOaApiError,
   issueAiTaskConfirmation,
@@ -118,5 +119,21 @@ describe('Phase 2 task API contracts', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(fetchMock.mock.calls[1][1]?.headers).toEqual(expect.objectContaining({ 'Last-Event-ID': '51' }));
+  });
+
+  it('uses owned task list, detail and cancel endpoints with authenticated cookies', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(result({ records: [], total: 0, page: 1, size: 20 }))
+      .mockResolvedValueOnce(result({ taskId: 'agt_task', status: 'QUEUED', steps: [] }))
+      .mockResolvedValueOnce(result({ taskId: 'agt_task', status: 'CANCELLED', steps: [] }));
+
+    await agentTaskApi.list({ status: 'QUEUED', page: 1, size: 20 });
+    await agentTaskApi.detail('agt_task');
+    await agentTaskApi.cancel('agt_task');
+
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/ai/tasks?status=QUEUED&page=1&size=20');
+    expect(fetchMock.mock.calls[1][0]).toBe('/api/ai/tasks/agt_task');
+    expect(fetchMock.mock.calls[2][0]).toBe('/api/ai/tasks/agt_task/cancel');
+    expect(fetchMock.mock.calls[2][1]).toEqual(expect.objectContaining({ method: 'POST', credentials: 'include' }));
   });
 });
