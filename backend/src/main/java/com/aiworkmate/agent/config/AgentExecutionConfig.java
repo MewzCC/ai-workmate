@@ -23,4 +23,17 @@ public class AgentExecutionConfig {
         executor.initialize();
         return executor;
     }
+
+    @Bean("agentPlannerExecutor")
+    public java.util.concurrent.Executor agentPlannerExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(1);
+        executor.setMaxPoolSize(2);
+        executor.setQueueCapacity(8);
+        executor.setThreadNamePrefix("agent-planner-");
+        executor.setWaitForTasksToCompleteOnShutdown(false);
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
+        executor.initialize();
+        return executor;
+    }
 }
