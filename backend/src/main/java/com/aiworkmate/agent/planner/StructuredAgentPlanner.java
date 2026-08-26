@@ -3,6 +3,7 @@ package com.aiworkmate.agent.planner;
 import com.aiworkmate.agent.config.AgentRuntimeProperties;
 import com.aiworkmate.agent.gateway.ToolSchemaValidator;
 import com.aiworkmate.agent.registry.ToolDefinition;
+import com.aiworkmate.agent.registry.SideEffect;
 import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.common.ErrorCode;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -100,12 +101,15 @@ public class StructuredAgentPlanner implements AgentPlanner {
         }
         Map<String, ToolDefinition> allowed = allowedTools.stream()
                 .collect(Collectors.toUnmodifiableMap(ToolDefinition::code, Function.identity()));
+        int writeSteps = 0;
         for (PlannerCandidate.Step step : candidate.steps()) {
             ToolDefinition definition = step == null ? null : allowed.get(step.toolCode());
             if (definition == null || !schemaValidator.valid(definition.inputSchema(), step.arguments())) {
                 throw new CandidateRejectedException("tool or arguments rejected");
             }
+            if (definition.sideEffect() == SideEffect.SINGLE_WRITE) writeSteps++;
         }
+        if (writeSteps > 1) throw new CandidateRejectedException("multiple write steps rejected");
         return candidate;
     }
 
