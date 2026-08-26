@@ -16,12 +16,15 @@ import com.aiworkmate.service.model.ResolvedUserAccess;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -40,6 +43,7 @@ import static org.mockito.Mockito.when;
 
 class DefaultToolGatewayPolicyTest {
     private static final String LEASE_TOKEN = "0123456789abcdef0123456789abcdef";
+    private static final ExecutorService TOOL_EXECUTOR = Executors.newFixedThreadPool(2);
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final AgentHashing hashing = new AgentHashing(objectMapper);
@@ -77,8 +81,13 @@ class DefaultToolGatewayPolicyTest {
         gateway = new DefaultToolGateway(
                 properties, snapshotMapper, toolRegistry, userAccessService, hashing,
                 new ToolSchemaValidator(), new ToolOutputGuard(), new HandlerResolver(List.of(handler)),
-                auditWriter, objectMapper
+                auditWriter, objectMapper, TOOL_EXECUTOR
         );
+    }
+
+    @AfterAll
+    static void stopExecutor() {
+        TOOL_EXECUTOR.shutdownNow();
     }
 
     @Test
@@ -100,6 +109,49 @@ class DefaultToolGatewayPolicyTest {
         );
 
         assertThat(result.decision()).isEqualTo(GatewayDecision.STALE);
+        verify(handler, never()).execute(any(), any());
+    }
+
+    @Test
+    void forgedAttemptMustBeStaleAndNeverReachHandler() {
+        ToolGatewayResult result = gateway.execute(10L, new WorkerLease("worker-1", 1, LEASE_TOKEN));
+
+        assertThat(result.decision()).isEqualTo(GatewayDecision.STALE);
+        verify(handler, never()).execute(any(), any());
+    }
+
+    @Test
+    void crossTenantResolvedIdentityMustDenyBeforeHandler() {
+        when(userAccessService.resolveActiveUser(7L)).thenReturn(new ResolvedUserAccess(
+                7L, "user", 999L, "EMPLOYEE", List.of("EMPLOYEE"), List.of("todo:read"), List.of("SELF"), 1L
+        ));
+
+        assertThat(execute().decision()).isEqualTo(GatewayDecision.DENY);
+        verify(handler, never()).execute(any(), any());
+    }
+
+    @Test
+    void realtimeRbacFailureMustFailClosedBeforeHandler() {
+        when(userAccessService.resolveActiveUser(7L)).thenThrow(new IllegalStateException("rbac unavailable"));
+
+        assertThat(execute().decision()).isEqualTo(GatewayDecision.UNAVAILABLE);
+        verify(handler, never()).execute(any(), any());
+    }
+
+    @Test
+    void executionKillSwitchMustStopBeforePersistenceAndHandler() {
+        properties.setExecutionEnabled(false);
+
+        assertThat(execute().code()).isEqualTo(GatewayDecisionCode.GATEWAY_DISABLED);
+        verify(snapshotMapper, never()).selectSnapshot(anyLong());
+        verify(handler, never()).execute(any(), any());
+    }
+
+    @Test
+    void tamperedSchemaHashMustBeStaleAndNeverReachHandler() {
+        snapshot.setSchemaHash("sha256:forged-schema");
+
+        assertThat(execute().decision()).isEqualTo(GatewayDecision.STALE);
         verify(handler, never()).execute(any(), any());
     }
 
@@ -192,6 +244,25 @@ class DefaultToolGatewayPolicyTest {
         assertThat(result.code()).isEqualTo(GatewayDecisionCode.TOOL_RESULT_INVALID);
         assertThat(result.output()).isNull();
         verify(handler).execute(any(), any());
+    }
+
+    @Test
+    void handlerDeadlineMustCancelCallAndRecordTimedOutOutcome() {
+        snapshot.setStepTimeoutAt(LocalDateTime.now().plusNanos(150_000_000));
+        when(handler.execute(any(), any())).thenAnswer(ignored -> {
+            Thread.sleep(5_000);
+            return objectMapper.readTree("{\"items\":[]}");
+        });
+
+        long started = System.nanoTime();
+        ToolGatewayResult result = execute();
+        long durationMs = java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started);
+
+        assertThat(result.decision()).isEqualTo(GatewayDecision.UNAVAILABLE);
+        assertThat(result.code()).isEqualTo(GatewayDecisionCode.GATEWAY_UNAVAILABLE);
+        assertThat(durationMs).isLessThan(2_000);
+        verify(auditWriter).complete(eq("decision-1"), eq(true), eq("TIMED_OUT"), isNull(),
+                eq("TOOL_TIMEOUT"), anyLong());
     }
 
     private ToolGatewayResult execute() {

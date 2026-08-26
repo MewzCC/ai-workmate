@@ -36,7 +36,8 @@ class ToolGatewayContractTest {
                 new ToolOutputGuard(),
                 new HandlerResolver(List.of()),
                 mock(GatewayAuditWriter.class),
-                new ObjectMapper()
+                new ObjectMapper(),
+                mock(java.util.concurrent.ExecutorService.class)
         );
 
         ToolGatewayResult result = gateway.execute(

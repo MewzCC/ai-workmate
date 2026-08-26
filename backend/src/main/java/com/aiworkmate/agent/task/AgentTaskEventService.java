@@ -27,13 +27,14 @@ public class AgentTaskEventService {
     private final AgentTaskMapper taskMapper;
     private final AgentTaskEventMapper eventMapper;
     private final ObjectMapper objectMapper;
+    private final AgentSseEmitterFactory emitterFactory;
     private final Map<Long, Set<Subscription>> subscriptions = new ConcurrentHashMap<>();
 
     public SseEmitter open(Long tenantId, Long userId, String taskNo, long lastEventId) {
         AgentTask task = taskMapper.selectOwned(tenantId, userId, taskNo);
         if (task == null) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
 
-        SseEmitter emitter = new SseEmitter(SSE_TIMEOUT_MS);
+        SseEmitter emitter = emitterFactory.create(SSE_TIMEOUT_MS);
         Subscription subscription = new Subscription(task.getId(), emitter, Math.max(0, lastEventId));
         subscriptions.computeIfAbsent(task.getId(), ignored -> new CopyOnWriteArraySet<>()).add(subscription);
         emitter.onCompletion(() -> remove(subscription));

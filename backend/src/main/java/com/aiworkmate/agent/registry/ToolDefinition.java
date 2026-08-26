@@ -31,6 +31,10 @@ public record ToolDefinition(
         String auditPolicy
 ) {
     private static final Pattern CODE_PATTERN = Pattern.compile("^[a-z][a-z0-9]*(\\.[a-z][a-z0-9]*)+$");
+    private static final Set<String> PHASE_2_TOOL_CODES = Set.of(
+            "todo.query", "leave.mine", "knowledge.search", "notification.mine",
+            "leave.createDraft", "leave.submit"
+    );
     private static final Set<String> FORBIDDEN_ARGUMENTS = Set.of(
             "userId", "tenantId", "role", "roles", "permission", "permissions", "dataScope",
             "url", "uri", "sql", "file", "filePath", "path", "script", "className", "beanName"
@@ -68,6 +72,7 @@ public record ToolDefinition(
 
     public void validate() {
         require(code != null && CODE_PATTERN.matcher(code).matches(), "Invalid tool code");
+        require(PHASE_2_TOOL_CODES.contains(code), "Tool code is outside the Phase 2 capability boundary");
         require(notBlank(name) && notBlank(description) && notBlank(purpose), "Tool text metadata is required");
         require(notBlank(handlerVersion), "handlerVersion is required");
         requireClosedObjectSchema(inputSchema, "inputSchema");
