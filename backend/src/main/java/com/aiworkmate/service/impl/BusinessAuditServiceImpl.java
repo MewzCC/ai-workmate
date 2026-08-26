@@ -27,6 +27,28 @@ public class BusinessAuditServiceImpl implements BusinessAuditService {
                        String action,
                        String result,
                        String summary) {
+        insert(tenantId, actorUserId, resourceType, resourceId, action, result, summary);
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.REQUIRED)
+    public void recordTransactional(Long tenantId,
+                                    Long actorUserId,
+                                    String resourceType,
+                                    String resourceId,
+                                    String action,
+                                    String result,
+                                    String summary) {
+        insert(tenantId, actorUserId, resourceType, resourceId, action, result, summary);
+    }
+
+    private void insert(Long tenantId,
+                        Long actorUserId,
+                        String resourceType,
+                        String resourceId,
+                        String action,
+                        String result,
+                        String summary) {
         BusinessAuditLog audit = new BusinessAuditLog();
         audit.setTenantId(tenantId);
         audit.setActorUserId(actorUserId);

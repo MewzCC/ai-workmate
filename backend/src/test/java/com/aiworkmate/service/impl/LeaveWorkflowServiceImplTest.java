@@ -321,6 +321,48 @@ class LeaveWorkflowServiceImplTest {
     }
 
     @Test
+    void shouldCreateAgentDraftOnceAndAuditInCurrentTransaction() {
+        when(userAccessService.resolveActiveUser(APPLICANT_ID)).thenReturn(applicantAccess());
+        when(leaveMapper.insertAgentDraft(any(LeaveApplication.class))).thenAnswer(invocation -> {
+            LeaveApplication leave = invocation.getArgument(0);
+            leave.setId(10L);
+            return 1;
+        });
+        when(leaveMapper.selectView(TENANT_ID, 10L))
+                .thenReturn(view("DRAFT", null, null, null, null, 0));
+
+        var response = service.createAgentDraft(
+                APPLICANT_ID, request(null, LocalDate.now().plusDays(1)), "agent:10:20:leave.createDraft:v1");
+
+        assertThat(response.id()).isEqualTo(10L);
+        ArgumentCaptor<LeaveApplication> captor = ArgumentCaptor.forClass(LeaveApplication.class);
+        verify(leaveMapper).insertAgentDraft(captor.capture());
+        assertThat(captor.getValue().getAgentOperationKey())
+                .isEqualTo("agent:10:20:leave.createDraft:v1");
+        verify(auditService).recordTransactional(
+                TENANT_ID, APPLICANT_ID, "LEAVE_APPLICATION", "10",
+                "AGENT_CREATE_DRAFT", "SUCCESS", "Agent 创建请假草稿");
+    }
+
+    @Test
+    void shouldReturnExistingAgentDraftWithoutCreatingOrAuditingAgain() {
+        when(userAccessService.resolveActiveUser(APPLICANT_ID)).thenReturn(applicantAccess());
+        when(leaveMapper.insertAgentDraft(any(LeaveApplication.class))).thenReturn(0);
+        when(leaveMapper.selectByAgentOperationKey(
+                TENANT_ID, APPLICANT_ID, "agent:10:20:leave.createDraft:v1"))
+                .thenReturn(leave("DRAFT", null, 0));
+        when(leaveMapper.selectView(TENANT_ID, 10L))
+                .thenReturn(view("DRAFT", null, null, null, null, 0));
+
+        var response = service.createAgentDraft(
+                APPLICANT_ID, request(null, LocalDate.now().plusDays(1)), "agent:10:20:leave.createDraft:v1");
+
+        assertThat(response.id()).isEqualTo(10L);
+        verify(auditService, never()).recordTransactional(
+                anyLong(), anyLong(), any(), any(), any(), any(), any());
+    }
+
+    @Test
     void shouldReadOnlyOwnedLeaveDetailForAgentSelfScope() {
         when(userAccessService.resolveActiveUser(APPLICANT_ID)).thenReturn(applicantAccess());
         when(leaveMapper.selectView(TENANT_ID, 10L))

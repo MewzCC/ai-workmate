@@ -32,6 +32,7 @@ class AiTaskServiceImplTest {
     private final AgentTaskStepMapper stepMapper = mock(AgentTaskStepMapper.class);
     private final AgentIdempotencyService idempotency = mock(AgentIdempotencyService.class);
     private final AgentTaskEventService events = mock(AgentTaskEventService.class);
+    private final AgentTaskApiService taskApiService = mock(AgentTaskApiService.class);
     private final AgentApiRateLimiter rateLimiter = mock(AgentApiRateLimiter.class);
     private final org.springframework.context.ApplicationEventPublisher eventPublisher =
             mock(org.springframework.context.ApplicationEventPublisher.class);
@@ -46,7 +47,7 @@ class AiTaskServiceImplTest {
         aiRuntime.setApiKey("unit-test-key");
         service = new AiTaskServiceImpl(runtime, aiRuntime, registry, planner,
                 new PageContextFilter(mapper, runtime), taskMapper, stepMapper, idempotency, events,
-                rateLimiter, hashing, mapper, eventPublisher);
+                taskApiService, rateLimiter, hashing, mapper, eventPublisher);
         ToolDefinition tool = tool();
         when(registry.resolveAllowedTools(any(), eq("todo-list"))).thenReturn(List.of(tool));
         when(planner.plan(anyString(), eq("todo-list"), any(), anyList())).thenReturn(new PlannerCandidate(
@@ -104,6 +105,28 @@ class AiTaskServiceImplTest {
                 "execute-key-123", user());
         assertThat(response.status()).isEqualTo("QUEUED");
         verify(taskMapper).queuePlanReady(eq(88L), eq(1L), eq(7L), eq(1), eq(task.getPlanHash()), any());
+        verify(eventPublisher).publishEvent(any(AgentTaskQueuedEvent.class));
+    }
+
+    @Test
+    void consumesConfirmationBeforeQueueingWriteTask() {
+        AgentTask task = new AgentTask();
+        task.setId(88L); task.setTaskNo("00000000-0000-4000-8000-000000000002");
+        task.setTenantId(1L); task.setUserId(7L); task.setPlanVersion(1);
+        task.setPlanHash("sha256:" + "b".repeat(64)); task.setMaxRiskLevel("L1");
+        task.setStatus("WAITING_CONFIRMATION"); task.setTraceId("trace");
+        when(taskMapper.selectOwned(1L, 7L, task.getTaskNo())).thenReturn(task);
+        when(idempotency.bind(eq(1L), eq(7L), eq(IdempotencyOperation.EXECUTE), eq("execute-write-key"),
+                anyString(), eq(88L))).thenReturn(new IdempotencyBinding(true, 88L));
+
+        var response = service.execute(task.getTaskNo(),
+                new AiTaskExecuteRequest(1, task.getPlanHash(), "confirmation-token"),
+                "execute-write-key", user());
+
+        assertThat(response.status()).isEqualTo("QUEUED");
+        verify(taskApiService).consumeConfirmation(
+                user(), task.getTaskNo(), 1, task.getPlanHash(), "confirmation-token");
+        verify(taskMapper, never()).queuePlanReady(anyLong(), anyLong(), anyLong(), anyInt(), anyString(), any());
         verify(eventPublisher).publishEvent(any(AgentTaskQueuedEvent.class));
     }
 

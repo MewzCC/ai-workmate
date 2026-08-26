@@ -22,6 +22,9 @@ public interface LeaveWorkflowService {
 
     LeaveApplicationResponse createDraft(Long userId, LeaveApplicationRequest request);
 
+    LeaveApplicationResponse createAgentDraft(Long userId, LeaveApplicationRequest request,
+                                              String operationKey);
+
     LeaveApplicationResponse updateDraft(Long userId, Long id, LeaveApplicationRequest request);
 
     LeaveApplicationResponse getApplication(Long userId, Long id);
