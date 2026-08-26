@@ -27,7 +27,8 @@ class AgentRuntimePropertiesTest {
         properties.getLimits().setMaxPlanSteps(4);
         properties.getLimits().setMaxQuerySize(51);
         properties.getLimits().setMaxToolTimeoutMs(30001);
+        properties.setRetentionBatchSize(1001);
 
-        assertThat(validator.validate(properties)).hasSize(3);
+        assertThat(validator.validate(properties)).hasSize(4);
     }
 }

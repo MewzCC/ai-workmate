@@ -6,3 +6,4 @@ spring:
 logging:
   level:
     com.aiworkmate: debug
+    com.aiworkmate.agent: info

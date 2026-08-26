@@ -4,6 +4,7 @@ import com.aiworkmate.agent.config.AgentRuntimeProperties;
 import com.aiworkmate.agent.gateway.GatewayDecision;
 import com.aiworkmate.agent.gateway.ToolGateway;
 import com.aiworkmate.agent.gateway.WorkerLease;
+import com.aiworkmate.agent.observability.AgentOperationalObserver;
 import com.aiworkmate.agent.task.AgentHashing;
 import com.aiworkmate.agent.task.AgentTask;
 import com.aiworkmate.agent.task.AgentTaskStep;
@@ -36,11 +37,13 @@ public class AgentTaskWorker {
     private final AgentHashing hashing;
     private final ObjectMapper objectMapper;
     private final AgentWorkerTransitionService transitions;
+    private final AgentOperationalObserver observer;
     private final TaskExecutor executor;
 
     public AgentTaskWorker(AgentRuntimeProperties properties, AgentWorkerMapper mapper,
                            ToolGateway gateway, AgentHashing hashing, ObjectMapper objectMapper,
                            AgentWorkerTransitionService transitions,
+                           AgentOperationalObserver observer,
                            @Qualifier("agentTaskExecutor") TaskExecutor executor) {
         this.properties = properties;
         this.mapper = mapper;
@@ -48,6 +51,7 @@ public class AgentTaskWorker {
         this.hashing = hashing;
         this.objectMapper = objectMapper;
         this.transitions = transitions;
+        this.observer = observer;
         this.executor = executor;
     }
 
@@ -78,10 +82,12 @@ public class AgentTaskWorker {
     @Scheduled(fixedDelayString = "${agent.worker.heartbeat-delay-ms:5000}")
     public void heartbeatAndRecover() {
         if (!properties.isEnabled() || !properties.isExecutionEnabled()) return;
-        mapper.closeTimedOutOrUnsafe();
-        mapper.recoverExpiredReadOnly();
-        activeLeases.forEach((taskId, lease) ->
-                mapper.heartbeat(taskId, workerId, lease.hash(), LocalDateTime.now().plusSeconds(30)));
+        int closed = mapper.closeTimedOutOrUnsafe();
+        int recovered = mapper.recoverExpiredReadOnly();
+        AtomicInteger heartbeatUpdates = new AtomicInteger();
+        activeLeases.forEach((taskId, lease) -> heartbeatUpdates.addAndGet(
+                mapper.heartbeat(taskId, workerId, lease.hash(), LocalDateTime.now().plusSeconds(30))));
+        observer.workerRecovery(closed, recovered, heartbeatUpdates.get());
     }
 
     void run(AgentTask task, String token, String hash) {

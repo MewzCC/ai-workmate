@@ -5,6 +5,7 @@ import com.aiworkmate.agent.gateway.GatewayDecision;
 import com.aiworkmate.agent.gateway.GatewayDecisionCode;
 import com.aiworkmate.agent.gateway.ToolGateway;
 import com.aiworkmate.agent.gateway.ToolGatewayResult;
+import com.aiworkmate.agent.observability.AgentOperationalObserver;
 import com.aiworkmate.agent.task.AgentHashing;
 import com.aiworkmate.agent.task.AgentTask;
 import com.aiworkmate.agent.task.AgentTaskStep;
@@ -29,13 +30,14 @@ class AgentTaskWorkerTest {
     private final ToolGateway gateway = mock(ToolGateway.class);
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final AgentWorkerTransitionService transitions = mock(AgentWorkerTransitionService.class);
+    private final AgentOperationalObserver observer = mock(AgentOperationalObserver.class);
     private final AgentRuntimeProperties properties = new AgentRuntimeProperties();
     private AgentTaskWorker worker;
 
     @BeforeEach
     void setUp() {
         worker = new AgentTaskWorker(properties, mapper, gateway,
-                new AgentHashing(objectMapper), objectMapper, transitions, new SyncTaskExecutor());
+                new AgentHashing(objectMapper), objectMapper, transitions, observer, new SyncTaskExecutor());
     }
 
     @Test
@@ -44,6 +46,7 @@ class AgentTaskWorkerTest {
         worker.heartbeatAndRecover();
         verify(mapper, never()).claim(anyString(), anyString(), any(), anyInt());
         verify(mapper, never()).recoverExpiredReadOnly();
+        verify(observer, never()).workerRecovery(anyInt(), anyInt(), anyInt());
     }
 
     @Test
@@ -94,6 +97,7 @@ class AgentTaskWorkerTest {
         org.mockito.InOrder order = org.mockito.Mockito.inOrder(mapper);
         order.verify(mapper).closeTimedOutOrUnsafe();
         order.verify(mapper).recoverExpiredReadOnly();
+        verify(observer).workerRecovery(0, 0, 0);
     }
 
     @Test
@@ -103,6 +107,7 @@ class AgentTaskWorkerTest {
         when(mapper.claim(anyString(), anyString(), any(), anyInt())).thenReturn(task());
         worker = new AgentTaskWorker(properties, mapper, gateway,
                 new AgentHashing(objectMapper), objectMapper, transitions,
+                observer,
                 command -> { throw new TaskRejectedException("saturated"); });
 
         worker.poll();
