@@ -4,6 +4,8 @@
 
 Tool Gateway 是 Phase 2 所有 Agent 工具执行的唯一入口，用于防止模型、Worker 或其他 Agent 组件绕过权限和策略直接控制业务能力。
 
+持久队列、租约恢复、保留清理和低敏观测见 [Agent 持久任务引擎架构](agent-task-engine.md)。
+
 它只约束 Agent 执行路径，不替代普通 OA Controller 调用领域 Service 的既有业务入口，也不替代领域 Service 自身鉴权。
 
 ## 2. 部署形态

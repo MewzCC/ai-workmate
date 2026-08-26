@@ -42,6 +42,7 @@ import { OaIcon, oaMenuIconOptions } from '@/components/OaIcon';
 const COMPONENT_VALUES = [
   'DASHBOARD',
   'AI_WORKSPACE',
+  'AI_TASK_CENTER',
   'ACCESS_CONTROL',
   'TODO_LIST',
   'LEAVE_FORM',

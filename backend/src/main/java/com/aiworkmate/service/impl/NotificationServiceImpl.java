@@ -7,6 +7,8 @@ import com.aiworkmate.dto.NotificationResponse;
 import com.aiworkmate.entity.Notification;
 import com.aiworkmate.mapper.NotificationMapper;
 import com.aiworkmate.service.NotificationService;
+import com.aiworkmate.service.UserAccessService;
+import com.aiworkmate.service.model.ResolvedUserAccess;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -33,11 +35,10 @@ public class NotificationServiceImpl implements NotificationService {
     private static final String QUEUE_KEY = "notification:queue";
     private static final Duration POP_TIMEOUT = Duration.ofSeconds(1);
     private static final Duration IDLE_SLEEP = Duration.ofMillis(200);
-    private static final int MAX_PAGE_SIZE = 100;
-
     private final NotificationMapper notificationMapper;
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
+    private final UserAccessService userAccessService;
 
     @PostConstruct
     public void init() {
@@ -110,12 +111,15 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Override
     public PageResponse<NotificationResponse> list(long userId, int page, int size) {
+        ResolvedUserAccess access = requireNotificationAccess(userId);
         int safePage = Math.max(1, page);
-        int safeSize = Math.min(Math.max(1, size), MAX_PAGE_SIZE);
+        int safeSize = Math.min(Math.max(1, size), 50);
         Long total = notificationMapper.selectCount(new LambdaQueryWrapper<Notification>()
-                .eq(Notification::getUserId, userId));
+                .eq(Notification::getTenantId, access.tenantId())
+                .eq(Notification::getUserId, access.userId()));
         List<Notification> rows = notificationMapper.selectList(new LambdaQueryWrapper<Notification>()
-                .eq(Notification::getUserId, userId)
+                .eq(Notification::getTenantId, access.tenantId())
+                .eq(Notification::getUserId, access.userId())
                 .orderByDesc(Notification::getCreatedAt)
                 .last("LIMIT " + safeSize + " OFFSET " + ((long) (safePage - 1) * safeSize)));
         return PageResponse.of(rows.stream().map(this::toResponse).toList(),
@@ -124,31 +128,38 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Override
     public long unreadCount(long userId) {
+        ResolvedUserAccess access = requireNotificationAccess(userId);
         Long count = notificationMapper.selectCount(new LambdaQueryWrapper<Notification>()
-                .eq(Notification::getUserId, userId)
+                .eq(Notification::getTenantId, access.tenantId())
+                .eq(Notification::getUserId, access.userId())
                 .eq(Notification::getReadFlag, false));
         return count == null ? 0 : count;
     }
 
     @Override
     public void markRead(long userId, long notificationId) {
+        ResolvedUserAccess access = requireNotificationAccess(userId);
         Notification notification = notificationMapper.selectOne(new LambdaQueryWrapper<Notification>()
                 .eq(Notification::getId, notificationId)
-                .eq(Notification::getUserId, userId));
+                .eq(Notification::getTenantId, access.tenantId())
+                .eq(Notification::getUserId, access.userId()));
         if (notification == null) {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "通知不存在");
         }
         notificationMapper.update(null, new LambdaUpdateWrapper<Notification>()
                 .eq(Notification::getId, notificationId)
-                .eq(Notification::getUserId, userId)
+                .eq(Notification::getTenantId, access.tenantId())
+                .eq(Notification::getUserId, access.userId())
                 .eq(Notification::getReadFlag, false)
                 .set(Notification::getReadFlag, true));
     }
 
     @Override
     public long markAllRead(long userId) {
+        ResolvedUserAccess access = requireNotificationAccess(userId);
         int updated = notificationMapper.update(null, new LambdaUpdateWrapper<Notification>()
-                .eq(Notification::getUserId, userId)
+                .eq(Notification::getTenantId, access.tenantId())
+                .eq(Notification::getUserId, access.userId())
                 .eq(Notification::getReadFlag, false)
                 .set(Notification::getReadFlag, true));
         return updated;
@@ -178,6 +189,15 @@ public class NotificationServiceImpl implements NotificationService {
                 notification.getBizId(),
                 Boolean.TRUE.equals(notification.getReadFlag()),
                 notification.getCreatedAt());
+    }
+
+    private ResolvedUserAccess requireNotificationAccess(long userId) {
+        ResolvedUserAccess access = userAccessService.resolveActiveUser(userId);
+        if (access == null) throw new BusinessException(ErrorCode.AUTH_REQUIRED);
+        if (!access.permissions().contains("notification:read:self")) {
+            throw new BusinessException(ErrorCode.PERMISSION_DENIED);
+        }
+        return access;
     }
 
     private String toJson(QueueMessage message) {

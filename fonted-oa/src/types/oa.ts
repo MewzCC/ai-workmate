@@ -32,6 +32,7 @@ export interface OaMenuItem {
   icon?: string;
   path?: string;
   componentKey?: 'DASHBOARD' | 'AI_WORKSPACE' | 'ACCESS_CONTROL'
+    | 'AI_TASK_CENTER'
     | 'TODO_LIST' | 'LEAVE_FORM' | 'MY_APPLICATIONS' | 'AUDIT_CENTER'
     | 'APPROVAL_LIST' | 'APPROVAL_START' | 'APPROVAL_FORM' | 'FORM_ENGINE' | 'PROCESS_CONFIG' | 'APPROVAL_RULES'
     | 'ORG_TREE' | 'KNOWLEDGE_BASE' | 'MESSAGE_CENTER' | 'SYSTEM_CONFIG'
@@ -68,38 +69,102 @@ export interface ApprovalRecord {
 }
 
 export interface AiPlanStep {
+  sequence: number;
+  toolCode: string;
   title: string;
-  description: string;
+  arguments: Record<string, unknown>;
 }
 
 export interface AiTaskPlanRequest {
   input: string;
   pageId: string;
+  pageContext?: Record<string, unknown>;
 }
+
+export type AgentRiskLevel = 'L0' | 'L1' | 'L2';
+
+export type AgentTaskStatus =
+  | 'RECEIVED' | 'PLANNING' | 'PLAN_READY' | 'WAITING_CONFIRMATION'
+  | 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'PARTIALLY_SUCCEEDED'
+  | 'FAILED' | 'TIMED_OUT' | 'REJECTED' | 'EXPIRED' | 'CANCELLED';
 
 export interface AiTaskPlanResponse {
   taskId: string;
-  type: AiTaskType;
-  riskLevel: RiskLevel;
-  requireConfirm: boolean;
+  status: AgentTaskStatus;
+  planVersion: number;
+  planHash: string;
+  riskLevel: AgentRiskLevel;
+  confirmationRequired: boolean;
+  expiresAt: string | null;
   summary: string;
   steps: AiPlanStep[];
 }
 
 export interface AiTaskExecuteRequest {
-  taskId: string;
-  confirm: boolean;
+  planVersion: number;
+  planHash: string;
+  confirmationToken?: string;
 }
 
 export interface AiTaskExecuteResponse {
-  success: boolean;
-  auditId: string;
-  message: string;
-  result: {
-    successCount: number;
-    pendingConfirmCount: number;
-    rejectSuggestCount: number;
-  };
+  taskId: string;
+  status: AgentTaskStatus;
+  statusUrl: string;
+  eventsUrl: string;
+}
+
+export interface AiTaskConfirmationResponse {
+  token: string;
+  expiresAt: string;
+}
+
+export interface AiTaskEvent {
+  id: string;
+  type: string;
+  data: Record<string, unknown>;
+}
+
+export interface AgentTaskSummary {
+  taskId: string;
+  pageId: string;
+  status: AgentTaskStatus;
+  riskLevel: AgentRiskLevel | null;
+  planVersion: number | null;
+  createdAt: string;
+  updatedAt: string;
+  finishedAt: string | null;
+  errorCode: string | null;
+}
+
+export interface AgentTaskDetailStep {
+  sequence: number;
+  toolCode: string;
+  riskLevel: AgentRiskLevel;
+  status: string;
+  arguments: Record<string, unknown>;
+  result: unknown;
+  resultSummary: string | null;
+  errorCode: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+}
+
+export interface AgentTaskDetail {
+  taskId: string;
+  pageId: string;
+  input: string;
+  pageContext: unknown;
+  plan: unknown;
+  planHash: string | null;
+  planVersion: number | null;
+  riskLevel: AgentRiskLevel | null;
+  status: AgentTaskStatus;
+  steps: AgentTaskDetailStep[];
+  timeoutAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  finishedAt: string | null;
+  errorCode: string | null;
 }
 
 export interface OaTheme {

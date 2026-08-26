@@ -1,6 +1,7 @@
 package com.aiworkmate.service.impl;
 
 import com.aiworkmate.common.BusinessException;
+import com.aiworkmate.common.ErrorCode;
 import com.aiworkmate.config.EmbeddingProperties;
 import com.aiworkmate.config.UploadProperties;
 import com.aiworkmate.dto.KnowledgeSearchRequest;
@@ -38,7 +39,7 @@ class KnowledgeServiceImplTest {
 
     private static final ResolvedUserAccess ACCESS = new ResolvedUserAccess(
             7L, "alice", 99L, "EMPLOYEE", List.of("EMPLOYEE"),
-            List.of(), List.of("SELF"), 1L);
+            List.of("knowledge:search"), List.of("SELF"), 1L);
 
     private static KnowledgeBase ownedKnowledgeBase() {
         KnowledgeBase knowledgeBase = new KnowledgeBase();
@@ -107,6 +108,48 @@ class KnowledgeServiceImplTest {
         assertThat(result.records().get(0).matchType()).isEqualTo("DENSE");
         verify(mapper).search(eq(99L), eq(7L), anyString(), eq("api"), eq("model-a"),
                 eq(0.4), eq(3));
+    }
+
+    @Test
+    void searchShouldFailClosedWithoutRealtimePermission() {
+        UserAccessService accessService = mock(UserAccessService.class);
+        when(accessService.resolveActiveUser(7L)).thenReturn(new ResolvedUserAccess(
+                7L, "alice", 99L, "EMPLOYEE", List.of("EMPLOYEE"),
+                List.of(), List.of("SELF"), 1L));
+        KnowledgeDocumentMapper mapper = mock(KnowledgeDocumentMapper.class);
+        EmbeddingService embeddingService = mock(EmbeddingService.class);
+        KnowledgeServiceImpl service = service(mapper, mock(KnowledgeBaseMapper.class),
+                embeddingService, accessService, mock(FileParserService.class), new EmbeddingProperties());
+
+        assertThatThrownBy(() -> service.search(7L,
+                new KnowledgeSearchRequest("policy", 5, 0.4)))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        error -> assertThat(error.getErrorCode()).isEqualTo("PERMISSION_DENIED"));
+
+        org.mockito.Mockito.verifyNoInteractions(mapper, embeddingService);
+    }
+
+    @Test
+    void searchShouldEnforceHardTopKTenInDomainLayer() {
+        KnowledgeDocumentMapper mapper = mock(KnowledgeDocumentMapper.class);
+        EmbeddingService embeddingService = mock(EmbeddingService.class);
+        UserAccessService accessService = mock(UserAccessService.class);
+        EmbeddingProperties properties = new EmbeddingProperties();
+        properties.setDimension(3);
+        when(accessService.resolveActiveUser(7L)).thenReturn(ACCESS);
+        when(embeddingService.current()).thenReturn(new EmbeddingDescriptor("api", "model-a", 3));
+        when(embeddingService.embed(List.of("policy"))).thenReturn(
+                new EmbeddingResult("api", "model-a", List.of(new float[]{0.1F, 0.2F, 0.3F})));
+        when(mapper.selectCount(any())).thenReturn(1L);
+        when(mapper.search(eq(99L), eq(7L), anyString(), eq("api"), eq("model-a"),
+                eq(0.4), eq(10))).thenReturn(List.of());
+        KnowledgeServiceImpl service = service(mapper, mock(KnowledgeBaseMapper.class),
+                embeddingService, accessService, mock(FileParserService.class), properties);
+
+        service.search(7L, new KnowledgeSearchRequest("policy", 20, 0.4));
+
+        verify(mapper).search(eq(99L), eq(7L), anyString(), eq("api"), eq("model-a"),
+                eq(0.4), eq(10));
     }
 
     @Test
@@ -199,7 +242,7 @@ class KnowledgeServiceImplTest {
 
         assertThatThrownBy(() -> service.upload(7L, 5L, file))
                 .isInstanceOfSatisfying(BusinessException.class, ex ->
-                        assertThat(ex.getMessage()).isEqualTo("error.knowledge_image_no_text"));
+                        assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.REQUEST_INVALID.getErrorCode()));
     }
 
     @Test

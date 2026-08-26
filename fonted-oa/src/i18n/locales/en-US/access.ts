@@ -117,6 +117,7 @@ export default {
   componentTypes: {
     DASHBOARD: 'General OA Page',
     AI_WORKSPACE: 'AI Workspace',
+    AI_TASK_CENTER: 'AI Task Center',
     ACCESS_CONTROL: 'Access Control Center',
     TODO_LIST: 'My Todos',
     LEAVE_FORM: 'Leave Application',

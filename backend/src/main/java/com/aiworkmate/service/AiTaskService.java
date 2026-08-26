@@ -7,7 +7,8 @@ import com.aiworkmate.dto.AiTaskPlanResponse;
 import com.aiworkmate.security.AuthenticatedUser;
 
 public interface AiTaskService {
-    AiTaskPlanResponse plan(AiTaskPlanRequest request, AuthenticatedUser user);
+    AiTaskPlanResponse plan(AiTaskPlanRequest request, String idempotencyKey, AuthenticatedUser user);
 
-    AiTaskExecuteResponse execute(AiTaskExecuteRequest request, AuthenticatedUser user);
+    AiTaskExecuteResponse execute(String taskId, AiTaskExecuteRequest request,
+                                  String idempotencyKey, AuthenticatedUser user);
 }
