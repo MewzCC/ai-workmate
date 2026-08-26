@@ -1,6 +1,7 @@
 package com.aiworkmate.agent.task;
 
 import com.aiworkmate.agent.config.AgentRuntimeProperties;
+import com.aiworkmate.agent.registry.*;
 import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.common.ErrorCode;
 import com.aiworkmate.dto.AgentConfirmationTokenRequest;
@@ -12,6 +13,8 @@ import org.mockito.ArgumentCaptor;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -32,10 +35,11 @@ class AgentTaskApiServiceTest {
     private final AgentTaskMapper taskMapper = mock(AgentTaskMapper.class);
     private final AgentTaskStepMapper stepMapper = mock(AgentTaskStepMapper.class);
     private final AgentTaskEventService eventService = mock(AgentTaskEventService.class);
+    private final ToolRegistry toolRegistry = mock(ToolRegistry.class);
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final AgentRuntimeProperties properties = new AgentRuntimeProperties();
     private final AuthenticatedUser user = new AuthenticatedUser(
-            7L, "alice", 9L, "EMPLOYEE", List.of("EMPLOYEE"), List.of(), List.of("SELF"), 1L);
+            7L, "alice", 9L, "EMPLOYEE", List.of("EMPLOYEE"), List.of("leave:create"), List.of("SELF"), 1L);
     private AgentTaskApiService service;
 
     @BeforeEach
@@ -43,7 +47,15 @@ class AgentTaskApiServiceTest {
         properties.setEnabled(true);
         properties.setExecutionEnabled(true);
         service = new AgentTaskApiService(taskMapper, stepMapper, new AgentHashing(objectMapper),
-                properties, eventService, objectMapper);
+                toolRegistry, properties, eventService, objectMapper);
+        AgentTaskStep step = new AgentTaskStep();
+        step.setToolCode("leave.createDraft");
+        step.setToolVersion("1.0.0");
+        step.setSchemaHash("schema-hash");
+        step.setRiskLevel("L1");
+        when(stepMapper.selectByTaskId(11L)).thenReturn(List.of(step));
+        when(toolRegistry.resolveExecutableTool(9L, "leave.createDraft"))
+                .thenReturn(Optional.of(writeTool()));
     }
 
     @Test
@@ -77,6 +89,7 @@ class AgentTaskApiServiceTest {
 
     @Test
     void consumesConfirmationAtomicallyAndRejectsReplay() {
+        when(taskMapper.selectOwned(9L, 7L, TASK_NO)).thenReturn(waitingTask());
         when(taskMapper.consumeConfirmation(eq(9L), eq(7L), eq(TASK_NO), eq(1), eq(PLAN_HASH),
                 anyString(), any())).thenReturn(1, 0);
 
@@ -86,6 +99,35 @@ class AgentTaskApiServiceTest {
                 .isInstanceOfSatisfying(BusinessException.class,
                         exception -> assertThat(exception.getErrorCode())
                                 .isEqualTo(ErrorCode.CONFIRMATION_EXPIRED.getErrorCode()));
+    }
+
+    @Test
+    void refusesToSignWhenWriteToolWasDisabledOrPermissionRevoked() {
+        when(taskMapper.selectOwned(9L, 7L, TASK_NO)).thenReturn(waitingTask());
+        when(toolRegistry.resolveExecutableTool(9L, "leave.createDraft")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.issueConfirmation(user, TASK_NO,
+                new AgentConfirmationTokenRequest(1, PLAN_HASH)))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        exception -> assertThat(exception.getErrorCode())
+                                .isEqualTo(ErrorCode.PERMISSION_DENIED.getErrorCode()));
+        verify(taskMapper, never()).issueConfirmation(anyLong(), anyLong(), anyLong(), anyLong(), anyInt(),
+                anyString(), anyString(), any(LocalDateTime.class));
+    }
+
+    private ToolDefinition writeTool() {
+        try {
+            var schema = objectMapper.readTree(
+                    "{\"type\":\"object\",\"additionalProperties\":false,\"properties\":{}}");
+            return new ToolDefinition(
+                    "leave.createDraft", "Create", "Create", "Create", "1.0.0",
+                    schema, schema, "schema-hash", RiskLevel.L1, Set.of("leave:create"),
+                    PermissionMode.ALL, OwnershipPolicy.SELF, RetryPolicy.BUSINESS_IDEMPOTENT,
+                    SideEffect.SINGLE_WRITE, ConfirmationPolicy.EXPLICIT,
+                    1, 16384, 15000, "FULL_WRITE_AUDIT");
+        } catch (Exception exception) {
+            throw new IllegalStateException(exception);
+        }
     }
 
     @Test

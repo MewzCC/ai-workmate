@@ -20,7 +20,7 @@ public class DatabaseBackedToolRegistry implements ToolRegistry {
 
     private static final Map<String, Set<String>> PAGE_TOOLS = Map.of(
             "todo-list", Set.of("todo.query"),
-            "my-applications", Set.of("leave.mine"),
+            "my-applications", Set.of("leave.mine", "leave.createDraft"),
             "knowledge-base", Set.of("knowledge.search"),
             "message-center", Set.of("notification.mine"),
             "dashboard", Set.of("todo.query", "notification.mine")
@@ -52,11 +52,17 @@ public class DatabaseBackedToolRegistry implements ToolRegistry {
     @Override
     @Transactional(readOnly = true)
     public Optional<ToolDefinition> resolveExecutableTool(Long tenantId, String toolCode) {
-        if (tenantId == null || toolCode == null || !properties.isEnabled() || !tenantEnabled(tenantId)) {
+        AgentTenantPolicy policy = tenantId == null ? null : tenantPolicyMapper.selectById(tenantId);
+        if (tenantId == null || toolCode == null || !properties.isEnabled()
+                || policy == null || !Boolean.TRUE.equals(policy.getEnabled())) {
             return Optional.empty();
         }
         ToolDefinition definition = catalog.find(toolCode).orElse(null);
         if (definition == null) {
+            return Optional.empty();
+        }
+        if (definition.sideEffect() != SideEffect.NONE
+                && (!properties.isWriteToolsEnabled() || !Boolean.TRUE.equals(policy.getWriteToolsEnabled()))) {
             return Optional.empty();
         }
         AgentTool platform = toolMapper.selectPlatformTool(toolCode);

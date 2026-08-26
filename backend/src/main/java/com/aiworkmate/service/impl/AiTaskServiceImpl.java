@@ -45,6 +45,7 @@ public class AiTaskServiceImpl implements AiTaskService {
     private final AgentTaskStepMapper stepMapper;
     private final AgentIdempotencyService idempotencyService;
     private final AgentTaskEventService eventService;
+    private final AgentTaskApiService taskApiService;
     private final AgentApiRateLimiter rateLimiter;
     private final AgentHashing hashing;
     private final ObjectMapper objectMapper;
@@ -121,12 +122,17 @@ public class AiTaskServiceImpl implements AiTaskService {
                 idempotencyKey, hashing.hash(hashInput), task.getId());
         if (!binding.created()) return executionResponse(taskNo, task.getStatus());
 
-        if (!"L0".equals(task.getMaxRiskLevel())) throw new BusinessException(ErrorCode.CONFIRMATION_REQUIRED);
-        if (StringUtils.hasText(request.confirmationToken()) || !"PLAN_READY".equals(task.getStatus())
-                || taskMapper.queuePlanReady(task.getId(), user.tenantId(), user.userId(), request.planVersion(),
-                request.planHash(), LocalDateTime.now().plusNanos(
-                        runtime.getLimits().getDefaultTaskTimeoutMs() * 1_000_000L)) != 1)
-            throw new BusinessException(ErrorCode.INVALID_TASK_STATE);
+        if ("L0".equals(task.getMaxRiskLevel())) {
+            if (StringUtils.hasText(request.confirmationToken()) || !"PLAN_READY".equals(task.getStatus())
+                    || taskMapper.queuePlanReady(task.getId(), user.tenantId(), user.userId(), request.planVersion(),
+                    request.planHash(), LocalDateTime.now().plusNanos(
+                            runtime.getLimits().getDefaultTaskTimeoutMs() * 1_000_000L)) != 1) {
+                throw new BusinessException(ErrorCode.INVALID_TASK_STATE);
+            }
+        } else {
+            taskApiService.consumeConfirmation(user, taskNo, request.planVersion(),
+                    request.planHash(), request.confirmationToken());
+        }
         eventService.publish(task.getId(), "snapshot", objectMapper.createObjectNode()
                 .put("taskId", taskNo).put("status", "QUEUED"), task.getTraceId());
         applicationEventPublisher.publishEvent(new AgentTaskQueuedEvent(task.getId()));

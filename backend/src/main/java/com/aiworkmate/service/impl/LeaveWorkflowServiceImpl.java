@@ -130,6 +130,45 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
 
     @Override
     @Transactional
+    public LeaveApplicationResponse createAgentDraft(Long userId, LeaveApplicationRequest request,
+                                                     String operationKey) {
+        if (operationKey == null || operationKey.isBlank() || operationKey.length() > 128) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        ResolvedUserAccess actor = requirePermission(userId, "leave:create");
+        int duration = calculateDuration(request);
+        if (request.approverUserId() != null) {
+            requireEligibleApprover(actor, request.approverUserId());
+        }
+        LocalDateTime now = LocalDateTime.now();
+        LeaveApplication leave = new LeaveApplication();
+        leave.setTenantId(actor.tenantId());
+        leave.setApplicantUserId(actor.userId());
+        leave.setApproverUserId(request.approverUserId());
+        applyRequest(leave, request, duration);
+        leave.setStatus("DRAFT");
+        leave.setVersion(0);
+        leave.setAgentOperationKey(operationKey);
+        leave.setCreatedAt(now);
+        leave.setUpdatedAt(now);
+
+        boolean created = leaveMapper.insertAgentDraft(leave) == 1;
+        if (!created) {
+            leave = leaveMapper.selectByAgentOperationKey(
+                    actor.tenantId(), actor.userId(), operationKey);
+            if (leave == null) {
+                throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID);
+            }
+        } else {
+            auditService.recordTransactional(actor.tenantId(), actor.userId(), BUSINESS_TYPE,
+                    leave.getId().toString(), "AGENT_CREATE_DRAFT", "SUCCESS",
+                    "Agent 创建请假草稿");
+        }
+        return response(actor, requireView(actor.tenantId(), leave.getId()));
+    }
+
+    @Override
+    @Transactional
     public LeaveApplicationResponse updateDraft(Long userId, Long id, LeaveApplicationRequest request) {
         ResolvedUserAccess actor = requirePermission(userId, "leave:create");
         if (request.version() == null) {

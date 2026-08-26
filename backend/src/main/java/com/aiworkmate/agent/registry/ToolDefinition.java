@@ -30,7 +30,7 @@ public record ToolDefinition(
         int timeoutMs,
         String auditPolicy
 ) {
-    private static final Pattern CODE_PATTERN = Pattern.compile("^[a-z][a-z0-9]*(\\.[a-z][a-z0-9]*)+$");
+    private static final Pattern CODE_PATTERN = Pattern.compile("^[a-z][A-Za-z0-9]*(\\.[a-z][A-Za-z0-9]*)+$");
     private static final Set<String> PHASE_2_TOOL_CODES = Set.of(
             "todo.query", "leave.mine", "knowledge.search", "notification.mine",
             "leave.createDraft", "leave.submit"

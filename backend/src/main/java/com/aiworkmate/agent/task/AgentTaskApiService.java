@@ -1,6 +1,9 @@
 package com.aiworkmate.agent.task;
 
 import com.aiworkmate.agent.config.AgentRuntimeProperties;
+import com.aiworkmate.agent.registry.PermissionMode;
+import com.aiworkmate.agent.registry.ToolDefinition;
+import com.aiworkmate.agent.registry.ToolRegistry;
 import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.common.ErrorCode;
 import com.aiworkmate.common.PageResponse;
@@ -38,6 +41,7 @@ public class AgentTaskApiService {
     private final AgentTaskMapper taskMapper;
     private final AgentTaskStepMapper stepMapper;
     private final AgentHashing hashing;
+    private final ToolRegistry toolRegistry;
     private final AgentRuntimeProperties properties;
     private final AgentTaskEventService eventService;
     private final ObjectMapper objectMapper;
@@ -94,6 +98,7 @@ public class AgentTaskApiService {
         if (!"WAITING_CONFIRMATION".equals(task.getStatus()) || "L0".equals(task.getMaxRiskLevel())) {
             throw new BusinessException(ErrorCode.INVALID_TASK_STATE);
         }
+        requireCurrentToolAccess(user, task);
 
         String token = token();
         LocalDateTime expiresAt = LocalDateTime.now().plusSeconds(
@@ -114,6 +119,11 @@ public class AgentTaskApiService {
         if (!StringUtils.hasText(confirmationToken)) {
             throw new BusinessException(ErrorCode.CONFIRMATION_REQUIRED);
         }
+        AgentTask task = requireOwned(user, taskNo);
+        if (!planVersion.equals(task.getPlanVersion()) || !planHash.equals(task.getPlanHash())) {
+            throw new BusinessException(ErrorCode.GATEWAY_STALE);
+        }
+        requireCurrentToolAccess(user, task);
         int changed = taskMapper.consumeConfirmation(user.tenantId(), user.userId(), taskNo,
                 planVersion, planHash, hashing.sha256(confirmationToken), LocalDateTime.now().plus(
                         java.time.Duration.ofMillis(properties.getLimits().getDefaultTaskTimeoutMs())));
@@ -164,6 +174,23 @@ public class AgentTaskApiService {
         AgentTask task = taskMapper.selectOwned(user.tenantId(), user.userId(), taskNo);
         if (task == null) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
         return task;
+    }
+
+    private void requireCurrentToolAccess(AuthenticatedUser user, AgentTask task) {
+        List<AgentTaskStep> steps = stepMapper.selectByTaskId(task.getId());
+        if (steps.isEmpty()) throw new BusinessException(ErrorCode.PERMISSION_DENIED);
+        for (AgentTaskStep step : steps) {
+            ToolDefinition definition = toolRegistry.resolveExecutableTool(
+                    user.tenantId(), step.getToolCode()).orElse(null);
+            boolean permitted = definition != null
+                    && definition.handlerVersion().equals(step.getToolVersion())
+                    && definition.schemaHash().equals(step.getSchemaHash())
+                    && definition.riskLevel().name().equals(step.getRiskLevel())
+                    && (definition.permissionMode() == PermissionMode.ALL
+                    ? user.permissions().containsAll(definition.requiredPermissions())
+                    : definition.requiredPermissions().stream().anyMatch(user.permissions()::contains));
+            if (!permitted) throw new BusinessException(ErrorCode.PERMISSION_DENIED);
+        }
     }
 
     private String normalizeStatus(String status) {
