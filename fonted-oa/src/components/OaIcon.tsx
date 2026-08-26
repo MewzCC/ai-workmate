@@ -208,6 +208,7 @@ const fallbackIconMap = {
   reload: ReloadOutlined,
   lock: LockOutlined,
   history: HistoryOutlined,
+  'ai-tasks': HistoryOutlined,
   'knowledge-base': DatabaseOutlined,
   previous: LeftOutlined,
   next: RightOutlined,
@@ -287,6 +288,7 @@ export const oaKnowledgeBaseIconOptions: Array<{ value: OaIconName; labelKey: st
 export const oaMenuIconOptions: Array<{ value: OaIconName; labelKey: string }> = [
   { value: 'dashboard', labelKey: 'oa.iconLabel.dashboard' },
   { value: 'ai', labelKey: 'oa.iconLabel.ai' },
+  { value: 'ai-tasks', labelKey: 'oa.iconLabel.ai-tasks' },
   { value: 'business', labelKey: 'oa.iconLabel.business' },
   { value: 'platform', labelKey: 'oa.iconLabel.platform' },
   { value: 'settings', labelKey: 'oa.iconLabel.settings' },
@@ -326,6 +328,7 @@ const routeIconMap: Record<string, OaIconName> = {
   workspace: 'dashboard',
   dashboard: 'dashboard',
   'ai-workspace': 'ai',
+  'ai-tasks': 'ai-tasks',
   todo: 'todo',
   'leave-application': 'form',
   'my-applications': 'history',

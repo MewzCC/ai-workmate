@@ -163,4 +163,34 @@ server:
 logging:
   level:
     com.aiworkmate: debug
+    com.aiworkmate.agent: info
     org.springframework.ai: info
+
+# ========== Phase 2 Agent（默认全部关闭，发布时显式开启） ==========
+agent:
+  enabled: ${AGENT_ENABLED:false}
+  planning-enabled: ${AGENT_PLANNING_ENABLED:false}
+  execution-enabled: ${AGENT_EXECUTION_ENABLED:false}
+  write-tools-enabled: ${AGENT_WRITE_TOOLS_ENABLED:false}
+  retention-cleanup-enabled: ${AGENT_RETENTION_CLEANUP_ENABLED:true}
+  retention-batch-size: ${AGENT_RETENTION_BATCH_SIZE:500}
+  retention-cleanup-cron: ${AGENT_RETENTION_CLEANUP_CRON:0 15 4 * * *}
+  limits:
+    input-max-bytes: 4096
+    page-context-max-bytes: 16384
+    page-context-max-depth: 3
+    max-plan-steps: 3
+    max-tool-calls: 5
+    max-concurrent-tasks-per-user: 2
+    default-query-size: 20
+    max-query-size: 50
+    default-knowledge-top-k: 5
+    max-knowledge-top-k: 10
+    max-step-result-bytes: 262144
+    default-tool-timeout-ms: 15000
+    max-tool-timeout-ms: 30000
+    default-task-timeout-ms: 60000
+    max-task-timeout-ms: 120000
+    confirmation-token-ttl-seconds: 600
+    task-retention-days: 90
+    event-retention-days: 30

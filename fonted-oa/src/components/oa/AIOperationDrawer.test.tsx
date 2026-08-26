@@ -1,29 +1,110 @@
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { App } from 'antd';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+
+const api = vi.hoisted(() => ({
+  planAiTask: vi.fn(),
+  issueAiTaskConfirmation: vi.fn(),
+  executeAiTask: vi.fn(),
+  subscribeAiTaskEvents: vi.fn(() => vi.fn()),
+}));
+
+vi.mock('@/lib/oaApi', async (importOriginal) => {
+  const original = await importOriginal<typeof import('@/lib/oaApi')>();
+  return { ...original, ...api };
+});
+
 import AIOperationDrawer from './AIOperationDrawer';
 
-describe('AIOperationDrawer', () => {
-  afterEach(cleanup);
+const basePlan = {
+  taskId: 'agt_4YpV7zqR2mK8nT1x',
+  status: 'PLAN_READY' as const,
+  planVersion: 1,
+  planHash: 'sha256:plan',
+  riskLevel: 'L0' as const,
+  confirmationRequired: false,
+  expiresAt: null,
+  summary: '查询本人待办并返回受控结果',
+  steps: [{ sequence: 1, toolCode: 'todo.query', title: '查询本人待办', arguments: { limit: 10 } }],
+};
 
-  it('keeps the task composer in the fixed drawer footer', () => {
-    render(
+function renderDrawer(onExecuted = vi.fn()) {
+  render(
+    <App>
       <AIOperationDrawer
         open
         role="system_admin"
-        pageId="access-control"
-        pageTitle="角色、权限与动态路由"
+        pageId="todo-list"
+        pageTitle="待办中心"
         onClose={vi.fn()}
-        onExecuted={vi.fn()}
-      />,
-    );
+        onExecuted={onExecuted}
+      />
+    </App>,
+  );
+}
 
-    const input = screen.getByPlaceholderText('例如：帮我预审当前列表，并输出风险排序');
+describe('AIOperationDrawer', () => {
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  it('keeps the bounded task composer in the fixed drawer footer', () => {
+    renderDrawer();
+    const input = screen.getByPlaceholderText('例如：查询我的待办，并按截止时间排序');
     const footer = input.closest('.ant-drawer-footer');
-    const submitButton = screen.getByRole('button', { name: /发送 \/ 生成计划/ });
-    const cancelButton = screen.getByRole('button', { name: /取消计划/ });
+    expect((input as HTMLTextAreaElement).maxLength).toBe(4096);
+    expect(footer?.contains(screen.getByRole('button', { name: /发送 \/ 生成计划/ }))).toBe(true);
+    expect(footer?.contains(screen.getByRole('button', { name: /取消计划/ }))).toBe(true);
+    expect(document.body.contains(screen.getByText('查询本人待办'))).toBe(true);
+  });
 
-    expect(footer).not.toBeNull();
-    expect(footer?.contains(submitButton)).toBe(true);
-    expect(footer?.contains(cancelButton)).toBe(true);
+  it('executes an L0 plan only after the user clicks and starts the cookie event stream', async () => {
+    api.planAiTask.mockResolvedValue(basePlan);
+    api.executeAiTask.mockResolvedValue({
+      taskId: basePlan.taskId,
+      status: 'QUEUED',
+      statusUrl: `/api/ai/tasks/${basePlan.taskId}`,
+      eventsUrl: `/api/ai/tasks/${basePlan.taskId}/events`,
+    });
+    renderDrawer();
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: '查询我的待办' } });
+    fireEvent.click(screen.getByRole('button', { name: /发送 \/ 生成计划/ }));
+    await waitFor(() => expect(screen.getAllByText(basePlan.summary)).toHaveLength(2));
+
+    expect(api.executeAiTask).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: '执行计划' }));
+    await waitFor(() => expect(api.executeAiTask).toHaveBeenCalledWith(basePlan.taskId, {
+      planVersion: 1,
+      planHash: 'sha256:plan',
+    }));
+    expect(api.issueAiTaskConfirmation).not.toHaveBeenCalled();
+    expect(api.subscribeAiTaskEvents).toHaveBeenCalledWith(basePlan.taskId, expect.any(Object));
+  });
+
+  it('issues a memory-only confirmation credential immediately before L1 execution', async () => {
+    api.planAiTask.mockResolvedValue({ ...basePlan, status: 'WAITING_CONFIRMATION', riskLevel: 'L1', confirmationRequired: true });
+    api.issueAiTaskConfirmation.mockResolvedValue({ token: 'one-time-secret', expiresAt: '2026-08-25T12:10:00+08:00' });
+    api.executeAiTask.mockResolvedValue({ taskId: basePlan.taskId, status: 'QUEUED', statusUrl: '/status', eventsUrl: '/events' });
+    const storageSpy = vi.spyOn(Storage.prototype, 'setItem');
+    renderDrawer();
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: '查询我的待办' } });
+    fireEvent.click(screen.getByRole('button', { name: /发送 \/ 生成计划/ }));
+    await waitFor(() => expect(screen.getAllByText(basePlan.summary)).toHaveLength(2));
+    storageSpy.mockClear();
+
+    fireEvent.click(screen.getByRole('button', { name: '确认并执行' }));
+    fireEvent.click(await screen.findByRole('button', { name: '确认执行' }));
+    await waitFor(() => expect(api.issueAiTaskConfirmation).toHaveBeenCalledWith(basePlan.taskId, {
+      planVersion: 1,
+      planHash: 'sha256:plan',
+    }));
+    expect(api.executeAiTask).toHaveBeenCalledWith(basePlan.taskId, {
+      planVersion: 1,
+      planHash: 'sha256:plan',
+      confirmationToken: 'one-time-secret',
+    });
+    expect(storageSpy).not.toHaveBeenCalled();
+    storageSpy.mockRestore();
   });
 });

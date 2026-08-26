@@ -45,6 +45,7 @@ import AssetLedgerPage from './AssetLedgerPage';
 import MeetingRoomPage from './MeetingRoomPage';
 import VisitorBookingPage from './VisitorBookingPage';
 import SealUsagePage from './SealUsagePage';
+import AiTaskCenterPage from './AiTaskCenterPage';
 
 const { Content } = Layout;
 const OPEN_TABS_STORAGE_KEY = 'workmeta-oa-open-tabs';
@@ -550,6 +551,8 @@ export default function AdminLayout() {
                     <KnowledgeBasePage kbId={kbId} />
                   ) : selectedMenu.componentKey === 'AI_WORKSPACE' ? (
                     <AiChatWorkspace role={role} />
+                  ) : selectedMenu.componentKey === 'AI_TASK_CENTER' ? (
+                    <AiTaskCenterPage />
                   ) : selectedMenu.componentKey === 'MESSAGE_CENTER' ? (
                     <NotificationPage />
                   ) : selectedMenu.componentKey === 'ACCESS_CONTROL' ? (

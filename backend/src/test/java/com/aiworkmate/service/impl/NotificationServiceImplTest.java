@@ -3,6 +3,8 @@ package com.aiworkmate.service.impl;
 import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.entity.Notification;
 import com.aiworkmate.mapper.NotificationMapper;
+import com.aiworkmate.service.UserAccessService;
+import com.aiworkmate.service.model.ResolvedUserAccess;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -34,6 +36,7 @@ class NotificationServiceImplTest {
     @Mock private NotificationMapper notificationMapper;
     @Mock private StringRedisTemplate redisTemplate;
     @Mock private ListOperations<String, String> listOps;
+    @Mock private UserAccessService userAccessService;
 
     private NotificationServiceImpl notificationService;
 
@@ -42,7 +45,10 @@ class NotificationServiceImplTest {
         TableInfoHelper.initTableInfo(
                 new MapperBuilderAssistant(new MybatisConfiguration(), ""), Notification.class);
         notificationService = new NotificationServiceImpl(
-                notificationMapper, redisTemplate, new ObjectMapper());
+                notificationMapper, redisTemplate, new ObjectMapper(), userAccessService);
+        org.mockito.Mockito.lenient().when(userAccessService.resolveActiveUser(2L)).thenReturn(
+                new ResolvedUserAccess(2L, "user", 1L, "EMPLOYEE", java.util.List.of("EMPLOYEE"),
+                        java.util.List.of("notification:read:self"), java.util.List.of("SELF"), 1L));
     }
 
     @Test
@@ -106,6 +112,23 @@ class NotificationServiceImplTest {
         assertThat(result.total()).isEqualTo(1);
         assertThat(result.records().get(0).id()).isEqualTo(9L);
         assertThat(result.records().get(0).read()).isFalse();
+        org.mockito.ArgumentCaptor<com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<Notification>> captor =
+                org.mockito.ArgumentCaptor.forClass(com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper.class);
+        verify(notificationMapper).selectList(captor.capture());
+        assertThat(captor.getValue().getSqlSegment()).contains("tenant_id", "user_id");
+        assertThat(captor.getValue().getParamNameValuePairs()).containsValues(1L, 2L);
+    }
+
+    @Test
+    void listShouldFailClosedWhenNotificationPermissionWasRevoked() {
+        when(userAccessService.resolveActiveUser(3L)).thenReturn(new ResolvedUserAccess(
+                3L, "other", 1L, "EMPLOYEE", java.util.List.of("EMPLOYEE"),
+                java.util.List.of(), java.util.List.of("SELF"), 1L));
+
+        assertThatThrownBy(() -> notificationService.list(3L, 1, 20))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        error -> assertThat(error.getErrorCode()).isEqualTo("PERMISSION_DENIED"));
+        verify(notificationMapper, never()).selectList(any());
     }
 
     @Test
