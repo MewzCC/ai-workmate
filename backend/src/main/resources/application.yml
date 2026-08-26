@@ -163,6 +163,7 @@ server:
 logging:
   level:
     com.aiworkmate: debug
+    com.aiworkmate.agent: info
     org.springframework.ai: info
 
 # ========== Phase 2 Agent（默认全部关闭，发布时显式开启） ==========
@@ -171,6 +172,9 @@ agent:
   planning-enabled: ${AGENT_PLANNING_ENABLED:false}
   execution-enabled: ${AGENT_EXECUTION_ENABLED:false}
   write-tools-enabled: ${AGENT_WRITE_TOOLS_ENABLED:false}
+  retention-cleanup-enabled: ${AGENT_RETENTION_CLEANUP_ENABLED:true}
+  retention-batch-size: ${AGENT_RETENTION_BATCH_SIZE:500}
+  retention-cleanup-cron: ${AGENT_RETENTION_CLEANUP_CRON:0 15 4 * * *}
   limits:
     input-max-bytes: 4096
     page-context-max-bytes: 16384

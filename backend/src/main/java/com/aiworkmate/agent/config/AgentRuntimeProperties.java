@@ -18,6 +18,11 @@ public class AgentRuntimeProperties {
     private boolean planningEnabled;
     private boolean executionEnabled;
     private boolean writeToolsEnabled;
+    private boolean retentionCleanupEnabled = true;
+
+    @Min(1)
+    @Max(1000)
+    private int retentionBatchSize = 500;
 
     @Valid
     private Limits limits = new Limits();
