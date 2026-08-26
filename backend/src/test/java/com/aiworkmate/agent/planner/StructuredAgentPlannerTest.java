@@ -3,6 +3,7 @@ package com.aiworkmate.agent.planner;
 import com.aiworkmate.agent.config.AgentRuntimeProperties;
 import com.aiworkmate.agent.gateway.ToolSchemaValidator;
 import com.aiworkmate.agent.registry.ToolDefinition;
+import com.aiworkmate.agent.registry.AgentWriteToolDefinitions;
 import com.aiworkmate.common.BusinessException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -75,6 +76,24 @@ class StructuredAgentPlannerTest {
         assertThatThrownBy(() -> planner(model).plan("x", "todo-list", mapper.createObjectNode(), List.of(tool())))
                 .isInstanceOf(BusinessException.class);
         assertThat(calls).hasValue(2);
+    }
+
+    @Test
+    void rejectsCreateDraftAndSubmitInTheSamePlan() throws Exception {
+        AgentWriteToolDefinitions definitions = new AgentWriteToolDefinitions();
+        ToolDefinition create = definitions.leaveCreateDraftToolDefinition(mapper);
+        ToolDefinition submit = definitions.leaveSubmitToolDefinition(mapper);
+        PlannerModelClient model = (system, user) -> """
+                {"summary":"创建后提交","steps":[
+                  {"toolCode":"leave.createDraft","arguments":{"leaveType":"PERSONAL","startDate":"2026-09-01","startPeriod":"AM","endDate":"2026-09-01","endPeriod":"PM","reason":"家庭事务"}},
+                  {"toolCode":"leave.submit","arguments":{"applicationId":10,"version":0}}
+                ]}
+                """;
+
+        assertThatThrownBy(() -> planner(model).plan(
+                "创建草稿后立即提交", "my-applications", mapper.createObjectNode(), List.of(create, submit)))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        exception -> assertThat(exception.getErrorCode()).isEqualTo("SCHEMA_INVALID"));
     }
 
     private StructuredAgentPlanner planner(PlannerModelClient client) {

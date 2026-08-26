@@ -14,6 +14,7 @@ import com.aiworkmate.mapper.LeaveApplicationMapper;
 import com.aiworkmate.mapper.WorkflowActionLogMapper;
 import com.aiworkmate.mapper.WorkflowInstanceMapper;
 import com.aiworkmate.mapper.WorkflowTaskMapper;
+import com.aiworkmate.agent.task.AgentTaskMapper;
 import com.aiworkmate.service.BusinessAuditService;
 import com.aiworkmate.service.NotificationService;
 import com.aiworkmate.service.UserAccessService;
@@ -39,6 +40,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -59,6 +61,8 @@ class LeaveWorkflowServiceImplTest {
     @Mock
     private WorkflowActionLogMapper actionLogMapper;
     @Mock
+    private AgentTaskMapper agentTaskMapper;
+    @Mock
     private UserAccessService userAccessService;
     @Mock
     private BusinessAuditService auditService;
@@ -74,7 +78,7 @@ class LeaveWorkflowServiceImplTest {
         initializeTableMetadata(WorkflowTask.class);
         service = new LeaveWorkflowServiceImpl(
                 leaveMapper, instanceMapper, taskMapper, actionLogMapper,
-                userAccessService, auditService, notificationService);
+                agentTaskMapper, userAccessService, auditService, notificationService);
         ReflectionTestUtils.setField(service, "approvalDueHours", 48L);
     }
 
@@ -318,6 +322,59 @@ class LeaveWorkflowServiceImplTest {
                         error -> assertThat(error.getErrorCode()).isEqualTo("PERMISSION_DENIED"));
 
         verify(leaveMapper, never()).selectAll(anyLong(), any(), any(), any(), any(), any(), anyInt(), anyInt());
+    }
+
+    @Test
+    void shouldSubmitOnlyOwnedDraftThatPredatesAgentPlanAndAuditTransactionally() {
+        LocalDateTime taskCreatedAt = LocalDateTime.now();
+        when(userAccessService.resolveActiveUser(APPLICANT_ID)).thenReturn(applicantAccess());
+        LeaveApplication draft = leave("DRAFT", null, 0);
+        draft.setCreatedAt(taskCreatedAt.minusMinutes(1));
+        when(agentTaskMapper.selectCreatedAtForWriteEvidence(88L, TENANT_ID, APPLICANT_ID))
+                .thenReturn(taskCreatedAt);
+        when(leaveMapper.selectById(10L)).thenReturn(draft);
+        when(leaveMapper.resolveApprover(TENANT_ID, APPLICANT_ID)).thenReturn(APPROVER_ID);
+        when(leaveMapper.countEligibleApprover(TENANT_ID, APPLICANT_ID, APPROVER_ID)).thenReturn(1);
+        when(leaveMapper.selectLeaveDefinitionId(TENANT_ID)).thenReturn(5L);
+        when(leaveMapper.update(isNull(), any())).thenReturn(1);
+        when(instanceMapper.insert(any(WorkflowInstance.class))).thenAnswer(invocation -> {
+            WorkflowInstance instance = invocation.getArgument(0);
+            instance.setId(20L);
+            return 1;
+        });
+        when(taskMapper.insert(any(WorkflowTask.class))).thenAnswer(invocation -> {
+            WorkflowTask task = invocation.getArgument(0);
+            task.setId(30L);
+            return 1;
+        });
+        when(actionLogMapper.insert(any(WorkflowActionLog.class))).thenReturn(1);
+        when(leaveMapper.selectView(TENANT_ID, 10L))
+                .thenReturn(view("PENDING", APPROVER_ID, 30L, 0, "PENDING", 1));
+
+        var response = service.submitAgent(APPLICANT_ID, 10L, new VersionRequest(0), 88L);
+
+        assertThat(response.status()).isEqualTo("PENDING");
+        verify(auditService).recordTransactional(TENANT_ID, APPLICANT_ID, "LEAVE_APPLICATION", "10",
+                "AGENT_SUBMIT", "SUCCESS", "提交请假申请");
+        verify(auditService, never()).record(anyLong(), anyLong(), any(), any(), eq("SUBMIT"), any(), any());
+    }
+
+    @Test
+    void shouldRejectDraftCreatedAfterAgentPlanBeforeAnyMutation() {
+        LocalDateTime taskCreatedAt = LocalDateTime.now();
+        when(userAccessService.resolveActiveUser(APPLICANT_ID)).thenReturn(applicantAccess());
+        when(agentTaskMapper.selectCreatedAtForWriteEvidence(88L, TENANT_ID, APPLICANT_ID))
+                .thenReturn(taskCreatedAt);
+        LeaveApplication draft = leave("DRAFT", null, 0);
+        draft.setCreatedAt(taskCreatedAt.plusSeconds(1));
+        when(leaveMapper.selectById(10L)).thenReturn(draft);
+
+        assertThatThrownBy(() -> service.submitAgent(
+                APPLICANT_ID, 10L, new VersionRequest(0), 88L))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        error -> assertThat(error.getErrorCode()).isEqualTo("BUSINESS_STATE_INVALID"));
+        verify(leaveMapper, never()).update(isNull(), any());
+        verify(instanceMapper, never()).insert(any(WorkflowInstance.class));
     }
 
     @Test

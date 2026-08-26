@@ -31,6 +31,14 @@ public interface AgentTaskMapper extends BaseMapper<AgentTask> {
                           @Param("userId") Long userId,
                           @Param("taskNo") String taskNo);
 
+    @Select("""
+            SELECT created_at FROM agent_task
+            WHERE id=#{taskId} AND tenant_id=#{tenantId} AND user_id=#{userId} AND status='RUNNING'
+            """)
+    LocalDateTime selectCreatedAtForWriteEvidence(@Param("taskId") Long taskId,
+                                                   @Param("tenantId") Long tenantId,
+                                                   @Param("userId") Long userId);
+
     @Update("""
             UPDATE agent_task
             SET status = #{targetStatus}, version = version + 1, updated_at = CURRENT_TIMESTAMP

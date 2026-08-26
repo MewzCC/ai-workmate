@@ -6,6 +6,7 @@ import com.aiworkmate.agent.planner.PageContextFilter;
 import com.aiworkmate.agent.planner.PlannerCandidate;
 import com.aiworkmate.agent.planner.StructuredAgentPlanner;
 import com.aiworkmate.agent.registry.RiskLevel;
+import com.aiworkmate.agent.registry.SideEffect;
 import com.aiworkmate.agent.registry.ToolDefinition;
 import com.aiworkmate.agent.registry.ToolRegistry;
 import com.aiworkmate.agent.task.*;
@@ -145,9 +146,14 @@ public class AiTaskServiceImpl implements AiTaskService {
         var planSteps = plan.putArray("steps");
         List<AgentTaskStep> steps = new ArrayList<>();
         RiskLevel maxRisk = RiskLevel.L0;
+        int writeSteps = 0;
         for (int index = 0; index < candidate.steps().size(); index++) {
             PlannerCandidate.Step candidateStep = candidate.steps().get(index);
             ToolDefinition definition = definitions.get(candidateStep.toolCode());
+            if (definition == null) throw new BusinessException(ErrorCode.SCHEMA_INVALID);
+            if (definition.sideEffect() == SideEffect.SINGLE_WRITE && ++writeSteps > 1) {
+                throw new BusinessException(ErrorCode.SCHEMA_INVALID);
+            }
             int sequence = index + 1;
             String argsHash = hashing.hash(candidateStep.arguments());
             planSteps.addObject().put("sequence", sequence).put("toolCode", definition.code())

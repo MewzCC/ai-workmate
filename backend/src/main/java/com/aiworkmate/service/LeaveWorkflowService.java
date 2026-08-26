@@ -41,6 +41,9 @@ public interface LeaveWorkflowService {
 
     LeaveApplicationResponse submit(Long userId, Long id, VersionRequest request);
 
+    LeaveApplicationResponse submitAgent(Long userId, Long id, VersionRequest request,
+                                         Long agentTaskId);
+
     LeaveApplicationResponse withdraw(Long userId, Long id, VersionRequest request);
 
     PageResponse<TodoResponse> todos(Long userId, String status, LocalDateTime from,

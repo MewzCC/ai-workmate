@@ -20,7 +20,7 @@ public class DatabaseBackedToolRegistry implements ToolRegistry {
 
     private static final Map<String, Set<String>> PAGE_TOOLS = Map.of(
             "todo-list", Set.of("todo.query"),
-            "my-applications", Set.of("leave.mine", "leave.createDraft"),
+            "my-applications", Set.of("leave.mine", "leave.createDraft", "leave.submit"),
             "knowledge-base", Set.of("knowledge.search"),
             "message-center", Set.of("notification.mine"),
             "dashboard", Set.of("todo.query", "notification.mine")
