@@ -11,6 +11,7 @@ import com.aiworkmate.agent.task.AgentTaskStep;
 import com.aiworkmate.agent.task.AgentTaskQueuedEvent;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -26,6 +27,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 @Component
+@Slf4j
 public class AgentTaskWorker {
     private final String workerId = "worker-" + java.util.UUID.randomUUID();
     private final SecureRandom secureRandom = new SecureRandom();
@@ -111,6 +113,8 @@ public class AgentTaskWorker {
                 return;
             }
         } catch (RuntimeException exception) {
+            log.warn("Agent task worker failed; lease recovery will decide outcome, taskNo={}, errorClass={}",
+                    task.getTaskNo(), exception.getClass().getSimpleName(), exception);
             // Lease recovery owns the outcome after unexpected process or infrastructure failures.
         } finally {
             activeLeases.remove(task.getId());

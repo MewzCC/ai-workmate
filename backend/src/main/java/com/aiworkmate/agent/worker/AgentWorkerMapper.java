@@ -51,7 +51,7 @@ public interface AgentWorkerMapper {
 
     @Update("""
             UPDATE agent_task_step step SET status='SUCCEEDED', result=CAST(#{result} AS jsonb),
-                finished_at=CURRENT_TIMESTAMP, version=version+1, updated_at=CURRENT_TIMESTAMP
+                finished_at=CURRENT_TIMESTAMP, version=step.version+1, updated_at=CURRENT_TIMESTAMP
             FROM agent_task task WHERE step.id=#{stepId} AND step.task_id=task.id
               AND step.status='RUNNING' AND step.attempt_count=#{attempt}
               AND task.worker_id=#{workerId} AND task.lease_token_hash=#{leaseHash}

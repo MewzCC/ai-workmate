@@ -115,3 +115,11 @@ OA 与营销站继续保持独立 Vite SPA。任务计划、确认、执行、SS
 - [ ] 明确决定是否批准开始 Phase 2B 的 `leave.createDraft` 与 `leave.submit` 实现和测试。
 
 在用户明确书面批准 Phase 2B 前，开发流程必须停在本门，所有写工具保持关闭；批准开始实现也不等于批准生产启用。
+
+## 8. 本地界面验收补充（2026-08-26）
+
+- Flyway 对 `ai_workmate_dev` 成功校验 21 条历史记录，当前版本 `202608260001`，无待执行迁移。
+- 本地 tenant 1 已仅为 Phase 2A 验收开启只读策略；`write_tools_enabled=false`。
+- 首次真实界面执行暴露 `AgentWorkerMapper.completeStep` 的 PostgreSQL 多表更新字段歧义：未限定的 `version` 被数据库拒绝，Gateway 与 Handler 本身已成功。
+- 修复为 `version=step.version+1`，同时增加低敏 Worker 异常类型日志和真实 PostgreSQL Mapper 回归测试。
+- Chrome 实际闭环任务 `7220a5f3-44be-4d71-a75c-fcf9585b5844` 经 Planner、Worker、Tool Gateway、`todo.query`、持久审计与 SSE 后达到 `SUCCEEDED`；调用审计为 `ALLOW/SUCCEEDED`，Handler 耗时 10ms，空结果未伪造数据。
