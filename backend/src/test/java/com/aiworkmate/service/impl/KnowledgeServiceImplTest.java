@@ -1,6 +1,7 @@
 package com.aiworkmate.service.impl;
 
 import com.aiworkmate.common.BusinessException;
+import com.aiworkmate.common.ErrorCode;
 import com.aiworkmate.config.EmbeddingProperties;
 import com.aiworkmate.config.UploadProperties;
 import com.aiworkmate.dto.KnowledgeSearchRequest;
@@ -241,7 +242,7 @@ class KnowledgeServiceImplTest {
 
         assertThatThrownBy(() -> service.upload(7L, 5L, file))
                 .isInstanceOfSatisfying(BusinessException.class, ex ->
-                        assertThat(ex.getMessage()).isEqualTo("error.knowledge_image_no_text"));
+                        assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.REQUEST_INVALID.getErrorCode()));
     }
 
     @Test

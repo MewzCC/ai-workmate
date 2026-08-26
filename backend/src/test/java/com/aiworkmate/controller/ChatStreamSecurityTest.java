@@ -77,7 +77,7 @@ class ChatStreamSecurityTest {
                 .thenReturn(Flux.just(
                         ChatChunk.metadata(2001L, 3001L),
                         ChatChunk.delta("stream-ok", 2001L, 3001L)
-                ));
+                ).delaySubscription(java.time.Duration.ofMillis(50)));
 
         MvcResult result = mockMvc.perform(post("/api/chat/stream")
                         .header("Authorization", "Bearer " + TOKEN)
@@ -86,6 +86,7 @@ class ChatStreamSecurityTest {
                 .andExpect(request().asyncStarted())
                 .andReturn();
 
+        result.getAsyncResult(5_000L);
         mockMvc.perform(asyncDispatch(result))
                 .andExpect(status().isOk())
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("stream-ok")))

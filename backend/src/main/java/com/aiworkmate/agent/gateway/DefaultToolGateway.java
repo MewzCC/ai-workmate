@@ -15,10 +15,18 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Qualifier;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.LocalDateTime;
+import java.time.Duration;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 @Component
 public class DefaultToolGateway implements ToolGateway {
@@ -32,6 +40,7 @@ public class DefaultToolGateway implements ToolGateway {
     private final HandlerResolver handlerResolver;
     private final GatewayAuditWriter auditWriter;
     private final ObjectMapper objectMapper;
+    private final ExecutorService toolExecutor;
 
     public DefaultToolGateway(AgentRuntimeProperties runtimeProperties,
                               GatewayExecutionSnapshotMapper snapshotMapper,
@@ -42,7 +51,8 @@ public class DefaultToolGateway implements ToolGateway {
                               ToolOutputGuard outputGuard,
                               HandlerResolver handlerResolver,
                               GatewayAuditWriter auditWriter,
-                              ObjectMapper objectMapper) {
+                              ObjectMapper objectMapper,
+                              @Qualifier("agentToolExecutor") ExecutorService toolExecutor) {
         this.runtimeProperties = runtimeProperties;
         this.snapshotMapper = snapshotMapper;
         this.toolRegistry = toolRegistry;
@@ -53,6 +63,7 @@ public class DefaultToolGateway implements ToolGateway {
         this.handlerResolver = handlerResolver;
         this.auditWriter = auditWriter;
         this.objectMapper = objectMapper;
+        this.toolExecutor = toolExecutor;
     }
 
     @Override
@@ -148,12 +159,28 @@ public class DefaultToolGateway implements ToolGateway {
 
         long started = System.nanoTime();
         JsonNode output;
+        Future<JsonNode> call;
         try {
-            output = handler.execute(new TrustedToolContext(
+            call = toolExecutor.submit(() -> handler.execute(new TrustedToolContext(
                     snapshot.getTenantId(), snapshot.getUserId(), snapshot.getTaskId(), snapshot.getStepId(),
                     snapshot.getStepAttempt(), snapshot.getTraceId()
-            ), arguments);
-        } catch (RuntimeException exception) {
+            ), arguments));
+        } catch (RejectedExecutionException exception) {
+            completeQuietly(decisionId, false, "FAILED", null, "TOOL_EXECUTOR_UNAVAILABLE", elapsedMillis(started));
+            return reject(GatewayDecision.UNAVAILABLE, GatewayDecisionCode.GATEWAY_UNAVAILABLE);
+        }
+        try {
+            output = call.get(executionTimeoutMs(snapshot, definition), TimeUnit.MILLISECONDS);
+        } catch (TimeoutException exception) {
+            call.cancel(true);
+            completeQuietly(decisionId, true, "TIMED_OUT", null, "TOOL_TIMEOUT", elapsedMillis(started));
+            return reject(GatewayDecision.UNAVAILABLE, GatewayDecisionCode.GATEWAY_UNAVAILABLE);
+        } catch (InterruptedException exception) {
+            call.cancel(true);
+            Thread.currentThread().interrupt();
+            completeQuietly(decisionId, true, "FAILED", null, "WORKER_INTERRUPTED", elapsedMillis(started));
+            return reject(GatewayDecision.UNAVAILABLE, GatewayDecisionCode.GATEWAY_UNAVAILABLE);
+        } catch (ExecutionException exception) {
             completeQuietly(decisionId, true, "FAILED", null, "DOMAIN_OR_HANDLER_FAILURE", elapsedMillis(started));
             return reject(GatewayDecision.UNAVAILABLE, GatewayDecisionCode.GATEWAY_UNAVAILABLE);
         }
@@ -204,6 +231,16 @@ public class DefaultToolGateway implements ToolGateway {
                 && lease.attempt() == snapshot.getTaskAttempt()
                 && lease.attempt() == snapshot.getStepAttempt()
                 && secureEquals(hashing.sha256(lease.leaseToken()), snapshot.getLeaseTokenHash());
+    }
+
+    private long executionTimeoutMs(GatewayExecutionSnapshot snapshot, ToolDefinition definition) {
+        LocalDateTime now = LocalDateTime.now();
+        long stepRemaining = Math.max(1, Duration.between(now, snapshot.getStepTimeoutAt()).toMillis());
+        long taskRemaining = Math.max(1, Duration.between(now, snapshot.getTaskTimeoutAt()).toMillis());
+        return Math.max(1, Math.min(
+                Math.min(definition.timeoutMs(), runtimeProperties.getLimits().getMaxToolTimeoutMs()),
+                Math.min(stepRemaining, taskRemaining)
+        ));
     }
 
     private boolean validHashes(GatewayExecutionSnapshot snapshot,

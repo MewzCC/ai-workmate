@@ -68,6 +68,17 @@ class ToolDefinitionTest {
                 .hasMessageContaining("schema features");
     }
 
+    @Test
+    void shouldRejectPermanentlyForbiddenCapabilityCodes() throws Exception {
+        for (String code : Set.of(
+                "sql.execute", "code.run", "file.read", "network.fetch", "access.modify",
+                "record.delete", "batch.execute", "data.export", "message.send", "agent.autonomous")) {
+            assertThatThrownBy(() -> definition(code, schema("page"), Set.of("todo:read")))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("Phase 2 capability boundary");
+        }
+    }
+
     private JsonNode schema(String property) throws Exception {
         return objectMapper.readTree("""
                 {"type":"object","properties":{"%s":{"type":"integer"}},"additionalProperties":false}
@@ -75,11 +86,15 @@ class ToolDefinitionTest {
     }
 
     private ToolDefinition definition(JsonNode schema, Set<String> permissions) throws Exception {
+        return definition("todo.query", schema, permissions);
+    }
+
+    private ToolDefinition definition(String code, JsonNode schema, Set<String> permissions) throws Exception {
         JsonNode output = objectMapper.readTree("""
                 {"type":"object","properties":{"items":{"type":"array"}},"additionalProperties":false}
                 """);
         return ToolDefinition.create(
-                "todo.query", "Todo query", "Query my todos", "Read-only self todos", "1.0.0",
+                code, "Todo query", "Query my todos", "Read-only self todos", "1.0.0",
                 schema, output, RiskLevel.L0, permissions, PermissionMode.ALL, OwnershipPolicy.ASSIGNED_TO_SELF,
                 RetryPolicy.READ_ONLY_SAFE, SideEffect.NONE, ConfirmationPolicy.NONE,
                 50, 262144, 15000, "HASHED_ARGS"

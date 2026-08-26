@@ -6,6 +6,10 @@ import org.springframework.core.task.TaskExecutor;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @Configuration
 public class AgentExecutionConfig {
@@ -35,5 +39,19 @@ public class AgentExecutionConfig {
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
         executor.initialize();
         return executor;
+    }
+
+    @Bean(value = "agentToolExecutor", destroyMethod = "shutdown")
+    public ExecutorService agentToolExecutor() {
+        AtomicInteger sequence = new AtomicInteger();
+        return new ThreadPoolExecutor(
+                2, 2, 0L, TimeUnit.MILLISECONDS, new ArrayBlockingQueue<>(8),
+                runnable -> {
+                    Thread thread = new Thread(runnable, "agent-tool-" + sequence.incrementAndGet());
+                    thread.setDaemon(false);
+                    return thread;
+                },
+                new ThreadPoolExecutor.AbortPolicy()
+        );
     }
 }
