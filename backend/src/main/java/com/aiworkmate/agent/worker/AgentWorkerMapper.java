@@ -87,6 +87,23 @@ public interface AgentWorkerMapper {
              @Param("errorCode") String errorCode, @Param("errorMessage") String errorMessage);
 
     @Update("""
+            WITH uncertain_step AS (
+                UPDATE agent_task_step SET status='FAILED', error_code='TOOL_RESULT_UNKNOWN',
+                    error_message='Write outcome requires manual verification', finished_at=CURRENT_TIMESTAMP,
+                    version=version+1, updated_at=CURRENT_TIMESTAMP
+                WHERE id=#{stepId} AND status='RUNNING' AND attempt_count=#{attempt} RETURNING task_id
+            )
+            UPDATE agent_task task SET status='PARTIALLY_SUCCEEDED', error_code='TOOL_RESULT_UNKNOWN',
+                error_message='Write outcome requires manual verification', finished_at=CURRENT_TIMESTAMP,
+                worker_id=NULL, lease_token_hash=NULL, lease_until=NULL, heartbeat_at=NULL,
+                version=version+1, updated_at=CURRENT_TIMESTAMP
+            FROM uncertain_step WHERE task.id=uncertain_step.task_id AND task.worker_id=#{workerId}
+              AND task.lease_token_hash=#{leaseHash}
+            """)
+    int markOutcomeUnknown(@Param("stepId") long stepId, @Param("attempt") int attempt,
+                           @Param("workerId") String workerId, @Param("leaseHash") String leaseHash);
+
+    @Update("""
             WITH reset_step AS (
                 UPDATE agent_task_step step SET status='PENDING', attempt_count=step.attempt_count+1,
                     timeout_at=NULL, started_at=NULL, version=step.version+1, updated_at=CURRENT_TIMESTAMP
@@ -135,18 +152,26 @@ public interface AgentWorkerMapper {
 
     @Update("""
             WITH terminal AS (
-                SELECT id FROM agent_task WHERE
+                SELECT task.id,
+                       EXISTS (SELECT 1 FROM agent_task_step write_step
+                               WHERE write_step.task_id=task.id AND write_step.status='RUNNING'
+                                 AND write_step.risk_level<>'L0') AS outcome_unknown
+                FROM agent_task task WHERE
                   (status IN ('QUEUED','RUNNING') AND timeout_at<=CURRENT_TIMESTAMP)
                   OR (status='RUNNING' AND lease_until<=CURRENT_TIMESTAMP AND
                       (attempt_count>=2 OR EXISTS (SELECT 1 FROM agent_task_step s
-                       WHERE s.task_id=agent_task.id AND s.status='RUNNING' AND s.risk_level<>'L0')))
+                       WHERE s.task_id=task.id AND s.status='RUNNING' AND s.risk_level<>'L0')))
                 FOR UPDATE SKIP LOCKED
             ), closed_steps AS (
-                UPDATE agent_task_step step SET status='TIMED_OUT', error_code='AGENT_TIMEOUT',
+                UPDATE agent_task_step step SET
+                    status=CASE WHEN terminal.outcome_unknown THEN 'FAILED' ELSE 'TIMED_OUT' END,
+                    error_code=CASE WHEN terminal.outcome_unknown THEN 'TOOL_RESULT_UNKNOWN' ELSE 'AGENT_TIMEOUT' END,
                     finished_at=CURRENT_TIMESTAMP, version=step.version+1, updated_at=CURRENT_TIMESTAMP
                 FROM terminal WHERE step.task_id=terminal.id AND step.status IN ('PENDING','RUNNING') RETURNING step.task_id
             )
-            UPDATE agent_task task SET status='TIMED_OUT', error_code='AGENT_TIMEOUT',
+            UPDATE agent_task task SET
+                status=CASE WHEN terminal.outcome_unknown THEN 'PARTIALLY_SUCCEEDED' ELSE 'TIMED_OUT' END,
+                error_code=CASE WHEN terminal.outcome_unknown THEN 'TOOL_RESULT_UNKNOWN' ELSE 'AGENT_TIMEOUT' END,
                 finished_at=CURRENT_TIMESTAMP, worker_id=NULL, lease_token_hash=NULL, lease_until=NULL,
                 heartbeat_at=NULL, version=task.version+1, updated_at=CURRENT_TIMESTAMP
             FROM terminal WHERE task.id=terminal.id

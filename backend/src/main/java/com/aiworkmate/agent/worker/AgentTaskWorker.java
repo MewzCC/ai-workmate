@@ -107,6 +107,10 @@ public class AgentTaskWorker {
                     if (!transitions.completeStep(task, step, workerId, hash, json(result.output()))) return;
                     continue;
                 }
+                if (result.outcomeUncertain()) {
+                    transitions.markOutcomeUnknown(task, step, workerId, hash);
+                    return;
+                }
                 if (result.decision() == GatewayDecision.UNAVAILABLE
                         && transitions.retryReadOnly(task, step, workerId, hash)) return;
                 transitions.fail(task, step, workerId, hash, result.code().name());

@@ -1,6 +1,7 @@
 package com.aiworkmate.agent.task;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -13,6 +14,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -30,6 +32,12 @@ class AgentTaskApiPersistenceIntegrationTest {
     @Autowired
     private AgentTaskEventMapper eventMapper;
 
+    @AfterEach
+    void cleanTestRows() {
+        jdbcTemplate.update("DELETE FROM agent_task WHERE trace_id='trace-task-api-integration'");
+        jdbcTemplate.update("DELETE FROM app_user WHERE email LIKE 'agent-task-api-%@example.invalid'");
+    }
+
     @DynamicPropertySource
     static void databaseProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", () -> System.getenv("AGENT_TEST_DB_URL"));
@@ -42,7 +50,7 @@ class AgentTaskApiPersistenceIntegrationTest {
         Long tenantId = jdbcTemplate.queryForObject("SELECT id FROM tenant ORDER BY id LIMIT 1", Long.class);
         Long userId = user(tenantId, "agent-task-api-owner");
         Long otherUserId = user(tenantId, "agent-task-api-other");
-        String taskNo = "0191f69c-7a33-7b45-9c62-a07f82d8a021";
+        String taskNo = UUID.randomUUID().toString();
         Long taskId = waitingTask(tenantId, userId, taskNo);
 
         String token = "opaque-confirmation-token";
@@ -69,7 +77,7 @@ class AgentTaskApiPersistenceIntegrationTest {
                 "SELECT status || '|' || (confirmation_token_hash IS NULL)::text FROM agent_task WHERE id=?",
                 String.class, taskId)).isEqualTo("QUEUED|true");
 
-        String resignTaskNo = "0191f69c-7a33-7b45-9c62-a07f82d8a022";
+        String resignTaskNo = UUID.randomUUID().toString();
         Long resignTaskId = waitingTask(tenantId, userId, resignTaskNo);
         String oldHash = "sha256:" + "c".repeat(64);
         String newHash = "sha256:" + "d".repeat(64);
@@ -99,12 +107,12 @@ class AgentTaskApiPersistenceIntegrationTest {
     void cancellationAndExpiryUseVersionConditionedTransitions() {
         Long tenantId = jdbcTemplate.queryForObject("SELECT id FROM tenant ORDER BY id LIMIT 1", Long.class);
         Long userId = user(tenantId, "agent-task-api-state-owner");
-        String cancelTaskNo = "0191f69c-7a33-7b45-9c62-a07f82d8a023";
+        String cancelTaskNo = UUID.randomUUID().toString();
         Long cancelTaskId = waitingTask(tenantId, userId, cancelTaskNo);
         assertThat(taskMapper.cancelOwned(cancelTaskId, tenantId, userId, "WAITING_CONFIRMATION", 0L)).isEqualTo(1);
         assertThat(taskMapper.cancelOwned(cancelTaskId, tenantId, userId, "WAITING_CONFIRMATION", 0L)).isZero();
 
-        String expiredTaskNo = "0191f69c-7a33-7b45-9c62-a07f82d8a024";
+        String expiredTaskNo = UUID.randomUUID().toString();
         Long expiredTaskId = waitingTask(tenantId, userId, expiredTaskNo);
         jdbcTemplate.update("UPDATE agent_task SET confirmation_token_hash=?, confirmation_expires_at=? WHERE id=?",
                 "sha256:" + "e".repeat(64), Timestamp.valueOf(LocalDateTime.now().minusSeconds(1)), expiredTaskId);
@@ -115,10 +123,11 @@ class AgentTaskApiPersistenceIntegrationTest {
     }
 
     private Long user(Long tenantId, String username) {
+        String uniqueUsername = username + "-" + UUID.randomUUID();
         return jdbcTemplate.queryForObject("""
-                INSERT INTO app_user(username, password, email, tenant_id)
-                VALUES (?, 'not-a-real-secret', ?, ?) RETURNING id
-                """, Long.class, username, username + "@example.invalid", tenantId);
+                INSERT INTO app_user(username, password, email, tenant_id, role)
+                VALUES (?, 'not-a-real-secret', ?, ?, 'EMPLOYEE') RETURNING id
+                """, Long.class, uniqueUsername, uniqueUsername + "@example.invalid", tenantId);
     }
 
     private Long waitingTask(Long tenantId, Long userId, String taskNo) {
