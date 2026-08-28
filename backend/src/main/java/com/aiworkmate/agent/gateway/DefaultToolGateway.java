@@ -174,15 +174,15 @@ public class DefaultToolGateway implements ToolGateway {
         } catch (TimeoutException exception) {
             call.cancel(true);
             completeQuietly(decisionId, true, "TIMED_OUT", null, "TOOL_TIMEOUT", elapsedMillis(started));
-            return reject(GatewayDecision.UNAVAILABLE, GatewayDecisionCode.GATEWAY_UNAVAILABLE);
+            return postInvocationFailure(definition);
         } catch (InterruptedException exception) {
             call.cancel(true);
             Thread.currentThread().interrupt();
             completeQuietly(decisionId, true, "FAILED", null, "WORKER_INTERRUPTED", elapsedMillis(started));
-            return reject(GatewayDecision.UNAVAILABLE, GatewayDecisionCode.GATEWAY_UNAVAILABLE);
+            return postInvocationFailure(definition);
         } catch (ExecutionException exception) {
             completeQuietly(decisionId, true, "FAILED", null, "DOMAIN_OR_HANDLER_FAILURE", elapsedMillis(started));
-            return reject(GatewayDecision.UNAVAILABLE, GatewayDecisionCode.GATEWAY_UNAVAILABLE);
+            return postInvocationFailure(definition);
         }
 
         int resultBytes;
@@ -191,7 +191,9 @@ public class DefaultToolGateway implements ToolGateway {
         } catch (RuntimeException | JsonProcessingException exception) {
             completeQuietly(decisionId, true, "RESULT_INVALID", null, "OUTPUT_SERIALIZATION_REJECTED",
                     elapsedMillis(started));
-            return reject(GatewayDecision.DENY, GatewayDecisionCode.TOOL_RESULT_INVALID);
+            return definition.sideEffect() == SideEffect.NONE
+                    ? reject(GatewayDecision.DENY, GatewayDecisionCode.TOOL_RESULT_INVALID)
+                    : ToolGatewayResult.uncertain();
         }
         boolean outputAccepted;
         try {
@@ -205,12 +207,14 @@ public class DefaultToolGateway implements ToolGateway {
         }
         if (!outputAccepted) {
             completeQuietly(decisionId, true, "RESULT_INVALID", resultBytes, "OUTPUT_REJECTED", elapsedMillis(started));
-            return reject(GatewayDecision.DENY, GatewayDecisionCode.TOOL_RESULT_INVALID);
+            return definition.sideEffect() == SideEffect.NONE
+                    ? reject(GatewayDecision.DENY, GatewayDecisionCode.TOOL_RESULT_INVALID)
+                    : ToolGatewayResult.uncertain();
         }
         try {
             auditWriter.complete(decisionId, true, "SUCCEEDED", resultBytes, null, elapsedMillis(started));
         } catch (RuntimeException exception) {
-            return reject(GatewayDecision.UNAVAILABLE, GatewayDecisionCode.GATEWAY_UNAVAILABLE);
+            return postInvocationFailure(definition);
         }
         return new ToolGatewayResult(GatewayDecision.ALLOW, GatewayDecisionCode.ALLOWED, output);
     }
@@ -354,5 +358,11 @@ public class DefaultToolGateway implements ToolGateway {
 
     private ToolGatewayResult reject(GatewayDecision decision, GatewayDecisionCode code) {
         return new ToolGatewayResult(decision, code, null);
+    }
+
+    private ToolGatewayResult postInvocationFailure(ToolDefinition definition) {
+        return definition.sideEffect() == SideEffect.NONE
+                ? reject(GatewayDecision.UNAVAILABLE, GatewayDecisionCode.GATEWAY_UNAVAILABLE)
+                : ToolGatewayResult.uncertain();
     }
 }

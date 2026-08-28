@@ -66,4 +66,73 @@ class AgentWorkerMapperPersistenceIntegrationTest {
                 "SELECT status || '|' || version || '|' || (result->>'items') FROM agent_task_step WHERE id=?",
                 String.class, stepId)).isEqualTo("SUCCEEDED|1|[]");
     }
+
+    @Test
+    @Transactional
+    @Rollback
+    void closesUnknownWriteOutcomeWithoutRetryOnPostgresql() {
+        Long tenantId = jdbcTemplate.queryForObject("SELECT id FROM tenant ORDER BY id LIMIT 1", Long.class);
+        Long userId = jdbcTemplate.queryForObject(
+                "SELECT id FROM app_user WHERE tenant_id=? ORDER BY id LIMIT 1", Long.class, tenantId);
+        String workerId = "worker-write-unknown";
+        String leaseHash = "sha256:" + "b".repeat(64);
+        Long taskId = jdbcTemplate.queryForObject("""
+                INSERT INTO agent_task(
+                    task_no, tenant_id, user_id, page_id, input, page_context, status,
+                    worker_id, lease_token_hash, lease_until, timeout_at, trace_id
+                ) VALUES (?, ?, ?, 'my-applications', 'submit', '{}'::jsonb, 'RUNNING',
+                          ?, ?, ?, ?, 'trace-write-unknown') RETURNING id
+                """, Long.class, UUID.randomUUID().toString(), tenantId, userId, workerId, leaseHash,
+                LocalDateTime.now().plusMinutes(1), LocalDateTime.now().plusMinutes(1));
+        Long stepId = jdbcTemplate.queryForObject("""
+                INSERT INTO agent_task_step(
+                    task_id, sequence_no, tool_code, tool_version, schema_hash, args, args_hash,
+                    risk_level, status, attempt_count, timeout_at, trace_id
+                ) VALUES (?, 1, 'leave.submit', '1.0.0', 'schema', '{}'::jsonb, 'args',
+                          'L2', 'RUNNING', 0, ?, 'trace-write-unknown-step') RETURNING id
+                """, Long.class, taskId, LocalDateTime.now().plusSeconds(30));
+
+        assertThat(mapper.markOutcomeUnknown(stepId, 0, workerId, leaseHash)).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT status || '|' || error_code FROM agent_task WHERE id=?", String.class, taskId))
+                .isEqualTo("PARTIALLY_SUCCEEDED|TOOL_RESULT_UNKNOWN");
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT status || '|' || error_code FROM agent_task_step WHERE id=?", String.class, stepId))
+                .isEqualTo("FAILED|TOOL_RESULT_UNKNOWN");
+        assertThat(mapper.retryReadOnly(stepId, 0, workerId, leaseHash)).isZero();
+    }
+
+    @Test
+    @Transactional
+    @Rollback
+    void expiredWriteLeaseBecomesPartialInsteadOfBeingReplayedAfterRestart() {
+        Long tenantId = jdbcTemplate.queryForObject("SELECT id FROM tenant ORDER BY id LIMIT 1", Long.class);
+        Long userId = jdbcTemplate.queryForObject(
+                "SELECT id FROM app_user WHERE tenant_id=? ORDER BY id LIMIT 1", Long.class, tenantId);
+        Long taskId = jdbcTemplate.queryForObject("""
+                INSERT INTO agent_task(
+                    task_no, tenant_id, user_id, page_id, input, page_context, status,
+                    worker_id, lease_token_hash, lease_until, timeout_at, trace_id
+                ) VALUES (?, ?, ?, 'my-applications', 'submit', '{}'::jsonb, 'RUNNING',
+                          'dead-worker', ?, ?, ?, 'trace-restart-unknown') RETURNING id
+                """, Long.class, UUID.randomUUID().toString(), tenantId, userId,
+                "sha256:" + "c".repeat(64), LocalDateTime.now().minusSeconds(1),
+                LocalDateTime.now().plusMinutes(1));
+        jdbcTemplate.update("""
+                INSERT INTO agent_task_step(
+                    task_id, sequence_no, tool_code, tool_version, schema_hash, args, args_hash,
+                    risk_level, status, attempt_count, timeout_at, trace_id
+                ) VALUES (?, 1, 'leave.submit', '1.0.0', 'schema', '{}'::jsonb, 'args',
+                          'L2', 'RUNNING', 0, ?, 'trace-restart-unknown-step')
+                """, taskId, LocalDateTime.now().plusSeconds(30));
+
+        assertThat(mapper.closeTimedOutOrUnsafe()).isGreaterThanOrEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT status || '|' || error_code FROM agent_task WHERE id=?", String.class, taskId))
+                .isEqualTo("PARTIALLY_SUCCEEDED|TOOL_RESULT_UNKNOWN");
+        mapper.recoverExpiredReadOnly();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT status FROM agent_task WHERE id=?", String.class, taskId))
+                .isEqualTo("PARTIALLY_SUCCEEDED");
+    }
 }

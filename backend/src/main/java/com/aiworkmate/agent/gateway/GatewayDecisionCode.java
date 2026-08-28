@@ -7,5 +7,6 @@ public enum GatewayDecisionCode {
     GATEWAY_STALE,
     GATEWAY_THROTTLED,
     GATEWAY_UNAVAILABLE,
+    TOOL_RESULT_UNKNOWN,
     TOOL_RESULT_INVALID
 }

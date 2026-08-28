@@ -68,4 +68,15 @@ public class AgentWorkerTransitionService {
                             .put("status", "FAILED").put("errorCode", errorCode), task.getTraceId());
         }
     }
+
+    @Transactional
+    public void markOutcomeUnknown(AgentTask task, AgentTaskStep step,
+                                   String workerId, String leaseHash) {
+        if (mapper.markOutcomeUnknown(step.getId(), task.getAttemptCount(), workerId, leaseHash) == 1) {
+            eventService.publish(task.getId(), "task-completed",
+                    objectMapper.createObjectNode().put("taskId", task.getTaskNo())
+                            .put("status", "PARTIALLY_SUCCEEDED")
+                            .put("errorCode", "TOOL_RESULT_UNKNOWN"), task.getTraceId());
+        }
+    }
 }
