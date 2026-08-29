@@ -13,7 +13,7 @@ import java.time.LocalDateTime;
  * <p>任意启用表单（{@code approval_form}）按 {@code schema_json} 校验后的
  * 提交落库：{@code dataJson} 保存表单数据 JSON 文本；提交成功后绑定
  * {@code approval_process} 启动工作流实例与首个审批待办。状态流转由
- * 后续通用审批决策链路推进，当前版本仅支持提交与查询。
+ * 后续通用审批决策链路推进；DRAFT 状态不创建工作流，提交时再原子绑定。
  */
 @Data
 @TableName("approval_application")

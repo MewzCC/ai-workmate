@@ -26,6 +26,7 @@ import { useTranslation } from 'react-i18next';
 import dayjs, { type Dayjs } from 'dayjs';
 import {
   approvalEngineApi,
+  type ApprovalApplication,
   type ApprovalForm,
   type ApprovalProcess,
   type ApprovalProcessNode,
@@ -85,35 +86,44 @@ export default function ApprovalFormPage() {
   const { t } = useTranslation();
   const { user } = useAuth();
   const formKey = searchParams.get('formKey') || '';
+  const draftId = Number(searchParams.get('draftId')) || undefined;
 
   const [form] = Form.useForm<Record<string, unknown>>();
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string>();
   const [formDef, setFormDef] = useState<ApprovalForm | null>(null);
   const [process, setProcess] = useState<ApprovalProcess | null>(null);
+  const [draft, setDraft] = useState<ApprovalApplication | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     setLoadError(undefined);
     setFormDef(null);
     setProcess(null);
+    setDraft(null);
     try {
-      const [formPage, processPage] = await Promise.all([
+      const [formPage, processPage, loadedDraft] = await Promise.all([
         approvalEngineApi.listForms({ status: 'ENABLED', page: 1, size: 100 }),
         approvalEngineApi.listProcesses({ status: 'ENABLED', page: 1, size: 100 }),
+        draftId ? approvalEngineApi.getApplication(draftId) : Promise.resolve(null),
       ]);
       const matched = formPage.records.find((item) => item.formKey === formKey) || null;
+      if (loadedDraft && (loadedDraft.status !== 'DRAFT' || loadedDraft.formKey !== formKey)) {
+        throw new Error(t('approval.formPage.draftUnavailable'));
+      }
       setFormDef(matched);
       setProcess(matched
         ? processPage.records.find((item) => item.formId === matched.id) || null
         : null);
+      setDraft(loadedDraft);
     } catch (err) {
       setLoadError(formatOaApiError(err));
     } finally {
       setLoading(false);
     }
-  }, [formKey]);
+  }, [draftId, formKey, t]);
 
   useEffect(() => {
     if (!formKey) {
@@ -125,10 +135,13 @@ export default function ApprovalFormPage() {
     void load();
   }, [formKey, load]);
 
-  // 切换表单时清空上一份草稿内容
+  // 切换表单时清空旧值；编辑草稿时按字段类型恢复日期与时间控件。
   useEffect(() => {
     form.resetFields();
-  }, [formDef?.id, form]);
+    if (draft && formDef) {
+      form.setFieldsValue(restoreFormValues(draft.dataJson, parseSchemaFields(formDef.schemaJson)));
+    }
+  }, [draft, formDef, form]);
 
   const fields = useMemo(
     () => (formDef ? parseSchemaFields(formDef.schemaJson) : []),
@@ -140,6 +153,55 @@ export default function ApprovalFormPage() {
   );
 
   const backToStart = () => router.push('/oa/approval-start');
+
+  const draftPayload = () => ({
+    formKey: formDef?.formKey || formKey,
+    processKey: process?.processKey,
+    formData: normalizeFormValues(form.getFieldsValue(true), fields),
+  });
+
+  const saveDraft = async () => {
+    if (!formDef) return;
+    setSavingDraft(true);
+    try {
+      const saved = draft
+        ? await approvalEngineApi.updateDraft(draft.id, {
+          processKey: process?.processKey,
+          formData: draftPayload().formData,
+          version: draft.version,
+        })
+        : await approvalEngineApi.createDraft(draftPayload());
+      setDraft(saved);
+      if (!draft) {
+        router.replace(`/oa/approval-form?formKey=${encodeURIComponent(formDef.formKey)}&draftId=${saved.id}`);
+      }
+      message.success(t('approval.formPage.draftSaved'));
+    } catch (error) {
+      message.error(formatOaApiError(error));
+    } finally {
+      setSavingDraft(false);
+    }
+  };
+
+  const cancelDraft = () => {
+    if (!draft) return;
+    Modal.confirm({
+      title: t('approval.formPage.cancelDraftTitle'),
+      content: t('approval.formPage.cancelDraftContent'),
+      okText: t('approval.formPage.cancelDraftOk'),
+      okButtonProps: { danger: true },
+      cancelText: t('common.cancel'),
+      onOk: async () => {
+        try {
+          await approvalEngineApi.cancelDraft(draft.id, draft.version);
+          message.success(t('approval.formPage.draftCancelled'));
+          backToStart();
+        } catch (error) {
+          message.error(formatOaApiError(error));
+        }
+      },
+    });
+  };
 
   const handleSubmitClick = async () => {
     if (!formDef) return;
@@ -175,11 +237,20 @@ export default function ApprovalFormPage() {
       onOk: async () => {
         setSubmitting(true);
         try {
-          await approvalEngineApi.submitApplication({
-            formKey: formDef.formKey,
-            processKey: process?.processKey,
-            formData: normalizeFormValues(values, fields),
-          });
+          if (draft) {
+            const saved = await approvalEngineApi.updateDraft(draft.id, {
+              processKey: process?.processKey,
+              formData: normalizeFormValues(values, fields),
+              version: draft.version,
+            });
+            await approvalEngineApi.submitDraft(saved.id, saved.version);
+          } else {
+            await approvalEngineApi.submitApplication({
+              formKey: formDef.formKey,
+              processKey: process?.processKey,
+              formData: normalizeFormValues(values, fields),
+            });
+          }
           message.success(t('approval.formPage.submitSuccess'));
           backToStart();
         } catch (error) {
@@ -294,10 +365,18 @@ export default function ApprovalFormPage() {
 
                 <div className="leave-form-footer">
                   <Typography.Text type="secondary">
-                    {t('approval.formPage.footerConfirm')}
+                    {draft ? t('approval.formPage.footerDraft') : t('approval.formPage.footerConfirm')}
                   </Typography.Text>
                   <Space wrap>
-                    <Button size="large" onClick={backToStart}>{t('common.cancel')}</Button>
+                    {draft && <Button size="large" danger onClick={cancelDraft}>{t('approval.formPage.cancelDraft')}</Button>}
+                    <Button
+                      size="large"
+                      loading={savingDraft}
+                      disabled={submitting || fields.length === 0}
+                      onClick={() => void saveDraft()}
+                    >
+                      {t('approval.formPage.saveDraft')}
+                    </Button>
                     <Button
                       size="large"
                       type="primary"
@@ -438,4 +517,20 @@ function formatValueForConfirm(value: unknown, type?: string): string {
     return type === 'time' ? day.format('HH:mm') : day.format('YYYY-MM-DD');
   }
   return String(value);
+}
+
+function restoreFormValues(dataJson: string, fields: SchemaField[]): Record<string, unknown> {
+  try {
+    const parsed = JSON.parse(dataJson) as Record<string, unknown>;
+    const restored: Record<string, unknown> = { ...parsed };
+    fields.forEach((field) => {
+      const value = field.name ? parsed[field.name] : undefined;
+      if (typeof value === 'string' && (field.type === 'date' || field.type === 'time')) {
+        restored[field.name as string] = dayjs(value, field.type === 'time' ? 'HH:mm' : 'YYYY-MM-DD');
+      }
+    });
+    return restored;
+  } catch {
+    return {};
+  }
 }
