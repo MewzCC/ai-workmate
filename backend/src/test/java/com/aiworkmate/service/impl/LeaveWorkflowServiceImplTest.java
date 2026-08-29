@@ -2,6 +2,7 @@ package com.aiworkmate.service.impl;
 
 import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.dto.ApprovalDecisionRequest;
+import com.aiworkmate.dto.ApprovalAddSignRequest;
 import com.aiworkmate.dto.ApprovalParticipantRequest;
 import com.aiworkmate.dto.LeaveApplicationRequest;
 import com.aiworkmate.dto.LeaveApplicationView;
@@ -309,6 +310,124 @@ class LeaveWorkflowServiceImplTest {
         verify(notificationService).publish(TENANT_ID, targetId,
                 NotificationService.TYPE_APPROVAL, "收到审批抄送通知",
                 "「测试员工」的请假申请已抄送给你，仅供知悉", "leave", 10L);
+    }
+
+    @Test
+    void shouldCreatePreAddSignAsOnlyPendingTaskAndPauseOriginalTask() {
+        long targetId = 2002L;
+        when(userAccessService.resolveActiveUser(APPROVER_ID)).thenReturn(approverAccess());
+        when(userAccessService.resolveActiveUser(targetId)).thenReturn(targetApproverAccess(targetId));
+        when(taskMapper.selectOne(any())).thenReturn(pendingTask());
+        when(leaveMapper.selectById(10L)).thenReturn(leave("PENDING", APPROVER_ID, 1));
+        when(userMapper.selectOne(any())).thenReturn(user(targetId, "前加签审批人"));
+        when(taskMapper.update(isNull(), any())).thenReturn(1);
+        when(taskMapper.insert(any(WorkflowTask.class))).thenReturn(1);
+        when(leaveMapper.update(isNull(), any())).thenReturn(1);
+        when(actionLogMapper.insert(any(WorkflowActionLog.class))).thenReturn(1);
+        when(leaveMapper.selectView(TENANT_ID, 10L))
+                .thenReturn(view("PENDING", targetId, 31L, 0, "PENDING", 2));
+
+        var response = service.addSign(APPROVER_ID, 30L,
+                new ApprovalAddSignRequest(targetId, 0, "PRE", "请先核验请假安排"));
+
+        ArgumentCaptor<WorkflowTask> taskCaptor = ArgumentCaptor.forClass(WorkflowTask.class);
+        verify(taskMapper).insert(taskCaptor.capture());
+        WorkflowTask addedTask = taskCaptor.getValue();
+        assertThat(addedTask.getAssigneeUserId()).isEqualTo(targetId);
+        assertThat(addedTask.getParentTaskId()).isEqualTo(30L);
+        assertThat(addedTask.getAddSignMode()).isEqualTo("PRE");
+        assertThat(addedTask.getStatus()).isEqualTo("PENDING");
+        assertThat(response.canApprove()).isFalse();
+        ArgumentCaptor<WorkflowActionLog> logCaptor = ArgumentCaptor.forClass(WorkflowActionLog.class);
+        verify(actionLogMapper).insert(logCaptor.capture());
+        assertThat(logCaptor.getValue().getAction()).isEqualTo("ADD_SIGN_PRE");
+        assertThat(logCaptor.getValue().getTargetUserId()).isEqualTo(targetId);
+        assertThat(logCaptor.getValue().getToStatus()).isEqualTo("WAITING");
+    }
+
+    @Test
+    void shouldCreatePostAddSignAsWaitingTaskAndKeepCurrentAssignee() {
+        long targetId = 2002L;
+        when(userAccessService.resolveActiveUser(APPROVER_ID)).thenReturn(approverAccess());
+        when(userAccessService.resolveActiveUser(targetId)).thenReturn(targetApproverAccess(targetId));
+        when(taskMapper.selectOne(any())).thenReturn(pendingTask());
+        when(leaveMapper.selectById(10L)).thenReturn(leave("PENDING", APPROVER_ID, 1));
+        when(userMapper.selectOne(any())).thenReturn(user(targetId, "后加签审批人"));
+        when(taskMapper.update(isNull(), any())).thenReturn(1);
+        when(taskMapper.insert(any(WorkflowTask.class))).thenReturn(1);
+        when(leaveMapper.update(isNull(), any())).thenReturn(1);
+        when(actionLogMapper.insert(any(WorkflowActionLog.class))).thenReturn(1);
+        when(leaveMapper.selectView(TENANT_ID, 10L))
+                .thenReturn(view("PENDING", APPROVER_ID, 30L, 1, "PENDING", 2));
+
+        var response = service.addSign(APPROVER_ID, 30L,
+                new ApprovalAddSignRequest(targetId, 0, "POST", "通过后请复核"));
+
+        ArgumentCaptor<WorkflowTask> taskCaptor = ArgumentCaptor.forClass(WorkflowTask.class);
+        verify(taskMapper).insert(taskCaptor.capture());
+        assertThat(taskCaptor.getValue().getAddSignMode()).isEqualTo("POST");
+        assertThat(taskCaptor.getValue().getStatus()).isEqualTo("WAITING");
+        assertThat(response.canApprove()).isTrue();
+    }
+
+    @Test
+    void shouldReactivateOriginalTaskAfterPreAddSignApproval() {
+        long targetId = 2002L;
+        when(userAccessService.resolveActiveUser(targetId)).thenReturn(targetApproverAccess(targetId));
+        WorkflowTask preTask = pendingTask();
+        preTask.setId(31L);
+        preTask.setAssigneeUserId(targetId);
+        preTask.setParentTaskId(30L);
+        preTask.setAddSignMode("PRE");
+        WorkflowTask originalTask = pendingTask();
+        originalTask.setStatus("WAITING");
+        originalTask.setVersion(1);
+        when(taskMapper.selectById(31L)).thenReturn(preTask);
+        when(leaveMapper.selectById(10L)).thenReturn(leave("PENDING", targetId, 2));
+        when(taskMapper.selectOne(any())).thenReturn(originalTask);
+        when(taskMapper.update(isNull(), any())).thenReturn(1);
+        when(leaveMapper.update(isNull(), any())).thenReturn(1);
+        when(actionLogMapper.insert(any(WorkflowActionLog.class))).thenReturn(1);
+        when(leaveMapper.selectView(TENANT_ID, 10L))
+                .thenReturn(view("PENDING", APPROVER_ID, 30L, 2, "PENDING", 3));
+
+        var response = service.approve(targetId, 31L, new ApprovalDecisionRequest(0, "核验通过"));
+
+        assertThat(response.status()).isEqualTo("PENDING");
+        assertThat(response.canApprove()).isFalse();
+        verify(instanceMapper, never()).update(isNull(), any());
+        verify(notificationService).publish(TENANT_ID, APPROVER_ID,
+                NotificationService.TYPE_APPROVAL, "加签审批待办已激活",
+                "请处理已流转至你的请假审批待办", "leave", 10L);
+    }
+
+    @Test
+    void shouldActivatePostAddSignInsteadOfCompletingWorkflow() {
+        long targetId = 2002L;
+        when(userAccessService.resolveActiveUser(APPROVER_ID)).thenReturn(approverAccess());
+        WorkflowTask postTask = pendingTask();
+        postTask.setId(31L);
+        postTask.setAssigneeUserId(targetId);
+        postTask.setParentTaskId(30L);
+        postTask.setAddSignMode("POST");
+        postTask.setStatus("WAITING");
+        when(taskMapper.selectById(30L)).thenReturn(pendingTask());
+        when(leaveMapper.selectById(10L)).thenReturn(leave("PENDING", APPROVER_ID, 2));
+        when(taskMapper.selectOne(any())).thenReturn(postTask);
+        when(taskMapper.update(isNull(), any())).thenReturn(1);
+        when(leaveMapper.update(isNull(), any())).thenReturn(1);
+        when(actionLogMapper.insert(any(WorkflowActionLog.class))).thenReturn(1);
+        when(leaveMapper.selectView(TENANT_ID, 10L))
+                .thenReturn(view("PENDING", targetId, 31L, 1, "PENDING", 3));
+
+        var response = service.approve(
+                APPROVER_ID, 30L, new ApprovalDecisionRequest(0, "同意并转后加签"));
+
+        assertThat(response.status()).isEqualTo("PENDING");
+        verify(instanceMapper, never()).update(isNull(), any());
+        verify(notificationService).publish(TENANT_ID, targetId,
+                NotificationService.TYPE_APPROVAL, "加签审批待办已激活",
+                "请处理已流转至你的请假审批待办", "leave", 10L);
     }
 
     @Test

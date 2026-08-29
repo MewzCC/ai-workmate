@@ -47,7 +47,7 @@ export default function ApprovalDetailPage({ taskId }: { taskId: number }) {
   const [decision, setDecision] = useState<'approve' | 'reject'>();
   const [saving, setSaving] = useState(false);
   const [form] = Form.useForm<{ comment?: string }>();
-  const [collaboration, setCollaboration] = useState<'transfer' | 'copy'>();
+  const [collaboration, setCollaboration] = useState<'transfer' | 'copy' | 'pre-sign' | 'post-sign'>();
   const [participants, setParticipants] = useState<ApprovalParticipant[]>([]);
   const [participantLoading, setParticipantLoading] = useState(false);
   const [collaborationForm] = Form.useForm<{ targetUserId: number; reason: string }>();
@@ -90,8 +90,10 @@ export default function ApprovalDetailPage({ taskId }: { taskId: number }) {
         await todoApi.reject(taskId, application.taskVersion, values.comment!.trim());
         message.success(t('approval.approvalDetail.rejectSuccess'));
       } else {
-        await todoApi.approve(taskId, application.taskVersion, values.comment?.trim());
-        message.success(t('approval.approvalDetail.approveSuccess'));
+        const result = await todoApi.approve(taskId, application.taskVersion, values.comment?.trim());
+        message.success(t(result.status === 'PENDING'
+          ? 'approval.approvalDetail.approveNextSuccess'
+          : 'approval.approvalDetail.approveSuccess'));
       }
       setDecision(undefined);
       form.resetFields();
@@ -104,7 +106,7 @@ export default function ApprovalDetailPage({ taskId }: { taskId: number }) {
     }
   };
 
-  const openCollaboration = async (mode: 'transfer' | 'copy') => {
+  const openCollaboration = async (mode: 'transfer' | 'copy' | 'pre-sign' | 'post-sign') => {
     setCollaboration(mode);
     collaborationForm.resetFields();
     setParticipantLoading(true);
@@ -128,6 +130,26 @@ export default function ApprovalDetailPage({ taskId }: { taskId: number }) {
         message.success(t('approval.approvalDetail.transferSuccess'));
         setCollaboration(undefined);
         router.push('/oa/todo');
+        return;
+      }
+      if (collaboration === 'pre-sign' || collaboration === 'post-sign') {
+        await todoApi.addSign(
+          taskId,
+          values.targetUserId,
+          application.taskVersion,
+          collaboration === 'pre-sign' ? 'PRE' : 'POST',
+          values.reason.trim(),
+        );
+        message.success(t(collaboration === 'pre-sign'
+          ? 'approval.approvalDetail.preSignSuccess'
+          : 'approval.approvalDetail.postSignSuccess'));
+        setCollaboration(undefined);
+        collaborationForm.resetFields();
+        if (collaboration === 'pre-sign') {
+          router.push('/oa/todo');
+          return;
+        }
+        await load();
         return;
       }
       await todoApi.copyTo(taskId, values.targetUserId, application.taskVersion, values.reason.trim());
@@ -291,7 +313,13 @@ export default function ApprovalDetailPage({ taskId }: { taskId: number }) {
                       {t('approval.approvalDetail.decisionBarHint')}
                     </Typography.Text>
                   </div>
-                  <Space>
+                  <Space wrap>
+                    <Button size="large" onClick={() => void openCollaboration('pre-sign')}>
+                      {t('approval.approvalDetail.preSignButton')}
+                    </Button>
+                    <Button size="large" onClick={() => void openCollaboration('post-sign')}>
+                      {t('approval.approvalDetail.postSignButton')}
+                    </Button>
                     <Button size="large" onClick={() => void openCollaboration('copy')}>
                       {t('approval.approvalDetail.copyButton')}
                     </Button>
@@ -358,23 +386,35 @@ export default function ApprovalDetailPage({ taskId }: { taskId: number }) {
       </Modal>
 
       <Modal
-        title={collaboration === 'transfer'
-          ? t('approval.approvalDetail.transferModalTitle')
-          : t('approval.approvalDetail.copyModalTitle')}
+        title={t(`approval.approvalDetail.${collaboration === 'transfer'
+          ? 'transferModalTitle'
+          : collaboration === 'pre-sign'
+            ? 'preSignModalTitle'
+            : collaboration === 'post-sign'
+              ? 'postSignModalTitle'
+              : 'copyModalTitle'}`)}
         open={Boolean(collaboration)}
-        okText={collaboration === 'transfer'
-          ? t('approval.approvalDetail.transferModalOk')
-          : t('approval.approvalDetail.copyModalOk')}
+        okText={t(`approval.approvalDetail.${collaboration === 'transfer'
+          ? 'transferModalOk'
+          : collaboration === 'pre-sign'
+            ? 'preSignModalOk'
+            : collaboration === 'post-sign'
+              ? 'postSignModalOk'
+              : 'copyModalOk'}`)}
         confirmLoading={saving}
         onCancel={() => { setCollaboration(undefined); collaborationForm.resetFields(); }}
         onOk={() => void submitCollaboration()}
       >
         <Alert
           showIcon
-          type={collaboration === 'transfer' ? 'warning' : 'info'}
-          message={collaboration === 'transfer'
-            ? t('approval.approvalDetail.transferAlert')
-            : t('approval.approvalDetail.copyAlert')}
+          type={collaboration === 'transfer' || collaboration === 'pre-sign' ? 'warning' : 'info'}
+          message={t(`approval.approvalDetail.${collaboration === 'transfer'
+            ? 'transferAlert'
+            : collaboration === 'pre-sign'
+              ? 'preSignAlert'
+              : collaboration === 'post-sign'
+                ? 'postSignAlert'
+                : 'copyAlert'}`)}
         />
         <Form form={collaborationForm} layout="vertical">
           <Form.Item
@@ -388,7 +428,7 @@ export default function ApprovalDetailPage({ taskId }: { taskId: number }) {
               optionFilterProp="label"
               placeholder={t('approval.approvalDetail.participantPlaceholder')}
               options={participants
-                .filter((item) => collaboration !== 'transfer' || item.canApprove)
+                .filter((item) => collaboration === 'copy' || item.canApprove)
                 .map((item) => ({ value: item.id, label: item.name }))}
             />
           </Form.Item>

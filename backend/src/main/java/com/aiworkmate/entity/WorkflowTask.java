@@ -17,6 +17,8 @@ public class WorkflowTask {
     private String businessType;
     private Long businessId;
     private Long assigneeUserId;
+    private Long parentTaskId;
+    private String addSignMode;
     private String status;
     private String decisionComment;
     private LocalDateTime dueAt;

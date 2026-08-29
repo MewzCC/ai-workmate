@@ -2,6 +2,7 @@ package com.aiworkmate.service;
 
 import com.aiworkmate.common.PageResponse;
 import com.aiworkmate.dto.ApprovalDecisionRequest;
+import com.aiworkmate.dto.ApprovalAddSignRequest;
 import com.aiworkmate.dto.ApprovalParticipantRequest;
 import com.aiworkmate.dto.ApprovalParticipantResponse;
 import com.aiworkmate.dto.ApprovalStatusCountResponse;
@@ -62,6 +63,8 @@ public interface LeaveWorkflowService {
     LeaveApplicationResponse transfer(Long userId, Long taskId, ApprovalParticipantRequest request);
 
     LeaveApplicationResponse copyTo(Long userId, Long taskId, ApprovalParticipantRequest request);
+
+    LeaveApplicationResponse addSign(Long userId, Long taskId, ApprovalAddSignRequest request);
 
     List<WorkflowTimelineResponse> timeline(Long userId, Long taskId);
 }

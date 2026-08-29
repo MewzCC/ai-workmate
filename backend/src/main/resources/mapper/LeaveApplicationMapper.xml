@@ -67,7 +67,8 @@
             WHERE wt.tenant_id = l.tenant_id
               AND wt.business_type = 'LEAVE_APPLICATION'
               AND wt.business_id = l.id
-            ORDER BY wt.created_at DESC, wt.id DESC
+            ORDER BY CASE WHEN wt.status = 'PENDING' THEN 0 ELSE 1 END,
+                     wt.created_at DESC, wt.id DESC
             LIMIT 1
         ) task ON TRUE
         LEFT JOIN workflow_instance instance
