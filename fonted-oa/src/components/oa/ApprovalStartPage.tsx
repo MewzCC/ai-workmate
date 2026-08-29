@@ -6,10 +6,12 @@ import {
   Alert,
   Button,
   Card,
+  Descriptions,
   Empty,
   Input,
   Modal,
   Space,
+  Spin,
   Tag,
   Typography,
 } from 'antd';
@@ -49,6 +51,38 @@ const CATEGORIES: TemplateCategory[] = ['hr', 'finance', 'admin', 'purchase', 'o
 /** 打车内置请假模板入口：请假表单路由对所有登录角色开放。 */
 const LEAVE_FORM_KEY = 'leave-application';
 
+interface SnapshotField {
+  name?: string;
+  label?: string;
+}
+
+function parseSnapshotFields(schemaJson?: string | null): SnapshotField[] {
+  try {
+    const parsed = JSON.parse(schemaJson || '{}') as { fields?: SnapshotField[] };
+    return Array.isArray(parsed.fields) ? parsed.fields.filter((field) => field?.name) : [];
+  } catch {
+    return [];
+  }
+}
+
+function parseSnapshotData(dataJson: string): Record<string, unknown> {
+  try {
+    const parsed = JSON.parse(dataJson) as unknown;
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? parsed as Record<string, unknown>
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+function formatSnapshotValue(value: unknown): string {
+  if (value == null || value === '') return '-';
+  if (Array.isArray(value)) return value.map(formatSnapshotValue).join(', ');
+  if (typeof value === 'object') return JSON.stringify(value);
+  return String(value);
+}
+
 export default function ApprovalStartPage() {
   const router = useRouter();
   const { t } = useTranslation();
@@ -57,6 +91,8 @@ export default function ApprovalStartPage() {
   const [drafts, setDrafts] = useState<ApprovalApplication[]>([]);
   const [recentApplications, setRecentApplications] = useState<ApprovalApplication[]>([]);
   const [actingId, setActingId] = useState<number>();
+  const [detail, setDetail] = useState<ApprovalApplication | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
   const [loadError, setLoadError] = useState<string>();
   const [keyword, setKeyword] = useState('');
 
@@ -166,6 +202,20 @@ export default function ApprovalStartPage() {
     }
   };
 
+  const viewHistoricalDetail = async (application: ApprovalApplication) => {
+    setDetailLoading(true);
+    try {
+      setDetail(await approvalEngineApi.getApplication(application.id));
+    } catch (error) {
+      message.error(formatOaApiError(error));
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  const detailFields = parseSnapshotFields(detail?.formSchemaSnapshot);
+  const detailData = detail ? parseSnapshotData(detail.dataJson) : {};
+
   return (
     <section className="leave-list-workbench approval-start-page">
       <header className="leave-list-hero">
@@ -242,6 +292,13 @@ export default function ApprovalStartPage() {
                 <div className="approval-template-card__foot">
                   <Tag bordered={false}>{t(`approval.status.${application.status}`)}</Tag>
                   <Space size={4}>
+                    <Button
+                      type="link"
+                      size="small"
+                      onClick={() => void viewHistoricalDetail(application)}
+                    >
+                      {t('approval.start.viewHistoricalDetail')}
+                    </Button>
                     {application.canWithdraw && (
                       <Button
                         danger
@@ -343,6 +400,48 @@ export default function ApprovalStartPage() {
           })}
         </>
       )}
+
+      <Modal
+        open={detailLoading || Boolean(detail)}
+        title={t('approval.start.historicalDetailTitle')}
+        footer={<Button onClick={() => setDetail(null)}>{t('common.close')}</Button>}
+        onCancel={() => setDetail(null)}
+        width={720}
+      >
+        <Spin spinning={detailLoading}>
+          {detail && (
+            <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+              <Alert
+                showIcon
+                type="info"
+                message={t('approval.start.snapshotNotice')}
+              />
+              <Descriptions bordered size="small" column={2}>
+                <Descriptions.Item label={t('approval.start.snapshotFormVersion')}>
+                  {detail.formVersionSnapshot ?? '-'}
+                </Descriptions.Item>
+                <Descriptions.Item label={t('approval.start.snapshotProcessVersion')}>
+                  {detail.processVersionSnapshot ?? '-'}
+                </Descriptions.Item>
+                <Descriptions.Item label={t('approval.start.snapshotStatus')}>
+                  <Tag>{t(`approval.status.${detail.status}`)}</Tag>
+                </Descriptions.Item>
+                <Descriptions.Item label={t('approval.start.snapshotSubmittedAt')}>
+                  {detail.submittedAt ? new Date(detail.submittedAt).toLocaleString() : '-'}
+                </Descriptions.Item>
+                {detailFields.map((field) => (
+                  <Descriptions.Item key={field.name} label={field.label || field.name} span={2}>
+                    {formatSnapshotValue(detailData[field.name as string])}
+                  </Descriptions.Item>
+                ))}
+              </Descriptions>
+              {detailFields.length === 0 && (
+                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('approval.start.snapshotUnavailable')} />
+              )}
+            </Space>
+          )}
+        </Spin>
+      </Modal>
     </section>
   );
 }

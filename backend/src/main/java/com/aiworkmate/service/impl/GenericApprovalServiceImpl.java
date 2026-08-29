@@ -14,6 +14,7 @@ import com.aiworkmate.dto.WorkflowTimelineResponse;
 import com.aiworkmate.entity.ApprovalApplication;
 import com.aiworkmate.entity.ApprovalForm;
 import com.aiworkmate.entity.ApprovalProcess;
+import com.aiworkmate.entity.ApprovalRule;
 import com.aiworkmate.entity.User;
 import com.aiworkmate.entity.WorkflowActionLog;
 import com.aiworkmate.entity.WorkflowInstance;
@@ -21,6 +22,7 @@ import com.aiworkmate.entity.WorkflowTask;
 import com.aiworkmate.mapper.ApprovalApplicationMapper;
 import com.aiworkmate.mapper.ApprovalFormMapper;
 import com.aiworkmate.mapper.ApprovalProcessMapper;
+import com.aiworkmate.mapper.ApprovalRuleMapper;
 import com.aiworkmate.mapper.LeaveApplicationMapper;
 import com.aiworkmate.mapper.UserMapper;
 import com.aiworkmate.mapper.WorkflowActionLogMapper;
@@ -84,6 +86,7 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
     private final ApprovalApplicationMapper applicationMapper;
     private final ApprovalFormMapper formMapper;
     private final ApprovalProcessMapper processMapper;
+    private final ApprovalRuleMapper ruleMapper;
     private final LeaveApplicationMapper leaveMapper;
     private final UserMapper userMapper;
     private final WorkflowInstanceMapper instanceMapper;
@@ -181,6 +184,7 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
         Map<String, Object> formData = validateFormData(form, readJson(application.getDataJson()), true);
         ApprovalProcess process = resolveEnabledProcess(
                 actor.tenantId(), form.getId(), application.getProcessId());
+        DefinitionSnapshot snapshot = createDefinitionSnapshot(actor.tenantId(), form, process);
         Long approverId = requireApprover(actor, form, process);
         Long definitionId = requireDefinition(actor.tenantId());
         LocalDateTime now = LocalDateTime.now();
@@ -195,6 +199,11 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
                 .eq(ApprovalApplication::getVersion, request.version())
                 .set(ApprovalApplication::getProcessId, process.getId())
                 .set(ApprovalApplication::getDataJson, writeJson(formData))
+                .set(ApprovalApplication::getFormSchemaSnapshot, snapshot.formSchema())
+                .set(ApprovalApplication::getFormVersionSnapshot, snapshot.formVersion())
+                .set(ApprovalApplication::getProcessNodeSnapshot, snapshot.processNodes())
+                .set(ApprovalApplication::getProcessVersionSnapshot, snapshot.processVersion())
+                .set(ApprovalApplication::getRuleSnapshot, snapshot.rules())
                 .set(ApprovalApplication::getStatus, "PENDING")
                 .set(ApprovalApplication::getWorkflowInstanceId, instance.getId())
                 .set(ApprovalApplication::getSubmittedAt, now)
@@ -434,6 +443,7 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
 
         LocalDateTime now = LocalDateTime.now();
         ApprovalApplication application = new ApprovalApplication();
+        DefinitionSnapshot snapshot = createDefinitionSnapshot(actor.tenantId(), form, process);
         application.setTenantId(actor.tenantId());
         application.setApplicantUserId(actor.userId());
         application.setFormId(form.getId());
@@ -442,6 +452,11 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
         application.setFormName(form.getFormName());
         application.setTitle(form.getFormName());
         application.setDataJson(writeJson(formData));
+        application.setFormSchemaSnapshot(snapshot.formSchema());
+        application.setFormVersionSnapshot(snapshot.formVersion());
+        application.setProcessNodeSnapshot(snapshot.processNodes());
+        application.setProcessVersionSnapshot(snapshot.processVersion());
+        application.setRuleSnapshot(snapshot.rules());
         application.setStatus("PENDING");
         application.setVersion(0);
         application.setSubmittedAt(now);
@@ -728,6 +743,43 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
     }
 
     /**
+     * 提交瞬间生成不可变配置快照。规则按优先级和主键稳定排序，保证相同配置生成一致 JSON；
+     * 草稿阶段不调用本方法，重新提交时则按当时的有效配置生成新快照。
+     */
+    private DefinitionSnapshot createDefinitionSnapshot(Long tenantId,
+                                                        ApprovalForm form,
+                                                        ApprovalProcess process) {
+        List<Map<String, Object>> rules = ruleMapper.selectList(
+                        new LambdaQueryWrapper<ApprovalRule>()
+                                .eq(ApprovalRule::getTenantId, tenantId)
+                                .eq(ApprovalRule::getStatus, "ENABLED")
+                                .eq(ApprovalRule::getDeleted, false)
+                                .orderByAsc(ApprovalRule::getPriority)
+                                .orderByAsc(ApprovalRule::getId))
+                .stream()
+                .map(rule -> {
+                    Map<String, Object> value = new LinkedHashMap<>();
+                    value.put("id", rule.getId());
+                    value.put("ruleKey", rule.getRuleKey());
+                    value.put("ruleName", rule.getRuleName());
+                    value.put("ruleType", rule.getRuleType());
+                    value.put("priority", rule.getPriority());
+                    value.put("conditionJson", rule.getConditionJson());
+                    value.put("actionJson", rule.getActionJson());
+                    value.put("version", rule.getVersion());
+                    return value;
+                }).toList();
+        return new DefinitionSnapshot(
+                form.getSchemaJson(), defaultVersion(form.getVersion()),
+                process.getNodeJson(), defaultVersion(process.getVersion()),
+                writeJson(rules));
+    }
+
+    private int defaultVersion(Integer version) {
+        return version == null ? 0 : version;
+    }
+
+    /**
      * 按 schema_json 校验表单数据：白名单字段、必填、类型与长度限制。
      * 返回原样数据（仅结构校验，不改动业务取值），供统一序列化落库。
      */
@@ -946,6 +998,11 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
                 view.formName(),
                 view.title(),
                 view.dataJson(),
+                view.formSchemaSnapshot(),
+                view.formVersionSnapshot(),
+                view.processNodeSnapshot(),
+                view.processVersionSnapshot(),
+                view.ruleSnapshot(),
                 view.status(),
                 view.version(),
                 view.taskId(),
@@ -971,9 +1028,9 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
         );
     }
 
-    private String writeJson(Map<String, Object> formData) {
+    private String writeJson(Object value) {
         try {
-            return objectMapper.writeValueAsString(formData == null ? Map.of() : formData);
+            return objectMapper.writeValueAsString(value == null ? Map.of() : value);
         } catch (Exception e) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID,
                     "validation.approval.json.invalid");
@@ -1021,5 +1078,12 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
     }
 
     private record FieldDef(String name, String label, String type, boolean required) {
+    }
+
+    private record DefinitionSnapshot(String formSchema,
+                                      int formVersion,
+                                      String processNodes,
+                                      int processVersion,
+                                      String rules) {
     }
 }

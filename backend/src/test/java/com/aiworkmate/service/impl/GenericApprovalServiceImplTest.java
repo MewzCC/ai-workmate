@@ -5,16 +5,19 @@ import com.aiworkmate.dto.ApprovalApplicationResponse;
 import com.aiworkmate.dto.ApprovalApplicationView;
 import com.aiworkmate.dto.ApprovalDraftRequest;
 import com.aiworkmate.dto.ApprovalDraftUpdateRequest;
+import com.aiworkmate.dto.ApprovalSubmitRequest;
 import com.aiworkmate.dto.VersionRequest;
 import com.aiworkmate.entity.ApprovalApplication;
 import com.aiworkmate.entity.ApprovalForm;
 import com.aiworkmate.entity.ApprovalProcess;
+import com.aiworkmate.entity.ApprovalRule;
 import com.aiworkmate.entity.WorkflowInstance;
 import com.aiworkmate.entity.WorkflowActionLog;
 import com.aiworkmate.entity.WorkflowTask;
 import com.aiworkmate.mapper.ApprovalApplicationMapper;
 import com.aiworkmate.mapper.ApprovalFormMapper;
 import com.aiworkmate.mapper.ApprovalProcessMapper;
+import com.aiworkmate.mapper.ApprovalRuleMapper;
 import com.aiworkmate.mapper.LeaveApplicationMapper;
 import com.aiworkmate.mapper.UserMapper;
 import com.aiworkmate.mapper.WorkflowActionLogMapper;
@@ -31,6 +34,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -54,6 +58,7 @@ class GenericApprovalServiceImplTest {
     @Mock private ApprovalApplicationMapper applicationMapper;
     @Mock private ApprovalFormMapper formMapper;
     @Mock private ApprovalProcessMapper processMapper;
+    @Mock private ApprovalRuleMapper ruleMapper;
     @Mock private LeaveApplicationMapper leaveMapper;
     @Mock private UserMapper userMapper;
     @Mock private WorkflowInstanceMapper instanceMapper;
@@ -73,7 +78,7 @@ class GenericApprovalServiceImplTest {
         initializeTableMetadata(WorkflowInstance.class);
         initializeTableMetadata(WorkflowTask.class);
         service = new GenericApprovalServiceImpl(
-                applicationMapper, formMapper, processMapper, leaveMapper, userMapper,
+                applicationMapper, formMapper, processMapper, ruleMapper, leaveMapper, userMapper,
                 instanceMapper, taskMapper, actionLogMapper, userAccessService,
                 auditService, notificationService, new com.fasterxml.jackson.databind.ObjectMapper());
         ReflectionTestUtils.setField(service, "approvalDueHours", 48L);
@@ -154,6 +159,67 @@ class GenericApprovalServiceImplTest {
         verify(notificationService).publish(TENANT_ID, 2002L,
                 NotificationService.TYPE_APPROVAL, "新的「费用报销」待审批",
                 "员工通过发起审批模板提交了申请，请及时处理", "generic-approval", 10L);
+    }
+
+    @Test
+    void submitFreezesCurrentFormProcessAndRuleVersions() {
+        ApprovalRule rule = new ApprovalRule();
+        rule.setId(9L);
+        rule.setRuleKey("large-expense");
+        rule.setRuleName("大额费用");
+        rule.setRuleType("AMOUNT_THRESHOLD");
+        rule.setPriority(10);
+        rule.setConditionJson("{\"amount\":10000}");
+        rule.setActionJson("{\"enabled\":true}");
+        rule.setVersion(3);
+        when(formMapper.selectOne(any())).thenReturn(form());
+        when(processMapper.selectOne(any())).thenReturn(process());
+        when(ruleMapper.selectList(any())).thenReturn(List.of(rule));
+        when(leaveMapper.resolveApprover(TENANT_ID, USER_ID)).thenReturn(2002L);
+        when(applicationMapper.selectGenericDefinitionId(TENANT_ID)).thenReturn(3L);
+        when(applicationMapper.insert(any(ApprovalApplication.class))).thenAnswer(invocation -> {
+            ApprovalApplication value = invocation.getArgument(0);
+            value.setId(10L);
+            return 1;
+        });
+        when(instanceMapper.insert(any(WorkflowInstance.class))).thenAnswer(invocation -> {
+            WorkflowInstance value = invocation.getArgument(0);
+            value.setId(4L);
+            return 1;
+        });
+        when(taskMapper.insert(any(WorkflowTask.class))).thenAnswer(invocation -> {
+            WorkflowTask value = invocation.getArgument(0);
+            value.setId(5L);
+            return 1;
+        });
+        when(applicationMapper.selectView(TENANT_ID, 10L)).thenReturn(view("PENDING", 0));
+
+        service.submit(USER_ID, new ApprovalSubmitRequest(
+                "expense", null, Map.of("reason", "客户拜访")));
+
+        ArgumentCaptor<ApprovalApplication> captor = ArgumentCaptor.forClass(ApprovalApplication.class);
+        verify(applicationMapper).insert(captor.capture());
+        ApprovalApplication saved = captor.getValue();
+        assertThat(saved.getFormSchemaSnapshot()).isEqualTo(form().getSchemaJson());
+        assertThat(saved.getFormVersionSnapshot()).isEqualTo(7);
+        assertThat(saved.getProcessNodeSnapshot()).isEqualTo(process().getNodeJson());
+        assertThat(saved.getProcessVersionSnapshot()).isEqualTo(4);
+        assertThat(saved.getRuleSnapshot()).contains("large-expense").contains("\"version\":3");
+    }
+
+    @Test
+    void detailUsesStoredSnapshotsWithoutReadingChangedLiveDefinitions() {
+        when(applicationMapper.selectView(TENANT_ID, 10L)).thenReturn(view("APPROVED", 2));
+
+        ApprovalApplicationResponse response = service.detail(USER_ID, 10L);
+
+        assertThat(response.formSchemaSnapshot()).isEqualTo(form().getSchemaJson());
+        assertThat(response.formVersionSnapshot()).isEqualTo(7);
+        assertThat(response.processNodeSnapshot()).isEqualTo(process().getNodeJson());
+        assertThat(response.processVersionSnapshot()).isEqualTo(4);
+        verify(formMapper, never()).selectOne(any());
+        verify(processMapper, never()).selectOne(any());
+        verify(ruleMapper, never()).selectList(any());
     }
 
     @Test
@@ -257,6 +323,7 @@ class GenericApprovalServiceImplTest {
         form.setFormKey("expense");
         form.setFormName("费用报销");
         form.setSchemaJson("{\"fields\":[{\"name\":\"reason\",\"type\":\"text\",\"required\":true}]}");
+        form.setVersion(7);
         form.setStatus("ENABLED");
         form.setDeleted(false);
         return form;
@@ -270,6 +337,7 @@ class GenericApprovalServiceImplTest {
         process.setProcessKey("expense-approval");
         process.setProcessName("费用审批");
         process.setNodeJson("[{\"nodeName\":\"直属主管\",\"approveType\":\"DIRECT_MANAGER\"}]");
+        process.setVersion(4);
         process.setStatus("ENABLED");
         process.setDeleted(false);
         return process;
@@ -323,7 +391,9 @@ class GenericApprovalServiceImplTest {
         LocalDateTime now = LocalDateTime.now();
         return new ApprovalApplicationView(
                 10L, USER_ID, "申请人", 1L, "expense", "费用报销", "费用报销",
-                "{\"reason\":\"客户拜访\"}", status, version,
+                "{\"reason\":\"客户拜访\"}",
+                form().getSchemaJson(), 7, process().getNodeJson(), 4, "[]",
+                status, version,
                 "PENDING".equals(status) ? 5L : null,
                 "PENDING".equals(status) ? 0 : null,
                 "PENDING".equals(status) ? "PENDING" : null,
