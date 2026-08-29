@@ -25,9 +25,26 @@ public record EmployeeDetailResponse(
         Long approverUserId,
         String approverName,
         String approverAvatarUrl,
+        List<EmploymentHistoryRecord> employmentHistory,
         AttendanceOverview attendance,
         List<ActivityRecord> recentActivities
 ) {
+
+    /** 已生效的入转调离任职历史。 */
+    public record EmploymentHistoryRecord(
+            Long id,
+            String changeType,
+            LocalDate effectiveDate,
+            String currentDepartmentName,
+            String currentPositionName,
+            String currentSupervisorName,
+            String targetDepartmentName,
+            String targetPositionName,
+            String targetSupervisorName,
+            String reason,
+            LocalDateTime appliedAt
+    ) {
+    }
 
     /** 考勤概览：基于 {@code attendance_record} 的状态分布统计 */
     public record AttendanceOverview(

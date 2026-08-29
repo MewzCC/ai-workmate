@@ -11,10 +11,12 @@ import com.aiworkmate.dto.PositionResponse;
 import com.aiworkmate.entity.AttendanceRecord;
 import com.aiworkmate.entity.AttendanceReissue;
 import com.aiworkmate.entity.LeaveApplication;
+import com.aiworkmate.entity.EmployeeChange;
 import com.aiworkmate.mapper.AccessControlMapper;
 import com.aiworkmate.mapper.AttendanceRecordMapper;
 import com.aiworkmate.mapper.AttendanceReissueMapper;
 import com.aiworkmate.mapper.LeaveApplicationMapper;
+import com.aiworkmate.mapper.EmployeeChangeMapper;
 import com.aiworkmate.service.HrService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.RequiredArgsConstructor;
@@ -38,6 +40,7 @@ public class HrServiceImpl implements HrService {
     private final AttendanceRecordMapper attendanceRecordMapper;
     private final AttendanceReissueMapper attendanceReissueMapper;
     private final LeaveApplicationMapper leaveApplicationMapper;
+    private final EmployeeChangeMapper employeeChangeMapper;
 
     @Override
     public OrganizationOverviewResponse overview(Long tenantId) {
@@ -109,9 +112,35 @@ public class HrServiceImpl implements HrService {
                 approver != null
                         ? AvatarUrls.build(approver.id(), approver.avatar(), approver.updatedAt())
                         : null,
+                buildEmploymentHistory(tenantId, employeeId, userMap, deptMap, posMap),
                 buildAttendance(tenantId, employeeId),
                 buildActivities(tenantId, employeeId)
         );
+    }
+
+    private List<EmployeeDetailResponse.EmploymentHistoryRecord> buildEmploymentHistory(
+            Long tenantId,
+            Long employeeId,
+            Map<Long, AccessUserRow> users,
+            Map<Long, DepartmentResponse> departments,
+            Map<Long, PositionResponse> positions) {
+        return employeeChangeMapper.selectList(new LambdaQueryWrapper<EmployeeChange>()
+                        .eq(EmployeeChange::getTenantId, tenantId)
+                        .eq(EmployeeChange::getEmployeeUserId, employeeId)
+                        .eq(EmployeeChange::getStatus, "EFFECTIVE")
+                        .orderByDesc(EmployeeChange::getEffectiveDate)
+                        .orderByDesc(EmployeeChange::getId))
+                .stream()
+                .map(change -> new EmployeeDetailResponse.EmploymentHistoryRecord(
+                        change.getId(), change.getChangeType(), change.getEffectiveDate(),
+                        deptName(change.getCurrentDepartmentId(), departments),
+                        posName(change.getCurrentPositionId(), positions),
+                        userName(change.getCurrentSupervisorUserId(), users),
+                        deptName(change.getTargetDepartmentId(), departments),
+                        posName(change.getTargetPositionId(), positions),
+                        userName(change.getTargetSupervisorUserId(), users),
+                        change.getReason(), change.getAppliedAt()))
+                .toList();
     }
 
     private EmployeeDetailResponse.AttendanceOverview buildAttendance(Long tenantId, Long userId) {
@@ -174,6 +203,10 @@ public class HrServiceImpl implements HrService {
     }
 
     private String posName(Long id, Map<Long, PositionResponse> map) {
+        return id != null && map.containsKey(id) ? map.get(id).name() : null;
+    }
+
+    private String userName(Long id, Map<Long, AccessUserRow> map) {
         return id != null && map.containsKey(id) ? map.get(id).name() : null;
     }
 }
