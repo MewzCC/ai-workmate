@@ -29,6 +29,8 @@ public record ApprovalApplicationResponse(
         String workflowStatus,
         List<WorkflowTimelineResponse> timeline,
         boolean canWithdraw,
+        boolean canEditDraft,
+        boolean canCancel,
         LocalDateTime submittedAt,
         LocalDateTime completedAt,
         LocalDateTime createdAt,

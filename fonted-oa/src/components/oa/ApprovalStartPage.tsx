@@ -15,6 +15,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import {
   approvalEngineApi,
+  type ApprovalApplication,
   type ApprovalForm,
   type ApprovalProcess,
 } from '@/lib/approvalEngineApi';
@@ -51,21 +52,25 @@ export default function ApprovalStartPage() {
   const { t } = useTranslation();
   const [forms, setForms] = useState<ApprovalForm[]>([]);
   const [processes, setProcesses] = useState<ApprovalProcess[]>([]);
+  const [drafts, setDrafts] = useState<ApprovalApplication[]>([]);
   const [loadError, setLoadError] = useState<string>();
   const [keyword, setKeyword] = useState('');
 
   const load = useCallback(async () => {
     setLoadError(undefined);
     try {
-      const [formPage, processPage] = await Promise.all([
+      const [formPage, processPage, draftPage] = await Promise.all([
         approvalEngineApi.listForms({ status: 'ENABLED', page: 1, size: 100 }),
         approvalEngineApi.listProcesses({ status: 'ENABLED', page: 1, size: 100 }),
+        approvalEngineApi.listMyApplications({ status: 'DRAFT', page: 1, size: 20 }),
       ]);
       setForms(formPage.records);
       setProcesses(processPage.records);
+      setDrafts(draftPage.records);
     } catch (err) {
       setForms([]);
       setProcesses([]);
+      setDrafts([]);
       setLoadError(formatOaApiError(err));
     }
   }, []);
@@ -133,6 +138,35 @@ export default function ApprovalStartPage() {
           description={t('approval.start.loadFailedDesc', { error: loadError })}
           action={<Button size="small" icon={<OaIcon name="reload" />} onClick={() => void load()}>{t('common.retry')}</Button>}
         />
+      )}
+
+      {drafts.length > 0 && (
+        <section className="approval-start-section">
+          <div className="approval-start-section__head">
+            <OaIcon name="edit" />
+            <Typography.Title level={4}>{t('approval.start.myDrafts')}</Typography.Title>
+          </div>
+          <div className="approval-start-grid">
+            {drafts.map((draft) => (
+              <Card
+                key={draft.id}
+                className="approval-template-card"
+                variant="borderless"
+                hoverable
+                onClick={() => router.push(`/oa/approval-form?formKey=${encodeURIComponent(draft.formKey)}&draftId=${draft.id}`)}
+              >
+                <div className="approval-template-card__head">
+                  <span className="approval-template-card__icon is-other"><OaIcon name="edit" /></span>
+                  <Typography.Title level={5}>{draft.formName}</Typography.Title>
+                </div>
+                <Typography.Paragraph type="secondary">
+                  {t('approval.start.draftUpdatedAt', { time: new Date(draft.updatedAt).toLocaleString() })}
+                </Typography.Paragraph>
+                <Tag bordered={false}>{t('approval.start.draftStatus')}</Tag>
+              </Card>
+            ))}
+          </div>
+        </section>
       )}
 
       {!hasTemplates && !loadError && (

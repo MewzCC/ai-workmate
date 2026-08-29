@@ -6,7 +6,10 @@ import com.aiworkmate.common.PageResponse;
 import com.aiworkmate.common.TraceContext;
 import com.aiworkmate.dto.ApprovalApplicationResponse;
 import com.aiworkmate.dto.ApprovalApplicationView;
+import com.aiworkmate.dto.ApprovalDraftRequest;
+import com.aiworkmate.dto.ApprovalDraftUpdateRequest;
 import com.aiworkmate.dto.ApprovalSubmitRequest;
+import com.aiworkmate.dto.VersionRequest;
 import com.aiworkmate.dto.WorkflowTimelineResponse;
 import com.aiworkmate.entity.ApprovalApplication;
 import com.aiworkmate.entity.ApprovalForm;
@@ -32,6 +35,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.type.TypeReference;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -95,20 +99,146 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
 
     @Override
     @Transactional
+    public ApprovalApplicationResponse createDraft(Long userId, ApprovalDraftRequest request) {
+        ResolvedUserAccess actor = requirePermission(userId, "route:approval-start");
+        ApprovalForm form = requireEnabledForm(actor, request.formKey(), "DRAFT_CREATE");
+        ApprovalProcess process = resolveOptionalProcess(
+                actor.tenantId(), form.getId(), request.processKey());
+        Map<String, Object> formData = validateFormData(form, request.formData(), false);
+        LocalDateTime now = LocalDateTime.now();
+
+        ApprovalApplication application = new ApprovalApplication();
+        application.setTenantId(actor.tenantId());
+        application.setApplicantUserId(actor.userId());
+        application.setFormId(form.getId());
+        application.setProcessId(process == null ? null : process.getId());
+        application.setFormKey(form.getFormKey());
+        application.setFormName(form.getFormName());
+        application.setTitle(form.getFormName());
+        application.setDataJson(writeJson(formData));
+        application.setStatus("DRAFT");
+        application.setVersion(0);
+        application.setCreatedAt(now);
+        application.setUpdatedAt(now);
+        applicationMapper.insert(application);
+
+        auditService.record(actor.tenantId(), actor.userId(), BUSINESS_TYPE,
+                application.getId().toString(), "DRAFT_CREATE", "SUCCESS",
+                "保存通用表单草稿：" + form.getFormName());
+        return response(actor, requireView(actor.tenantId(), application.getId()), null);
+    }
+
+    @Override
+    @Transactional
+    public ApprovalApplicationResponse updateDraft(Long userId,
+                                                   Long id,
+                                                   ApprovalDraftUpdateRequest request) {
+        ResolvedUserAccess actor = requirePermission(userId, "route:approval-start");
+        ApprovalApplication application = requireOwnedApplication(actor, id);
+        requireDraft(application);
+        ApprovalForm form = requireEnabledForm(actor, application.getFormKey(), "DRAFT_UPDATE");
+        Map<String, Object> formData = validateFormData(form, request.formData(), false);
+
+        Long processId = application.getProcessId();
+        if (request.processKey() != null) {
+            ApprovalProcess process = resolveOptionalProcess(
+                    actor.tenantId(), form.getId(), request.processKey());
+            processId = process == null ? null : process.getId();
+        }
+        LocalDateTime now = LocalDateTime.now();
+        int updated = applicationMapper.update(null, new LambdaUpdateWrapper<ApprovalApplication>()
+                .eq(ApprovalApplication::getId, id)
+                .eq(ApprovalApplication::getTenantId, actor.tenantId())
+                .eq(ApprovalApplication::getApplicantUserId, actor.userId())
+                .eq(ApprovalApplication::getStatus, "DRAFT")
+                .eq(ApprovalApplication::getVersion, request.version())
+                .set(ApprovalApplication::getProcessId, processId)
+                .set(ApprovalApplication::getDataJson, writeJson(formData))
+                .set(ApprovalApplication::getUpdatedAt, now)
+                .setSql("version = version + 1"));
+        if (updated != 1) {
+            throw new BusinessException(ErrorCode.VERSION_CONFLICT);
+        }
+        auditService.record(actor.tenantId(), actor.userId(), BUSINESS_TYPE,
+                id.toString(), "DRAFT_UPDATE", "SUCCESS", "更新通用表单草稿");
+        return response(actor, requireView(actor.tenantId(), id), null);
+    }
+
+    @Override
+    @Transactional
+    public ApprovalApplicationResponse submitDraft(Long userId, Long id, VersionRequest request) {
+        ResolvedUserAccess actor = requirePermission(userId, "route:approval-start");
+        ApprovalApplication application = requireOwnedApplication(actor, id);
+        requireDraft(application);
+        if (!request.version().equals(application.getVersion())) {
+            throw new BusinessException(ErrorCode.VERSION_CONFLICT);
+        }
+
+        ApprovalForm form = requireEnabledForm(actor, application.getFormKey(), "DRAFT_SUBMIT");
+        Map<String, Object> formData = validateFormData(form, readJson(application.getDataJson()), true);
+        ApprovalProcess process = resolveEnabledProcess(
+                actor.tenantId(), form.getId(), application.getProcessId());
+        Long approverId = requireApprover(actor, form, process);
+        Long definitionId = requireDefinition(actor.tenantId());
+        LocalDateTime now = LocalDateTime.now();
+
+        WorkflowInstance instance = createInstance(actor, application.getId(), definitionId, now);
+        WorkflowTask task = createTask(actor, application.getId(), instance.getId(), approverId, now);
+        int updated = applicationMapper.update(null, new LambdaUpdateWrapper<ApprovalApplication>()
+                .eq(ApprovalApplication::getId, id)
+                .eq(ApprovalApplication::getTenantId, actor.tenantId())
+                .eq(ApprovalApplication::getApplicantUserId, actor.userId())
+                .eq(ApprovalApplication::getStatus, "DRAFT")
+                .eq(ApprovalApplication::getVersion, request.version())
+                .set(ApprovalApplication::getProcessId, process.getId())
+                .set(ApprovalApplication::getDataJson, writeJson(formData))
+                .set(ApprovalApplication::getStatus, "PENDING")
+                .set(ApprovalApplication::getWorkflowInstanceId, instance.getId())
+                .set(ApprovalApplication::getSubmittedAt, now)
+                .set(ApprovalApplication::getUpdatedAt, now)
+                .setSql("version = version + 1"));
+        if (updated != 1) {
+            throw new BusinessException(ErrorCode.VERSION_CONFLICT);
+        }
+
+        insertAction(actor, instance.getId(), task.getId(), "SUBMIT", "DRAFT", "PENDING", null);
+        auditService.record(actor.tenantId(), actor.userId(), BUSINESS_TYPE,
+                id.toString(), "SUBMIT", "SUCCESS", "提交通用表单草稿：" + form.getFormName());
+        publishApprovalNotification(actor, approverId, form, id);
+        return response(actor, requireView(actor.tenantId(), id), null);
+    }
+
+    @Override
+    @Transactional
+    public ApprovalApplicationResponse cancelDraft(Long userId, Long id, VersionRequest request) {
+        ResolvedUserAccess actor = requirePermission(userId, "route:approval-start");
+        ApprovalApplication application = requireOwnedApplication(actor, id);
+        requireDraft(application);
+        LocalDateTime now = LocalDateTime.now();
+        int updated = applicationMapper.update(null, new LambdaUpdateWrapper<ApprovalApplication>()
+                .eq(ApprovalApplication::getId, id)
+                .eq(ApprovalApplication::getTenantId, actor.tenantId())
+                .eq(ApprovalApplication::getApplicantUserId, actor.userId())
+                .eq(ApprovalApplication::getStatus, "DRAFT")
+                .eq(ApprovalApplication::getVersion, request.version())
+                .set(ApprovalApplication::getStatus, "CANCELLED")
+                .set(ApprovalApplication::getCompletedAt, now)
+                .set(ApprovalApplication::getUpdatedAt, now)
+                .setSql("version = version + 1"));
+        if (updated != 1) {
+            throw new BusinessException(ErrorCode.VERSION_CONFLICT);
+        }
+        auditService.record(actor.tenantId(), actor.userId(), BUSINESS_TYPE,
+                id.toString(), "DRAFT_CANCEL", "SUCCESS", "取消通用表单草稿");
+        return response(actor, requireView(actor.tenantId(), id), null);
+    }
+
+    @Override
+    @Transactional
     public ApprovalApplicationResponse submit(Long userId, ApprovalSubmitRequest request) {
         ResolvedUserAccess actor = requirePermission(userId, "route:approval-start");
         String formKey = request.formKey().trim();
-
-        ApprovalForm form = formMapper.selectOne(new LambdaQueryWrapper<ApprovalForm>()
-                .eq(ApprovalForm::getTenantId, actor.tenantId())
-                .eq(ApprovalForm::getFormKey, formKey)
-                .eq(ApprovalForm::getDeleted, false));
-        if (form == null || !"ENABLED".equals(form.getStatus())) {
-            auditService.record(actor.tenantId(), actor.userId(), BUSINESS_TYPE,
-                    formKey, "SUBMIT", "DENIED", "表单不存在或未启用");
-            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID,
-                    "validation.approval.submit.formUnavailable");
-        }
+        ApprovalForm form = requireEnabledForm(actor, formKey, "SUBMIT");
 
         ApprovalProcess process = resolveProcess(actor.tenantId(), form.getId(), request.processKey());
         if (process == null) {
@@ -118,7 +248,7 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
                     "validation.approval.submit.processUnbound");
         }
 
-        Map<String, Object> formData = validateFormData(form, request.formData());
+        Map<String, Object> formData = validateFormData(form, request.formData(), true);
         Long approverId = resolveFirstApprover(actor, process);
         if (approverId == null) {
             auditService.record(actor.tenantId(), actor.userId(), BUSINESS_TYPE,
@@ -236,6 +366,150 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
     // 内部逻辑
     // ============================================================
 
+    private ApprovalForm requireEnabledForm(ResolvedUserAccess actor,
+                                            String rawFormKey,
+                                            String action) {
+        String formKey = rawFormKey == null ? "" : rawFormKey.trim();
+        ApprovalForm form = formMapper.selectOne(new LambdaQueryWrapper<ApprovalForm>()
+                .eq(ApprovalForm::getTenantId, actor.tenantId())
+                .eq(ApprovalForm::getFormKey, formKey)
+                .eq(ApprovalForm::getDeleted, false));
+        if (form == null || !"ENABLED".equals(form.getStatus())) {
+            auditService.record(actor.tenantId(), actor.userId(), BUSINESS_TYPE,
+                    formKey, action, "DENIED", "表单不存在或未启用");
+            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID,
+                    "validation.approval.submit.formUnavailable");
+        }
+        return form;
+    }
+
+    private ApprovalProcess resolveOptionalProcess(Long tenantId,
+                                                   Long formId,
+                                                   String processKey) {
+        if (processKey == null || processKey.isBlank()) {
+            return null;
+        }
+        ApprovalProcess process = resolveProcess(tenantId, formId, processKey);
+        if (process == null) {
+            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID,
+                    "validation.approval.submit.processUnbound");
+        }
+        return process;
+    }
+
+    private ApprovalProcess resolveEnabledProcess(Long tenantId, Long formId, Long processId) {
+        ApprovalProcess process;
+        if (processId == null) {
+            process = resolveProcess(tenantId, formId, null);
+        } else {
+            process = processMapper.selectOne(new LambdaQueryWrapper<ApprovalProcess>()
+                    .eq(ApprovalProcess::getId, processId)
+                    .eq(ApprovalProcess::getTenantId, tenantId)
+                    .eq(ApprovalProcess::getFormId, formId)
+                    .eq(ApprovalProcess::getStatus, "ENABLED")
+                    .eq(ApprovalProcess::getDeleted, false));
+        }
+        if (process == null) {
+            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID,
+                    "validation.approval.submit.processUnbound");
+        }
+        return process;
+    }
+
+    private ApprovalApplication requireOwnedApplication(ResolvedUserAccess actor, Long id) {
+        ApprovalApplication application = applicationMapper.selectOne(
+                new LambdaQueryWrapper<ApprovalApplication>()
+                        .eq(ApprovalApplication::getId, id)
+                        .eq(ApprovalApplication::getTenantId, actor.tenantId())
+                        .eq(ApprovalApplication::getApplicantUserId, actor.userId()));
+        if (application == null) {
+            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        }
+        return application;
+    }
+
+    private void requireDraft(ApprovalApplication application) {
+        if (!"DRAFT".equals(application.getStatus())) {
+            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID,
+                    "validation.approval.draft.stateInvalid");
+        }
+    }
+
+    private Long requireApprover(ResolvedUserAccess actor,
+                                 ApprovalForm form,
+                                 ApprovalProcess process) {
+        Long approverId = resolveFirstApprover(actor, process);
+        if (approverId == null) {
+            auditService.record(actor.tenantId(), actor.userId(), BUSINESS_TYPE,
+                    form.getId().toString(), "SUBMIT", "FAILURE", "未解析到有效审批人");
+            throw new BusinessException(ErrorCode.APPROVER_NOT_CONFIGURED);
+        }
+        if (approverId.equals(actor.userId())) {
+            throw new BusinessException(ErrorCode.APPROVER_NOT_CONFIGURED,
+                    "validation.approval.submit.approverSelf");
+        }
+        return approverId;
+    }
+
+    private Long requireDefinition(Long tenantId) {
+        Long definitionId = applicationMapper.selectGenericDefinitionId(tenantId);
+        if (definitionId == null) {
+            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID,
+                    "validation.approval.submit.definitionMissing");
+        }
+        return definitionId;
+    }
+
+    private WorkflowInstance createInstance(ResolvedUserAccess actor,
+                                            Long applicationId,
+                                            Long definitionId,
+                                            LocalDateTime now) {
+        WorkflowInstance instance = new WorkflowInstance();
+        instance.setTenantId(actor.tenantId());
+        instance.setDefinitionId(definitionId);
+        instance.setBusinessType(BUSINESS_TYPE);
+        instance.setBusinessId(applicationId);
+        instance.setApplicantId(actor.userId());
+        instance.setStatus("RUNNING");
+        instance.setVersion(0);
+        instance.setStartedAt(now);
+        instance.setCreatedAt(now);
+        instance.setUpdatedAt(now);
+        instanceMapper.insert(instance);
+        return instance;
+    }
+
+    private WorkflowTask createTask(ResolvedUserAccess actor,
+                                    Long applicationId,
+                                    Long instanceId,
+                                    Long approverId,
+                                    LocalDateTime now) {
+        WorkflowTask task = new WorkflowTask();
+        task.setTenantId(actor.tenantId());
+        task.setInstanceId(instanceId);
+        task.setBusinessType(BUSINESS_TYPE);
+        task.setBusinessId(applicationId);
+        task.setAssigneeUserId(approverId);
+        task.setStatus("PENDING");
+        task.setVersion(0);
+        task.setDueAt(approvalDueHours > 0 ? now.plusHours(approvalDueHours) : null);
+        task.setCreatedAt(now);
+        task.setUpdatedAt(now);
+        taskMapper.insert(task);
+        return task;
+    }
+
+    private void publishApprovalNotification(ResolvedUserAccess actor,
+                                             Long approverId,
+                                             ApprovalForm form,
+                                             Long applicationId) {
+        notificationService.publish(actor.tenantId(), approverId,
+                NotificationService.TYPE_APPROVAL,
+                "新的「" + form.getFormName() + "」待审批",
+                "员工通过发起审批模板提交了申请，请及时处理",
+                "generic-approval", applicationId);
+    }
+
     private ApprovalProcess resolveProcess(Long tenantId, Long formId, String processKey) {
         LambdaQueryWrapper<ApprovalProcess> q = new LambdaQueryWrapper<ApprovalProcess>()
                 .eq(ApprovalProcess::getTenantId, tenantId)
@@ -253,7 +527,9 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
      * 按 schema_json 校验表单数据：白名单字段、必填、类型与长度限制。
      * 返回原样数据（仅结构校验，不改动业务取值），供统一序列化落库。
      */
-    private Map<String, Object> validateFormData(ApprovalForm form, Map<String, Object> formData) {
+    private Map<String, Object> validateFormData(ApprovalForm form,
+                                                 Map<String, Object> formData,
+                                                 boolean enforceRequired) {
         Map<String, FieldDef> defs = parseSchemaFields(form.getSchemaJson());
         for (String key : formData.keySet()) {
             if (!defs.containsKey(key)) {
@@ -264,7 +540,7 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
         for (FieldDef def : defs.values()) {
             Object value = formData.get(def.name());
             if (value == null || (value instanceof String s && s.isBlank())) {
-                if (def.required()) {
+                if (enforceRequired && def.required()) {
                     throw new BusinessException(ErrorCode.REQUEST_INVALID,
                             "validation.approval.submit.fieldRequired");
                 }
@@ -471,6 +747,8 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
                 timeline == null ? null : List.copyOf(timeline),
                 // 通用撤回链路未上线前恒为 false，禁止前端假撤回
                 false,
+                applicant && "DRAFT".equals(view.status()),
+                applicant && "DRAFT".equals(view.status()),
                 view.submittedAt(),
                 view.completedAt(),
                 view.createdAt(),
@@ -481,6 +759,18 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
     private String writeJson(Map<String, Object> formData) {
         try {
             return objectMapper.writeValueAsString(formData == null ? Map.of() : formData);
+        } catch (Exception e) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID,
+                    "validation.approval.json.invalid");
+        }
+    }
+
+    private Map<String, Object> readJson(String dataJson) {
+        try {
+            if (dataJson == null || dataJson.isBlank()) {
+                return Map.of();
+            }
+            return objectMapper.readValue(dataJson, new TypeReference<LinkedHashMap<String, Object>>() { });
         } catch (Exception e) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID,
                     "validation.approval.json.invalid");

@@ -126,6 +126,14 @@ export interface ApprovalSubmitPayload {
   formData: Record<string, unknown>;
 }
 
+export interface ApprovalDraftPayload extends ApprovalSubmitPayload {}
+
+export interface ApprovalDraftUpdatePayload {
+  processKey?: string;
+  formData: Record<string, unknown>;
+  version: number;
+}
+
 export interface ApprovalApplication {
   id: number;
   applicantUserId: number;
@@ -134,7 +142,7 @@ export interface ApprovalApplication {
   formName: string;
   title: string;
   dataJson: string;
-  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'WITHDRAWN' | 'CANCELLED';
+  status: 'DRAFT' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'WITHDRAWN' | 'CANCELLED';
   version: number;
   taskId?: number | null;
   taskVersion?: number | null;
@@ -144,6 +152,9 @@ export interface ApprovalApplication {
   taskAssigneeUserId?: number | null;
   taskAssigneeName?: string | null;
   workflowStatus?: string | null;
+  canWithdraw: boolean;
+  canEditDraft: boolean;
+  canCancel: boolean;
   submittedAt?: string | null;
   completedAt?: string | null;
   createdAt: string;
@@ -226,6 +237,30 @@ export const approvalEngineApi = {
     request<void>(`/approval-config/rules/${id}`, { method: 'DELETE' }),
 
   // ---------- 通用审批提交 ----------
+  createDraft: (payload: ApprovalDraftPayload) =>
+    request<ApprovalApplication>('/approval-applications/drafts', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  updateDraft: (id: number, payload: ApprovalDraftUpdatePayload) =>
+    request<ApprovalApplication>(`/approval-applications/${id}/draft`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }),
+
+  submitDraft: (id: number, version: number) =>
+    request<ApprovalApplication>(`/approval-applications/${id}/submit`, {
+      method: 'POST',
+      body: JSON.stringify({ version }),
+    }),
+
+  cancelDraft: (id: number, version: number) =>
+    request<ApprovalApplication>(`/approval-applications/${id}/cancel`, {
+      method: 'POST',
+      body: JSON.stringify({ version }),
+    }),
+
   submitApplication: (payload: ApprovalSubmitPayload) =>
     request<ApprovalApplication>('/approval-applications', {
       method: 'POST',

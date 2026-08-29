@@ -3,7 +3,10 @@ package com.aiworkmate.controller;
 import com.aiworkmate.common.PageResponse;
 import com.aiworkmate.common.Result;
 import com.aiworkmate.dto.ApprovalApplicationResponse;
+import com.aiworkmate.dto.ApprovalDraftRequest;
+import com.aiworkmate.dto.ApprovalDraftUpdateRequest;
 import com.aiworkmate.dto.ApprovalSubmitRequest;
+import com.aiworkmate.dto.VersionRequest;
 import com.aiworkmate.security.AuthenticatedUser;
 import com.aiworkmate.service.GenericApprovalService;
 import jakarta.validation.Valid;
@@ -12,6 +15,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -29,6 +33,37 @@ import org.springframework.web.bind.annotation.RestController;
 public class ApprovalApplicationController {
 
     private final GenericApprovalService service;
+
+    @PostMapping("/drafts")
+    public Result<ApprovalApplicationResponse> createDraft(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @Valid @RequestBody ApprovalDraftRequest request) {
+        return Result.ok(service.createDraft(user.userId(), request));
+    }
+
+    @PutMapping("/{id}/draft")
+    public Result<ApprovalApplicationResponse> updateDraft(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable Long id,
+            @Valid @RequestBody ApprovalDraftUpdateRequest request) {
+        return Result.ok(service.updateDraft(user.userId(), id, request));
+    }
+
+    @PostMapping("/{id}/submit")
+    public Result<ApprovalApplicationResponse> submitDraft(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable Long id,
+            @Valid @RequestBody VersionRequest request) {
+        return Result.ok(service.submitDraft(user.userId(), id, request));
+    }
+
+    @PostMapping("/{id}/cancel")
+    public Result<ApprovalApplicationResponse> cancelDraft(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable Long id,
+            @Valid @RequestBody VersionRequest request) {
+        return Result.ok(service.cancelDraft(user.userId(), id, request));
+    }
 
     @PostMapping
     public Result<ApprovalApplicationResponse> submit(
