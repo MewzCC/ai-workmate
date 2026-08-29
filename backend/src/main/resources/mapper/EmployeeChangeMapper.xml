@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.aiworkmate.mapper.EmployeeChangeMapper">
+    <sql id="columns">
+        c.id,
+        c.employee_user_id AS employeeUserId,
+        COALESCE(NULLIF(employee.display_name, ''), employee.username) AS employeeName,
+        employee.email AS employeeEmail,
+        c.applicant_user_id AS applicantUserId,
+        COALESCE(NULLIF(applicant.display_name, ''), applicant.username) AS applicantName,
+        c.review_approver_user_id AS reviewApproverUserId,
+        COALESCE(NULLIF(reviewer.display_name, ''), reviewer.username) AS reviewApproverName,
+        c.change_type AS changeType,
+        c.effective_date AS effectiveDate,
+        c.current_department_id AS currentDepartmentId,
+        current_department.name AS currentDepartmentName,
+        c.current_position_id AS currentPositionId,
+        current_position.name AS currentPositionName,
+        c.current_supervisor_user_id AS currentSupervisorUserId,
+        COALESCE(NULLIF(current_supervisor.display_name, ''), current_supervisor.username) AS currentSupervisorName,
+        c.target_department_id AS targetDepartmentId,
+        target_department.name AS targetDepartmentName,
+        c.target_position_id AS targetPositionId,
+        target_position.name AS targetPositionName,
+        c.target_supervisor_user_id AS targetSupervisorUserId,
+        COALESCE(NULLIF(target_supervisor.display_name, ''), target_supervisor.username) AS targetSupervisorName,
+        c.reason,
+        c.status,
+        c.decision_comment AS decisionComment,
+        c.version,
+        c.submitted_at AS submittedAt,
+        c.decided_at AS decidedAt,
+        c.withdrawn_at AS withdrawnAt,
+        c.applied_at AS appliedAt,
+        c.created_at AS createdAt,
+        c.updated_at AS updatedAt
+    </sql>
+
+    <sql id="joins">
+        JOIN app_user employee ON employee.id = c.employee_user_id AND employee.tenant_id = c.tenant_id
+        JOIN app_user applicant ON applicant.id = c.applicant_user_id AND applicant.tenant_id = c.tenant_id
+        JOIN app_user reviewer ON reviewer.id = c.review_approver_user_id AND reviewer.tenant_id = c.tenant_id
+        LEFT JOIN department current_department ON current_department.id = c.current_department_id
+        LEFT JOIN position current_position ON current_position.id = c.current_position_id
+        LEFT JOIN app_user current_supervisor ON current_supervisor.id = c.current_supervisor_user_id
+        LEFT JOIN department target_department ON target_department.id = c.target_department_id
+        LEFT JOIN position target_position ON target_position.id = c.target_position_id
+        LEFT JOIN app_user target_supervisor ON target_supervisor.id = c.target_supervisor_user_id
+    </sql>
+
+    <sql id="filters">
+        c.tenant_id = #{tenantId}
+        <if test="status != null and status != ''">AND c.status = #{status}</if>
+        <if test="changeType != null and changeType != ''">AND c.change_type = #{changeType}</if>
+        <if test="keyword != null and keyword != ''">
+            AND (LOWER(COALESCE(NULLIF(employee.display_name, ''), employee.username)) LIKE CONCAT('%', LOWER(#{keyword}), '%')
+                 OR LOWER(employee.email) LIKE CONCAT('%', LOWER(#{keyword}), '%'))
+        </if>
+    </sql>
+
+    <select id="selectView" resultType="com.aiworkmate.dto.EmployeeChangeView">
+        SELECT <include refid="columns"/>
+        FROM employee_change c
+        <include refid="joins"/>
+        WHERE c.tenant_id = #{tenantId} AND c.id = #{id}
+    </select>
+
+    <select id="selectPage" resultType="com.aiworkmate.dto.EmployeeChangeView">
+        SELECT <include refid="columns"/>
+        FROM employee_change c
+        <include refid="joins"/>
+        WHERE <include refid="filters"/>
+        ORDER BY c.submitted_at DESC, c.id DESC
+        LIMIT #{size} OFFSET #{offset}
+    </select>
+
+    <select id="countPage" resultType="long">
+        SELECT COUNT(*)
+        FROM employee_change c
+        <include refid="joins"/>
+        WHERE <include refid="filters"/>
+    </select>
+
+    <select id="selectDueForUpdate" resultType="com.aiworkmate.entity.EmployeeChange">
+        SELECT *
+        FROM employee_change
+        WHERE status = 'APPROVED'
+          AND applied_at IS NULL
+          AND effective_date &lt;= #{effectiveDate}
+        ORDER BY effective_date, id
+        FOR UPDATE SKIP LOCKED
+    </select>
+</mapper>

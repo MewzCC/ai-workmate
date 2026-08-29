@@ -6115,3 +6115,90 @@ html.oa-wallpaper-active .oa-ai-operation-drawer .ant-drawer-footer {
 .oa-org-employee-clickable tbody tr {
   cursor: pointer;
 }
+/* 入转调离：人事运营台，强调流程状态与组织变更对照。 */
+.employee-change-page {
+  min-height: 100%;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 16px;
+}
+
+.employee-change-hero {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 8px 4px 0;
+}
+
+.employee-change-hero .ant-typography {
+  margin-block: 4px;
+}
+
+.employee-change-hero__kicker {
+  color: var(--oa-primary);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+}
+
+.employee-change-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.employee-change-metrics .ant-card {
+  border-color: var(--oa-border);
+}
+
+.employee-change-table-card {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.employee-change-table-card .ant-card-body {
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 14px;
+}
+
+.employee-change-toolbar {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) 180px 180px;
+  gap: 10px;
+}
+
+.employee-change-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 16px;
+}
+
+.employee-change-target-alert {
+  margin-bottom: 16px;
+}
+
+.employee-change-date-picker,
+.employee-change-detail-stack {
+  width: 100%;
+}
+
+@media (max-width: 900px) {
+  .employee-change-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .employee-change-toolbar,
+  .employee-change-form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .employee-change-hero {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

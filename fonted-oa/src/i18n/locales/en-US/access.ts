@@ -116,6 +116,7 @@ export default {
   },
   componentTypes: {
     DASHBOARD: 'General OA Page',
+    EMPLOYEE_CHANGE: 'Employee Changes',
     AI_WORKSPACE: 'AI Workspace',
     AI_TASK_CENTER: 'AI Task Center',
     ACCESS_CONTROL: 'Access Control Center',

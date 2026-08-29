@@ -25,6 +25,7 @@ public class User {
     private Long positionId;
     private Long approverUserId;
     private Long permissionVersion;
+    private String employmentStatus;
 
     private Integer status; // 1=正常 0=禁用
 
