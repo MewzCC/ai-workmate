@@ -3,6 +3,8 @@ package com.aiworkmate.controller;
 import com.aiworkmate.common.PageResponse;
 import com.aiworkmate.common.Result;
 import com.aiworkmate.dto.ApprovalDecisionRequest;
+import com.aiworkmate.dto.ApprovalParticipantRequest;
+import com.aiworkmate.dto.ApprovalParticipantResponse;
 import com.aiworkmate.dto.ApprovalStatusCountResponse;
 import com.aiworkmate.dto.LeaveApplicationResponse;
 import com.aiworkmate.dto.WorkflowTimelineResponse;
@@ -65,6 +67,30 @@ public class ApprovalTaskController {
             @PathVariable Long id,
             @Valid @RequestBody ApprovalDecisionRequest request) {
         return Result.ok(service.reject(user.userId(), id, request));
+    }
+
+    @GetMapping("/{id}/participant-candidates")
+    public Result<List<ApprovalParticipantResponse>> participantCandidates(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable Long id,
+            @RequestParam(required = false) String keyword) {
+        return Result.ok(service.participantCandidates(user.userId(), id, keyword));
+    }
+
+    @PostMapping("/{id}/transfer")
+    public Result<LeaveApplicationResponse> transfer(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable Long id,
+            @Valid @RequestBody ApprovalParticipantRequest request) {
+        return Result.ok(service.transfer(user.userId(), id, request));
+    }
+
+    @PostMapping("/{id}/copy")
+    public Result<LeaveApplicationResponse> copyTo(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable Long id,
+            @Valid @RequestBody ApprovalParticipantRequest request) {
+        return Result.ok(service.copyTo(user.userId(), id, request));
     }
 
     @GetMapping("/{id}/timeline")

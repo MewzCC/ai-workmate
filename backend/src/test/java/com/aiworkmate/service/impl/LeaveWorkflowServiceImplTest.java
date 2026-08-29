@@ -2,6 +2,7 @@ package com.aiworkmate.service.impl;
 
 import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.dto.ApprovalDecisionRequest;
+import com.aiworkmate.dto.ApprovalParticipantRequest;
 import com.aiworkmate.dto.LeaveApplicationRequest;
 import com.aiworkmate.dto.LeaveApplicationView;
 import com.aiworkmate.dto.TodoResponse;
@@ -10,10 +11,12 @@ import com.aiworkmate.entity.LeaveApplication;
 import com.aiworkmate.entity.WorkflowActionLog;
 import com.aiworkmate.entity.WorkflowInstance;
 import com.aiworkmate.entity.WorkflowTask;
+import com.aiworkmate.entity.User;
 import com.aiworkmate.mapper.LeaveApplicationMapper;
 import com.aiworkmate.mapper.WorkflowActionLogMapper;
 import com.aiworkmate.mapper.WorkflowInstanceMapper;
 import com.aiworkmate.mapper.WorkflowTaskMapper;
+import com.aiworkmate.mapper.UserMapper;
 import com.aiworkmate.agent.task.AgentTaskMapper;
 import com.aiworkmate.service.BusinessAuditService;
 import com.aiworkmate.service.NotificationService;
@@ -63,6 +66,8 @@ class LeaveWorkflowServiceImplTest {
     @Mock
     private AgentTaskMapper agentTaskMapper;
     @Mock
+    private UserMapper userMapper;
+    @Mock
     private UserAccessService userAccessService;
     @Mock
     private BusinessAuditService auditService;
@@ -78,7 +83,7 @@ class LeaveWorkflowServiceImplTest {
         initializeTableMetadata(WorkflowTask.class);
         service = new LeaveWorkflowServiceImpl(
                 leaveMapper, instanceMapper, taskMapper, actionLogMapper,
-                agentTaskMapper, userAccessService, auditService, notificationService);
+                agentTaskMapper, userMapper, userAccessService, auditService, notificationService);
         ReflectionTestUtils.setField(service, "approvalDueHours", 48L);
     }
 
@@ -192,6 +197,24 @@ class LeaveWorkflowServiceImplTest {
     }
 
     @Test
+    void shouldAllowCopiedUserToReadWithoutApprovalPermission() {
+        long copiedUserId = 3001L;
+        when(userAccessService.resolveActiveUser(copiedUserId))
+                .thenReturn(unrelatedTargetAccess(copiedUserId));
+        WorkflowTask task = pendingTask();
+        when(taskMapper.selectById(30L)).thenReturn(task);
+        when(leaveMapper.selectView(TENANT_ID, 10L))
+                .thenReturn(view("PENDING", APPROVER_ID, 30L, 0, "PENDING", 1));
+        when(actionLogMapper.countTargetAction(TENANT_ID, 20L, copiedUserId, "CC"))
+                .thenReturn(1L);
+
+        var response = service.todoDetail(copiedUserId, 30L);
+
+        assertThat(response.id()).isEqualTo(10L);
+        assertThat(response.canApprove()).isFalse();
+    }
+
+    @Test
     void shouldReturnVersionConflictWhenApprovalWasAlreadyProcessed() {
         when(userAccessService.resolveActiveUser(APPROVER_ID)).thenReturn(approverAccess());
         WorkflowTask task = pendingTask();
@@ -230,6 +253,80 @@ class LeaveWorkflowServiceImplTest {
         verify(actionLogMapper).insert(logCaptor.capture());
         assertThat(logCaptor.getValue().getAction()).isEqualTo("APPROVE");
         assertThat(logCaptor.getValue().getToStatus()).isEqualTo("APPROVED");
+    }
+
+    @Test
+    void shouldTransferPendingTaskToEligibleUserAndRecordBothAssignees() {
+        long targetId = 2002L;
+        when(userAccessService.resolveActiveUser(APPROVER_ID)).thenReturn(approverAccess());
+        when(userAccessService.resolveActiveUser(targetId)).thenReturn(targetApproverAccess(targetId));
+        when(taskMapper.selectById(30L)).thenReturn(pendingTask());
+        when(leaveMapper.selectById(10L)).thenReturn(leave("PENDING", APPROVER_ID, 1));
+        when(userMapper.selectOne(any())).thenReturn(user(targetId, "接收审批人"));
+        when(leaveMapper.update(isNull(), any())).thenReturn(1);
+        when(taskMapper.update(isNull(), any())).thenReturn(1);
+        when(actionLogMapper.insert(any(WorkflowActionLog.class))).thenReturn(1);
+        when(leaveMapper.selectView(TENANT_ID, 10L))
+                .thenReturn(view("PENDING", targetId, 30L, 1, "PENDING", 2));
+
+        var response = service.transfer(APPROVER_ID, 30L,
+                new ApprovalParticipantRequest(targetId, 0, "由值班主管继续处理"));
+
+        assertThat(response.canApprove()).isFalse();
+        ArgumentCaptor<WorkflowActionLog> logCaptor = ArgumentCaptor.forClass(WorkflowActionLog.class);
+        verify(actionLogMapper).insert(logCaptor.capture());
+        assertThat(logCaptor.getValue().getAction()).isEqualTo("TRANSFER");
+        assertThat(logCaptor.getValue().getOriginalAssigneeUserId()).isEqualTo(APPROVER_ID);
+        assertThat(logCaptor.getValue().getTargetUserId()).isEqualTo(targetId);
+        assertThat(logCaptor.getValue().getComment()).isEqualTo("由值班主管继续处理");
+        verify(notificationService).publish(TENANT_ID, targetId,
+                NotificationService.TYPE_APPROVAL, "收到转交的审批待办",
+                "你已接收一项由「approver@example.com」转交的请假审批", "leave", 10L);
+    }
+
+    @Test
+    void shouldCopyAsReadOnlyNotificationWithoutChangingTaskAssignee() {
+        long targetId = 3001L;
+        when(userAccessService.resolveActiveUser(APPROVER_ID)).thenReturn(approverAccess());
+        when(taskMapper.selectOne(any())).thenReturn(pendingTask());
+        when(leaveMapper.selectById(10L)).thenReturn(leave("PENDING", APPROVER_ID, 1));
+        when(userMapper.selectOne(any()))
+                .thenReturn(user(targetId, "抄送接收人"), user(APPLICANT_ID, "测试员工"));
+        when(actionLogMapper.insert(any(WorkflowActionLog.class))).thenReturn(1);
+        when(leaveMapper.selectView(TENANT_ID, 10L))
+                .thenReturn(view("PENDING", APPROVER_ID, 30L, 0, "PENDING", 1));
+
+        var response = service.copyTo(APPROVER_ID, 30L,
+                new ApprovalParticipantRequest(targetId, 0, "请同步知悉排班影响"));
+
+        assertThat(response.canApprove()).isTrue();
+        verify(taskMapper, never()).update(isNull(), any());
+        verify(leaveMapper, never()).update(isNull(), any());
+        ArgumentCaptor<WorkflowActionLog> logCaptor = ArgumentCaptor.forClass(WorkflowActionLog.class);
+        verify(actionLogMapper).insert(logCaptor.capture());
+        assertThat(logCaptor.getValue().getAction()).isEqualTo("CC");
+        assertThat(logCaptor.getValue().getTargetUserId()).isEqualTo(targetId);
+        verify(notificationService).publish(TENANT_ID, targetId,
+                NotificationService.TYPE_APPROVAL, "收到审批抄送通知",
+                "「测试员工」的请假申请已抄送给你，仅供知悉", "leave", 10L);
+    }
+
+    @Test
+    void shouldRejectTransferToUserWithoutApprovalPermission() {
+        long targetId = 3001L;
+        when(userAccessService.resolveActiveUser(APPROVER_ID)).thenReturn(approverAccess());
+        when(userAccessService.resolveActiveUser(targetId)).thenReturn(unrelatedTargetAccess(targetId));
+        when(taskMapper.selectById(30L)).thenReturn(pendingTask());
+        when(leaveMapper.selectById(10L)).thenReturn(leave("PENDING", APPROVER_ID, 1));
+        when(userMapper.selectOne(any())).thenReturn(user(targetId, "普通员工"));
+
+        assertThatThrownBy(() -> service.transfer(APPROVER_ID, 30L,
+                new ApprovalParticipantRequest(targetId, 0, "临时转交")))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        error -> assertThat(error.getErrorCode()).isEqualTo("RESOURCE_FORBIDDEN"));
+
+        verify(taskMapper, never()).update(isNull(), any());
+        verify(leaveMapper, never()).update(isNull(), any());
     }
 
     @Test
@@ -526,6 +623,30 @@ class LeaveWorkflowServiceImplTest {
                 9999L, "other@example.com", TENANT_ID, "EMPLOYEE",
                 List.of("EMPLOYEE"), List.of("leave:create", "leave:read:self"),
                 List.of("SELF"), 1L);
+    }
+
+    private ResolvedUserAccess targetApproverAccess(long userId) {
+        return new ResolvedUserAccess(
+                userId, "target@example.com", TENANT_ID, "PROCESS_ADMIN",
+                List.of("PROCESS_ADMIN"), List.of("approval:act", "todo:read"),
+                List.of("DEPARTMENT"), 1L);
+    }
+
+    private ResolvedUserAccess unrelatedTargetAccess(long userId) {
+        return new ResolvedUserAccess(
+                userId, "target@example.com", TENANT_ID, "EMPLOYEE",
+                List.of("EMPLOYEE"), List.of("leave:read:self"), List.of("SELF"), 1L);
+    }
+
+    private User user(long id, String displayName) {
+        User user = new User();
+        user.setId(id);
+        user.setTenantId(TENANT_ID);
+        user.setUsername("user-" + id);
+        user.setDisplayName(displayName);
+        user.setStatus(1);
+        user.setUpdatedAt(LocalDateTime.now());
+        return user;
     }
 
     private LeaveApplicationRequest request(Long approverId, LocalDate startDate) {

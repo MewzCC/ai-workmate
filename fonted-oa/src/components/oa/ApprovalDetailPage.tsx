@@ -12,6 +12,7 @@ import {
   Form,
   Input,
   Modal,
+  Select,
   Space,
   Spin,
   Tag,
@@ -25,6 +26,7 @@ import {
   OaApiError,
   todoApi,
   type LeaveApplication,
+  type ApprovalParticipant,
   type WorkflowTimelineItem,
 } from '@/lib/oaApi';
 import { OaIcon } from '@/components/OaIcon';
@@ -45,6 +47,10 @@ export default function ApprovalDetailPage({ taskId }: { taskId: number }) {
   const [decision, setDecision] = useState<'approve' | 'reject'>();
   const [saving, setSaving] = useState(false);
   const [form] = Form.useForm<{ comment?: string }>();
+  const [collaboration, setCollaboration] = useState<'transfer' | 'copy'>();
+  const [participants, setParticipants] = useState<ApprovalParticipant[]>([]);
+  const [participantLoading, setParticipantLoading] = useState(false);
+  const [collaborationForm] = Form.useForm<{ targetUserId: number; reason: string }>();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -89,6 +95,45 @@ export default function ApprovalDetailPage({ taskId }: { taskId: number }) {
       }
       setDecision(undefined);
       form.resetFields();
+      await load();
+    } catch (error) {
+      message.error(formatOaApiError(error));
+      if (error instanceof OaApiError && error.status === 409) await load();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const openCollaboration = async (mode: 'transfer' | 'copy') => {
+    setCollaboration(mode);
+    collaborationForm.resetFields();
+    setParticipantLoading(true);
+    try {
+      setParticipants(await todoApi.participantCandidates(taskId));
+    } catch (error) {
+      message.error(formatOaApiError(error));
+      setCollaboration(undefined);
+    } finally {
+      setParticipantLoading(false);
+    }
+  };
+
+  const submitCollaboration = async () => {
+    if (!application || application.taskVersion == null || !collaboration) return;
+    const values = await collaborationForm.validateFields();
+    setSaving(true);
+    try {
+      if (collaboration === 'transfer') {
+        await todoApi.transfer(taskId, values.targetUserId, application.taskVersion, values.reason.trim());
+        message.success(t('approval.approvalDetail.transferSuccess'));
+        setCollaboration(undefined);
+        router.push('/oa/todo');
+        return;
+      }
+      await todoApi.copyTo(taskId, values.targetUserId, application.taskVersion, values.reason.trim());
+      message.success(t('approval.approvalDetail.copySuccess'));
+      setCollaboration(undefined);
+      collaborationForm.resetFields();
       await load();
     } catch (error) {
       message.error(formatOaApiError(error));
@@ -223,6 +268,14 @@ export default function ApprovalDetailPage({ taskId }: { taskId: number }) {
                           {item.comment && (
                             <blockquote>{item.comment}</blockquote>
                           )}
+                          {item.targetUserName && (
+                            <Typography.Text type="secondary">
+                              {t('approval.approvalDetail.participantChange', {
+                                from: item.originalAssigneeName || item.actorName,
+                                to: item.targetUserName,
+                              })}
+                            </Typography.Text>
+                          )}
                         </article>
                       ),
                     }))}
@@ -239,6 +292,12 @@ export default function ApprovalDetailPage({ taskId }: { taskId: number }) {
                     </Typography.Text>
                   </div>
                   <Space>
+                    <Button size="large" onClick={() => void openCollaboration('copy')}>
+                      {t('approval.approvalDetail.copyButton')}
+                    </Button>
+                    <Button size="large" onClick={() => void openCollaboration('transfer')}>
+                      {t('approval.approvalDetail.transferButton')}
+                    </Button>
                     <Button size="large" danger onClick={() => setDecision('reject')}>
                       {t('approval.approvalDetail.rejectButton')}
                     </Button>
@@ -293,6 +352,59 @@ export default function ApprovalDetailPage({ taskId }: { taskId: number }) {
               showCount
               maxLength={500}
               placeholder={decision === 'reject' ? t('approval.approvalDetail.commentRejectPlaceholder') : t('approval.approvalDetail.commentApprovePlaceholder')}
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title={collaboration === 'transfer'
+          ? t('approval.approvalDetail.transferModalTitle')
+          : t('approval.approvalDetail.copyModalTitle')}
+        open={Boolean(collaboration)}
+        okText={collaboration === 'transfer'
+          ? t('approval.approvalDetail.transferModalOk')
+          : t('approval.approvalDetail.copyModalOk')}
+        confirmLoading={saving}
+        onCancel={() => { setCollaboration(undefined); collaborationForm.resetFields(); }}
+        onOk={() => void submitCollaboration()}
+      >
+        <Alert
+          showIcon
+          type={collaboration === 'transfer' ? 'warning' : 'info'}
+          message={collaboration === 'transfer'
+            ? t('approval.approvalDetail.transferAlert')
+            : t('approval.approvalDetail.copyAlert')}
+        />
+        <Form form={collaborationForm} layout="vertical">
+          <Form.Item
+            name="targetUserId"
+            label={t('approval.approvalDetail.participantLabel')}
+            rules={[{ required: true, message: t('approval.approvalDetail.participantRequired') }]}
+          >
+            <Select
+              showSearch
+              loading={participantLoading}
+              optionFilterProp="label"
+              placeholder={t('approval.approvalDetail.participantPlaceholder')}
+              options={participants
+                .filter((item) => collaboration !== 'transfer' || item.canApprove)
+                .map((item) => ({ value: item.id, label: item.name }))}
+            />
+          </Form.Item>
+          <Form.Item
+            name="reason"
+            label={t('approval.approvalDetail.collaborationReasonLabel')}
+            rules={[
+              { required: true, whitespace: true, message: t('approval.approvalDetail.collaborationReasonRequired') },
+              { max: 500 },
+            ]}
+          >
+            <Input.TextArea
+              rows={4}
+              showCount
+              maxLength={500}
+              placeholder={t('approval.approvalDetail.collaborationReasonPlaceholder')}
             />
           </Form.Item>
         </Form>
