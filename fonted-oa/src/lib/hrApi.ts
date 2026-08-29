@@ -56,6 +56,35 @@ export interface EmployeeActivityRecord {
   createdAt: string | null;
 }
 
+export interface EmploymentHistoryRecord {
+  id: number;
+  changeType: EmployeeChangeType;
+  effectiveDate: string;
+  currentDepartmentName?: string | null;
+  currentPositionName?: string | null;
+  currentSupervisorName?: string | null;
+  targetDepartmentName?: string | null;
+  targetPositionName?: string | null;
+  targetSupervisorName?: string | null;
+  reason: string;
+  appliedAt?: string | null;
+}
+
+export type EmployeeDocumentType = 'CONTRACT' | 'PROFILE';
+
+export interface EmployeeDocument {
+  id: number;
+  employeeUserId: number;
+  documentType: EmployeeDocumentType;
+  displayName: string;
+  mimeType: string;
+  fileSize: number;
+  uploadedByUserId: number;
+  uploadedByName?: string | null;
+  contentUrl: string;
+  createdAt: string;
+}
+
 export interface EmployeeDetail {
   id: number;
   name: string;
@@ -71,6 +100,7 @@ export interface EmployeeDetail {
   approverUserId?: number;
   approverName?: string | null;
   approverAvatarUrl?: string | null;
+  employmentHistory: EmploymentHistoryRecord[];
   attendance: EmployeeAttendanceOverview;
   recentActivities: EmployeeActivityRecord[];
 }
@@ -181,6 +211,43 @@ export const hrApi = {
       throw new Error(json?.message || i18n.t('errors.hr.employeeLoadFailed'));
     }
     return json.data;
+  },
+  listEmployeeDocuments: (employeeUserId: number) =>
+    hrRequest<EmployeeDocument[]>(`/employees/${employeeUserId}/documents`),
+  uploadEmployeeDocument: async (
+    employeeUserId: number,
+    documentType: EmployeeDocumentType,
+    file: File,
+  ): Promise<EmployeeDocument> => {
+    const body = new FormData();
+    body.append('documentType', documentType);
+    body.append('file', file);
+    const res = await fetch(`/api/hr/employees/${employeeUserId}/documents`, {
+      method: 'POST', credentials: 'include', headers: buildApiHeaders(false), body,
+    });
+    if (res.status === 401 && typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('oa-auth-expired'));
+    }
+    const json = await res.json().catch(() => null) as ApiResult<EmployeeDocument> | null;
+    if (!res.ok || !json || json.code !== 200 || json.data === null) {
+      throw new Error(json?.message || i18n.t('employeeFile.documents.uploadFailed'));
+    }
+    return json.data;
+  },
+  downloadEmployeeDocument: async (document: EmployeeDocument): Promise<void> => {
+    const res = await fetch(document.contentUrl, {
+      credentials: 'include', headers: buildApiHeaders(false),
+    });
+    if (res.status === 401 && typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('oa-auth-expired'));
+    }
+    if (!res.ok) throw new Error(i18n.t('employeeFile.documents.downloadFailed'));
+    const url = URL.createObjectURL(await res.blob());
+    const link = window.document.createElement('a');
+    link.href = url;
+    link.download = document.displayName;
+    link.click();
+    URL.revokeObjectURL(url);
   },
   listEmployeeChanges: (params: {
     status?: EmployeeChangeStatus;

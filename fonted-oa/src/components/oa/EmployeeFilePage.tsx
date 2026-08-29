@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Avatar,
   Badge,
@@ -10,15 +10,27 @@ import {
   Empty,
   Input,
   List,
+  Select,
   Space,
   Spin,
   Statistic,
   Tag,
+  Timeline,
   Typography,
+  Upload,
+  type UploadProps,
 } from 'antd';
-import { ReloadOutlined, SearchOutlined } from '@ant-design/icons';
+import { DownloadOutlined, ReloadOutlined, SearchOutlined, UploadOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
-import { hrApi, type EmployeeDetail, type HrEmployee, type OrganizationOverview } from '@/lib/hrApi';
+import { useAuth } from '@/components/auth/AuthProvider';
+import {
+  hrApi,
+  type EmployeeDetail,
+  type EmployeeDocument,
+  type EmployeeDocumentType,
+  type HrEmployee,
+  type OrganizationOverview,
+} from '@/lib/hrApi';
 import { message } from '@/lib/antdMessage';
 import { useRouter, useSearchParams } from '@/lib/nextCompat';
 
@@ -35,6 +47,7 @@ const ACTIVITY_STATUS_COLOR: Record<string, string> = {
 
 export default function EmployeeFilePage() {
   const { t } = useTranslation();
+  const { user } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const urlId = searchParams.get('id');
@@ -47,9 +60,15 @@ export default function EmployeeFilePage() {
   );
   const [detail, setDetail] = useState<EmployeeDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [documents, setDocuments] = useState<EmployeeDocument[]>([]);
+  const [documentsLoading, setDocumentsLoading] = useState(false);
+  const [documentType, setDocumentType] = useState<EmployeeDocumentType>('CONTRACT');
+  const [uploading, setUploading] = useState(false);
+  const [downloadingId, setDownloadingId] = useState<number>();
   const requestSeq = useRef(0);
+  const canManage = user?.permissions.includes('hr:manage') ?? false;
 
-  const loadOverview = async () => {
+  const loadOverview = useCallback(async () => {
     setOverviewLoading(true);
     try {
       const data = await hrApi.overview();
@@ -59,11 +78,11 @@ export default function EmployeeFilePage() {
     } finally {
       setOverviewLoading(false);
     }
-  };
+  }, [t]);
 
   useEffect(() => {
     void loadOverview();
-  }, []);
+  }, [loadOverview]);
 
   // 当 URL 中的 id 变化时（例如从组织架构跳转而来）同步选中项
   useEffect(() => {
@@ -100,6 +119,22 @@ export default function EmployeeFilePage() {
       });
   }, [overview, selectedId, t]);
 
+  const loadDocuments = useCallback(async (employeeId: number) => {
+    setDocumentsLoading(true);
+    try {
+      setDocuments(await hrApi.listEmployeeDocuments(employeeId));
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : t('employeeFile.documents.loadFailed'));
+      setDocuments([]);
+    } finally {
+      setDocumentsLoading(false);
+    }
+  }, [t]);
+
+  useEffect(() => {
+    if (selectedId !== null) void loadDocuments(selectedId);
+  }, [loadDocuments, selectedId]);
+
   const filteredEmployees = useMemo(() => {
     if (!overview) return [];
     const kw = keyword.trim().toLowerCase();
@@ -119,6 +154,35 @@ export default function EmployeeFilePage() {
   const handleRefresh = () => {
     setDetail(null);
     void loadOverview();
+    if (selectedId !== null) void loadDocuments(selectedId);
+  };
+
+  const handleUpload: UploadProps['customRequest'] = async ({ file, onError, onSuccess }) => {
+    if (selectedId === null || !(file instanceof File)) return;
+    setUploading(true);
+    try {
+      const document = await hrApi.uploadEmployeeDocument(selectedId, documentType, file);
+      setDocuments((current) => [document, ...current]);
+      message.success(t('employeeFile.documents.uploadSuccess'));
+      onSuccess?.(document);
+    } catch (error) {
+      const resolved = error instanceof Error ? error : new Error(t('employeeFile.documents.uploadFailed'));
+      message.error(resolved.message);
+      onError?.(resolved);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDownload = async (document: EmployeeDocument) => {
+    setDownloadingId(document.id);
+    try {
+      await hrApi.downloadEmployeeDocument(document);
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : t('employeeFile.documents.downloadFailed'));
+    } finally {
+      setDownloadingId(undefined);
+    }
   };
 
   const formatDateTime = (value?: string | null) => {
@@ -126,6 +190,11 @@ export default function EmployeeFilePage() {
     const d = new Date(value);
     if (Number.isNaN(d.getTime())) return '-';
     return `${d.toLocaleDateString()} ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+    return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
   };
 
   const roleLabel = (role?: string | null) =>
@@ -301,6 +370,110 @@ export default function EmployeeFilePage() {
                 </Descriptions>
               </Card>
             </div>
+
+            <Card
+              size="small"
+              className="oa-employee-file__section"
+              title={t('employeeFile.profile.employmentHistory')}
+            >
+              {detail.employmentHistory?.length ? (
+                <Timeline
+                  className="oa-employee-file__history"
+                  items={detail.employmentHistory.map((record) => ({
+                    color: 'blue',
+                    children: (
+                      <div className="oa-employee-file__history-item">
+                        <Space size={8} wrap>
+                          <Tag color="geekblue">
+                            {t(`employeeFile.history.type.${record.changeType}`)}
+                          </Tag>
+                          <Text strong>{new Date(record.effectiveDate).toLocaleDateString()}</Text>
+                        </Space>
+                        <div className="oa-employee-file__history-route">
+                          <Text type="secondary">
+                            {[record.currentDepartmentName, record.currentPositionName, record.currentSupervisorName]
+                              .filter(Boolean).join(' · ') || t('employeeFile.profile.notSet')}
+                          </Text>
+                          <span aria-hidden="true">→</span>
+                          <Text>
+                            {[record.targetDepartmentName, record.targetPositionName, record.targetSupervisorName]
+                              .filter(Boolean).join(' · ') || t('employeeFile.profile.notSet')}
+                          </Text>
+                        </div>
+                        <Text type="secondary">{record.reason}</Text>
+                      </div>
+                    ),
+                  }))}
+                />
+              ) : (
+                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('employeeFile.history.empty')} />
+              )}
+            </Card>
+
+            <Card
+              size="small"
+              className="oa-employee-file__section"
+              title={t('employeeFile.profile.documents')}
+              extra={canManage ? (
+                <Space wrap>
+                  <Select<EmployeeDocumentType>
+                    value={documentType}
+                    onChange={setDocumentType}
+                    options={(['CONTRACT', 'PROFILE'] as EmployeeDocumentType[]).map((value) => ({
+                      value, label: t(`employeeFile.documents.type.${value}`),
+                    }))}
+                  />
+                  <Upload
+                    accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.md,.csv,.jpg,.jpeg,.png,.webp"
+                    customRequest={handleUpload}
+                    showUploadList={false}
+                    disabled={uploading}
+                  >
+                    <Button icon={<UploadOutlined />} loading={uploading}>
+                      {t('employeeFile.documents.upload')}
+                    </Button>
+                  </Upload>
+                </Space>
+              ) : undefined}
+            >
+              <Spin spinning={documentsLoading}>
+                {documents.length ? (
+                  <List
+                    className="oa-employee-file__documents"
+                    dataSource={documents}
+                    renderItem={(document) => (
+                      <List.Item
+                        actions={[
+                          <Button
+                            key="download"
+                            type="link"
+                            icon={<DownloadOutlined />}
+                            loading={downloadingId === document.id}
+                            onClick={() => void handleDownload(document)}
+                          >
+                            {t('employeeFile.documents.download')}
+                          </Button>,
+                        ]}
+                      >
+                        <List.Item.Meta
+                          avatar={<Tag color={document.documentType === 'CONTRACT' ? 'gold' : 'cyan'}>
+                            {t(`employeeFile.documents.type.${document.documentType}`)}
+                          </Tag>}
+                          title={document.displayName}
+                          description={t('employeeFile.documents.meta', {
+                            size: formatFileSize(document.fileSize),
+                            uploader: document.uploadedByName || '-',
+                            time: formatDateTime(document.createdAt),
+                          })}
+                        />
+                      </List.Item>
+                    )}
+                  />
+                ) : (
+                  <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('employeeFile.documents.empty')} />
+                )}
+              </Spin>
+            </Card>
 
             {/* 考勤概览 */}
             <Card size="small" className="oa-employee-file__section" title={t('employeeFile.profile.attendance')}>

@@ -9,9 +9,34 @@ export default {
   profile: {
     basicInfo: 'Basic Info',
     orgInfo: 'Employment & Organization',
+    employmentHistory: 'Employment History',
+    documents: 'Contracts & Profile Documents',
     attendance: 'Attendance Summary',
     recentActivities: 'Recent Requests',
     notSet: 'Not set',
+  },
+  history: {
+    empty: 'No effective employment changes',
+    type: {
+      ONBOARDING: 'Onboarding',
+      REGULARIZATION: 'Regularization',
+      TRANSFER: 'Transfer',
+      OFFBOARDING: 'Offboarding',
+    },
+  },
+  documents: {
+    upload: 'Upload',
+    download: 'Download',
+    empty: 'No contract or profile documents',
+    meta: '{{size}} · {{uploader}} · {{time}}',
+    uploadSuccess: 'Document uploaded',
+    uploadFailed: 'Failed to upload document',
+    downloadFailed: 'Failed to download document',
+    loadFailed: 'Failed to load documents',
+    type: {
+      CONTRACT: 'Contract',
+      PROFILE: 'Profile',
+    },
   },
   field: {
     name: 'Name',

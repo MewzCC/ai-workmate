@@ -98,6 +98,7 @@ app:
     mail-from-email: ${SMTP_FROM_EMAIL:}
   upload:
     storage-prefix: ${AI_UPLOAD_PREFIX:chat-attachments/}
+    employee-document-storage-prefix: ${EMPLOYEE_DOCUMENT_PREFIX:employee-documents/}
     image-max-bytes: 10485760
     file-max-bytes: 20971520
     extracted-text-max-chars: 120000

@@ -6072,6 +6072,34 @@ html.oa-wallpaper-active .oa-ai-operation-drawer .ant-drawer-footer {
   font-size: 12px;
 }
 
+.oa-employee-file__history {
+  margin-top: 8px;
+}
+
+.oa-employee-file__history-item {
+  display: grid;
+  gap: 8px;
+  padding-bottom: 6px;
+}
+
+.oa-employee-file__history-route {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--oa-border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--oa-primary) 5%, transparent);
+}
+
+.oa-employee-file__documents .ant-list-item {
+  padding-inline: 4px;
+}
+
+.oa-employee-file__documents .ant-list-item-meta-title {
+  overflow-wrap: anywhere;
+}
+
 .oa-employee-file__empty {
   display: flex;
   align-items: center;
@@ -6108,6 +6136,15 @@ html.oa-wallpaper-active .oa-ai-operation-drawer .ant-drawer-footer {
 
   .oa-employee-file__attendance {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .oa-employee-file__history-route {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .oa-employee-file__section .ant-card-head {
+    align-items: flex-start;
   }
 }
 
