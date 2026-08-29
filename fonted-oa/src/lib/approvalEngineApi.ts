@@ -142,6 +142,11 @@ export interface ApprovalApplication {
   formName: string;
   title: string;
   dataJson: string;
+  formSchemaSnapshot?: string | null;
+  formVersionSnapshot?: number | null;
+  processNodeSnapshot?: string | null;
+  processVersionSnapshot?: number | null;
+  ruleSnapshot?: string | null;
   status: 'DRAFT' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'WITHDRAWN' | 'CANCELLED';
   version: number;
   taskId?: number | null;

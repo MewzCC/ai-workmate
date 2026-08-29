@@ -31,6 +31,14 @@
         a.updated_at AS updatedAt
     </sql>
 
+    <sql id="approvalApplicationSnapshotColumns">
+        a.form_schema_snapshot AS formSchemaSnapshot,
+        a.form_version_snapshot AS formVersionSnapshot,
+        a.process_node_snapshot AS processNodeSnapshot,
+        a.process_version_snapshot AS processVersionSnapshot,
+        a.rule_snapshot AS ruleSnapshot
+    </sql>
+
     <sql id="approvalApplicationViewJoins">
         JOIN app_user applicant ON applicant.id = a.applicant_user_id
         LEFT JOIN LATERAL (
@@ -51,7 +59,8 @@
 
     <select id="selectView"
             resultType="com.aiworkmate.dto.ApprovalApplicationView">
-        SELECT <include refid="approvalApplicationViewColumns"/>
+        SELECT <include refid="approvalApplicationViewColumns"/>,
+               <include refid="approvalApplicationSnapshotColumns"/>
         FROM approval_application a
         <include refid="approvalApplicationViewJoins"/>
         WHERE a.tenant_id = #{tenantId}

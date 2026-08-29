@@ -30,6 +30,11 @@ public class ApprovalApplication {
     private String formName;
     private String title;
     private String dataJson;
+    private String formSchemaSnapshot;
+    private Integer formVersionSnapshot;
+    private String processNodeSnapshot;
+    private Integer processVersionSnapshot;
+    private String ruleSnapshot;
     private String status;
     private Long workflowInstanceId;
     private Integer version;
