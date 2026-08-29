@@ -6,6 +6,7 @@ import com.aiworkmate.common.PageResponse;
 import com.aiworkmate.common.TraceContext;
 import com.aiworkmate.common.AvatarUrls;
 import com.aiworkmate.dto.ApprovalDecisionRequest;
+import com.aiworkmate.dto.ApprovalAddSignRequest;
 import com.aiworkmate.dto.ApprovalParticipantRequest;
 import com.aiworkmate.dto.ApprovalParticipantResponse;
 import com.aiworkmate.dto.ApprovalStatusCountResponse;
@@ -412,6 +413,7 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
                 .set(WorkflowTask::getUpdatedAt, now)
                 .setSql("version = version + 1"));
         assertUpdated(taskUpdated, actor, id, "WITHDRAW");
+        cancelWaitingTasks(actor.tenantId(), current.getWorkflowInstanceId(), now);
         completeInstance(current.getWorkflowInstanceId(), actor.tenantId(), "CANCELLED", now);
         insertAction(actor, current.getWorkflowInstanceId(), task.getId(),
                 "WITHDRAW", "PENDING", "WITHDRAWN", null);
@@ -583,6 +585,87 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
     }
 
     @Override
+    @Transactional
+    public LeaveApplicationResponse addSign(
+            Long userId, Long taskId, ApprovalAddSignRequest request) {
+        ResolvedUserAccess actor = requirePermission(userId, "approval:act");
+        WorkflowTask task = requireAssignedPendingTaskForUpdate(actor, taskId, request.version());
+        if (task.getParentTaskId() != null || task.getAddSignMode() != null) {
+            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID,
+                    "validation.approval.addSign.nestedForbidden");
+        }
+        LeaveApplication application = requirePendingApplication(actor, task);
+        User target = requireActiveTarget(actor, request.targetUserId());
+        requireApprovalTarget(actor, application, target);
+        if ("POST".equals(request.mode())) {
+            Long waitingPostCount = taskMapper.selectCount(new LambdaQueryWrapper<WorkflowTask>()
+                    .eq(WorkflowTask::getTenantId, actor.tenantId())
+                    .eq(WorkflowTask::getParentTaskId, task.getId())
+                    .eq(WorkflowTask::getAddSignMode, "POST")
+                    .eq(WorkflowTask::getStatus, "WAITING"));
+            if (waitingPostCount != null && waitingPostCount > 0) {
+                throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID,
+                        "validation.approval.addSign.postExists");
+            }
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        boolean pre = "PRE".equals(request.mode());
+        int taskUpdated = taskMapper.update(null, new LambdaUpdateWrapper<WorkflowTask>()
+                .eq(WorkflowTask::getId, taskId)
+                .eq(WorkflowTask::getTenantId, actor.tenantId())
+                .eq(WorkflowTask::getAssigneeUserId, actor.userId())
+                .eq(WorkflowTask::getStatus, "PENDING")
+                .eq(WorkflowTask::getVersion, request.version())
+                .set(pre, WorkflowTask::getStatus, "WAITING")
+                .set(WorkflowTask::getUpdatedAt, now)
+                .setSql("version = version + 1"));
+        assertUpdated(taskUpdated, actor, application.getId(),
+                pre ? "ADD_SIGN_PRE" : "ADD_SIGN_POST");
+
+        WorkflowTask addedTask = new WorkflowTask();
+        addedTask.setTenantId(actor.tenantId());
+        addedTask.setInstanceId(task.getInstanceId());
+        addedTask.setBusinessType(BUSINESS_TYPE);
+        addedTask.setBusinessId(application.getId());
+        addedTask.setAssigneeUserId(target.getId());
+        addedTask.setParentTaskId(task.getId());
+        addedTask.setAddSignMode(request.mode());
+        addedTask.setStatus(pre ? "PENDING" : "WAITING");
+        addedTask.setDueAt(now.plusHours(Math.max(0, approvalDueHours)));
+        addedTask.setVersion(0);
+        addedTask.setCreatedAt(now);
+        addedTask.setUpdatedAt(now);
+        taskMapper.insert(addedTask);
+
+        int applicationUpdated = leaveMapper.update(null,
+                new LambdaUpdateWrapper<LeaveApplication>()
+                        .eq(LeaveApplication::getId, application.getId())
+                        .eq(LeaveApplication::getTenantId, actor.tenantId())
+                        .eq(LeaveApplication::getApproverUserId, actor.userId())
+                        .eq(LeaveApplication::getStatus, "PENDING")
+                        .eq(LeaveApplication::getVersion, application.getVersion())
+                        .set(pre, LeaveApplication::getApproverUserId, target.getId())
+                        .set(LeaveApplication::getUpdatedAt, now)
+                        .setSql("version = version + 1"));
+        assertUpdated(applicationUpdated, actor, application.getId(),
+                pre ? "ADD_SIGN_PRE" : "ADD_SIGN_POST");
+
+        String action = pre ? "ADD_SIGN_PRE" : "ADD_SIGN_POST";
+        insertParticipantAction(actor, task, action, target.getId(), request.reason(),
+                pre ? "WAITING" : "PENDING");
+        auditService.record(actor.tenantId(), actor.userId(), "WORKFLOW_TASK",
+                taskId.toString(), action, "SUCCESS",
+                pre ? "已添加前加签用户 " + target.getId() : "已添加后加签用户 " + target.getId());
+        notificationService.publish(actor.tenantId(), target.getId(),
+                NotificationService.TYPE_APPROVAL,
+                pre ? "收到前加签审批待办" : "收到后加签审批安排",
+                pre ? "一项请假审批需要你先行处理" : "一项请假审批将在当前处理人通过后流转给你",
+                "leave", application.getId());
+        return response(actor, requireView(actor.tenantId(), application.getId()));
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public List<WorkflowTimelineResponse> timeline(Long userId, Long taskId) {
         ResolvedUserAccess actor = requireAccess(userId);
@@ -613,10 +696,7 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
         if (!"PENDING".equals(task.getStatus())) {
             throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID);
         }
-        LeaveApplication application = leaveMapper.selectById(task.getBusinessId());
-        if (application == null || !actor.tenantId().equals(application.getTenantId())) {
-            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
-        }
+        LeaveApplication application = requirePendingApplication(actor, task);
         if (actor.userId().equals(application.getApplicantUserId())) {
             auditService.record(actor.tenantId(), actor.userId(), BUSINESS_TYPE,
                     application.getId().toString(), approved ? "APPROVE" : "REJECT",
@@ -625,7 +705,6 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
         }
         LocalDateTime now = LocalDateTime.now();
         String taskStatus = approved ? "APPROVED" : "REJECTED";
-        String leaveStatus = approved ? "APPROVED" : "REJECTED";
         int taskUpdated = taskMapper.update(null, new LambdaUpdateWrapper<WorkflowTask>()
                 .eq(WorkflowTask::getId, taskId)
                 .eq(WorkflowTask::getTenantId, actor.tenantId())
@@ -638,10 +717,24 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
                 .set(WorkflowTask::getUpdatedAt, now)
                 .setSql("version = version + 1"));
         assertUpdated(taskUpdated, actor, application.getId(), approved ? "APPROVE" : "REJECT");
+
+        if (approved) {
+            WorkflowTask nextTask = findNextTask(actor.tenantId(), task);
+            if (nextTask != null) {
+                activateNextTask(actor, application, task, nextTask, now, request.comment());
+                return response(actor, requireView(actor.tenantId(), application.getId()));
+            }
+        } else {
+            cancelWaitingTasks(actor.tenantId(), task.getInstanceId(), now);
+        }
+
+        String leaveStatus = approved ? "APPROVED" : "REJECTED";
         int leaveUpdated = leaveMapper.update(null, new LambdaUpdateWrapper<LeaveApplication>()
                 .eq(LeaveApplication::getId, application.getId())
                 .eq(LeaveApplication::getTenantId, actor.tenantId())
                 .eq(LeaveApplication::getStatus, "PENDING")
+                .eq(LeaveApplication::getApproverUserId, actor.userId())
+                .eq(LeaveApplication::getVersion, application.getVersion())
                 .set(LeaveApplication::getStatus, leaveStatus)
                 .set(LeaveApplication::getCompletedAt, now)
                 .set(LeaveApplication::getUpdatedAt, now)
@@ -660,6 +753,73 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
                 approved ? "你的请假申请已通过审批" : "你的请假申请被退回，请查看原因",
                 "leave", application.getId());
         return response(actor, requireView(actor.tenantId(), application.getId()));
+    }
+
+    private WorkflowTask findNextTask(Long tenantId, WorkflowTask completedTask) {
+        if ("PRE".equals(completedTask.getAddSignMode())
+                && completedTask.getParentTaskId() != null) {
+            return taskMapper.selectOne(new LambdaQueryWrapper<WorkflowTask>()
+                    .eq(WorkflowTask::getId, completedTask.getParentTaskId())
+                    .eq(WorkflowTask::getTenantId, tenantId)
+                    .eq(WorkflowTask::getInstanceId, completedTask.getInstanceId())
+                    .eq(WorkflowTask::getStatus, "WAITING")
+                    .last("FOR UPDATE"));
+        }
+        return taskMapper.selectOne(new LambdaQueryWrapper<WorkflowTask>()
+                .eq(WorkflowTask::getTenantId, tenantId)
+                .eq(WorkflowTask::getInstanceId, completedTask.getInstanceId())
+                .eq(WorkflowTask::getParentTaskId, completedTask.getId())
+                .eq(WorkflowTask::getAddSignMode, "POST")
+                .eq(WorkflowTask::getStatus, "WAITING")
+                .last("FOR UPDATE"));
+    }
+
+    private void activateNextTask(ResolvedUserAccess actor,
+                                  LeaveApplication application,
+                                  WorkflowTask completedTask,
+                                  WorkflowTask nextTask,
+                                  LocalDateTime now,
+                                  String comment) {
+        int nextUpdated = taskMapper.update(null, new LambdaUpdateWrapper<WorkflowTask>()
+                .eq(WorkflowTask::getId, nextTask.getId())
+                .eq(WorkflowTask::getTenantId, actor.tenantId())
+                .eq(WorkflowTask::getStatus, "WAITING")
+                .eq(WorkflowTask::getVersion, nextTask.getVersion())
+                .set(WorkflowTask::getStatus, "PENDING")
+                .set(WorkflowTask::getDueAt, now.plusHours(Math.max(0, approvalDueHours)))
+                .set(WorkflowTask::getUpdatedAt, now)
+                .setSql("version = version + 1"));
+        assertUpdated(nextUpdated, actor, application.getId(), "ACTIVATE_ADD_SIGN");
+        int leaveUpdated = leaveMapper.update(null, new LambdaUpdateWrapper<LeaveApplication>()
+                .eq(LeaveApplication::getId, application.getId())
+                .eq(LeaveApplication::getTenantId, actor.tenantId())
+                .eq(LeaveApplication::getStatus, "PENDING")
+                .eq(LeaveApplication::getApproverUserId, actor.userId())
+                .eq(LeaveApplication::getVersion, application.getVersion())
+                .set(LeaveApplication::getApproverUserId, nextTask.getAssigneeUserId())
+                .set(LeaveApplication::getUpdatedAt, now)
+                .setSql("version = version + 1"));
+        assertUpdated(leaveUpdated, actor, application.getId(), "ACTIVATE_ADD_SIGN");
+        insertAction(actor, completedTask.getInstanceId(), completedTask.getId(),
+                "APPROVE", "PENDING", "PENDING", normalize(comment));
+        auditService.record(actor.tenantId(), actor.userId(), BUSINESS_TYPE,
+                application.getId().toString(), "APPROVE", "SUCCESS", "当前节点通过并流转至下一加签节点");
+        notificationService.publish(actor.tenantId(), nextTask.getAssigneeUserId(),
+                NotificationService.TYPE_APPROVAL,
+                "加签审批待办已激活",
+                "请处理已流转至你的请假审批待办",
+                "leave", application.getId());
+    }
+
+    private void cancelWaitingTasks(Long tenantId, Long instanceId, LocalDateTime now) {
+        taskMapper.update(null, new LambdaUpdateWrapper<WorkflowTask>()
+                .eq(WorkflowTask::getTenantId, tenantId)
+                .eq(WorkflowTask::getInstanceId, instanceId)
+                .eq(WorkflowTask::getStatus, "WAITING")
+                .set(WorkflowTask::getStatus, "CANCELLED")
+                .set(WorkflowTask::getCompletedAt, now)
+                .set(WorkflowTask::getUpdatedAt, now)
+                .setSql("version = version + 1"));
     }
 
     private void completeInstance(Long instanceId, Long tenantId, String status, LocalDateTime now) {
@@ -746,6 +906,21 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
                     "validation.approval.participant.selfForbidden");
         }
         return requireUser(actor.tenantId(), targetUserId);
+    }
+
+    private void requireApprovalTarget(ResolvedUserAccess actor,
+                                       LeaveApplication application,
+                                       User target) {
+        ResolvedUserAccess targetAccess = userAccessService.resolveActiveUser(target.getId());
+        if (!actor.tenantId().equals(targetAccess.tenantId())
+                || !targetAccess.permissions().contains("approval:act")) {
+            throw new BusinessException(ErrorCode.RESOURCE_FORBIDDEN,
+                    "validation.approval.addSign.permissionMissing");
+        }
+        if (target.getId().equals(application.getApplicantUserId())) {
+            throw new BusinessException(ErrorCode.RESOURCE_FORBIDDEN,
+                    "validation.approval.addSign.applicantForbidden");
+        }
     }
 
     private User requireUser(Long tenantId, Long userId) {
@@ -904,6 +1079,15 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
                                          String action,
                                          Long targetUserId,
                                          String reason) {
+        insertParticipantAction(actor, task, action, targetUserId, reason, "PENDING");
+    }
+
+    private void insertParticipantAction(ResolvedUserAccess actor,
+                                         WorkflowTask task,
+                                         String action,
+                                         Long targetUserId,
+                                         String reason,
+                                         String toStatus) {
         WorkflowActionLog log = new WorkflowActionLog();
         log.setTenantId(actor.tenantId());
         log.setInstanceId(task.getInstanceId());
@@ -913,7 +1097,7 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
         log.setTargetUserId(targetUserId);
         log.setAction(action);
         log.setFromStatus("PENDING");
-        log.setToStatus("PENDING");
+        log.setToStatus(toStatus);
         log.setComment(reason.trim());
         String traceId = TraceContext.traceId();
         log.setTraceId(traceId == null ? UUID.randomUUID().toString().replace("-", "") : traceId);

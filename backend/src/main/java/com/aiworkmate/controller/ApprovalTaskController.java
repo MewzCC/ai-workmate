@@ -3,6 +3,7 @@ package com.aiworkmate.controller;
 import com.aiworkmate.common.PageResponse;
 import com.aiworkmate.common.Result;
 import com.aiworkmate.dto.ApprovalDecisionRequest;
+import com.aiworkmate.dto.ApprovalAddSignRequest;
 import com.aiworkmate.dto.ApprovalParticipantRequest;
 import com.aiworkmate.dto.ApprovalParticipantResponse;
 import com.aiworkmate.dto.ApprovalStatusCountResponse;
@@ -91,6 +92,14 @@ public class ApprovalTaskController {
             @PathVariable Long id,
             @Valid @RequestBody ApprovalParticipantRequest request) {
         return Result.ok(service.copyTo(user.userId(), id, request));
+    }
+
+    @PostMapping("/{id}/add-sign")
+    public Result<LeaveApplicationResponse> addSign(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable Long id,
+            @Valid @RequestBody ApprovalAddSignRequest request) {
+        return Result.ok(service.addSign(user.userId(), id, request));
     }
 
     @GetMapping("/{id}/timeline")

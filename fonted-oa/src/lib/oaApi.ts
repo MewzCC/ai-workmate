@@ -502,6 +502,16 @@ export const todoApi = {
       method: 'POST',
       body: JSON.stringify({ targetUserId, version, reason }),
     }),
+  addSign: (
+    id: number,
+    targetUserId: number,
+    version: number,
+    mode: 'PRE' | 'POST',
+    reason: string,
+  ) => request<LeaveApplication>(`/approval-tasks/${id}/add-sign`, {
+    method: 'POST',
+    body: JSON.stringify({ targetUserId, version, mode, reason }),
+  }),
   timeline: (id: number) =>
     request<WorkflowTimelineItem[]>(`/approval-tasks/${id}/timeline`),
 };

@@ -140,26 +140,33 @@ describe('Phase 2 task API contracts', () => {
 });
 
 describe('审批协作 API contracts', () => {
-  it('uses authenticated versioned requests for transfer and read-only copy', async () => {
+  it('uses authenticated versioned requests for transfer, copy, and add-sign', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch')
       .mockResolvedValueOnce(result([{ id: 8, name: '接收人', canApprove: true }]))
       .mockResolvedValueOnce(result({ id: 1, status: 'PENDING', taskVersion: 2 }))
+      .mockResolvedValueOnce(result({ id: 1, status: 'PENDING', taskVersion: 3 }))
       .mockResolvedValueOnce(result({ id: 1, status: 'PENDING', taskVersion: 2 }));
 
     await todoApi.participantCandidates(9, '接收');
     await todoApi.transfer(9, 8, 1, '值班调整');
+    await todoApi.addSign(9, 11, 2, 'PRE', '财务先核验');
     await todoApi.copyTo(9, 10, 2, '请知悉');
 
     expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
       '/api/approval-tasks/9/participant-candidates?keyword=%E6%8E%A5%E6%94%B6',
       '/api/approval-tasks/9/transfer',
+      '/api/approval-tasks/9/add-sign',
       '/api/approval-tasks/9/copy',
     ]);
     expect(fetchMock.mock.calls[1][1]).toEqual(expect.objectContaining({
       method: 'POST', credentials: 'include',
       body: JSON.stringify({ targetUserId: 8, version: 1, reason: '值班调整' }),
     }));
-    expect(fetchMock.mock.calls[2][1]?.body).toBe(
+    expect(fetchMock.mock.calls[2][1]).toEqual(expect.objectContaining({
+      method: 'POST', credentials: 'include',
+      body: JSON.stringify({ targetUserId: 11, version: 2, mode: 'PRE', reason: '财务先核验' }),
+    }));
+    expect(fetchMock.mock.calls[3][1]?.body).toBe(
       JSON.stringify({ targetUserId: 10, version: 2, reason: '请知悉' }),
     );
   });
