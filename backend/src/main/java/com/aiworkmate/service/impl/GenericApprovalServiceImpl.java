@@ -235,6 +235,113 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
 
     @Override
     @Transactional
+    public ApprovalApplicationResponse withdraw(Long userId, Long id, VersionRequest request) {
+        ResolvedUserAccess actor = requirePermission(userId, "route:approval-start");
+        ApprovalApplication application = requireOwnedApplication(actor, id);
+        if (!"PENDING".equals(application.getStatus())) {
+            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID,
+                    "validation.approval.withdraw.stateInvalid");
+        }
+        if (!request.version().equals(application.getVersion())) {
+            throw new BusinessException(ErrorCode.VERSION_CONFLICT);
+        }
+        WorkflowInstance instance = requireRunningInstance(actor, application);
+        WorkflowTask task = requirePendingTask(actor, instance.getId(), application.getId());
+        LocalDateTime now = LocalDateTime.now();
+
+        int applicationUpdated = applicationMapper.update(null,
+                new LambdaUpdateWrapper<ApprovalApplication>()
+                        .eq(ApprovalApplication::getId, id)
+                        .eq(ApprovalApplication::getTenantId, actor.tenantId())
+                        .eq(ApprovalApplication::getApplicantUserId, actor.userId())
+                        .eq(ApprovalApplication::getStatus, "PENDING")
+                        .eq(ApprovalApplication::getVersion, request.version())
+                        .set(ApprovalApplication::getStatus, "WITHDRAWN")
+                        .set(ApprovalApplication::getCompletedAt, now)
+                        .set(ApprovalApplication::getUpdatedAt, now)
+                        .setSql("version = version + 1"));
+        if (applicationUpdated != 1) {
+            throw new BusinessException(ErrorCode.VERSION_CONFLICT);
+        }
+
+        int taskUpdated = taskMapper.update(null, new LambdaUpdateWrapper<WorkflowTask>()
+                .eq(WorkflowTask::getId, task.getId())
+                .eq(WorkflowTask::getTenantId, actor.tenantId())
+                .eq(WorkflowTask::getStatus, "PENDING")
+                .eq(WorkflowTask::getVersion, task.getVersion())
+                .set(WorkflowTask::getStatus, "CANCELLED")
+                .set(WorkflowTask::getDecisionComment, "申请人撤回")
+                .set(WorkflowTask::getCompletedAt, now)
+                .set(WorkflowTask::getUpdatedAt, now)
+                .setSql("version = version + 1"));
+        if (taskUpdated != 1) {
+            throw new BusinessException(ErrorCode.VERSION_CONFLICT);
+        }
+
+        int instanceUpdated = instanceMapper.update(null,
+                new LambdaUpdateWrapper<WorkflowInstance>()
+                        .eq(WorkflowInstance::getId, instance.getId())
+                        .eq(WorkflowInstance::getTenantId, actor.tenantId())
+                        .eq(WorkflowInstance::getStatus, "RUNNING")
+                        .eq(WorkflowInstance::getVersion, instance.getVersion())
+                        .set(WorkflowInstance::getStatus, "CANCELLED")
+                        .set(WorkflowInstance::getCompletedAt, now)
+                        .set(WorkflowInstance::getUpdatedAt, now)
+                        .setSql("version = version + 1"));
+        if (instanceUpdated != 1) {
+            throw new BusinessException(ErrorCode.VERSION_CONFLICT);
+        }
+
+        insertAction(actor, instance.getId(), task.getId(),
+                "WITHDRAW", "PENDING", "WITHDRAWN", "申请人主动撤回");
+        auditService.record(actor.tenantId(), actor.userId(), BUSINESS_TYPE,
+                id.toString(), "WITHDRAW", "SUCCESS", "撤回通用审批申请");
+        notificationService.publish(actor.tenantId(), task.getAssigneeUserId(),
+                NotificationService.TYPE_APPROVAL,
+                "审批申请已撤回",
+                "申请人已撤回「" + application.getFormName() + "」，原待办已取消",
+                "generic-approval", id);
+        return response(actor, requireView(actor.tenantId(), id),
+                actionLogMapper.selectBusinessTimeline(actor.tenantId(), BUSINESS_TYPE, id));
+    }
+
+    @Override
+    @Transactional
+    public ApprovalApplicationResponse reopen(Long userId, Long id, VersionRequest request) {
+        ResolvedUserAccess actor = requirePermission(userId, "route:approval-start");
+        ApprovalApplication application = requireOwnedApplication(actor, id);
+        String previousStatus = application.getStatus();
+        if (!"REJECTED".equals(previousStatus) && !"WITHDRAWN".equals(previousStatus)) {
+            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID,
+                    "validation.approval.reopen.stateInvalid");
+        }
+        LocalDateTime now = LocalDateTime.now();
+        int updated = applicationMapper.update(null, new LambdaUpdateWrapper<ApprovalApplication>()
+                .eq(ApprovalApplication::getId, id)
+                .eq(ApprovalApplication::getTenantId, actor.tenantId())
+                .eq(ApprovalApplication::getApplicantUserId, actor.userId())
+                .in(ApprovalApplication::getStatus, "REJECTED", "WITHDRAWN")
+                .eq(ApprovalApplication::getVersion, request.version())
+                .set(ApprovalApplication::getStatus, "DRAFT")
+                .set(ApprovalApplication::getSubmittedAt, null)
+                .set(ApprovalApplication::getCompletedAt, null)
+                .set(ApprovalApplication::getUpdatedAt, now)
+                .setSql("version = version + 1"));
+        if (updated != 1) {
+            throw new BusinessException(ErrorCode.VERSION_CONFLICT);
+        }
+        if (application.getWorkflowInstanceId() != null) {
+            insertAction(actor, application.getWorkflowInstanceId(), null,
+                    "REOPEN", previousStatus, "DRAFT", "恢复为草稿并准备重新提交");
+        }
+        auditService.record(actor.tenantId(), actor.userId(), BUSINESS_TYPE,
+                id.toString(), "REOPEN", "SUCCESS", "恢复通用审批申请为草稿");
+        return response(actor, requireView(actor.tenantId(), id),
+                actionLogMapper.selectBusinessTimeline(actor.tenantId(), BUSINESS_TYPE, id));
+    }
+
+    @Override
+    @Transactional
     public ApprovalApplicationResponse submit(Long userId, ApprovalSubmitRequest request) {
         ResolvedUserAccess actor = requirePermission(userId, "route:approval-start");
         String formKey = request.formKey().trim();
@@ -358,7 +465,7 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
         }
         List<WorkflowTimelineResponse> timeline = view.workflowInstanceId() == null
                 ? null
-                : actionLogMapper.selectTimeline(actor.tenantId(), view.workflowInstanceId());
+                : actionLogMapper.selectBusinessTimeline(actor.tenantId(), BUSINESS_TYPE, view.id());
         return response(actor, view, timeline);
     }
 
@@ -426,6 +533,43 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
         }
         return application;
+    }
+
+    private WorkflowInstance requireRunningInstance(ResolvedUserAccess actor,
+                                                    ApprovalApplication application) {
+        if (application.getWorkflowInstanceId() == null) {
+            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID,
+                    "validation.approval.workflow.stateInvalid");
+        }
+        WorkflowInstance instance = instanceMapper.selectOne(
+                new LambdaQueryWrapper<WorkflowInstance>()
+                        .eq(WorkflowInstance::getId, application.getWorkflowInstanceId())
+                        .eq(WorkflowInstance::getTenantId, actor.tenantId())
+                        .eq(WorkflowInstance::getBusinessType, BUSINESS_TYPE)
+                        .eq(WorkflowInstance::getBusinessId, application.getId())
+                        .eq(WorkflowInstance::getApplicantId, actor.userId())
+                        .eq(WorkflowInstance::getStatus, "RUNNING"));
+        if (instance == null) {
+            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID,
+                    "validation.approval.workflow.stateInvalid");
+        }
+        return instance;
+    }
+
+    private WorkflowTask requirePendingTask(ResolvedUserAccess actor,
+                                            Long instanceId,
+                                            Long applicationId) {
+        WorkflowTask task = taskMapper.selectOne(new LambdaQueryWrapper<WorkflowTask>()
+                .eq(WorkflowTask::getTenantId, actor.tenantId())
+                .eq(WorkflowTask::getInstanceId, instanceId)
+                .eq(WorkflowTask::getBusinessType, BUSINESS_TYPE)
+                .eq(WorkflowTask::getBusinessId, applicationId)
+                .eq(WorkflowTask::getStatus, "PENDING"));
+        if (task == null) {
+            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID,
+                    "validation.approval.workflow.stateInvalid");
+        }
+        return task;
     }
 
     private void requireDraft(ApprovalApplication application) {
@@ -745,8 +889,7 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
                 view.taskAssigneeName(),
                 view.workflowStatus(),
                 timeline == null ? null : List.copyOf(timeline),
-                // 通用撤回链路未上线前恒为 false，禁止前端假撤回
-                false,
+                applicant && "PENDING".equals(view.status()),
                 applicant && "DRAFT".equals(view.status()),
                 applicant && "DRAFT".equals(view.status()),
                 view.submittedAt(),

@@ -24,4 +24,28 @@
         ORDER BY log.created_at, log.id
     </select>
 
+    <select id="selectBusinessTimeline"
+            resultType="com.aiworkmate.dto.WorkflowTimelineResponse">
+        SELECT log.id,
+               log.actor_user_id AS actorUserId,
+               COALESCE(NULLIF(u.display_name, ''), u.username) AS actorName,
+               log.action,
+               log.from_status AS fromStatus,
+               log.to_status AS toStatus,
+               log.comment,
+               log.created_at AS createdAt,
+               u.avatar AS actorAvatar,
+               u.updated_at AS actorUpdatedAt,
+               NULL AS actorAvatarUrl
+        FROM workflow_action_log log
+        JOIN workflow_instance instance
+          ON instance.id = log.instance_id
+         AND instance.tenant_id = log.tenant_id
+        JOIN app_user u ON u.id = log.actor_user_id
+        WHERE log.tenant_id = #{tenantId}
+          AND instance.business_type = #{businessType}
+          AND instance.business_id = #{businessId}
+        ORDER BY log.created_at, log.id
+    </select>
+
 </mapper>

@@ -14,4 +14,10 @@ public interface WorkflowActionLogMapper extends BaseMapper<WorkflowActionLog> {
     List<WorkflowTimelineResponse> selectTimeline(
             @Param("tenantId") Long tenantId,
             @Param("instanceId") Long instanceId);
+
+    /** 查询同一业务的所有流程尝试，供撤回或拒绝后的重新提交保留完整历史。 */
+    List<WorkflowTimelineResponse> selectBusinessTimeline(
+            @Param("tenantId") Long tenantId,
+            @Param("businessType") String businessType,
+            @Param("businessId") Long businessId);
 }

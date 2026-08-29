@@ -261,6 +261,18 @@ export const approvalEngineApi = {
       body: JSON.stringify({ version }),
     }),
 
+  withdrawApplication: (id: number, version: number) =>
+    request<ApprovalApplication>(`/approval-applications/${id}/withdraw`, {
+      method: 'POST',
+      body: JSON.stringify({ version }),
+    }),
+
+  reopenApplication: (id: number, version: number) =>
+    request<ApprovalApplication>(`/approval-applications/${id}/reopen`, {
+      method: 'POST',
+      body: JSON.stringify({ version }),
+    }),
+
   submitApplication: (payload: ApprovalSubmitPayload) =>
     request<ApprovalApplication>('/approval-applications', {
       method: 'POST',

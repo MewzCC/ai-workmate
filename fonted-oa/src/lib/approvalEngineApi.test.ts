@@ -37,4 +37,20 @@ describe('通用审批草稿接口', () => {
     }));
     expect(fetchMock.mock.calls[2][1]?.body).toBe(JSON.stringify({ version: 1 }));
   });
+
+  it('携带乐观锁版本撤回并恢复申请', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(result({ id: 9, status: 'WITHDRAWN', version: 3 }))
+      .mockResolvedValueOnce(result({ id: 9, status: 'DRAFT', version: 4 }));
+
+    await approvalEngineApi.withdrawApplication(9, 2);
+    await approvalEngineApi.reopenApplication(9, 3);
+
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      '/api/approval-applications/9/withdraw',
+      '/api/approval-applications/9/reopen',
+    ]);
+    expect(fetchMock.mock.calls[0][1]?.body).toBe(JSON.stringify({ version: 2 }));
+    expect(fetchMock.mock.calls[1][1]?.body).toBe(JSON.stringify({ version: 3 }));
+  });
 });
