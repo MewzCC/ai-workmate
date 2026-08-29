@@ -107,4 +107,36 @@ describe('AIOperationDrawer', () => {
     expect(storageSpy).not.toHaveBeenCalled();
     storageSpy.mockRestore();
   });
+
+  it('renders L2 confirmation as destructive and forwards only the one-time credential', async () => {
+    api.planAiTask.mockResolvedValue({
+      ...basePlan,
+      status: 'WAITING_CONFIRMATION',
+      riskLevel: 'L2',
+      confirmationRequired: true,
+      steps: [{
+        sequence: 1,
+        toolCode: 'leave.submit',
+        title: '提交本人请假草稿',
+        arguments: { applicationId: 42, version: 3 },
+      }],
+    });
+    api.issueAiTaskConfirmation.mockResolvedValue({ token: 'secondary-one-time-secret', expiresAt: '2026-08-29T22:00:00+08:00' });
+    api.executeAiTask.mockResolvedValue({ taskId: basePlan.taskId, status: 'QUEUED', statusUrl: '/status', eventsUrl: '/events' });
+    renderDrawer();
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: '提交刚才选择的请假草稿' } });
+    fireEvent.click(screen.getByRole('button', { name: /发送 \/ 生成计划/ }));
+    await waitFor(() => expect(screen.getByText('提交本人请假草稿')).toBeTruthy());
+
+    fireEvent.click(screen.getByRole('button', { name: '确认并执行' }));
+    const confirmButton = await screen.findByRole('button', { name: '确认执行' });
+    expect(confirmButton.classList.contains('ant-btn-dangerous')).toBe(true);
+    fireEvent.click(confirmButton);
+
+    await waitFor(() => expect(api.executeAiTask).toHaveBeenCalledWith(basePlan.taskId, {
+      planVersion: 1,
+      planHash: 'sha256:plan',
+      confirmationToken: 'secondary-one-time-secret',
+    }));
+  });
 });
