@@ -10,6 +10,7 @@ import com.aiworkmate.entity.ApprovalApplication;
 import com.aiworkmate.entity.ApprovalForm;
 import com.aiworkmate.entity.ApprovalProcess;
 import com.aiworkmate.entity.WorkflowInstance;
+import com.aiworkmate.entity.WorkflowActionLog;
 import com.aiworkmate.entity.WorkflowTask;
 import com.aiworkmate.mapper.ApprovalApplicationMapper;
 import com.aiworkmate.mapper.ApprovalFormMapper;
@@ -69,6 +70,8 @@ class GenericApprovalServiceImplTest {
         initializeTableMetadata(ApprovalApplication.class);
         initializeTableMetadata(ApprovalForm.class);
         initializeTableMetadata(ApprovalProcess.class);
+        initializeTableMetadata(WorkflowInstance.class);
+        initializeTableMetadata(WorkflowTask.class);
         service = new GenericApprovalServiceImpl(
                 applicationMapper, formMapper, processMapper, leaveMapper, userMapper,
                 instanceMapper, taskMapper, actionLogMapper, userAccessService,
@@ -152,6 +155,59 @@ class GenericApprovalServiceImplTest {
                 "员工通过发起审批模板提交了申请，请及时处理", "generic-approval", 10L);
     }
 
+    @Test
+    void withdrawCancelsApplicationTaskAndInstanceWithOptimisticLocks() {
+        ApprovalApplication pending = application("PENDING", 2);
+        when(applicationMapper.selectOne(any())).thenReturn(pending);
+        when(instanceMapper.selectOne(any())).thenReturn(instance("RUNNING", 0));
+        when(taskMapper.selectOne(any())).thenReturn(task("PENDING", 1));
+        when(applicationMapper.update(any(), any())).thenReturn(1);
+        when(taskMapper.update(any(), any())).thenReturn(1);
+        when(instanceMapper.update(any(), any())).thenReturn(1);
+        when(applicationMapper.selectView(TENANT_ID, 10L)).thenReturn(view("WITHDRAWN", 3));
+        when(actionLogMapper.selectBusinessTimeline(TENANT_ID, "GENERIC_APPROVAL", 10L))
+                .thenReturn(List.of());
+
+        ApprovalApplicationResponse response = service.withdraw(USER_ID, 10L, new VersionRequest(2));
+
+        assertThat(response.status()).isEqualTo("WITHDRAWN");
+        assertThat(response.canWithdraw()).isFalse();
+        verify(taskMapper).update(any(), any());
+        verify(instanceMapper).update(any(), any());
+        verify(notificationService).publish(TENANT_ID, 2002L,
+                NotificationService.TYPE_APPROVAL, "审批申请已撤回",
+                "申请人已撤回「费用报销」，原待办已取消", "generic-approval", 10L);
+    }
+
+    @Test
+    void reopenRejectedApplicationKeepsHistoryAndReturnsEditableDraft() {
+        when(applicationMapper.selectOne(any())).thenReturn(application("REJECTED", 3));
+        when(applicationMapper.update(any(), any())).thenReturn(1);
+        when(applicationMapper.selectView(TENANT_ID, 10L)).thenReturn(view("DRAFT", 4));
+        when(actionLogMapper.selectBusinessTimeline(TENANT_ID, "GENERIC_APPROVAL", 10L))
+                .thenReturn(List.of());
+
+        ApprovalApplicationResponse response = service.reopen(USER_ID, 10L, new VersionRequest(3));
+
+        assertThat(response.status()).isEqualTo("DRAFT");
+        assertThat(response.canEditDraft()).isTrue();
+        verify(actionLogMapper).insert(any(WorkflowActionLog.class));
+        verify(instanceMapper, never()).insert(any(WorkflowInstance.class));
+    }
+
+    @Test
+    void withdrawRejectsStaleApplicationVersionBeforeChangingWorkflow() {
+        when(applicationMapper.selectOne(any())).thenReturn(application("PENDING", 4));
+
+        assertThatThrownBy(() -> service.withdraw(USER_ID, 10L, new VersionRequest(3)))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo("VERSION_CONFLICT");
+
+        verify(taskMapper, never()).update(any(), any());
+        verify(instanceMapper, never()).update(any(), any());
+    }
+
     private ResolvedUserAccess access() {
         return new ResolvedUserAccess(USER_ID, "applicant", TENANT_ID, "EMPLOYEE",
                 List.of("EMPLOYEE"), List.of("route:approval-start"), List.of("SELF"), 1L);
@@ -193,6 +249,34 @@ class GenericApprovalServiceImplTest {
         value.setFormName("费用报销");
         value.setTitle("费用报销");
         value.setDataJson("{\"reason\":\"客户拜访\"}");
+        value.setStatus(status);
+        value.setVersion(version);
+        if (!"DRAFT".equals(status) && !"CANCELLED".equals(status)) {
+            value.setWorkflowInstanceId(4L);
+        }
+        return value;
+    }
+
+    private WorkflowInstance instance(String status, int version) {
+        WorkflowInstance value = new WorkflowInstance();
+        value.setId(4L);
+        value.setTenantId(TENANT_ID);
+        value.setBusinessType("GENERIC_APPROVAL");
+        value.setBusinessId(10L);
+        value.setApplicantId(USER_ID);
+        value.setStatus(status);
+        value.setVersion(version);
+        return value;
+    }
+
+    private WorkflowTask task(String status, int version) {
+        WorkflowTask value = new WorkflowTask();
+        value.setId(5L);
+        value.setTenantId(TENANT_ID);
+        value.setInstanceId(4L);
+        value.setBusinessType("GENERIC_APPROVAL");
+        value.setBusinessId(10L);
+        value.setAssigneeUserId(2002L);
         value.setStatus(status);
         value.setVersion(version);
         return value;

@@ -8,10 +8,12 @@ import {
   Card,
   Empty,
   Input,
+  Modal,
   Space,
   Tag,
   Typography,
 } from 'antd';
+import { message } from '@/lib/antdMessage';
 import { useTranslation } from 'react-i18next';
 import {
   approvalEngineApi,
@@ -53,24 +55,29 @@ export default function ApprovalStartPage() {
   const [forms, setForms] = useState<ApprovalForm[]>([]);
   const [processes, setProcesses] = useState<ApprovalProcess[]>([]);
   const [drafts, setDrafts] = useState<ApprovalApplication[]>([]);
+  const [recentApplications, setRecentApplications] = useState<ApprovalApplication[]>([]);
+  const [actingId, setActingId] = useState<number>();
   const [loadError, setLoadError] = useState<string>();
   const [keyword, setKeyword] = useState('');
 
   const load = useCallback(async () => {
     setLoadError(undefined);
     try {
-      const [formPage, processPage, draftPage] = await Promise.all([
+      const [formPage, processPage, draftPage, applicationPage] = await Promise.all([
         approvalEngineApi.listForms({ status: 'ENABLED', page: 1, size: 100 }),
         approvalEngineApi.listProcesses({ status: 'ENABLED', page: 1, size: 100 }),
         approvalEngineApi.listMyApplications({ status: 'DRAFT', page: 1, size: 20 }),
+        approvalEngineApi.listMyApplications({ page: 1, size: 20 }),
       ]);
       setForms(formPage.records);
       setProcesses(processPage.records);
       setDrafts(draftPage.records);
+      setRecentApplications(applicationPage.records.filter((item) => item.status !== 'DRAFT'));
     } catch (err) {
       setForms([]);
       setProcesses([]);
       setDrafts([]);
+      setRecentApplications([]);
       setLoadError(formatOaApiError(err));
     }
   }, []);
@@ -110,6 +117,40 @@ export default function ApprovalStartPage() {
       return;
     }
     router.push(`/oa/approval-form?formKey=${encodeURIComponent(form.formKey)}`);
+  };
+
+  const withdraw = (application: ApprovalApplication) => {
+    Modal.confirm({
+      title: t('approval.start.withdrawTitle'),
+      content: t('approval.start.withdrawContent'),
+      okText: t('approval.start.withdrawOk'),
+      okButtonProps: { danger: true },
+      cancelText: t('common.cancel'),
+      onOk: async () => {
+        setActingId(application.id);
+        try {
+          await approvalEngineApi.withdrawApplication(application.id, application.version);
+          message.success(t('approval.start.withdrawSuccess'));
+          await load();
+        } catch (error) {
+          message.error(formatOaApiError(error));
+        } finally {
+          setActingId(undefined);
+        }
+      },
+    });
+  };
+
+  const reopen = async (application: ApprovalApplication) => {
+    setActingId(application.id);
+    try {
+      const draft = await approvalEngineApi.reopenApplication(application.id, application.version);
+      message.success(t('approval.start.reopenSuccess'));
+      router.push(`/oa/approval-form?formKey=${encodeURIComponent(draft.formKey)}&draftId=${draft.id}`);
+    } catch (error) {
+      message.error(formatOaApiError(error));
+      setActingId(undefined);
+    }
   };
 
   return (
@@ -163,6 +204,54 @@ export default function ApprovalStartPage() {
                   {t('approval.start.draftUpdatedAt', { time: new Date(draft.updatedAt).toLocaleString() })}
                 </Typography.Paragraph>
                 <Tag bordered={false}>{t('approval.start.draftStatus')}</Tag>
+              </Card>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {recentApplications.length > 0 && (
+        <section className="approval-start-section">
+          <div className="approval-start-section__head">
+            <OaIcon name="history" />
+            <Typography.Title level={4}>{t('approval.start.recentApplications')}</Typography.Title>
+          </div>
+          <div className="approval-start-grid">
+            {recentApplications.map((application) => (
+              <Card key={application.id} className="approval-template-card" variant="borderless">
+                <div className="approval-template-card__head">
+                  <span className="approval-template-card__icon is-other"><OaIcon name="approval" /></span>
+                  <Typography.Title level={5}>{application.formName}</Typography.Title>
+                </div>
+                <Typography.Paragraph type="secondary">
+                  {t('approval.start.applicationUpdatedAt', { time: new Date(application.updatedAt).toLocaleString() })}
+                </Typography.Paragraph>
+                <div className="approval-template-card__foot">
+                  <Tag bordered={false}>{t(`approval.status.${application.status}`)}</Tag>
+                  <Space size={4}>
+                    {application.canWithdraw && (
+                      <Button
+                        danger
+                        type="link"
+                        size="small"
+                        loading={actingId === application.id}
+                        onClick={() => withdraw(application)}
+                      >
+                        {t('approval.start.withdraw')}
+                      </Button>
+                    )}
+                    {(application.status === 'REJECTED' || application.status === 'WITHDRAWN') && (
+                      <Button
+                        type="link"
+                        size="small"
+                        loading={actingId === application.id}
+                        onClick={() => void reopen(application)}
+                      >
+                        {t('approval.start.editAndResubmit')}
+                      </Button>
+                    )}
+                  </Space>
+                </div>
               </Card>
             ))}
           </div>

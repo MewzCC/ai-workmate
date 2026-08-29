@@ -65,6 +65,22 @@ public class ApprovalApplicationController {
         return Result.ok(service.cancelDraft(user.userId(), id, request));
     }
 
+    @PostMapping("/{id}/withdraw")
+    public Result<ApprovalApplicationResponse> withdraw(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable Long id,
+            @Valid @RequestBody VersionRequest request) {
+        return Result.ok(service.withdraw(user.userId(), id, request));
+    }
+
+    @PostMapping("/{id}/reopen")
+    public Result<ApprovalApplicationResponse> reopen(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable Long id,
+            @Valid @RequestBody VersionRequest request) {
+        return Result.ok(service.reopen(user.userId(), id, request));
+    }
+
     @PostMapping
     public Result<ApprovalApplicationResponse> submit(
             @AuthenticationPrincipal AuthenticatedUser user,

@@ -27,6 +27,12 @@ public interface GenericApprovalService {
     /** 取消本人草稿；取消后只保留审计记录，不允许继续编辑。 */
     ApprovalApplicationResponse cancelDraft(Long userId, Long id, VersionRequest request);
 
+    /** 撤回本人审批中的申请，同时取消当前流程实例和唯一有效待办。 */
+    ApprovalApplicationResponse withdraw(Long userId, Long id, VersionRequest request);
+
+    /** 将本人被拒绝或已撤回的申请恢复为草稿，保留原流程历史供重新提交。 */
+    ApprovalApplicationResponse reopen(Long userId, Long id, VersionRequest request);
+
     /** 按表单 Key 提交一份申请，返回创建后的申请单（含首个待办信息）。 */
     ApprovalApplicationResponse submit(Long userId, ApprovalSubmitRequest request);
 
