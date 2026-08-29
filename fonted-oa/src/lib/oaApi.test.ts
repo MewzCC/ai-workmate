@@ -4,6 +4,7 @@ import {
   executeAiTask,
   formatOaApiError,
   issueAiTaskConfirmation,
+  leaveApi,
   OaApiError,
   planAiTask,
   subscribeAiTaskEvents,
@@ -18,6 +19,22 @@ function result(data: unknown, status = 200): Response {
 }
 
 afterEach(() => vi.restoreAllMocks());
+
+describe('请假催办 API contracts', () => {
+  it('uses an authenticated application version when sending a reminder', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(result({ id: 10, status: 'PENDING', version: 3 }));
+
+    await leaveApi.remind(10, 2);
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/leave-applications/10/remind',
+      expect.objectContaining({
+        method: 'POST',
+        credentials: 'include',
+        body: JSON.stringify({ version: 2 }),
+      }));
+  });
+});
 
 describe('OA API error mapping', () => {
   it('preserves stable error code, status and trace id', () => {

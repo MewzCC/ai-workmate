@@ -244,6 +244,14 @@ export default function ApprovalDetailPage({ taskId }: { taskId: number }) {
                     {application.taskDueAt ? formatDateTime(application.taskDueAt) : '-'}
                     {application.overdue && <Tag color="error">{t('approval.approvalDetail.overdue')}</Tag>}
                   </Descriptions.Item>
+                  <Descriptions.Item label={t('approval.approvalDetail.descReminder')}>
+                    {t('approval.approvalDetail.reminderCount', { count: application.reminderCount })}
+                    {application.lastRemindedAt && (
+                      <Typography.Text type="secondary">
+                        {' · '}{formatDateTime(application.lastRemindedAt)}
+                      </Typography.Text>
+                    )}
+                  </Descriptions.Item>
                   <Descriptions.Item label={t('approval.approvalDetail.descReason')} span={2}>
                     <Typography.Paragraph className="approval-reason">
                       {application.reason}

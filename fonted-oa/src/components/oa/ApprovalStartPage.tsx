@@ -153,6 +153,19 @@ export default function ApprovalStartPage() {
     }
   };
 
+  const remind = async (application: ApprovalApplication) => {
+    setActingId(application.id);
+    try {
+      await approvalEngineApi.remindApplication(application.id, application.version);
+      message.success(t('approval.start.remindSuccess'));
+      await load();
+    } catch (error) {
+      message.error(formatOaApiError(error));
+    } finally {
+      setActingId(undefined);
+    }
+  };
+
   return (
     <section className="leave-list-workbench approval-start-page">
       <header className="leave-list-hero">
@@ -238,6 +251,22 @@ export default function ApprovalStartPage() {
                         onClick={() => withdraw(application)}
                       >
                         {t('approval.start.withdraw')}
+                      </Button>
+                    )}
+                    {application.status === 'PENDING' && application.taskId && (
+                      <Button
+                        type="link"
+                        size="small"
+                        disabled={!application.canRemind}
+                        loading={actingId === application.id}
+                        title={!application.canRemind && application.remindAvailableAt
+                          ? t('approval.start.remindAvailableAt', {
+                            time: new Date(application.remindAvailableAt).toLocaleString(),
+                          })
+                          : undefined}
+                        onClick={() => void remind(application)}
+                      >
+                        {t('approval.start.remind', { count: application.reminderCount })}
                       </Button>
                     )}
                     {(application.status === 'REJECTED' || application.status === 'WITHDRAWN') && (

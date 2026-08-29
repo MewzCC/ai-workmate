@@ -68,6 +68,9 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
     @Value("${app.workflow.approval-due-hours:48}")
     private long approvalDueHours;
 
+    @Value("${app.workflow.reminder-interval-minutes:30}")
+    private long reminderIntervalMinutes;
+
     @Override
     @Transactional(readOnly = true)
     public LeaveApprovalContextResponse approvalContext(Long userId) {
@@ -419,6 +422,55 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
                 "WITHDRAW", "PENDING", "WITHDRAWN", null);
         auditService.record(actor.tenantId(), actor.userId(), BUSINESS_TYPE,
                 id.toString(), "WITHDRAW", "SUCCESS", "撤回请假申请");
+        return response(actor, requireView(actor.tenantId(), id));
+    }
+
+    @Override
+    @Transactional
+    public LeaveApplicationResponse remind(Long userId, Long id, VersionRequest request) {
+        ResolvedUserAccess actor = requirePermission(userId, "leave:read:self");
+        LeaveApplication application = requireOwnedLeave(actor, id);
+        requireState(application, "PENDING");
+        if (!request.version().equals(application.getVersion())) {
+            throw new BusinessException(ErrorCode.VERSION_CONFLICT);
+        }
+        WorkflowTask task = requireActiveTask(actor.tenantId(), id);
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime threshold = now.minusMinutes(Math.max(1, reminderIntervalMinutes));
+        int taskUpdated = taskMapper.update(null, new LambdaUpdateWrapper<WorkflowTask>()
+                .eq(WorkflowTask::getId, task.getId())
+                .eq(WorkflowTask::getTenantId, actor.tenantId())
+                .eq(WorkflowTask::getBusinessType, BUSINESS_TYPE)
+                .eq(WorkflowTask::getBusinessId, id)
+                .eq(WorkflowTask::getStatus, "PENDING")
+                .and(wrapper -> wrapper.isNull(WorkflowTask::getLastRemindedAt)
+                        .or().le(WorkflowTask::getLastRemindedAt, threshold))
+                .set(WorkflowTask::getLastRemindedAt, now)
+                .set(WorkflowTask::getUpdatedAt, now)
+                .setSql("reminder_count = reminder_count + 1"));
+        if (taskUpdated != 1) {
+            throw new BusinessException(ErrorCode.RATE_LIMITED,
+                    "validation.approval.remind.tooFrequent");
+        }
+        int applicationUpdated = leaveMapper.update(null,
+                new LambdaUpdateWrapper<LeaveApplication>()
+                        .eq(LeaveApplication::getId, id)
+                        .eq(LeaveApplication::getTenantId, actor.tenantId())
+                        .eq(LeaveApplication::getApplicantUserId, actor.userId())
+                        .eq(LeaveApplication::getStatus, "PENDING")
+                        .eq(LeaveApplication::getVersion, request.version())
+                        .set(LeaveApplication::getUpdatedAt, now)
+                        .setSql("version = version + 1"));
+        assertUpdated(applicationUpdated, actor, id, "REMIND");
+        insertAction(actor, task.getInstanceId(), task.getId(),
+                "REMIND", "PENDING", "PENDING", null);
+        auditService.record(actor.tenantId(), actor.userId(), BUSINESS_TYPE,
+                id.toString(), "REMIND", "SUCCESS", "催办当前审批待办");
+        notificationService.publish(actor.tenantId(), task.getAssigneeUserId(),
+                NotificationService.TYPE_APPROVAL,
+                "请假审批催办提醒",
+                "申请人提醒你及时处理一项请假审批",
+                "leave", id);
         return response(actor, requireView(actor.tenantId(), id));
     }
 
@@ -975,6 +1027,14 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
     private LeaveApplicationResponse response(ResolvedUserAccess actor, LeaveApplicationView view) {
         boolean applicant = actor.userId().equals(view.applicantUserId());
         boolean approver = actor.userId().equals(view.approverUserId());
+        LocalDateTime remindAvailableAt = view.lastRemindedAt() == null
+                ? null
+                : view.lastRemindedAt().plusMinutes(Math.max(1, reminderIntervalMinutes));
+        boolean canRemind = applicant
+                && actor.permissions().contains("leave:read:self")
+                && "PENDING".equals(view.status())
+                && "PENDING".equals(view.taskStatus())
+                && (remindAvailableAt == null || !LocalDateTime.now().isBefore(remindAvailableAt));
         return new LeaveApplicationResponse(
                 view.id(), view.applicantUserId(), view.applicantName(),
                 view.approverUserId(), view.approverName(), view.leaveType(),
@@ -982,6 +1042,8 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
                 view.durationHalfDays(), view.durationHalfDays() / 2.0,
                 view.reason(), view.status(), view.version(), view.taskId(), view.taskVersion(),
                 view.taskStatus(), view.taskDueAt(), isOverdue(view),
+                view.reminderCount() == null ? 0 : view.reminderCount(),
+                view.lastRemindedAt(), remindAvailableAt, canRemind,
                 view.workflowStatus(), currentStage(view.status()), workflowStages(view),
                 view.submittedAt(), view.completedAt(), view.createdAt(), view.updatedAt(),
                 applicant && "DRAFT".equals(view.status()),

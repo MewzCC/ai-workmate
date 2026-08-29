@@ -149,6 +149,10 @@ export interface ApprovalApplication {
   taskStatus?: string | null;
   taskDueAt?: string | null;
   overdue: boolean;
+  reminderCount: number;
+  lastRemindedAt?: string | null;
+  remindAvailableAt?: string | null;
+  canRemind: boolean;
   taskAssigneeUserId?: number | null;
   taskAssigneeName?: string | null;
   workflowStatus?: string | null;
@@ -263,6 +267,12 @@ export const approvalEngineApi = {
 
   withdrawApplication: (id: number, version: number) =>
     request<ApprovalApplication>(`/approval-applications/${id}/withdraw`, {
+      method: 'POST',
+      body: JSON.stringify({ version }),
+    }),
+
+  remindApplication: (id: number, version: number) =>
+    request<ApprovalApplication>(`/approval-applications/${id}/remind`, {
       method: 'POST',
       body: JSON.stringify({ version }),
     }),

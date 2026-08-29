@@ -47,6 +47,8 @@
         task.version AS taskVersion,
         task.status AS taskStatus,
         task.due_at AS taskDueAt,
+        task.reminder_count AS reminderCount,
+        task.last_reminded_at AS lastRemindedAt,
         instance.status AS workflowStatus,
         l.submitted_at AS submittedAt,
         l.completed_at AS completedAt,
@@ -62,7 +64,8 @@
         JOIN app_user applicant ON applicant.id = l.applicant_user_id
         LEFT JOIN app_user approver ON approver.id = l.approver_user_id
         LEFT JOIN LATERAL (
-            SELECT wt.id, wt.version, wt.status, wt.due_at
+            SELECT wt.id, wt.version, wt.status, wt.due_at,
+                   wt.reminder_count, wt.last_reminded_at
             FROM workflow_task wt
             WHERE wt.tenant_id = l.tenant_id
               AND wt.business_type = 'LEAVE_APPLICATION'
