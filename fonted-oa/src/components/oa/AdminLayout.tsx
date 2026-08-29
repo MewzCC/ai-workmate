@@ -34,6 +34,7 @@ import ApprovalFormPage from './ApprovalFormPage';
 import AuditCenterPage from './AuditCenterPage';
 import OrganizationTreePage from './OrganizationTreePage';
 import EmployeeFilePage from './EmployeeFilePage';
+import EmployeeChangePage from './EmployeeChangePage';
 import KnowledgeBasePage from './KnowledgeBasePage';
 import SystemSettingsPage from './SystemSettingsPage';
 import AttendanceClockPage from './AttendanceClockPage';
@@ -581,6 +582,8 @@ export default function AdminLayout() {
                     <OrganizationTreePage />
                   ) : selectedMenu.componentKey === 'EMPLOYEE_FILES' ? (
                     <EmployeeFilePage />
+                  ) : selectedMenu.componentKey === 'EMPLOYEE_CHANGE' ? (
+                    <EmployeeChangePage />
                   ) : selectedMenu.componentKey === 'KNOWLEDGE_BASE' ? (
                     <KnowledgeBasePage />
                   ) : selectedMenu.componentKey === 'SYSTEM_CONFIG' ? (

@@ -116,6 +116,7 @@ export default {
   },
   componentTypes: {
     DASHBOARD: '通用 OA 页面',
+    EMPLOYEE_CHANGE: '入转调离',
     AI_WORKSPACE: 'AI 工作空间',
     AI_TASK_CENTER: 'AI 任务中心',
     ACCESS_CONTROL: '权限配置中心',

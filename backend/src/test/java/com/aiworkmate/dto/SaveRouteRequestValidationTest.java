@@ -19,6 +19,15 @@ class SaveRouteRequestValidationTest {
     }
 
     @Test
+    void allowsRegisteredEmployeeChangeComponent() {
+        SaveRouteRequest request = new SaveRouteRequest(
+                "employee-change", "hr", "入转调离", "/oa/employee-change", "employee-change",
+                "PAGE", "EMPLOYEE_CHANGE", 4, true);
+
+        assertThat(validator.validate(request)).isEmpty();
+    }
+
+    @Test
     void rejectsUnregisteredComponent() {
         SaveRouteRequest request = new SaveRouteRequest(
                 "unsafe-page", "workspace", "Unsafe", "/oa/unsafe-page", null,
