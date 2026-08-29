@@ -20,4 +20,10 @@ public interface WorkflowActionLogMapper extends BaseMapper<WorkflowActionLog> {
             @Param("tenantId") Long tenantId,
             @Param("businessType") String businessType,
             @Param("businessId") Long businessId);
+
+    long countTargetAction(
+            @Param("tenantId") Long tenantId,
+            @Param("instanceId") Long instanceId,
+            @Param("targetUserId") Long targetUserId,
+            @Param("action") String action);
 }

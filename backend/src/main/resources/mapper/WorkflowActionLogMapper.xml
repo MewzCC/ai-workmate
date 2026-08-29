@@ -4,21 +4,35 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.aiworkmate.mapper.WorkflowActionLogMapper">
 
+    <sql id="timelineColumns">
+        log.id,
+        log.actor_user_id AS actorUserId,
+        COALESCE(NULLIF(u.display_name, ''), u.username) AS actorName,
+        log.original_assignee_user_id AS originalAssigneeUserId,
+        COALESCE(NULLIF(original_assignee.display_name, ''), original_assignee.username) AS originalAssigneeName,
+        log.target_user_id AS targetUserId,
+        COALESCE(NULLIF(target_user.display_name, ''), target_user.username) AS targetUserName,
+        log.action,
+        log.from_status AS fromStatus,
+        log.to_status AS toStatus,
+        log.comment,
+        log.created_at AS createdAt,
+        u.avatar AS actorAvatar,
+        u.updated_at AS actorUpdatedAt,
+        NULL AS actorAvatarUrl
+    </sql>
+
+    <sql id="timelineUserJoins">
+        JOIN app_user u ON u.id = log.actor_user_id
+        LEFT JOIN app_user original_assignee ON original_assignee.id = log.original_assignee_user_id
+        LEFT JOIN app_user target_user ON target_user.id = log.target_user_id
+    </sql>
+
     <select id="selectTimeline"
             resultType="com.aiworkmate.dto.WorkflowTimelineResponse">
-        SELECT log.id,
-               log.actor_user_id AS actorUserId,
-               COALESCE(NULLIF(u.display_name, ''), u.username) AS actorName,
-               log.action,
-               log.from_status AS fromStatus,
-               log.to_status AS toStatus,
-               log.comment,
-               log.created_at AS createdAt,
-               u.avatar AS actorAvatar,
-               u.updated_at AS actorUpdatedAt,
-               NULL AS actorAvatarUrl
+        SELECT <include refid="timelineColumns"/>
         FROM workflow_action_log log
-        JOIN app_user u ON u.id = log.actor_user_id
+        <include refid="timelineUserJoins"/>
         WHERE log.tenant_id = #{tenantId}
           AND log.instance_id = #{instanceId}
         ORDER BY log.created_at, log.id
@@ -26,26 +40,25 @@
 
     <select id="selectBusinessTimeline"
             resultType="com.aiworkmate.dto.WorkflowTimelineResponse">
-        SELECT log.id,
-               log.actor_user_id AS actorUserId,
-               COALESCE(NULLIF(u.display_name, ''), u.username) AS actorName,
-               log.action,
-               log.from_status AS fromStatus,
-               log.to_status AS toStatus,
-               log.comment,
-               log.created_at AS createdAt,
-               u.avatar AS actorAvatar,
-               u.updated_at AS actorUpdatedAt,
-               NULL AS actorAvatarUrl
+        SELECT <include refid="timelineColumns"/>
         FROM workflow_action_log log
         JOIN workflow_instance instance
           ON instance.id = log.instance_id
          AND instance.tenant_id = log.tenant_id
-        JOIN app_user u ON u.id = log.actor_user_id
+        <include refid="timelineUserJoins"/>
         WHERE log.tenant_id = #{tenantId}
           AND instance.business_type = #{businessType}
           AND instance.business_id = #{businessId}
         ORDER BY log.created_at, log.id
+    </select>
+
+    <select id="countTargetAction" resultType="long">
+        SELECT COUNT(*)
+        FROM workflow_action_log
+        WHERE tenant_id = #{tenantId}
+          AND instance_id = #{instanceId}
+          AND target_user_id = #{targetUserId}
+          AND action = #{action}
     </select>
 
 </mapper>
