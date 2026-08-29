@@ -73,6 +73,14 @@ public class ApprovalApplicationController {
         return Result.ok(service.withdraw(user.userId(), id, request));
     }
 
+    @PostMapping("/{id}/remind")
+    public Result<ApprovalApplicationResponse> remind(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable Long id,
+            @Valid @RequestBody VersionRequest request) {
+        return Result.ok(service.remind(user.userId(), id, request));
+    }
+
     @PostMapping("/{id}/reopen")
     public Result<ApprovalApplicationResponse> reopen(
             @AuthenticationPrincipal AuthenticatedUser user,

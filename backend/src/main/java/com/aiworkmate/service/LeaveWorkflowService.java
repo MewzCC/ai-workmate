@@ -49,6 +49,8 @@ public interface LeaveWorkflowService {
 
     LeaveApplicationResponse withdraw(Long userId, Long id, VersionRequest request);
 
+    LeaveApplicationResponse remind(Long userId, Long id, VersionRequest request);
+
     PageResponse<TodoResponse> todos(Long userId, String status, LocalDateTime from,
                                      LocalDateTime to, int page, int size);
 

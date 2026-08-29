@@ -335,6 +335,10 @@ export interface LeaveApplication {
   taskStatus?: string;
   taskDueAt?: string;
   overdue: boolean;
+  reminderCount: number;
+  lastRemindedAt?: string;
+  remindAvailableAt?: string;
+  canRemind: boolean;
   workflowStatus?: string;
   currentStage: 'APPLICATION' | 'APPROVAL' | 'COMPLETED';
   workflowStages: WorkflowStage[];
@@ -469,6 +473,11 @@ export const leaveApi = {
     }),
   withdraw: (id: number, version: number) =>
     request<LeaveApplication>(`/leave-applications/${id}/withdraw`, {
+      method: 'POST',
+      body: JSON.stringify({ version }),
+    }),
+  remind: (id: number, version: number) =>
+    request<LeaveApplication>(`/leave-applications/${id}/remind`, {
       method: 'POST',
       body: JSON.stringify({ version }),
     }),

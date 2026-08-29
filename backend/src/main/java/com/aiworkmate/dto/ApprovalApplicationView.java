@@ -23,6 +23,8 @@ public record ApprovalApplicationView(
         Integer taskVersion,
         String taskStatus,
         LocalDateTime taskDueAt,
+        Integer reminderCount,
+        LocalDateTime lastRemindedAt,
         Long taskAssigneeUserId,
         String taskAssigneeName,
         String workflowStatus,

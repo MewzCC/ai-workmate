@@ -54,7 +54,8 @@ class LeaveCreateDraftToolHandlerTest {
                 30L, 7L, "当前用户", null, null, "PERSONAL",
                 LocalDate.of(2026, 9, 1), "AM", LocalDate.of(2026, 9, 1), "PM",
                 2, 1.0, "家庭事务", "DRAFT", 0,
-                null, null, null, null, false, null, "DRAFT", List.of(),
+                null, null, null, null, false, 0, null, null, false,
+                null, "DRAFT", List.of(),
                 null, null, now, now, true, true, false, false, null, null);
     }
 }

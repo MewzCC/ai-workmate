@@ -22,6 +22,8 @@ public record LeaveApplicationView(
         Integer taskVersion,
         String taskStatus,
         LocalDateTime taskDueAt,
+        Integer reminderCount,
+        LocalDateTime lastRemindedAt,
         String workflowStatus,
         LocalDateTime submittedAt,
         LocalDateTime completedAt,

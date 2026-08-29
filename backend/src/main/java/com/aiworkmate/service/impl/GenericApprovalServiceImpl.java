@@ -97,6 +97,9 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
     @Value("${app.workflow.approval-due-hours:48}")
     private long approvalDueHours;
 
+    @Value("${app.workflow.reminder-interval-minutes:30}")
+    private long reminderIntervalMinutes;
+
     @Override
     @Transactional
     public ApprovalApplicationResponse createDraft(Long userId, ApprovalDraftRequest request) {
@@ -300,6 +303,63 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
                 NotificationService.TYPE_APPROVAL,
                 "审批申请已撤回",
                 "申请人已撤回「" + application.getFormName() + "」，原待办已取消",
+                "generic-approval", id);
+        return response(actor, requireView(actor.tenantId(), id),
+                actionLogMapper.selectBusinessTimeline(actor.tenantId(), BUSINESS_TYPE, id));
+    }
+
+    @Override
+    @Transactional
+    public ApprovalApplicationResponse remind(Long userId, Long id, VersionRequest request) {
+        ResolvedUserAccess actor = requirePermission(userId, "route:approval-start");
+        ApprovalApplication application = requireOwnedApplication(actor, id);
+        if (!"PENDING".equals(application.getStatus())) {
+            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID,
+                    "validation.approval.workflow.stateInvalid");
+        }
+        if (!request.version().equals(application.getVersion())) {
+            throw new BusinessException(ErrorCode.VERSION_CONFLICT);
+        }
+        WorkflowInstance instance = requireRunningInstance(actor, application);
+        WorkflowTask task = requirePendingTask(actor, instance.getId(), id);
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime threshold = now.minusMinutes(Math.max(1, reminderIntervalMinutes));
+        int taskUpdated = taskMapper.update(null, new LambdaUpdateWrapper<WorkflowTask>()
+                .eq(WorkflowTask::getId, task.getId())
+                .eq(WorkflowTask::getTenantId, actor.tenantId())
+                .eq(WorkflowTask::getInstanceId, instance.getId())
+                .eq(WorkflowTask::getBusinessType, BUSINESS_TYPE)
+                .eq(WorkflowTask::getBusinessId, id)
+                .eq(WorkflowTask::getStatus, "PENDING")
+                .and(wrapper -> wrapper.isNull(WorkflowTask::getLastRemindedAt)
+                        .or().le(WorkflowTask::getLastRemindedAt, threshold))
+                .set(WorkflowTask::getLastRemindedAt, now)
+                .set(WorkflowTask::getUpdatedAt, now)
+                .setSql("reminder_count = reminder_count + 1"));
+        if (taskUpdated != 1) {
+            throw new BusinessException(ErrorCode.RATE_LIMITED,
+                    "validation.approval.remind.tooFrequent");
+        }
+        int applicationUpdated = applicationMapper.update(null,
+                new LambdaUpdateWrapper<ApprovalApplication>()
+                        .eq(ApprovalApplication::getId, id)
+                        .eq(ApprovalApplication::getTenantId, actor.tenantId())
+                        .eq(ApprovalApplication::getApplicantUserId, actor.userId())
+                        .eq(ApprovalApplication::getStatus, "PENDING")
+                        .eq(ApprovalApplication::getVersion, request.version())
+                        .set(ApprovalApplication::getUpdatedAt, now)
+                        .setSql("version = version + 1"));
+        if (applicationUpdated != 1) {
+            throw new BusinessException(ErrorCode.VERSION_CONFLICT);
+        }
+        insertAction(actor, instance.getId(), task.getId(),
+                "REMIND", "PENDING", "PENDING", null);
+        auditService.record(actor.tenantId(), actor.userId(), BUSINESS_TYPE,
+                id.toString(), "REMIND", "SUCCESS", "催办通用审批待办");
+        notificationService.publish(actor.tenantId(), task.getAssigneeUserId(),
+                NotificationService.TYPE_APPROVAL,
+                "审批催办提醒",
+                "申请人提醒你及时处理「" + application.getFormName() + "」",
                 "generic-approval", id);
         return response(actor, requireView(actor.tenantId(), id),
                 actionLogMapper.selectBusinessTimeline(actor.tenantId(), BUSINESS_TYPE, id));
@@ -870,6 +930,14 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
                 && view.taskDueAt() != null
                 && view.taskDueAt().isBefore(LocalDateTime.now());
         boolean applicant = actor.userId().equals(view.applicantUserId());
+        LocalDateTime remindAvailableAt = view.lastRemindedAt() == null
+                ? null
+                : view.lastRemindedAt().plusMinutes(Math.max(1, reminderIntervalMinutes));
+        boolean canRemind = applicant
+                && actor.permissions().contains("route:approval-start")
+                && "PENDING".equals(view.status())
+                && "PENDING".equals(view.taskStatus())
+                && (remindAvailableAt == null || !LocalDateTime.now().isBefore(remindAvailableAt));
         return new ApprovalApplicationResponse(
                 view.id(),
                 view.applicantUserId(),
@@ -885,6 +953,10 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
                 view.taskStatus(),
                 view.taskDueAt(),
                 overdue,
+                view.reminderCount() == null ? 0 : view.reminderCount(),
+                view.lastRemindedAt(),
+                remindAvailableAt,
+                canRemind,
                 view.taskAssigneeUserId(),
                 view.taskAssigneeName(),
                 view.workflowStatus(),

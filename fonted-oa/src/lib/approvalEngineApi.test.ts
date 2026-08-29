@@ -53,4 +53,18 @@ describe('通用审批草稿接口', () => {
     expect(fetchMock.mock.calls[0][1]?.body).toBe(JSON.stringify({ version: 2 }));
     expect(fetchMock.mock.calls[1][1]?.body).toBe(JSON.stringify({ version: 3 }));
   });
+
+  it('携带申请版本发送通用审批催办', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(result({ id: 9, status: 'PENDING', version: 3 }));
+
+    await approvalEngineApi.remindApplication(9, 2);
+
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/approval-applications/9/remind');
+    expect(fetchMock.mock.calls[0][1]).toEqual(expect.objectContaining({
+      method: 'POST',
+      credentials: 'include',
+      body: JSON.stringify({ version: 2 }),
+    }));
+  });
 });

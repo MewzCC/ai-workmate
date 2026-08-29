@@ -22,6 +22,8 @@ public class WorkflowTask {
     private String status;
     private String decisionComment;
     private LocalDateTime dueAt;
+    private Integer reminderCount;
+    private LocalDateTime lastRemindedAt;
     private Integer version;
     private LocalDateTime completedAt;
     private LocalDateTime createdAt;

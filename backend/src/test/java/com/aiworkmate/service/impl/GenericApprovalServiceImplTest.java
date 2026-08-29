@@ -77,6 +77,7 @@ class GenericApprovalServiceImplTest {
                 instanceMapper, taskMapper, actionLogMapper, userAccessService,
                 auditService, notificationService, new com.fasterxml.jackson.databind.ObjectMapper());
         ReflectionTestUtils.setField(service, "approvalDueHours", 48L);
+        ReflectionTestUtils.setField(service, "reminderIntervalMinutes", 30L);
         when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(access());
     }
 
@@ -196,6 +197,42 @@ class GenericApprovalServiceImplTest {
     }
 
     @Test
+    void remindUpdatesCurrentTaskAndNotifiesAssignee() {
+        when(applicationMapper.selectOne(any())).thenReturn(application("PENDING", 2));
+        when(instanceMapper.selectOne(any())).thenReturn(instance("RUNNING", 0));
+        when(taskMapper.selectOne(any())).thenReturn(task("PENDING", 1));
+        when(taskMapper.update(any(), any())).thenReturn(1);
+        when(applicationMapper.update(any(), any())).thenReturn(1);
+        when(applicationMapper.selectView(TENANT_ID, 10L)).thenReturn(view("PENDING", 3));
+        when(actionLogMapper.selectBusinessTimeline(TENANT_ID, "GENERIC_APPROVAL", 10L))
+                .thenReturn(List.of());
+
+        ApprovalApplicationResponse response = service.remind(
+                USER_ID, 10L, new VersionRequest(2));
+
+        assertThat(response.status()).isEqualTo("PENDING");
+        verify(actionLogMapper).insert(any(WorkflowActionLog.class));
+        verify(notificationService).publish(TENANT_ID, 2002L,
+                NotificationService.TYPE_APPROVAL, "审批催办提醒",
+                "申请人提醒你及时处理「费用报销」", "generic-approval", 10L);
+    }
+
+    @Test
+    void remindRejectsHighFrequencyRequestBeforeChangingApplication() {
+        when(applicationMapper.selectOne(any())).thenReturn(application("PENDING", 2));
+        when(instanceMapper.selectOne(any())).thenReturn(instance("RUNNING", 0));
+        when(taskMapper.selectOne(any())).thenReturn(task("PENDING", 1));
+        when(taskMapper.update(any(), any())).thenReturn(0);
+
+        assertThatThrownBy(() -> service.remind(USER_ID, 10L, new VersionRequest(2)))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo("RATE_LIMITED");
+
+        verify(applicationMapper, never()).update(any(), any());
+    }
+
+    @Test
     void withdrawRejectsStaleApplicationVersionBeforeChangingWorkflow() {
         when(applicationMapper.selectOne(any())).thenReturn(application("PENDING", 4));
 
@@ -290,7 +327,7 @@ class GenericApprovalServiceImplTest {
                 "PENDING".equals(status) ? 5L : null,
                 "PENDING".equals(status) ? 0 : null,
                 "PENDING".equals(status) ? "PENDING" : null,
-                null, "PENDING".equals(status) ? 2002L : null,
+                null, 0, null, "PENDING".equals(status) ? 2002L : null,
                 "PENDING".equals(status) ? "审批人" : null,
                 "PENDING".equals(status) ? "RUNNING" : null,
                 "PENDING".equals(status) ? 4L : null,

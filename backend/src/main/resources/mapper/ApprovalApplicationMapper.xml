@@ -19,6 +19,8 @@
         task.version AS taskVersion,
         task.status AS taskStatus,
         task.due_at AS taskDueAt,
+        task.reminder_count AS reminderCount,
+        task.last_reminded_at AS lastRemindedAt,
         assignee.id AS taskAssigneeUserId,
         COALESCE(NULLIF(assignee.display_name, ''), assignee.username) AS taskAssigneeName,
         instance.status AS workflowStatus,
@@ -32,7 +34,8 @@
     <sql id="approvalApplicationViewJoins">
         JOIN app_user applicant ON applicant.id = a.applicant_user_id
         LEFT JOIN LATERAL (
-            SELECT wt.id, wt.version, wt.status, wt.due_at, wt.assignee_user_id
+            SELECT wt.id, wt.version, wt.status, wt.due_at, wt.assignee_user_id,
+                   wt.reminder_count, wt.last_reminded_at
             FROM workflow_task wt
             WHERE wt.tenant_id = a.tenant_id
               AND wt.business_type = 'GENERIC_APPROVAL'

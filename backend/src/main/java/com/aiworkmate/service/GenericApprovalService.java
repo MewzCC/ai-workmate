@@ -30,6 +30,9 @@ public interface GenericApprovalService {
     /** 撤回本人审批中的申请，同时取消当前流程实例和唯一有效待办。 */
     ApprovalApplicationResponse withdraw(Long userId, Long id, VersionRequest request);
 
+    /** 催办当前有效待办，按服务端频率窗口限流并写入审计与消息中心。 */
+    ApprovalApplicationResponse remind(Long userId, Long id, VersionRequest request);
+
     /** 将本人被拒绝或已撤回的申请恢复为草稿，保留原流程历史供重新提交。 */
     ApprovalApplicationResponse reopen(Long userId, Long id, VersionRequest request);
 

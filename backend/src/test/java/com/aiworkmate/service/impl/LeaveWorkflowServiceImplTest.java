@@ -86,6 +86,7 @@ class LeaveWorkflowServiceImplTest {
                 leaveMapper, instanceMapper, taskMapper, actionLogMapper,
                 agentTaskMapper, userMapper, userAccessService, auditService, notificationService);
         ReflectionTestUtils.setField(service, "approvalDueHours", 48L);
+        ReflectionTestUtils.setField(service, "reminderIntervalMinutes", 30L);
     }
 
     private void initializeTableMetadata(Class<?> entityType) {
@@ -484,6 +485,45 @@ class LeaveWorkflowServiceImplTest {
     }
 
     @Test
+    void shouldRemindCurrentApproverAndRecordWorkflowAudit() {
+        when(userAccessService.resolveActiveUser(APPLICANT_ID)).thenReturn(applicantAccess());
+        when(leaveMapper.selectById(10L)).thenReturn(leave("PENDING", APPROVER_ID, 1));
+        when(taskMapper.selectOne(any())).thenReturn(pendingTask());
+        when(taskMapper.update(isNull(), any())).thenReturn(1);
+        when(leaveMapper.update(isNull(), any())).thenReturn(1);
+        when(actionLogMapper.insert(any(WorkflowActionLog.class))).thenReturn(1);
+        when(leaveMapper.selectView(TENANT_ID, 10L))
+                .thenReturn(view("PENDING", APPROVER_ID, 30L, 0, "PENDING", 2));
+
+        var response = service.remind(APPLICANT_ID, 10L, new VersionRequest(1));
+
+        assertThat(response.status()).isEqualTo("PENDING");
+        ArgumentCaptor<WorkflowActionLog> logCaptor = ArgumentCaptor.forClass(WorkflowActionLog.class);
+        verify(actionLogMapper).insert(logCaptor.capture());
+        assertThat(logCaptor.getValue().getAction()).isEqualTo("REMIND");
+        verify(notificationService).publish(TENANT_ID, APPROVER_ID,
+                NotificationService.TYPE_APPROVAL, "请假审批催办提醒",
+                "申请人提醒你及时处理一项请假审批", "leave", 10L);
+    }
+
+    @Test
+    void shouldRateLimitFrequentReminderWithoutChangingApplication() {
+        when(userAccessService.resolveActiveUser(APPLICANT_ID)).thenReturn(applicantAccess());
+        when(leaveMapper.selectById(10L)).thenReturn(leave("PENDING", APPROVER_ID, 1));
+        when(taskMapper.selectOne(any())).thenReturn(pendingTask());
+        when(taskMapper.update(isNull(), any())).thenReturn(0);
+
+        assertThatThrownBy(() -> service.remind(
+                APPLICANT_ID, 10L, new VersionRequest(1)))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        error -> assertThat(error.getErrorCode()).isEqualTo("RATE_LIMITED"));
+
+        verify(leaveMapper, never()).update(isNull(), any());
+        verify(notificationService, never()).publish(
+                anyLong(), anyLong(), any(), any(), any(), any(), any());
+    }
+
+    @Test
     void shouldListAllApplicationsForApprovalManager() {
         when(userAccessService.resolveActiveUser(APPROVER_ID)).thenReturn(approverAccess());
         when(leaveMapper.selectAll(TENANT_ID, null, null, null, null, null, 20, 0))
@@ -819,6 +859,7 @@ class LeaveWorkflowServiceImplTest {
                 2, "家庭事务", status, version,
                 taskId, taskVersion, taskStatus,
                 taskId == null ? null : now.plusHours(48),
+                0, null,
                 "PENDING".equals(status) ? "RUNNING" : null,
                 "PENDING".equals(status) ? now : null,
                 null, now, now,
