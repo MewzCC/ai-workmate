@@ -2,6 +2,8 @@ package com.aiworkmate.service.impl;
 
 import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.dto.AssetOperationRequest;
+import com.aiworkmate.dto.AssetInventoryRequest;
+import com.aiworkmate.dto.AssetMaintenanceRequest;
 import com.aiworkmate.dto.AssetLedgerResponse;
 import com.aiworkmate.dto.DepartmentResponse;
 import com.aiworkmate.entity.AssetLedger;
@@ -37,6 +39,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -155,6 +158,136 @@ class AssetLifecycleServiceTest {
                 .extracting("errorCode").isEqualTo("RESOURCE_NOT_FOUND");
     }
 
+    @Test
+    void repairStartMovesIdleAssetToRepairingAndWritesAudit() {
+        when(userAccessService.resolveActiveUser(ACTOR_ID)).thenReturn(access());
+        AssetLedger idle = asset("IDLE", 10L, null, 4);
+        AssetLedger repairing = asset("REPAIRING", 10L, null, 5);
+        when(assetMapper.selectById(ASSET_ID)).thenReturn(idle, repairing);
+        when(assetMapper.update(any(), any())).thenReturn(1);
+        when(operationMapper.insert(any(AssetOperation.class))).thenReturn(1);
+        stubDetail();
+
+        AssetLedgerResponse started = service.startAssetRepair(ACTOR_ID, ASSET_ID,
+                new AssetMaintenanceRequest(4, "电源故障送修"));
+
+        assertThat(started.status()).isEqualTo("REPAIRING");
+        ArgumentCaptor<AssetOperation> captor = ArgumentCaptor.forClass(AssetOperation.class);
+        verify(operationMapper).insert(captor.capture());
+        assertThat(captor.getValue().getOperationType()).isEqualTo("REPAIR_START");
+        assertThat(captor.getValue().getToStatus()).isEqualTo("REPAIRING");
+        verify(auditService).recordTransactional(any(), any(), anyString(), anyString(),
+                anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void repairCompletionMovesRepairingAssetBackToIdle() {
+        when(userAccessService.resolveActiveUser(ACTOR_ID)).thenReturn(access());
+        AssetLedger repairing = asset("REPAIRING", 10L, null, 5);
+        AssetLedger idle = asset("IDLE", 10L, null, 6);
+        when(assetMapper.selectById(ASSET_ID)).thenReturn(repairing, idle);
+        when(assetMapper.update(any(), any())).thenReturn(1);
+        when(operationMapper.insert(any(AssetOperation.class))).thenReturn(1);
+        stubDetail();
+
+        AssetLedgerResponse completed = service.completeAssetRepair(ACTOR_ID, ASSET_ID,
+                new AssetMaintenanceRequest(5, "更换电源后检测正常"));
+
+        assertThat(completed.status()).isEqualTo("IDLE");
+        ArgumentCaptor<AssetOperation> captor = ArgumentCaptor.forClass(AssetOperation.class);
+        verify(operationMapper).insert(captor.capture());
+        assertThat(captor.getValue().getOperationType()).isEqualTo("REPAIR_COMPLETE");
+        assertThat(captor.getValue().getFromStatus()).isEqualTo("REPAIRING");
+        assertThat(captor.getValue().getToStatus()).isEqualTo("IDLE");
+    }
+
+    @Test
+    void repairCompletionRejectsIdleAsset() {
+        when(userAccessService.resolveActiveUser(ACTOR_ID)).thenReturn(access());
+        when(assetMapper.selectById(ASSET_ID)).thenReturn(asset("IDLE", 10L, null, 5));
+
+        assertThatThrownBy(() -> service.completeAssetRepair(ACTOR_ID, ASSET_ID,
+                new AssetMaintenanceRequest(5, "维修完成")))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("BUSINESS_STATE_INVALID");
+        verify(operationMapper, never()).insert(any(AssetOperation.class));
+    }
+
+    @Test
+    void inventoryDiscrepancyKeepsLedgerStateAndCapturesActualSnapshot() {
+        when(userAccessService.resolveActiveUser(ACTOR_ID)).thenReturn(access());
+        AssetLedger before = asset("IDLE", 10L, null, 7);
+        AssetLedger after = asset("IDLE", 10L, null, 8);
+        when(assetMapper.selectById(ASSET_ID)).thenReturn(before, after);
+        when(accessControlMapper.countDepartment(TENANT_ID, 20L)).thenReturn(1);
+        when(userMapper.selectById(OWNER_ID)).thenReturn(owner(20L));
+        when(assetMapper.update(any(), any())).thenReturn(1);
+        when(operationMapper.insert(any(AssetOperation.class))).thenReturn(1);
+        stubDetail();
+
+        AssetLedgerResponse response = service.inventoryAsset(ACTOR_ID, ASSET_ID,
+                new AssetInventoryRequest(7, "LOCATION_MISMATCH", "IN_USE", 20L, OWNER_ID,
+                        "实物在研发部使用"));
+
+        assertThat(response.status()).isEqualTo("IDLE");
+        ArgumentCaptor<AssetOperation> captor = ArgumentCaptor.forClass(AssetOperation.class);
+        verify(operationMapper).insert(captor.capture());
+        assertThat(captor.getValue().getOperationType()).isEqualTo("INVENTORY");
+        assertThat(captor.getValue().getInventoryResult()).isEqualTo("LOCATION_MISMATCH");
+        assertThat(captor.getValue().getActualOwnerUserId()).isEqualTo(OWNER_ID);
+    }
+
+    @Test
+    void matchedInventoryMustEqualBookSnapshot() {
+        when(userAccessService.resolveActiveUser(ACTOR_ID)).thenReturn(access());
+        when(assetMapper.selectById(ASSET_ID)).thenReturn(asset("IDLE", 10L, null, 2));
+        when(accessControlMapper.countDepartment(TENANT_ID, 20L)).thenReturn(1);
+
+        assertThatThrownBy(() -> service.inventoryAsset(ACTOR_ID, ASSET_ID,
+                new AssetInventoryRequest(2, "MATCH", "IDLE", 20L, null, null)))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("BUSINESS_STATE_INVALID");
+        verify(assetMapper, never()).update(any(), any());
+    }
+
+    @Test
+    void scrappedAssetCannotBeClaimedTransferredRepairedOrInventoried() {
+        when(userAccessService.resolveActiveUser(ACTOR_ID)).thenReturn(access());
+        when(assetMapper.selectById(ASSET_ID)).thenReturn(asset("SCRAPPED", 10L, null, 9));
+
+        assertThatThrownBy(() -> service.claimAsset(ACTOR_ID, ASSET_ID,
+                new AssetOperationRequest(9, OWNER_ID, 20L, null))).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> service.transferAsset(ACTOR_ID, ASSET_ID,
+                new AssetOperationRequest(9, null, 20L, null))).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> service.startAssetRepair(ACTOR_ID, ASSET_ID,
+                new AssetMaintenanceRequest(9, "尝试维修"))).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> service.inventoryAsset(ACTOR_ID, ASSET_ID,
+                new AssetInventoryRequest(9, "MISSING", null, null, null, "复盘")))
+                .isInstanceOf(BusinessException.class);
+        verify(assetMapper, never()).update(any(), any());
+    }
+
+    @Test
+    void scrapMovesIdleAssetToTerminalState() {
+        when(userAccessService.resolveActiveUser(ACTOR_ID)).thenReturn(access());
+        AssetLedger idle = asset("IDLE", 10L, null, 8);
+        AssetLedger scrapped = asset("SCRAPPED", 10L, null, 9);
+        when(assetMapper.selectById(ASSET_ID)).thenReturn(idle, scrapped);
+        when(assetMapper.update(any(), any())).thenReturn(1);
+        when(operationMapper.insert(any(AssetOperation.class))).thenReturn(1);
+        stubDetail();
+
+        AssetLedgerResponse response = service.scrapAsset(ACTOR_ID, ASSET_ID,
+                new AssetMaintenanceRequest(8, "超过使用年限且无法修复"));
+
+        assertThat(response.status()).isEqualTo("SCRAPPED");
+        assertThat(response.canDelete()).isFalse();
+        ArgumentCaptor<AssetOperation> captor = ArgumentCaptor.forClass(AssetOperation.class);
+        verify(operationMapper).insert(captor.capture());
+        assertThat(captor.getValue().getOperationType()).isEqualTo("SCRAP");
+        assertThat(captor.getValue().getToStatus()).isEqualTo("SCRAPPED");
+    }
+
     private ResolvedUserAccess access() {
         return new ResolvedUserAccess(ACTOR_ID, "admin@example.com", TENANT_ID, "SYSTEM_ADMIN",
                 List.of("SYSTEM_ADMIN"), List.of("assets:read", "asset:write"), List.of("ALL"), 1L);
@@ -192,6 +325,11 @@ class AssetLifecycleServiceTest {
     private List<DepartmentResponse> departments() {
         return List.of(new DepartmentResponse(10L, "ADMIN", "行政部", null, null, 1),
                 new DepartmentResponse(20L, "RND", "研发部", null, null, 1));
+    }
+
+    private void stubDetail() {
+        when(operationMapper.selectList(any())).thenReturn(List.of());
+        when(accessControlMapper.selectDepartments(TENANT_ID)).thenReturn(departments());
     }
 
     private static void initializeTableMetadata(Class<?> entityClass, Class<?> mapperClass) {

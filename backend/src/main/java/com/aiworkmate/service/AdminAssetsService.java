@@ -3,6 +3,8 @@ package com.aiworkmate.service;
 import com.aiworkmate.common.PageResponse;
 import com.aiworkmate.dto.AssetLedgerRequest;
 import com.aiworkmate.dto.AssetLedgerResponse;
+import com.aiworkmate.dto.AssetInventoryRequest;
+import com.aiworkmate.dto.AssetMaintenanceRequest;
 import com.aiworkmate.dto.AssetOperationRequest;
 import com.aiworkmate.dto.MeetingRoomRequest;
 import com.aiworkmate.dto.MeetingRoomResponse;
@@ -48,6 +50,14 @@ public interface AdminAssetsService {
     AssetLedgerResponse returnAsset(Long userId, Long id, AssetOperationRequest request);
 
     AssetLedgerResponse transferAsset(Long userId, Long id, AssetOperationRequest request);
+
+    AssetLedgerResponse startAssetRepair(Long userId, Long id, AssetMaintenanceRequest request);
+
+    AssetLedgerResponse completeAssetRepair(Long userId, Long id, AssetMaintenanceRequest request);
+
+    AssetLedgerResponse inventoryAsset(Long userId, Long id, AssetInventoryRequest request);
+
+    AssetLedgerResponse scrapAsset(Long userId, Long id, AssetMaintenanceRequest request);
 
     // ---------- 会议室 ----------
 

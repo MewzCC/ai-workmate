@@ -18,6 +18,12 @@ public record AssetOperationResponse(
         Long operatorUserId,
         String operatorName,
         String reason,
+        String inventoryResult,
+        String actualStatus,
+        Long actualDepartmentId,
+        String actualDepartmentName,
+        Long actualOwnerUserId,
+        String actualOwnerName,
         LocalDateTime createdAt
 ) {
 }

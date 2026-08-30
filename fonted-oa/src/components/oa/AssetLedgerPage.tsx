@@ -28,6 +28,7 @@ import {
   adminAssetsApi,
   type AssetLedger,
   type AssetLedgerPayload,
+  type AssetInventoryResult,
   type AssetOperationPayload,
   type AssetOperationType,
   type AssetStatus,
@@ -47,7 +48,12 @@ interface AssetFormValues extends Omit<AssetLedgerPayload, 'purchaseDate'> {
   purchaseDate?: string | null;
 }
 
-type OperationFormValues = Omit<AssetOperationPayload, 'version'>;
+type OperationFormValues = Omit<AssetOperationPayload, 'version'> & {
+  inventoryResult?: AssetInventoryResult;
+  actualStatus?: AssetStatus;
+  actualDepartmentId?: number;
+  actualOwnerUserId?: number;
+};
 
 export default function AssetLedgerPage() {
   const { t } = useTranslation();
@@ -71,6 +77,8 @@ export default function AssetLedgerPage() {
   const [operationType, setOperationType] = useState<AssetOperationType>();
   const [operating, setOperating] = useState(false);
   const targetDepartmentId = Form.useWatch('targetDepartmentId', operationForm);
+  const actualDepartmentId = Form.useWatch('actualDepartmentId', operationForm);
+  const inventoryResult = Form.useWatch('inventoryResult', operationForm);
 
   const load = useCallback(async (p = page, s = size) => {
     setLoading(true);
@@ -139,6 +147,14 @@ export default function AssetLedgerPage() {
   const openOperation = (type: AssetOperationType) => {
     setOperationType(type);
     operationForm.resetFields();
+    if (type === 'INVENTORY' && detail) {
+      operationForm.setFieldsValue({
+        inventoryResult: 'MATCH',
+        actualStatus: detail.status,
+        actualDepartmentId: detail.departmentId || undefined,
+        actualOwnerUserId: detail.ownerUserId || undefined,
+      });
+    }
   };
 
   const handleOperation = async () => {
@@ -147,11 +163,29 @@ export default function AssetLedgerPage() {
       const values = await operationForm.validateFields();
       setOperating(true);
       const payload = { ...values, version: detail.version };
-      const updated = operationType === 'CLAIM'
-        ? await adminAssetsApi.claimAsset(detail.id, payload)
-        : operationType === 'RETURN'
-          ? await adminAssetsApi.returnAsset(detail.id, payload)
-          : await adminAssetsApi.transferAsset(detail.id, payload);
+      let updated: AssetLedger;
+      switch (operationType) {
+        case 'CLAIM': updated = await adminAssetsApi.claimAsset(detail.id, payload); break;
+        case 'RETURN': updated = await adminAssetsApi.returnAsset(detail.id, payload); break;
+        case 'TRANSFER': updated = await adminAssetsApi.transferAsset(detail.id, payload); break;
+        case 'REPAIR_START': updated = await adminAssetsApi.startAssetRepair(detail.id, {
+          version: detail.version, reason: values.reason || '',
+        }); break;
+        case 'REPAIR_COMPLETE': updated = await adminAssetsApi.completeAssetRepair(detail.id, {
+          version: detail.version, reason: values.reason || '',
+        }); break;
+        case 'INVENTORY': updated = await adminAssetsApi.inventoryAsset(detail.id, {
+          version: detail.version,
+          inventoryResult: values.inventoryResult as AssetInventoryResult,
+          actualStatus: values.actualStatus,
+          actualDepartmentId: values.actualDepartmentId,
+          actualOwnerUserId: values.actualOwnerUserId,
+          reason: values.reason,
+        }); break;
+        case 'SCRAP': updated = await adminAssetsApi.scrapAsset(detail.id, {
+          version: detail.version, reason: values.reason || '',
+        }); break;
+      }
       setDetail(updated);
       setData((current) => current.map((item) => item.id === updated.id ? updated : item));
       setOperationType(undefined);
@@ -419,6 +453,22 @@ export default function AssetLedgerPage() {
                   >
                     {t('adminAssets.asset.operation.TRANSFER.action')}
                   </Button>
+                  <Button disabled={detail.status !== 'IDLE'} onClick={() => openOperation('REPAIR_START')}>
+                    {t('adminAssets.asset.operation.REPAIR_START.action')}
+                  </Button>
+                  <Button disabled={detail.status !== 'REPAIRING'} onClick={() => openOperation('REPAIR_COMPLETE')}>
+                    {t('adminAssets.asset.operation.REPAIR_COMPLETE.action')}
+                  </Button>
+                  <Button disabled={detail.status === 'SCRAPPED'} onClick={() => openOperation('INVENTORY')}>
+                    {t('adminAssets.asset.operation.INVENTORY.action')}
+                  </Button>
+                  <Button
+                    danger
+                    disabled={!['IDLE', 'REPAIRING'].includes(detail.status)}
+                    onClick={() => openOperation('SCRAP')}
+                  >
+                    {t('adminAssets.asset.operation.SCRAP.action')}
+                  </Button>
                 </Space>
               )}
               <Typography.Title level={5}>{t('adminAssets.asset.history')}</Typography.Title>
@@ -432,10 +482,18 @@ export default function AssetLedgerPage() {
                         <Typography.Text type="secondary">{dayjs(history.createdAt).format('YYYY-MM-DD HH:mm')}</Typography.Text>
                       </Space>
                       <Typography.Text>
-                        {t('adminAssets.asset.historyRoute', {
-                          from: [history.fromDepartmentName, history.fromOwnerName].filter(Boolean).join(' · ') || '-',
-                          to: [history.toDepartmentName, history.toOwnerName].filter(Boolean).join(' · ') || '-',
-                        })}
+                        {history.operationType === 'INVENTORY'
+                          ? t('adminAssets.asset.historyInventory', {
+                            result: t(`adminAssets.asset.inventoryResult.${history.inventoryResult}`),
+                            status: history.actualStatus
+                              ? t(`adminAssets.asset.statusOption.${history.actualStatus}`) : '-',
+                            location: [history.actualDepartmentName, history.actualOwnerName]
+                              .filter(Boolean).join(' · ') || '-',
+                          })
+                          : t('adminAssets.asset.historyRoute', {
+                            from: [history.fromDepartmentName, history.fromOwnerName].filter(Boolean).join(' · ') || '-',
+                            to: [history.toDepartmentName, history.toOwnerName].filter(Boolean).join(' · ') || '-',
+                          })}
                       </Typography.Text>
                       <Typography.Text type="secondary">
                         {history.reason || '-'} · {history.operatorName || '-'}
@@ -458,7 +516,7 @@ export default function AssetLedgerPage() {
         destroyOnClose
       >
         <Form form={operationForm} layout="vertical">
-          {operationType !== 'RETURN' && (
+          {(operationType === 'CLAIM' || operationType === 'TRANSFER') && (
             <Form.Item
               name="targetDepartmentId"
               label={t('adminAssets.asset.targetDepartment')}
@@ -480,7 +538,45 @@ export default function AssetLedgerPage() {
                 .map((employee) => ({ value: employee.id, label: `${employee.name} · ${employee.email}` }))} />
             </Form.Item>
           )}
-          <Form.Item name="reason" label={t('adminAssets.asset.operationReason')}>
+          {operationType === 'INVENTORY' && (
+            <>
+              <Form.Item
+                name="inventoryResult"
+                label={t('adminAssets.asset.inventoryResultLabel')}
+                rules={[{ required: true, message: t('adminAssets.common.fieldRequired') }]}
+              >
+                <Select options={[
+                  'MATCH', 'MISSING', 'DAMAGED', 'LOCATION_MISMATCH', 'CUSTODIAN_MISMATCH',
+                ].map((value) => ({
+                  value, label: t(`adminAssets.asset.inventoryResult.${value}`),
+                }))} />
+              </Form.Item>
+              <Form.Item name="actualStatus" label={t('adminAssets.asset.actualStatus')}>
+                <Select allowClear options={Object.keys(STATUS_TAG_COLOR).map((value) => ({
+                  value, label: t(`adminAssets.asset.statusOption.${value}`),
+                }))} />
+              </Form.Item>
+              <Form.Item name="actualDepartmentId" label={t('adminAssets.asset.actualDepartment')}>
+                <Select allowClear options={(overview?.departments || []).map((department) => ({
+                  value: department.id, label: department.name,
+                }))} />
+              </Form.Item>
+              <Form.Item name="actualOwnerUserId" label={t('adminAssets.asset.actualOwner')}>
+                <Select allowClear showSearch optionFilterProp="label" options={(overview?.employees || [])
+                  .filter((employee) => employee.status === 1 && employee.departmentId === actualDepartmentId)
+                  .map((employee) => ({ value: employee.id, label: `${employee.name} · ${employee.email}` }))} />
+              </Form.Item>
+            </>
+          )}
+          <Form.Item
+            name="reason"
+            label={t('adminAssets.asset.operationReason')}
+            rules={[{
+              required: ['REPAIR_START', 'REPAIR_COMPLETE', 'SCRAP'].includes(operationType || '')
+                || (operationType === 'INVENTORY' && inventoryResult !== 'MATCH'),
+              message: t('adminAssets.common.fieldRequired'),
+            }]}
+          >
             <Input.TextArea maxLength={500} showCount rows={3} />
           </Form.Item>
         </Form>

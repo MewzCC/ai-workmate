@@ -23,5 +23,9 @@ public class AssetOperation {
     private Long toOwnerUserId;
     private Long operatorUserId;
     private String reason;
+    private String inventoryResult;
+    private String actualStatus;
+    private Long actualDepartmentId;
+    private Long actualOwnerUserId;
     private LocalDateTime createdAt;
 }
