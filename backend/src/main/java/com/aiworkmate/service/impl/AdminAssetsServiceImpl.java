@@ -16,6 +16,8 @@ import com.aiworkmate.dto.MeetingRoomRequest;
 import com.aiworkmate.dto.MeetingRoomResponse;
 import com.aiworkmate.dto.SealUsageRequest;
 import com.aiworkmate.dto.SealUsageResponse;
+import com.aiworkmate.dto.SealUseRequest;
+import com.aiworkmate.dto.SealReturnRequest;
 import com.aiworkmate.dto.VersionRequest;
 import com.aiworkmate.dto.VisitorBookingRequest;
 import com.aiworkmate.dto.VisitorBookingResponse;
@@ -935,6 +937,12 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
     public SealUsageResponse getSealUsage(Long userId, Long id) {
         ResolvedUserAccess actor = requirePermission(userId, "seal:read:self");
         SealUsage s = requireSeal(actor, id, false);
+        boolean related = actor.userId().equals(s.getApplicantUserId())
+                || actor.userId().equals(s.getApproverUserId())
+                || actor.userId().equals(s.getHandlerUserId());
+        if (!related && !actor.permissions().contains("seal:register:any")) {
+            throw new BusinessException(ErrorCode.RESOURCE_FORBIDDEN);
+        }
         WorkflowTask task = activeTask(actor.tenantId(), BUSINESS_SEAL, id);
         return toSealResponse(actor, s, task);
     }
@@ -1046,6 +1054,75 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
                     "validation.seal.rejectReason.required");
         }
         return decideSeal(userId, taskId, request, false);
+    }
+
+    @Override
+    @Transactional
+    public SealUsageResponse registerSealUse(Long userId, Long id, SealUseRequest request) {
+        ResolvedUserAccess actor = requirePermission(userId, "seal:register");
+        SealUsage usage = requireSealExecutionAccess(actor, id);
+        if (!"APPROVED".equals(usage.getStatus())) {
+            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID, "oa.seal.use.transition.invalid");
+        }
+        if (usage.getCopies() != null && request.actualCopies() > usage.getCopies()) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "oa.seal.use.copies.exceeded");
+        }
+        LocalDateTime now = LocalDateTime.now();
+        int updated = sealMapper.update(null, new LambdaUpdateWrapper<SealUsage>()
+                .eq(SealUsage::getId, id)
+                .eq(SealUsage::getTenantId, actor.tenantId())
+                .eq(SealUsage::getStatus, "APPROVED")
+                .eq(SealUsage::getVersion, request.version())
+                .set(SealUsage::getStatus, "USED")
+                .set(SealUsage::getActualCopies, request.actualCopies())
+                .set(SealUsage::getHandlerUserId, actor.userId())
+                .set(SealUsage::getUsedAt, now)
+                .set(SealUsage::getUpdatedAt, now)
+                .setSql("version = version + 1"));
+        if (updated != 1) {
+            throw new BusinessException(ErrorCode.VERSION_CONFLICT);
+        }
+        auditService.recordTransactional(actor.tenantId(), actor.userId(), BUSINESS_SEAL,
+                id.toString(), "USE", "SUCCESS",
+                "approvedCopies=" + usage.getCopies() + ",actualCopies=" + request.actualCopies()
+                        + ",handlerUserId=" + actor.userId() + ",remark=" + trim(request.remark()));
+        return toSealResponse(actor, sealMapper.selectById(id), null);
+    }
+
+    @Override
+    @Transactional
+    public SealUsageResponse returnSeal(Long userId, Long id, SealReturnRequest request) {
+        ResolvedUserAccess actor = requirePermission(userId, "seal:register");
+        SealUsage usage = requireSealExecutionAccess(actor, id);
+        if (!"USED".equals(usage.getStatus())) {
+            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID, "oa.seal.return.transition.invalid");
+        }
+        LocalDateTime now = LocalDateTime.now();
+        int updated = sealMapper.update(null, new LambdaUpdateWrapper<SealUsage>()
+                .eq(SealUsage::getId, id)
+                .eq(SealUsage::getTenantId, actor.tenantId())
+                .eq(SealUsage::getStatus, "USED")
+                .eq(SealUsage::getVersion, request.version())
+                .set(SealUsage::getStatus, "RETURNED")
+                .set(SealUsage::getReturnedAt, now)
+                .set(SealUsage::getUpdatedAt, now)
+                .setSql("version = version + 1"));
+        if (updated != 1) {
+            throw new BusinessException(ErrorCode.VERSION_CONFLICT);
+        }
+        auditService.recordTransactional(actor.tenantId(), actor.userId(), BUSINESS_SEAL,
+                id.toString(), "RETURN", "SUCCESS",
+                "handlerUserId=" + usage.getHandlerUserId() + ",remark=" + trim(request.remark()));
+        return toSealResponse(actor, sealMapper.selectById(id), null);
+    }
+
+    private SealUsage requireSealExecutionAccess(ResolvedUserAccess actor, Long id) {
+        SealUsage usage = requireSeal(actor, id, false);
+        if (!actor.userId().equals(usage.getApplicantUserId())
+                && !actor.permissions().contains("seal:register:any")) {
+            throw new BusinessException(ErrorCode.RESOURCE_FORBIDDEN);
+        }
+        return usage;
     }
 
     private SealUsageResponse decideSeal(Long userId, Long taskId,
@@ -1444,6 +1521,13 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
         boolean canDecide = approver && "PENDING".equals(s.getStatus())
                 && actor.permissions().contains("approval:act")
                 && !applicant;
+        boolean canRegister = actor.permissions().contains("seal:register")
+                && (applicant || actor.permissions().contains("seal:register:any"));
+        boolean canRegisterUse = canRegister && "APPROVED".equals(s.getStatus());
+        boolean canReturn = canRegister && "USED".equals(s.getStatus());
+        boolean canArchiveDocument = canRegister
+                && ("APPROVED".equals(s.getStatus()) || "USED".equals(s.getStatus())
+                || "RETURNED".equals(s.getStatus()));
         return new SealUsageResponse(
                 s.getId(), s.getApplicantUserId(), singleUserName(s.getApplicantUserId()),
                 s.getApproverUserId(), singleUserName(s.getApproverUserId()),
@@ -1452,7 +1536,9 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
                 task == null ? null : task.getId(),
                 task == null ? null : task.getVersion(),
                 task == null ? null : task.getStatus(),
-                s.getSubmittedAt(), s.getCompletedAt(), s.getCreatedAt(), s.getUpdatedAt(),
-                canWithdraw, canDecide);
+                s.getSubmittedAt(), s.getCompletedAt(), s.getActualCopies(), s.getHandlerUserId(),
+                singleUserName(s.getHandlerUserId()), s.getUsedAt(), s.getReturnedAt(),
+                s.getCreatedAt(), s.getUpdatedAt(), canWithdraw, canDecide,
+                canRegisterUse, canReturn, canArchiveDocument);
     }
 }

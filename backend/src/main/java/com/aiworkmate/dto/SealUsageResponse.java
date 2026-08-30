@@ -23,9 +23,17 @@ public record SealUsageResponse(
         String taskStatus,
         LocalDateTime submittedAt,
         LocalDateTime completedAt,
+        Integer actualCopies,
+        Long handlerUserId,
+        String handlerName,
+        LocalDateTime usedAt,
+        LocalDateTime returnedAt,
         LocalDateTime createdAt,
         LocalDateTime updatedAt,
         boolean canWithdraw,
-        boolean canDecide
+        boolean canDecide,
+        boolean canRegisterUse,
+        boolean canReturn,
+        boolean canArchiveDocument
 ) {
 }

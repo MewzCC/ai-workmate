@@ -19,6 +19,9 @@ public class UploadProperties {
     /** 员工合同与档案附件的独立对象前缀 */
     private String employeeDocumentStoragePrefix = "employee-documents/";
 
+    /** 用印留档文件的独立对象前缀 */
+    private String sealDocumentStoragePrefix = "seal-documents/";
+
     /** 附件最长保留天数；小于等于 0 表示不启用自动清理 */
     private int attachmentMaxAgeDays = 30;
 }
