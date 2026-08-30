@@ -104,6 +104,19 @@ public class MinioStorageService implements ObjectStorageService {
         }
     }
 
+    @Override
+    public boolean isAvailable() {
+        try {
+            boolean exists = client.bucketExists(BucketExistsArgs.builder()
+                    .bucket(properties.getBucket())
+                    .build());
+            return exists || properties.isAutoCreateBucket();
+        } catch (Exception ex) {
+            log.warn("MinIO capability inspection failed, cause={}", ex.getClass().getSimpleName());
+            return false;
+        }
+    }
+
     private void ensureBucket() {
         if (bucketReady.get()) return;
         if (!properties.isAutoCreateBucket()) {
