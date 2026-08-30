@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { usePathname, useRouter } from '@/lib/nextCompat';
-import { ConfigProvider, FloatButton, Layout, theme as antdTheme } from 'antd';
+import { ConfigProvider, FloatButton, Layout, Spin, theme as antdTheme } from 'antd';
 import { message } from '@/lib/antdMessage';
 import type { OaMenuItem, OaRole, OaTheme } from '@/types/oa';
 import { findMenu } from '@/mock/oaPermissions';
@@ -13,9 +13,7 @@ import Topbar from './Topbar';
 import AppearanceDrawer from './AppearanceDrawer';
 import AIOperationDrawer from './AIOperationDrawer';
 import AiMiniPanel from './AiMiniPanel';
-import AiChatWorkspace from '@/components/ai-chat/AiChatWorkspace';
 import { useAuth } from '@/components/auth/AuthProvider';
-import AccessControlPage from './AccessControlPage';
 import NotificationPage from './NotificationPage';
 import { getNavigation, type NavigationRoute } from '@/lib/navigationApi';
 import { profileApi } from '@/lib/profileApi';
@@ -23,20 +21,13 @@ import { OaIcon } from '@/components/OaIcon';
 import PageTabBar, { type OaPageTab } from './PageTabBar';
 import TodoListPage from './TodoListPage';
 import ApprovalListPage from './ApprovalListPage';
-import FormEnginePage from './FormEnginePage';
-import ProcessConfigPage from './ProcessConfigPage';
-import ApprovalRulesPage from './ApprovalRulesPage';
 import LeaveFormPage from './LeaveFormPage';
 import MyApplicationsPage from './MyApplicationsPage';
 import ApprovalDetailPage from './ApprovalDetailPage';
 import ApprovalStartPage from './ApprovalStartPage';
 import ApprovalFormPage from './ApprovalFormPage';
-import AuditCenterPage from './AuditCenterPage';
-import OrganizationTreePage from './OrganizationTreePage';
 import EmployeeFilePage from './EmployeeFilePage';
 import EmployeeChangePage from './EmployeeChangePage';
-import KnowledgeBasePage from './KnowledgeBasePage';
-import SystemSettingsPage from './SystemSettingsPage';
 import AttendanceClockPage from './AttendanceClockPage';
 import AttendanceExceptionPage from './AttendanceExceptionPage';
 import AttendanceReissuePage from './AttendanceReissuePage';
@@ -46,8 +37,18 @@ import AssetLedgerPage from './AssetLedgerPage';
 import MeetingRoomPage from './MeetingRoomPage';
 import VisitorBookingPage from './VisitorBookingPage';
 import SealUsagePage from './SealUsagePage';
-import AiTaskCenterPage from './AiTaskCenterPage';
 import { useAiChatStore } from '@/store/aiChatStore';
+
+const AiChatWorkspace = lazy(() => import('@/components/ai-chat/AiChatWorkspace'));
+const AccessControlPage = lazy(() => import('./AccessControlPage'));
+const AiTaskCenterPage = lazy(() => import('./AiTaskCenterPage'));
+const ApprovalRulesPage = lazy(() => import('./ApprovalRulesPage'));
+const AuditCenterPage = lazy(() => import('./AuditCenterPage'));
+const FormEnginePage = lazy(() => import('./FormEnginePage'));
+const KnowledgeBasePage = lazy(() => import('./KnowledgeBasePage'));
+const OrganizationTreePage = lazy(() => import('./OrganizationTreePage'));
+const ProcessConfigPage = lazy(() => import('./ProcessConfigPage'));
+const SystemSettingsPage = lazy(() => import('./SystemSettingsPage'));
 
 const { Content } = Layout;
 const OPEN_TABS_STORAGE_KEY = 'workmeta-oa-open-tabs';
@@ -552,20 +553,21 @@ export default function AdminLayout() {
                 ) : null}
               </div>
               <Content className={`oa-content ${selectedMenu.id === 'ai-workspace' ? 'oa-chat-content' : ''}`}>
-                <div key={selectedMenu.id} className="oa-page-transition">
-                  {approvalTaskId ? (
-                    <ApprovalDetailPage taskId={approvalTaskId} />
-                  ) : kbId ? (
-                    <KnowledgeBasePage kbId={kbId} />
-                  ) : selectedMenu.componentKey === 'AI_WORKSPACE' ? (
-                    <AiChatWorkspace role={role} />
-                  ) : selectedMenu.componentKey === 'AI_TASK_CENTER' ? (
-                    <AiTaskCenterPage />
-                  ) : selectedMenu.componentKey === 'MESSAGE_CENTER' ? (
-                    <NotificationPage />
-                  ) : selectedMenu.componentKey === 'ACCESS_CONTROL' ? (
-                    <AccessControlPage />
-                  ) : selectedMenu.componentKey === 'TODO_LIST' ? (
+                <Suspense fallback={<div className="oa-route-loading"><Spin size="large" /></div>}>
+                  <div key={selectedMenu.id} className="oa-page-transition">
+                    {approvalTaskId ? (
+                      <ApprovalDetailPage taskId={approvalTaskId} />
+                    ) : kbId ? (
+                      <KnowledgeBasePage kbId={kbId} />
+                    ) : selectedMenu.componentKey === 'AI_WORKSPACE' ? (
+                      <AiChatWorkspace role={role} />
+                    ) : selectedMenu.componentKey === 'AI_TASK_CENTER' ? (
+                      <AiTaskCenterPage />
+                    ) : selectedMenu.componentKey === 'MESSAGE_CENTER' ? (
+                      <NotificationPage />
+                    ) : selectedMenu.componentKey === 'ACCESS_CONTROL' ? (
+                      <AccessControlPage />
+                    ) : selectedMenu.componentKey === 'TODO_LIST' ? (
                     <TodoListPage />
                   ) : selectedMenu.componentKey === 'APPROVAL_LIST' ? (
                     <ApprovalListPage />
@@ -623,8 +625,9 @@ export default function AdminLayout() {
                       onOpenAi={openAi}
                       onAddAudit={addAudit}
                     />
-                  )}
-                </div>
+                    )}
+                  </div>
+                </Suspense>
               </Content>
             </Layout>
           </Layout>
