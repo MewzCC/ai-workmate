@@ -160,7 +160,8 @@ export interface MeetingBooking {
 // ==================== 访客预约 ====================
 
 export type VisitorBookingStatus =
-  | 'PENDING' | 'APPROVED' | 'REJECTED' | 'WITHDRAWN' | 'VISITED';
+  | 'PENDING' | 'APPROVED' | 'REJECTED' | 'WITHDRAWN'
+  | 'CHECKED_IN' | 'VISITED' | 'LEFT' | 'NO_SHOW';
 
 export interface VisitorBookingPayload {
   visitorName: string;
@@ -198,10 +199,20 @@ export interface VisitorBooking {
   taskStatus?: string | null;
   submittedAt?: string | null;
   completedAt?: string | null;
+  registeredByUserId?: number | null;
+  registeredByName?: string | null;
+  checkedInAt?: string | null;
+  visitedAt?: string | null;
+  leftAt?: string | null;
+  noShowAt?: string | null;
   createdAt: string;
   updatedAt: string;
   canWithdraw: boolean;
   canDecide: boolean;
+  canCheckIn: boolean;
+  canMarkVisited: boolean;
+  canLeave: boolean;
+  canMarkNoShow: boolean;
 }
 
 // ==================== 印章用印 ====================
@@ -413,6 +424,26 @@ export const adminAssetsApi = {
     request<VisitorBooking>(`${PREFIX}/visitor-bookings/tasks/${taskId}/reject`, {
       method: 'POST',
       body: JSON.stringify(payload),
+    }),
+
+  checkInVisitor: (id: number, payload: { version: number; remark?: string }) =>
+    request<VisitorBooking>(`${PREFIX}/visitor-bookings/${id}/check-in`, {
+      method: 'POST', body: JSON.stringify(payload),
+    }),
+
+  markVisitorArrived: (id: number, payload: { version: number; remark?: string }) =>
+    request<VisitorBooking>(`${PREFIX}/visitor-bookings/${id}/arrive`, {
+      method: 'POST', body: JSON.stringify(payload),
+    }),
+
+  leaveVisitor: (id: number, payload: { version: number; remark?: string }) =>
+    request<VisitorBooking>(`${PREFIX}/visitor-bookings/${id}/leave`, {
+      method: 'POST', body: JSON.stringify(payload),
+    }),
+
+  markVisitorNoShow: (id: number, payload: { version: number; remark?: string }) =>
+    request<VisitorBooking>(`${PREFIX}/visitor-bookings/${id}/no-show`, {
+      method: 'POST', body: JSON.stringify(payload),
     }),
 
   // ---------- 印章用印 ----------

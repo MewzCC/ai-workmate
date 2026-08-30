@@ -19,6 +19,7 @@ import com.aiworkmate.dto.SealUsageResponse;
 import com.aiworkmate.dto.VersionRequest;
 import com.aiworkmate.dto.VisitorBookingRequest;
 import com.aiworkmate.dto.VisitorBookingResponse;
+import com.aiworkmate.dto.VisitorVisitActionRequest;
 import com.aiworkmate.entity.AssetLedger;
 import com.aiworkmate.entity.AssetOperation;
 import com.aiworkmate.entity.MeetingRoom;
@@ -656,14 +657,16 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
         String st = normalize(status);
         LambdaQueryWrapper<VisitorBooking> q = new LambdaQueryWrapper<VisitorBooking>()
                 .eq(VisitorBooking::getTenantId, actor.tenantId())
-                .eq(VisitorBooking::getApplicantUserId, actor.userId())
+                .and(w -> w.eq(VisitorBooking::getApplicantUserId, actor.userId())
+                        .or().eq(VisitorBooking::getHostUserId, actor.userId()))
                 .eq(st != null, VisitorBooking::getStatus, st)
                 .orderByDesc(VisitorBooking::getCreatedAt)
                 .last("LIMIT " + safeSize + " OFFSET " + offset);
         List<VisitorBooking> rows = visitorMapper.selectList(q);
         LambdaQueryWrapper<VisitorBooking> cq = new LambdaQueryWrapper<VisitorBooking>()
                 .eq(VisitorBooking::getTenantId, actor.tenantId())
-                .eq(VisitorBooking::getApplicantUserId, actor.userId())
+                .and(w -> w.eq(VisitorBooking::getApplicantUserId, actor.userId())
+                        .or().eq(VisitorBooking::getHostUserId, actor.userId()))
                 .eq(st != null, VisitorBooking::getStatus, st);
         long total = visitorMapper.selectCount(cq);
         return PageResponse.of(rows.stream()
@@ -753,6 +756,73 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
                     "validation.visitor.rejectReason.required");
         }
         return decideVisitor(userId, taskId, request, false);
+    }
+
+    @Override
+    @Transactional
+    public VisitorBookingResponse checkInVisitor(Long userId, Long id, VisitorVisitActionRequest request) {
+        return transitionVisitorVisit(userId, id, request, "APPROVED", "CHECKED_IN", "CHECK_IN");
+    }
+
+    @Override
+    @Transactional
+    public VisitorBookingResponse markVisitorArrived(Long userId, Long id, VisitorVisitActionRequest request) {
+        return transitionVisitorVisit(userId, id, request, "CHECKED_IN", "VISITED", "ARRIVE");
+    }
+
+    @Override
+    @Transactional
+    public VisitorBookingResponse leaveVisitor(Long userId, Long id, VisitorVisitActionRequest request) {
+        return transitionVisitorVisit(userId, id, request, "VISITED", "LEFT", "LEAVE");
+    }
+
+    @Override
+    @Transactional
+    public VisitorBookingResponse markVisitorNoShow(Long userId, Long id, VisitorVisitActionRequest request) {
+        return transitionVisitorVisit(userId, id, request, "APPROVED", "NO_SHOW", "NO_SHOW");
+    }
+
+    private VisitorBookingResponse transitionVisitorVisit(Long userId, Long id, VisitorVisitActionRequest request,
+                                                           String expectedStatus, String targetStatus, String action) {
+        ResolvedUserAccess actor = requirePermission(userId, "visitor:register");
+        VisitorBooking visitor = requireVisitor(actor, id, false);
+        boolean related = actor.userId().equals(visitor.getApplicantUserId())
+                || actor.userId().equals(visitor.getHostUserId());
+        if (!related && !actor.permissions().contains("visitor:register:any")) {
+            throw new BusinessException(ErrorCode.RESOURCE_FORBIDDEN);
+        }
+        LocalDateTime now = LocalDateTime.now();
+        if (!expectedStatus.equals(visitor.getStatus())) {
+            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID, "oa.visitor.visit.transition.invalid");
+        }
+        if ("NO_SHOW".equals(targetStatus) && visitor.getExpectedVisitAt() != null
+                && now.isBefore(visitor.getExpectedVisitAt())) {
+            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID, "oa.visitor.visit.noShow.tooEarly");
+        }
+        LambdaUpdateWrapper<VisitorBooking> update = new LambdaUpdateWrapper<VisitorBooking>()
+                .eq(VisitorBooking::getId, id)
+                .eq(VisitorBooking::getTenantId, actor.tenantId())
+                .eq(VisitorBooking::getStatus, expectedStatus)
+                .eq(VisitorBooking::getVersion, request.version())
+                .set(VisitorBooking::getStatus, targetStatus)
+                .set(VisitorBooking::getRegisteredByUserId, actor.userId())
+                .set(VisitorBooking::getUpdatedAt, now)
+                .setSql("version = version + 1");
+        switch (targetStatus) {
+            case "CHECKED_IN" -> update.set(VisitorBooking::getCheckedInAt, now);
+            case "VISITED" -> update.set(VisitorBooking::getVisitedAt, now);
+            case "LEFT" -> update.set(VisitorBooking::getLeftAt, now);
+            case "NO_SHOW" -> update.set(VisitorBooking::getNoShowAt, now);
+            default -> throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID);
+        }
+        if (visitorMapper.update(null, update) != 1) {
+            throw new BusinessException(ErrorCode.VERSION_CONFLICT);
+        }
+        auditService.recordTransactional(actor.tenantId(), actor.userId(), BUSINESS_VISITOR,
+                id.toString(), action, "SUCCESS",
+                "fromStatus=" + expectedStatus + ",toStatus=" + targetStatus
+                        + ",remark=" + trim(request.remark()));
+        return toVisitorResponse(actor, visitorMapper.selectById(id), null);
     }
 
     private VisitorBookingResponse decideVisitor(Long userId, Long taskId,
@@ -1341,6 +1411,14 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
         boolean canDecide = approver && "PENDING".equals(v.getStatus())
                 && actor.permissions().contains("approval:act")
                 && !applicant;
+        boolean related = applicant || actor.userId().equals(v.getHostUserId());
+        boolean canRegister = actor.permissions().contains("visitor:register")
+                && (related || actor.permissions().contains("visitor:register:any"));
+        boolean canCheckIn = canRegister && "APPROVED".equals(v.getStatus());
+        boolean canMarkVisited = canRegister && "CHECKED_IN".equals(v.getStatus());
+        boolean canLeave = canRegister && "VISITED".equals(v.getStatus());
+        boolean canMarkNoShow = canCheckIn && v.getExpectedVisitAt() != null
+                && !LocalDateTime.now().isBefore(v.getExpectedVisitAt());
         return new VisitorBookingResponse(
                 v.getId(), v.getApplicantUserId(), singleUserName(v.getApplicantUserId()),
                 v.getApproverUserId(), singleUserName(v.getApproverUserId()),
@@ -1351,8 +1429,11 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
                 task == null ? null : task.getId(),
                 task == null ? null : task.getVersion(),
                 task == null ? null : task.getStatus(),
-                v.getSubmittedAt(), v.getCompletedAt(), v.getCreatedAt(), v.getUpdatedAt(),
-                canWithdraw, canDecide);
+                v.getSubmittedAt(), v.getCompletedAt(),
+                v.getRegisteredByUserId(), singleUserName(v.getRegisteredByUserId()),
+                v.getCheckedInAt(), v.getVisitedAt(), v.getLeftAt(), v.getNoShowAt(),
+                v.getCreatedAt(), v.getUpdatedAt(), canWithdraw, canDecide,
+                canCheckIn, canMarkVisited, canLeave, canMarkNoShow);
     }
 
     private SealUsageResponse toSealResponse(ResolvedUserAccess actor, SealUsage s, WorkflowTask task) {

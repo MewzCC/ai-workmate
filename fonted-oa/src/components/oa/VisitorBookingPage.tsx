@@ -10,6 +10,7 @@ import {
   Input,
   InputNumber,
   Modal,
+  Space,
   Spin,
   Table,
   Tabs,
@@ -32,9 +33,12 @@ import AdminAssetsPageShell from './AdminAssetsPageShell';
 const STATUS_TAG_COLOR: Record<VisitorBookingStatus, string> = {
   PENDING: 'processing',
   APPROVED: 'success',
+  CHECKED_IN: 'processing',
   REJECTED: 'error',
   WITHDRAWN: 'default',
   VISITED: 'cyan',
+  LEFT: 'default',
+  NO_SHOW: 'error',
 };
 
 interface BookingFormValues {
@@ -147,6 +151,23 @@ export default function VisitorBookingPage() {
     }
   };
 
+  const handleVisitAction = async (
+    record: VisitorBooking,
+    action: 'checkIn' | 'arrive' | 'leave' | 'noShow',
+  ) => {
+    try {
+      const payload = { version: record.version };
+      if (action === 'checkIn') await adminAssetsApi.checkInVisitor(record.id, payload);
+      if (action === 'arrive') await adminAssetsApi.markVisitorArrived(record.id, payload);
+      if (action === 'leave') await adminAssetsApi.leaveVisitor(record.id, payload);
+      if (action === 'noShow') await adminAssetsApi.markVisitorNoShow(record.id, payload);
+      message.success(t(`adminAssets.visitor.visitAction.${action}Success`));
+      await loadMine(page);
+    } catch (err) {
+      message.error(formatOaApiError(err));
+    }
+  };
+
   const openDecide = (record: VisitorBooking) => {
     setDecideTarget(record);
     decideForm.resetFields();
@@ -222,16 +243,54 @@ export default function VisitorBookingPage() {
       render: (v?: string | null) => (v ? dayjs(v).format('YYYY-MM-DD HH:mm') : '-'),
     },
     {
+      title: t('adminAssets.visitor.visitProgress'),
+      key: 'visitProgress',
+      responsive: ['lg'],
+      render: (_: unknown, record: VisitorBooking) => {
+        const occurredAt = record.leftAt || record.visitedAt || record.checkedInAt || record.noShowAt;
+        return occurredAt ? (
+          <Space direction="vertical" size={0}>
+            <span>{t(`adminAssets.visitor.status.${record.status}`)}</span>
+            <span>{dayjs(occurredAt).format('YYYY-MM-DD HH:mm')}</span>
+            <span>{record.registeredByName || '-'}</span>
+          </Space>
+        ) : '-';
+      },
+    },
+    {
       title: t('adminAssets.common.action'),
       key: 'action',
-      render: (_: unknown, record: VisitorBooking) =>
-        record.canWithdraw ? (
-          <Button type="link" danger onClick={() => handleWithdraw(record)}>
-            {t('adminAssets.common.withdraw')}
-          </Button>
-        ) : (
-          '-'
-        ),
+      render: (_: unknown, record: VisitorBooking) => (
+        <Space wrap>
+          {record.canWithdraw && (
+            <Button type="link" danger onClick={() => handleWithdraw(record)}>
+              {t('adminAssets.common.withdraw')}
+            </Button>
+          )}
+          {record.canCheckIn && (
+            <Button type="link" onClick={() => void handleVisitAction(record, 'checkIn')}>
+              {t('adminAssets.visitor.visitAction.checkIn')}
+            </Button>
+          )}
+          {record.canMarkVisited && (
+            <Button type="link" onClick={() => void handleVisitAction(record, 'arrive')}>
+              {t('adminAssets.visitor.visitAction.arrive')}
+            </Button>
+          )}
+          {record.canLeave && (
+            <Button type="link" onClick={() => void handleVisitAction(record, 'leave')}>
+              {t('adminAssets.visitor.visitAction.leave')}
+            </Button>
+          )}
+          {record.canMarkNoShow && (
+            <Button type="link" danger onClick={() => void handleVisitAction(record, 'noShow')}>
+              {t('adminAssets.visitor.visitAction.noShow')}
+            </Button>
+          )}
+          {!record.canWithdraw && !record.canCheckIn && !record.canMarkVisited
+            && !record.canLeave && !record.canMarkNoShow && '-'}
+        </Space>
+      ),
     },
   ];
 

@@ -29,9 +29,19 @@ public record VisitorBookingResponse(
         String taskStatus,
         LocalDateTime submittedAt,
         LocalDateTime completedAt,
+        Long registeredByUserId,
+        String registeredByName,
+        LocalDateTime checkedInAt,
+        LocalDateTime visitedAt,
+        LocalDateTime leftAt,
+        LocalDateTime noShowAt,
         LocalDateTime createdAt,
         LocalDateTime updatedAt,
         boolean canWithdraw,
-        boolean canDecide
+        boolean canDecide,
+        boolean canCheckIn,
+        boolean canMarkVisited,
+        boolean canLeave,
+        boolean canMarkNoShow
 ) {
 }

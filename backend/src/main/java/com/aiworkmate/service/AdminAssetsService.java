@@ -12,6 +12,7 @@ import com.aiworkmate.dto.SealUsageRequest;
 import com.aiworkmate.dto.SealUsageResponse;
 import com.aiworkmate.dto.VisitorBookingRequest;
 import com.aiworkmate.dto.VisitorBookingResponse;
+import com.aiworkmate.dto.VisitorVisitActionRequest;
 import com.aiworkmate.dto.ApprovalDecisionRequest;
 
 import java.math.BigDecimal;
@@ -88,6 +89,14 @@ public interface AdminAssetsService {
     VisitorBookingResponse approveVisitorBooking(Long userId, Long taskId, ApprovalDecisionRequest request);
 
     VisitorBookingResponse rejectVisitorBooking(Long userId, Long taskId, ApprovalDecisionRequest request);
+
+    VisitorBookingResponse checkInVisitor(Long userId, Long id, VisitorVisitActionRequest request);
+
+    VisitorBookingResponse markVisitorArrived(Long userId, Long id, VisitorVisitActionRequest request);
+
+    VisitorBookingResponse leaveVisitor(Long userId, Long id, VisitorVisitActionRequest request);
+
+    VisitorBookingResponse markVisitorNoShow(Long userId, Long id, VisitorVisitActionRequest request);
 
     // ---------- 印章用印 ----------
 
