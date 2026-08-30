@@ -10,11 +10,14 @@ import {
   InputNumber,
   Modal,
   Select,
+  Space,
   Spin,
   Table,
   Tabs,
   Tag,
+  Upload,
 } from 'antd';
+import type { UploadProps } from 'antd';
 import { message } from '@/lib/antdMessage';
 import { useTranslation } from 'react-i18next';
 import dayjs from 'dayjs';
@@ -25,6 +28,7 @@ import {
   type SealUsage,
   type SealUsagePayload,
   type SealUsageStatus,
+  type SealUsageDocument,
 } from '@/lib/adminAssetsApi';
 import { formatOaApiError } from '@/lib/oaApi';
 import AdminAssetsPageShell from './AdminAssetsPageShell';
@@ -34,6 +38,8 @@ const STATUS_TAG_COLOR: Record<SealUsageStatus, string> = {
   APPROVED: 'success',
   REJECTED: 'error',
   WITHDRAWN: 'default',
+  USED: 'processing',
+  RETURNED: 'default',
 };
 
 const SEAL_TYPE_OPTIONS: SealType[] = ['OFFICIAL', 'CONTRACT', 'LEGAL', 'FINANCE', 'OTHER'];
@@ -56,6 +62,14 @@ export default function SealUsagePage() {
   const [decideOpen, setDecideOpen] = useState(false);
   const [deciding, setDeciding] = useState(false);
   const [decideForm] = Form.useForm<{ comment?: string }>();
+  const [useTarget, setUseTarget] = useState<SealUsage | null>(null);
+  const [useOpen, setUseOpen] = useState(false);
+  const [usingSeal, setUsingSeal] = useState(false);
+  const [useForm] = Form.useForm<{ actualCopies: number; remark?: string }>();
+  const [documentTarget, setDocumentTarget] = useState<SealUsage | null>(null);
+  const [documentOpen, setDocumentOpen] = useState(false);
+  const [documents, setDocuments] = useState<SealUsageDocument[]>([]);
+  const [documentLoading, setDocumentLoading] = useState(false);
 
   const loadMine = useCallback(async (p = page, s = size) => {
     setLoading(true);
@@ -119,6 +133,82 @@ export default function SealUsagePage() {
       message.success(t('adminAssets.seal.withdrawSuccess'));
       await loadMine(page);
     } catch (err) {
+      message.error(formatOaApiError(err));
+    }
+  };
+
+  const openUse = (record: SealUsage) => {
+    setUseTarget(record);
+    useForm.setFieldsValue({ actualCopies: record.copies, remark: undefined });
+    setUseOpen(true);
+  };
+
+  const handleUse = async () => {
+    if (!useTarget) return;
+    try {
+      const values = await useForm.validateFields();
+      setUsingSeal(true);
+      await adminAssetsApi.registerSealUse(useTarget.id, {
+        version: useTarget.version,
+        actualCopies: values.actualCopies,
+        remark: values.remark,
+      });
+      message.success(t('adminAssets.seal.execution.useSuccess'));
+      setUseOpen(false);
+      setUseTarget(null);
+      await loadMine(page);
+    } catch (err) {
+      if (err instanceof Error && err.name === 'ValidationError') return;
+      message.error(formatOaApiError(err));
+    } finally {
+      setUsingSeal(false);
+    }
+  };
+
+  const handleReturn = (record: SealUsage) => {
+    Modal.confirm({
+      title: t('adminAssets.seal.execution.returnConfirmTitle'),
+      content: t('adminAssets.seal.execution.returnConfirmContent'),
+      okText: t('adminAssets.seal.execution.return'),
+      cancelText: t('common.cancel'),
+      onOk: async () => {
+        try {
+          await adminAssetsApi.returnSeal(record.id, { version: record.version });
+          message.success(t('adminAssets.seal.execution.returnSuccess'));
+          await loadMine(page);
+        } catch (err) {
+          message.error(formatOaApiError(err));
+        }
+      },
+    });
+  };
+
+  const loadDocuments = async (record: SealUsage) => {
+    setDocumentLoading(true);
+    try {
+      setDocuments(await adminAssetsApi.listSealUsageDocuments(record.id));
+    } catch (err) {
+      message.error(formatOaApiError(err));
+    } finally {
+      setDocumentLoading(false);
+    }
+  };
+
+  const openDocuments = async (record: SealUsage) => {
+    setDocumentTarget(record);
+    setDocumentOpen(true);
+    await loadDocuments(record);
+  };
+
+  const uploadDocument: UploadProps['customRequest'] = async (options) => {
+    if (!documentTarget || !(options.file instanceof File)) return;
+    try {
+      await adminAssetsApi.uploadSealUsageDocument(documentTarget.id, options.file);
+      options.onSuccess?.({});
+      message.success(t('adminAssets.seal.document.uploadSuccess'));
+      await loadDocuments(documentTarget);
+    } catch (err) {
+      options.onError?.(err instanceof Error ? err : new Error(String(err)));
       message.error(formatOaApiError(err));
     }
   };
@@ -193,16 +283,49 @@ export default function SealUsagePage() {
       render: (v?: string | null) => (v ? dayjs(v).format('YYYY-MM-DD HH:mm') : '-'),
     },
     {
+      title: t('adminAssets.seal.execution.progress'),
+      key: 'executionProgress',
+      responsive: ['lg'],
+      render: (_: unknown, record: SealUsage) => {
+        const time = record.returnedAt || record.usedAt;
+        return time ? (
+          <Space direction="vertical" size={0}>
+            <span>{record.handlerName || '-'}</span>
+            <span>{dayjs(time).format('YYYY-MM-DD HH:mm')}</span>
+            <span>{record.actualCopies ?? record.copies} {t('adminAssets.seal.execution.copyUnit')}</span>
+          </Space>
+        ) : '-';
+      },
+    },
+    {
       title: t('adminAssets.common.action'),
       key: 'action',
-      render: (_: unknown, record: SealUsage) =>
-        record.canWithdraw ? (
-          <Button type="link" danger onClick={() => handleWithdraw(record)}>
-            {t('adminAssets.common.withdraw')}
-          </Button>
-        ) : (
-          '-'
-        ),
+      render: (_: unknown, record: SealUsage) => (
+        <Space wrap>
+          {record.canWithdraw && (
+            <Button type="link" danger onClick={() => handleWithdraw(record)}>
+              {t('adminAssets.common.withdraw')}
+            </Button>
+          )}
+          {record.canRegisterUse && (
+            <Button type="link" onClick={() => openUse(record)}>
+              {t('adminAssets.seal.execution.use')}
+            </Button>
+          )}
+          {record.canReturn && (
+            <Button type="link" onClick={() => handleReturn(record)}>
+              {t('adminAssets.seal.execution.return')}
+            </Button>
+          )}
+          {record.canArchiveDocument && (
+            <Button type="link" onClick={() => void openDocuments(record)}>
+              {t('adminAssets.seal.document.archive')}
+            </Button>
+          )}
+          {!record.canWithdraw && !record.canRegisterUse && !record.canReturn
+            && !record.canArchiveDocument && '-'}
+        </Space>
+      ),
     },
   ];
 
@@ -394,6 +517,78 @@ export default function SealUsagePage() {
               <Input.TextArea rows={3} maxLength={500} showCount />
             </Form.Item>
           </Form>
+        </Modal>
+
+        <Modal
+          title={t('adminAssets.seal.execution.useTitle')}
+          open={useOpen}
+          onCancel={() => {
+            setUseOpen(false);
+            setUseTarget(null);
+          }}
+          onOk={() => void handleUse()}
+          confirmLoading={usingSeal}
+          okText={t('adminAssets.seal.execution.use')}
+          destroyOnClose
+        >
+          <Form form={useForm} layout="vertical">
+            <Form.Item
+              name="actualCopies"
+              label={t('adminAssets.seal.execution.actualCopies')}
+              rules={[{ required: true, message: t('adminAssets.common.fieldRequired') }]}
+            >
+              <InputNumber min={1} max={useTarget?.copies} style={{ width: '100%' }} />
+            </Form.Item>
+            <Form.Item name="remark" label={t('adminAssets.seal.execution.remark')}>
+              <Input.TextArea rows={3} maxLength={500} showCount />
+            </Form.Item>
+          </Form>
+        </Modal>
+
+        <Modal
+          title={t('adminAssets.seal.document.title')}
+          open={documentOpen}
+          onCancel={() => {
+            setDocumentOpen(false);
+            setDocumentTarget(null);
+            setDocuments([]);
+          }}
+          footer={null}
+          width={640}
+          destroyOnClose
+        >
+          <Upload customRequest={uploadDocument} showUploadList={false} maxCount={1}>
+            <Button>{t('adminAssets.seal.document.upload')}</Button>
+          </Upload>
+          <Spin spinning={documentLoading}>
+            <Table
+              style={{ marginTop: 16 }}
+              rowKey="id"
+              size="small"
+              pagination={false}
+              dataSource={documents}
+              locale={{ emptyText: <Empty description={t('adminAssets.seal.document.empty')} /> }}
+              columns={[
+                { title: t('adminAssets.seal.document.fileName'), dataIndex: 'displayName' },
+                {
+                  title: t('adminAssets.seal.document.uploadedAt'), dataIndex: 'createdAt',
+                  render: (value: string) => dayjs(value).format('YYYY-MM-DD HH:mm'),
+                },
+                {
+                  title: t('adminAssets.common.action'), key: 'action',
+                  render: (_: unknown, document: SealUsageDocument) => (
+                    <Button
+                      type="link"
+                      onClick={() => void adminAssetsApi.downloadSealUsageDocument(document)
+                        .catch((err) => message.error(formatOaApiError(err)))}
+                    >
+                      {t('adminAssets.seal.document.download')}
+                    </Button>
+                  ),
+                },
+              ]}
+            />
+          </Spin>
         </Modal>
       </Spin>
     </AdminAssetsPageShell>

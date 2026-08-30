@@ -1,4 +1,6 @@
 import { request, queryString, type PageResponse } from '@/lib/oaApi';
+import { buildApiHeaders } from '@/lib/apiHeaders';
+import i18n from '@/i18n';
 
 // ==================== 资产台账 ====================
 
@@ -218,7 +220,8 @@ export interface VisitorBooking {
 // ==================== 印章用印 ====================
 
 export type SealType = 'OFFICIAL' | 'CONTRACT' | 'LEGAL' | 'FINANCE' | 'OTHER';
-export type SealUsageStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'WITHDRAWN';
+export type SealUsageStatus =
+  | 'PENDING' | 'APPROVED' | 'REJECTED' | 'WITHDRAWN' | 'USED' | 'RETURNED';
 
 export interface SealUsagePayload {
   sealType?: SealType;
@@ -245,10 +248,36 @@ export interface SealUsage {
   taskStatus?: string | null;
   submittedAt?: string | null;
   completedAt?: string | null;
+  actualCopies?: number | null;
+  handlerUserId?: number | null;
+  handlerName?: string | null;
+  usedAt?: string | null;
+  returnedAt?: string | null;
   createdAt: string;
   updatedAt: string;
   canWithdraw: boolean;
   canDecide: boolean;
+  canRegisterUse: boolean;
+  canReturn: boolean;
+  canArchiveDocument: boolean;
+}
+
+export interface SealUsageDocument {
+  id: number;
+  sealUsageId: number;
+  displayName: string;
+  mimeType: string;
+  fileSize: number;
+  uploadedByUserId: number;
+  uploadedByName?: string | null;
+  contentUrl: string;
+  createdAt: string;
+}
+
+interface ApiResult<T> {
+  code: number;
+  message: string;
+  data: T | null;
 }
 
 // ==================== 通用 ====================
@@ -483,4 +512,49 @@ export const adminAssetsApi = {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
+
+  registerSealUse: (id: number, payload: { version: number; actualCopies: number; remark?: string }) =>
+    request<SealUsage>(`${PREFIX}/seal-usages/${id}/use`, {
+      method: 'POST', body: JSON.stringify(payload),
+    }),
+
+  returnSeal: (id: number, payload: { version: number; remark?: string }) =>
+    request<SealUsage>(`${PREFIX}/seal-usages/${id}/return`, {
+      method: 'POST', body: JSON.stringify(payload),
+    }),
+
+  listSealUsageDocuments: (id: number) =>
+    request<SealUsageDocument[]>(`${PREFIX}/seal-usages/${id}/documents`),
+
+  uploadSealUsageDocument: async (id: number, file: File): Promise<SealUsageDocument> => {
+    const body = new FormData();
+    body.append('file', file);
+    const res = await fetch(`/api${PREFIX}/seal-usages/${id}/documents`, {
+      method: 'POST', credentials: 'include', headers: buildApiHeaders(false), body,
+    });
+    if (res.status === 401 && typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('oa-auth-expired'));
+    }
+    const json = await res.json().catch(() => null) as ApiResult<SealUsageDocument> | null;
+    if (!res.ok || !json || json.code !== 200 || json.data === null) {
+      throw new Error(json?.message || i18n.t('adminAssets.seal.document.uploadFailed'));
+    }
+    return json.data;
+  },
+
+  downloadSealUsageDocument: async (document: SealUsageDocument): Promise<void> => {
+    const res = await fetch(document.contentUrl, {
+      credentials: 'include', headers: buildApiHeaders(false),
+    });
+    if (res.status === 401 && typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('oa-auth-expired'));
+    }
+    if (!res.ok) throw new Error(i18n.t('adminAssets.seal.document.downloadFailed'));
+    const url = URL.createObjectURL(await res.blob());
+    const link = window.document.createElement('a');
+    link.href = url;
+    link.download = document.displayName;
+    link.click();
+    URL.revokeObjectURL(url);
+  },
 };

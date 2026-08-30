@@ -10,6 +10,8 @@ import com.aiworkmate.dto.MeetingRoomRequest;
 import com.aiworkmate.dto.MeetingRoomResponse;
 import com.aiworkmate.dto.SealUsageRequest;
 import com.aiworkmate.dto.SealUsageResponse;
+import com.aiworkmate.dto.SealUseRequest;
+import com.aiworkmate.dto.SealReturnRequest;
 import com.aiworkmate.dto.VisitorBookingRequest;
 import com.aiworkmate.dto.VisitorBookingResponse;
 import com.aiworkmate.dto.VisitorVisitActionRequest;
@@ -109,6 +111,10 @@ public interface AdminAssetsService {
     SealUsageResponse approveSealUsage(Long userId, Long taskId, ApprovalDecisionRequest request);
 
     SealUsageResponse rejectSealUsage(Long userId, Long taskId, ApprovalDecisionRequest request);
+
+    SealUsageResponse registerSealUse(Long userId, Long id, SealUseRequest request);
+
+    SealUsageResponse returnSeal(Long userId, Long id, SealReturnRequest request);
 
     /** 用于资产台账原值列与币种格式化参考；当前返回 CNY。 */
     default String assetCurrency() {

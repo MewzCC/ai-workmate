@@ -99,6 +99,7 @@ app:
   upload:
     storage-prefix: ${AI_UPLOAD_PREFIX:chat-attachments/}
     employee-document-storage-prefix: ${EMPLOYEE_DOCUMENT_PREFIX:employee-documents/}
+    seal-document-storage-prefix: ${SEAL_DOCUMENT_PREFIX:seal-documents/}
     image-max-bytes: 10485760
     file-max-bytes: 20971520
     extracted-text-max-chars: 120000
