@@ -22,6 +22,7 @@ public record AssetLedgerRequest(
         Long ownerUserId,
         LocalDate purchaseDate,
         BigDecimal originalValue,
-        @Size(max = 500) String remark
+        @Size(max = 500) String remark,
+        Integer version
 ) {
 }

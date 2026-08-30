@@ -15,6 +15,35 @@ export interface AssetLedgerPayload {
   purchaseDate?: string | null;
   originalValue?: number | null;
   remark?: string;
+  version?: number;
+}
+
+export type AssetOperationType = 'CLAIM' | 'RETURN' | 'TRANSFER';
+
+export interface AssetOperationPayload {
+  version: number;
+  targetOwnerUserId?: number;
+  targetDepartmentId?: number;
+  reason?: string;
+}
+
+export interface AssetOperation {
+  id: number;
+  operationType: AssetOperationType;
+  fromStatus: AssetStatus;
+  toStatus: AssetStatus;
+  fromDepartmentId?: number | null;
+  fromDepartmentName?: string | null;
+  toDepartmentId?: number | null;
+  toDepartmentName?: string | null;
+  fromOwnerUserId?: number | null;
+  fromOwnerName?: string | null;
+  toOwnerUserId?: number | null;
+  toOwnerName?: string | null;
+  operatorUserId: number;
+  operatorName?: string | null;
+  reason?: string | null;
+  createdAt: string;
 }
 
 export interface AssetLedger {
@@ -31,6 +60,8 @@ export interface AssetLedger {
   purchaseDate?: string | null;
   originalValue?: number | null;
   remark?: string | null;
+  version: number;
+  history: AssetOperation[];
   createdAt: string;
   updatedAt: string;
   canEdit: boolean;
@@ -192,6 +223,21 @@ export const adminAssetsApi = {
 
   deleteAsset: (id: number) =>
     request<void>(`${PREFIX}/assets/${id}`, { method: 'DELETE' }),
+
+  claimAsset: (id: number, payload: AssetOperationPayload) =>
+    request<AssetLedger>(`${PREFIX}/assets/${id}/claim`, {
+      method: 'POST', body: JSON.stringify(payload),
+    }),
+
+  returnAsset: (id: number, payload: AssetOperationPayload) =>
+    request<AssetLedger>(`${PREFIX}/assets/${id}/return`, {
+      method: 'POST', body: JSON.stringify(payload),
+    }),
+
+  transferAsset: (id: number, payload: AssetOperationPayload) =>
+    request<AssetLedger>(`${PREFIX}/assets/${id}/transfer`, {
+      method: 'POST', body: JSON.stringify(payload),
+    }),
 
   // ---------- 会议室 ----------
   listMeetingRooms: (params: {
