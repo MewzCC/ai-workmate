@@ -15,6 +15,7 @@ import com.aiworkmate.dto.SealUsageResponse;
 import com.aiworkmate.dto.VersionRequest;
 import com.aiworkmate.dto.VisitorBookingRequest;
 import com.aiworkmate.dto.VisitorBookingResponse;
+import com.aiworkmate.dto.VisitorVisitActionRequest;
 import com.aiworkmate.security.AuthenticatedUser;
 import com.aiworkmate.service.AdminAssetsService;
 import jakarta.validation.Valid;
@@ -247,6 +248,34 @@ public class AdminAssetsController {
             @PathVariable Long taskId,
             @Valid @RequestBody ApprovalDecisionRequest request) {
         return Result.ok(service.rejectVisitorBooking(user.userId(), taskId, request));
+    }
+
+    @PostMapping("/visitor-bookings/{id}/check-in")
+    public Result<VisitorBookingResponse> checkInVisitor(
+            @AuthenticationPrincipal AuthenticatedUser user, @PathVariable Long id,
+            @Valid @RequestBody VisitorVisitActionRequest request) {
+        return Result.ok(service.checkInVisitor(user.userId(), id, request));
+    }
+
+    @PostMapping("/visitor-bookings/{id}/arrive")
+    public Result<VisitorBookingResponse> markVisitorArrived(
+            @AuthenticationPrincipal AuthenticatedUser user, @PathVariable Long id,
+            @Valid @RequestBody VisitorVisitActionRequest request) {
+        return Result.ok(service.markVisitorArrived(user.userId(), id, request));
+    }
+
+    @PostMapping("/visitor-bookings/{id}/leave")
+    public Result<VisitorBookingResponse> leaveVisitor(
+            @AuthenticationPrincipal AuthenticatedUser user, @PathVariable Long id,
+            @Valid @RequestBody VisitorVisitActionRequest request) {
+        return Result.ok(service.leaveVisitor(user.userId(), id, request));
+    }
+
+    @PostMapping("/visitor-bookings/{id}/no-show")
+    public Result<VisitorBookingResponse> markVisitorNoShow(
+            @AuthenticationPrincipal AuthenticatedUser user, @PathVariable Long id,
+            @Valid @RequestBody VisitorVisitActionRequest request) {
+        return Result.ok(service.markVisitorNoShow(user.userId(), id, request));
     }
 
     // ==================== 印章用印 ====================
