@@ -122,6 +122,41 @@ export interface MeetingRoom {
   canDelete: boolean;
 }
 
+export type MeetingBookingStatus = 'BOOKED' | 'CANCELLED';
+
+export interface MeetingBookingPayload {
+  roomId: number;
+  title: string;
+  agenda?: string;
+  startAt: string;
+  endAt: string;
+  attendeeCount: number;
+}
+
+export interface MeetingBooking {
+  id: number;
+  roomId: number;
+  roomCode?: string | null;
+  roomName?: string | null;
+  roomLocation?: string | null;
+  organizerUserId: number;
+  organizerName?: string | null;
+  title: string;
+  agenda?: string | null;
+  startAt: string;
+  endAt: string;
+  attendeeCount: number;
+  status: MeetingBookingStatus;
+  version: number;
+  cancelledByUserId?: number | null;
+  cancelledByName?: string | null;
+  cancelledAt?: string | null;
+  cancelReason?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  canCancel: boolean;
+}
+
 // ==================== 访客预约 ====================
 
 export type VisitorBookingStatus =
@@ -310,6 +345,37 @@ export const adminAssetsApi = {
 
   deleteMeetingRoom: (id: number) =>
     request<void>(`${PREFIX}/meeting-rooms/${id}`, { method: 'DELETE' }),
+
+  createMeetingBooking: (payload: MeetingBookingPayload) =>
+    request<MeetingBooking>(`${PREFIX}/meeting-bookings`, {
+      method: 'POST', body: JSON.stringify(payload),
+    }),
+
+  listMyMeetingBookings: (params: {
+    from?: string;
+    to?: string;
+    status?: MeetingBookingStatus;
+    page?: number;
+    size?: number;
+  } = {}) => request<PageResponse<MeetingBooking>>(
+    `${PREFIX}/meeting-bookings/mine${queryString(params)}`,
+  ),
+
+  listAdminMeetingBookings: (params: {
+    roomId?: number;
+    from?: string;
+    to?: string;
+    status?: MeetingBookingStatus;
+    page?: number;
+    size?: number;
+  } = {}) => request<PageResponse<MeetingBooking>>(
+    `${PREFIX}/meeting-bookings/admin${queryString(params)}`,
+  ),
+
+  cancelMeetingBooking: (id: number, payload: { version: number; reason?: string }) =>
+    request<MeetingBooking>(`${PREFIX}/meeting-bookings/${id}/cancel`, {
+      method: 'POST', body: JSON.stringify(payload),
+    }),
 
   // ---------- 访客预约 ----------
   submitVisitorBooking: (payload: VisitorBookingPayload) =>

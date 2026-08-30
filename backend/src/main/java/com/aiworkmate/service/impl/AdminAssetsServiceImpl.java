@@ -22,6 +22,7 @@ import com.aiworkmate.dto.VisitorBookingResponse;
 import com.aiworkmate.entity.AssetLedger;
 import com.aiworkmate.entity.AssetOperation;
 import com.aiworkmate.entity.MeetingRoom;
+import com.aiworkmate.entity.MeetingBooking;
 import com.aiworkmate.entity.SealUsage;
 import com.aiworkmate.entity.User;
 import com.aiworkmate.entity.VisitorBooking;
@@ -32,6 +33,7 @@ import com.aiworkmate.mapper.AssetLedgerMapper;
 import com.aiworkmate.mapper.AssetOperationMapper;
 import com.aiworkmate.mapper.AccessControlMapper;
 import com.aiworkmate.mapper.MeetingRoomMapper;
+import com.aiworkmate.mapper.MeetingBookingMapper;
 import com.aiworkmate.mapper.SealUsageMapper;
 import com.aiworkmate.mapper.UserMapper;
 import com.aiworkmate.mapper.VisitorBookingMapper;
@@ -78,6 +80,7 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
     private final AssetOperationMapper assetOperationMapper;
     private final AccessControlMapper accessControlMapper;
     private final MeetingRoomMapper meetingRoomMapper;
+    private final MeetingBookingMapper meetingBookingMapper;
     private final VisitorBookingMapper visitorMapper;
     private final SealUsageMapper sealMapper;
     private final UserMapper userMapper;
@@ -458,7 +461,7 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
     @Transactional(readOnly = true)
     public PageResponse<MeetingRoomResponse> listMeetingRooms(Long userId, String keyword, String status,
                                                                 int page, int size) {
-        ResolvedUserAccess actor = requirePermission(userId, "assets:read");
+        ResolvedUserAccess actor = requireAnyPermission(userId, "assets:read", "meeting:read:self");
         int safePage = Math.max(1, page);
         int safeSize = Math.min(100, Math.max(1, size));
         int offset = (safePage - 1) * safeSize;
@@ -477,7 +480,7 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
     @Override
     @Transactional(readOnly = true)
     public MeetingRoomResponse getMeetingRoom(Long userId, Long id) {
-        ResolvedUserAccess actor = requirePermission(userId, "assets:read");
+        ResolvedUserAccess actor = requireAnyPermission(userId, "assets:read", "meeting:read:self");
         MeetingRoom m = requireMeetingRoom(actor.tenantId(), id);
         return toMeetingRoomResponse(m, actor.permissions().contains("meeting:write"));
     }
@@ -516,7 +519,12 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
     @Transactional
     public MeetingRoomResponse updateMeetingRoom(Long userId, Long id, MeetingRoomRequest request) {
         ResolvedUserAccess actor = requirePermission(userId, "meeting:write");
-        requireMeetingRoom(actor.tenantId(), id);
+        MeetingRoom current = requireMeetingRoom(actor.tenantId(), id);
+        String targetStatus = request.status() == null ? "OPEN" : request.status();
+        if (!"CLOSED".equals(current.getStatus()) && "CLOSED".equals(targetStatus)
+                && hasActiveMeetingBooking(actor.tenantId(), id)) {
+            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID, "oa.meeting.room.activeBookings");
+        }
         if (meetingRoomMapper.exists(new LambdaQueryWrapper<MeetingRoom>()
                 .eq(MeetingRoom::getTenantId, actor.tenantId())
                 .eq(MeetingRoom::getCode, request.code().trim())
@@ -534,7 +542,7 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
                 .set(MeetingRoom::getLocation, trim(request.location()))
                 .set(MeetingRoom::getCapacity, request.capacity() == null ? 0 : request.capacity())
                 .set(MeetingRoom::getFacilities, trim(request.facilities()))
-                .set(MeetingRoom::getStatus, request.status() == null ? "OPEN" : request.status())
+                .set(MeetingRoom::getStatus, targetStatus)
                 .set(MeetingRoom::getRemark, trim(request.remark()))
                 .set(MeetingRoom::getUpdatedAt, LocalDateTime.now()));
         if (updated != 1) {
@@ -550,6 +558,9 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
     public void deleteMeetingRoom(Long userId, Long id) {
         ResolvedUserAccess actor = requirePermission(userId, "meeting:write");
         requireMeetingRoom(actor.tenantId(), id);
+        if (hasActiveMeetingBooking(actor.tenantId(), id)) {
+            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID, "oa.meeting.room.activeBookings");
+        }
         int updated = meetingRoomMapper.update(null, new LambdaUpdateWrapper<MeetingRoom>()
                 .eq(MeetingRoom::getId, id)
                 .eq(MeetingRoom::getTenantId, actor.tenantId())
@@ -1040,6 +1051,14 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
         return access;
     }
 
+    private ResolvedUserAccess requireAnyPermission(Long userId, String... permissions) {
+        ResolvedUserAccess access = requireAccess(userId);
+        for (String permission : permissions) {
+            if (access.permissions().contains(permission)) return access;
+        }
+        throw new BusinessException(ErrorCode.PERMISSION_DENIED);
+    }
+
     private AssetLedger requireAsset(Long tenantId, Long id) {
         AssetLedger a = assetMapper.selectById(id);
         if (a == null || !tenantId.equals(a.getTenantId()) || Boolean.TRUE.equals(a.getDeleted())) {
@@ -1243,6 +1262,14 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
             q.eq(MeetingRoom::getStatus, status.trim());
         }
         return q;
+    }
+
+    private boolean hasActiveMeetingBooking(Long tenantId, Long roomId) {
+        return meetingBookingMapper.exists(new LambdaQueryWrapper<MeetingBooking>()
+                .eq(MeetingBooking::getTenantId, tenantId)
+                .eq(MeetingBooking::getRoomId, roomId)
+                .eq(MeetingBooking::getStatus, "BOOKED")
+                .gt(MeetingBooking::getEndAt, LocalDateTime.now()));
     }
 
     private AssetLedgerResponse toAssetResponse(AssetLedger a, String departmentName,

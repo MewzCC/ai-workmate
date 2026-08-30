@@ -13,6 +13,7 @@ import com.aiworkmate.mapper.AccessControlMapper;
 import com.aiworkmate.mapper.AssetLedgerMapper;
 import com.aiworkmate.mapper.AssetOperationMapper;
 import com.aiworkmate.mapper.MeetingRoomMapper;
+import com.aiworkmate.mapper.MeetingBookingMapper;
 import com.aiworkmate.mapper.SealUsageMapper;
 import com.aiworkmate.mapper.UserMapper;
 import com.aiworkmate.mapper.VisitorBookingMapper;
@@ -55,6 +56,7 @@ class AssetLifecycleServiceTest {
     @Mock private AssetOperationMapper operationMapper;
     @Mock private AccessControlMapper accessControlMapper;
     @Mock private MeetingRoomMapper meetingRoomMapper;
+    @Mock private MeetingBookingMapper meetingBookingMapper;
     @Mock private VisitorBookingMapper visitorMapper;
     @Mock private SealUsageMapper sealMapper;
     @Mock private UserMapper userMapper;
@@ -72,7 +74,7 @@ class AssetLifecycleServiceTest {
         initializeTableMetadata(AssetLedger.class, AssetLedgerMapper.class);
         initializeTableMetadata(AssetOperation.class, AssetOperationMapper.class);
         service = new AdminAssetsServiceImpl(assetMapper, operationMapper, accessControlMapper,
-                meetingRoomMapper, visitorMapper, sealMapper, userMapper, instanceMapper,
+                meetingRoomMapper, meetingBookingMapper, visitorMapper, sealMapper, userMapper, instanceMapper,
                 taskMapper, actionLogMapper, userAccessService, auditService, notificationService);
     }
 
