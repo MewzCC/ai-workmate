@@ -18,12 +18,31 @@ export interface AssetLedgerPayload {
   version?: number;
 }
 
-export type AssetOperationType = 'CLAIM' | 'RETURN' | 'TRANSFER';
+export type AssetOperationType =
+  | 'CLAIM' | 'RETURN' | 'TRANSFER'
+  | 'REPAIR_START' | 'REPAIR_COMPLETE' | 'INVENTORY' | 'SCRAP';
+
+export type AssetInventoryResult =
+  | 'MATCH' | 'MISSING' | 'DAMAGED' | 'LOCATION_MISMATCH' | 'CUSTODIAN_MISMATCH';
 
 export interface AssetOperationPayload {
   version: number;
   targetOwnerUserId?: number;
   targetDepartmentId?: number;
+  reason?: string;
+}
+
+export interface AssetMaintenancePayload {
+  version: number;
+  reason: string;
+}
+
+export interface AssetInventoryPayload {
+  version: number;
+  inventoryResult: AssetInventoryResult;
+  actualStatus?: AssetStatus;
+  actualDepartmentId?: number;
+  actualOwnerUserId?: number;
   reason?: string;
 }
 
@@ -43,6 +62,12 @@ export interface AssetOperation {
   operatorUserId: number;
   operatorName?: string | null;
   reason?: string | null;
+  inventoryResult?: AssetInventoryResult | null;
+  actualStatus?: AssetStatus | null;
+  actualDepartmentId?: number | null;
+  actualDepartmentName?: string | null;
+  actualOwnerUserId?: number | null;
+  actualOwnerName?: string | null;
   createdAt: string;
 }
 
@@ -236,6 +261,26 @@ export const adminAssetsApi = {
 
   transferAsset: (id: number, payload: AssetOperationPayload) =>
     request<AssetLedger>(`${PREFIX}/assets/${id}/transfer`, {
+      method: 'POST', body: JSON.stringify(payload),
+    }),
+
+  startAssetRepair: (id: number, payload: AssetMaintenancePayload) =>
+    request<AssetLedger>(`${PREFIX}/assets/${id}/repairs`, {
+      method: 'POST', body: JSON.stringify(payload),
+    }),
+
+  completeAssetRepair: (id: number, payload: AssetMaintenancePayload) =>
+    request<AssetLedger>(`${PREFIX}/assets/${id}/repairs/complete`, {
+      method: 'POST', body: JSON.stringify(payload),
+    }),
+
+  inventoryAsset: (id: number, payload: AssetInventoryPayload) =>
+    request<AssetLedger>(`${PREFIX}/assets/${id}/inventories`, {
+      method: 'POST', body: JSON.stringify(payload),
+    }),
+
+  scrapAsset: (id: number, payload: AssetMaintenancePayload) =>
+    request<AssetLedger>(`${PREFIX}/assets/${id}/scrap`, {
       method: 'POST', body: JSON.stringify(payload),
     }),
 

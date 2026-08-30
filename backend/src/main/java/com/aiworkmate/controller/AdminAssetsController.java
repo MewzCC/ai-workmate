@@ -5,6 +5,8 @@ import com.aiworkmate.common.Result;
 import com.aiworkmate.dto.ApprovalDecisionRequest;
 import com.aiworkmate.dto.AssetLedgerRequest;
 import com.aiworkmate.dto.AssetLedgerResponse;
+import com.aiworkmate.dto.AssetInventoryRequest;
+import com.aiworkmate.dto.AssetMaintenanceRequest;
 import com.aiworkmate.dto.AssetOperationRequest;
 import com.aiworkmate.dto.MeetingRoomRequest;
 import com.aiworkmate.dto.MeetingRoomResponse;
@@ -114,6 +116,38 @@ public class AdminAssetsController {
             @PathVariable Long id,
             @Valid @RequestBody AssetOperationRequest request) {
         return Result.ok(service.transferAsset(user.userId(), id, request));
+    }
+
+    @PostMapping("/assets/{id}/repairs")
+    public Result<AssetLedgerResponse> startAssetRepair(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable Long id,
+            @Valid @RequestBody AssetMaintenanceRequest request) {
+        return Result.ok(service.startAssetRepair(user.userId(), id, request));
+    }
+
+    @PostMapping("/assets/{id}/repairs/complete")
+    public Result<AssetLedgerResponse> completeAssetRepair(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable Long id,
+            @Valid @RequestBody AssetMaintenanceRequest request) {
+        return Result.ok(service.completeAssetRepair(user.userId(), id, request));
+    }
+
+    @PostMapping("/assets/{id}/inventories")
+    public Result<AssetLedgerResponse> inventoryAsset(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable Long id,
+            @Valid @RequestBody AssetInventoryRequest request) {
+        return Result.ok(service.inventoryAsset(user.userId(), id, request));
+    }
+
+    @PostMapping("/assets/{id}/scrap")
+    public Result<AssetLedgerResponse> scrapAsset(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable Long id,
+            @Valid @RequestBody AssetMaintenanceRequest request) {
+        return Result.ok(service.scrapAsset(user.userId(), id, request));
     }
 
     // ==================== 会议室 ====================
