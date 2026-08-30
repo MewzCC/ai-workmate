@@ -22,6 +22,9 @@ public interface LeaveWorkflowService {
 
     LeaveApplicationResponse createDraft(Long userId, LeaveApplicationRequest request);
 
+    LeaveApplicationResponse createAgentDraft(Long userId, LeaveApplicationRequest request,
+                                              String operationKey);
+
     LeaveApplicationResponse updateDraft(Long userId, Long id, LeaveApplicationRequest request);
 
     LeaveApplicationResponse getApplication(Long userId, Long id);
@@ -37,6 +40,9 @@ public interface LeaveWorkflowService {
     List<ApprovalStatusCountResponse> adminStats(Long userId);
 
     LeaveApplicationResponse submit(Long userId, Long id, VersionRequest request);
+
+    LeaveApplicationResponse submitAgent(Long userId, Long id, VersionRequest request,
+                                         Long agentTaskId);
 
     LeaveApplicationResponse withdraw(Long userId, Long id, VersionRequest request);
 

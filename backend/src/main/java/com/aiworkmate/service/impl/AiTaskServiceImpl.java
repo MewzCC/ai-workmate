@@ -6,6 +6,7 @@ import com.aiworkmate.agent.planner.PageContextFilter;
 import com.aiworkmate.agent.planner.PlannerCandidate;
 import com.aiworkmate.agent.planner.StructuredAgentPlanner;
 import com.aiworkmate.agent.registry.RiskLevel;
+import com.aiworkmate.agent.registry.SideEffect;
 import com.aiworkmate.agent.registry.ToolDefinition;
 import com.aiworkmate.agent.registry.ToolRegistry;
 import com.aiworkmate.agent.task.*;
@@ -45,6 +46,7 @@ public class AiTaskServiceImpl implements AiTaskService {
     private final AgentTaskStepMapper stepMapper;
     private final AgentIdempotencyService idempotencyService;
     private final AgentTaskEventService eventService;
+    private final AgentTaskApiService taskApiService;
     private final AgentApiRateLimiter rateLimiter;
     private final AgentHashing hashing;
     private final ObjectMapper objectMapper;
@@ -121,12 +123,17 @@ public class AiTaskServiceImpl implements AiTaskService {
                 idempotencyKey, hashing.hash(hashInput), task.getId());
         if (!binding.created()) return executionResponse(taskNo, task.getStatus());
 
-        if (!"L0".equals(task.getMaxRiskLevel())) throw new BusinessException(ErrorCode.CONFIRMATION_REQUIRED);
-        if (StringUtils.hasText(request.confirmationToken()) || !"PLAN_READY".equals(task.getStatus())
-                || taskMapper.queuePlanReady(task.getId(), user.tenantId(), user.userId(), request.planVersion(),
-                request.planHash(), LocalDateTime.now().plusNanos(
-                        runtime.getLimits().getDefaultTaskTimeoutMs() * 1_000_000L)) != 1)
-            throw new BusinessException(ErrorCode.INVALID_TASK_STATE);
+        if ("L0".equals(task.getMaxRiskLevel())) {
+            if (StringUtils.hasText(request.confirmationToken()) || !"PLAN_READY".equals(task.getStatus())
+                    || taskMapper.queuePlanReady(task.getId(), user.tenantId(), user.userId(), request.planVersion(),
+                    request.planHash(), LocalDateTime.now().plusNanos(
+                            runtime.getLimits().getDefaultTaskTimeoutMs() * 1_000_000L)) != 1) {
+                throw new BusinessException(ErrorCode.INVALID_TASK_STATE);
+            }
+        } else {
+            taskApiService.consumeConfirmation(user, taskNo, request.planVersion(),
+                    request.planHash(), request.confirmationToken());
+        }
         eventService.publish(task.getId(), "snapshot", objectMapper.createObjectNode()
                 .put("taskId", taskNo).put("status", "QUEUED"), task.getTraceId());
         applicationEventPublisher.publishEvent(new AgentTaskQueuedEvent(task.getId()));
@@ -139,9 +146,14 @@ public class AiTaskServiceImpl implements AiTaskService {
         var planSteps = plan.putArray("steps");
         List<AgentTaskStep> steps = new ArrayList<>();
         RiskLevel maxRisk = RiskLevel.L0;
+        int writeSteps = 0;
         for (int index = 0; index < candidate.steps().size(); index++) {
             PlannerCandidate.Step candidateStep = candidate.steps().get(index);
             ToolDefinition definition = definitions.get(candidateStep.toolCode());
+            if (definition == null) throw new BusinessException(ErrorCode.SCHEMA_INVALID);
+            if (definition.sideEffect() == SideEffect.SINGLE_WRITE && ++writeSteps > 1) {
+                throw new BusinessException(ErrorCode.SCHEMA_INVALID);
+            }
             int sequence = index + 1;
             String argsHash = hashing.hash(candidateStep.arguments());
             planSteps.addObject().put("sequence", sequence).put("toolCode", definition.code())

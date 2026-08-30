@@ -26,6 +26,7 @@ public class LeaveApplication {
     private String reason;
     private String status;
     private Integer version;
+    private String agentOperationKey;
     private LocalDateTime submittedAt;
     private LocalDateTime completedAt;
     private LocalDateTime createdAt;

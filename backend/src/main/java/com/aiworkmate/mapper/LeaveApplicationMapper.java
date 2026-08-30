@@ -14,6 +14,13 @@ import java.util.List;
 @Mapper
 public interface LeaveApplicationMapper extends BaseMapper<LeaveApplication> {
 
+    int insertAgentDraft(LeaveApplication application);
+
+    LeaveApplication selectByAgentOperationKey(
+            @Param("tenantId") Long tenantId,
+            @Param("applicantUserId") Long applicantUserId,
+            @Param("operationKey") String operationKey);
+
     LeaveApplicationView selectView(
             @Param("tenantId") Long tenantId,
             @Param("id") Long id);

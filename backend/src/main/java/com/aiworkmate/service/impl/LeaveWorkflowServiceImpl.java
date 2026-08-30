@@ -25,6 +25,7 @@ import com.aiworkmate.mapper.LeaveApplicationMapper;
 import com.aiworkmate.mapper.WorkflowActionLogMapper;
 import com.aiworkmate.mapper.WorkflowInstanceMapper;
 import com.aiworkmate.mapper.WorkflowTaskMapper;
+import com.aiworkmate.agent.task.AgentTaskMapper;
 import com.aiworkmate.service.BusinessAuditService;
 import com.aiworkmate.service.HalfDayCalculator;
 import com.aiworkmate.service.LeaveWorkflowService;
@@ -52,6 +53,7 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
     private final WorkflowInstanceMapper instanceMapper;
     private final WorkflowTaskMapper taskMapper;
     private final WorkflowActionLogMapper actionLogMapper;
+    private final AgentTaskMapper agentTaskMapper;
     private final UserAccessService userAccessService;
     private final BusinessAuditService auditService;
     private final NotificationService notificationService;
@@ -125,6 +127,45 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
         leaveMapper.insert(leave);
         auditService.record(actor.tenantId(), actor.userId(), BUSINESS_TYPE,
                 leave.getId().toString(), "CREATE_DRAFT", "SUCCESS", "创建请假草稿");
+        return response(actor, requireView(actor.tenantId(), leave.getId()));
+    }
+
+    @Override
+    @Transactional
+    public LeaveApplicationResponse createAgentDraft(Long userId, LeaveApplicationRequest request,
+                                                     String operationKey) {
+        if (operationKey == null || operationKey.isBlank() || operationKey.length() > 128) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        ResolvedUserAccess actor = requirePermission(userId, "leave:create");
+        int duration = calculateDuration(request);
+        if (request.approverUserId() != null) {
+            requireEligibleApprover(actor, request.approverUserId());
+        }
+        LocalDateTime now = LocalDateTime.now();
+        LeaveApplication leave = new LeaveApplication();
+        leave.setTenantId(actor.tenantId());
+        leave.setApplicantUserId(actor.userId());
+        leave.setApproverUserId(request.approverUserId());
+        applyRequest(leave, request, duration);
+        leave.setStatus("DRAFT");
+        leave.setVersion(0);
+        leave.setAgentOperationKey(operationKey);
+        leave.setCreatedAt(now);
+        leave.setUpdatedAt(now);
+
+        boolean created = leaveMapper.insertAgentDraft(leave) == 1;
+        if (!created) {
+            leave = leaveMapper.selectByAgentOperationKey(
+                    actor.tenantId(), actor.userId(), operationKey);
+            if (leave == null) {
+                throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID);
+            }
+        } else {
+            auditService.recordTransactional(actor.tenantId(), actor.userId(), BUSINESS_TYPE,
+                    leave.getId().toString(), "AGENT_CREATE_DRAFT", "SUCCESS",
+                    "Agent 创建请假草稿");
+        }
         return response(actor, requireView(actor.tenantId(), leave.getId()));
     }
 
@@ -229,6 +270,30 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
         ResolvedUserAccess actor = requirePermission(userId, "leave:create");
         LeaveApplication current = requireOwnedLeave(actor, id);
         requireState(current, "DRAFT");
+        return submitOwned(actor, current, id, request, false);
+    }
+
+    @Override
+    @Transactional
+    public LeaveApplicationResponse submitAgent(Long userId, Long id, VersionRequest request,
+                                                Long agentTaskId) {
+        ResolvedUserAccess actor = requirePermission(userId, "leave:create");
+        LocalDateTime taskCreatedAt = agentTaskMapper.selectCreatedAtForWriteEvidence(
+                agentTaskId, actor.tenantId(), actor.userId());
+        LeaveApplication current = requireOwnedLeave(actor, id);
+        requireState(current, "DRAFT");
+        if (taskCreatedAt == null || current.getCreatedAt() == null
+                || !current.getCreatedAt().isBefore(taskCreatedAt)) {
+            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID);
+        }
+        return submitOwned(actor, current, id, request, true);
+    }
+
+    private LeaveApplicationResponse submitOwned(ResolvedUserAccess actor,
+                                                 LeaveApplication current,
+                                                 Long id,
+                                                 VersionRequest request,
+                                                 boolean agentWrite) {
         Long approverId = current.getApproverUserId();
         if (approverId == null
                 || leaveMapper.countEligibleApprover(
@@ -238,8 +303,7 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
         if (approverId == null
                 || leaveMapper.countEligibleApprover(
                         actor.tenantId(), actor.userId(), approverId) != 1) {
-            auditService.record(actor.tenantId(), actor.userId(), BUSINESS_TYPE,
-                    id.toString(), "SUBMIT", "FAILURE", "未配置有效审批人");
+            recordSubmitAudit(actor, id, "FAILURE", "未配置有效审批人", agentWrite);
             throw new BusinessException(ErrorCode.APPROVER_NOT_CONFIGURED);
         }
         Long definitionId = leaveMapper.selectLeaveDefinitionId(actor.tenantId());
@@ -291,8 +355,7 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
                 .eq(LeaveApplication::getStatus, "PENDING")
                 .set(LeaveApplication::getWorkflowInstanceId, instance.getId()));
         insertAction(actor, instance.getId(), task.getId(), "SUBMIT", "DRAFT", "PENDING", null);
-        auditService.record(actor.tenantId(), actor.userId(), BUSINESS_TYPE,
-                id.toString(), "SUBMIT", "SUCCESS", "提交请假申请");
+        recordSubmitAudit(actor, id, "SUCCESS", "提交请假申请", agentWrite);
         // 通知审批人：有新的请假申请待审批（经 Redis 临时队列异步落库）
         if (approverId != null) {
             notificationService.publish(actor.tenantId(), approverId,
@@ -302,6 +365,17 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
                     "leave", id);
         }
         return response(actor, requireView(actor.tenantId(), id));
+    }
+
+    private void recordSubmitAudit(ResolvedUserAccess actor, Long id, String result,
+                                   String summary, boolean agentWrite) {
+        if (agentWrite) {
+            auditService.recordTransactional(actor.tenantId(), actor.userId(), BUSINESS_TYPE,
+                    id.toString(), "AGENT_SUBMIT", result, summary);
+        } else {
+            auditService.record(actor.tenantId(), actor.userId(), BUSINESS_TYPE,
+                    id.toString(), "SUBMIT", result, summary);
+        }
     }
 
     @Override

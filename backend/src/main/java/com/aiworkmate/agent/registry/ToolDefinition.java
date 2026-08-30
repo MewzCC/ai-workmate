@@ -30,7 +30,7 @@ public record ToolDefinition(
         int timeoutMs,
         String auditPolicy
 ) {
-    private static final Pattern CODE_PATTERN = Pattern.compile("^[a-z][a-z0-9]*(\\.[a-z][a-z0-9]*)+$");
+    private static final Pattern CODE_PATTERN = Pattern.compile("^[a-z][A-Za-z0-9]*(\\.[a-z][A-Za-z0-9]*)+$");
     private static final Set<String> PHASE_2_TOOL_CODES = Set.of(
             "todo.query", "leave.mine", "knowledge.search", "notification.mine",
             "leave.createDraft", "leave.submit"
@@ -92,6 +92,12 @@ public record ToolDefinition(
         require(sideEffect != SideEffect.SINGLE_WRITE || riskLevel != RiskLevel.L0, "Write tools cannot be L0");
         require(sideEffect != SideEffect.SINGLE_WRITE || retryPolicy != RetryPolicy.READ_ONLY_SAFE,
                 "Write tools cannot use read-only retry policy");
+        require(riskLevel == RiskLevel.L0 || confirmationPolicy != ConfirmationPolicy.NONE,
+                "Risky tools require confirmation");
+        require(riskLevel != RiskLevel.L2 || confirmationPolicy == ConfirmationPolicy.SECONDARY,
+                "L2 tools require secondary confirmation");
+        require(riskLevel != RiskLevel.L2 || retryPolicy == RetryPolicy.NEVER,
+                "L2 tools cannot be retried");
     }
 
     private static void requireClosedObjectSchema(JsonNode schema, String label) {

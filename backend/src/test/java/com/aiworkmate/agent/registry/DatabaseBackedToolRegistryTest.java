@@ -118,6 +118,31 @@ class DatabaseBackedToolRegistryTest {
         assertThat(registry.resolveExecutableTool(1L, "todo.query")).isEmpty();
     }
 
+    @Test
+    void writeToolRequiresGlobalAndTenantWriteSwitches() throws Exception {
+        JsonNode schema = objectMapper.readTree(
+                "{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false}");
+        definition = ToolDefinition.create(
+                "leave.createDraft", "Create draft", "Create owned draft", "Create one draft", "1.0.0",
+                schema, schema, RiskLevel.L1, Set.of("leave:create"), PermissionMode.ALL,
+                OwnershipPolicy.SELF, RetryPolicy.BUSINESS_IDEMPOTENT, SideEffect.SINGLE_WRITE,
+                ConfirmationPolicy.EXPLICIT, 1, 16384, 15000, "FULL_WRITE_AUDIT");
+        registry = new DatabaseBackedToolRegistry(
+                properties, toolMapper, tenantPolicyMapper, new ToolCatalog(List.of(definition)), objectMapper);
+        AgentTenantPolicy policy = new AgentTenantPolicy();
+        policy.setTenantId(1L);
+        policy.setEnabled(true);
+        policy.setWriteToolsEnabled(false);
+        when(tenantPolicyMapper.selectById(1L)).thenReturn(policy);
+        when(toolMapper.selectPlatformTool("leave.createDraft")).thenReturn(writeRow());
+
+        assertThat(registry.resolveExecutableTool(1L, "leave.createDraft")).isEmpty();
+        properties.setWriteToolsEnabled(true);
+        assertThat(registry.resolveExecutableTool(1L, "leave.createDraft")).isEmpty();
+        policy.setWriteToolsEnabled(true);
+        assertThat(registry.resolveExecutableTool(1L, "leave.createDraft")).isPresent();
+    }
+
     private AgentTool row(String riskLevel, boolean enabled) {
         AgentTool row = new AgentTool();
         row.setCode(definition.code());
@@ -134,6 +159,25 @@ class DatabaseBackedToolRegistryTest {
         row.setMaxResultBytes(262144);
         row.setTimeoutMs(15000);
         row.setEnabled(enabled);
+        return row;
+    }
+
+    private AgentTool writeRow() {
+        AgentTool row = new AgentTool();
+        row.setCode(definition.code());
+        row.setHandlerVersion(definition.handlerVersion());
+        row.setSchemaHash(definition.schemaHash());
+        row.setRiskLevel("L1");
+        row.setRequiredPermissions("[\"leave:create\"]");
+        row.setPermissionMode("ALL");
+        row.setDataScopePolicy("SELF");
+        row.setRetryPolicy("BUSINESS_IDEMPOTENT");
+        row.setSideEffect("SINGLE_WRITE");
+        row.setConfirmationPolicy("EXPLICIT");
+        row.setMaxResultItems(1);
+        row.setMaxResultBytes(16384);
+        row.setTimeoutMs(15000);
+        row.setEnabled(true);
         return row;
     }
 }
