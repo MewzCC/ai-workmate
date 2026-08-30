@@ -5091,6 +5091,14 @@ html.oa-wallpaper-active .ant-menu-submenu-popup .ant-menu-dark {
   margin-top: 12px;
 }
 
+.oa-route-loading {
+  display: grid;
+  width: 100%;
+  flex: 1 1 auto;
+  min-height: 100%;
+  place-items: center;
+}
+
 .oa-ai-context-card,
 .oa-ai-plan-card,
 .oa-ai-progress-card {
