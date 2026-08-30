@@ -90,6 +90,24 @@ class EmployeeChangeServiceImplTest {
     }
 
     @Test
+    void duplicatePendingChangeIsRejectedBeforeInsert() {
+        when(userAccessService.resolveActiveUser(APPLICANT_ID)).thenReturn(access(APPLICANT_ID));
+        when(userAccessService.resolveActiveUser(REVIEWER_ID)).thenReturn(access(REVIEWER_ID));
+        when(userMapper.selectById(EMPLOYEE_ID)).thenReturn(employee());
+        when(accessControlMapper.countDepartment(TENANT_ID, 20L)).thenReturn(1);
+        when(accessControlMapper.countPosition(TENANT_ID, 30L)).thenReturn(1);
+        when(changeMapper.selectCount(any())).thenReturn(1L);
+
+        assertThatThrownBy(() -> service.create(APPLICANT_ID,
+                new EmployeeChangeRequest(EMPLOYEE_ID, "TRANSFER", LocalDate.now().plusDays(1),
+                        20L, 30L, null, REVIEWER_ID, "重复调整")))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("BUSINESS_STATE_INVALID");
+
+        verify(changeMapper, never()).insert(any(EmployeeChange.class));
+    }
+
+    @Test
     void approveTransferRequiresReviewerAndUpdatesEmployeeAtomically() {
         when(userAccessService.resolveActiveUser(REVIEWER_ID)).thenReturn(access(REVIEWER_ID));
         when(changeMapper.selectOne(any())).thenReturn(change("TRANSFER", "PENDING", 2));
@@ -117,6 +135,19 @@ class EmployeeChangeServiceImplTest {
                 new EmployeeChangeDecisionRequest(2, null)))
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode").isEqualTo("RESOURCE_FORBIDDEN");
+
+        verify(userMapper, never()).update(any(), any());
+    }
+
+    @Test
+    void crossTenantChangeIsHidden() {
+        when(userAccessService.resolveActiveUser(REVIEWER_ID)).thenReturn(access(REVIEWER_ID));
+        when(changeMapper.selectOne(any())).thenReturn(null);
+
+        assertThatThrownBy(() -> service.approve(REVIEWER_ID, 99L,
+                new EmployeeChangeDecisionRequest(0, "同意")))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("RESOURCE_NOT_FOUND");
 
         verify(userMapper, never()).update(any(), any());
     }
@@ -162,6 +193,20 @@ class EmployeeChangeServiceImplTest {
 
         assertThat(response.status()).isEqualTo("WITHDRAWN");
         verify(changeMapper).update(any(), any());
+    }
+
+    @Test
+    void optimisticConflictDoesNotWriteEmployeeChangeAudit() {
+        when(userAccessService.resolveActiveUser(APPLICANT_ID)).thenReturn(access(APPLICANT_ID));
+        when(changeMapper.selectOne(any())).thenReturn(change("OFFBOARDING", "PENDING", 1));
+        when(changeMapper.update(any(), any())).thenReturn(0);
+
+        assertThatThrownBy(() -> service.withdraw(
+                APPLICANT_ID, 9L, new VersionRequest(1)))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("VERSION_CONFLICT");
+
+        verify(auditService, never()).recordTransactional(any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
