@@ -58,6 +58,9 @@ export default function AiChatWorkspace({ role }: AiChatWorkspaceProps) {
 
   useEffect(() => {
     setSidebarCollapsed(localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true');
+    store.hydrateSettings().catch((error) => {
+      message.error(error instanceof Error ? error.message : t('errors.requestFailed'));
+    });
     store.loadConversations().catch((error) => {
       message.error(error instanceof Error ? error.message : t('chat.conversationsLoadFailed'));
     });
@@ -154,8 +157,9 @@ export default function AiChatWorkspace({ role }: AiChatWorkspaceProps) {
         onRemoveAttachment={store.removePendingAttachment}
         onSend={(content) => store.send(content)}
         onStop={() => store.activeId && store.stop(store.activeId)}
-        onModelChange={(model: AiModelId) => store.updateSettings({ ...store.settings, model })}
-        onKbChange={(kbId: number | null) => store.updateSettings({ ...store.settings, kbId })}
+        onModelChange={(model: AiModelId) => void store.updateSettings({ ...store.settings, model })
+          .catch((error) => message.error(error instanceof Error ? error.message : t('errors.requestFailed')))}
+        onKbChange={(kbId: number | null) => void store.updateSettings({ ...store.settings, kbId })}
       />
       <Drawer
         title={t('chat.historySessions')}
