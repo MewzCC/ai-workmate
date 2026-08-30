@@ -54,6 +54,19 @@ class AgentWorkerTransitionServiceTest {
         verify(events).publish(eq(10L), eq("step-completed"), any(), eq("trace-step"));
     }
 
+    @Test
+    void unknownWriteOutcomePublishesPartialTerminalEvent() {
+        when(mapper.markOutcomeUnknown(20L, 0, "worker", "lease-hash")).thenReturn(1);
+
+        service.markOutcomeUnknown(task(), step(), "worker", "lease-hash");
+
+        verify(events).publish(eq(10L), eq("task-completed"),
+                org.mockito.ArgumentMatchers.argThat(payload ->
+                        "PARTIALLY_SUCCEEDED".equals(payload.path("status").asText())
+                                && "TOOL_RESULT_UNKNOWN".equals(payload.path("errorCode").asText())),
+                eq("trace-task"));
+    }
+
     private AgentTask task() {
         AgentTask task = new AgentTask();
         task.setId(10L);

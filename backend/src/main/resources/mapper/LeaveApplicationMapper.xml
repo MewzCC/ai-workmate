@@ -4,6 +4,30 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.aiworkmate.mapper.LeaveApplicationMapper">
 
+    <insert id="insertAgentDraft" parameterType="com.aiworkmate.entity.LeaveApplication"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO leave_application(
+            tenant_id, applicant_user_id, approver_user_id, leave_type,
+            start_date, start_period, end_date, end_period, duration_half_days,
+            reason, status, version, agent_operation_key, created_at, updated_at
+        ) VALUES (
+            #{tenantId}, #{applicantUserId}, #{approverUserId}, #{leaveType},
+            #{startDate}, #{startPeriod}, #{endDate}, #{endPeriod}, #{durationHalfDays},
+            #{reason}, #{status}, #{version}, #{agentOperationKey}, #{createdAt}, #{updatedAt}
+        )
+        ON CONFLICT (tenant_id, applicant_user_id, agent_operation_key)
+            WHERE agent_operation_key IS NOT NULL
+        DO NOTHING
+    </insert>
+
+    <select id="selectByAgentOperationKey" resultType="com.aiworkmate.entity.LeaveApplication">
+        SELECT *
+        FROM leave_application
+        WHERE tenant_id = #{tenantId}
+          AND applicant_user_id = #{applicantUserId}
+          AND agent_operation_key = #{operationKey}
+    </select>
+
     <sql id="leaveApplicationViewColumns">
         l.id,
         l.applicant_user_id AS applicantUserId,

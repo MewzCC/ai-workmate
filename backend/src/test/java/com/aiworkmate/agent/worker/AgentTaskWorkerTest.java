@@ -88,6 +88,24 @@ class AgentTaskWorkerTest {
     }
 
     @Test
+    void unknownWriteOutcomeIsClosedForManualVerificationWithoutRetry() {
+        properties.setEnabled(true);
+        properties.setExecutionEnabled(true);
+        AgentTask task = task();
+        AgentTaskStep step = step();
+        step.setRiskLevel("L2");
+        when(mapper.claim(anyString(), anyString(), any(), anyInt())).thenReturn(task);
+        when(transitions.startNextStep(any(), anyString(), anyString(), any())).thenReturn(step);
+        when(gateway.execute(anyLong(), any())).thenReturn(ToolGatewayResult.uncertain());
+
+        worker.poll();
+
+        verify(transitions).markOutcomeUnknown(any(), any(), anyString(), anyString());
+        verify(transitions, never()).retryReadOnly(any(), any(), anyString(), anyString());
+        verify(transitions, never()).fail(any(), any(), anyString(), anyString(), anyString());
+    }
+
+    @Test
     void recoveryClosesUnsafeWorkBeforeRequeuingSafeExpiredLeases() {
         properties.setEnabled(true);
         properties.setExecutionEnabled(true);

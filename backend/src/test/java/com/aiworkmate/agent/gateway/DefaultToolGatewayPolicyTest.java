@@ -265,6 +265,28 @@ class DefaultToolGatewayPolicyTest {
                 eq("TOOL_TIMEOUT"), anyLong());
     }
 
+    @Test
+    void timedOutWriteIsReportedUnknownAndNeverAsSafeFailure() throws Exception {
+        properties.setWriteToolsEnabled(true);
+        definition = writeDefinition();
+        snapshot = snapshot();
+        snapshot.setConfirmationConsumedAt(LocalDateTime.now());
+        snapshot.setStepTimeoutAt(LocalDateTime.now().plusNanos(150_000_000));
+        when(snapshotMapper.selectSnapshot(10L)).thenReturn(snapshot);
+        when(toolRegistry.resolveExecutableTool(1L, "todo.query")).thenReturn(Optional.of(definition));
+        when(handler.execute(any(), any())).thenAnswer(ignored -> {
+            Thread.sleep(5_000);
+            return objectMapper.readTree("{\"items\":[]}");
+        });
+
+        ToolGatewayResult result = execute();
+
+        assertThat(result.outcomeUncertain()).isTrue();
+        assertThat(result.code()).isEqualTo(GatewayDecisionCode.TOOL_RESULT_UNKNOWN);
+        verify(auditWriter).complete(eq("decision-1"), eq(true), eq("TIMED_OUT"), isNull(),
+                eq("TOOL_TIMEOUT"), anyLong());
+    }
+
     private ToolGatewayResult execute() {
         return gateway.execute(10L, new WorkerLease("worker-1", 0, LEASE_TOKEN));
     }
@@ -284,6 +306,21 @@ class DefaultToolGatewayPolicyTest {
         );
     }
 
+    private ToolDefinition writeDefinition() throws Exception {
+        JsonNode input = objectMapper.readTree("""
+                {"type":"object","additionalProperties":false,"properties":{"limit":{"type":"integer","minimum":1,"maximum":50}},"required":["limit"]}
+                """);
+        JsonNode output = objectMapper.readTree("""
+                {"type":"object","additionalProperties":false,"properties":{"items":{"type":"array","maxItems":1}},"required":["items"]}
+                """);
+        return ToolDefinition.create(
+                "todo.query", "Controlled write test", "Test post-invocation uncertainty",
+                "Test write uncertainty", "1.0.0", input, output, RiskLevel.L1,
+                Set.of("todo:read"), PermissionMode.ALL, OwnershipPolicy.SELF,
+                RetryPolicy.BUSINESS_IDEMPOTENT, SideEffect.SINGLE_WRITE,
+                ConfirmationPolicy.EXPLICIT, 1, 16384, 15000, "FULL_WRITE_AUDIT");
+    }
+
     private GatewayExecutionSnapshot snapshot() throws Exception {
         String arguments = "{\"limit\":10}";
         String argsHash = hashing.hash(objectMapper.readTree(arguments));
@@ -295,9 +332,9 @@ class DefaultToolGatewayPolicyTest {
         plannedStep.put("toolVersion", "1.0.0");
         plannedStep.put("schemaHash", definition.schemaHash());
         plannedStep.put("argsHash", argsHash);
-        plannedStep.put("riskLevel", "L0");
-        plannedStep.put("sideEffect", "NONE");
-        plannedStep.put("confirmationPolicy", "NONE");
+        plannedStep.put("riskLevel", definition.riskLevel().name());
+        plannedStep.put("sideEffect", definition.sideEffect().name());
+        plannedStep.put("confirmationPolicy", definition.confirmationPolicy().name());
         String plan = planNode.toString();
         GatewayExecutionSnapshot value = new GatewayExecutionSnapshot();
         value.setTaskId(5L);
@@ -317,14 +354,14 @@ class DefaultToolGatewayPolicyTest {
         value.setPlan(plan);
         value.setPlanHash(hashing.hash(objectMapper.readTree(plan)));
         value.setPlanVersion(1);
-        value.setTaskRiskLevel("L0");
+        value.setTaskRiskLevel(definition.riskLevel().name());
         value.setToolCallCount(0);
         value.setToolCode("todo.query");
         value.setToolVersion("1.0.0");
         value.setSchemaHash(definition.schemaHash());
         value.setArguments(arguments);
         value.setArgsHash(argsHash);
-        value.setStepRiskLevel("L0");
+        value.setStepRiskLevel(definition.riskLevel().name());
         value.setTraceId("trace-1");
         return value;
     }
