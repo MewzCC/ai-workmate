@@ -1625,6 +1625,72 @@
   margin-bottom: 4px;
 }
 
+.oa-meeting-booking-stack {
+  display: grid;
+  min-width: 0;
+  gap: 18px;
+}
+
+.oa-meeting-booking-toolbar {
+  margin-bottom: 16px;
+}
+
+.oa-meeting-booking-field {
+  width: 100%;
+}
+
+.oa-meeting-booking-time .ant-typography:first-child {
+  font-weight: 650;
+  letter-spacing: -.01em;
+}
+
+.oa-meeting-booking-calendar-cell {
+  width: 100%;
+  min-width: 0;
+  padding-inline: 2px;
+}
+
+.oa-meeting-booking-calendar-cell .ant-badge {
+  max-width: 100%;
+}
+
+.oa-meeting-booking-calendar-cell .ant-badge-status-text {
+  max-width: calc(100% - 14px);
+  overflow: hidden;
+  color: var(--oa-muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.oa-meeting-booking-stack > .oa-admin-assets-card:first-child {
+  border-top: 3px solid color-mix(in srgb, var(--oa-primary) 70%, transparent);
+}
+
+@media (max-width: 768px) {
+  .oa-meeting-booking-toolbar {
+    display: grid;
+  }
+
+  .oa-meeting-booking-toolbar .ant-segmented {
+    width: 100%;
+  }
+
+  .oa-meeting-booking-toolbar .ant-segmented-group {
+    justify-content: stretch;
+  }
+
+  .oa-meeting-booking-toolbar .ant-segmented-item {
+    flex: 1;
+    text-align: center;
+  }
+
+  .oa-meeting-booking-calendar-cell .ant-badge-status-text {
+    display: none;
+  }
+}
+
 .oa-wallpaper-active .oa-admin-assets-card.ant-card {
   background: color-mix(in srgb, var(--oa-card) 78%, transparent);
   backdrop-filter: blur(18px);
