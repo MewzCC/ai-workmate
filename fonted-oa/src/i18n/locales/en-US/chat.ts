@@ -99,6 +99,7 @@ export default {
   saveSettings: 'Save settings',
   settingsSaved: 'Settings saved',
   ocrSettings: 'OCR Recognition',
+  apiKeyLabel: 'API Key',
   apiKeyManaged: 'Managed by server environment variable',
   apiKeyHint: 'The key is never sent to the browser. Configure it via the backend `AI_API_KEY`.',
   model: 'Conversation model',

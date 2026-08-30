@@ -99,6 +99,7 @@ export default {
   saveSettings: '保存设置',
   settingsSaved: '设置已保存',
   ocrSettings: 'OCR 识别',
+  apiKeyLabel: 'API 密钥',
   apiKeyManaged: '由服务端环境变量管理',
   apiKeyHint: '密钥不会下发到浏览器，请通过后端 `AI_API_KEY` 配置。',
   model: '对话模型',

@@ -47,6 +47,7 @@ import MeetingRoomPage from './MeetingRoomPage';
 import VisitorBookingPage from './VisitorBookingPage';
 import SealUsagePage from './SealUsagePage';
 import AiTaskCenterPage from './AiTaskCenterPage';
+import { useAiChatStore } from '@/store/aiChatStore';
 
 const { Content } = Layout;
 const OPEN_TABS_STORAGE_KEY = 'workmeta-oa-open-tabs';
@@ -177,6 +178,7 @@ export default function AdminLayout() {
     return segments.length > 1 ? decodeURIComponent(segments[1]) : 'dashboard';
   }, [approvalTaskId, kbId, pathname]);
   const { user } = useAuth();
+  const hydrateChatSettings = useAiChatStore((state) => state.hydrateSettings);
   const role = useMemo<OaRole>(() => {
     if (user?.role === 'SUPER_ADMIN') return 'super_admin';
     if (user?.role === 'ADMIN' || user?.role === 'SYSTEM_ADMIN') return 'system_admin';
@@ -206,6 +208,11 @@ export default function AdminLayout() {
     () => findMenu('dashboard', menus) || firstPage(menus),
     [menus],
   );
+
+  useEffect(() => {
+    if (!user) return;
+    void hydrateChatSettings().catch(() => undefined);
+  }, [hydrateChatSettings, user]);
 
   useEffect(() => {
     let active = true;
