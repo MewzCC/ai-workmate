@@ -7,6 +7,9 @@ import com.aiworkmate.common.TraceContext;
 import com.aiworkmate.dto.ApprovalDecisionRequest;
 import com.aiworkmate.dto.AssetLedgerRequest;
 import com.aiworkmate.dto.AssetLedgerResponse;
+import com.aiworkmate.dto.AssetOperationRequest;
+import com.aiworkmate.dto.AssetOperationResponse;
+import com.aiworkmate.dto.DepartmentResponse;
 import com.aiworkmate.dto.MeetingRoomRequest;
 import com.aiworkmate.dto.MeetingRoomResponse;
 import com.aiworkmate.dto.SealUsageRequest;
@@ -15,6 +18,7 @@ import com.aiworkmate.dto.VersionRequest;
 import com.aiworkmate.dto.VisitorBookingRequest;
 import com.aiworkmate.dto.VisitorBookingResponse;
 import com.aiworkmate.entity.AssetLedger;
+import com.aiworkmate.entity.AssetOperation;
 import com.aiworkmate.entity.MeetingRoom;
 import com.aiworkmate.entity.SealUsage;
 import com.aiworkmate.entity.User;
@@ -23,6 +27,8 @@ import com.aiworkmate.entity.WorkflowActionLog;
 import com.aiworkmate.entity.WorkflowInstance;
 import com.aiworkmate.entity.WorkflowTask;
 import com.aiworkmate.mapper.AssetLedgerMapper;
+import com.aiworkmate.mapper.AssetOperationMapper;
+import com.aiworkmate.mapper.AccessControlMapper;
 import com.aiworkmate.mapper.MeetingRoomMapper;
 import com.aiworkmate.mapper.SealUsageMapper;
 import com.aiworkmate.mapper.UserMapper;
@@ -45,6 +51,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -64,6 +72,8 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
     private static final String BUSINESS_SEAL = "SEAL_USAGE";
 
     private final AssetLedgerMapper assetMapper;
+    private final AssetOperationMapper assetOperationMapper;
+    private final AccessControlMapper accessControlMapper;
     private final MeetingRoomMapper meetingRoomMapper;
     private final VisitorBookingMapper visitorMapper;
     private final SealUsageMapper sealMapper;
@@ -128,8 +138,9 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
         boolean canWrite = actor.permissions().contains("asset:write");
         Map<Long, String> ownerNames = batchUserNames(rows.stream()
                 .map(AssetLedger::getOwnerUserId).filter(java.util.Objects::nonNull).toList());
+        Map<Long, String> departmentNames = batchDepartmentNames(actor.tenantId());
         return PageResponse.of(
-                rows.stream().map(a -> toAssetResponse(a, null,
+                rows.stream().map(a -> toAssetResponse(a, departmentNames.get(a.getDepartmentId()),
                         a.getOwnerUserId() == null ? null : ownerNames.get(a.getOwnerUserId()),
                         canWrite)).toList(),
                 total, safePage, safeSize);
@@ -140,9 +151,7 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
     public AssetLedgerResponse getAsset(Long userId, Long id) {
         ResolvedUserAccess actor = requirePermission(userId, "assets:read");
         AssetLedger a = requireAsset(actor.tenantId(), id);
-        return toAssetResponse(a, null,
-                a.getOwnerUserId() == null ? null : singleUserName(a.getOwnerUserId()),
-                actor.permissions().contains("asset:write"));
+        return assetDetail(actor, a);
     }
 
     @Override
@@ -163,20 +172,20 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
         a.setName(request.name().trim());
         a.setCategory(request.category().trim());
         a.setSpecification(trim(request.specification()));
-        a.setStatus(request.status() == null ? "IN_USE" : request.status());
+        a.setStatus("IDLE");
         a.setDepartmentId(request.departmentId());
-        a.setOwnerUserId(request.ownerUserId());
+        a.setOwnerUserId(null);
         a.setPurchaseDate(request.purchaseDate());
         a.setOriginalValue(request.originalValue() == null ? BigDecimal.ZERO : request.originalValue());
         a.setRemark(trim(request.remark()));
+        a.setVersion(0);
         a.setDeleted(false);
         a.setCreatedAt(now);
         a.setUpdatedAt(now);
         assetMapper.insert(a);
         auditService.record(actor.tenantId(), actor.userId(), "ASSET_LEDGER",
                 a.getId().toString(), "CREATE", "SUCCESS", "新增资产台账");
-        return toAssetResponse(a, null,
-                a.getOwnerUserId() == null ? null : singleUserName(a.getOwnerUserId()), true);
+        return assetDetail(actor, a);
     }
 
     @Override
@@ -184,6 +193,9 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
     public AssetLedgerResponse updateAsset(Long userId, Long id, AssetLedgerRequest request) {
         ResolvedUserAccess actor = requirePermission(userId, "asset:write");
         AssetLedger a = requireAsset(actor.tenantId(), id);
+        if (request.version() == null) {
+            throw new BusinessException(ErrorCode.VERSION_CONFLICT);
+        }
         if (assetMapper.exists(new LambdaQueryWrapper<AssetLedger>()
                 .eq(AssetLedger::getTenantId, actor.tenantId())
                 .eq(AssetLedger::getAssetCode, request.assetCode().trim())
@@ -196,25 +208,23 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
                 .eq(AssetLedger::getId, id)
                 .eq(AssetLedger::getTenantId, actor.tenantId())
                 .eq(AssetLedger::getDeleted, false)
+                .eq(AssetLedger::getVersion, request.version())
                 .set(AssetLedger::getAssetCode, request.assetCode().trim())
                 .set(AssetLedger::getName, request.name().trim())
                 .set(AssetLedger::getCategory, request.category().trim())
                 .set(AssetLedger::getSpecification, trim(request.specification()))
-                .set(AssetLedger::getStatus, request.status() == null ? a.getStatus() : request.status())
-                .set(AssetLedger::getDepartmentId, request.departmentId())
-                .set(AssetLedger::getOwnerUserId, request.ownerUserId())
                 .set(AssetLedger::getPurchaseDate, request.purchaseDate())
                 .set(AssetLedger::getOriginalValue,
                         request.originalValue() == null ? BigDecimal.ZERO : request.originalValue())
                 .set(AssetLedger::getRemark, trim(request.remark()))
-                .set(AssetLedger::getUpdatedAt, LocalDateTime.now()));
+                .set(AssetLedger::getUpdatedAt, LocalDateTime.now())
+                .setSql("version = version + 1"));
         if (updated != 1) {
             throw new BusinessException(ErrorCode.VERSION_CONFLICT);
         }
         auditService.record(actor.tenantId(), actor.userId(), "ASSET_LEDGER",
                 id.toString(), "UPDATE", "SUCCESS", "更新资产台账");
-        return toAssetResponse(requireAsset(actor.tenantId(), id), null,
-                request.ownerUserId() == null ? null : singleUserName(request.ownerUserId()), true);
+        return assetDetail(actor, requireAsset(actor.tenantId(), id));
     }
 
     @Override
@@ -222,6 +232,9 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
     public void deleteAsset(Long userId, Long id) {
         ResolvedUserAccess actor = requirePermission(userId, "asset:write");
         AssetLedger a = requireAsset(actor.tenantId(), id);
+        if (!"IDLE".equals(a.getStatus())) {
+            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID, "oa.asset.delete.invalid");
+        }
         int updated = assetMapper.update(null, new LambdaUpdateWrapper<AssetLedger>()
                 .eq(AssetLedger::getId, id)
                 .eq(AssetLedger::getTenantId, actor.tenantId())
@@ -233,6 +246,100 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
         }
         auditService.record(actor.tenantId(), actor.userId(), "ASSET_LEDGER",
                 id.toString(), "DELETE", "SUCCESS", "删除资产台账");
+    }
+
+    @Override
+    @Transactional
+    public AssetLedgerResponse claimAsset(Long userId, Long id, AssetOperationRequest request) {
+        ResolvedUserAccess actor = requirePermission(userId, "asset:write");
+        AssetLedger asset = requireAsset(actor.tenantId(), id);
+        if (!"IDLE".equals(asset.getStatus()) || request.targetOwnerUserId() == null
+                || request.targetDepartmentId() == null) {
+            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID, "oa.asset.claim.invalid");
+        }
+        requireOwnerInDepartment(actor.tenantId(), request.targetOwnerUserId(), request.targetDepartmentId());
+        applyAssetOperation(actor, asset, request, "CLAIM", "IN_USE",
+                request.targetDepartmentId(), request.targetOwnerUserId());
+        return assetDetail(actor, requireAsset(actor.tenantId(), id));
+    }
+
+    @Override
+    @Transactional
+    public AssetLedgerResponse returnAsset(Long userId, Long id, AssetOperationRequest request) {
+        ResolvedUserAccess actor = requirePermission(userId, "asset:write");
+        AssetLedger asset = requireAsset(actor.tenantId(), id);
+        if (!"IN_USE".equals(asset.getStatus())) {
+            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID, "oa.asset.return.invalid");
+        }
+        applyAssetOperation(actor, asset, request, "RETURN", "IDLE",
+                asset.getDepartmentId(), null);
+        return assetDetail(actor, requireAsset(actor.tenantId(), id));
+    }
+
+    @Override
+    @Transactional
+    public AssetLedgerResponse transferAsset(Long userId, Long id, AssetOperationRequest request) {
+        ResolvedUserAccess actor = requirePermission(userId, "asset:write");
+        AssetLedger asset = requireAsset(actor.tenantId(), id);
+        if ((!"IDLE".equals(asset.getStatus()) && !"IN_USE".equals(asset.getStatus()))
+                || request.targetDepartmentId() == null
+                || request.targetDepartmentId().equals(asset.getDepartmentId())) {
+            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID, "oa.asset.transfer.invalid");
+        }
+        requireDepartment(actor.tenantId(), request.targetDepartmentId());
+        Long targetOwner = request.targetOwnerUserId();
+        if ("IN_USE".equals(asset.getStatus())) {
+            if (targetOwner == null) {
+                throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID, "oa.asset.transfer.ownerRequired");
+            }
+            requireOwnerInDepartment(actor.tenantId(), targetOwner, request.targetDepartmentId());
+        } else if (targetOwner != null) {
+            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID, "oa.asset.transfer.idleOwnerInvalid");
+        }
+        applyAssetOperation(actor, asset, request, "TRANSFER", asset.getStatus(),
+                request.targetDepartmentId(), targetOwner);
+        return assetDetail(actor, requireAsset(actor.tenantId(), id));
+    }
+
+    private void applyAssetOperation(ResolvedUserAccess actor, AssetLedger asset,
+                                     AssetOperationRequest request, String operationType,
+                                     String targetStatus, Long targetDepartmentId, Long targetOwnerUserId) {
+        int updated = assetMapper.update(null, new LambdaUpdateWrapper<AssetLedger>()
+                .eq(AssetLedger::getId, asset.getId())
+                .eq(AssetLedger::getTenantId, actor.tenantId())
+                .eq(AssetLedger::getDeleted, false)
+                .eq(AssetLedger::getVersion, request.version())
+                .eq(AssetLedger::getStatus, asset.getStatus())
+                .set(AssetLedger::getStatus, targetStatus)
+                .set(AssetLedger::getDepartmentId, targetDepartmentId)
+                .set(AssetLedger::getOwnerUserId, targetOwnerUserId)
+                .set(AssetLedger::getUpdatedAt, LocalDateTime.now())
+                .setSql("version = version + 1"));
+        if (updated != 1) {
+            throw new BusinessException(ErrorCode.VERSION_CONFLICT);
+        }
+
+        AssetOperation operation = new AssetOperation();
+        operation.setTenantId(actor.tenantId());
+        operation.setAssetId(asset.getId());
+        operation.setOperationType(operationType);
+        operation.setFromStatus(asset.getStatus());
+        operation.setToStatus(targetStatus);
+        operation.setFromDepartmentId(asset.getDepartmentId());
+        operation.setToDepartmentId(targetDepartmentId);
+        operation.setFromOwnerUserId(asset.getOwnerUserId());
+        operation.setToOwnerUserId(targetOwnerUserId);
+        operation.setOperatorUserId(actor.userId());
+        operation.setReason(trim(request.reason()));
+        operation.setCreatedAt(LocalDateTime.now());
+        assetOperationMapper.insert(operation);
+        auditService.recordTransactional(actor.tenantId(), actor.userId(), "ASSET_LEDGER",
+                asset.getId().toString(), operationType, "SUCCESS",
+                "fromStatus=" + asset.getStatus() + ",toStatus=" + targetStatus
+                        + ",fromDepartmentId=" + asset.getDepartmentId()
+                        + ",toDepartmentId=" + targetDepartmentId
+                        + ",fromOwnerUserId=" + asset.getOwnerUserId()
+                        + ",toOwnerUserId=" + targetOwnerUserId);
     }
 
     // ============================================================
@@ -833,6 +940,22 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
         return a;
     }
 
+    private void requireDepartment(Long tenantId, Long departmentId) {
+        if (accessControlMapper.countDepartment(tenantId, departmentId) != 1) {
+            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        }
+    }
+
+    private void requireOwnerInDepartment(Long tenantId, Long ownerUserId, Long departmentId) {
+        requireDepartment(tenantId, departmentId);
+        User owner = userMapper.selectById(ownerUserId);
+        if (owner == null || !tenantId.equals(owner.getTenantId())
+                || !Integer.valueOf(1).equals(owner.getStatus())
+                || !departmentId.equals(owner.getDepartmentId())) {
+            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID, "oa.asset.owner.invalid");
+        }
+    }
+
     private MeetingRoom requireMeetingRoom(Long tenantId, Long id) {
         MeetingRoom m = meetingRoomMapper.selectById(id);
         if (m == null || !tenantId.equals(m.getTenantId()) || Boolean.TRUE.equals(m.getDeleted())) {
@@ -975,6 +1098,11 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
                 (a, b) -> a));
     }
 
+    private Map<Long, String> batchDepartmentNames(Long tenantId) {
+        return accessControlMapper.selectDepartments(tenantId).stream()
+                .collect(Collectors.toMap(DepartmentResponse::id, DepartmentResponse::name, (a, b) -> a));
+    }
+
     private String singleUserName(Long userId) {
         if (userId == null) {
             return null;
@@ -1011,10 +1139,46 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
 
     private AssetLedgerResponse toAssetResponse(AssetLedger a, String departmentName,
                                                  String ownerName, boolean canWrite) {
+        return toAssetResponse(a, departmentName, ownerName, canWrite, List.of());
+    }
+
+    private AssetLedgerResponse assetDetail(ResolvedUserAccess actor, AssetLedger asset) {
+        Map<Long, String> departments = batchDepartmentNames(actor.tenantId());
+        List<AssetOperation> operations = assetOperationMapper.selectList(
+                new LambdaQueryWrapper<AssetOperation>()
+                        .eq(AssetOperation::getTenantId, actor.tenantId())
+                        .eq(AssetOperation::getAssetId, asset.getId())
+                        .orderByDesc(AssetOperation::getCreatedAt)
+                        .orderByDesc(AssetOperation::getId));
+        HashSet<Long> userIds = new HashSet<>();
+        for (AssetOperation operation : operations) {
+            if (operation.getFromOwnerUserId() != null) userIds.add(operation.getFromOwnerUserId());
+            if (operation.getToOwnerUserId() != null) userIds.add(operation.getToOwnerUserId());
+            userIds.add(operation.getOperatorUserId());
+        }
+        if (asset.getOwnerUserId() != null) userIds.add(asset.getOwnerUserId());
+        Map<Long, String> users = batchUserNames(new ArrayList<>(userIds));
+        List<AssetOperationResponse> history = operations.stream().map(operation ->
+                new AssetOperationResponse(operation.getId(), operation.getOperationType(),
+                        operation.getFromStatus(), operation.getToStatus(),
+                        operation.getFromDepartmentId(), departments.get(operation.getFromDepartmentId()),
+                        operation.getToDepartmentId(), departments.get(operation.getToDepartmentId()),
+                        operation.getFromOwnerUserId(), users.get(operation.getFromOwnerUserId()),
+                        operation.getToOwnerUserId(), users.get(operation.getToOwnerUserId()),
+                        operation.getOperatorUserId(), users.get(operation.getOperatorUserId()),
+                        operation.getReason(), operation.getCreatedAt())).toList();
+        return toAssetResponse(asset, departments.get(asset.getDepartmentId()),
+                users.get(asset.getOwnerUserId()), actor.permissions().contains("asset:write"), history);
+    }
+
+    private AssetLedgerResponse toAssetResponse(AssetLedger a, String departmentName,
+                                                 String ownerName, boolean canWrite,
+                                                 List<AssetOperationResponse> history) {
         return new AssetLedgerResponse(
                 a.getId(), a.getAssetCode(), a.getName(), a.getCategory(), a.getSpecification(),
                 a.getStatus(), a.getDepartmentId(), departmentName, a.getOwnerUserId(), ownerName,
                 a.getPurchaseDate(), a.getOriginalValue(), a.getRemark(),
+                a.getVersion(), history,
                 a.getCreatedAt(), a.getUpdatedAt(), canWrite, canWrite);
     }
 
