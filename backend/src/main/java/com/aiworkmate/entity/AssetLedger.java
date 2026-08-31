@@ -34,6 +34,7 @@ public class AssetLedger {
     private LocalDate purchaseDate;
     private BigDecimal originalValue;
     private String remark;
+    private Integer version;
     private Boolean deleted;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

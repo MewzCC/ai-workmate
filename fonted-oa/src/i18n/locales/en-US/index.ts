@@ -13,6 +13,7 @@ import profile from './profile';
 import errors from './errors';
 import attendance from './attendance';
 import adminAssets from './adminAssets';
+import employeeChange from './employeeChange';
 
 const enUS = {
   common,
@@ -30,6 +31,7 @@ const enUS = {
   errors,
   attendance,
   adminAssets,
+  employeeChange,
 };
 
 export default enUS;

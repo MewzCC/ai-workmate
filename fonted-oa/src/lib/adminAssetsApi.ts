@@ -1,4 +1,6 @@
 import { request, queryString, type PageResponse } from '@/lib/oaApi';
+import { buildApiHeaders } from '@/lib/apiHeaders';
+import i18n from '@/i18n';
 
 // ==================== 资产台账 ====================
 
@@ -15,6 +17,60 @@ export interface AssetLedgerPayload {
   purchaseDate?: string | null;
   originalValue?: number | null;
   remark?: string;
+  version?: number;
+}
+
+export type AssetOperationType =
+  | 'CLAIM' | 'RETURN' | 'TRANSFER'
+  | 'REPAIR_START' | 'REPAIR_COMPLETE' | 'INVENTORY' | 'SCRAP';
+
+export type AssetInventoryResult =
+  | 'MATCH' | 'MISSING' | 'DAMAGED' | 'LOCATION_MISMATCH' | 'CUSTODIAN_MISMATCH';
+
+export interface AssetOperationPayload {
+  version: number;
+  targetOwnerUserId?: number;
+  targetDepartmentId?: number;
+  reason?: string;
+}
+
+export interface AssetMaintenancePayload {
+  version: number;
+  reason: string;
+}
+
+export interface AssetInventoryPayload {
+  version: number;
+  inventoryResult: AssetInventoryResult;
+  actualStatus?: AssetStatus;
+  actualDepartmentId?: number;
+  actualOwnerUserId?: number;
+  reason?: string;
+}
+
+export interface AssetOperation {
+  id: number;
+  operationType: AssetOperationType;
+  fromStatus: AssetStatus;
+  toStatus: AssetStatus;
+  fromDepartmentId?: number | null;
+  fromDepartmentName?: string | null;
+  toDepartmentId?: number | null;
+  toDepartmentName?: string | null;
+  fromOwnerUserId?: number | null;
+  fromOwnerName?: string | null;
+  toOwnerUserId?: number | null;
+  toOwnerName?: string | null;
+  operatorUserId: number;
+  operatorName?: string | null;
+  reason?: string | null;
+  inventoryResult?: AssetInventoryResult | null;
+  actualStatus?: AssetStatus | null;
+  actualDepartmentId?: number | null;
+  actualDepartmentName?: string | null;
+  actualOwnerUserId?: number | null;
+  actualOwnerName?: string | null;
+  createdAt: string;
 }
 
 export interface AssetLedger {
@@ -31,6 +87,8 @@ export interface AssetLedger {
   purchaseDate?: string | null;
   originalValue?: number | null;
   remark?: string | null;
+  version: number;
+  history: AssetOperation[];
   createdAt: string;
   updatedAt: string;
   canEdit: boolean;
@@ -66,10 +124,46 @@ export interface MeetingRoom {
   canDelete: boolean;
 }
 
+export type MeetingBookingStatus = 'BOOKED' | 'CANCELLED';
+
+export interface MeetingBookingPayload {
+  roomId: number;
+  title: string;
+  agenda?: string;
+  startAt: string;
+  endAt: string;
+  attendeeCount: number;
+}
+
+export interface MeetingBooking {
+  id: number;
+  roomId: number;
+  roomCode?: string | null;
+  roomName?: string | null;
+  roomLocation?: string | null;
+  organizerUserId: number;
+  organizerName?: string | null;
+  title: string;
+  agenda?: string | null;
+  startAt: string;
+  endAt: string;
+  attendeeCount: number;
+  status: MeetingBookingStatus;
+  version: number;
+  cancelledByUserId?: number | null;
+  cancelledByName?: string | null;
+  cancelledAt?: string | null;
+  cancelReason?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  canCancel: boolean;
+}
+
 // ==================== 访客预约 ====================
 
 export type VisitorBookingStatus =
-  | 'PENDING' | 'APPROVED' | 'REJECTED' | 'WITHDRAWN' | 'VISITED';
+  | 'PENDING' | 'APPROVED' | 'REJECTED' | 'WITHDRAWN'
+  | 'CHECKED_IN' | 'VISITED' | 'LEFT' | 'NO_SHOW';
 
 export interface VisitorBookingPayload {
   visitorName: string;
@@ -107,16 +201,27 @@ export interface VisitorBooking {
   taskStatus?: string | null;
   submittedAt?: string | null;
   completedAt?: string | null;
+  registeredByUserId?: number | null;
+  registeredByName?: string | null;
+  checkedInAt?: string | null;
+  visitedAt?: string | null;
+  leftAt?: string | null;
+  noShowAt?: string | null;
   createdAt: string;
   updatedAt: string;
   canWithdraw: boolean;
   canDecide: boolean;
+  canCheckIn: boolean;
+  canMarkVisited: boolean;
+  canLeave: boolean;
+  canMarkNoShow: boolean;
 }
 
 // ==================== 印章用印 ====================
 
 export type SealType = 'OFFICIAL' | 'CONTRACT' | 'LEGAL' | 'FINANCE' | 'OTHER';
-export type SealUsageStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'WITHDRAWN';
+export type SealUsageStatus =
+  | 'PENDING' | 'APPROVED' | 'REJECTED' | 'WITHDRAWN' | 'USED' | 'RETURNED';
 
 export interface SealUsagePayload {
   sealType?: SealType;
@@ -143,10 +248,36 @@ export interface SealUsage {
   taskStatus?: string | null;
   submittedAt?: string | null;
   completedAt?: string | null;
+  actualCopies?: number | null;
+  handlerUserId?: number | null;
+  handlerName?: string | null;
+  usedAt?: string | null;
+  returnedAt?: string | null;
   createdAt: string;
   updatedAt: string;
   canWithdraw: boolean;
   canDecide: boolean;
+  canRegisterUse: boolean;
+  canReturn: boolean;
+  canArchiveDocument: boolean;
+}
+
+export interface SealUsageDocument {
+  id: number;
+  sealUsageId: number;
+  displayName: string;
+  mimeType: string;
+  fileSize: number;
+  uploadedByUserId: number;
+  uploadedByName?: string | null;
+  contentUrl: string;
+  createdAt: string;
+}
+
+interface ApiResult<T> {
+  code: number;
+  message: string;
+  data: T | null;
 }
 
 // ==================== 通用 ====================
@@ -193,6 +324,41 @@ export const adminAssetsApi = {
   deleteAsset: (id: number) =>
     request<void>(`${PREFIX}/assets/${id}`, { method: 'DELETE' }),
 
+  claimAsset: (id: number, payload: AssetOperationPayload) =>
+    request<AssetLedger>(`${PREFIX}/assets/${id}/claim`, {
+      method: 'POST', body: JSON.stringify(payload),
+    }),
+
+  returnAsset: (id: number, payload: AssetOperationPayload) =>
+    request<AssetLedger>(`${PREFIX}/assets/${id}/return`, {
+      method: 'POST', body: JSON.stringify(payload),
+    }),
+
+  transferAsset: (id: number, payload: AssetOperationPayload) =>
+    request<AssetLedger>(`${PREFIX}/assets/${id}/transfer`, {
+      method: 'POST', body: JSON.stringify(payload),
+    }),
+
+  startAssetRepair: (id: number, payload: AssetMaintenancePayload) =>
+    request<AssetLedger>(`${PREFIX}/assets/${id}/repairs`, {
+      method: 'POST', body: JSON.stringify(payload),
+    }),
+
+  completeAssetRepair: (id: number, payload: AssetMaintenancePayload) =>
+    request<AssetLedger>(`${PREFIX}/assets/${id}/repairs/complete`, {
+      method: 'POST', body: JSON.stringify(payload),
+    }),
+
+  inventoryAsset: (id: number, payload: AssetInventoryPayload) =>
+    request<AssetLedger>(`${PREFIX}/assets/${id}/inventories`, {
+      method: 'POST', body: JSON.stringify(payload),
+    }),
+
+  scrapAsset: (id: number, payload: AssetMaintenancePayload) =>
+    request<AssetLedger>(`${PREFIX}/assets/${id}/scrap`, {
+      method: 'POST', body: JSON.stringify(payload),
+    }),
+
   // ---------- 会议室 ----------
   listMeetingRooms: (params: {
     keyword?: string;
@@ -219,6 +385,37 @@ export const adminAssetsApi = {
 
   deleteMeetingRoom: (id: number) =>
     request<void>(`${PREFIX}/meeting-rooms/${id}`, { method: 'DELETE' }),
+
+  createMeetingBooking: (payload: MeetingBookingPayload) =>
+    request<MeetingBooking>(`${PREFIX}/meeting-bookings`, {
+      method: 'POST', body: JSON.stringify(payload),
+    }),
+
+  listMyMeetingBookings: (params: {
+    from?: string;
+    to?: string;
+    status?: MeetingBookingStatus;
+    page?: number;
+    size?: number;
+  } = {}) => request<PageResponse<MeetingBooking>>(
+    `${PREFIX}/meeting-bookings/mine${queryString(params)}`,
+  ),
+
+  listAdminMeetingBookings: (params: {
+    roomId?: number;
+    from?: string;
+    to?: string;
+    status?: MeetingBookingStatus;
+    page?: number;
+    size?: number;
+  } = {}) => request<PageResponse<MeetingBooking>>(
+    `${PREFIX}/meeting-bookings/admin${queryString(params)}`,
+  ),
+
+  cancelMeetingBooking: (id: number, payload: { version: number; reason?: string }) =>
+    request<MeetingBooking>(`${PREFIX}/meeting-bookings/${id}/cancel`, {
+      method: 'POST', body: JSON.stringify(payload),
+    }),
 
   // ---------- 访客预约 ----------
   submitVisitorBooking: (payload: VisitorBookingPayload) =>
@@ -258,6 +455,26 @@ export const adminAssetsApi = {
       body: JSON.stringify(payload),
     }),
 
+  checkInVisitor: (id: number, payload: { version: number; remark?: string }) =>
+    request<VisitorBooking>(`${PREFIX}/visitor-bookings/${id}/check-in`, {
+      method: 'POST', body: JSON.stringify(payload),
+    }),
+
+  markVisitorArrived: (id: number, payload: { version: number; remark?: string }) =>
+    request<VisitorBooking>(`${PREFIX}/visitor-bookings/${id}/arrive`, {
+      method: 'POST', body: JSON.stringify(payload),
+    }),
+
+  leaveVisitor: (id: number, payload: { version: number; remark?: string }) =>
+    request<VisitorBooking>(`${PREFIX}/visitor-bookings/${id}/leave`, {
+      method: 'POST', body: JSON.stringify(payload),
+    }),
+
+  markVisitorNoShow: (id: number, payload: { version: number; remark?: string }) =>
+    request<VisitorBooking>(`${PREFIX}/visitor-bookings/${id}/no-show`, {
+      method: 'POST', body: JSON.stringify(payload),
+    }),
+
   // ---------- 印章用印 ----------
   submitSealUsage: (payload: SealUsagePayload) =>
     request<SealUsage>(`${PREFIX}/seal-usages`, {
@@ -295,4 +512,49 @@ export const adminAssetsApi = {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
+
+  registerSealUse: (id: number, payload: { version: number; actualCopies: number; remark?: string }) =>
+    request<SealUsage>(`${PREFIX}/seal-usages/${id}/use`, {
+      method: 'POST', body: JSON.stringify(payload),
+    }),
+
+  returnSeal: (id: number, payload: { version: number; remark?: string }) =>
+    request<SealUsage>(`${PREFIX}/seal-usages/${id}/return`, {
+      method: 'POST', body: JSON.stringify(payload),
+    }),
+
+  listSealUsageDocuments: (id: number) =>
+    request<SealUsageDocument[]>(`${PREFIX}/seal-usages/${id}/documents`),
+
+  uploadSealUsageDocument: async (id: number, file: File): Promise<SealUsageDocument> => {
+    const body = new FormData();
+    body.append('file', file);
+    const res = await fetch(`/api${PREFIX}/seal-usages/${id}/documents`, {
+      method: 'POST', credentials: 'include', headers: buildApiHeaders(false), body,
+    });
+    if (res.status === 401 && typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('oa-auth-expired'));
+    }
+    const json = await res.json().catch(() => null) as ApiResult<SealUsageDocument> | null;
+    if (!res.ok || !json || json.code !== 200 || json.data === null) {
+      throw new Error(json?.message || i18n.t('adminAssets.seal.document.uploadFailed'));
+    }
+    return json.data;
+  },
+
+  downloadSealUsageDocument: async (document: SealUsageDocument): Promise<void> => {
+    const res = await fetch(document.contentUrl, {
+      credentials: 'include', headers: buildApiHeaders(false),
+    });
+    if (res.status === 401 && typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('oa-auth-expired'));
+    }
+    if (!res.ok) throw new Error(i18n.t('adminAssets.seal.document.downloadFailed'));
+    const url = URL.createObjectURL(await res.blob());
+    const link = window.document.createElement('a');
+    link.href = url;
+    link.download = document.displayName;
+    link.click();
+    URL.revokeObjectURL(url);
+  },
 };

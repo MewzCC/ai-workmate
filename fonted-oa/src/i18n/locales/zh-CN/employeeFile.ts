@@ -9,9 +9,34 @@ export default {
   profile: {
     basicInfo: '基本信息',
     orgInfo: '任职与组织信息',
+    employmentHistory: '任职变动历史',
+    documents: '合同与档案附件',
     attendance: '考勤概览',
     recentActivities: '近期记录',
     notSet: '未设置',
+  },
+  history: {
+    empty: '暂无已生效的任职变动',
+    type: {
+      ONBOARDING: '入职',
+      REGULARIZATION: '转正',
+      TRANSFER: '调岗',
+      OFFBOARDING: '离职',
+    },
+  },
+  documents: {
+    upload: '上传附件',
+    download: '下载',
+    empty: '暂无合同或档案附件',
+    meta: '{{size}} · {{uploader}} · {{time}}',
+    uploadSuccess: '档案附件上传成功',
+    uploadFailed: '档案附件上传失败',
+    downloadFailed: '档案附件下载失败',
+    loadFailed: '档案附件加载失败',
+    type: {
+      CONTRACT: '合同',
+      PROFILE: '档案',
+    },
   },
   field: {
     name: '姓名',

@@ -68,7 +68,7 @@ export const oaMenus: OaMenuItem[] = [
           { id: 'org-tree', parentId: 'hr', name: '组织架构', type: 'page', sort: 1, visible: true, roles: [...adminRoles], actions: ['read', 'update'] },
           { id: 'employee-files', parentId: 'hr', name: '员工档案', type: 'page', sort: 2, visible: true, roles: [...adminRoles], actions: ['read', 'create', 'update', 'assign'] },
           { id: 'attendance', parentId: 'hr', name: '考勤假勤', type: 'page', sort: 3, visible: true, roles: [...adminRoles], actions: ['read', 'export'] },
-          { id: 'employee-change', parentId: 'hr', name: '入转调离', type: 'page', sort: 4, visible: true, roles: [...adminRoles], actions: ['read', 'update', 'approve'] },
+          { id: 'employee-change', parentId: 'hr', name: '入转调离', type: 'page', componentKey: 'EMPLOYEE_CHANGE', sort: 4, visible: true, roles: [...adminRoles], actions: ['read', 'update', 'approve'] },
         ],
       },
       {

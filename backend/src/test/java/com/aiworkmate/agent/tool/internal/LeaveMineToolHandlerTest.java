@@ -84,7 +84,7 @@ class LeaveMineToolHandlerTest {
                 10L, 7L, "当前用户", 8L, "直属主管", "PERSONAL",
                 LocalDate.of(2026, 8, 26), "AM", LocalDate.of(2026, 8, 26), "PM",
                 2, 1.0, "家庭事务", "PENDING", 1,
-                30L, 0, "PENDING", now.plusDays(2), false,
+                30L, 0, "PENDING", now.plusDays(2), false, 0, null, null, true,
                 "RUNNING", "APPROVAL", List.of(), now, null, now.minusDays(1), now,
                 false, false, true, false,
                 "/avatar?token=avatar-token", "/avatar?token=avatar-token");

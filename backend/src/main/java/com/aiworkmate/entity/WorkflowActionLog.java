@@ -16,6 +16,8 @@ public class WorkflowActionLog {
     private Long instanceId;
     private Long taskId;
     private Long actorUserId;
+    private Long originalAssigneeUserId;
+    private Long targetUserId;
     private String action;
     private String fromStatus;
     private String toStatus;

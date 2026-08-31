@@ -19,7 +19,7 @@ import { message } from '@/lib/antdMessage';
 import { AI_MODEL_OPTIONS } from '@/config/aiModels';
 import type { ChatSettings } from '@/types/chat';
 import { useAiChatStore } from '@/store/aiChatStore';
-import { getOcrSettings, updateOcrSettings } from '@/lib/userSettingsApi';
+import { getChatPreferences } from '@/lib/userSettingsApi';
 
 export default function SystemSettingsPage() {
   const { t } = useTranslation();
@@ -38,9 +38,14 @@ export default function SystemSettingsPage() {
   useEffect(() => {
     let cancelled = false;
     setOcrSettingsLoading(true);
-    getOcrSettings()
+    getChatPreferences()
       .then((result) => {
-        if (!cancelled) setForcePdfOcr(result.forcePdfOcr);
+        if (!cancelled) {
+          setForcePdfOcr(result.forcePdfOcr);
+          void useAiChatStore.getState().hydrateSettings().catch(() => {
+            message.error(t('errors.chat.ocrSettingsLoadFailed'));
+          });
+        }
       })
       .catch(() => {
         if (!cancelled) message.error(t('errors.chat.ocrSettingsLoadFailed'));
@@ -57,8 +62,7 @@ export default function SystemSettingsPage() {
     const values = await form.validateFields();
     setSaving(true);
     try {
-      updateSettings({ ...settings, ...values });
-      await updateOcrSettings(forcePdfOcr);
+      await updateSettings({ ...settings, ...values }, forcePdfOcr);
       message.success(t('chat.settingsSaved'));
     } catch {
       message.error(t('errors.chat.ocrSettingsSaveFailed'));
@@ -72,7 +76,7 @@ export default function SystemSettingsPage() {
       <Typography.Title level={4}>{t('oa.menu.system-config')}</Typography.Title>
       <Card size="small" title={t('chat.settingsTitle')} className="oa-domain-card" style={{ marginBottom: 16 }}>
         <Form form={form} layout="vertical">
-          <Form.Item label="API Key">
+          <Form.Item label={t('chat.apiKeyLabel')}>
             <Input.Password value={t('chat.apiKeyManaged')} disabled />
             <Typography.Text type="secondary">{t('chat.apiKeyHint')}</Typography.Text>
           </Form.Item>
