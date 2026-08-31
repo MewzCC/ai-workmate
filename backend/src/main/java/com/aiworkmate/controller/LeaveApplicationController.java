@@ -89,4 +89,12 @@ public class LeaveApplicationController {
             @Valid @RequestBody VersionRequest request) {
         return Result.ok(service.withdraw(user.userId(), id, request));
     }
+
+    @PostMapping("/{id}/remind")
+    public Result<LeaveApplicationResponse> remind(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable Long id,
+            @Valid @RequestBody VersionRequest request) {
+        return Result.ok(service.remind(user.userId(), id, request));
+    }
 }

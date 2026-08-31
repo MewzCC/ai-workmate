@@ -27,6 +27,7 @@ import {
 } from '@/lib/adminAssetsApi';
 import { formatOaApiError } from '@/lib/oaApi';
 import AdminAssetsPageShell from './AdminAssetsPageShell';
+import MeetingBookingPanel from './MeetingBookingPanel';
 
 const STATUS_TAG_COLOR: Record<MeetingRoomStatus, string> = {
   OPEN: 'success',
@@ -47,6 +48,7 @@ export default function MeetingRoomPage() {
   const [editing, setEditing] = useState<MeetingRoom | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [form] = Form.useForm<MeetingRoomPayload>();
+  const canManage = data.some((room) => room.canEdit);
 
   const load = useCallback(async (p = page, s = size) => {
     setLoading(true);
@@ -188,13 +190,17 @@ export default function MeetingRoomPage() {
       title={t('adminAssets.meeting.title')}
       description={t('adminAssets.meeting.description')}
       actions={
-        <Button type="primary" onClick={openCreate}>
-          {t('adminAssets.meeting.create')}
-        </Button>
+        canManage ? (
+          <Button type="primary" onClick={openCreate}>
+            {t('adminAssets.meeting.create')}
+          </Button>
+        ) : undefined
       }
     >
-      <Spin spinning={loading}>
-        <Card className="oa-admin-assets-card oa-admin-assets-card--fill" variant="outlined">
+      <div className="oa-meeting-booking-stack">
+        <MeetingBookingPanel rooms={data} canManage={canManage} />
+        <Spin spinning={loading}>
+          <Card className="oa-admin-assets-card oa-admin-assets-card--fill" variant="outlined">
           <Space className="oa-admin-assets-filters" wrap>
             <Input.Search
               placeholder={t('adminAssets.meeting.searchPlaceholder')}
@@ -236,8 +242,9 @@ export default function MeetingRoomPage() {
             }}
             locale={{ emptyText: <Empty description={t('adminAssets.common.noData')} /> }}
           />
-        </Card>
-      </Spin>
+          </Card>
+        </Spin>
+      </div>
 
       <Modal
         title={editing ? t('adminAssets.meeting.edit') : t('adminAssets.meeting.create')}

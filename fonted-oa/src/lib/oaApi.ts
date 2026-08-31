@@ -335,6 +335,10 @@ export interface LeaveApplication {
   taskStatus?: string;
   taskDueAt?: string;
   overdue: boolean;
+  reminderCount: number;
+  lastRemindedAt?: string;
+  remindAvailableAt?: string;
+  canRemind: boolean;
   workflowStatus?: string;
   currentStage: 'APPLICATION' | 'APPROVAL' | 'COMPLETED';
   workflowStages: WorkflowStage[];
@@ -388,6 +392,10 @@ export interface WorkflowTimelineItem {
   id: number;
   actorUserId: number;
   actorName: string;
+  originalAssigneeUserId?: number | null;
+  originalAssigneeName?: string | null;
+  targetUserId?: number | null;
+  targetUserName?: string | null;
   actorAvatarUrl?: string | null;
   action: string;
   fromStatus?: string;
@@ -421,6 +429,13 @@ export function queryString(params: Record<string, string | number | undefined>)
   });
   const encoded = search.toString();
   return encoded ? `?${encoded}` : '';
+}
+
+export interface ApprovalParticipant {
+  id: number;
+  name: string;
+  avatarUrl?: string | null;
+  canApprove: boolean;
 }
 
 export const agentTaskApi = {
@@ -461,6 +476,11 @@ export const leaveApi = {
       method: 'POST',
       body: JSON.stringify({ version }),
     }),
+  remind: (id: number, version: number) =>
+    request<LeaveApplication>(`/leave-applications/${id}/remind`, {
+      method: 'POST',
+      body: JSON.stringify({ version }),
+    }),
 };
 
 export const todoApi = {
@@ -477,6 +497,30 @@ export const todoApi = {
       method: 'POST',
       body: JSON.stringify({ version, comment }),
     }),
+  participantCandidates: (id: number, keyword?: string) =>
+    request<ApprovalParticipant[]>(
+      `/approval-tasks/${id}/participant-candidates${queryString({ keyword })}`,
+    ),
+  transfer: (id: number, targetUserId: number, version: number, reason: string) =>
+    request<LeaveApplication>(`/approval-tasks/${id}/transfer`, {
+      method: 'POST',
+      body: JSON.stringify({ targetUserId, version, reason }),
+    }),
+  copyTo: (id: number, targetUserId: number, version: number, reason: string) =>
+    request<LeaveApplication>(`/approval-tasks/${id}/copy`, {
+      method: 'POST',
+      body: JSON.stringify({ targetUserId, version, reason }),
+    }),
+  addSign: (
+    id: number,
+    targetUserId: number,
+    version: number,
+    mode: 'PRE' | 'POST',
+    reason: string,
+  ) => request<LeaveApplication>(`/approval-tasks/${id}/add-sign`, {
+    method: 'POST',
+    body: JSON.stringify({ targetUserId, version, mode, reason }),
+  }),
   timeline: (id: number) =>
     request<WorkflowTimelineItem[]>(`/approval-tasks/${id}/timeline`),
 };

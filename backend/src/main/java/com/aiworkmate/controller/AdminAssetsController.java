@@ -5,13 +5,19 @@ import com.aiworkmate.common.Result;
 import com.aiworkmate.dto.ApprovalDecisionRequest;
 import com.aiworkmate.dto.AssetLedgerRequest;
 import com.aiworkmate.dto.AssetLedgerResponse;
+import com.aiworkmate.dto.AssetInventoryRequest;
+import com.aiworkmate.dto.AssetMaintenanceRequest;
+import com.aiworkmate.dto.AssetOperationRequest;
 import com.aiworkmate.dto.MeetingRoomRequest;
 import com.aiworkmate.dto.MeetingRoomResponse;
 import com.aiworkmate.dto.SealUsageRequest;
 import com.aiworkmate.dto.SealUsageResponse;
+import com.aiworkmate.dto.SealUseRequest;
+import com.aiworkmate.dto.SealReturnRequest;
 import com.aiworkmate.dto.VersionRequest;
 import com.aiworkmate.dto.VisitorBookingRequest;
 import com.aiworkmate.dto.VisitorBookingResponse;
+import com.aiworkmate.dto.VisitorVisitActionRequest;
 import com.aiworkmate.security.AuthenticatedUser;
 import com.aiworkmate.service.AdminAssetsService;
 import jakarta.validation.Valid;
@@ -89,6 +95,62 @@ public class AdminAssetsController {
             @PathVariable Long id) {
         service.deleteAsset(user.userId(), id);
         return Result.ok();
+    }
+
+    @PostMapping("/assets/{id}/claim")
+    public Result<AssetLedgerResponse> claimAsset(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable Long id,
+            @Valid @RequestBody AssetOperationRequest request) {
+        return Result.ok(service.claimAsset(user.userId(), id, request));
+    }
+
+    @PostMapping("/assets/{id}/return")
+    public Result<AssetLedgerResponse> returnAsset(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable Long id,
+            @Valid @RequestBody AssetOperationRequest request) {
+        return Result.ok(service.returnAsset(user.userId(), id, request));
+    }
+
+    @PostMapping("/assets/{id}/transfer")
+    public Result<AssetLedgerResponse> transferAsset(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable Long id,
+            @Valid @RequestBody AssetOperationRequest request) {
+        return Result.ok(service.transferAsset(user.userId(), id, request));
+    }
+
+    @PostMapping("/assets/{id}/repairs")
+    public Result<AssetLedgerResponse> startAssetRepair(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable Long id,
+            @Valid @RequestBody AssetMaintenanceRequest request) {
+        return Result.ok(service.startAssetRepair(user.userId(), id, request));
+    }
+
+    @PostMapping("/assets/{id}/repairs/complete")
+    public Result<AssetLedgerResponse> completeAssetRepair(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable Long id,
+            @Valid @RequestBody AssetMaintenanceRequest request) {
+        return Result.ok(service.completeAssetRepair(user.userId(), id, request));
+    }
+
+    @PostMapping("/assets/{id}/inventories")
+    public Result<AssetLedgerResponse> inventoryAsset(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable Long id,
+            @Valid @RequestBody AssetInventoryRequest request) {
+        return Result.ok(service.inventoryAsset(user.userId(), id, request));
+    }
+
+    @PostMapping("/assets/{id}/scrap")
+    public Result<AssetLedgerResponse> scrapAsset(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable Long id,
+            @Valid @RequestBody AssetMaintenanceRequest request) {
+        return Result.ok(service.scrapAsset(user.userId(), id, request));
     }
 
     // ==================== 会议室 ====================
@@ -190,6 +252,34 @@ public class AdminAssetsController {
         return Result.ok(service.rejectVisitorBooking(user.userId(), taskId, request));
     }
 
+    @PostMapping("/visitor-bookings/{id}/check-in")
+    public Result<VisitorBookingResponse> checkInVisitor(
+            @AuthenticationPrincipal AuthenticatedUser user, @PathVariable Long id,
+            @Valid @RequestBody VisitorVisitActionRequest request) {
+        return Result.ok(service.checkInVisitor(user.userId(), id, request));
+    }
+
+    @PostMapping("/visitor-bookings/{id}/arrive")
+    public Result<VisitorBookingResponse> markVisitorArrived(
+            @AuthenticationPrincipal AuthenticatedUser user, @PathVariable Long id,
+            @Valid @RequestBody VisitorVisitActionRequest request) {
+        return Result.ok(service.markVisitorArrived(user.userId(), id, request));
+    }
+
+    @PostMapping("/visitor-bookings/{id}/leave")
+    public Result<VisitorBookingResponse> leaveVisitor(
+            @AuthenticationPrincipal AuthenticatedUser user, @PathVariable Long id,
+            @Valid @RequestBody VisitorVisitActionRequest request) {
+        return Result.ok(service.leaveVisitor(user.userId(), id, request));
+    }
+
+    @PostMapping("/visitor-bookings/{id}/no-show")
+    public Result<VisitorBookingResponse> markVisitorNoShow(
+            @AuthenticationPrincipal AuthenticatedUser user, @PathVariable Long id,
+            @Valid @RequestBody VisitorVisitActionRequest request) {
+        return Result.ok(service.markVisitorNoShow(user.userId(), id, request));
+    }
+
     // ==================== 印章用印 ====================
 
     @PostMapping("/seal-usages")
@@ -245,5 +335,21 @@ public class AdminAssetsController {
             @PathVariable Long taskId,
             @Valid @RequestBody ApprovalDecisionRequest request) {
         return Result.ok(service.rejectSealUsage(user.userId(), taskId, request));
+    }
+
+    @PostMapping("/seal-usages/{id}/use")
+    public Result<SealUsageResponse> registerSealUse(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable Long id,
+            @Valid @RequestBody SealUseRequest request) {
+        return Result.ok(service.registerSealUse(user.userId(), id, request));
+    }
+
+    @PostMapping("/seal-usages/{id}/return")
+    public Result<SealUsageResponse> returnSeal(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable Long id,
+            @Valid @RequestBody SealReturnRequest request) {
+        return Result.ok(service.returnSeal(user.userId(), id, request));
     }
 }

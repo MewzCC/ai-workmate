@@ -3,12 +3,18 @@ package com.aiworkmate.service;
 import com.aiworkmate.common.PageResponse;
 import com.aiworkmate.dto.AssetLedgerRequest;
 import com.aiworkmate.dto.AssetLedgerResponse;
+import com.aiworkmate.dto.AssetInventoryRequest;
+import com.aiworkmate.dto.AssetMaintenanceRequest;
+import com.aiworkmate.dto.AssetOperationRequest;
 import com.aiworkmate.dto.MeetingRoomRequest;
 import com.aiworkmate.dto.MeetingRoomResponse;
 import com.aiworkmate.dto.SealUsageRequest;
 import com.aiworkmate.dto.SealUsageResponse;
+import com.aiworkmate.dto.SealUseRequest;
+import com.aiworkmate.dto.SealReturnRequest;
 import com.aiworkmate.dto.VisitorBookingRequest;
 import com.aiworkmate.dto.VisitorBookingResponse;
+import com.aiworkmate.dto.VisitorVisitActionRequest;
 import com.aiworkmate.dto.ApprovalDecisionRequest;
 
 import java.math.BigDecimal;
@@ -42,6 +48,20 @@ public interface AdminAssetsService {
 
     void deleteAsset(Long userId, Long id);
 
+    AssetLedgerResponse claimAsset(Long userId, Long id, AssetOperationRequest request);
+
+    AssetLedgerResponse returnAsset(Long userId, Long id, AssetOperationRequest request);
+
+    AssetLedgerResponse transferAsset(Long userId, Long id, AssetOperationRequest request);
+
+    AssetLedgerResponse startAssetRepair(Long userId, Long id, AssetMaintenanceRequest request);
+
+    AssetLedgerResponse completeAssetRepair(Long userId, Long id, AssetMaintenanceRequest request);
+
+    AssetLedgerResponse inventoryAsset(Long userId, Long id, AssetInventoryRequest request);
+
+    AssetLedgerResponse scrapAsset(Long userId, Long id, AssetMaintenanceRequest request);
+
     // ---------- 会议室 ----------
 
     PageResponse<MeetingRoomResponse> listMeetingRooms(Long userId, String keyword, String status,
@@ -72,6 +92,14 @@ public interface AdminAssetsService {
 
     VisitorBookingResponse rejectVisitorBooking(Long userId, Long taskId, ApprovalDecisionRequest request);
 
+    VisitorBookingResponse checkInVisitor(Long userId, Long id, VisitorVisitActionRequest request);
+
+    VisitorBookingResponse markVisitorArrived(Long userId, Long id, VisitorVisitActionRequest request);
+
+    VisitorBookingResponse leaveVisitor(Long userId, Long id, VisitorVisitActionRequest request);
+
+    VisitorBookingResponse markVisitorNoShow(Long userId, Long id, VisitorVisitActionRequest request);
+
     // ---------- 印章用印 ----------
 
     SealUsageResponse submitSealUsage(Long userId, SealUsageRequest request);
@@ -83,6 +111,10 @@ public interface AdminAssetsService {
     SealUsageResponse approveSealUsage(Long userId, Long taskId, ApprovalDecisionRequest request);
 
     SealUsageResponse rejectSealUsage(Long userId, Long taskId, ApprovalDecisionRequest request);
+
+    SealUsageResponse registerSealUse(Long userId, Long id, SealUseRequest request);
+
+    SealUsageResponse returnSeal(Long userId, Long id, SealReturnRequest request);
 
     /** 用于资产台账原值列与币种格式化参考；当前返回 CNY。 */
     default String assetCurrency() {

@@ -12,6 +12,7 @@ import {
   Space,
   Table,
   Tag,
+  Tooltip,
   Typography,
 } from 'antd';
 import { message } from '@/lib/antdMessage';
@@ -84,6 +85,28 @@ export default function MyApplicationsPage() {
     });
   };
 
+  const remind = (item: LeaveApplication) => {
+    Modal.confirm({
+      title: t('approval.myApplications.remindConfirmTitle'),
+      content: t('approval.myApplications.remindConfirmContent', {
+        name: item.approverName || t('approval.myApplications.approverFallback'),
+      }),
+      okText: t('approval.myApplications.remindConfirmOk'),
+      onOk: async () => {
+        setActingId(item.id);
+        try {
+          await leaveApi.remind(item.id, item.version);
+          message.success(t('approval.myApplications.remindSuccess'));
+        } catch (error) {
+          message.error(formatOaApiError(error));
+        } finally {
+          setActingId(undefined);
+          await load();
+        }
+      },
+    });
+  };
+
   const columns: ColumnsType<LeaveApplication> = [
     {
       title: t('approval.myApplications.columnApplication'),
@@ -144,7 +167,7 @@ export default function MyApplicationsPage() {
     {
       title: t('common.actions'),
       key: 'actions',
-      width: 220,
+      width: 300,
       fixed: 'right',
       render: (_, item) => (
         <Space>
@@ -166,6 +189,23 @@ export default function MyApplicationsPage() {
             >
               {t('approval.myApplications.withdrawButton')}
             </Button>
+          )}
+          {item.status === 'PENDING' && item.taskId && (
+            <Tooltip title={!item.canRemind && item.remindAvailableAt
+              ? t('approval.myApplications.remindAvailableAt', {
+                time: dayjs(item.remindAvailableAt).format('MM-DD HH:mm'),
+              })
+              : undefined}
+            >
+              <Button
+                size="small"
+                disabled={!item.canRemind}
+                loading={actingId === item.id}
+                onClick={() => remind(item)}
+              >
+                {t('approval.myApplications.remindButton', { count: item.reminderCount })}
+              </Button>
+            </Tooltip>
           )}
           {item.taskId && (
             <Button

@@ -33,6 +33,10 @@ public class SealUsage {
     private Integer version;
     private LocalDateTime submittedAt;
     private LocalDateTime completedAt;
+    private Integer actualCopies;
+    private Long handlerUserId;
+    private LocalDateTime usedAt;
+    private LocalDateTime returnedAt;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

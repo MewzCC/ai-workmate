@@ -11,10 +11,13 @@ import { DEFAULT_AI_MODEL, normalizeAiModel } from '@/config/aiModels';
 import { StreamTypewriter } from '@/lib/StreamTypewriter';
 import { uuid } from '@/lib/uuid';
 import i18n from '@/i18n';
+import { getChatPreferences, updateChatPreferences } from '@/lib/userSettingsApi';
 
 const SETTINGS_KEY = 'workmeta-ai-chat-settings';
+const SETTINGS_MIGRATED_KEY = 'workmeta-ai-chat-settings-migrated';
 const controllers = new Map<number, AbortController>();
 const typewriters = new Map<number, StreamTypewriter>();
+let settingsHydration: Promise<void> | null = null;
 
 export interface UploadProgressItem {
   /** 唯一标识，用于进度更新与移除 */
@@ -45,23 +48,12 @@ interface AiChatState {
   send: (content: string) => Promise<void>;
   stop: (id: number) => void;
   retry: (content: string) => Promise<void>;
-  updateSettings: (settings: ChatSettings) => void;
+  hydrateSettings: () => Promise<void>;
+  updateSettings: (settings: ChatSettings, forcePdfOcr?: boolean) => Promise<void>;
   clearAll: () => Promise<void>;
 }
 
 const defaultSettings: ChatSettings = { model: DEFAULT_AI_MODEL, kbId: null, maxContextRounds: 10, stream: true };
-
-function readSettings(): ChatSettings {
-  if (typeof window === 'undefined') return defaultSettings;
-  try {
-    const stored = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
-    const settings = { ...defaultSettings, ...stored, model: normalizeAiModel(stored.model) };
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-    return settings;
-  } catch {
-    return defaultSettings;
-  }
-}
 
 export const useAiChatStore = create<AiChatState>((set, get) => ({
   conversations: [],
@@ -73,7 +65,47 @@ export const useAiChatStore = create<AiChatState>((set, get) => ({
   uploading: {},
   generatingIds: [],
   loading: false,
-  settings: readSettings(),
+  settings: defaultSettings,
+
+  hydrateSettings: async () => {
+    if (settingsHydration) return settingsHydration;
+    settingsHydration = (async () => {
+      const server = await getChatPreferences();
+      let resolved = server;
+      if (typeof window !== 'undefined' && !server.initialized
+          && localStorage.getItem(SETTINGS_MIGRATED_KEY) !== 'true') {
+        try {
+          const legacy = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') as Partial<ChatSettings>;
+          if (localStorage.getItem(SETTINGS_KEY)) {
+            resolved = await updateChatPreferences({
+              model: normalizeAiModel(legacy.model),
+              maxContextRounds: typeof legacy.maxContextRounds === 'number'
+                ? Math.min(20, Math.max(1, legacy.maxContextRounds)) : defaultSettings.maxContextRounds,
+              stream: typeof legacy.stream === 'boolean' ? legacy.stream : defaultSettings.stream,
+              forcePdfOcr: server.forcePdfOcr,
+            });
+          }
+        } catch {
+          // 旧版本地值不可解析时直接使用服务端默认值。
+        }
+      }
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem(SETTINGS_KEY);
+        localStorage.setItem(SETTINGS_MIGRATED_KEY, 'true');
+      }
+      set((state) => ({ settings: {
+        ...state.settings,
+        model: normalizeAiModel(resolved.model),
+        maxContextRounds: resolved.maxContextRounds,
+        stream: resolved.stream,
+      } }));
+    })();
+    try {
+      await settingsHydration;
+    } finally {
+      settingsHydration = null;
+    }
+  },
 
   loadConversations: async (search = '') => {
     set({ loading: true });
@@ -279,9 +311,26 @@ export const useAiChatStore = create<AiChatState>((set, get) => ({
   },
   retry: async (content) => get().send(content),
 
-  updateSettings: (settings) => {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  updateSettings: async (settings, forcePdfOcr) => {
+    const previous = get().settings;
     set({ settings });
+    const serverFieldsChanged = previous.model !== settings.model
+      || previous.maxContextRounds !== settings.maxContextRounds
+      || previous.stream !== settings.stream
+      || forcePdfOcr !== undefined;
+    if (!serverFieldsChanged) return;
+    try {
+      const current = forcePdfOcr === undefined ? await getChatPreferences() : null;
+      await updateChatPreferences({
+        model: settings.model,
+        maxContextRounds: settings.maxContextRounds,
+        stream: settings.stream,
+        forcePdfOcr: forcePdfOcr ?? current?.forcePdfOcr ?? false,
+      });
+    } catch (error) {
+      set({ settings: previous });
+      throw error;
+    }
   },
 
   clearAll: async () => {

@@ -3,6 +3,7 @@ package com.aiworkmate.dto;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * 资产台账详情。
@@ -21,6 +22,8 @@ public record AssetLedgerResponse(
         LocalDate purchaseDate,
         BigDecimal originalValue,
         String remark,
+        Integer version,
+        List<AssetOperationResponse> history,
         LocalDateTime createdAt,
         LocalDateTime updatedAt,
         boolean canEdit,

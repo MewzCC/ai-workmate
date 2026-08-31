@@ -39,7 +39,8 @@ class LeaveSubmitToolHandlerTest {
                 10L, 7L, "当前用户", 8L, "主管", "PERSONAL",
                 LocalDate.of(2026, 9, 1), "AM", LocalDate.of(2026, 9, 1), "PM",
                 2, 1.0, "家庭事务", "PENDING", 4,
-                30L, 0, "PENDING", now.plusDays(2), false, "RUNNING", "APPROVAL", List.of(),
+                30L, 0, "PENDING", now.plusDays(2), false, 0, null, null, true,
+                "RUNNING", "APPROVAL", List.of(),
                 now, null, now.minusDays(1), now, false, false, true, false, null, null);
     }
 }

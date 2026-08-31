@@ -30,4 +30,7 @@ public interface ObjectStorageService {
 
     /** 对象是否存在。 */
     boolean exists(String key);
+
+    /** 对象存储及受控存储桶当前是否可访问。 */
+    boolean isAvailable();
 }

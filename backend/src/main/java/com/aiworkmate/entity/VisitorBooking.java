@@ -12,8 +12,8 @@ import java.time.LocalDateTime;
  *
  * <p>审批走通用 workflow（{@code business_type = VISITOR_BOOKING}）：
  * 提交后由 {@link com.aiworkmate.entity.WorkflowInstance} 驱动单级审批，
- * 审批通过后状态由 {@code PENDING -> APPROVED}，访客实际到访后可由前端
- * 标记为 {@code VISITED}（本版本仅维护审批侧的状态流转）。
+ * 审批通过后按 {@code APPROVED -> CHECKED_IN -> VISITED -> LEFT}
+ * 登记实际来访进度；超过预计到访时间仍未签到时可标记为 {@code NO_SHOW}。
  */
 @Data
 @TableName("visitor_booking")
@@ -39,6 +39,11 @@ public class VisitorBooking {
     private Integer version;
     private LocalDateTime submittedAt;
     private LocalDateTime completedAt;
+    private Long registeredByUserId;
+    private LocalDateTime checkedInAt;
+    private LocalDateTime visitedAt;
+    private LocalDateTime leftAt;
+    private LocalDateTime noShowAt;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }
