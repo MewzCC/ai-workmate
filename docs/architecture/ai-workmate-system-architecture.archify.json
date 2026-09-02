@@ -1,0 +1,333 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "AI WorkMate 系统架构",
+    "locale": "zh-CN",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/MewzCC/ai-workmate",
+      "revision": "5274ef3440c2c0033034a30beee1f6512d6028e0"
+    },
+    "views": [
+      {
+        "id": "user-entry",
+        "label": "用户入口与业务请求",
+        "focus": ["users", "marketing-spa", "oa-spa", "security-api", "domain-services"],
+        "note": "营销官网与 OA 工作台独立运行，统一通过后端 API 进入业务与鉴权链路。"
+      },
+      {
+        "id": "agent-path",
+        "label": "Agent 受控执行链路",
+        "focus": ["oa-spa", "security-api", "agent-runtime", "tool-gateway", "domain-services", "model-provider"],
+        "note": "Planner 与 Worker 不直调工具；所有工具执行都由进程内 Tool Gateway 校验后进入领域服务。"
+      },
+      {
+        "id": "data-services",
+        "label": "数据与文件服务",
+        "focus": ["domain-services", "postgres", "redis", "minio", "ocr-service"],
+        "note": "PostgreSQL/pgvector 保存业务与向量数据，Redis 提供缓存能力，MinIO 保存受控文件对象。"
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "users",
+      "type": "external",
+      "label": "企业用户",
+      "sublabel": "浏览器",
+      "pos": [40, 330],
+      "size": [130, 68]
+    },
+    {
+      "id": "marketing-spa",
+      "type": "frontend",
+      "label": "营销官网",
+      "sublabel": "Vite/React · :3000",
+      "pos": [260, 100],
+      "size": [170, 76],
+      "sources": [
+        { "path": "fronted-main/package.json", "label": "独立前端与端口" },
+        { "path": "fronted-main/src/main.tsx", "label": "应用入口" }
+      ]
+    },
+    {
+      "id": "oa-spa",
+      "type": "frontend",
+      "label": "OA 工作台",
+      "sublabel": "Vite/React · :3001/oa",
+      "pos": [260, 440],
+      "size": [170, 76],
+      "sources": [
+        { "path": "fonted-oa/package.json", "label": "独立前端与依赖" },
+        { "path": "fonted-oa/src/App.tsx", "label": "路由入口" }
+      ]
+    },
+    {
+      "id": "security-api",
+      "type": "security",
+      "label": "安全与 API 入口",
+      "sublabel": "JWT · REST/SSE :8080",
+      "tag": "实时 RBAC",
+      "pos": [480, 270],
+      "size": [175, 82],
+      "sources": [
+        { "path": "backend/src/main/java/com/aiworkmate/config/SecurityConfig.java", "label": "鉴权规则" },
+        { "path": "backend/src/main/java/com/aiworkmate/controller/AiTaskController.java", "label": "REST/SSE 控制器" }
+      ]
+    },
+    {
+      "id": "domain-services",
+      "type": "backend",
+      "label": "领域服务层",
+      "sublabel": "OA · 审批 · HR · 知识库",
+      "tag": "MyBatis-Plus",
+      "pos": [900, 100],
+      "size": [180, 82],
+      "sources": [
+        { "path": "backend/src/main/java/com/aiworkmate/service/AiTaskService.java", "label": "业务服务接口" },
+        { "path": "backend/src/main/java/com/aiworkmate/service/impl/ApprovalEngineServiceImpl.java", "label": "领域服务实现" }
+      ]
+    },
+    {
+      "id": "agent-runtime",
+      "type": "backend",
+      "label": "AI / RAG / Agent Runtime",
+      "sublabel": "Planner · Worker · RAG",
+      "tag": "Spring AI",
+      "pos": [630, 440],
+      "size": [180, 82],
+      "sources": [
+        { "path": "backend/src/main/java/com/aiworkmate/agent/worker/AgentTaskWorker.java", "label": "Agent Worker" },
+        { "path": "backend/src/main/java/com/aiworkmate/agent/planner/StructuredAgentPlanner.java", "label": "结构化 Planner" }
+      ]
+    },
+    {
+      "id": "tool-gateway",
+      "type": "security",
+      "label": "Tool Gateway",
+      "sublabel": "策略 · 租约 · 确认 · 审计",
+      "tag": "Fail closed",
+      "pos": [900, 440],
+      "size": [180, 82],
+      "sources": [
+        { "path": "backend/src/main/java/com/aiworkmate/agent/gateway/DefaultToolGateway.java", "label": "网关实现" },
+        { "path": "docs/architecture/agent-tool-gateway.md", "label": "安全架构" }
+      ]
+    },
+    {
+      "id": "postgres",
+      "type": "database",
+      "label": "PostgreSQL + pgvector",
+      "sublabel": "业务 · RBAC · 向量 · 审计",
+      "tag": "Flyway :5432",
+      "pos": [1160, 100],
+      "size": [170, 82],
+      "sources": [
+        { "path": "backend/src/main/resources/db/migration/V1__init_baseline.sql", "label": "Flyway 基线迁移" },
+        { "path": "docker-compose.yml", "label": "pgvector/pg16" }
+      ]
+    },
+    {
+      "id": "redis",
+      "type": "database",
+      "label": "Redis",
+      "sublabel": "缓存与运行时状态",
+      "tag": ":6379",
+      "pos": [1160, 260],
+      "size": [170, 72],
+      "sources": [
+        { "path": "docker-compose.yml", "label": "Redis 7" }
+      ]
+    },
+    {
+      "id": "minio",
+      "type": "cloud",
+      "label": "MinIO",
+      "sublabel": "附件 · 头像 · 壁纸",
+      "tag": ":9000",
+      "pos": [1160, 420],
+      "size": [170, 72],
+      "sources": [
+        { "path": "docker-compose.yml", "label": "对象存储" }
+      ]
+    },
+    {
+      "id": "model-provider",
+      "type": "external",
+      "label": "AI 模型供应商",
+      "sublabel": "Chat · Embedding · Rerank API",
+      "pos": [630, 680],
+      "size": [180, 76],
+      "sources": [
+        { "path": "backend/pom.xml", "label": "Spring AI OpenAI" },
+        { "path": "backend/src/main/resources/application.yml", "label": "模型配置" }
+      ]
+    },
+    {
+      "id": "ocr-service",
+      "type": "external",
+      "label": "OCR 服务（可选）",
+      "sublabel": "PaddleOCR + PyMuPDF :8686",
+      "pos": [1160, 680],
+      "size": [170, 76],
+      "sources": [
+        { "path": "docker/ocr-service/app.py", "label": "OCR 服务实现" },
+        { "path": "docker-compose.yml", "label": "ocr profile" }
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "独立 Web 应用",
+      "wraps": ["marketing-spa", "oa-spa"],
+      "pad": 26
+    },
+    {
+      "kind": "security-group",
+      "label": "Spring Boot 3 模块化单体（Java 17）",
+      "wraps": ["security-api", "domain-services", "agent-runtime", "tool-gateway"],
+      "pad": 30
+    },
+    {
+      "kind": "region",
+      "label": "持久化与文件基础设施",
+      "wraps": ["postgres", "redis", "minio"],
+      "pad": 24
+    }
+  ],
+  "connections": [
+    {
+      "id": "users-to-marketing",
+      "from": "users",
+      "to": "marketing-spa",
+      "label": "HTTPS :3000",
+      "variant": "emphasis"
+    },
+    {
+      "id": "marketing-to-oa",
+      "from": "marketing-spa",
+      "to": "oa-spa",
+      "label": "CTA → :3001/oa",
+      "variant": "dashed",
+      "labelAt": [345, 190]
+    },
+    {
+      "id": "users-to-oa",
+      "from": "users",
+      "to": "oa-spa",
+      "label": "HTTPS :3001/oa",
+      "variant": "emphasis"
+    },
+    {
+      "id": "marketing-api",
+      "from": "marketing-spa",
+      "to": "security-api",
+      "label": "REST / SSE",
+      "variant": "default"
+    },
+    {
+      "id": "oa-api",
+      "from": "oa-spa",
+      "to": "security-api",
+      "label": "JWT + REST / SSE",
+      "variant": "security"
+    },
+    {
+      "id": "api-domain",
+      "from": "security-api",
+      "to": "domain-services",
+      "label": "鉴权后的领域调用",
+      "variant": "security"
+    },
+    {
+      "id": "api-agent",
+      "from": "security-api",
+      "to": "agent-runtime",
+      "label": "plan / execute / events",
+      "variant": "emphasis",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "agent-gateway",
+      "from": "agent-runtime",
+      "to": "tool-gateway",
+      "label": "stepId + lease",
+      "variant": "security"
+    },
+    {
+      "id": "gateway-domain",
+      "from": "tool-gateway",
+      "to": "domain-services",
+      "label": "固定 Handler + 纵深鉴权",
+      "variant": "security"
+    },
+    {
+      "id": "domain-postgres",
+      "from": "domain-services",
+      "to": "postgres",
+      "label": "SQL / Flyway",
+      "variant": "default"
+    },
+    {
+      "id": "domain-redis",
+      "from": "domain-services",
+      "to": "redis",
+      "label": "Redis 协议",
+      "variant": "dashed",
+      "labelAt": [1080, 235]
+    },
+    {
+      "id": "domain-minio",
+      "from": "domain-services",
+      "to": "minio",
+      "label": "S3 API",
+      "variant": "default",
+      "labelAt": [1120, 335]
+    },
+    {
+      "id": "agent-model",
+      "from": "agent-runtime",
+      "to": "model-provider",
+      "label": "OpenAI 兼容 API",
+      "variant": "dashed",
+      "labelAt": [720, 536]
+    },
+    {
+      "id": "minio-ocr",
+      "from": "minio",
+      "to": "ocr-service",
+      "label": "受控文件识别",
+      "variant": "dashed",
+      "labelAt": [1245, 506]
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "应用边界",
+      "items": [
+        "营销官网与 OA 工作台是两个可独立运行的 Vite SPA",
+        "前端 nginx 将 /api 请求反向代理到后端 :8080"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Agent 安全边界",
+      "items": [
+        "Tool Gateway 是 Agent 工具执行的唯一入口，不暴露公共执行 API",
+        "网关校验租约、哈希、实时权限、确认、预算与审计；失败时 fail closed"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "数据与能力",
+      "items": [
+        "PostgreSQL/pgvector 统一承载业务、权限、会话、知识向量和 Agent 快照",
+        "Redis、MinIO 与可选 OCR 由 Docker Compose 编排"
+      ]
+    }
+  ]
+}
