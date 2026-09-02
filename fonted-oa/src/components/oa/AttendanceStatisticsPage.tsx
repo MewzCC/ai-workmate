@@ -144,7 +144,11 @@ export default function AttendanceStatisticsPage() {
         </Card>
 
         {isAdmin && (
-          <Card title={t('attendance.statistics.teamTitle')} variant="outlined">
+          <Card
+            className="oa-attendance-card oa-attendance-card--fill"
+            title={t('attendance.statistics.teamTitle')}
+            variant="outlined"
+          >
             <Table
               rowKey="userId"
               columns={teamColumns}

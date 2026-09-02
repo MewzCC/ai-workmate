@@ -2728,9 +2728,11 @@
 }
 
 .oa-layout > .ant-layout {
+  height: 100dvh;
   min-height: 100vh;
   min-width: 0;
   margin-left: 268px;
+  overflow: hidden;
   transition: margin-left 0.2s ease;
 }
 
@@ -3679,14 +3681,19 @@ html.oa-wallpaper-active .ant-menu-submenu-popup .ant-menu-dark {
 .oa-content {
   padding: 24px;
   display: flex;
+  height: auto;
   min-width: 0;
-  min-height: calc(100dvh - 108px);
+  min-height: 0;
+  flex: 1 1 auto;
   align-items: stretch;
+  overflow: auto;
+  overscroll-behavior: contain;
 }
 
 .oa-page-transition {
   display: flex;
   width: 100%;
+  height: 100%;
   min-height: 100%;
   min-width: 0;
   flex: 1 1 auto;
@@ -3697,6 +3704,7 @@ html.oa-wallpaper-active .ant-menu-submenu-popup .ant-menu-dark {
 .oa-page-transition > * {
   width: 100%;
   min-width: 0;
+  min-height: 0;
   flex: 1 1 auto;
 }
 
@@ -5522,6 +5530,7 @@ html.oa-wallpaper-active .oa-ai-operation-drawer .ant-drawer-footer {
 
 .oa-org-page {
   width: 100%;
+  height: 100%;
   min-height: 100%;
   display: flex;
   flex-direction: column;
@@ -5588,12 +5597,16 @@ html.oa-wallpaper-active .oa-ai-operation-drawer .ant-drawer-footer {
 
 .oa-org-loading,
 .oa-org-loading > .ant-spin-container {
-  min-height: 100%;
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
 }
 
 .oa-org-workspace {
   display: flex;
   min-height: 0;
+  flex: 1 1 auto;
   flex-direction: column;
   gap: 18px;
 }
@@ -5807,6 +5820,10 @@ html.oa-wallpaper-active .oa-ai-operation-drawer .ant-drawer-footer {
 
 /* 员工列表卡片 */
 .oa-org-employees-card.ant-card {
+  display: flex;
+  min-height: 300px;
+  flex: 1 1 auto;
+  flex-direction: column;
   border-radius: 16px;
   border: 1px solid var(--oa-border, rgba(15, 23, 42, 0.08));
   background: var(--oa-card, #ffffff);
@@ -5821,6 +5838,10 @@ html.oa-wallpaper-active .oa-ai-operation-drawer .ant-drawer-footer {
 }
 
 .oa-org-employees-card .ant-card-body {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
   padding: 18px 22px 22px;
 }
 
@@ -5839,6 +5860,19 @@ html.oa-wallpaper-active .oa-ai-operation-drawer .ant-drawer-footer {
 .oa-org-employees-card .ant-table {
   border-radius: 8px;
   overflow: hidden;
+}
+
+.oa-org-employees-card .ant-table-wrapper,
+.oa-org-employees-card .ant-spin-nested-loading,
+.oa-org-employees-card .ant-spin-container {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+
+.oa-org-employees-card .ant-table {
+  flex: 1 1 auto;
 }
 
 .oa-org-employees-card .ant-table-thead > tr > th {
@@ -6162,6 +6196,7 @@ html.oa-wallpaper-active .oa-ai-operation-drawer .ant-drawer-footer {
 }
 /* 入转调离：人事运营台，强调流程状态与组织变更对照。 */
 .employee-change-page {
+  height: 100%;
   min-height: 100%;
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr);
@@ -6198,7 +6233,9 @@ html.oa-wallpaper-active .oa-ai-operation-drawer .ant-drawer-footer {
 }
 
 .employee-change-table-card {
+  display: flex;
   min-height: 0;
+  flex-direction: column;
   overflow: hidden;
 }
 
@@ -6207,6 +6244,19 @@ html.oa-wallpaper-active .oa-ai-operation-drawer .ant-drawer-footer {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   gap: 14px;
+}
+
+.employee-change-table-card .ant-table-wrapper,
+.employee-change-table-card .ant-spin-nested-loading,
+.employee-change-table-card .ant-spin-container {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+
+.employee-change-table-card .ant-table {
+  flex: 1 1 auto;
 }
 
 .employee-change-toolbar {
