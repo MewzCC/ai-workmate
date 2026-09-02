@@ -167,6 +167,7 @@
 .oa-domain-page {
   display: grid;
   width: 100%;
+  height: 100%;
   min-height: 100%;
   grid-template-rows: auto minmax(0, 1fr);
   align-content: stretch;
@@ -177,7 +178,18 @@
 .oa-domain-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
 .oa-domain-heading .ant-typography { margin-top: 0; }
 .oa-domain-card { border-color: var(--oa-border); background: var(--oa-card); margin-bottom: 0 !important;}
-.oa-domain-page > .oa-domain-card { min-height: 0; height: 100%; }
+.oa-domain-page > .oa-domain-card {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+}
+.oa-domain-page > .oa-domain-card > .ant-card-body {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
 .oa-domain-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 18px; }
 .oa-leave-form { max-width: 980px; margin-top: 22px; }
 .oa-form-grid-four { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
@@ -228,7 +240,8 @@
 .oa-attendance-page {
   display: grid;
   width: 100%;
-  min-height: calc(100dvh - 156px);
+  height: 100%;
+  min-height: 100%;
   grid-template-rows: auto minmax(0, 1fr);
   gap: 18px;
 }
@@ -293,6 +306,8 @@
 }
 
 .oa-attendance-content,
+.oa-attendance-content > .ant-spin,
+.oa-attendance-content > .ant-spin > .ant-spin-container,
 .oa-attendance-content > .ant-spin-nested-loading,
 .oa-attendance-content > .ant-spin-nested-loading > .ant-spin-container {
   display: flex;
@@ -537,8 +552,10 @@
 
 .oa-attendance-card--fill,
 .oa-attendance-card--grow {
+  display: flex;
   min-height: 0;
   flex: 1 1 auto;
+  flex-direction: column;
 }
 
 .oa-attendance-card--fill.ant-card > .ant-card-body,
@@ -550,6 +567,27 @@
   min-height: 0;
   flex: 1 1 auto;
   flex-direction: column;
+}
+
+.oa-attendance-card--fill .ant-table-wrapper,
+.oa-attendance-card--fill .ant-spin-nested-loading,
+.oa-attendance-card--fill .ant-spin-container,
+.oa-fill-card .ant-table-wrapper,
+.oa-fill-card .ant-spin-nested-loading,
+.oa-fill-card .ant-spin-container,
+.oa-domain-page > .oa-domain-card .ant-table-wrapper,
+.oa-domain-page > .oa-domain-card .ant-spin-nested-loading,
+.oa-domain-page > .oa-domain-card .ant-spin-container {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+
+.oa-attendance-card--fill .ant-table,
+.oa-fill-card .ant-table,
+.oa-domain-page > .oa-domain-card .ant-table {
+  flex: 1 1 auto;
 }
 
 .oa-attendance-metrics {
@@ -644,9 +682,32 @@
   --leave-muted: color-mix(in srgb, var(--oa-text) 58%, transparent);
   --leave-line: color-mix(in srgb, var(--oa-border) 76%, transparent);
   --leave-tint: color-mix(in srgb, var(--oa-primary) 7%, var(--oa-card));
-  width: min(1500px, 100%);
+  width: 100%;
+  height: 100%;
+  min-height: 0;
   margin: 0 auto;
   color: var(--leave-ink);
+}
+
+.leave-list-workbench {
+  display: flex;
+  flex-direction: column;
+}
+
+.leave-list-workbench > .leave-list-card,
+.leave-workbench > .leave-list-card {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+
+.leave-workbench > .leave-list-card > .ant-card-body {
+  justify-content: center;
+}
+
+.leave-workbench > .leave-list-card {
+  height: 100%;
 }
 
 .leave-page-hero,
@@ -1285,6 +1346,10 @@
 }
 
 .leave-list-card > .ant-card-body {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
   padding: 20px 22px 10px;
 }
 
@@ -1302,7 +1367,51 @@
 }
 
 .leave-list-card .ant-table-wrapper {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
   border-top: 1px solid var(--leave-line);
+}
+
+.leave-list-card .ant-spin-nested-loading,
+.leave-list-card .ant-spin-container {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+
+.leave-list-card .ant-table {
+  flex: 1 1 auto;
+}
+
+/* 空数据时让反馈占据列表主体，而不是挤在表头下方。 */
+.leave-list-card .ant-table-placeholder > td,
+.employee-change-table-card .ant-table-placeholder > td,
+.oa-attendance-card--fill .ant-table-placeholder > td,
+.oa-org-employees-card .ant-table-placeholder > td,
+.oa-domain-page > .oa-domain-card .ant-table-placeholder > td {
+  height: clamp(280px, 58vh, 900px);
+}
+
+@media (max-width: 720px) {
+  .leave-workbench,
+  .approval-workbench,
+  .leave-list-workbench,
+  .oa-domain-page,
+  .oa-attendance-page {
+    height: auto;
+    min-height: 100%;
+  }
+
+  .leave-list-card .ant-table-placeholder > td,
+  .employee-change-table-card .ant-table-placeholder > td,
+  .oa-attendance-card--fill .ant-table-placeholder > td,
+  .oa-org-employees-card .ant-table-placeholder > td,
+  .oa-domain-page > .oa-domain-card .ant-table-placeholder > td {
+    height: 220px;
+  }
 }
 
 .leave-table-subject {
