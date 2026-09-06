@@ -12,7 +12,6 @@ import {
   Modal,
   Space,
   Spin,
-  Table,
   Tabs,
   Tag,
 } from 'antd';
@@ -29,6 +28,7 @@ import {
 } from '@/lib/adminAssetsApi';
 import { formatOaApiError } from '@/lib/oaApi';
 import AdminAssetsPageShell from './AdminAssetsPageShell';
+import ResponsiveTable from './ResponsiveTable';
 
 const STATUS_TAG_COLOR: Record<VisitorBookingStatus, string> = {
   PENDING: 'processing',
@@ -356,7 +356,7 @@ export default function VisitorBookingPage() {
                 key: 'mine',
                 label: t('adminAssets.visitor.myApplications'),
                 children: (
-                  <Table
+                  <ResponsiveTable
                     rowKey="id"
                     columns={mineColumns}
                     dataSource={mine}
@@ -380,7 +380,7 @@ export default function VisitorBookingPage() {
                 key: 'pending',
                 label: t('adminAssets.visitor.pendingApproval'),
                 children: (
-                  <Table
+                  <ResponsiveTable
                     rowKey="id"
                     columns={pendingColumns}
                     dataSource={pending}

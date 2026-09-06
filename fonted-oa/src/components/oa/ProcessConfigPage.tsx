@@ -9,7 +9,6 @@ import {
   Popconfirm,
   Select,
   Space,
-  Table,
   Typography,
 } from 'antd';
 import { message } from '@/lib/antdMessage';
@@ -27,6 +26,7 @@ import { OaIcon } from '@/components/OaIcon';
 import ApprovalConfigShell from './ApprovalConfigShell';
 import ProcessDesignerModal from './ProcessDesignerModal';
 import { StatusTag } from './FormEnginePage';
+import ResponsiveTable from './ResponsiveTable';
 
 function parseNodes(nodeJson: string): unknown[] {
   try {
@@ -210,7 +210,7 @@ export default function ProcessConfigPage() {
             </Button>
           </Space>
         </div>
-        <Table
+        <ResponsiveTable
           rowKey="id"
           columns={columns}
           dataSource={data}

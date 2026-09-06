@@ -14,6 +14,7 @@ import AppearanceDrawer from './AppearanceDrawer';
 import AIOperationDrawer from './AIOperationDrawer';
 import AiMiniPanel from './AiMiniPanel';
 import { useAuth } from '@/components/auth/AuthProvider';
+import { OA_MOBILE_MEDIA_QUERY } from '@/hooks/useIsMobile';
 import NotificationPage from './NotificationPage';
 import { getNavigation, type NavigationRoute } from '@/lib/navigationApi';
 import { profileApi } from '@/lib/profileApi';
@@ -53,11 +54,10 @@ const SystemSettingsPage = lazy(() => import('./SystemSettingsPage'));
 const { Content } = Layout;
 const OPEN_TABS_STORAGE_KEY = 'workmeta-oa-open-tabs';
 const MAX_OPEN_TABS = 20;
-const MOBILE_BREAKPOINT = '(max-width: 720px)';
 
 function isMobileViewport(): boolean {
   if (typeof window === 'undefined' || !window.matchMedia) return false;
-  return window.matchMedia(MOBILE_BREAKPOINT).matches;
+  return window.matchMedia(OA_MOBILE_MEDIA_QUERY).matches;
 }
 
 const themes: OaTheme[] = [
@@ -358,7 +358,7 @@ export default function AdminLayout() {
   // 进入移动端视口时自动收起侧栏（用户手动展开/收起状态在桌面端保留）
   useEffect(() => {
     if (typeof window === 'undefined' || !window.matchMedia) return;
-    const mql = window.matchMedia(MOBILE_BREAKPOINT);
+    const mql = window.matchMedia(OA_MOBILE_MEDIA_QUERY);
     const onViewportChange = (event: MediaQueryListEvent) => {
       if (event.matches) setCollapsed(true);
     };

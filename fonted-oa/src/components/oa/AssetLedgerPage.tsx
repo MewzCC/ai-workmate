@@ -15,7 +15,6 @@ import {
   Select,
   Space,
   Spin,
-  Table,
   Tag,
   Timeline,
   Typography,
@@ -36,6 +35,7 @@ import {
 import { hrApi, type OrganizationOverview } from '@/lib/hrApi';
 import { formatOaApiError } from '@/lib/oaApi';
 import AdminAssetsPageShell from './AdminAssetsPageShell';
+import ResponsiveTable from './ResponsiveTable';
 
 const STATUS_TAG_COLOR: Record<AssetStatus, string> = {
   IN_USE: 'success',
@@ -337,7 +337,7 @@ export default function AssetLedgerPage() {
             />
           </Space>
 
-          <Table
+          <ResponsiveTable
             rowKey="id"
             columns={columns}
             dataSource={data}

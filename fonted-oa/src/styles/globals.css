@@ -5364,8 +5364,13 @@ html.oa-wallpaper-active .oa-ai-operation-drawer .ant-drawer-footer {
   }
 
   /* 顶部栏保持横向：标题在左，更多+头像在右 */
+  /* header 实际高度通过变量提供给 ≤720px 的固定侧栏定位，避免两处硬编码脱节漏缝 */
+  :root {
+    --oa-header-h: 56px;
+  }
+
   .oa-header {
-    min-height: 56px;
+    min-height: var(--oa-header-h);
     padding: 10px 14px;
     gap: 12px;
     flex-wrap: nowrap;
@@ -5456,11 +5461,28 @@ html.oa-wallpaper-active .oa-ai-operation-drawer .ant-drawer-footer {
   .ai-workspace,
   .ai-workspace.ai-workspace-sidebar-collapsed { display: block; }
   .ai-desktop-sidebar { display: none; }
-  .ai-chat-window { height: 100%; grid-template-rows: 60px minmax(0, 1fr) auto; }
+  .ai-chat-window { height: 100%; grid-template-rows: auto minmax(0, 1fr) auto; }
   .ai-mobile-session-button { display: inline-flex; }
-  .ai-chat-header { padding: 0 12px; }
-  .ai-model-select { width: 148px; flex-basis: 148px; }
-  .ai-kb-select { width: 132px; flex-basis: 132px; }
+  /* 移动端头部两行布局：标题块独占首行（.ai-chat-header > div 会同时命中
+     ant Select 的 div 包装，必须用更高优先级选择器恢复 Select 的尺寸），
+     知识库/模型选择器换行到第二行平分宽度，避免 375px 下溢出裁切 */
+  .ai-chat-header {
+    flex-wrap: wrap;
+    height: auto;
+    min-width: 0;
+    max-width: 100%;
+    row-gap: 8px;
+    padding: 8px 12px;
+  }
+  .ai-chat-header > div {
+    flex: 1 1 calc(100% - 44px);
+  }
+  .ai-chat-header .ai-kb-select,
+  .ai-chat-header .ai-model-select {
+    flex: 1 1 140px;
+    width: auto;
+    min-width: 0;
+  }
   .ai-message-list { padding: 18px 14px 64px; }
   .ai-message { grid-template-columns: 28px minmax(0, 1fr); gap: 10px; }
   .ai-message-user { grid-template-columns: minmax(0, 1fr) 28px; }
@@ -5474,9 +5496,9 @@ html.oa-wallpaper-active .oa-ai-operation-drawer .ant-drawer-footer {
 
   .oa-sider {
     z-index: 60;
-    top: 60px;
+    top: var(--oa-header-h, 56px);
     /* 从 header 下方开始，高度按视口精确计算，避免底部超出视口 */
-    height: calc(100vh - 60px);
+    height: calc(100vh - var(--oa-header-h, 56px));
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     transition: transform 0.2s ease, width 0.2s ease;
@@ -6153,17 +6175,23 @@ html.oa-wallpaper-active .oa-ai-operation-drawer .ant-drawer-footer {
   padding: 48px 0;
 }
 
-@media (max-width: 768px) {
+/* 移动端主从结构上下堆叠，断点与全局 OA 移动断点（720px）保持一致 */
+@media (max-width: 720px) {
   .oa-employee-file {
     flex-direction: column;
     height: auto;
   }
 
+  /* 列表自然展开、随整页滚动：固定 max-height + 内部滚动会把员工条目拦腰截断 */
   .oa-employee-file__list-card {
     width: 100%;
     flex: none;
     height: auto;
-    max-height: 280px;
+    max-height: none;
+  }
+
+  .oa-employee-file__list-body {
+    overflow-y: visible;
   }
 
   .oa-employee-file__main-card {
@@ -6295,5 +6323,114 @@ html.oa-wallpaper-active .oa-ai-operation-drawer .ant-drawer-footer {
   .employee-change-hero {
     align-items: stretch;
     flex-direction: column;
+  }
+}
+
+/* ===== ResponsiveTable：移动端（≤720px）表格转卡片列表 ===== */
+.oa-mobile-cards {
+  display: grid;
+  gap: 10px;
+}
+
+.oa-mobile-card.ant-card {
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--oa-card, #ffffff) 92%, transparent);
+  color: var(--oa-text, #111827);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
+}
+
+.oa-mobile-card.is-clickable {
+  cursor: pointer;
+  transition: box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.oa-mobile-card.is-clickable:active {
+  border-color: color-mix(in srgb, var(--oa-primary, #1677ff) 55%, transparent);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.1);
+}
+
+.oa-mobile-card .ant-card-body {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+}
+
+.oa-mobile-card__title {
+  color: var(--oa-text, #111827);
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.oa-mobile-card__fields {
+  display: grid;
+  gap: 6px;
+}
+
+.oa-mobile-card__field {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.oa-mobile-card__field-label {
+  flex-shrink: 0;
+  color: var(--oa-muted, #64748b);
+  font-size: 12px;
+}
+
+.oa-mobile-card__field-value {
+  min-width: 0;
+  flex: 1;
+  text-align: right;
+  color: var(--oa-text, #111827);
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.oa-mobile-card__field-value .ant-typography {
+  font-size: 13px;
+}
+
+.oa-mobile-card__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 2px;
+  border-top: 1px solid var(--oa-border, rgba(15, 23, 42, 0.08));
+  margin-top: 2px;
+}
+
+.oa-mobile-empty {
+  display: grid;
+  place-items: center;
+  padding: 32px 16px;
+  color: var(--oa-muted, #64748b);
+}
+
+.oa-mobile-cards__pager.ant-pagination {
+  display: flex;
+  justify-content: center;
+  margin: 14px 0 4px;
+}
+
+/* 壁纸模式：卡片与表格一致切换为透明模糊材质 */
+.oa-has-wallpaper .oa-mobile-card.ant-card {
+  background: color-mix(in srgb, var(--oa-card, #ffffff) 68%, transparent) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(1.12);
+  backdrop-filter: blur(20px) saturate(1.12);
+  box-shadow: 0 16px 44px rgba(15, 23, 42, 0.09);
+}
+
+/* 移动端：状态筛选 Segmented 压缩字号与内边距，避免 375px 宽度下标签被截断 */
+@media (max-width: 720px) {
+  .leave-list-toolbar .ant-segmented {
+    overflow-x: auto;
+  }
+
+  .leave-list-toolbar .ant-segmented-item-label {
+    padding: 0 4px;
+    font-size: 12px;
   }
 }

@@ -11,7 +11,6 @@ import {
   Modal,
   Select,
   Spin,
-  Table,
   Tabs,
   Tag,
 } from 'antd';
@@ -28,6 +27,7 @@ import {
 } from '@/lib/attendanceApi';
 import { formatOaApiError } from '@/lib/oaApi';
 import AttendancePageShell from './AttendancePageShell';
+import ResponsiveTable from './ResponsiveTable';
 
 const STATUS_TAG_COLOR: Record<AttendanceReissueStatus, string> = {
   PENDING: 'processing',
@@ -260,7 +260,7 @@ export default function AttendanceReissuePage() {
               label: t('attendance.reissue.myApplications'),
               children: (
                 <>
-                  <Table
+                  <ResponsiveTable
                     rowKey="id"
                     columns={mineColumns}
                     dataSource={mine}
@@ -285,7 +285,7 @@ export default function AttendanceReissuePage() {
               key: 'pending',
               label: t('attendance.reissue.pendingApproval'),
               children: (
-                <Table
+                <ResponsiveTable
                   rowKey="id"
                   columns={pendingColumns}
                   dataSource={pending}
