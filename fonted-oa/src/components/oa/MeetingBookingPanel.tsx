@@ -17,7 +17,6 @@ import {
   Select,
   Space,
   Spin,
-  Table,
   Tag,
   Typography,
 } from 'antd';
@@ -33,6 +32,7 @@ import {
   type MeetingRoom,
 } from '@/lib/adminAssetsApi';
 import { formatOaApiError } from '@/lib/oaApi';
+import ResponsiveTable from './ResponsiveTable';
 
 interface Props {
   rooms: MeetingRoom[];
@@ -218,7 +218,7 @@ export default function MeetingBookingPanel({ rooms, canManage }: Props) {
             ) : info.originNode}
           />
         ) : (
-          <Table
+          <ResponsiveTable
             rowKey="id"
             columns={columns}
             dataSource={rows}

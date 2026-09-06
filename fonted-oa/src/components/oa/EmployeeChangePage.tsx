@@ -16,7 +16,6 @@ import {
   Select,
   Space,
   Statistic,
-  Table,
   Tag,
   Typography,
   type TableProps,
@@ -34,6 +33,7 @@ import {
   type EmployeeChangeType,
   type OrganizationOverview,
 } from '@/lib/hrApi';
+import ResponsiveTable from './ResponsiveTable';
 
 interface ChangeFormValues extends Omit<EmployeeChangePayload, 'effectiveDate'> {
   effectiveDate: Dayjs;
@@ -250,7 +250,7 @@ export default function EmployeeChangePage() {
           <Select allowClear placeholder={t('employeeChange.allTypes')} options={CHANGE_TYPES.map((value) => ({ value, label: t(`employeeChange.type.${value}`) }))} onChange={(value) => { setTypeFilter(value); setPage(1); }} />
           <Select allowClear placeholder={t('employeeChange.allStatus')} options={(Object.keys(STATUS_COLORS) as EmployeeChangeStatus[]).map((value) => ({ value, label: t(`employeeChange.status.${value}`) }))} onChange={(value) => { setStatus(value); setPage(1); }} />
         </div>
-        <Table rowKey="id" loading={loading} columns={columns} dataSource={records} scroll={{ x: 1120 }} locale={{ emptyText: <Empty description={t('employeeChange.empty')} /> }} pagination={{ current: page, pageSize: 20, total, showSizeChanger: false, onChange: setPage }} />
+        <ResponsiveTable rowKey="id" loading={loading} columns={columns} dataSource={records} scroll={{ x: 1120 }} locale={{ emptyText: <Empty description={t('employeeChange.empty')} /> }} pagination={{ current: page, pageSize: 20, total, showSizeChanger: false, onChange: setPage }} />
       </Card>
 
       <Modal open={createOpen} title={t('employeeChange.createTitle')} okText={t('employeeChange.submit')} cancelText={t('common.cancel')} confirmLoading={submitting} onOk={() => void submitChange()} onCancel={() => setCreateOpen(false)} width={680} destroyOnHidden>

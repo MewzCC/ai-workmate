@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Alert, Button, Card, Form, InputNumber, Space, Spin, Switch, Table, Tag, TimePicker, Typography } from 'antd';
+import { Alert, Button, Card, Form, InputNumber, Space, Spin, Switch, Tag, TimePicker, Typography } from 'antd';
 import dayjs, { type Dayjs } from 'dayjs';
 import type { ColumnsType } from 'antd/es/table';
 import { message } from '@/lib/antdMessage';
@@ -10,6 +10,7 @@ import { attendanceApi } from '@/lib/attendanceApi';
 import { formatOaApiError } from '@/lib/oaApi';
 import { useAuth } from '@/components/auth/AuthProvider';
 import AttendancePageShell from './AttendancePageShell';
+import ResponsiveTable from './ResponsiveTable';
 
 interface SettingsFormValues {
   workStartTime: Dayjs;
@@ -275,7 +276,7 @@ export default function AttendanceSettingsPage() {
           </Card>
 
           <Card className="oa-attendance-card" title={t('attendance.settings.preview')} variant="outlined">
-            <Table
+            <ResponsiveTable
               rowKey="key"
               size="middle"
               columns={sampleColumns}

@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Button, Card, Empty, Modal, Spin, Table, Tag } from 'antd';
+import { Button, Card, Empty, Modal, Spin, Tag } from 'antd';
 import { message } from '@/lib/antdMessage';
 import { useTranslation } from 'react-i18next';
 import dayjs from 'dayjs';
@@ -16,6 +16,7 @@ import {
 } from '@/lib/attendanceApi';
 import { formatOaApiError, getServerTime } from '@/lib/oaApi';
 import AttendancePageShell from './AttendancePageShell';
+import ResponsiveTable from './ResponsiveTable';
 
 const STATUS_TAG_COLOR: Record<AttendanceStatus, string> = {
   NORMAL: 'success',
@@ -317,7 +318,7 @@ export default function AttendanceClockPage() {
           </Card>
 
           <Card className="oa-attendance-card oa-attendance-card--grow" title={t('attendance.clock.recentRecords')} variant="outlined">
-            <Table
+            <ResponsiveTable
               rowKey="id"
               columns={columns}
               dataSource={records}
