@@ -12,7 +12,6 @@ import {
   Space,
   Spin,
   Statistic,
-  Table,
   Tag,
   Typography,
 } from 'antd';
@@ -23,6 +22,7 @@ import { message } from '@/lib/antdMessage';
 import { OaIcon } from '@/components/OaIcon';
 import { useRouter } from '@/lib/nextCompat';
 import { useTranslation } from 'react-i18next';
+import ResponsiveTable from './ResponsiveTable';
 
 const OrganizationGraph = lazy(() => import('./OrganizationGraph'));
 
@@ -284,7 +284,7 @@ export default function OrganizationTreePage() {
                 )}
               </Space>
             </div>
-            <Table
+            <ResponsiveTable
               rowKey="id"
               rowClassName="oa-org-employee-clickable"
               columns={columns}

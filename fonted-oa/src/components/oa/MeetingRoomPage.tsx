@@ -13,7 +13,6 @@ import {
   Select,
   Space,
   Spin,
-  Table,
   Tag,
 } from 'antd';
 import { message } from '@/lib/antdMessage';
@@ -28,6 +27,7 @@ import {
 import { formatOaApiError } from '@/lib/oaApi';
 import AdminAssetsPageShell from './AdminAssetsPageShell';
 import MeetingBookingPanel from './MeetingBookingPanel';
+import ResponsiveTable from './ResponsiveTable';
 
 const STATUS_TAG_COLOR: Record<MeetingRoomStatus, string> = {
   OPEN: 'success',
@@ -223,7 +223,7 @@ export default function MeetingRoomPage() {
             />
           </Space>
 
-          <Table
+          <ResponsiveTable
             rowKey="id"
             columns={columns}
             dataSource={data}

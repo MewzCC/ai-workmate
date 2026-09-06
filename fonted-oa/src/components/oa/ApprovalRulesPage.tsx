@@ -14,7 +14,6 @@ import {
   Select,
   Space,
   Switch,
-  Table,
   Tag,
   Typography,
 } from 'antd';
@@ -34,6 +33,7 @@ import { formatOaApiError } from '@/lib/oaApi';
 import { OaIcon } from '@/components/OaIcon';
 import ApprovalConfigShell from './ApprovalConfigShell';
 import { StatusTag } from './FormEnginePage';
+import ResponsiveTable from './ResponsiveTable';
 
 const RULE_TYPES: ApprovalRuleType[] = [
   'AMOUNT_THRESHOLD', 'LEAVE_TYPE', 'EMPLOYEE_LEVEL', 'LIMIT_OVERRIDE',
@@ -362,7 +362,7 @@ export default function ApprovalRulesPage() {
             </Button>
           </Space>
         </div>
-        <Table
+        <ResponsiveTable
           rowKey="id"
           columns={columns}
           dataSource={data}

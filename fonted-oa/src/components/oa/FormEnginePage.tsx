@@ -9,7 +9,6 @@ import {
   Popconfirm,
   Select,
   Space,
-  Table,
   Tag,
   Typography,
 } from 'antd';
@@ -26,6 +25,7 @@ import { formatOaApiError } from '@/lib/oaApi';
 import { OaIcon } from '@/components/OaIcon';
 import ApprovalConfigShell from './ApprovalConfigShell';
 import FormDesignerModal from './FormDesignerModal';
+import ResponsiveTable from './ResponsiveTable';
 
 const STATUS_TAG_COLOR: Record<ApprovalConfigStatus, string> = {
   ENABLED: 'success',
@@ -215,7 +215,7 @@ export default function FormEnginePage() {
             </Button>
           </Space>
         </div>
-        <Table
+        <ResponsiveTable
           rowKey="id"
           columns={columns}
           dataSource={data}

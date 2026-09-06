@@ -10,7 +10,6 @@ import {
   Empty,
   Segmented,
   Space,
-  Table,
   Tag,
   Typography,
 } from 'antd';
@@ -19,6 +18,7 @@ import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import { formatOaApiError, todoApi, type TodoItem } from '@/lib/oaApi';
 import { leaveTypeLabel } from './MyApplicationsPage';
+import ResponsiveTable from './ResponsiveTable';
 import { OaIcon } from '@/components/OaIcon';
 import { useTranslation } from 'react-i18next';
 
@@ -167,7 +167,7 @@ export default function TodoListPage() {
             <Button icon={<OaIcon name="reload" />} onClick={() => void load()}>{t('common.refresh')}</Button>
           </Space>
         </div>
-        <Table
+        <ResponsiveTable
           rowKey="id"
           columns={columns}
           dataSource={records}

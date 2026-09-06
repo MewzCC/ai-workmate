@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next';
 import type { AgentTaskDetail, AgentTaskDetailStep, AgentTaskStatus, AgentTaskSummary } from '@/types/oa';
 import { agentTaskApi, formatOaApiError } from '@/lib/oaApi';
 import { OaIcon } from '@/components/OaIcon';
+import ResponsiveTable from './ResponsiveTable';
 
 const CANCELLABLE_STATUSES = new Set<AgentTaskStatus>(['PLAN_READY', 'WAITING_CONFIRMATION', 'QUEUED']);
 const STATUS_VALUES: AgentTaskStatus[] = [
@@ -152,7 +153,7 @@ export default function AiTaskCenterPage() {
         />
         <Button icon={<OaIcon name="reload" />} onClick={() => void load()}>{t('common.refresh')}</Button>
       </div>
-      <Table
+      <ResponsiveTable
         rowKey="taskId"
         columns={columns}
         dataSource={records}
