@@ -14,7 +14,6 @@ import {
   Row,
   Space,
   Statistic,
-  Table,
   Tag,
   Timeline,
   Typography,
@@ -28,6 +27,7 @@ import { can } from '@/mock/oaPermissions';
 import type { ApprovalRecord, OaRole } from '@/types/oa';
 import EChartsCard from './EChartsCard';
 import PermissionButton from './PermissionButton';
+import ResponsiveTable from './ResponsiveTable';
 import { OaIcon } from '@/components/OaIcon';
 
 interface DashboardProps {
@@ -264,7 +264,7 @@ export default function Dashboard({ role, pageId, pageTitle, primaryColor, audit
               />
             }
           >
-            <Table
+            <ResponsiveTable
               rowKey="id"
               columns={columns}
               dataSource={filteredRecords}

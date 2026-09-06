@@ -1532,10 +1532,13 @@
   }
 
   .wm-agent-orb {
+    display: grid;
+    place-items: center;
     width: 52px;
     height: 52px;
     border-radius: 18px;
     margin-bottom: 28px;
+    color: #ffffff;
     background: linear-gradient(135deg, #8b7cff, #34d5ff);
     box-shadow: 0 0 45px rgba(139, 124, 255, 0.46);
     animation: wmPulse 2.1s ease-in-out infinite;
@@ -2121,7 +2124,6 @@
     padding: 20px;
   }
 
-  .wm-steps div,
   .wm-stack-row {
     grid-template-columns: 1fr;
   }
