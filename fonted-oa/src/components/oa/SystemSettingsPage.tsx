@@ -72,59 +72,63 @@ export default function SystemSettingsPage() {
   };
 
   return (
-    <div className="oa-settings-page">
-      <Typography.Title level={4}>{t('oa.menu.system-config')}</Typography.Title>
-      <Card size="small" title={t('chat.settingsTitle')} className="oa-domain-card" style={{ marginBottom: 16 }}>
-        <Form form={form} layout="vertical">
-          <Form.Item label={t('chat.apiKeyLabel')}>
-            <Input.Password value={t('chat.apiKeyManaged')} disabled />
-            <Typography.Text type="secondary">{t('chat.apiKeyHint')}</Typography.Text>
-          </Form.Item>
-          <Form.Item name="model" label={t('chat.model')} rules={[{ required: true, message: t('chat.selectModelRequired') }]}>
-            <Select options={[...AI_MODEL_OPTIONS]} />
-          </Form.Item>
-          <Form.Item name="maxContextRounds" label={t('chat.maxContextRounds')} rules={[{ required: true }]}>
-            <InputNumber min={1} max={20} className="ai-settings-number" />
-          </Form.Item>
-          <Form.Item name="stream" label={t('chat.streamOutput')} valuePropName="checked">
-            <Switch />
-          </Form.Item>
-          <Alert type="info" showIcon title={t('chat.baseUrlHint')} />
-        </Form>
-      </Card>
-      <Card size="small" title={t('chat.ocrSettings')} className="oa-domain-card" style={{ marginBottom: 16 }}>
-        <Form layout="vertical">
-          <Form.Item label={t('chat.forcePdfOcr')} tooltip={t('chat.forcePdfOcrHint')}>
-            <Switch checked={forcePdfOcr} loading={ocrSettingsLoading} onChange={setForcePdfOcr} />
-          </Form.Item>
-        </Form>
-      </Card>
-      <Card size="small" title={t('chat.dataManagement')} className="oa-domain-card">
-        <Space direction="vertical">
-          <Typography.Text>{t('chat.clearAllContent')}</Typography.Text>
-          <Button
-            danger
-            onClick={() => {
-              Modal.confirm({
-                title: t('chat.clearAllTitle'),
-                content: t('chat.clearAllContent'),
-                okText: t('chat.confirmClear'),
-                okButtonProps: { danger: true },
-                cancelText: t('common.cancel'),
-                onOk: clearAll,
-              });
-            }}
-          >
-            {t('chat.clearAllRecords')}
-          </Button>
-        </Space>
-      </Card>
-      <Space style={{ marginTop: 16 }}>
+    <section className="oa-settings-page">
+      <header className="oa-settings-heading">
+        <Typography.Title level={4}>{t('oa.menu.system-config')}</Typography.Title>
+      </header>
+      <div className="oa-settings-grid">
+        <Card size="small" title={t('chat.settingsTitle')} className="oa-domain-card oa-settings-card oa-settings-card--primary">
+          <Form form={form} layout="vertical">
+            <Form.Item label={t('chat.apiKeyLabel')}>
+              <Input.Password value={t('chat.apiKeyManaged')} disabled />
+              <Typography.Text type="secondary">{t('chat.apiKeyHint')}</Typography.Text>
+            </Form.Item>
+            <Form.Item name="model" label={t('chat.model')} rules={[{ required: true, message: t('chat.selectModelRequired') }]}>
+              <Select options={[...AI_MODEL_OPTIONS]} />
+            </Form.Item>
+            <Form.Item name="maxContextRounds" label={t('chat.maxContextRounds')} rules={[{ required: true }]}>
+              <InputNumber min={1} max={20} className="ai-settings-number" />
+            </Form.Item>
+            <Form.Item name="stream" label={t('chat.streamOutput')} valuePropName="checked">
+              <Switch />
+            </Form.Item>
+            <Alert type="info" showIcon title={t('chat.baseUrlHint')} />
+          </Form>
+        </Card>
+        <Card size="small" title={t('chat.ocrSettings')} className="oa-domain-card oa-settings-card">
+          <Form layout="vertical">
+            <Form.Item label={t('chat.forcePdfOcr')} tooltip={t('chat.forcePdfOcrHint')}>
+              <Switch checked={forcePdfOcr} loading={ocrSettingsLoading} onChange={setForcePdfOcr} />
+            </Form.Item>
+          </Form>
+        </Card>
+        <Card size="small" title={t('chat.dataManagement')} className="oa-domain-card oa-settings-card">
+          <Space direction="vertical">
+            <Typography.Text>{t('chat.clearAllContent')}</Typography.Text>
+            <Button
+              danger
+              onClick={() => {
+                Modal.confirm({
+                  title: t('chat.clearAllTitle'),
+                  content: t('chat.clearAllContent'),
+                  okText: t('chat.confirmClear'),
+                  okButtonProps: { danger: true },
+                  cancelText: t('common.cancel'),
+                  onOk: clearAll,
+                });
+              }}
+            >
+              {t('chat.clearAllRecords')}
+            </Button>
+          </Space>
+        </Card>
+      </div>
+      <Space className="oa-settings-actions">
         <Button type="primary" loading={saving} onClick={() => void save()}>
           {t('chat.saveSettings')}
         </Button>
         <Button onClick={() => form.resetFields()}>{t('common.reset')}</Button>
       </Space>
-    </div>
+    </section>
   );
 }
