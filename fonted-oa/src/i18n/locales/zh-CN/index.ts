@@ -14,6 +14,7 @@ import errors from './errors';
 import attendance from './attendance';
 import adminAssets from './adminAssets';
 import employeeChange from './employeeChange';
+import workbench from './workbench';
 
 const zhCN = {
   common,
@@ -32,6 +33,7 @@ const zhCN = {
   attendance,
   adminAssets,
   employeeChange,
+  workbench,
 };
 
 export default zhCN;
