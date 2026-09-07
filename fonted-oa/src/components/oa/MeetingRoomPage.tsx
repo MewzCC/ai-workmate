@@ -186,6 +186,7 @@ export default function MeetingRoomPage() {
 
   return (
     <AdminAssetsPageShell
+      className="oa-admin-assets-page--meeting"
       eyebrow={t('adminAssets.eyebrow')}
       title={t('adminAssets.meeting.title')}
       description={t('adminAssets.meeting.description')}
