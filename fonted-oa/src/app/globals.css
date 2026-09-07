@@ -1794,6 +1794,36 @@
   gap: 18px;
 }
 
+.oa-admin-assets-page--meeting {
+  height: auto;
+  grid-template-rows: auto auto;
+}
+
+.oa-admin-assets-page--meeting .oa-admin-assets-content,
+.oa-admin-assets-page--meeting .oa-meeting-booking-stack {
+  min-height: auto;
+  flex: none;
+}
+
+.oa-admin-assets-page--meeting .oa-meeting-booking-stack {
+  height: auto;
+}
+
+.oa-admin-assets-page--meeting .oa-meeting-booking-stack > .oa-admin-assets-card:first-child {
+  min-height: max-content;
+  flex: none;
+}
+
+.oa-admin-assets-page--meeting .oa-meeting-booking-stack > .ant-spin,
+.oa-admin-assets-page--meeting .oa-meeting-booking-stack > .ant-spin > .ant-spin-container {
+  min-height: 320px;
+  flex: none;
+}
+
+.oa-admin-assets-page--meeting .oa-admin-assets-card--fill .ant-table-placeholder > td {
+  height: 240px;
+}
+
 .oa-meeting-booking-stack > .ant-spin,
 .oa-meeting-booking-stack > .ant-spin > .ant-spin-container {
   display: flex;
@@ -1836,6 +1866,208 @@
   vertical-align: middle;
 }
 
+.oa-meeting-calendar-board {
+  display: grid;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--oa-border);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 100% 0, color-mix(in srgb, var(--oa-primary) 9%, transparent), transparent 34%),
+    var(--oa-card);
+  grid-template-columns: minmax(0, 1fr) 300px;
+}
+
+.oa-meeting-calendar-main {
+  min-width: 0;
+  padding: 4px 18px 18px;
+}
+
+.oa-meeting-calendar-main .ant-picker-calendar {
+  background: transparent;
+}
+
+.oa-meeting-calendar-header {
+  display: flex;
+  min-height: 88px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 14px 2px;
+}
+
+.oa-meeting-calendar-title.ant-typography,
+.oa-meeting-calendar-agenda-head .ant-typography {
+  margin: 0;
+}
+
+.oa-meeting-calendar-header .ant-select:first-of-type {
+  width: 104px;
+}
+
+.oa-meeting-calendar-header .ant-select:nth-of-type(2) {
+  width: 92px;
+}
+
+.oa-meeting-calendar-main .ant-picker-content {
+  table-layout: fixed;
+}
+
+.oa-meeting-calendar-main .ant-picker-content th {
+  height: 38px;
+  color: var(--oa-muted);
+  font-size: 12px;
+  font-weight: 650;
+  text-align: center;
+}
+
+.oa-meeting-calendar-main .ant-picker-content td {
+  padding: 3px !important;
+  border: 0 !important;
+}
+
+.oa-meeting-calendar-main .ant-picker-cell-inner {
+  width: 100% !important;
+  height: 82px !important;
+  overflow: visible !important;
+  border-radius: 12px;
+}
+
+.oa-meeting-calendar-main .ant-picker-cell-selected .oa-meeting-calendar-cell {
+  border-color: color-mix(in srgb, var(--oa-primary) 62%, transparent);
+  background: color-mix(in srgb, var(--oa-primary) 9%, var(--oa-card));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--oa-primary) 10%, transparent);
+}
+
+.oa-meeting-calendar-main .ant-picker-cell-today .oa-meeting-calendar-day {
+  background: var(--oa-primary);
+  color: #fff;
+}
+
+.oa-meeting-calendar-cell {
+  height: 82px;
+  overflow: hidden;
+  padding: 7px 8px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--oa-card) 88%, var(--oa-page-bg));
+  transition: border-color .18s ease, background-color .18s ease, transform .18s ease;
+}
+
+.oa-meeting-calendar-cell:hover {
+  border-color: color-mix(in srgb, var(--oa-primary) 34%, var(--oa-border));
+  background: color-mix(in srgb, var(--oa-primary) 5%, var(--oa-card));
+}
+
+.oa-meeting-calendar-cell.is-outside {
+  opacity: .42;
+}
+
+.oa-meeting-calendar-cell-head {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.oa-meeting-calendar-day {
+  display: inline-grid;
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  color: var(--oa-text);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  place-items: center;
+}
+
+.oa-meeting-calendar-events {
+  display: flex;
+  width: 100%;
+  margin-top: 4px;
+}
+
+.oa-meeting-calendar-event {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 5px;
+  overflow: hidden;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--oa-primary) 11%, transparent);
+  color: var(--oa-primary);
+  font-size: 10px;
+  line-height: 16px;
+  white-space: nowrap;
+}
+
+.oa-meeting-calendar-event span:first-child {
+  flex: 0 0 auto;
+  font-weight: 750;
+}
+
+.oa-meeting-calendar-event span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.oa-meeting-calendar-more.ant-typography {
+  padding-left: 6px;
+  font-size: 10px;
+}
+
+.oa-meeting-calendar-agenda {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  padding: 22px;
+  border-left: 1px solid var(--oa-border);
+  background: color-mix(in srgb, var(--oa-primary) 4%, var(--oa-card));
+}
+
+.oa-meeting-calendar-agenda-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--oa-border);
+}
+
+.oa-meeting-calendar-agenda-head .ant-typography:last-child {
+  margin-top: 4px;
+}
+
+.oa-meeting-calendar-agenda-list {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding-block: 6px 14px;
+}
+
+.oa-meeting-calendar-agenda-list .ant-list-empty-text {
+  padding: 58px 0;
+}
+
+.oa-meeting-calendar-agenda-item {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+  padding-left: 12px;
+  border-left: 3px solid color-mix(in srgb, var(--oa-primary) 74%, transparent);
+}
+
+.oa-meeting-calendar-agenda-time.ant-typography {
+  color: var(--oa-primary);
+  font-size: 12px;
+  font-weight: 750;
+}
+
 .oa-meeting-booking-stack > .oa-admin-assets-card:first-child {
   border-top: 3px solid color-mix(in srgb, var(--oa-primary) 70%, transparent);
 }
@@ -1860,6 +2092,38 @@
 
   .oa-meeting-booking-calendar-cell .ant-badge-status-text {
     display: none;
+  }
+
+  .oa-meeting-calendar-board {
+    grid-template-columns: 1fr;
+  }
+
+  .oa-meeting-calendar-main {
+    padding: 4px 8px 10px;
+  }
+
+  .oa-meeting-calendar-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .oa-meeting-calendar-main .ant-picker-cell-inner {
+    height: 54px !important;
+  }
+
+  .oa-meeting-calendar-cell {
+    height: 54px;
+    padding: 4px;
+  }
+
+  .oa-meeting-calendar-events {
+    display: none;
+  }
+
+  .oa-meeting-calendar-agenda {
+    min-height: 280px;
+    border-top: 1px solid var(--oa-border);
+    border-left: 0;
   }
 }
 

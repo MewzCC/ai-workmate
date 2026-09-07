@@ -3,6 +3,7 @@ import { Typography } from 'antd';
 import { OaIcon } from '@/components/OaIcon';
 
 interface AdminAssetsPageShellProps {
+  className?: string;
   title: string;
   description: string;
   eyebrow: string;
@@ -11,6 +12,7 @@ interface AdminAssetsPageShellProps {
 }
 
 export default function AdminAssetsPageShell({
+  className,
   title,
   description,
   eyebrow,
@@ -18,7 +20,7 @@ export default function AdminAssetsPageShell({
   children,
 }: AdminAssetsPageShellProps) {
   return (
-    <section className="oa-admin-assets-page">
+    <section className={`oa-admin-assets-page${className ? ` ${className}` : ''}`}>
       <header className="oa-admin-assets-heading">
         <div className="oa-admin-assets-heading__identity">
           <span className="oa-admin-assets-heading__icon" aria-hidden="true">

@@ -11,6 +11,7 @@ import {
   Form,
   Input,
   InputNumber,
+  List,
   Modal,
   Popconfirm,
   Segmented,
@@ -18,10 +19,12 @@ import {
   Space,
   Spin,
   Tag,
+  Tooltip,
   Typography,
 } from 'antd';
 import type { Dayjs } from 'dayjs';
 import dayjs from 'dayjs';
+import 'dayjs/locale/zh-cn';
 import type { ColumnsType } from 'antd/es/table';
 import { useTranslation } from 'react-i18next';
 import { message } from '@/lib/antdMessage';
@@ -32,6 +35,7 @@ import {
   type MeetingRoom,
 } from '@/lib/adminAssetsApi';
 import { formatOaApiError } from '@/lib/oaApi';
+import { OaIcon } from '@/components/OaIcon';
 import ResponsiveTable from './ResponsiveTable';
 
 interface Props {
@@ -48,12 +52,15 @@ interface BookingFormValues {
 }
 
 export default function MeetingBookingPanel({ rooms, canManage }: Props) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [mine, setMine] = useState<MeetingBooking[]>([]);
   const [adminRows, setAdminRows] = useState<MeetingBooking[]>([]);
   const [loading, setLoading] = useState(true);
   const [scope, setScope] = useState<'mine' | 'admin'>('mine');
   const [view, setView] = useState<'calendar' | 'list'>('calendar');
+  const calendarLocale = i18n.language === 'zh-CN' ? 'zh-cn' : 'en';
+  const [calendarValue, setCalendarValue] = useState(() => dayjs().locale(calendarLocale));
+  const [selectedDate, setSelectedDate] = useState(() => dayjs().locale(calendarLocale));
   const [bookingOpen, setBookingOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [form] = Form.useForm<BookingFormValues>();
@@ -83,10 +90,28 @@ export default function MeetingBookingPanel({ rooms, canManage }: Props) {
 
   const rows = scope === 'admin' ? adminRows : mine;
   const calendarRows = useMemo(() => rows.filter((row) => row.status === 'BOOKED'), [rows]);
+  const bookingsByDate = useMemo(() => calendarRows.reduce<Record<string, MeetingBooking[]>>((result, row) => {
+    const dateKey = dayjs(row.startAt).format('YYYY-MM-DD');
+    (result[dateKey] ||= []).push(row);
+    return result;
+  }, {}), [calendarRows]);
+  const selectedRows = bookingsByDate[selectedDate.format('YYYY-MM-DD')] || [];
 
-  const openBooking = () => {
+  useEffect(() => {
+    setCalendarValue((value) => value.locale(calendarLocale));
+    setSelectedDate((value) => value.locale(calendarLocale));
+  }, [calendarLocale]);
+
+  const openBooking = (date?: Dayjs) => {
     form.resetFields();
-    form.setFieldsValue({ attendeeCount: 1 });
+    const bookingDate = date?.startOf('day').isBefore(dayjs().startOf('day')) ? dayjs() : date;
+    const startAt = bookingDate
+      ? bookingDate.hour(9).minute(0).second(0)
+      : undefined;
+    form.setFieldsValue({
+      attendeeCount: 1,
+      timeRange: startAt ? [startAt, startAt.add(1, 'hour')] : undefined,
+    });
     setBookingOpen(true);
   };
 
@@ -179,7 +204,7 @@ export default function MeetingBookingPanel({ rooms, canManage }: Props) {
     <Card
       className="oa-admin-assets-card"
       title={t('adminAssets.meeting.booking.sectionTitle')}
-      extra={<Button type="primary" onClick={openBooking}>{t('adminAssets.meeting.booking.create')}</Button>}
+      extra={<Button type="primary" onClick={() => openBooking()}>{t('adminAssets.meeting.booking.create')}</Button>}
     >
       <Space className="oa-meeting-booking-toolbar" wrap>
         <Segmented
@@ -203,20 +228,140 @@ export default function MeetingBookingPanel({ rooms, canManage }: Props) {
       </Space>
       <Spin spinning={loading}>
         {view === 'calendar' ? (
-          <Calendar
-            fullscreen={false}
-            cellRender={(date, info) => info.type === 'date' ? (
-              <Space className="oa-meeting-booking-calendar-cell" direction="vertical" size={2}>
-                {calendarRows.filter((row) => dayjs(row.startAt).isSame(date, 'day')).slice(0, 3).map((row) => (
-                  <Badge
-                    key={row.id}
-                    status="processing"
-                    text={`${dayjs(row.startAt).format('HH:mm')} ${row.roomName || ''}`}
-                  />
-                ))}
-              </Space>
-            ) : info.originNode}
-          />
+          <div className="oa-meeting-calendar-board">
+            <div className="oa-meeting-calendar-main">
+              <Calendar
+                value={calendarValue}
+                fullscreen
+                onChange={(date) => setCalendarValue(date.locale(calendarLocale))}
+                onSelect={(date) => {
+                  setCalendarValue(date.locale(calendarLocale));
+                  setSelectedDate(date.locale(calendarLocale));
+                }}
+                onPanelChange={(date) => setCalendarValue(date.locale(calendarLocale))}
+                headerRender={({ value, onChange }) => {
+                  const year = value.year();
+                  const month = value.month();
+                  const yearOptions = Array.from({ length: 11 }, (_, index) => year - 5 + index)
+                    .map((item) => ({ value: item, label: t('adminAssets.meeting.booking.yearLabel', { year: item }) }));
+                  const monthOptions = Array.from({ length: 12 }, (_, index) => ({
+                    value: index,
+                    label: dayjs().locale(calendarLocale).month(index).format('MMM'),
+                  }));
+                  return (
+                    <div className="oa-meeting-calendar-header">
+                      <div>
+                        <Typography.Title level={4} className="oa-meeting-calendar-title">
+                          {value.locale(calendarLocale).format(t('adminAssets.meeting.booking.monthFormat'))}
+                        </Typography.Title>
+                        <Typography.Text type="secondary">
+                          {t('adminAssets.meeting.booking.monthSummary', { count: calendarRows.filter((row) => dayjs(row.startAt).isSame(value, 'month')).length })}
+                        </Typography.Text>
+                      </div>
+                      <Space wrap size={8}>
+                        <Button onClick={() => {
+                          const today = dayjs().locale(calendarLocale);
+                          onChange(today);
+                          setSelectedDate(today);
+                        }}>
+                          {t('adminAssets.meeting.booking.today')}
+                        </Button>
+                        <Tooltip title={t('adminAssets.meeting.booking.previousMonth')}>
+                          <Button
+                            aria-label={t('adminAssets.meeting.booking.previousMonth')}
+                            icon={<OaIcon name="previous" />}
+                            onClick={() => onChange(value.subtract(1, 'month'))}
+                          />
+                        </Tooltip>
+                        <Select
+                          aria-label={t('adminAssets.meeting.booking.selectYear')}
+                          value={year}
+                          options={yearOptions}
+                          onChange={(nextYear) => onChange(value.year(nextYear))}
+                        />
+                        <Select
+                          aria-label={t('adminAssets.meeting.booking.selectMonth')}
+                          value={month}
+                          options={monthOptions}
+                          onChange={(nextMonth) => onChange(value.month(nextMonth))}
+                        />
+                        <Tooltip title={t('adminAssets.meeting.booking.nextMonth')}>
+                          <Button
+                            aria-label={t('adminAssets.meeting.booking.nextMonth')}
+                            icon={<OaIcon name="next" />}
+                            onClick={() => onChange(value.add(1, 'month'))}
+                          />
+                        </Tooltip>
+                      </Space>
+                    </div>
+                  );
+                }}
+                fullCellRender={(date, info) => {
+                  if (info.type !== 'date') return info.originNode;
+                  const dateRows = bookingsByDate[date.format('YYYY-MM-DD')] || [];
+                  const outsideMonth = !date.isSame(calendarValue, 'month');
+                  return (
+                    <div className={`oa-meeting-calendar-cell${outsideMonth ? ' is-outside' : ''}`}>
+                      <div className="oa-meeting-calendar-cell-head">
+                        <span className="oa-meeting-calendar-day">{date.date()}</span>
+                        {dateRows.length > 0 && <Badge count={dateRows.length} size="small" />}
+                      </div>
+                      <Space className="oa-meeting-calendar-events" direction="vertical" size={4}>
+                        {dateRows.slice(0, 2).map((row) => (
+                          <Tooltip key={row.id} title={`${dayjs(row.startAt).format('HH:mm')} · ${row.title}`}>
+                            <div className="oa-meeting-calendar-event">
+                              <span>{dayjs(row.startAt).format('HH:mm')}</span>
+                              <span>{row.roomName || row.title}</span>
+                            </div>
+                          </Tooltip>
+                        ))}
+                        {dateRows.length > 2 && (
+                          <Typography.Text className="oa-meeting-calendar-more" type="secondary">
+                            {t('adminAssets.meeting.booking.moreBookings', { count: dateRows.length - 2 })}
+                          </Typography.Text>
+                        )}
+                      </Space>
+                    </div>
+                  );
+                }}
+              />
+            </div>
+            <aside className="oa-meeting-calendar-agenda">
+              <div className="oa-meeting-calendar-agenda-head">
+                <div>
+                  <Typography.Text type="secondary">{t('adminAssets.meeting.booking.selectedDate')}</Typography.Text>
+                  <Typography.Title level={4}>{selectedDate.format(t('adminAssets.meeting.booking.dateFormat'))}</Typography.Title>
+                </div>
+                <Badge count={selectedRows.length} showZero color="var(--oa-primary)" />
+              </div>
+              <List
+                className="oa-meeting-calendar-agenda-list"
+                dataSource={selectedRows}
+                locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('adminAssets.meeting.booking.noBookings')} /> }}
+                renderItem={(row) => (
+                  <List.Item>
+                    <div className="oa-meeting-calendar-agenda-item">
+                      <Typography.Text className="oa-meeting-calendar-agenda-time">
+                        {dayjs(row.startAt).format('HH:mm')} – {dayjs(row.endAt).format('HH:mm')}
+                      </Typography.Text>
+                      <Typography.Text strong ellipsis>{row.title}</Typography.Text>
+                      <Typography.Text type="secondary" ellipsis>
+                        {[row.roomName, row.roomLocation].filter(Boolean).join(' · ') || '-'}
+                      </Typography.Text>
+                    </div>
+                  </List.Item>
+                )}
+              />
+              <Button
+                block
+                type="primary"
+                icon={<OaIcon name="add" />}
+                onClick={() => openBooking(selectedDate)}
+              >
+                {t('adminAssets.meeting.booking.bookSelectedDate')}
+              </Button>
+            </aside>
+          </div>
         ) : (
           <ResponsiveTable
             rowKey="id"
