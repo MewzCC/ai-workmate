@@ -109,6 +109,15 @@ OA 工作台业务 UI 必须使用真实 Ant Design 组件：
 - 全局内容边距只能由 `Layout.Content` 提供一次，页面内部使用 `gap` 建立层级，不得重复叠加大外边距、固定最大宽度或空白占位。
 - 验证页面时必须同时检查有数据、空数据、加载中和宽屏视口；四种状态的页头与内容起始线必须一致。
 
+### 移动端响应式规范
+
+- OA 全局移动端断点为 `≤720px`，统一使用 `@/hooks/useIsMobile` 与其导出的 `OA_MOBILE_MEDIA_QUERY`（与 `AdminLayout` 侧栏收缩、全局 CSS 媒体查询同源）；禁止在页面或组件里自定义移动断点。
+- 列表页表格必须使用 `@/components/oa/ResponsiveTable`：桌面（>720px）渲染原生 antd `Table`，移动端自动渲染为卡片列表（首列作卡片标题、其余列作“标签: 值”字段行、`fixed: 'right'` 操作列作卡片底部按钮）。
+- `ResponsiveTable` 保留 `Table` 的全部 props（columns/dataSource/pagination/onRow/locale/loading 等），页面迁移成本是替换组件名；卡片样式类为 `oa-mobile-card*`，必须基于 `--oa-*` 主题变量，且在 `.oa-has-wallpaper` 下保持透明模糊材质。
+- 移动端卡片复用列 `render`（状态 Tag、头像、格式化函数原样生效）；`onRow.onClick` 映射为整卡点击（如打开详情抽屉）；分页渲染为底部 `Pagination simple`。
+- 特殊表格（抽屉内嵌表格、嵌套子表格、带 `rowSelection` 的表格）暂不强制迁移，可保持原生 `Table`。
+- 验证移动端时必须覆盖 375×812、320×700 视口、黑夜风格主题，并确认桌面端表格无任何变化。
+
 ### 主题规范
 
 - 主题入口在 `AppearanceDrawer`。

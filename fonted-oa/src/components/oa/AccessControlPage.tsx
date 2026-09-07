@@ -19,7 +19,6 @@ import {
   Space,
   Spin,
   Switch,
-  Table,
   Tabs,
   Tag,
   Tooltip,
@@ -38,6 +37,7 @@ import {
 } from '@/lib/accessControlApi';
 import { useTranslation } from 'react-i18next';
 import { OaIcon, oaMenuIconOptions } from '@/components/OaIcon';
+import ResponsiveTable from './ResponsiveTable';
 
 const COMPONENT_VALUES = [
   'DASHBOARD',
@@ -596,7 +596,7 @@ export default function AccessControlPage() {
                       {t('access.organization.addOrUpdateDepartment')}
                     </Button>
                   </div>
-                  <Table
+                  <ResponsiveTable
                     rowKey="id"
                     dataSource={overview.departments}
                     pagination={false}
@@ -641,7 +641,7 @@ export default function AccessControlPage() {
                       {t('access.organization.addOrUpdatePosition')}
                     </Button>
                   </div>
-                  <Table
+                  <ResponsiveTable
                     rowKey="id"
                     dataSource={overview.positions}
                     pagination={false}
@@ -685,7 +685,7 @@ export default function AccessControlPage() {
                     <Alert type="info" showIcon
                       title={t('access.usersAlert')} />
                   </div>
-                  <Table
+                  <ResponsiveTable
                     className="oa-access-table"
                     rowKey="id"
                     columns={userColumns}
@@ -709,7 +709,7 @@ export default function AccessControlPage() {
                       {t('access.addRoute')}
                     </Button>
                   </div>
-                  <Table
+                  <ResponsiveTable
                     className="oa-access-table"
                     rowKey="routeKey"
                     columns={routeColumns}

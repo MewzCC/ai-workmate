@@ -10,7 +10,6 @@ import {
   Modal,
   Segmented,
   Space,
-  Table,
   Tag,
   Tooltip,
   Typography,
@@ -22,6 +21,7 @@ import { formatOaApiError, leaveApi, type LeaveApplication, type LeaveStatus } f
 import { OaIcon } from '@/components/OaIcon';
 import { useTranslation } from 'react-i18next';
 import i18n from '@/i18n';
+import ResponsiveTable from './ResponsiveTable';
 
 const STATUS_FILTER_KEYS: (LeaveStatus | '')[] = [
   '', 'DRAFT', 'PENDING', 'APPROVED', 'REJECTED', 'WITHDRAWN',
@@ -261,7 +261,7 @@ export default function MyApplicationsPage() {
           />
           <Button icon={<OaIcon name="reload" />} onClick={() => void load()}>{t('common.refresh')}</Button>
         </div>
-        <Table
+        <ResponsiveTable
           rowKey="id"
           columns={columns}
           dataSource={records}

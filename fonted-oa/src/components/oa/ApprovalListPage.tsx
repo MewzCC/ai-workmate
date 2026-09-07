@@ -12,7 +12,6 @@ import {
   Segmented,
   Select,
   Space,
-  Table,
   Tag,
   Typography,
 } from 'antd';
@@ -30,6 +29,7 @@ import {
 import { OaIcon } from '@/components/OaIcon';
 import { leaveTypeLabel, StatusTag } from './MyApplicationsPage';
 import ApprovalDetailDrawer from './ApprovalDetailDrawer';
+import ResponsiveTable from './ResponsiveTable';
 import { useTranslation } from 'react-i18next';
 
 const { RangePicker } = DatePicker;
@@ -282,7 +282,7 @@ export default function ApprovalListPage() {
             <Button icon={<OaIcon name="reload" />} onClick={() => void load()}>{t('common.refresh')}</Button>
           </Space>
         </div>
-        <Table
+        <ResponsiveTable
           rowKey="id"
           columns={columns}
           dataSource={records}
@@ -305,7 +305,6 @@ export default function ApprovalListPage() {
           }}
         />
       </Card>
-
       <ApprovalDetailDrawer
         taskId={drawerTaskId}
         open={drawerTaskId != null}

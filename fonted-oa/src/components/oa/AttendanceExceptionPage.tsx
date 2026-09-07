@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Card, DatePicker, Empty, Spin, Table, Tag } from 'antd';
+import { Card, DatePicker, Empty, Spin, Tag } from 'antd';
 import { message } from '@/lib/antdMessage';
 import { useTranslation } from 'react-i18next';
 import dayjs from 'dayjs';
@@ -15,6 +15,7 @@ import {
 import { formatOaApiError } from '@/lib/oaApi';
 import { useAuth } from '@/components/auth/AuthProvider';
 import AttendancePageShell from './AttendancePageShell';
+import ResponsiveTable from './ResponsiveTable';
 
 const { RangePicker } = DatePicker;
 
@@ -140,7 +141,7 @@ export default function AttendanceExceptionPage() {
           title={t('attendance.exception.listTitle')}
           variant="outlined"
         >
-          <Table
+          <ResponsiveTable
             rowKey="id"
             columns={columns}
             dataSource={records}
