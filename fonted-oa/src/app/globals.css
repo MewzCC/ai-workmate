@@ -190,6 +190,10 @@
   flex: 1 1 auto;
   flex-direction: column;
 }
+
+.oa-domain-page > .oa-domain-card > .ant-card-body > .ant-empty:only-child {
+  margin: auto;
+}
 .oa-domain-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 18px; }
 .oa-leave-form { max-width: 980px; margin-top: 22px; }
 .oa-form-grid-four { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
@@ -559,6 +563,7 @@
 }
 
 .oa-attendance-card--fill.ant-card > .ant-card-body,
+.oa-attendance-card--grow.ant-card > .ant-card-body,
 .oa-attendance-card--fill .ant-tabs,
 .oa-attendance-card--fill .ant-tabs-content-holder,
 .oa-attendance-card--fill .ant-tabs-content,
@@ -570,12 +575,17 @@
 }
 
 .oa-attendance-card--fill .ant-table-wrapper,
+.oa-attendance-card--grow .ant-table-wrapper,
 .oa-attendance-card--fill .ant-spin-nested-loading,
+.oa-attendance-card--grow .ant-spin-nested-loading,
 .oa-attendance-card--fill .ant-spin-container,
+.oa-attendance-card--grow .ant-spin-container,
 .oa-fill-card .ant-table-wrapper,
 .oa-fill-card .ant-spin-nested-loading,
 .oa-fill-card .ant-spin-container,
 .oa-domain-page > .oa-domain-card .ant-table-wrapper,
+.oa-domain-page > .oa-domain-card > .ant-card-body > .ant-spin,
+.oa-domain-page > .oa-domain-card > .ant-card-body > .ant-spin > .ant-spin-container,
 .oa-domain-page > .oa-domain-card .ant-spin-nested-loading,
 .oa-domain-page > .oa-domain-card .ant-spin-container {
   display: flex;
@@ -585,6 +595,7 @@
 }
 
 .oa-attendance-card--fill .ant-table,
+.oa-attendance-card--grow .ant-table,
 .oa-fill-card .ant-table,
 .oa-domain-page > .oa-domain-card .ant-table {
   flex: 1 1 auto;
@@ -1390,6 +1401,7 @@
 .leave-list-card .ant-table-placeholder > td,
 .employee-change-table-card .ant-table-placeholder > td,
 .oa-attendance-card--fill .ant-table-placeholder > td,
+.oa-attendance-card--grow .ant-table-placeholder > td,
 .oa-org-employees-card .ant-table-placeholder > td,
 .oa-domain-page > .oa-domain-card .ant-table-placeholder > td {
   height: clamp(280px, 58vh, 900px);
@@ -1408,6 +1420,7 @@
   .leave-list-card .ant-table-placeholder > td,
   .employee-change-table-card .ant-table-placeholder > td,
   .oa-attendance-card--fill .ant-table-placeholder > td,
+  .oa-attendance-card--grow .ant-table-placeholder > td,
   .oa-org-employees-card .ant-table-placeholder > td,
   .oa-domain-page > .oa-domain-card .ant-table-placeholder > td {
     height: 220px;
@@ -1628,7 +1641,8 @@
 .oa-admin-assets-page {
   display: grid;
   width: 100%;
-  min-height: calc(100dvh - 156px);
+  height: 100%;
+  min-height: 100%;
   grid-template-rows: auto minmax(0, 1fr);
   gap: 18px;
 }
@@ -1693,6 +1707,8 @@
 }
 
 .oa-admin-assets-content,
+.oa-admin-assets-content > .ant-spin,
+.oa-admin-assets-content > .ant-spin > .ant-spin-container,
 .oa-admin-assets-content > .ant-spin-nested-loading,
 .oa-admin-assets-content > .ant-spin-nested-loading > .ant-spin-container {
   display: flex;
@@ -1703,8 +1719,10 @@
 }
 
 .oa-admin-assets-card.ant-card {
+  display: flex;
   min-width: 0;
   flex: 1 1 auto;
+  flex-direction: column;
   min-height: 0;
   border-color: var(--oa-border);
   border-radius: 16px;
@@ -1722,7 +1740,13 @@
 }
 
 .oa-admin-assets-card--fill.ant-card > .ant-card-body,
+.oa-admin-assets-card--fill .ant-tabs,
+.oa-admin-assets-card--fill .ant-tabs-content-holder,
+.oa-admin-assets-card--fill .ant-tabs-content,
+.oa-admin-assets-card--fill .ant-tabs-tabpane-active,
 .oa-admin-assets-card--fill .ant-table-wrapper,
+.oa-admin-assets-card--fill .ant-spin,
+.oa-admin-assets-card--fill .ant-spin > .ant-spin-container,
 .oa-admin-assets-card--fill .ant-spin-nested-loading {
   display: flex;
   min-height: 0;
@@ -1730,14 +1754,35 @@
   flex-direction: column;
 }
 
+.oa-admin-assets-card--fill .ant-table {
+  flex: 1 1 auto;
+}
+
+.oa-admin-assets-card--fill .ant-table-placeholder > td {
+  height: clamp(280px, 58vh, 900px);
+}
+
 .oa-admin-assets-filters {
   margin-bottom: 4px;
 }
 
 .oa-meeting-booking-stack {
-  display: grid;
+  display: flex;
+  height: 100%;
   min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
   gap: 18px;
+}
+
+.oa-meeting-booking-stack > .ant-spin,
+.oa-meeting-booking-stack > .ant-spin > .ant-spin-container {
+  display: flex;
+  min-width: 0;
+  min-height: 420px;
+  flex: 1 1 auto;
+  flex-direction: column;
 }
 
 .oa-meeting-booking-toolbar {
@@ -1807,7 +1852,8 @@
 
 @media (max-width: 720px) {
   .oa-admin-assets-page {
-    min-height: calc(100dvh - 136px);
+    height: auto;
+    min-height: 100%;
     gap: 14px;
   }
 
@@ -1834,6 +1880,15 @@
 
   .oa-admin-assets-card.ant-card > .ant-card-body {
     padding: 16px;
+  }
+
+  .oa-admin-assets-card--fill .ant-table-placeholder > td {
+    height: 220px;
+  }
+
+  .oa-meeting-booking-stack > .ant-spin,
+  .oa-meeting-booking-stack > .ant-spin > .ant-spin-container {
+    min-height: 320px;
   }
 }
 

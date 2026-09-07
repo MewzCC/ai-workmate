@@ -274,7 +274,7 @@ export default function AttendanceSettingsPage() {
             </Typography.Paragraph>
           </Card>
 
-          <Card className="oa-attendance-card" title={t('attendance.settings.preview')} variant="outlined">
+          <Card className="oa-attendance-card oa-attendance-card--grow" title={t('attendance.settings.preview')} variant="outlined">
             <Table
               rowKey="key"
               size="middle"
