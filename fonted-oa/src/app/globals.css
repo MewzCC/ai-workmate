@@ -1408,6 +1408,24 @@
 }
 
 @media (max-width: 720px) {
+  /* 移动端取消固定高度：内容自然生长、由 .oa-content 统一滚动。
+     `.oa-content` 的 align-items: stretch 会把页面交叉轴拉伸钉死在视口高度，
+     子项又被 `.oa-page-transition > *` 允许收缩，页头（overflow: hidden）与
+     指标条/卡片会被压缩裁切，出现“顶部渲染不全、底部包不住卡片”。 */
+  .oa-content {
+    align-items: flex-start;
+  }
+
+  /* AI 聊天工作台依赖固定视口高度 + 内部滚动，保留交叉轴拉伸 */
+  .oa-content.oa-chat-content {
+    align-items: stretch;
+  }
+
+  .oa-page-transition {
+    height: auto;
+    min-height: 100%;
+  }
+
   .leave-workbench,
   .approval-workbench,
   .leave-list-workbench,

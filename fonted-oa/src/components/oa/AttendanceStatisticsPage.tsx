@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Card, DatePicker, Empty, Spin, Statistic, Table } from 'antd';
+import { Card, DatePicker, Empty, Spin, Statistic, } from 'antd';
 import { message } from '@/lib/antdMessage';
 import { useTranslation } from 'react-i18next';
 import dayjs from 'dayjs';
@@ -15,6 +15,7 @@ import {
 import { formatOaApiError } from '@/lib/oaApi';
 import { useAuth } from '@/components/auth/AuthProvider';
 import AttendancePageShell from './AttendancePageShell';
+import ResponsiveTable from './ResponsiveTable';
 
 export default function AttendanceStatisticsPage() {
   const { t } = useTranslation();
@@ -149,7 +150,7 @@ export default function AttendanceStatisticsPage() {
             title={t('attendance.statistics.teamTitle')}
             variant="outlined"
           >
-            <Table
+            <ResponsiveTable
               rowKey="userId"
               columns={teamColumns}
               dataSource={stats?.team || []}

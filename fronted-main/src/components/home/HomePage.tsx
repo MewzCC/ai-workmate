@@ -7,8 +7,10 @@ import {
   DatabaseZap,
   FileSearch,
   Play,
+  Send,
   ShieldCheck,
   Sparkles,
+  Workflow,
   Zap,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -24,6 +26,9 @@ const workflowIcons: Record<WorkflowKey, typeof BrainCircuit> = {
   support: Bot,
   weekly: DatabaseZap,
 };
+
+// 夜间模式智能体卡片 orb 图标：研究、销售、运营
+const agentOrbIcons: Array<typeof BrainCircuit> = [FileSearch, Send, Workflow];
 
 interface WorkflowCopy {
   title: string;
@@ -407,25 +412,30 @@ function NightAgentBoard({
   const { t } = useTranslation();
   return (
     <div className="wm-agent-board wm-scroll-reveal">
-      {agentCards.map((card, index) => (
-        <article className={`${index === 1 ? 'featured ' : ''}wm-scroll-reveal`} key={card.title}>
-          <div className="wm-agent-orb" />
-          <h3>{card.title}</h3>
-          <p>{card.desc}</p>
-          {agentTasks.map((task, taskIndex) => (
-            <div className="wm-task" key={task}>
-              <strong>{task}</strong>
-              <span>
-                {taskIndex === 0
-                  ? card.stat
-                  : taskIndex === 1
-                    ? t('home.agents.taskReady')
-                    : t('home.agents.taskApproval')}
-              </span>
+      {agentCards.map((card, index) => {
+        const OrbIcon = agentOrbIcons[index] ?? Sparkles;
+        return (
+          <article className={`${index === 1 ? 'featured ' : ''}wm-scroll-reveal`} key={card.title}>
+            <div className="wm-agent-orb">
+              <OrbIcon className="h-6 w-6" />
             </div>
-          ))}
-        </article>
-      ))}
+            <h3>{card.title}</h3>
+            <p>{card.desc}</p>
+            {agentTasks.map((task, taskIndex) => (
+              <div className="wm-task" key={task}>
+                <strong>{task}</strong>
+                <span>
+                  {taskIndex === 0
+                    ? card.stat
+                    : taskIndex === 1
+                      ? t('home.agents.taskReady')
+                      : t('home.agents.taskApproval')}
+                </span>
+              </div>
+            ))}
+          </article>
+        );
+      })}
     </div>
   );
 }

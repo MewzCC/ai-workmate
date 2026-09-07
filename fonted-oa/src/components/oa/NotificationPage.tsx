@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Button, Card, Empty, Space, Spin, Table, Tag, Typography } from 'antd';
+import { Button, Card, Empty, Space, Spin, Tag, Typography } from 'antd';
 import type { TableProps } from 'antd';
 import { message } from '@/lib/antdMessage';
 import { OaIcon } from '@/components/OaIcon';
@@ -13,6 +13,7 @@ import {
   markNotificationRead,
   type NotificationItem,
 } from '@/lib/notificationApi';
+import ResponsiveTable from './ResponsiveTable';
 
 const TYPE_COLOR: Record<string, string> = {
   approval: 'blue',
@@ -138,7 +139,7 @@ export default function NotificationPage() {
 
       <Card className="oa-domain-card" size="small">
         <Spin spinning={loading}>
-          <Table<NotificationItem>
+          <ResponsiveTable<NotificationItem>
             rowKey="id"
             columns={columns}
             dataSource={items}
