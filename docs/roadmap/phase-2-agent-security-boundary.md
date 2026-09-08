@@ -22,7 +22,7 @@ Phase 2 Agent 的定位是：
 | A3 自主编排 | 循环规划、多次写入、后台自动运行、跨系统操作 | 禁止 |
 | A4 自主扩权 | 创建工具、修改权限、改变安全策略或执行任意代码 | 永久禁止 |
 
-Phase 2B 中一个任务最多包含一个有副作用步骤。写入前置条件由 Policy Guard 或领域 Service 确定性读取和校验，不允许 Planner 先调用工具再自行决定写参数；不得把多个写步骤组合成“创建后立即提交”“批量修改后发布”等链路。`leave.submit` 只能提交执行前已存在且仍属于本人的有效草稿。
+Phase 2B 中一个任务最多包含一个有副作用步骤。写入前置条件由 Policy Guard 或领域 Service 确定性读取和校验，不允许 Planner 先调用工具再自行决定写参数；不得把多个写步骤组合成“创建后立即提交”“批量修改后发布”等链路。`leave.submit` 只能提交执行前已存在且仍属于本人的有效草稿。经独立评审的 `leave.apply` 是单步骤原子领域命令：只能在同一数据库事务中创建本人申请并启动审批流，不能调用其他 ToolHandler、产生第二个 Agent 步骤或把中间草稿返回 Planner。
 
 ## 3. 不可被配置覆盖的安全不变量
 
@@ -207,7 +207,7 @@ handler 必须从 Tool Gateway 创建的 `ToolExecutionContext` 取得认证用�
 - 写 handler 必须使用领域状态机和条件更新；不得用“先查后改”代替原子条件。
 - 写操作的业务变更与 `business_audit_log` 必须在同一领域事务完成；不能提供原子业务审计的写工具不得上线。
 - 写入结果不确定时不得自动重试。任务进入 `PARTIALLY_SUCCEEDED` 或 `FAILED`，向用户展示可核实的资源 ID 和人工处理建议。
-- `leave.createDraft` 和 `leave.submit` 不能出现在同一个计划中；提交只接受已存在草稿 ID 和 version。
+- `leave.createDraft` 和 `leave.submit` 不能出现在同一个计划中；提交只接受已存在草稿 ID 和 version。需要一句话申请时只能规划单独的 L2 `leave.apply`，其创建、提交、流程实例、待办和业务审计必须处于同一领域事务。
 - 所有写工具必须经过 Tool Gateway；不得增加直接调用 handler 的“内部快捷路径”、管理员代执行接口或失败时绕过网关的 fallback。
 
 ## 12. 数据泄露与审计控制

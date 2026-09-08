@@ -51,7 +51,7 @@ Phase 2A 的自治等级上限为 A1 受控只读；Phase 2B 上限为 A2 单一
 | --- | --- | --- |
 | L0 只读 | 查询、检索、分析 | 可由用户点击“执行”或按产品配置自动排队；无需确认凭证，但必须审计 |
 | L1 低风险写 | 保存本人草稿等可恢复操作 | 展示计划和影响范围，用户明确确认后执行 |
-| L2 受控高风险写 | Phase 2B 仅允许提交本人已存在的有效请假草稿 | 二次确认 + 一次性确认凭证 + 实时鉴权 + 审计 |
+| L2 受控高风险写 | Phase 2B 允许提交本人已存在的有效请假草稿，或通过独立评审的 `leave.apply` 原子申请本人请假 | 二次确认 + 一次性确认凭证 + 实时鉴权 + 审计 |
 | DENY 永久禁止 | 审批、删除、权限修改、批量操作、敏感导出、外部消息及安全附件列出的通用能力 | 不可通过确认、角色或配置解除 |
 
 - 确认凭证绑定 taskId、userId、tenantId、planVersion、planHash 与过期时间。
@@ -84,7 +84,7 @@ Phase 2A 的自治等级上限为 A1 受控只读；Phase 2B 上限为 A2 单一
 
 - 永久禁止任意 SQL、代码执行、文件系统、任意 URL、外部消息、权限修改、删除、批量操作、敏感导出和后台定时自治能力。
 - 永久禁止清单高于 `SUPER_ADMIN` 权限，不能通过二次确认解除。
-- Phase 2B 一个任务最多一个写步骤；`leave.createDraft` 与 `leave.submit` 不得出现在同一计划中。
+- Phase 2B 一个任务最多一个写步骤；`leave.createDraft` 与 `leave.submit` 不得出现在同一计划中。单句申请只能规划为独立评审的 `leave.apply` 原子领域命令，不得由 Planner 或 Handler 串联两个旧工具。
 - 工具 schema 禁止 userId、tenantId、role、permission、dataScope、URL、SQL、文件路径、脚本和动态 class/bean 名称字段。
 - 工具输出、RAG 内容和页面文本不能递归触发工具调用。
 - 默认限制计划步骤、工具次数、查询条数、结果大小、并发任务、请求频率和执行时间；具体默认值以安全附件为准，租户只能收紧。
@@ -255,8 +255,8 @@ Phase 2 不实现通用补偿状态机。每个写工具必须在定义中声明
 
 ### Phase 2B：写操作试点
 
-- `leave.createDraft`（L1）与 `leave.submit`（L2）。
-- 两个写工具只能分别用于独立任务，禁止在一个计划中创建后立即提交。
+- `leave.createDraft`（L1）、`leave.submit`（L2）与 `leave.apply`（L2 原子申请）。
+- `leave.createDraft` 与 `leave.submit` 只能分别用于独立任务，禁止在一个计划中创建后立即提交；`leave.apply` 作为单个写步骤，在同一领域事务内完成本人申请创建、提交和审批流程启动。
 - 原子确认凭证、领域状态幂等、写审计和人工介入提示。
 - Phase 2A 验收通过后才允许启用写工具；配置可按租户关闭。
 
@@ -282,7 +282,7 @@ Phase 2 不实现通用补偿状态机。每个写工具必须在定义中声明
 | M4 Planner、Policy Guard 与 API | 结构化计划、上下文过滤、策略复核、任务 API 与攻击用例 | 3~4 天 |
 | M5 Phase 2A 前端闭环 | AI Drawer、任务记录页、真实错误态和断线恢复 | 2~3 天 |
 | M6 Phase 2A 安全发布门 | 越权、网关绕过、注入、并发、重启、Kill Switch 和人工验收 | 2~3 天，不得压缩 |
-| M7 Phase 2B 写操作试点 | 两个独立请假写工具、确认凭证、领域幂等和网关安全验收 | 2~3 天 |
+| M7 Phase 2B 写操作试点 | 三个受控请假写工具（含一个原子申请工具）、确认凭证、领域幂等和网关安全验收 | 2~3 天 |
 | M8 观测、治理与文档 | 观测、审计、数据清理、规则和架构文档同步 | 1~2 天，贯穿执行 |
 
 总量按 19~29 个 Vibe Coding 有效工作日估算，其中代码生成和测试骨架可以并行，但 Tool Gateway、数据库约束、鉴权、确认、幂等、Worker 领取 SQL 与安全发布门必须由人工逐项评审。建议安排 5~7 个自然周，Phase 2A 与 Phase 2B 分两次发布；不得因为 AI 已生成代码而跳过网关防绕过测试、失败路径测试或安全门。
@@ -332,8 +332,9 @@ flowchart LR
 ### Phase 2B
 
 - 含写步骤的计划未确认不执行；凭证过期、重复使用、planVersion/planHash 不匹配均被拒绝。
-- `leave.createDraft` 仅能创建本人草稿；`leave.submit` 仅能提交本人当前有效草稿。
-- 一个任务最多一个写步骤；createDraft 与 submit 不得进入同一计划。
+- `leave.createDraft` 仅能创建本人草稿；`leave.submit` 仅能提交本人当前有效草稿；`leave.apply` 仅能为当前认证用户原子创建并提交本人请假申请。
+- 一个任务最多一个写步骤；createDraft 与 submit 不得进入同一计划，`leave.apply` 不得调用其他 Handler 或触发第二次规划。
+- `leave.apply` 的申请、流程实例、首个审批待办与业务审计必须同事务成功或回滚；重复执行同一步骤不得产生第二份申请。
 - 重复 execute 和 Worker 重试不会产生第二份草稿或重复提交。
 - 写操作成功、失败、拒绝和确认重放均有业务/安全审计。
 
@@ -371,7 +372,7 @@ flowchart LR
 - Phase 2A 四个只读工具是否全部保留。
 - `phase-2-agent-security-boundary.md` 的永久禁止清单和默认运行上限是否整体接受；建议整体接受，不逐项放宽。
 - Tool Gateway 是否确认采用进程内唯一入口且不开放独立 HTTP API；建议确认。
-- Phase 2B 是否启用 `leave.createDraft` 与 `leave.submit`，或推迟到下一期。
+- Phase 2B 是否启用 `leave.createDraft`、`leave.submit` 与独立评审的 `leave.apply`，或推迟到下一期。
 - L0 默认由用户点击执行还是 plan 后自动排队；建议默认点击执行。
 - L1/L2 确认凭证默认有效期；建议 10 分钟，并允许服务端配置。
 - 任务数据与事件保留期限；建议普通任务 90 天，详细事件 30 天，具体值由安全与合规确认。

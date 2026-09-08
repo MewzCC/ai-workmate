@@ -47,6 +47,9 @@ public interface LeaveWorkflowService {
     LeaveApplicationResponse submitAgent(Long userId, Long id, VersionRequest request,
                                          Long agentTaskId);
 
+    LeaveApplicationResponse applyAgent(Long userId, LeaveApplicationRequest request,
+                                        String operationKey);
+
     LeaveApplicationResponse withdraw(Long userId, Long id, VersionRequest request);
 
     LeaveApplicationResponse remind(Long userId, Long id, VersionRequest request);
