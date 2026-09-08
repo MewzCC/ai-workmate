@@ -676,6 +676,74 @@ class LeaveWorkflowServiceImplTest {
     }
 
     @Test
+    void shouldAtomicallyCreateAndSubmitAgentLeave() {
+        when(userAccessService.resolveActiveUser(APPLICANT_ID)).thenReturn(applicantAccess());
+        when(leaveMapper.insertAgentDraft(any(LeaveApplication.class))).thenAnswer(invocation -> {
+            LeaveApplication leave = invocation.getArgument(0);
+            leave.setId(10L);
+            return 1;
+        });
+        when(leaveMapper.resolveApprover(TENANT_ID, APPLICANT_ID)).thenReturn(APPROVER_ID);
+        when(leaveMapper.countEligibleApprover(TENANT_ID, APPLICANT_ID, APPROVER_ID)).thenReturn(1);
+        when(leaveMapper.selectLeaveDefinitionId(TENANT_ID)).thenReturn(5L);
+        when(leaveMapper.update(isNull(), any())).thenReturn(1);
+        when(instanceMapper.insert(any(WorkflowInstance.class))).thenAnswer(invocation -> {
+            WorkflowInstance instance = invocation.getArgument(0);
+            instance.setId(20L);
+            return 1;
+        });
+        when(taskMapper.insert(any(WorkflowTask.class))).thenAnswer(invocation -> {
+            WorkflowTask task = invocation.getArgument(0);
+            task.setId(30L);
+            return 1;
+        });
+        when(actionLogMapper.insert(any(WorkflowActionLog.class))).thenReturn(1);
+        when(leaveMapper.selectView(TENANT_ID, 10L))
+                .thenReturn(view("PENDING", APPROVER_ID, 30L, 0, "PENDING", 1));
+
+        var response = service.applyAgent(
+                APPLICANT_ID, request(null, LocalDate.now().plusDays(1)),
+                "agent:10:20:leave.apply:v1");
+
+        assertThat(response.status()).isEqualTo("PENDING");
+        assertThat(response.taskId()).isEqualTo(30L);
+        ArgumentCaptor<LeaveApplication> application = ArgumentCaptor.forClass(LeaveApplication.class);
+        verify(leaveMapper).insertAgentDraft(application.capture());
+        assertThat(application.getValue().getApplicantUserId()).isEqualTo(APPLICANT_ID);
+        assertThat(application.getValue().getTenantId()).isEqualTo(TENANT_ID);
+        assertThat(application.getValue().getAgentOperationKey())
+                .isEqualTo("agent:10:20:leave.apply:v1");
+        verify(auditService).recordTransactional(
+                TENANT_ID, APPLICANT_ID, "LEAVE_APPLICATION", "10",
+                "AGENT_APPLY", "SUCCESS", "提交请假申请");
+        verify(notificationService).publish(TENANT_ID, APPROVER_ID,
+                NotificationService.TYPE_APPROVAL, "新的请假申请待审批",
+                "员工提交了请假申请，请及时处理", "leave", 10L);
+    }
+
+    @Test
+    void shouldReturnExistingPendingAtomicApplicationWithoutWritingAgain() {
+        when(userAccessService.resolveActiveUser(APPLICANT_ID)).thenReturn(applicantAccess());
+        when(leaveMapper.insertAgentDraft(any(LeaveApplication.class))).thenReturn(0);
+        when(leaveMapper.selectByAgentOperationKey(
+                TENANT_ID, APPLICANT_ID, "agent:10:20:leave.apply:v1"))
+                .thenReturn(leave("PENDING", APPROVER_ID, 1));
+        when(leaveMapper.selectView(TENANT_ID, 10L))
+                .thenReturn(view("PENDING", APPROVER_ID, 30L, 0, "PENDING", 1));
+
+        var response = service.applyAgent(
+                APPLICANT_ID, request(null, LocalDate.now().plusDays(1)),
+                "agent:10:20:leave.apply:v1");
+
+        assertThat(response.status()).isEqualTo("PENDING");
+        verify(leaveMapper, never()).update(isNull(), any());
+        verify(instanceMapper, never()).insert(any(WorkflowInstance.class));
+        verify(taskMapper, never()).insert(any(WorkflowTask.class));
+        verify(auditService, never()).recordTransactional(
+                anyLong(), anyLong(), any(), any(), any(), any(), any());
+    }
+
+    @Test
     void shouldReadOnlyOwnedLeaveDetailForAgentSelfScope() {
         when(userAccessService.resolveActiveUser(APPLICANT_ID)).thenReturn(applicantAccess());
         when(leaveMapper.selectView(TENANT_ID, 10L))

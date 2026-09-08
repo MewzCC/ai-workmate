@@ -96,6 +96,22 @@ class StructuredAgentPlannerTest {
                         exception -> assertThat(exception.getErrorCode()).isEqualTo("SCHEMA_INVALID"));
     }
 
+    @Test
+    void acceptsOneAtomicLeaveApplyStep() throws Exception {
+        ToolDefinition apply = new AgentWriteToolDefinitions().leaveApplyToolDefinition(mapper);
+        PlannerModelClient model = (system, user) -> """
+                {"summary":"提交请假申请","steps":[
+                  {"toolCode":"leave.apply","arguments":{"leaveType":"PERSONAL","startDate":"2026-09-09","startPeriod":"AM","endDate":"2026-09-09","endPeriod":"PM","reason":"家庭事务"}}
+                ]}
+                """;
+
+        PlannerCandidate candidate = planner(model).plan(
+                "帮我请明天一天事假", "my-applications", mapper.createObjectNode(), List.of(apply));
+
+        assertThat(candidate.steps()).singleElement()
+                .extracting(PlannerCandidate.Step::toolCode).isEqualTo("leave.apply");
+    }
+
     private StructuredAgentPlanner planner(PlannerModelClient client) {
         return new StructuredAgentPlanner(client, mapper, new ToolSchemaValidator(), properties,
                 java.util.concurrent.ForkJoinPool.commonPool());

@@ -26,6 +26,12 @@ public class AgentWriteToolDefinitions {
             {"type":"object","additionalProperties":false,"required":["applicationId","status","version"],"properties":{"applicationId":{"type":"integer","minimum":1},"status":{"type":"string","const":"PENDING"},"version":{"type":"integer","minimum":1}}}
             """.strip();
 
+    public static final String LEAVE_APPLY_INPUT_SCHEMA = LEAVE_CREATE_DRAFT_INPUT_SCHEMA;
+
+    public static final String LEAVE_APPLY_OUTPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["applicationId","status","version","approvalTaskId"],"properties":{"applicationId":{"type":"integer","minimum":1},"status":{"type":"string","const":"PENDING"},"version":{"type":"integer","minimum":1},"approvalTaskId":{"type":"integer","minimum":1}}}
+            """.strip();
+
     @Bean
     public ToolDefinition leaveCreateDraftToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {
         return ToolDefinition.create(
@@ -47,6 +53,19 @@ public class AgentWriteToolDefinitions {
                 "Submit one version-bound pre-existing leave draft only after secondary confirmation.",
                 "1.0.0", objectMapper.readTree(LEAVE_SUBMIT_INPUT_SCHEMA),
                 objectMapper.readTree(LEAVE_SUBMIT_OUTPUT_SCHEMA), RiskLevel.L2,
+                Set.of("leave:create"), PermissionMode.ALL, OwnershipPolicy.SELF,
+                RetryPolicy.NEVER, SideEffect.SINGLE_WRITE, ConfirmationPolicy.SECONDARY,
+                1, 16384, 15000, "FULL_WRITE_AUDIT");
+    }
+
+    @Bean
+    public ToolDefinition leaveApplyToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {
+        return ToolDefinition.create(
+                "leave.apply", "Apply for leave",
+                "Atomically creates and submits exactly one leave application owned by the authenticated user.",
+                "Use when the user asks to apply for leave in one request. Create the application and start its approval workflow as one transactional operation after secondary confirmation.",
+                "1.0.0", objectMapper.readTree(LEAVE_APPLY_INPUT_SCHEMA),
+                objectMapper.readTree(LEAVE_APPLY_OUTPUT_SCHEMA), RiskLevel.L2,
                 Set.of("leave:create"), PermissionMode.ALL, OwnershipPolicy.SELF,
                 RetryPolicy.NEVER, SideEffect.SINGLE_WRITE, ConfirmationPolicy.SECONDARY,
                 1, 16384, 15000, "FULL_WRITE_AUDIT");
