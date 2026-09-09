@@ -50,4 +50,28 @@ class AgentWriteToolDefinitionsTest {
         assertThat(validator.valid(definition.inputSchema(),
                 objectMapper.readTree("{\"applicationId\":10,\"version\":0,\"tenantId\":9}"))).isFalse();
     }
+
+    @Test
+    void leaveApplyDefinitionIsOneConfirmedNonRetryableWrite() throws Exception {
+        ObjectMapper objectMapper = new ObjectMapper();
+        ToolDefinition definition = new AgentWriteToolDefinitions()
+                .leaveApplyToolDefinition(objectMapper);
+        ToolSchemaValidator validator = new ToolSchemaValidator();
+
+        assertThat(definition.schemaHash()).isEqualTo(
+                "sha256:f782725f4e4118589935e376af2423db78401d04ed6a355c6f4b32d51176dcd8");
+        assertThat(definition.riskLevel()).isEqualTo(RiskLevel.L2);
+        assertThat(definition.sideEffect()).isEqualTo(SideEffect.SINGLE_WRITE);
+        assertThat(definition.retryPolicy()).isEqualTo(RetryPolicy.NEVER);
+        assertThat(definition.confirmationPolicy()).isEqualTo(ConfirmationPolicy.SECONDARY);
+        assertThat(definition.ownershipPolicy()).isEqualTo(OwnershipPolicy.SELF);
+        assertThat(validator.valid(definition.inputSchema(), objectMapper.readTree("""
+                {"leaveType":"PERSONAL","startDate":"2026-09-09","startPeriod":"AM",
+                 "endDate":"2026-09-09","endPeriod":"PM","reason":"家庭事务"}
+                """))).isTrue();
+        assertThat(validator.valid(definition.inputSchema(), objectMapper.readTree("""
+                {"leaveType":"PERSONAL","startDate":"2026-09-09","startPeriod":"AM",
+                 "endDate":"2026-09-09","endPeriod":"PM","reason":"家庭事务","tenantId":9}
+                """))).isFalse();
+    }
 }

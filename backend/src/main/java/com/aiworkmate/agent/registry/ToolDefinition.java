@@ -33,7 +33,7 @@ public record ToolDefinition(
     private static final Pattern CODE_PATTERN = Pattern.compile("^[a-z][A-Za-z0-9]*(\\.[a-z][A-Za-z0-9]*)+$");
     private static final Set<String> PHASE_2_TOOL_CODES = Set.of(
             "todo.query", "leave.mine", "knowledge.search", "notification.mine",
-            "leave.createDraft", "leave.submit"
+            "leave.createDraft", "leave.submit", "leave.apply"
     );
     private static final Set<String> FORBIDDEN_ARGUMENTS = Set.of(
             "userId", "tenantId", "role", "roles", "permission", "permissions", "dataScope",

@@ -152,9 +152,11 @@ class GatewayPersistenceIntegrationTest {
         assertThat(workerMapper.closeTimedOutOrUnsafe()).isEqualTo(1);
         assertThat(workerMapper.recoverExpiredReadOnly()).isZero();
         assertThat(jdbcTemplate.queryForObject(
-                "SELECT status FROM agent_task WHERE id=?", String.class, unsafeTaskId)).isEqualTo("TIMED_OUT");
+                "SELECT status || '|' || error_code FROM agent_task WHERE id=?",
+                String.class, unsafeTaskId)).isEqualTo("PARTIALLY_SUCCEEDED|TOOL_RESULT_UNKNOWN");
         assertThat(jdbcTemplate.queryForObject(
-                "SELECT status FROM agent_task_step WHERE id=?", String.class, unsafeStepId)).isEqualTo("TIMED_OUT");
+                "SELECT status || '|' || error_code FROM agent_task_step WHERE id=?",
+                String.class, unsafeStepId)).isEqualTo("FAILED|TOOL_RESULT_UNKNOWN");
 
         Long unstartedTaskId = jdbcTemplate.queryForObject("""
                 INSERT INTO agent_task(
