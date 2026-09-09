@@ -117,6 +117,7 @@ export default {
   componentTypes: {
     DASHBOARD: '通用 OA 页面',
     WORKBENCH_MODULE: '业务台账页面',
+    DICTIONARY: '数据字典页面',
     EMPLOYEE_CHANGE: '入转调离',
     AI_WORKSPACE: 'AI 工作空间',
     AI_TASK_CENTER: 'AI 任务中心',

@@ -117,6 +117,7 @@ export default {
   componentTypes: {
     DASHBOARD: 'General OA Page',
     WORKBENCH_MODULE: 'Business Ledger Page',
+    DICTIONARY: 'Data Dictionary Page',
     EMPLOYEE_CHANGE: 'Employee Changes',
     AI_WORKSPACE: 'AI Workspace',
     AI_TASK_CENTER: 'AI Task Center',

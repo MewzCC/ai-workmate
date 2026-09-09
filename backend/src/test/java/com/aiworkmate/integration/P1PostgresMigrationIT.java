@@ -99,13 +99,14 @@ class P1PostgresMigrationIT {
                     WHERE table_schema = current_schema()
                       AND table_name IN ('approval_application', 'employee_change',
                         'employee_document', 'asset_operation', 'meeting_booking',
-                        'visitor_booking', 'seal_usage_document', 'user_setting')
-                    """)).isEqualTo(8);
+                        'visitor_booking', 'seal_usage_document', 'user_setting',
+                        'data_dictionary_type', 'data_dictionary_item', 'data_dictionary_item_usage')
+                    """)).isEqualTo(11);
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM rbac_permission
                     WHERE code IN ('approval:manage', 'hr:manage', 'asset:write',
-                      'meeting:book', 'visitor:register', 'seal:register')
-                    """)).isEqualTo(6);
+                      'meeting:book', 'visitor:register', 'seal:register', 'dictionary:manage')
+                    """)).isEqualTo(7);
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM flyway_schema_history WHERE success
                     """)).isGreaterThan(30);

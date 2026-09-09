@@ -1,0 +1,21 @@
+const dictionary = {
+  eyebrow: 'System settings · Master data', title: 'Data dictionary',
+  description: 'Maintain shared enterprise enumerations; active items are safely exposed to business forms.',
+  totalTypes: 'Dictionary types', activeTypes: 'Active types', totalItems: 'Items', activeItems: 'Active items',
+  typeList: 'Dictionary types', itemList: 'Dictionary items', addType: 'New type', addItem: 'New item',
+  editType: 'Edit dictionary type', editItem: 'Edit dictionary item', searchType: 'Search code or name',
+  searchItem: 'Search value or label', allStatuses: 'All statuses', code: 'Dictionary code', name: 'Dictionary name',
+  value: 'Item value', label: 'Display label', descriptionField: 'Description', sortOrder: 'Sort order',
+  status: 'Status', usageCount: 'References', updatedAt: 'Updated', actions: 'Actions', active: 'Active', disabled: 'Disabled',
+  itemsSummary: '{{active}} / {{total}} active', emptyTypes: 'No dictionary types',
+  emptyItems: 'Select a dictionary type or create an item', codeHint: 'For example EMPLOYEE_STATUS; immutable after creation',
+  valueHint: 'For example ACTIVE; immutable after creation', nameHint: 'Administrator-friendly name',
+  labelHint: 'Label shown in business forms', descriptionHint: 'Describe scope and maintenance rules',
+  saveSuccess: 'Dictionary saved', deleteSuccess: 'Deleted', statusSuccess: 'Status updated',
+  deleteTypeTitle: 'Delete dictionary type?', deleteTypeContent: 'Only an empty type can be deleted. This cannot be undone.',
+  deleteItemTitle: 'Delete dictionary item?', deleteItemContent: 'Referenced items cannot be deleted; disable them instead.',
+  disableTitle: 'Disable this entry?', disableTypeContent: 'Business forms will no longer receive active items from this type.',
+  disableItemContent: 'New records cannot select this item; existing records are unaffected.',
+  referenced: 'Referenced', readOnlyTip: 'You can view dictionaries but do not have permission to maintain them.',
+};
+export default dictionary;
