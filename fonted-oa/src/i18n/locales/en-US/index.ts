@@ -19,6 +19,7 @@ import dictionary from './dictionary';
 import tenantConfig from './tenantConfig';
 import dataPermission from './dataPermission';
 import aiPermission from './aiPermission';
+import supplier from './supplier';
 
 const enUS = {
   common,
@@ -42,6 +43,7 @@ const enUS = {
   tenantConfig,
   dataPermission,
   aiPermission,
+  supplier,
 };
 
 export default enUS;

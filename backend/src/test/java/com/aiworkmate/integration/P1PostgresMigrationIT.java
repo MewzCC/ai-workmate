@@ -64,10 +64,18 @@ class P1PostgresMigrationIT {
         Flyway legacy = flyway(upgradeSchema, MigrationVersion.fromVersion("4"));
         assertThat(legacy.migrate().migrationsExecuted).isEqualTo(4);
 
+        Flyway beforeSupplier = flyway(upgradeSchema, MigrationVersion.fromVersion("202609101100"));
+        assertThat(beforeSupplier.migrate().migrationsExecuted).isGreaterThan(0);
+        insertLegacySupplierRecord(upgradeSchema);
+
         Flyway upgraded = flyway(upgradeSchema, null);
         assertThat(upgraded.migrate().migrationsExecuted).isGreaterThan(0);
         assertThat(upgraded.validateWithResult().validationSuccessful).isTrue();
         assertP1Schema(upgradeSchema);
+        assertThat(queryCount(upgradeSchema, """
+                SELECT COUNT(*) FROM supplier
+                WHERE supplier_code = 'LEGACY-SUP-001' AND status = 'ACTIVE'
+                """)).isOne();
 
         Flyway restarted = flyway(emptySchema, null);
         assertThat(restarted.migrate().migrationsExecuted).isZero();
@@ -101,14 +109,15 @@ class P1PostgresMigrationIT {
                         'employee_document', 'asset_operation', 'meeting_booking',
                         'visitor_booking', 'seal_usage_document', 'user_setting',
                         'data_dictionary_type', 'data_dictionary_item', 'data_dictionary_item_usage',
-                        'tenant_configuration', 'tenant_configuration_history')
-                    """)).isEqualTo(13);
+                        'tenant_configuration', 'tenant_configuration_history',
+                        'supplier', 'supplier_status_history')
+                    """)).isEqualTo(15);
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM rbac_permission
                     WHERE code IN ('approval:manage', 'hr:manage', 'asset:write',
                       'meeting:book', 'visitor:register', 'seal:register', 'dictionary:manage',
-                      'tenant:config:manage', 'agent-permission:manage')
-                    """)).isEqualTo(9);
+                      'tenant:config:manage', 'agent-permission:manage', 'supplier:manage')
+                    """)).isEqualTo(10);
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM flyway_schema_history WHERE success
                     """)).isGreaterThan(30);
@@ -131,6 +140,44 @@ class P1PostgresMigrationIT {
         try (ResultSet result = statement.executeQuery(sql)) {
             assertThat(result.next()).isTrue();
             return result.getLong(1);
+        }
+    }
+
+    private static void insertLegacySupplierRecord(String schema) throws Exception {
+        try (Connection connection = DriverManager.getConnection(databaseUrl, databaseUsername, databasePassword);
+             Statement statement = connection.createStatement()) {
+            statement.execute("SET search_path TO \"" + schema + "\"");
+            int insertedUser = statement.executeUpdate("""
+                    INSERT INTO app_user(username, display_name, password, email, role, status, tenant_id)
+                    SELECT 'p1-supplier-migrator', '迁移测试用户', 'test-only',
+                           'p1-supplier-migrator@example.invalid', 'SUPER_ADMIN', 1, tenant.id
+                    FROM tenant
+                    WHERE tenant.code = 'DEFAULT'
+                    ON CONFLICT (username) DO NOTHING
+                    """);
+            assertThat(insertedUser).isOne();
+
+            int insertedRecord = statement.executeUpdate("""
+                    INSERT INTO workbench_record(
+                        tenant_id, module_key, record_code, title, category, status, owner, details,
+                        version, deleted, created_by, updated_by, created_at, updated_at
+                    )
+                    SELECT tenant.id, 'suppliers', 'legacy-sup-001', '历史供应商', 'SERVICE', 'ACTIVE',
+                           '历史联系人', '历史风险备注', 2, FALSE, user_account.id, user_account.id,
+                           CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                    FROM tenant
+                    JOIN app_user user_account ON user_account.username = 'p1-supplier-migrator'
+                    WHERE tenant.code = 'DEFAULT'
+                    """);
+            assertThat(insertedRecord).isOne();
+        }
+    }
+
+    private static long queryCount(String schema, String sql) throws Exception {
+        try (Connection connection = DriverManager.getConnection(databaseUrl, databaseUsername, databasePassword);
+             Statement statement = connection.createStatement()) {
+            statement.execute("SET search_path TO \"" + schema + "\"");
+            return count(statement, sql);
         }
     }
 
