@@ -10,6 +10,7 @@ import com.aiworkmate.mapper.AttendanceRecordMapper;
 import com.aiworkmate.mapper.AttendanceReissueMapper;
 import com.aiworkmate.mapper.EmployeeChangeMapper;
 import com.aiworkmate.mapper.LeaveApplicationMapper;
+import com.aiworkmate.service.DataPermissionService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -31,13 +32,14 @@ class HrServiceImplTest {
     @Mock private AttendanceReissueMapper attendanceReissueMapper;
     @Mock private LeaveApplicationMapper leaveApplicationMapper;
     @Mock private EmployeeChangeMapper employeeChangeMapper;
+    @Mock private DataPermissionService dataPermissionService;
 
     private HrServiceImpl service;
 
     @BeforeEach
     void setUp() {
         service = new HrServiceImpl(accessControlMapper, attendanceRecordMapper,
-                attendanceReissueMapper, leaveApplicationMapper, employeeChangeMapper);
+                attendanceReissueMapper, leaveApplicationMapper, employeeChangeMapper, dataPermissionService);
     }
 
     @Test

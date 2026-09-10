@@ -2612,6 +2612,30 @@
   .oa-dictionary-toolbar .ant-segmented { overflow-x: auto; }
 }
 
+/* ==================== 数据权限 ==================== */
+.oa-data-permission-page { display:grid; grid-template-rows:auto auto minmax(0,1fr); gap:14px; min-height:100%; }
+.oa-data-permission-loading { display:grid; min-height:55vh; place-items:center; }
+.oa-data-permission-hero { display:flex; align-items:center; justify-content:space-between; gap:18px; padding:18px 22px; border:1px solid var(--oa-border); border-radius:18px; background:linear-gradient(115deg,color-mix(in srgb,var(--oa-primary) 10%,var(--oa-card)),var(--oa-card) 58%); }
+.oa-data-permission-heading { display:flex; align-items:center; min-width:0; gap:14px; }
+.oa-data-permission-heading .ant-typography { margin:0; }
+.oa-data-permission-heading .ant-typography-paragraph { color:var(--oa-muted); }
+.oa-data-permission-icon { display:grid; width:48px; height:48px; flex:none; place-items:center; border:1px solid color-mix(in srgb,var(--oa-primary) 28%,transparent); border-radius:15px; color:var(--oa-primary); background:color-mix(in srgb,var(--oa-primary) 9%,var(--oa-card)); }
+.oa-data-permission-eyebrow { color:var(--oa-primary); font-size:12px; font-weight:700; letter-spacing:.06em; }
+.oa-data-permission-stats { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)) auto; align-items:center; overflow:hidden; border:1px solid var(--oa-border); border-radius:15px; background:var(--oa-card); }
+.oa-data-permission-stats>div { display:flex; flex-direction:column; gap:2px; padding:12px 18px; border-right:1px solid var(--oa-border); }
+.oa-data-permission-stats small { color:var(--oa-muted); }.oa-data-permission-stats strong { color:var(--oa-text); font-size:20px; }.oa-data-permission-stats>.ant-tag { margin:0 16px; }
+.oa-data-permission-workspace { display:grid; grid-template-columns:minmax(280px,340px) minmax(0,1fr); min-height:520px; overflow:hidden; border:1px solid var(--oa-border); border-radius:18px; background:var(--oa-card); box-shadow:0 12px 36px rgba(15,23,42,.06); }
+.oa-data-permission-workspace>.ant-card { min-width:0; height:100%; border:0; border-radius:0; box-shadow:none; }
+.oa-data-permission-policies { border-right:1px solid var(--oa-border)!important; }
+.oa-data-permission-policies .ant-card-body { height:calc(100% - 57px); overflow:auto; padding:12px; }
+.oa-data-permission-policy-list { display:flex; flex-direction:column; gap:9px; }
+.oa-data-permission-policy { padding:13px; border:1px solid var(--oa-border); border-radius:13px; background:color-mix(in srgb,var(--oa-surface) 58%,var(--oa-card)); transition:transform .2s ease,border-color .2s ease; }
+.oa-data-permission-policy:hover { transform:translateY(-1px); border-color:color-mix(in srgb,var(--oa-primary) 35%,var(--oa-border)); }
+.oa-data-permission-policy>div { display:flex; align-items:center; justify-content:space-between; gap:8px; }.oa-data-permission-policy .ant-typography { margin:7px 0; color:var(--oa-muted); }
+.oa-data-permission-bindings .ant-card-body { padding:12px 16px 18px; }.oa-data-permission-code { display:block; font-size:12px; }.oa-data-permission-preview-card { margin-top:14px; }
+@media (prefers-reduced-motion:reduce){.oa-data-permission-policy{transition:none;}}
+@media (max-width:720px){.oa-data-permission-page{display:flex;min-height:0;flex-direction:column}.oa-data-permission-hero{align-items:flex-start;flex-direction:column;padding:15px}.oa-data-permission-heading{align-items:flex-start}.oa-data-permission-heading .ant-typography-paragraph{display:none}.oa-data-permission-stats{grid-template-columns:1fr 1fr}.oa-data-permission-stats>div:nth-child(2){border-right:0}.oa-data-permission-stats>.ant-tag{margin:12px 16px}.oa-data-permission-workspace{display:flex;min-height:0;overflow:visible;flex-direction:column;border:0;background:transparent;box-shadow:none}.oa-data-permission-workspace>.ant-card{height:auto;border:1px solid var(--oa-border);border-radius:16px}.oa-data-permission-policies{border-right:1px solid var(--oa-border)!important}.oa-data-permission-policies .ant-card-body{height:auto;max-height:360px}.oa-data-permission-bindings{margin-top:12px}}
+
 .oa-tenant-page {
   display: flex;
   min-height: 100%;

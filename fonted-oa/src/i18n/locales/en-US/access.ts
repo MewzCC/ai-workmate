@@ -119,6 +119,7 @@ export default {
     WORKBENCH_MODULE: 'Business Ledger Page',
     DICTIONARY: 'Data Dictionary Page',
     TENANT_CONFIG: 'Tenant Configuration Page',
+    DATA_PERMISSION: 'Data Permission Page',
     EMPLOYEE_CHANGE: 'Employee Changes',
     AI_WORKSPACE: 'AI Workspace',
     AI_TASK_CENTER: 'AI Task Center',

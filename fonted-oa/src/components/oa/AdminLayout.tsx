@@ -53,6 +53,7 @@ const SystemSettingsPage = lazy(() => import('./SystemSettingsPage'));
 const WorkbenchModulePage = lazy(() => import('./WorkbenchModulePage'));
 const DictionaryPage = lazy(() => import('./DictionaryPage'));
 const TenantConfigPage = lazy(() => import('./TenantConfigPage'));
+const DataPermissionPage = lazy(() => import('./DataPermissionPage'));
 
 const { Content } = Layout;
 const OPEN_TABS_STORAGE_KEY = 'workmeta-oa-open-tabs';
@@ -604,6 +605,8 @@ export default function AdminLayout() {
                     <DictionaryPage />
                   ) : selectedMenu.componentKey === 'TENANT_CONFIG' ? (
                     <TenantConfigPage />
+                  ) : selectedMenu.componentKey === 'DATA_PERMISSION' ? (
+                    <DataPermissionPage />
                   ) : selectedMenu.componentKey === 'WORKBENCH_MODULE' ? (
                     <WorkbenchModulePage
                       moduleKey={selectedMenu.id}
