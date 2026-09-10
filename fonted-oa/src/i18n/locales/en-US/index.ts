@@ -18,6 +18,7 @@ import workbench from './workbench';
 import dictionary from './dictionary';
 import tenantConfig from './tenantConfig';
 import dataPermission from './dataPermission';
+import aiPermission from './aiPermission';
 
 const enUS = {
   common,
@@ -40,6 +41,7 @@ const enUS = {
   dictionary,
   tenantConfig,
   dataPermission,
+  aiPermission,
 };
 
 export default enUS;

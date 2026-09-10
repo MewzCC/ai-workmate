@@ -107,8 +107,8 @@ class P1PostgresMigrationIT {
                     SELECT COUNT(*) FROM rbac_permission
                     WHERE code IN ('approval:manage', 'hr:manage', 'asset:write',
                       'meeting:book', 'visitor:register', 'seal:register', 'dictionary:manage',
-                      'tenant:config:manage')
-                    """)).isEqualTo(8);
+                      'tenant:config:manage', 'agent-permission:manage')
+                    """)).isEqualTo(9);
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM flyway_schema_history WHERE success
                     """)).isGreaterThan(30);

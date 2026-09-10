@@ -50,7 +50,7 @@ class DatabaseBackedToolRegistryTest {
         when(toolMapper.selectPlatformTool("todo.query")).thenReturn(row("L0", true));
         ResolvedUserAccess access = new ResolvedUserAccess(
                 7L, "employee", 1L, "EMPLOYEE", List.of("EMPLOYEE"),
-                List.of("todo:read"), List.of("SELF"), 2L
+                List.of("todo:read", "agent:tool:todo.query"), List.of("SELF"), 2L
         );
 
         assertThat(registry.resolveAllowedTools(access, "todo-list"))

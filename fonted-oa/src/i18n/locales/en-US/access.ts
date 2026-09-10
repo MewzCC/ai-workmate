@@ -120,6 +120,7 @@ export default {
     DICTIONARY: 'Data Dictionary Page',
     TENANT_CONFIG: 'Tenant Configuration Page',
     DATA_PERMISSION: 'Data Permission Page',
+    AI_PERMISSION: 'AI Operation Permissions Page',
     EMPLOYEE_CHANGE: 'Employee Changes',
     AI_WORKSPACE: 'AI Workspace',
     AI_TASK_CENTER: 'AI Task Center',

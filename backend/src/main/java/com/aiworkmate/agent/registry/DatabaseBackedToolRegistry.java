@@ -89,9 +89,10 @@ public class DatabaseBackedToolRegistry implements ToolRegistry {
     }
 
     private boolean hasPermissions(List<String> permissions, ToolDefinition definition) {
-        return definition.permissionMode() == PermissionMode.ALL
+        boolean businessPermission = definition.permissionMode() == PermissionMode.ALL
                 ? permissions.containsAll(definition.requiredPermissions())
                 : definition.requiredPermissions().stream().anyMatch(permissions::contains);
+        return businessPermission && permissions.contains(permissionCode(definition.code()));
     }
 
     private ToolDefinition narrow(ToolDefinition definition, AgentTool row) {

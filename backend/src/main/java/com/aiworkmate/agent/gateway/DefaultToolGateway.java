@@ -302,7 +302,9 @@ public class DefaultToolGateway implements ToolGateway {
         }
         return definition.permissionMode() == PermissionMode.ALL
                 ? access.permissions().containsAll(definition.requiredPermissions())
-                : definition.requiredPermissions().stream().anyMatch(access.permissions()::contains);
+                    && access.permissions().contains(ToolRegistry.TOOL_PERMISSION_PREFIX + definition.code())
+                : definition.requiredPermissions().stream().anyMatch(access.permissions()::contains)
+                    && access.permissions().contains(ToolRegistry.TOOL_PERMISSION_PREFIX + definition.code());
     }
 
     private boolean validRiskAndConfirmation(GatewayExecutionSnapshot snapshot, ToolDefinition definition) {

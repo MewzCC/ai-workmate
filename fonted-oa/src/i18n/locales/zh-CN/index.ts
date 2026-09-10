@@ -18,6 +18,7 @@ import workbench from './workbench';
 import dictionary from './dictionary';
 import tenantConfig from './tenantConfig';
 import dataPermission from './dataPermission';
+import aiPermission from './aiPermission';
 
 const zhCN = {
   common,
@@ -40,6 +41,7 @@ const zhCN = {
   dictionary,
   tenantConfig,
   dataPermission,
+  aiPermission,
 };
 
 export default zhCN;
