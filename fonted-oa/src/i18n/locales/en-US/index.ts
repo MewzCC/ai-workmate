@@ -22,6 +22,7 @@ import aiPermission from './aiPermission';
 import supplier from './supplier';
 import contract from './contract';
 import expense from './expense';
+import budget from './budget';
 
 const enUS = {
   common,
@@ -48,6 +49,7 @@ const enUS = {
   supplier,
   contract,
   expense,
+  budget,
 };
 
 export default enUS;

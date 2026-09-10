@@ -22,6 +22,7 @@ import aiPermission from './aiPermission';
 import supplier from './supplier';
 import contract from './contract';
 import expense from './expense';
+import budget from './budget';
 
 const zhCN = {
   common,
@@ -48,6 +49,7 @@ const zhCN = {
   supplier,
   contract,
   expense,
+  budget,
 };
 
 export default zhCN;

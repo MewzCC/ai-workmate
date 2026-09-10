@@ -124,6 +124,7 @@ export default {
     SUPPLIER: 'Supplier Management Page',
     CONTRACT: 'Contract Management Page',
     EXPENSE: 'Expense Reimbursement Page',
+    BUDGET: 'Budget Center Page',
     EMPLOYEE_CHANGE: 'Employee Changes',
     AI_WORKSPACE: 'AI Workspace',
     AI_TASK_CENTER: 'AI Task Center',

@@ -89,6 +89,10 @@ class P1PostgresMigrationIT {
                 SELECT COUNT(*) FROM business_contract
                 WHERE contract_code = 'LEGACY-CONTRACT-001' AND status = 'ACTIVE'
                 """)).isOne();
+        assertThat(queryCount(upgradeSchema, """
+                SELECT COUNT(*) FROM budget_plan
+                WHERE budget_code = 'LEGACY-BUDGET-001' AND status = 'ACTIVE'
+                """)).isOne();
 
         Flyway restartedUpgrade = flyway(upgradeSchema, null);
         assertThat(restartedUpgrade.migrate().migrationsExecuted).isZero();
@@ -123,14 +127,16 @@ class P1PostgresMigrationIT {
                         'visitor_booking', 'seal_usage_document', 'user_setting',
                         'data_dictionary_type', 'data_dictionary_item', 'data_dictionary_item_usage',
                         'tenant_configuration', 'tenant_configuration_history',
-                        'supplier', 'supplier_status_history', 'business_contract', 'contract_event')
-                    """)).isEqualTo(17);
+                        'supplier', 'supplier_status_history', 'business_contract', 'contract_event',
+                        'budget_plan', 'budget_transaction')
+                    """)).isEqualTo(19);
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM rbac_permission
                     WHERE code IN ('approval:manage', 'hr:manage', 'asset:write',
                       'meeting:book', 'visitor:register', 'seal:register', 'dictionary:manage',
-                      'tenant:config:manage', 'agent-permission:manage', 'supplier:manage', 'contract:manage')
-                    """)).isEqualTo(11);
+                      'tenant:config:manage', 'agent-permission:manage', 'supplier:manage', 'contract:manage',
+                      'budget:manage')
+                    """)).isEqualTo(12);
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM flyway_schema_history WHERE success
                     """)).isGreaterThan(30);
@@ -204,6 +210,19 @@ class P1PostgresMigrationIT {
                     WHERE tenant.code = 'DEFAULT'
                     """);
             assertThat(insertedContract).isOne();
+            int insertedBudget = statement.executeUpdate("""
+                    INSERT INTO workbench_record(
+                        tenant_id, module_key, record_code, title, category, status, amount, owner, details,
+                        version, deleted, created_by, updated_by, created_at, updated_at
+                    )
+                    SELECT tenant.id, 'budget', 'legacy-budget-001', '历史年度预算', 'ANNUAL', 'ACTIVE',
+                           300000, '迁移测试用户', '历史预算说明', 1, FALSE, user_account.id, user_account.id,
+                           CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                    FROM tenant
+                    JOIN app_user user_account ON user_account.username = 'p1-supplier-migrator'
+                    WHERE tenant.code = 'DEFAULT'
+                    """);
+            assertThat(insertedBudget).isOne();
         }
     }
 

@@ -3180,3 +3180,9 @@
   .oa-expense-list-card .oa-mobile-cards { margin-top: 12px; }
   .oa-expense-form-grid { grid-template-columns: 1fr; }
 }
+.oa-budget-page{height:100%;min-height:0;display:grid;grid-template-rows:auto auto minmax(0,1fr);gap:14px;padding:20px;background:radial-gradient(circle at 90% 0,rgba(22,119,255,.08),transparent 28%)}
+.oa-budget-hero{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:22px 26px;border:1px solid var(--oa-border);border-radius:18px;background:linear-gradient(120deg,color-mix(in srgb,var(--oa-primary) 12%,var(--oa-card)),var(--oa-card) 64%);box-shadow:var(--oa-shadow)}
+.oa-budget-hero h2{margin:4px 0!important}.oa-budget-hero p{margin:0!important;color:var(--oa-muted)}.oa-budget-eyebrow{color:var(--oa-primary);font-size:11px;font-weight:800;letter-spacing:.16em}
+.oa-budget-list-card{min-height:0;overflow:hidden}.oa-budget-list-card>.ant-card-body{height:100%;display:flex;min-height:0;flex-direction:column}.oa-budget-list-card .oa-responsive-table,.oa-budget-list-card .ant-spin-nested-loading{min-height:0;flex:1}
+.oa-budget-toolbar{display:grid;grid-template-columns:minmax(220px,1fr) 180px 150px auto;gap:10px;margin-bottom:14px}.oa-budget-progress{min-width:200px}.oa-budget-progress small{display:block;color:var(--oa-muted)}.oa-budget-status-actions{margin:18px 0}
+@media(max-width:720px){.oa-budget-page{height:auto;display:flex;flex-direction:column;padding:12px}.oa-budget-hero{align-items:flex-start;flex-direction:column;padding:18px}.oa-budget-toolbar{grid-template-columns:1fr}.oa-budget-progress{min-width:0}}
