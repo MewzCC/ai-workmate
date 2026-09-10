@@ -60,6 +60,15 @@ class P1PostgresMigrationIT {
         assertThat(emptyResult.migrationsExecuted).isGreaterThan(0);
         assertThat(empty.validateWithResult().validationSuccessful).isTrue();
         assertP1Schema(emptySchema);
+        Flyway restartedEmpty = flyway(emptySchema, null);
+        assertThat(restartedEmpty.migrate().migrationsExecuted).isZero();
+        assertThat(restartedEmpty.validateWithResult().validationSuccessful).isTrue();
+        assertNoDuplicateMigrationVersions(emptySchema);
+
+        // pgvector is a database级扩展，同一数据库中的两个隔离 schema 不能各自安装一份。
+        // 空库门禁完成后先清理，再验证既有库升级，避免测试 schema 之间相互污染搜索路径。
+        empty.clean();
+        emptySchema = null;
 
         Flyway legacy = flyway(upgradeSchema, MigrationVersion.fromVersion("4"));
         assertThat(legacy.migrate().migrationsExecuted).isEqualTo(4);
@@ -76,11 +85,15 @@ class P1PostgresMigrationIT {
                 SELECT COUNT(*) FROM supplier
                 WHERE supplier_code = 'LEGACY-SUP-001' AND status = 'ACTIVE'
                 """)).isOne();
+        assertThat(queryCount(upgradeSchema, """
+                SELECT COUNT(*) FROM business_contract
+                WHERE contract_code = 'LEGACY-CONTRACT-001' AND status = 'ACTIVE'
+                """)).isOne();
 
-        Flyway restarted = flyway(emptySchema, null);
-        assertThat(restarted.migrate().migrationsExecuted).isZero();
-        assertThat(restarted.validateWithResult().validationSuccessful).isTrue();
-        assertNoDuplicateMigrationVersions(emptySchema);
+        Flyway restartedUpgrade = flyway(upgradeSchema, null);
+        assertThat(restartedUpgrade.migrate().migrationsExecuted).isZero();
+        assertThat(restartedUpgrade.validateWithResult().validationSuccessful).isTrue();
+        assertNoDuplicateMigrationVersions(upgradeSchema);
     }
 
     private static Flyway flyway(String schema, MigrationVersion target) {
@@ -110,14 +123,14 @@ class P1PostgresMigrationIT {
                         'visitor_booking', 'seal_usage_document', 'user_setting',
                         'data_dictionary_type', 'data_dictionary_item', 'data_dictionary_item_usage',
                         'tenant_configuration', 'tenant_configuration_history',
-                        'supplier', 'supplier_status_history')
-                    """)).isEqualTo(15);
+                        'supplier', 'supplier_status_history', 'business_contract', 'contract_event')
+                    """)).isEqualTo(17);
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM rbac_permission
                     WHERE code IN ('approval:manage', 'hr:manage', 'asset:write',
                       'meeting:book', 'visitor:register', 'seal:register', 'dictionary:manage',
-                      'tenant:config:manage', 'agent-permission:manage', 'supplier:manage')
-                    """)).isEqualTo(10);
+                      'tenant:config:manage', 'agent-permission:manage', 'supplier:manage', 'contract:manage')
+                    """)).isEqualTo(11);
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM flyway_schema_history WHERE success
                     """)).isGreaterThan(30);
@@ -170,6 +183,19 @@ class P1PostgresMigrationIT {
                     WHERE tenant.code = 'DEFAULT'
                     """);
             assertThat(insertedRecord).isOne();
+            int insertedContract = statement.executeUpdate("""
+                    INSERT INTO workbench_record(
+                        tenant_id, module_key, record_code, title, category, status, amount, owner, details,
+                        version, deleted, created_by, updated_by, created_at, updated_at
+                    )
+                    SELECT tenant.id, 'contracts', 'legacy-contract-001', '历史采购合同', 'PURCHASE', 'ACTIVE',
+                           120000, '历史相对方', '历史合同摘要', 1, FALSE, user_account.id, user_account.id,
+                           CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                    FROM tenant
+                    JOIN app_user user_account ON user_account.username = 'p1-supplier-migrator'
+                    WHERE tenant.code = 'DEFAULT'
+                    """);
+            assertThat(insertedContract).isOne();
         }
     }
 

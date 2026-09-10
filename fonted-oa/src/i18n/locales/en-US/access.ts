@@ -122,6 +122,7 @@ export default {
     DATA_PERMISSION: 'Data Permission Page',
     AI_PERMISSION: 'AI Operation Permissions Page',
     SUPPLIER: 'Supplier Management Page',
+    CONTRACT: 'Contract Management Page',
     EMPLOYEE_CHANGE: 'Employee Changes',
     AI_WORKSPACE: 'AI Workspace',
     AI_TASK_CENTER: 'AI Task Center',

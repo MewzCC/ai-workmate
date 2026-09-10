@@ -20,6 +20,7 @@ import tenantConfig from './tenantConfig';
 import dataPermission from './dataPermission';
 import aiPermission from './aiPermission';
 import supplier from './supplier';
+import contract from './contract';
 
 const zhCN = {
   common,
@@ -44,6 +45,7 @@ const zhCN = {
   dataPermission,
   aiPermission,
   supplier,
+  contract,
 };
 
 export default zhCN;
