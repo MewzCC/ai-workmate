@@ -3117,3 +3117,66 @@
   .oa-contract-heading-icon,
   .oa-contract-name-cell > span { transition: none; }
 }
+
+.oa-expense-page {
+  height: 100%; min-height: 0;
+  display: grid; grid-template-rows: auto auto minmax(0, 1fr); gap: 14px;
+}
+.oa-expense-hero { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.oa-expense-heading { min-width: 0; display: flex; align-items: center; gap: 14px; }
+.oa-expense-heading > span,
+.oa-expense-detail-heading > span {
+  width: 48px; height: 48px; flex: 0 0 auto; border-radius: 15px;
+  display: grid; place-items: center; color: var(--oa-primary);
+  background: color-mix(in srgb, var(--oa-primary) 10%, var(--oa-card));
+  border: 1px solid color-mix(in srgb, var(--oa-primary) 24%, var(--oa-border));
+}
+.oa-expense-heading h3 { margin: 1px 0 0; color: var(--oa-text); }
+.oa-expense-heading .ant-typography-paragraph { margin: 1px 0 0; color: var(--oa-muted); }
+.oa-expense-eyebrow { color: var(--oa-primary); font-size: 11px; font-weight: 800; letter-spacing: .12em; }
+.oa-expense-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.oa-expense-stats .ant-card { height: 100%; border-color: var(--oa-border); background: color-mix(in srgb, var(--oa-card) 95%, var(--oa-primary) 5%); }
+.oa-expense-stats .ant-card-body { padding: 14px 18px; }
+.oa-expense-stats .ant-card:nth-child(3) .ant-statistic-content { color: color-mix(in srgb, #1677ff 84%, var(--oa-text)); }
+.oa-expense-stats .ant-card:nth-child(4) .ant-statistic-content { color: color-mix(in srgb, #14966f 84%, var(--oa-text)); }
+.oa-expense-list-card { min-height: 0; overflow: hidden; border-color: var(--oa-border); }
+.oa-expense-list-card > .ant-card-body { height: 100%; min-height: 0; padding: 16px 18px; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 14px; }
+.oa-expense-list-card .ant-table-wrapper { min-height: 0; }
+.oa-expense-list-card .ant-spin-nested-loading,
+.oa-expense-list-card .ant-spin-container { height: 100%; }
+.oa-expense-toolbar { width: min(220px, 100%); }
+.oa-expense-toolbar .ant-select { width: 100%; }
+.oa-expense-name-cell { min-width: 0; display: flex; align-items: center; gap: 10px; }
+.oa-expense-name-cell > span { width: 34px; height: 34px; flex: 0 0 auto; border-radius: 10px; display: grid; place-items: center; color: var(--oa-primary); background: color-mix(in srgb, var(--oa-primary) 9%, var(--oa-card)); }
+.oa-expense-name-cell > div { min-width: 0; display: grid; gap: 1px; }
+.oa-expense-name-cell strong,
+.oa-expense-name-cell small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.oa-expense-name-cell small { color: var(--oa-muted); font-size: 12px; }
+.oa-expense-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 16px; }
+.oa-expense-full-control { width: 100%; }
+.oa-expense-detail { display: grid; gap: 12px; }
+.oa-expense-detail-heading { display: flex; align-items: center; gap: 12px; }
+.oa-expense-detail-heading h4 { margin: 0 0 6px; }
+.oa-expense-detail-actions { padding: 10px 0 4px; border-top: 1px solid var(--oa-border); }
+.oa-expense-detail .ant-card { border-color: var(--oa-border); }
+.oa-expense-event { display: grid; gap: 3px; }
+.oa-expense-event > span,
+.oa-expense-event > small { color: var(--oa-muted); }
+.oa-expense-event .ant-typography { margin: 3px 0 0; }
+.oa-has-wallpaper .oa-expense-stats .ant-card,
+.oa-has-wallpaper .oa-expense-list-card,
+.oa-has-wallpaper .oa-expense-detail .ant-card { background: color-mix(in srgb, var(--oa-card) 68%, transparent); backdrop-filter: blur(var(--oa-wallpaper-blur, 16px)); }
+
+@media (max-width: 720px) {
+  .oa-expense-page { height: auto; display: flex; flex-direction: column; }
+  .oa-expense-hero { align-items: flex-start; flex-direction: column; }
+  .oa-expense-hero > .ant-space { width: 100%; }
+  .oa-expense-hero > .ant-space .ant-btn { flex: 1; }
+  .oa-expense-heading { align-items: flex-start; }
+  .oa-expense-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .oa-expense-toolbar { width: 100%; }
+  .oa-expense-list-card { overflow: visible; }
+  .oa-expense-list-card > .ant-card-body { height: auto; display: block; }
+  .oa-expense-list-card .oa-mobile-cards { margin-top: 12px; }
+  .oa-expense-form-grid { grid-template-columns: 1fr; }
+}

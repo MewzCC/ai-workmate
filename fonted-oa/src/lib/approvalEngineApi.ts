@@ -1,4 +1,4 @@
-import { request, queryString, type PageResponse } from '@/lib/oaApi';
+import { request, queryString, type PageResponse, type WorkflowTimelineItem } from '@/lib/oaApi';
 
 // ==================== 表单引擎 ====================
 
@@ -161,6 +161,7 @@ export interface ApprovalApplication {
   taskAssigneeUserId?: number | null;
   taskAssigneeName?: string | null;
   workflowStatus?: string | null;
+  timeline?: WorkflowTimelineItem[] | null;
   canWithdraw: boolean;
   canEditDraft: boolean;
   canCancel: boolean;
@@ -296,6 +297,7 @@ export const approvalEngineApi = {
 
   listMyApplications: (params: {
     status?: ApprovalApplication['status'];
+    formKey?: string;
     page?: number;
     size?: number;
   } = {}) =>

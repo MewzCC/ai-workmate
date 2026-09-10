@@ -107,6 +107,28 @@ class GenericApprovalServiceImplTest {
     }
 
     @Test
+    void createDraftEnforcesSchemaMinimumAndSelectOptionsForProvidedValues() {
+        ApprovalForm constrained = form();
+        constrained.setSchemaJson("""
+                {"fields":[
+                  {"name":"amount","type":"number","min":0.01},
+                  {"name":"category","type":"select","options":["TRAVEL","MEAL"]}
+                ]}
+                """);
+        when(formMapper.selectOne(any())).thenReturn(constrained);
+
+        assertThatThrownBy(() -> service.createDraft(USER_ID,
+                new ApprovalDraftRequest("expense", null, Map.of("amount", -1, "category", "TRAVEL"))))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("REQUEST_INVALID");
+        assertThatThrownBy(() -> service.createDraft(USER_ID,
+                new ApprovalDraftRequest("expense", null, Map.of("amount", 10, "category", "UNKNOWN"))))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("REQUEST_INVALID");
+        verify(applicationMapper, never()).insert(any(ApprovalApplication.class));
+    }
+
+    @Test
     void updateDraftRejectsAnApplicationThatWasAlreadySubmitted() {
         ApprovalApplication submitted = application("PENDING", 1);
         when(applicationMapper.selectOne(any())).thenReturn(submitted);
@@ -309,6 +331,23 @@ class GenericApprovalServiceImplTest {
 
         verify(taskMapper, never()).update(any(), any());
         verify(instanceMapper, never()).update(any(), any());
+    }
+
+    @Test
+    void mineScopesPaginationToRequestedFormKey() {
+        when(applicationMapper.selectMine(TENANT_ID, USER_ID, "PENDING", "expense-application", 10, 10))
+                .thenReturn(List.of());
+        when(applicationMapper.countMine(TENANT_ID, USER_ID, "PENDING", "expense-application"))
+                .thenReturn(0L);
+
+        var response = service.mine(USER_ID, "PENDING", "expense-application", 2, 10);
+
+        assertThat(response.page()).isEqualTo(2);
+        assertThat(response.size()).isEqualTo(10);
+        verify(applicationMapper).selectMine(
+                TENANT_ID, USER_ID, "PENDING", "expense-application", 10, 10);
+        verify(applicationMapper).countMine(
+                TENANT_ID, USER_ID, "PENDING", "expense-application");
     }
 
     private ResolvedUserAccess access() {

@@ -134,6 +134,14 @@ class P1PostgresMigrationIT {
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM flyway_schema_history WHERE success
                     """)).isGreaterThan(30);
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM approval_process
+                    WHERE process_key = 'expense-single-approval' AND status = 'ENABLED' AND deleted = FALSE
+                    """)).isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_route
+                    WHERE route_key = 'expense' AND component_key = 'EXPENSE'
+                    """)).isOne();
         }
     }
 

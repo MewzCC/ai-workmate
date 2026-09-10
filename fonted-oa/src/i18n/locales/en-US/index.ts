@@ -21,6 +21,7 @@ import dataPermission from './dataPermission';
 import aiPermission from './aiPermission';
 import supplier from './supplier';
 import contract from './contract';
+import expense from './expense';
 
 const enUS = {
   common,
@@ -46,6 +47,7 @@ const enUS = {
   aiPermission,
   supplier,
   contract,
+  expense,
 };
 
 export default enUS;

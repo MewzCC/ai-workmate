@@ -123,6 +123,7 @@ export default {
     AI_PERMISSION: 'AI 操作权限页面',
     SUPPLIER: '供应商管理页面',
     CONTRACT: '合同管理页面',
+    EXPENSE: '费用报销页面',
     EMPLOYEE_CHANGE: '入转调离',
     AI_WORKSPACE: 'AI 工作空间',
     AI_TASK_CENTER: 'AI 任务中心',
