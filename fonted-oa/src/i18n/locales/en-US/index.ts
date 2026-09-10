@@ -23,6 +23,7 @@ import supplier from './supplier';
 import contract from './contract';
 import expense from './expense';
 import budget from './budget';
+import apiCenter from './apiCenter';
 
 const enUS = {
   common,
@@ -50,6 +51,7 @@ const enUS = {
   contract,
   expense,
   budget,
+  apiCenter,
 };
 
 export default enUS;

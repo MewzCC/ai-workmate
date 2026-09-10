@@ -93,6 +93,10 @@ class P1PostgresMigrationIT {
                 SELECT COUNT(*) FROM budget_plan
                 WHERE budget_code = 'LEGACY-BUDGET-001' AND status = 'ACTIVE'
                 """)).isOne();
+        assertThat(queryCount(upgradeSchema, """
+                SELECT COUNT(*) FROM integration_endpoint
+                WHERE endpoint_code = 'LEGACY-API-001' AND status = 'DRAFT'
+                """)).isOne();
 
         Flyway restartedUpgrade = flyway(upgradeSchema, null);
         assertThat(restartedUpgrade.migrate().migrationsExecuted).isZero();
@@ -128,15 +132,15 @@ class P1PostgresMigrationIT {
                         'data_dictionary_type', 'data_dictionary_item', 'data_dictionary_item_usage',
                         'tenant_configuration', 'tenant_configuration_history',
                         'supplier', 'supplier_status_history', 'business_contract', 'contract_event',
-                        'budget_plan', 'budget_transaction')
-                    """)).isEqualTo(19);
+                        'budget_plan', 'budget_transaction', 'integration_endpoint', 'integration_invocation')
+                    """)).isEqualTo(21);
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM rbac_permission
                     WHERE code IN ('approval:manage', 'hr:manage', 'asset:write',
                       'meeting:book', 'visitor:register', 'seal:register', 'dictionary:manage',
                       'tenant:config:manage', 'agent-permission:manage', 'supplier:manage', 'contract:manage',
-                      'budget:manage')
-                    """)).isEqualTo(12);
+                      'budget:manage', 'integration:endpoint:manage', 'integration:endpoint:execute')
+                    """)).isEqualTo(14);
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM flyway_schema_history WHERE success
                     """)).isGreaterThan(30);
@@ -147,6 +151,10 @@ class P1PostgresMigrationIT {
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM rbac_route
                     WHERE route_key = 'expense' AND component_key = 'EXPENSE'
+                    """)).isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_route
+                    WHERE route_key = 'api-center' AND component_key = 'API_CENTER'
                     """)).isOne();
         }
     }
@@ -223,6 +231,19 @@ class P1PostgresMigrationIT {
                     WHERE tenant.code = 'DEFAULT'
                     """);
             assertThat(insertedBudget).isOne();
+            int insertedApi = statement.executeUpdate("""
+                    INSERT INTO workbench_record(
+                        tenant_id, module_key, record_code, title, category, status, owner, details,
+                        version, deleted, created_by, updated_by, created_at, updated_at
+                    )
+                    SELECT tenant.id, 'api-center', 'legacy-api-001', '历史接口登记', 'GET', 'ACTIVE',
+                           '系统组', '旧版接口说明', 1, FALSE, user_account.id, user_account.id,
+                           CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                    FROM tenant
+                    JOIN app_user user_account ON user_account.username = 'p1-supplier-migrator'
+                    WHERE tenant.code = 'DEFAULT'
+                    """);
+            assertThat(insertedApi).isOne();
         }
     }
 

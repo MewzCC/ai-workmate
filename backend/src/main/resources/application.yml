@@ -119,6 +119,19 @@ app:
     auto-create-bucket: ${MINIO_AUTO_CREATE_BUCKET:true}
   workflow:
     approval-due-hours: ${APPROVAL_DUE_HOURS:48}
+  integration:
+    connect-timeout-seconds: ${INTEGRATION_CONNECT_TIMEOUT_SECONDS:5}
+    request-timeout-seconds: ${INTEGRATION_REQUEST_TIMEOUT_SECONDS:15}
+    max-response-bytes: ${INTEGRATION_MAX_RESPONSE_BYTES:65536}
+    upstreams:
+      primary-sandbox:
+        display-name: ${INTEGRATION_SANDBOX_NAME:Primary Sandbox}
+        base-url: ${INTEGRATION_SANDBOX_BASE_URL:}
+        enabled: ${INTEGRATION_SANDBOX_ENABLED:false}
+        sandbox: true
+        allow-insecure-http: ${INTEGRATION_SANDBOX_ALLOW_HTTP:false}
+        auth-header-name: ${INTEGRATION_SANDBOX_AUTH_HEADER:}
+        auth-header-value: ${INTEGRATION_SANDBOX_AUTH_VALUE:}
   embedding:
     enabled: ${EMBEDDING_ENABLED:true}
     provider: ${EMBEDDING_PROVIDER:local}

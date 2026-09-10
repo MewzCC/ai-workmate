@@ -125,6 +125,7 @@ export default {
     CONTRACT: 'Contract Management Page',
     EXPENSE: 'Expense Reimbursement Page',
     BUDGET: 'Budget Center Page',
+    API_CENTER: 'API Integration Center Page',
     EMPLOYEE_CHANGE: 'Employee Changes',
     AI_WORKSPACE: 'AI Workspace',
     AI_TASK_CENTER: 'AI Task Center',
