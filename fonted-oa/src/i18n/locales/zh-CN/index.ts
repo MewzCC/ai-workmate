@@ -16,6 +16,7 @@ import adminAssets from './adminAssets';
 import employeeChange from './employeeChange';
 import workbench from './workbench';
 import dictionary from './dictionary';
+import tenantConfig from './tenantConfig';
 
 const zhCN = {
   common,
@@ -36,6 +37,7 @@ const zhCN = {
   employeeChange,
   workbench,
   dictionary,
+  tenantConfig,
 };
 
 export default zhCN;

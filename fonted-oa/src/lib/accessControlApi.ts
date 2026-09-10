@@ -38,7 +38,7 @@ export interface AccessRoute {
   path?: string;
   icon?: string;
   routeType: 'GROUP' | 'MENU' | 'PAGE';
-  componentKey?: 'DASHBOARD' | 'AI_WORKSPACE' | 'ACCESS_CONTROL' | 'WORKBENCH_MODULE' | 'DICTIONARY'
+  componentKey?: 'DASHBOARD' | 'AI_WORKSPACE' | 'ACCESS_CONTROL' | 'WORKBENCH_MODULE' | 'DICTIONARY' | 'TENANT_CONFIG'
     | 'AI_TASK_CENTER'
     | 'TODO_LIST' | 'LEAVE_FORM' | 'MY_APPLICATIONS' | 'AUDIT_CENTER'
     | 'ORG_TREE' | 'KNOWLEDGE_BASE' | 'MESSAGE_CENTER' | 'SYSTEM_CONFIG'

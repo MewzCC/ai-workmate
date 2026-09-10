@@ -16,6 +16,7 @@ import adminAssets from './adminAssets';
 import employeeChange from './employeeChange';
 import workbench from './workbench';
 import dictionary from './dictionary';
+import tenantConfig from './tenantConfig';
 
 const enUS = {
   common,
@@ -36,6 +37,7 @@ const enUS = {
   employeeChange,
   workbench,
   dictionary,
+  tenantConfig,
 };
 
 export default enUS;

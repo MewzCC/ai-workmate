@@ -37,7 +37,6 @@ public class WorkbenchRecordServiceImpl implements WorkbenchRecordService {
             Map.entry("sandbox-replay", "workbench:integration:manage"),
             Map.entry("data-permission", "workbench:settings:manage"),
             Map.entry("ai-permission", "workbench:settings:manage"),
-            Map.entry("tenant-config", "workbench:settings:manage"),
             Map.entry("dictionary", "workbench:settings:manage")
     );
 
