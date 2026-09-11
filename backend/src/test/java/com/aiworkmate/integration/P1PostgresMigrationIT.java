@@ -176,6 +176,34 @@ class P1PostgresMigrationIT {
                     WHERE route_key = 'sandbox-replay' AND component_key = 'SANDBOX_REPLAY'
                     """)).isOne();
             assertThat(count(statement, """
+                    SELECT COUNT(*)
+                    FROM (VALUES
+                        ('dictionary', 'DICTIONARY'),
+                        ('tenant-config', 'TENANT_CONFIG'),
+                        ('data-permission', 'DATA_PERMISSION'),
+                        ('ai-permission', 'AI_PERMISSION'),
+                        ('suppliers', 'SUPPLIER'),
+                        ('contracts', 'CONTRACT'),
+                        ('expense', 'EXPENSE'),
+                        ('budget', 'BUDGET'),
+                        ('api-center', 'API_CENTER'),
+                        ('page-actions', 'PAGE_ACTIONS'),
+                        ('runtime-logs', 'RUNTIME_LOGS'),
+                        ('sandbox-replay', 'SANDBOX_REPLAY')
+                    ) AS planned(route_key, component_key)
+                    JOIN rbac_route route
+                      ON route.route_key = planned.route_key
+                     AND route.component_key = planned.component_key
+                     AND route.route_type = 'PAGE'
+                     AND route.enabled = TRUE
+                    """)).isEqualTo(12);
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_route
+                    WHERE route_type = 'PAGE' AND enabled = TRUE
+                      AND (component_key = 'WORKBENCH_MODULE'
+                        OR (component_key = 'DASHBOARD' AND route_key <> 'dashboard'))
+                    """)).as("已启用业务页面不得回退到通用台账或驾驶舱占位组件").isZero();
+            assertThat(count(statement, """
                     SELECT COUNT(*) FROM information_schema.views
                     WHERE table_schema = current_schema() AND table_name = 'runtime_log_view'
                     """)).isOne();
