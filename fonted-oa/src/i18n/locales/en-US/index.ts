@@ -25,6 +25,7 @@ import expense from './expense';
 import budget from './budget';
 import apiCenter from './apiCenter';
 import pageActions from './pageActions';
+import runtimeLogs from './runtimeLogs';
 
 const enUS = {
   common,
@@ -54,6 +55,7 @@ const enUS = {
   budget,
   apiCenter,
   pageActions,
+  runtimeLogs,
 };
 
 export default enUS;

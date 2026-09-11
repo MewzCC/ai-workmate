@@ -127,6 +127,7 @@ export default {
     BUDGET: 'Budget Center Page',
     API_CENTER: 'API Integration Center Page',
     PAGE_ACTIONS: 'Page Actions Page',
+    RUNTIME_LOGS: 'Runtime Logs Page',
     EMPLOYEE_CHANGE: 'Employee Changes',
     AI_WORKSPACE: 'AI Workspace',
     AI_TASK_CENTER: 'AI Task Center',

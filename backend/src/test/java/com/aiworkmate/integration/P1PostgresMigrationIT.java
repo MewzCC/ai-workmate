@@ -145,8 +145,8 @@ class P1PostgresMigrationIT {
                       'meeting:book', 'visitor:register', 'seal:register', 'dictionary:manage',
                       'tenant:config:manage', 'agent-permission:manage', 'supplier:manage', 'contract:manage',
                       'budget:manage', 'integration:endpoint:manage', 'integration:endpoint:execute',
-                      'page-action:manage')
-                    """)).isEqualTo(15);
+                      'page-action:manage', 'runtime-log:read')
+                    """)).isEqualTo(16);
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM flyway_schema_history WHERE success
                     """)).isGreaterThan(30);
@@ -165,6 +165,19 @@ class P1PostgresMigrationIT {
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM rbac_route
                     WHERE route_key = 'page-actions' AND component_key = 'PAGE_ACTIONS'
+                    """)).isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_route
+                    WHERE route_key = 'runtime-logs' AND component_key = 'RUNTIME_LOGS'
+                    """)).isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM information_schema.views
+                    WHERE table_schema = current_schema() AND table_name = 'runtime_log_view'
+                    """)).isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM information_schema.columns
+                    WHERE table_schema = current_schema() AND table_name = 'integration_invocation'
+                      AND column_name = 'trace_id'
                     """)).isOne();
         }
     }

@@ -19,6 +19,7 @@ public class IntegrationInvocation {
     private Long durationMs;
     private String responsePreview;
     private String errorCode;
+    private String traceId;
     private Long operatorId;
     private String operatorLabel;
     private LocalDateTime createdAt;

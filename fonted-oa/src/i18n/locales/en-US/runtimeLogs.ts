@@ -1,0 +1,31 @@
+export default {
+  eyebrow: 'OBSERVABILITY · TENANT SCOPE',
+  title: 'Runtime Logs',
+  subtitle: 'Trace controlled integrations and Agent tools with tenant-scoped outcomes, latency, and security decisions.',
+  readOnlyBadge: 'Read-only telemetry',
+  retentionHint: 'Defaults to 7 days; maximum range is 31 days',
+  boundaryTitle: 'Data boundary',
+  boundaryDescription: 'Only redacted runtime summaries for the current tenant are shown. Credentials, raw requests, and internal addresses never reach the browser.',
+  durationMs: '{{value}} ms',
+  stats: { total: 'Matched', succeeded: 'Succeeded', failed: 'Failed', blocked: 'Gateway blocked', average: 'Average latency' },
+  filters: { keyword: 'Search task, operator, trace ID, or error code', source: 'All sources', outcome: 'All outcomes' },
+  source: { INTEGRATION: 'Integration check', AGENT: 'Agent tool' },
+  outcome: {
+    RUNNING: 'Running', SUCCEEDED: 'Succeeded', REJECTED: 'Rejected', FAILED: 'Failed',
+    TIMED_OUT: 'Timed out', RESULT_INVALID: 'Invalid result',
+  },
+  columns: {
+    startedAt: 'Started', source: 'Source', operation: 'Runtime target', outcome: 'Outcome',
+    duration: 'Duration', operator: 'Operator', trace: 'Trace ID',
+  },
+  empty: 'No runtime records match the current filters',
+  detail: {
+    title: 'Runtime log details', safeTitle: 'Redacted details',
+    safeDescription: 'The fingerprint is for correlation only. The server-redacted summary cannot be used to replay a request.',
+    source: 'Source', outcome: 'Outcome', reference: 'Reference', operation: 'Operation',
+    operator: 'Operator', duration: 'Duration', startedAt: 'Started', completedAt: 'Completed',
+    trace: 'Trace ID', fingerprint: 'Request fingerprint', decision: 'Gateway decision', decisionCode: 'Decision code',
+    statusCode: 'Response status', attempt: 'Attempt', resultBytes: 'Result bytes', errorCode: 'Error code',
+    preview: 'Redacted result summary', noPreview: 'No result summary is available for this record',
+  },
+};
