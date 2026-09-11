@@ -30,7 +30,7 @@ import static org.mockito.Mockito.*;
 class IntegrationEndpointServiceImplTest {
  @Mock IntegrationEndpointMapper endpointMapper;@Mock IntegrationInvocationMapper invocationMapper;@Mock IntegrationSandboxClient client;@Mock UserAccessService accessService;@Mock BusinessAuditService auditService;
  IntegrationEndpointServiceImpl service;
- @BeforeEach void setup(){service=new IntegrationEndpointServiceImpl(endpointMapper,invocationMapper,client,accessService,auditService,new ObjectMapper());}
+ @BeforeEach void setup(){ObjectMapper mapper=new ObjectMapper();service=new IntegrationEndpointServiceImpl(endpointMapper,invocationMapper,client,accessService,auditService,mapper,new IntegrationPayloadSecurity(mapper));}
  @Test void rejectsCreateWithoutManagePermission(){when(accessService.resolveActiveUser(7L)).thenReturn(access(List.of("route:api-center")));assertThatThrownBy(()->service.create(7L,request("{}",null))).isInstanceOf(BusinessException.class);verifyNoInteractions(endpointMapper);}
  @Test void rejectsAbsoluteOrProtocolRelativeTargets(){stubManage();when(client.isRegistered("primary-sandbox")).thenReturn(true);assertThatThrownBy(()->service.create(7L,new IntegrationEndpointRequest("health","Health","primary-sandbox","GET","//evil.invalid/x",null,null,null))).isInstanceOf(BusinessException.class);verify(endpointMapper,never()).insert(any(IntegrationEndpoint.class));}
  @Test void rejectsSensitiveTemplateAtAnyDepth(){stubManage();when(client.isRegistered("primary-sandbox")).thenReturn(true);assertThatThrownBy(()->service.create(7L,request("{\"nested\":{\"api_key\":\"secret\"}}",null))).isInstanceOf(BusinessException.class);verify(endpointMapper,never()).insert(any(IntegrationEndpoint.class));}

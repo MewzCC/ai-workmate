@@ -25,12 +25,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.regex.Pattern;
 
 @Service
 @RequiredArgsConstructor
@@ -40,7 +37,6 @@ public class IntegrationEndpointServiceImpl implements IntegrationEndpointServic
     private static final String EXECUTE = "integration:endpoint:execute";
     private static final Set<String> STATUSES = Set.of("DRAFT", "ACTIVE", "DISABLED");
     private static final Set<String> SENSITIVE_KEYS = Set.of("authorization", "cookie", "password", "passwd", "secret", "token", "apikey", "api_key", "accesskey", "privatekey");
-    private static final Pattern SENSITIVE_TEXT = Pattern.compile("(?i)(authorization|cookie|password|passwd|secret|token|api[_-]?key|access[_-]?key|private[_-]?key)(\\s*[:=]\\s*)([^\\s,;]+)");
     private static final Map<String,List<String>> TRANSITIONS = Map.of("DRAFT",List.of("ACTIVE","DISABLED"),"ACTIVE",List.of("DISABLED"),"DISABLED",List.of("ACTIVE"));
     private static final Duration EXECUTION_COOLDOWN = Duration.ofSeconds(3);
 
@@ -50,6 +46,7 @@ public class IntegrationEndpointServiceImpl implements IntegrationEndpointServic
     private final UserAccessService accessService;
     private final BusinessAuditService auditService;
     private final ObjectMapper objectMapper;
+    private final IntegrationPayloadSecurity payloadSecurity;
 
     @Override @Transactional(readOnly=true)
     public IntegrationPageResponse list(Long userId,String keyword,String status,int page,int size){
@@ -97,13 +94,11 @@ public class IntegrationEndpointServiceImpl implements IntegrationEndpointServic
         IntegrationInvocation latest=invocationMapper.selectOne(new LambdaQueryWrapper<IntegrationInvocation>().eq(IntegrationInvocation::getTenantId,actor.tenantId()).eq(IntegrationInvocation::getEndpointId,id).eq(IntegrationInvocation::getOperatorId,actor.userId()).orderByDesc(IntegrationInvocation::getCreatedAt).last("LIMIT 1"));
         if(latest!=null&&latest.getCreatedAt().plus(EXECUTION_COOLDOWN).isAfter(LocalDateTime.now()))throw new BusinessException(ErrorCode.RATE_LIMITED,"validation.integration.execute.tooFrequent");
         SandboxCallResult call=sandboxClient.execute(endpoint.getUpstreamCode(),endpoint.getHttpMethod(),endpoint.getRelativePath(),endpoint.getRequestTemplate());
-        IntegrationInvocation invocation=new IntegrationInvocation();invocation.setTenantId(actor.tenantId());invocation.setEndpointId(id);invocation.setRequestHash(hash(endpoint));invocation.setOutcome(call.outcome());invocation.setHttpStatus(call.httpStatus());invocation.setDurationMs(call.durationMs());invocation.setResponsePreview(sanitizeResponsePreview(call.responsePreview()));invocation.setErrorCode(call.errorCode());invocation.setTraceId(StringUtils.hasText(TraceContext.traceId())?TraceContext.traceId():UUID.randomUUID().toString().replace("-",""));invocation.setOperatorId(actor.userId());invocation.setOperatorLabel(actor.username());invocation.setCreatedAt(LocalDateTime.now());invocationMapper.insert(invocation);audit(actor,endpoint,"EXECUTE_"+call.outcome());return invocationResponse(invocation);}
+        IntegrationInvocation invocation=new IntegrationInvocation();invocation.setTenantId(actor.tenantId());invocation.setEndpointId(id);invocation.setRequestHash(payloadSecurity.requestHash(endpoint.getHttpMethod(),endpoint.getRelativePath(),endpoint.getRequestTemplate()));invocation.setOutcome(call.outcome());invocation.setHttpStatus(call.httpStatus());invocation.setDurationMs(call.durationMs());invocation.setResponsePreview(payloadSecurity.sanitizeResponsePreview(call.responsePreview()));invocation.setErrorCode(call.errorCode());invocation.setTraceId(StringUtils.hasText(TraceContext.traceId())?TraceContext.traceId():UUID.randomUUID().toString().replace("-",""));invocation.setOperatorId(actor.userId());invocation.setOperatorLabel(actor.username());invocation.setCreatedAt(LocalDateTime.now());invocationMapper.insert(invocation);audit(actor,endpoint,"EXECUTE_"+call.outcome());return invocationResponse(invocation);}
 
     private void validate(IntegrationEndpointRequest request){if(!sandboxClient.isRegistered(request.upstreamCode()))throw new BusinessException(ErrorCode.REQUEST_INVALID,"validation.integration.upstream.invalid");validatePath(request.relativePath());String body=trim(request.requestTemplate());if(("GET".equals(request.method())||"DELETE".equals(request.method()))&&body!=null)throw new BusinessException(ErrorCode.REQUEST_INVALID,"validation.integration.body.notAllowed");if(body!=null){try{JsonNode node=objectMapper.readTree(body);if(!node.isObject()||containsSensitive(node))throw new BusinessException(ErrorCode.REQUEST_INVALID,"validation.integration.template.sensitive");}catch(BusinessException ex){throw ex;}catch(Exception ex){throw new BusinessException(ErrorCode.REQUEST_INVALID,"validation.integration.template.invalid");}}}
     private void validatePath(String path){String lower=path.toLowerCase(Locale.ROOT);if(!path.startsWith("/")||path.startsWith("//")||path.contains("\\")||path.contains("\r")||path.contains("\n")||lower.contains("://")||lower.contains("..")||lower.contains("%2e")||lower.contains("@"))throw new BusinessException(ErrorCode.REQUEST_INVALID,"validation.integration.path.invalid");}
     private boolean containsSensitive(JsonNode node){Iterator<String> names=node.fieldNames();while(names.hasNext())if(isSensitiveKey(names.next()))return true;for(JsonNode child:node)if(child.isContainerNode()&&containsSensitive(child))return true;return false;}
-    private String sanitizeResponsePreview(String preview){if(!StringUtils.hasText(preview))return null;try{JsonNode root=objectMapper.readTree(preview);redactSensitiveValues(root);return objectMapper.writeValueAsString(root);}catch(Exception ignored){return SENSITIVE_TEXT.matcher(preview).replaceAll("$1$2[REDACTED]");}}
-    private void redactSensitiveValues(JsonNode node){if(node.isObject()){List<String> names=new ArrayList<>();node.fieldNames().forEachRemaining(names::add);for(String name:names){if(isSensitiveKey(name))((com.fasterxml.jackson.databind.node.ObjectNode)node).put(name,"[REDACTED]");else redactSensitiveValues(node.get(name));}}else if(node.isArray())for(JsonNode child:node)redactSensitiveValues(child);}
     private boolean isSensitiveKey(String name){String normalized=name.replace("-","").replace("_","").toLowerCase(Locale.ROOT);return SENSITIVE_KEYS.stream().map(key->key.replace("_","")).anyMatch(normalized::equals);}
     private void apply(IntegrationEndpoint e,IntegrationEndpointRequest r){e.setName(r.name().trim());e.setUpstreamCode(r.upstreamCode().trim());e.setHttpMethod(r.method().trim().toUpperCase(Locale.ROOT));e.setRelativePath(r.relativePath().trim());e.setRequestTemplate(trim(r.requestTemplate()));e.setDescription(trim(r.description()));}
     private IntegrationEndpointResponse response(IntegrationEndpoint e,boolean manage,boolean execute){return new IntegrationEndpointResponse(e.getId(),e.getEndpointCode(),e.getName(),e.getUpstreamCode(),e.getHttpMethod(),e.getRelativePath(),e.getRequestTemplate(),e.getDescription(),e.getStatus(),e.getVersion(),e.getUpdatedAt(),manage,execute&&"ACTIVE".equals(e.getStatus()),manage?TRANSITIONS.getOrDefault(e.getStatus(),List.of()):List.of());}
@@ -117,6 +112,5 @@ public class IntegrationEndpointServiceImpl implements IntegrationEndpointServic
     private long count(Long tenant,String status){return endpointMapper.selectCount(base(tenant).eq(IntegrationEndpoint::getStatus,status));}
     private String normalizeStatus(String value){if(!StringUtils.hasText(value))return null;String n=value.trim().toUpperCase(Locale.ROOT);if(!STATUSES.contains(n))throw new BusinessException(ErrorCode.REQUEST_INVALID,"validation.integration.status.invalid");return n;}
     private String code(String v){return v.trim().toUpperCase(Locale.ROOT);}private String trim(String v){return StringUtils.hasText(v)?v.trim():null;}private void requireVersion(Integer actual,Integer expected){if(actual==null||!actual.equals(expected))conflict();}private void conflict(){throw new BusinessException(ErrorCode.VERSION_CONFLICT);}
-    private String hash(IntegrationEndpoint e){try{byte[] bytes=MessageDigest.getInstance("SHA-256").digest((e.getHttpMethod()+"\n"+e.getRelativePath()+"\n"+Objects.toString(e.getRequestTemplate(),"")).getBytes(StandardCharsets.UTF_8));return HexFormat.of().formatHex(bytes);}catch(Exception ex){throw new IllegalStateException(ex);}}
     private void audit(ResolvedUserAccess a,IntegrationEndpoint e,String action){auditService.recordTransactional(a.tenantId(),a.userId(),"INTEGRATION_ENDPOINT",String.valueOf(e.getId()),action,"SUCCESS",e.getEndpointCode());}
 }

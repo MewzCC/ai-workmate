@@ -26,6 +26,7 @@ import budget from './budget';
 import apiCenter from './apiCenter';
 import pageActions from './pageActions';
 import runtimeLogs from './runtimeLogs';
+import sandboxReplay from './sandboxReplay';
 
 const enUS = {
   common,
@@ -56,6 +57,7 @@ const enUS = {
   apiCenter,
   pageActions,
   runtimeLogs,
+  sandboxReplay,
 };
 
 export default enUS;

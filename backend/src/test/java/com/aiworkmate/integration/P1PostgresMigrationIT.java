@@ -137,16 +137,17 @@ class P1PostgresMigrationIT {
                         'tenant_configuration', 'tenant_configuration_history',
                         'supplier', 'supplier_status_history', 'business_contract', 'contract_event',
                         'budget_plan', 'budget_transaction', 'integration_endpoint', 'integration_invocation',
-                        'agent_page_action_policy')
-                    """)).isEqualTo(22);
+                        'agent_page_action_policy', 'integration_replay_job')
+                    """)).isEqualTo(23);
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM rbac_permission
                     WHERE code IN ('approval:manage', 'hr:manage', 'asset:write',
                       'meeting:book', 'visitor:register', 'seal:register', 'dictionary:manage',
                       'tenant:config:manage', 'agent-permission:manage', 'supplier:manage', 'contract:manage',
                       'budget:manage', 'integration:endpoint:manage', 'integration:endpoint:execute',
-                      'page-action:manage', 'runtime-log:read')
-                    """)).isEqualTo(16);
+                      'page-action:manage', 'runtime-log:read', 'integration:replay:read',
+                      'integration:replay:execute')
+                    """)).isEqualTo(18);
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM flyway_schema_history WHERE success
                     """)).isGreaterThan(30);
@@ -169,6 +170,10 @@ class P1PostgresMigrationIT {
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM rbac_route
                     WHERE route_key = 'runtime-logs' AND component_key = 'RUNTIME_LOGS'
+                    """)).isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_route
+                    WHERE route_key = 'sandbox-replay' AND component_key = 'SANDBOX_REPLAY'
                     """)).isOne();
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM information_schema.views

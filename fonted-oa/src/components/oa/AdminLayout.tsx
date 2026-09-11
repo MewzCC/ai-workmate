@@ -62,6 +62,7 @@ const BudgetPage = lazy(() => import('./BudgetPage'));
 const ApiCenterPage = lazy(() => import('./ApiCenterPage'));
 const PageActionsPage = lazy(() => import('./PageActionsPage'));
 const RuntimeLogsPage = lazy(() => import('./RuntimeLogsPage'));
+const SandboxReplayPage = lazy(() => import('./SandboxReplayPage'));
 
 const { Content } = Layout;
 const OPEN_TABS_STORAGE_KEY = 'workmeta-oa-open-tabs';
@@ -631,6 +632,8 @@ export default function AdminLayout() {
                     <PageActionsPage />
                   ) : selectedMenu.componentKey === 'RUNTIME_LOGS' ? (
                     <RuntimeLogsPage />
+                  ) : selectedMenu.componentKey === 'SANDBOX_REPLAY' ? (
+                    <SandboxReplayPage />
                   ) : selectedMenu.componentKey === 'WORKBENCH_MODULE' ? (
                     <WorkbenchModulePage
                       moduleKey={selectedMenu.id}
