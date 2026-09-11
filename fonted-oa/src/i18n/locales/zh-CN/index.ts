@@ -24,6 +24,7 @@ import contract from './contract';
 import expense from './expense';
 import budget from './budget';
 import apiCenter from './apiCenter';
+import pageActions from './pageActions';
 
 const zhCN = {
   common,
@@ -52,6 +53,7 @@ const zhCN = {
   expense,
   budget,
   apiCenter,
+  pageActions,
 };
 
 export default zhCN;

@@ -60,6 +60,7 @@ const ContractPage = lazy(() => import('./ContractPage'));
 const ExpensePage = lazy(() => import('./ExpensePage'));
 const BudgetPage = lazy(() => import('./BudgetPage'));
 const ApiCenterPage = lazy(() => import('./ApiCenterPage'));
+const PageActionsPage = lazy(() => import('./PageActionsPage'));
 
 const { Content } = Layout;
 const OPEN_TABS_STORAGE_KEY = 'workmeta-oa-open-tabs';
@@ -625,6 +626,8 @@ export default function AdminLayout() {
                     <BudgetPage />
                   ) : selectedMenu.componentKey === 'API_CENTER' ? (
                     <ApiCenterPage />
+                  ) : selectedMenu.componentKey === 'PAGE_ACTIONS' ? (
+                    <PageActionsPage />
                   ) : selectedMenu.componentKey === 'WORKBENCH_MODULE' ? (
                     <WorkbenchModulePage
                       moduleKey={selectedMenu.id}

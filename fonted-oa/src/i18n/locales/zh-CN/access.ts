@@ -126,6 +126,7 @@ export default {
     EXPENSE: '费用报销页面',
     BUDGET: '预算中心页面',
     API_CENTER: '接口联调中心页面',
+    PAGE_ACTIONS: '页面操作配置页面',
     EMPLOYEE_CHANGE: '入转调离',
     AI_WORKSPACE: 'AI 工作空间',
     AI_TASK_CENTER: 'AI 任务中心',

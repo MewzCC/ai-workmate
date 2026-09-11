@@ -6,6 +6,7 @@ import com.aiworkmate.agent.registry.AgentTool;
 import com.aiworkmate.agent.registry.AgentToolMapper;
 import com.aiworkmate.agent.registry.ConfirmationPolicy;
 import com.aiworkmate.agent.registry.OwnershipPolicy;
+import com.aiworkmate.agent.registry.PageActionCatalog;
 import com.aiworkmate.agent.registry.PermissionMode;
 import com.aiworkmate.agent.registry.RetryPolicy;
 import com.aiworkmate.agent.registry.RiskLevel;
@@ -62,7 +63,8 @@ class AiOperationPermissionServiceImplTest {
         AgentRuntimeProperties runtime = new AgentRuntimeProperties();
         runtime.setEnabled(true);
         runtime.setPlanningEnabled(true);
-        service = new AiOperationPermissionServiceImpl(runtime, new ToolCatalog(List.of(tool)),
+        ToolCatalog toolCatalog = new ToolCatalog(List.of(tool));
+        service = new AiOperationPermissionServiceImpl(runtime, toolCatalog, new PageActionCatalog(toolCatalog),
                 toolMapper, tenantPolicyMapper, accessControlMapper, permissionMapper, auditService);
     }
 

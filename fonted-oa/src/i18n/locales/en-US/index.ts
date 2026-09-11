@@ -24,6 +24,7 @@ import contract from './contract';
 import expense from './expense';
 import budget from './budget';
 import apiCenter from './apiCenter';
+import pageActions from './pageActions';
 
 const enUS = {
   common,
@@ -52,6 +53,7 @@ const enUS = {
   expense,
   budget,
   apiCenter,
+  pageActions,
 };
 
 export default enUS;

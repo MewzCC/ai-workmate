@@ -97,6 +97,10 @@ class P1PostgresMigrationIT {
                 SELECT COUNT(*) FROM integration_endpoint
                 WHERE endpoint_code = 'LEGACY-API-001' AND status = 'DRAFT'
                 """)).isOne();
+        assertThat(queryCount(upgradeSchema, """
+                SELECT COUNT(*) FROM agent_page_action_policy
+                WHERE page_id = 'dashboard' AND tool_code = 'todo.query' AND enabled = FALSE
+                """)).isOne();
 
         Flyway restartedUpgrade = flyway(upgradeSchema, null);
         assertThat(restartedUpgrade.migrate().migrationsExecuted).isZero();
@@ -132,15 +136,17 @@ class P1PostgresMigrationIT {
                         'data_dictionary_type', 'data_dictionary_item', 'data_dictionary_item_usage',
                         'tenant_configuration', 'tenant_configuration_history',
                         'supplier', 'supplier_status_history', 'business_contract', 'contract_event',
-                        'budget_plan', 'budget_transaction', 'integration_endpoint', 'integration_invocation')
-                    """)).isEqualTo(21);
+                        'budget_plan', 'budget_transaction', 'integration_endpoint', 'integration_invocation',
+                        'agent_page_action_policy')
+                    """)).isEqualTo(22);
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM rbac_permission
                     WHERE code IN ('approval:manage', 'hr:manage', 'asset:write',
                       'meeting:book', 'visitor:register', 'seal:register', 'dictionary:manage',
                       'tenant:config:manage', 'agent-permission:manage', 'supplier:manage', 'contract:manage',
-                      'budget:manage', 'integration:endpoint:manage', 'integration:endpoint:execute')
-                    """)).isEqualTo(14);
+                      'budget:manage', 'integration:endpoint:manage', 'integration:endpoint:execute',
+                      'page-action:manage')
+                    """)).isEqualTo(15);
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM flyway_schema_history WHERE success
                     """)).isGreaterThan(30);
@@ -155,6 +161,10 @@ class P1PostgresMigrationIT {
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM rbac_route
                     WHERE route_key = 'api-center' AND component_key = 'API_CENTER'
+                    """)).isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_route
+                    WHERE route_key = 'page-actions' AND component_key = 'PAGE_ACTIONS'
                     """)).isOne();
         }
     }
@@ -244,6 +254,19 @@ class P1PostgresMigrationIT {
                     WHERE tenant.code = 'DEFAULT'
                     """);
             assertThat(insertedApi).isOne();
+            int insertedPageAction = statement.executeUpdate("""
+                    INSERT INTO workbench_record(
+                        tenant_id, module_key, record_code, title, category, status, owner, details,
+                        version, deleted, created_by, updated_by, created_at, updated_at
+                    )
+                    SELECT tenant.id, 'page-actions', 'dashboard:todo.query', '历史待办查询动作',
+                           'AGENT_TOOL', 'DISABLED', '系统组', '旧版页面动作开关', 2, FALSE,
+                           user_account.id, user_account.id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                    FROM tenant
+                    JOIN app_user user_account ON user_account.username = 'p1-supplier-migrator'
+                    WHERE tenant.code = 'DEFAULT'
+                    """);
+            assertThat(insertedPageAction).isOne();
         }
     }
 

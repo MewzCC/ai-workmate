@@ -6,6 +6,7 @@ import com.aiworkmate.agent.registry.AgentTenantPolicyMapper;
 import com.aiworkmate.agent.registry.AgentTool;
 import com.aiworkmate.agent.registry.AgentToolMapper;
 import com.aiworkmate.agent.registry.PermissionMode;
+import com.aiworkmate.agent.registry.PageActionCatalog;
 import com.aiworkmate.agent.registry.SideEffect;
 import com.aiworkmate.agent.registry.ToolCatalog;
 import com.aiworkmate.agent.registry.ToolDefinition;
@@ -35,18 +36,9 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class AiOperationPermissionServiceImpl implements AiOperationPermissionService {
     private static final String SUPER_ADMIN = "SUPER_ADMIN";
-    private static final Map<String, List<String>> TOOL_PAGES = Map.of(
-            "todo.query", List.of("dashboard", "todo-list", "ai-workspace"),
-            "leave.mine", List.of("my-applications", "ai-workspace"),
-            "knowledge.search", List.of("knowledge-base", "ai-workspace"),
-            "notification.mine", List.of("dashboard", "message-center", "ai-workspace"),
-            "leave.createDraft", List.of("my-applications", "ai-workspace"),
-            "leave.submit", List.of("my-applications", "ai-workspace"),
-            "leave.apply", List.of("my-applications", "ai-workspace")
-    );
-
     private final AgentRuntimeProperties runtime;
     private final ToolCatalog catalog;
+    private final PageActionCatalog pageActionCatalog;
     private final AgentToolMapper toolMapper;
     private final AgentTenantPolicyMapper tenantPolicyMapper;
     private final AccessControlMapper accessControlMapper;
@@ -178,7 +170,9 @@ public class AiOperationPermissionServiceImpl implements AiOperationPermissionSe
                 definition.code(), definition.name(), definition.description(),
                 definition.riskLevel().name(), definition.sideEffect().name(),
                 definition.confirmationPolicy().name(), definition.requiredPermissions().stream().sorted().toList(),
-                TOOL_PAGES.getOrDefault(definition.code(), List.of("ai-workspace")),
+                pageActionCatalog.all().stream()
+                        .filter(binding -> binding.tool().code().equals(definition.code()))
+                        .map(PageActionCatalog.Binding::pageId).sorted().toList(),
                 platformEnabled, tenantEnabled, effective
         );
     }
