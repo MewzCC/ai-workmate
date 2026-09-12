@@ -75,7 +75,13 @@ class AgentReadToolSecurityCorpusTest {
                         List.of("{}", "{\"status\":\"PENDING\"}",
                                 "{\"changeType\":\"TRANSFER\",\"page\":2,\"size\":50}"),
                         List.of("{\"changeType\":\"DELETE\"}", "{\"size\":51}",
-                                "{\"tenantId\":2}", "{\"sql\":\"select * from employee_change\"}"))
+                                "{\"tenantId\":2}", "{\"sql\":\"select * from employee_change\"}")),
+                "asset.query", new Corpus(
+                        definitions.assetQueryToolDefinition(objectMapper),
+                        List.of("{}", "{\"status\":\"IDLE\"}",
+                                "{\"category\":\"IT\",\"keyword\":\"笔记本\",\"page\":2,\"size\":50}"),
+                        List.of("{\"status\":\"DELETED\"}", "{\"size\":51}",
+                                "{\"tenantId\":2}", "{\"sql\":\"select * from asset_ledger\"}"))
         );
 
         return corpora.entrySet().stream().flatMap(entry -> {

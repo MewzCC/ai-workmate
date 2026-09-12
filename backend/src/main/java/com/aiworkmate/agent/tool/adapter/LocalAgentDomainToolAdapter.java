@@ -6,6 +6,7 @@ import com.aiworkmate.agent.tool.port.KnowledgeToolPort;
 import com.aiworkmate.agent.tool.port.HrOrganizationToolPort;
 import com.aiworkmate.agent.tool.port.HrEmployeeToolPort;
 import com.aiworkmate.agent.tool.port.EmployeeChangeToolPort;
+import com.aiworkmate.agent.tool.port.AssetToolPort;
 import com.aiworkmate.agent.tool.port.LeaveToolPort;
 import com.aiworkmate.agent.tool.port.NotificationToolPort;
 import com.aiworkmate.agent.tool.port.TodoToolPort;
@@ -19,6 +20,7 @@ import com.aiworkmate.service.NotificationService;
 import com.aiworkmate.service.ApprovalEngineService;
 import com.aiworkmate.service.HrService;
 import com.aiworkmate.service.EmployeeChangeService;
+import com.aiworkmate.service.AdminAssetsService;
 import java.util.Locale;
 import java.util.function.Predicate;
 import lombok.RequiredArgsConstructor;
@@ -28,13 +30,25 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class LocalAgentDomainToolAdapter implements TodoToolPort, LeaveToolPort, KnowledgeToolPort,
         NotificationToolPort, ApprovalConfigurationToolPort, ApprovalTaskToolPort, HrOrganizationToolPort,
-        HrEmployeeToolPort, EmployeeChangeToolPort {
+        HrEmployeeToolPort, EmployeeChangeToolPort, AssetToolPort {
     private final LeaveWorkflowService leaveWorkflowService;
     private final KnowledgeService knowledgeService;
     private final NotificationService notificationService;
     private final ApprovalEngineService approvalEngineService;
     private final HrService hrService;
     private final EmployeeChangeService employeeChangeService;
+    private final AdminAssetsService adminAssetsService;
+
+    @Override
+    public AssetToolPort.Page query(long actorUserId, AssetToolPort.Query query) {
+        var result = adminAssetsService.listAssets(actorUserId, query.keyword(), query.category(), query.status(),
+                query.page(), query.size());
+        return new AssetToolPort.Page(result.records().stream().map(item -> new AssetToolPort.Item(
+                item.id(), item.assetCode(), item.name(), item.category(), item.specification(), item.status(),
+                item.departmentName(), item.ownerName(), item.purchaseDate(), item.originalValue(), item.remark(),
+                item.version(), item.canEdit(), item.canDelete(), item.createdAt(), item.updatedAt())).toList(),
+                result.total(), result.page(), result.size());
+    }
 
     @Override
     public EmployeeChangeToolPort.Page query(long actorUserId, EmployeeChangeToolPort.Query query) {

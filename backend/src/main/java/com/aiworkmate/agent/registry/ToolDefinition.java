@@ -37,7 +37,8 @@ public record ToolDefinition(
             "approval.task.query",
             "hr.organization.query",
             "hr.employee.query",
-            "hr.change.query"
+            "hr.change.query",
+            "asset.query"
     );
     private static final Set<String> FORBIDDEN_ARGUMENTS = Set.of(
             "userId", "tenantId", "role", "roles", "permission", "permissions", "dataScope",

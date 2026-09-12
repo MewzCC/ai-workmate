@@ -16,7 +16,7 @@ class AgentDomainToolPortContractTest {
     private static final List<Class<?>> PORTS = List.of(
             TodoToolPort.class, LeaveToolPort.class, KnowledgeToolPort.class, NotificationToolPort.class,
             ApprovalConfigurationToolPort.class, ApprovalTaskToolPort.class, HrOrganizationToolPort.class,
-            HrEmployeeToolPort.class, EmployeeChangeToolPort.class);
+            HrEmployeeToolPort.class, EmployeeChangeToolPort.class, AssetToolPort.class);
 
     @Test
     void portsAreFrameworkNeutralInterfacesWithoutGenericExecutionEscapeHatch() {

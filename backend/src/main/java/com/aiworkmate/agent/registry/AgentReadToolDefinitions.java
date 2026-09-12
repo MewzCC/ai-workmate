@@ -50,6 +50,14 @@ public class AgentReadToolDefinitions {
             {"type":"object","additionalProperties":false,"required":["items","total","page","size"],"properties":{"items":{"type":"array","maxItems":50,"items":{"type":"object","additionalProperties":false,"required":["id","employeeName","applicantName","reviewApproverName","changeType","effectiveDate","reason","status","version","canApprove","canWithdraw"],"properties":{"id":{"type":"integer","minimum":1},"employeeName":{"type":"string","maxLength":120},"applicantName":{"type":"string","maxLength":120},"reviewApproverName":{"type":"string","maxLength":120},"changeType":{"type":"string","enum":["ONBOARDING","REGULARIZATION","TRANSFER","OFFBOARDING"]},"effectiveDate":{"type":"string","maxLength":10},"currentDepartmentName":{"type":"string","maxLength":120},"currentPositionName":{"type":"string","maxLength":120},"targetDepartmentName":{"type":"string","maxLength":120},"targetPositionName":{"type":"string","maxLength":120},"targetSupervisorName":{"type":"string","maxLength":120},"reason":{"type":"string","maxLength":1000},"status":{"type":"string","enum":["PENDING","APPROVED","EFFECTIVE","REJECTED","WITHDRAWN"]},"version":{"type":"integer","minimum":0},"canApprove":{"type":"boolean"},"canWithdraw":{"type":"boolean"},"submittedAt":{"type":"string","maxLength":32},"decidedAt":{"type":"string","maxLength":32},"appliedAt":{"type":"string","maxLength":32}}}},"total":{"type":"integer","minimum":0},"page":{"type":"integer","minimum":1},"size":{"type":"integer","minimum":1,"maximum":50}}}
             """.strip();
 
+    public static final String ASSET_QUERY_INPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"properties":{"keyword":{"type":"string","maxLength":200},"category":{"type":"string","maxLength":80},"status":{"type":"string","enum":["IDLE","IN_USE","REPAIRING","SCRAPPED"]},"page":{"type":"integer","minimum":1,"maximum":10000},"size":{"type":"integer","minimum":1,"maximum":50}}}
+            """.strip();
+
+    public static final String ASSET_QUERY_OUTPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["items","total","page","size"],"properties":{"items":{"type":"array","maxItems":50,"items":{"type":"object","additionalProperties":false,"required":["id","assetCode","name","category","status","version","canEdit","canDelete"],"properties":{"id":{"type":"integer","minimum":1},"assetCode":{"type":"string","maxLength":80},"name":{"type":"string","maxLength":160},"category":{"type":"string","maxLength":80},"specification":{"type":"string","maxLength":500},"status":{"type":"string","enum":["IDLE","IN_USE","REPAIRING","SCRAPPED"]},"departmentName":{"type":"string","maxLength":120},"ownerName":{"type":"string","maxLength":120},"purchaseDate":{"type":"string","maxLength":10},"originalValue":{"type":"number","minimum":0},"remark":{"type":"string","maxLength":1000},"version":{"type":"integer","minimum":0},"canEdit":{"type":"boolean"},"canDelete":{"type":"boolean"},"createdAt":{"type":"string","maxLength":32},"updatedAt":{"type":"string","maxLength":32}}}},"total":{"type":"integer","minimum":0},"page":{"type":"integer","minimum":1},"size":{"type":"integer","minimum":1,"maximum":50}}}
+            """.strip();
+
     public static final String TODO_QUERY_INPUT_SCHEMA = """
             {"type":"object","additionalProperties":false,"properties":{"status":{"type":"string","enum":["PENDING","APPROVED","REJECTED","CANCELLED"]},"from":{"type":"string","minLength":16,"maxLength":32},"to":{"type":"string","minLength":16,"maxLength":32},"page":{"type":"integer","minimum":1,"maximum":10000},"size":{"type":"integer","minimum":1,"maximum":50}}}
             """.strip();
@@ -143,6 +151,19 @@ public class AgentReadToolDefinitions {
                 "1.0.0", objectMapper.readTree(EMPLOYEE_CHANGE_QUERY_INPUT_SCHEMA),
                 objectMapper.readTree(EMPLOYEE_CHANGE_QUERY_OUTPUT_SCHEMA), RiskLevel.L0,
                 Set.of("hr:read"), PermissionMode.ALL, OwnershipPolicy.TENANT_SCOPED,
+                RetryPolicy.READ_ONLY_SAFE, SideEffect.NONE, ConfirmationPolicy.NONE,
+                50, 131072, 15000, "HASHED_ARGS_RESULT");
+    }
+
+    @Bean
+    ToolDefinition assetQueryToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {
+        return ToolDefinition.create(
+                "asset.query", "Query tenant assets",
+                "Returns bounded asset ledger records visible to the authenticated tenant actor.",
+                "Display asset summaries without internal owner, department or operation identities.",
+                "1.0.0", objectMapper.readTree(ASSET_QUERY_INPUT_SCHEMA),
+                objectMapper.readTree(ASSET_QUERY_OUTPUT_SCHEMA), RiskLevel.L0,
+                Set.of("assets:read"), PermissionMode.ALL, OwnershipPolicy.TENANT_SCOPED,
                 RetryPolicy.READ_ONLY_SAFE, SideEffect.NONE, ConfirmationPolicy.NONE,
                 50, 131072, 15000, "HASHED_ARGS_RESULT");
     }

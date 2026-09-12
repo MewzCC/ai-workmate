@@ -272,6 +272,15 @@ class P1PostgresMigrationIT {
                     SELECT COUNT(*) FROM rbac_permission WHERE code = 'agent:tool:hr.change.query'
                     """)).as("入转调离 Agent 工具必须具备独立实时权限").isOne();
             assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'asset.query' AND handler_version = '1.0.0'
+                      AND risk_level = 'L0' AND data_scope_policy = 'TENANT_SCOPED'
+                      AND side_effect = 'NONE' AND enabled = TRUE
+                    """)).as("资产台账 Agent 工具必须以只读租户范围种子存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission WHERE code = 'agent:tool:asset.query'
+                    """)).as("资产台账 Agent 工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
                     SELECT COUNT(*) FROM information_schema.views
                     WHERE table_schema = current_schema() AND table_name = 'runtime_log_view'
                     """)).isOne();

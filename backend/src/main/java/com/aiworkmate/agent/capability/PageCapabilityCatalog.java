@@ -102,7 +102,9 @@ public class PageCapabilityCatalog {
                         context(text("status"), text("changeType"), text("keyword"), number("page"), number("size")),
                         read("hr.change.query")),
 
-                page("asset-ledger", "ASSET_LEDGER", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS),
+                page("asset-ledger", "ASSET_LEDGER", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
+                        context(text("keyword"), text("category"), text("status"), number("page"), number("size")),
+                        read("asset.query")),
                 page("meeting-room", "MEETING_ROOM", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS),
                 page("visitor-booking", "VISITOR_BOOKING", OwnershipPolicy.SELF, LIST_COMMANDS),
                 page("seal-usage", "SEAL_USAGE", OwnershipPolicy.SELF, LIST_COMMANDS),

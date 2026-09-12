@@ -9,6 +9,23 @@ import static org.assertj.core.api.Assertions.assertThat;
 class AgentReadToolDefinitionsTest {
 
     @Test
+    void assetDefinitionIsClosedAndTenantScoped() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        ToolDefinition definition = new AgentReadToolDefinitions().assetQueryToolDefinition(mapper);
+        ToolSchemaValidator validator = new ToolSchemaValidator();
+        assertThat(definition.requiredPermissions()).containsExactly("assets:read");
+        assertThat(definition.schemaHash()).isEqualTo(
+                "sha256:c0c6bae0a712cbbfbef1cc741fb50af140a3cde98603e8bed8a90294ad5810b1");
+        assertThat(definition.ownershipPolicy()).isEqualTo(OwnershipPolicy.TENANT_SCOPED);
+        assertThat(definition.outputSchema().toString())
+                .doesNotContain("ownerUserId", "departmentId", "tenantId", "history");
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree(
+                "{\"status\":\"REPAIRING\",\"category\":\"IT\",\"size\":50}"))).isTrue();
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree(
+                "{\"status\":\"DELETED\"}"))).isFalse();
+    }
+
+    @Test
     void employeeChangeDefinitionIsClosedAndTenantScoped() throws Exception {
         ObjectMapper mapper = new ObjectMapper();
         ToolDefinition definition = new AgentReadToolDefinitions().employeeChangeQueryToolDefinition(mapper);
