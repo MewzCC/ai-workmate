@@ -1,6 +1,7 @@
 import i18n from '@/i18n';
 import { buildApiHeaders } from '@/lib/apiHeaders';
 import type { ComponentKey } from '@/types/oa';
+import { notifyAuthResponseStatus } from '@/lib/authEvents';
 
 export interface NavigationRoute {
   routeKey: string;
@@ -28,9 +29,7 @@ export async function getNavigation(): Promise<NavigationRoute[]> {
     headers: buildApiHeaders(false),
   });
   const result = await response.json().catch(() => null) as ApiResult<NavigationRoute[]> | null;
-  if (response.status === 401 && typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent('oa-auth-expired'));
-  }
+  notifyAuthResponseStatus(response.status);
   if (!response.ok || !result || result.code !== 200 || !result.data) {
     throw new Error(result?.message || i18n.t('errors.navigation.loadFailed'));
   }

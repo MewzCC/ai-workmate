@@ -1,5 +1,6 @@
 import { buildApiHeaders } from '@/lib/apiHeaders';
 import i18n from '@/i18n';
+import { notifyAuthResponseStatus } from '@/lib/authEvents';
 
 const BASE = '/api';
 
@@ -24,9 +25,7 @@ export interface ChatPreferences {
 async function parse<T>(response: Response): Promise<T> {
   const body = await response.json().catch(() => null) as ApiResult<T> | null;
   if (!response.ok || !body || body.code !== 200) {
-    if (response.status === 401 && typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('oa-auth-expired'));
-    }
+    notifyAuthResponseStatus(response.status);
     throw new Error(body?.message || i18n.t('errors.requestFailed'));
   }
   return body.data as T;

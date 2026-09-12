@@ -23,12 +23,12 @@ import type { ColumnsType } from 'antd/es/table';
 import type { EChartsOption } from 'echarts';
 import { useTranslation } from 'react-i18next';
 import { approvalRecords, oaMetrics, quickEntries, timelineSeed } from '@/mock/oaDashboard';
-import { can } from '@/mock/oaPermissions';
 import type { ApprovalRecord, OaRole } from '@/types/oa';
 import EChartsCard from './EChartsCard';
 import PermissionButton from './PermissionButton';
 import ResponsiveTable from './ResponsiveTable';
 import { OaIcon } from '@/components/OaIcon';
+import { usePermission } from '@/hooks/usePermission';
 
 interface DashboardProps {
   role: OaRole;
@@ -73,6 +73,7 @@ interface ChartLabels {
 export default function Dashboard({ role, pageId, pageTitle, primaryColor, auditItems, onOpenAi, onAddAudit }: DashboardProps) {
   const { t } = useTranslation();
   const [query, setQuery] = useState('');
+  const { allowed: canExecuteAi } = usePermission('ai:execute');
 
   const statusText: Record<ApprovalRecord['status'], string> = {
     warning: t('dashboard.status.warning'),
@@ -204,7 +205,7 @@ export default function Dashboard({ role, pageId, pageTitle, primaryColor, audit
           </Typography.Paragraph>
         </div>
         <Space className="oa-page-title-actions" wrap={false}>
-          <PermissionButton role={role} menuId="dashboard" action="export" icon={<OaIcon name="export" />} onClick={() => message.warning(t('dashboard.messages.exportNotAvailable'))}>
+          <PermissionButton permission="data:export" icon={<OaIcon name="export" />} onClick={() => message.warning(t('dashboard.messages.exportNotAvailable'))}>
             {t('dashboard.exportDashboard')}
           </PermissionButton>
           <Button icon={<OaIcon name="audit" />} onClick={() => message.info(t('dashboard.messages.metricsConfigComingSoon'))}>
@@ -279,7 +280,7 @@ export default function Dashboard({ role, pageId, pageTitle, primaryColor, audit
         <Col xs={24}>
           <Card className="oa-card" title={t('dashboard.cards.timeline')}>
             <Timeline items={[...auditItems, ...timelineSeed]} />
-            {!can(role, 'dashboard', 'ai_execute') && (
+            {!canExecuteAi && (
               <Alert type="warning" showIcon title={t('dashboard.cards.aiLimitedAlert')} />
             )}
           </Card>

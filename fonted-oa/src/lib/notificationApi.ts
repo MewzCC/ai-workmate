@@ -1,5 +1,6 @@
 import i18n from '@/i18n';
 import { buildApiHeaders } from '@/lib/apiHeaders';
+import { notifyAuthResponseStatus } from '@/lib/authEvents';
 
 interface ApiResult<T> {
   code: number;
@@ -36,9 +37,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
   const body = (await response.json().catch(() => null)) as ApiResult<T> | null;
   if (!response.ok || !body || body.code !== 200) {
-    if (response.status === 401) {
-      window.dispatchEvent(new CustomEvent('oa-auth-expired'));
-    }
+    notifyAuthResponseStatus(response.status);
     throw new Error(body?.message || i18n.t('errors.notification.requestFailed'));
   }
   return body.data as T;

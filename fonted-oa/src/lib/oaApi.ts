@@ -10,6 +10,7 @@ import type {
 } from '@/types/oa';
 import { buildApiHeaders } from '@/lib/apiHeaders';
 import i18n from '@/i18n';
+import { notifyAuthResponseStatus } from '@/lib/authEvents';
 
 const BASE = '/api';
 
@@ -50,7 +51,7 @@ async function parseResult<T>(res: Response): Promise<T> {
       json?.requestId,
       json?.traceId,
     );
-    if (status === 401 && typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('oa-auth-expired'));
+    notifyAuthResponseStatus(status);
     throw error;
   }
   // DELETE 等空数据响应的 data 为 null，属正常成功场景（chatApi.parse 同此处理）
@@ -227,9 +228,7 @@ export function subscribeAiTaskEvents(
           signal: controller.signal,
         });
         if (!response.ok || !response.body) {
-          if (response.status === 401 && typeof window !== 'undefined') {
-            window.dispatchEvent(new CustomEvent('oa-auth-expired'));
-          }
+          notifyAuthResponseStatus(response.status);
           throw new OaApiError(statusMessage(response.status), response.status, statusErrorCode(response.status));
         }
         handlers.onConnected?.();

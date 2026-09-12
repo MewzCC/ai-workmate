@@ -151,6 +151,8 @@ export default function AdminLayout() {
     return segments.length > 1 ? decodeURIComponent(segments[1]) : 'dashboard';
   }, [approvalTaskId, kbId, pathname]);
   const { user } = useAuth();
+  const userId = user?.id;
+  const permissionVersion = user?.permissionVersion;
   const hydrateChatSettings = useAiChatStore((state) => state.hydrateSettings);
   const role = useMemo<OaRole>(() => {
     if (user?.role === 'SUPER_ADMIN') return 'super_admin';
@@ -183,13 +185,13 @@ export default function AdminLayout() {
   );
 
   useEffect(() => {
-    if (!user) return;
+    if (!userId) return;
     void hydrateChatSettings().catch(() => undefined);
-  }, [hydrateChatSettings, user]);
+  }, [hydrateChatSettings, userId]);
 
   useEffect(() => {
     let active = true;
-    if (!user) return;
+    if (!userId) return;
     setNavigationLoaded(false);
     setOpenTabsReady(false);
     getNavigation()
@@ -207,7 +209,7 @@ export default function AdminLayout() {
     return () => {
       active = false;
     };
-  }, [user]);
+  }, [permissionVersion, t, userId]);
 
   useEffect(() => {
     let active = true;

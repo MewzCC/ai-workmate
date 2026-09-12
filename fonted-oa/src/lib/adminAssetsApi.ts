@@ -1,5 +1,6 @@
 import { request, queryString, type PageResponse } from '@/lib/oaApi';
 import { buildApiHeaders } from '@/lib/apiHeaders';
+import { notifyAuthResponseStatus } from '@/lib/authEvents';
 import i18n from '@/i18n';
 
 // ==================== 资产台账 ====================
@@ -532,9 +533,7 @@ export const adminAssetsApi = {
     const res = await fetch(`/api${PREFIX}/seal-usages/${id}/documents`, {
       method: 'POST', credentials: 'include', headers: buildApiHeaders(false), body,
     });
-    if (res.status === 401 && typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('oa-auth-expired'));
-    }
+    notifyAuthResponseStatus(res.status);
     const json = await res.json().catch(() => null) as ApiResult<SealUsageDocument> | null;
     if (!res.ok || !json || json.code !== 200 || json.data === null) {
       throw new Error(json?.message || i18n.t('adminAssets.seal.document.uploadFailed'));
@@ -546,9 +545,7 @@ export const adminAssetsApi = {
     const res = await fetch(document.contentUrl, {
       credentials: 'include', headers: buildApiHeaders(false),
     });
-    if (res.status === 401 && typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('oa-auth-expired'));
-    }
+    notifyAuthResponseStatus(res.status);
     if (!res.ok) throw new Error(i18n.t('adminAssets.seal.document.downloadFailed'));
     const url = URL.createObjectURL(await res.blob());
     const link = window.document.createElement('a');
