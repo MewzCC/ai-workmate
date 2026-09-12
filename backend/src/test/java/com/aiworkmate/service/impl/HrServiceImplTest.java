@@ -11,6 +11,8 @@ import com.aiworkmate.mapper.AttendanceReissueMapper;
 import com.aiworkmate.mapper.EmployeeChangeMapper;
 import com.aiworkmate.mapper.LeaveApplicationMapper;
 import com.aiworkmate.service.DataPermissionService;
+import com.aiworkmate.service.UserAccessService;
+import com.aiworkmate.service.model.ResolvedUserAccess;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -33,13 +35,15 @@ class HrServiceImplTest {
     @Mock private LeaveApplicationMapper leaveApplicationMapper;
     @Mock private EmployeeChangeMapper employeeChangeMapper;
     @Mock private DataPermissionService dataPermissionService;
+    @Mock private UserAccessService userAccessService;
 
     private HrServiceImpl service;
 
     @BeforeEach
     void setUp() {
         service = new HrServiceImpl(accessControlMapper, attendanceRecordMapper,
-                attendanceReissueMapper, leaveApplicationMapper, employeeChangeMapper, dataPermissionService);
+                attendanceReissueMapper, leaveApplicationMapper, employeeChangeMapper,
+                dataPermissionService, userAccessService);
     }
 
     @Test
@@ -86,5 +90,26 @@ class HrServiceImplTest {
             assertThat(history.targetDepartmentName()).isEqualTo("新部门");
             assertThat(history.targetSupervisorName()).isEqualTo("主管乙");
         });
+    }
+
+    @Test
+    void organizationForActorRechecksPermissionAndDataScope() {
+        when(userAccessService.resolveActiveUser(7L)).thenReturn(new ResolvedUserAccess(
+                7L, "actor", 1L, "EMPLOYEE", List.of("EMPLOYEE"), List.of("hr:read"),
+                List.of("SELF"), 1L));
+        when(dataPermissionService.resolve(1L, 7L)).thenReturn(
+                new DataPermissionService.ResolvedDataPermission(
+                        "ROLE", java.util.Set.of("SELF"), java.util.Set.of(), java.util.Set.of(7L)));
+        when(accessControlMapper.selectDepartments(1L)).thenReturn(List.of());
+        when(accessControlMapper.selectPositions(1L)).thenReturn(List.of());
+        when(accessControlMapper.selectUsers(1L)).thenReturn(List.of(
+                new AccessUserRow(7L, "本人", "self@example.com", "EMPLOYEE", 1,
+                        1L, null, null, null, 1L, LocalDateTime.now(), null),
+                new AccessUserRow(8L, "他人", "other@example.com", "EMPLOYEE", 1,
+                        1L, null, null, null, 1L, LocalDateTime.now(), null)));
+
+        var result = service.overviewForActor(7L);
+
+        assertThat(result.employees()).extracting(item -> item.id()).containsExactly(7L);
     }
 }

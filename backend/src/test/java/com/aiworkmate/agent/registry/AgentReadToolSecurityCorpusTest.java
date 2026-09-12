@@ -61,7 +61,11 @@ class AgentReadToolSecurityCorpusTest {
                                 "{\"from\":\"2026-09-01T00:00:00\",\"to\":\"2026-09-30T23:59:00\",\"size\":50}"),
                         List.of("{\"status\":\"UNKNOWN\"}", "{\"userId\":7}",
                                 "{\"tenantId\":99}", "{\"size\":51}",
-                                "{\"sql\":\"SELECT * FROM leave_application\"}"))
+                                "{\"sql\":\"SELECT * FROM leave_application\"}")),
+                "hr.organization.query", new Corpus(
+                        definitions.hrOrganizationQueryToolDefinition(objectMapper),
+                        List.of("{}", "{\"keyword\":\"研发\"}", "{\"limit\":50}"),
+                        hostileArguments("limit", "51"))
         );
 
         return corpora.entrySet().stream().flatMap(entry -> {

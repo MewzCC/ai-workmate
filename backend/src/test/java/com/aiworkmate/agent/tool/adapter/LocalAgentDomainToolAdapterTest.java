@@ -12,10 +12,14 @@ import com.aiworkmate.agent.tool.port.ApprovalConfigurationToolPort;
 import com.aiworkmate.dto.LeaveApplicationResponse;
 import com.aiworkmate.dto.NotificationResponse;
 import com.aiworkmate.dto.TodoResponse;
+import com.aiworkmate.dto.OrganizationOverviewResponse;
+import com.aiworkmate.dto.DepartmentResponse;
+import com.aiworkmate.dto.PositionResponse;
 import com.aiworkmate.service.KnowledgeService;
 import com.aiworkmate.service.LeaveWorkflowService;
 import com.aiworkmate.service.NotificationService;
 import com.aiworkmate.service.ApprovalEngineService;
+import com.aiworkmate.service.HrService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -38,13 +42,14 @@ class LocalAgentDomainToolAdapterTest {
     @Mock private KnowledgeService knowledgeService;
     @Mock private NotificationService notificationService;
     @Mock private ApprovalEngineService approvalEngineService;
+    @Mock private HrService hrService;
 
     private LocalAgentDomainToolAdapter adapter;
 
     @BeforeEach
     void setUp() {
         adapter = new LocalAgentDomainToolAdapter(
-                leaveWorkflowService, knowledgeService, notificationService, approvalEngineService);
+                leaveWorkflowService, knowledgeService, notificationService, approvalEngineService, hrService);
     }
 
     @Test
@@ -96,6 +101,24 @@ class LocalAgentDomainToolAdapterTest {
                 "DRAFT", 0, null, null, false));
         assertThat(result.toString()).doesNotContain("applicantUserId", "approverUserId");
         verify(leaveWorkflowService).adminList(7L, "PENDING", from, to, "张三", "ANNUAL", 2, 30);
+    }
+
+    @Test
+    void mapsVisibleOrganizationAndFiltersWithoutLeakingContactData() {
+        when(hrService.overviewForActor(7L)).thenReturn(new OrganizationOverviewResponse(
+                List.of(new DepartmentResponse(1L, "RD", "研发部", null, 9L, 1)),
+                List.of(new PositionResponse(2L, "DEV", "工程师", 1)),
+                List.of(new OrganizationOverviewResponse.EmployeeSummary(
+                        3L, "张三", "secret@example.com", "EMPLOYEE", 1,
+                        1L, 2L, 9L, "李经理", "/avatar/private", "/avatar/manager"))));
+
+        var result = adapter.query(7L, new com.aiworkmate.agent.tool.port.HrOrganizationToolPort.Query("研发", 20));
+
+        assertThat(result.departments()).hasSize(1);
+        assertThat(result.positions()).isEmpty();
+        assertThat(result.employees()).isEmpty();
+        assertThat(result.toString()).doesNotContain("secret@example.com", "avatar", "9L");
+        verify(hrService).overviewForActor(7L);
     }
 
     @Test

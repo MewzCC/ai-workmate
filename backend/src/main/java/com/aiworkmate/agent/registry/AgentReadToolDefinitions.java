@@ -26,6 +26,14 @@ public class AgentReadToolDefinitions {
             {"type":"object","additionalProperties":false,"required":["items","total","page","size"],"properties":{"items":{"type":"array","maxItems":50,"items":{"type":"object","additionalProperties":false,"required":["applicationId","applicantName","leaveType","durationDays","status","version","overdue"],"properties":{"applicationId":{"type":"integer","minimum":1},"taskId":{"type":"integer","minimum":1},"applicantName":{"type":"string","maxLength":120},"approverName":{"type":"string","maxLength":120},"leaveType":{"type":"string","maxLength":40},"durationDays":{"type":"number","minimum":0.5},"status":{"type":"string","enum":["DRAFT","PENDING","APPROVED","REJECTED","WITHDRAWN","CANCELLED"]},"version":{"type":"integer","minimum":0},"submittedAt":{"type":"string","maxLength":32},"dueAt":{"type":"string","maxLength":32},"overdue":{"type":"boolean"}}}},"total":{"type":"integer","minimum":0},"page":{"type":"integer","minimum":1},"size":{"type":"integer","minimum":1,"maximum":50}}}
             """.strip();
 
+    public static final String HR_ORGANIZATION_QUERY_INPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"properties":{"keyword":{"type":"string","maxLength":200},"limit":{"type":"integer","minimum":1,"maximum":50}}}
+            """.strip();
+
+    public static final String HR_ORGANIZATION_QUERY_OUTPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["departments","positions","employees"],"properties":{"departments":{"type":"array","maxItems":50,"items":{"type":"object","additionalProperties":false,"required":["id","code","name","status"],"properties":{"id":{"type":"integer","minimum":1},"code":{"type":"string","maxLength":80},"name":{"type":"string","maxLength":120},"parentId":{"type":"integer","minimum":1},"status":{"type":"integer","minimum":0,"maximum":1}}}},"positions":{"type":"array","maxItems":50,"items":{"type":"object","additionalProperties":false,"required":["id","code","name","status"],"properties":{"id":{"type":"integer","minimum":1},"code":{"type":"string","maxLength":80},"name":{"type":"string","maxLength":120},"status":{"type":"integer","minimum":0,"maximum":1}}}},"employees":{"type":"array","maxItems":50,"items":{"type":"object","additionalProperties":false,"required":["id","name","role","status"],"properties":{"id":{"type":"integer","minimum":1},"name":{"type":"string","maxLength":120},"role":{"type":"string","maxLength":80},"status":{"type":"integer","minimum":0,"maximum":1},"departmentId":{"type":"integer","minimum":1},"positionId":{"type":"integer","minimum":1},"approverName":{"type":"string","maxLength":120}}}}}}
+            """.strip();
+
     public static final String TODO_QUERY_INPUT_SCHEMA = """
             {"type":"object","additionalProperties":false,"properties":{"status":{"type":"string","enum":["PENDING","APPROVED","REJECTED","CANCELLED"]},"from":{"type":"string","minLength":16,"maxLength":32},"to":{"type":"string","minLength":16,"maxLength":32},"page":{"type":"integer","minimum":1,"maximum":10000},"size":{"type":"integer","minimum":1,"maximum":50}}}
             """.strip();
@@ -82,6 +90,19 @@ public class AgentReadToolDefinitions {
                 Set.of("approval:read"), PermissionMode.ALL, OwnershipPolicy.TENANT_SCOPED,
                 RetryPolicy.READ_ONLY_SAFE, SideEffect.NONE, ConfirmationPolicy.NONE,
                 50, 65536, 15000, "HASHED_ARGS_RESULT");
+    }
+
+    @Bean
+    ToolDefinition hrOrganizationQueryToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {
+        return ToolDefinition.create(
+                "hr.organization.query", "Query visible organization",
+                "Returns bounded departments, positions and employees visible in the authenticated actor's data scope.",
+                "Display an organization overview without emails, avatars or internal permission data.",
+                "1.0.0", objectMapper.readTree(HR_ORGANIZATION_QUERY_INPUT_SCHEMA),
+                objectMapper.readTree(HR_ORGANIZATION_QUERY_OUTPUT_SCHEMA), RiskLevel.L0,
+                Set.of("hr:read"), PermissionMode.ALL, OwnershipPolicy.TENANT_SCOPED,
+                RetryPolicy.READ_ONLY_SAFE, SideEffect.NONE, ConfirmationPolicy.NONE,
+                50, 131072, 15000, "HASHED_ARGS_RESULT");
     }
 
     @Bean

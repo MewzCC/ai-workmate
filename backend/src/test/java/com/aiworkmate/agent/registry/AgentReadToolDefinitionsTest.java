@@ -9,6 +9,26 @@ import static org.assertj.core.api.Assertions.assertThat;
 class AgentReadToolDefinitionsTest {
 
     @Test
+    void hrOrganizationDefinitionIsBoundedAndDropsSensitiveFields() throws Exception {
+        ObjectMapper objectMapper = new ObjectMapper();
+        ToolDefinition definition = new AgentReadToolDefinitions().hrOrganizationQueryToolDefinition(objectMapper);
+        ToolSchemaValidator validator = new ToolSchemaValidator();
+
+        assertThat(definition.code()).isEqualTo("hr.organization.query");
+        assertThat(definition.schemaHash()).isEqualTo(
+                "sha256:abfc7576bc4f76ce773f2eb630548ea7e051e9931ab674660fdcfdaec83fdd9d");
+        assertThat(definition.requiredPermissions()).containsExactly("hr:read");
+        assertThat(definition.ownershipPolicy()).isEqualTo(OwnershipPolicy.TENANT_SCOPED);
+        assertThat(definition.outputSchema().toString()).doesNotContain("email", "avatar", "permission");
+        assertThat(validator.valid(definition.inputSchema(), objectMapper.readTree(
+                "{\"keyword\":\"研发\",\"limit\":50}"))).isTrue();
+        assertThat(validator.valid(definition.inputSchema(), objectMapper.readTree(
+                "{\"limit\":51}"))).isFalse();
+        assertThat(validator.valid(definition.inputSchema(), objectMapper.readTree(
+                "{\"tenantId\":1}"))).isFalse();
+    }
+
+    @Test
     void approvalTaskDefinitionUsesTenantScopeAndClosedBounds() throws Exception {
         ObjectMapper objectMapper = new ObjectMapper();
         ToolDefinition definition = new AgentReadToolDefinitions().approvalTaskQueryToolDefinition(objectMapper);

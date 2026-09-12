@@ -3,6 +3,7 @@ package com.aiworkmate.agent.tool.adapter;
 import com.aiworkmate.agent.tool.port.ApprovalConfigurationToolPort;
 import com.aiworkmate.agent.tool.port.ApprovalTaskToolPort;
 import com.aiworkmate.agent.tool.port.KnowledgeToolPort;
+import com.aiworkmate.agent.tool.port.HrOrganizationToolPort;
 import com.aiworkmate.agent.tool.port.LeaveToolPort;
 import com.aiworkmate.agent.tool.port.NotificationToolPort;
 import com.aiworkmate.agent.tool.port.TodoToolPort;
@@ -14,17 +15,39 @@ import com.aiworkmate.service.KnowledgeService;
 import com.aiworkmate.service.LeaveWorkflowService;
 import com.aiworkmate.service.NotificationService;
 import com.aiworkmate.service.ApprovalEngineService;
+import com.aiworkmate.service.HrService;
+import java.util.Locale;
+import java.util.function.Predicate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 @Component
 @RequiredArgsConstructor
 public class LocalAgentDomainToolAdapter implements TodoToolPort, LeaveToolPort, KnowledgeToolPort,
-        NotificationToolPort, ApprovalConfigurationToolPort, ApprovalTaskToolPort {
+        NotificationToolPort, ApprovalConfigurationToolPort, ApprovalTaskToolPort, HrOrganizationToolPort {
     private final LeaveWorkflowService leaveWorkflowService;
     private final KnowledgeService knowledgeService;
     private final NotificationService notificationService;
     private final ApprovalEngineService approvalEngineService;
+    private final HrService hrService;
+
+    @Override
+    public HrOrganizationToolPort.Result query(long actorUserId, HrOrganizationToolPort.Query query) {
+        var overview = hrService.overviewForActor(actorUserId);
+        Predicate<String> matches = value -> query.keyword() == null ||
+                (value != null && value.toLowerCase(Locale.ROOT).contains(query.keyword().toLowerCase(Locale.ROOT)));
+        var departments = overview.departments().stream().filter(item -> matches.test(item.name()) || matches.test(item.code()))
+                .limit(query.limit()).map(item -> new HrOrganizationToolPort.Department(
+                        item.id(), item.code(), item.name(), item.parentId(), item.status())).toList();
+        var positions = overview.positions().stream().filter(item -> matches.test(item.name()) || matches.test(item.code()))
+                .limit(query.limit()).map(item -> new HrOrganizationToolPort.Position(
+                        item.id(), item.code(), item.name(), item.status())).toList();
+        var employees = overview.employees().stream().filter(item -> matches.test(item.name()) || matches.test(item.role()))
+                .limit(query.limit()).map(item -> new HrOrganizationToolPort.Employee(
+                        item.id(), item.name(), item.role(), item.status(), item.departmentId(), item.positionId(),
+                        item.approverName())).toList();
+        return new HrOrganizationToolPort.Result(departments, positions, employees);
+    }
 
     @Override
     public ApprovalTaskToolPort.Page query(Long actorUserId, ApprovalTaskToolPort.Query query) {

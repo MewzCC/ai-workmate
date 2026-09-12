@@ -34,7 +34,8 @@ public record ToolDefinition(
     private static final Set<String> PHASE_2_TOOL_CODES = Set.of(
             "todo.query", "leave.mine", "knowledge.search", "notification.mine",
             "leave.createDraft", "leave.submit", "leave.apply", "approval.configuration.query",
-            "approval.task.query"
+            "approval.task.query",
+            "hr.organization.query"
     );
     private static final Set<String> FORBIDDEN_ARGUMENTS = Set.of(
             "userId", "tenantId", "role", "roles", "permission", "permissions", "dataScope",

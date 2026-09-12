@@ -10,6 +10,8 @@ public interface HrService {
 
     OrganizationOverviewResponse overview(AuthenticatedUser actor);
 
+    OrganizationOverviewResponse overviewForActor(Long actorUserId);
+
     /**
      * 查询指定租户下某员工的档案详情。
      *

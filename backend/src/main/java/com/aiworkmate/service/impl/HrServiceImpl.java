@@ -19,6 +19,8 @@ import com.aiworkmate.mapper.LeaveApplicationMapper;
 import com.aiworkmate.mapper.EmployeeChangeMapper;
 import com.aiworkmate.service.HrService;
 import com.aiworkmate.service.DataPermissionService;
+import com.aiworkmate.service.UserAccessService;
+import com.aiworkmate.service.model.ResolvedUserAccess;
 import com.aiworkmate.security.AuthenticatedUser;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.RequiredArgsConstructor;
@@ -44,6 +46,7 @@ public class HrServiceImpl implements HrService {
     private final LeaveApplicationMapper leaveApplicationMapper;
     private final EmployeeChangeMapper employeeChangeMapper;
     private final DataPermissionService dataPermissionService;
+    private final UserAccessService userAccessService;
 
     @Override
     public OrganizationOverviewResponse overview(Long tenantId) {
@@ -53,6 +56,15 @@ public class HrServiceImpl implements HrService {
     @Override
     public OrganizationOverviewResponse overview(AuthenticatedUser actor) {
         return overviewInternal(actor.tenantId(), dataPermissionService.resolve(actor.tenantId(), actor.userId()).visibleUserIds());
+    }
+
+    @Override
+    public OrganizationOverviewResponse overviewForActor(Long actorUserId) {
+        ResolvedUserAccess actor = userAccessService.resolveActiveUser(actorUserId);
+        if (actor == null) throw new BusinessException(ErrorCode.AUTH_REQUIRED);
+        if (!actor.permissions().contains("hr:read")) throw new BusinessException(ErrorCode.PERMISSION_DENIED);
+        return overviewInternal(actor.tenantId(),
+                dataPermissionService.resolve(actor.tenantId(), actor.userId()).visibleUserIds());
     }
 
     private OrganizationOverviewResponse overviewInternal(Long tenantId, java.util.Set<Long> visibleUserIds) {

@@ -24,7 +24,7 @@ class PageCapabilityCatalogTest {
         Set<String> knownTools = Set.of(
                 "todo.query", "leave.mine", "knowledge.search", "notification.mine",
                 "leave.createDraft", "leave.submit", "leave.apply", "approval.configuration.query",
-                "approval.task.query"
+                "approval.task.query", "hr.organization.query"
         );
         Set<String> registered = catalog.all().stream()
                 .flatMap(page -> page.tools().stream())
