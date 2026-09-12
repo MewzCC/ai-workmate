@@ -12,6 +12,7 @@ import {
 import { Button, Input, Layout, Menu } from 'antd';
 import type { MenuProps } from 'antd';
 import type { OaMenuItem } from '@/types/oa';
+import { findMenu } from '@/lib/navigationTree';
 import { OaIcon, resolveOaMenuIcon } from '@/components/OaIcon';
 
 const { Sider } = Layout;
@@ -38,15 +39,6 @@ function toMenuItems(menus: OaMenuItem[], t: TFunction): MenuProps['items'] {
       children: hasChildren ? toMenuItems(menu.children || [], t) : undefined,
     };
   });
-}
-
-function findMenu(menuId: string, menus: OaMenuItem[]): OaMenuItem | undefined {
-  for (const menu of menus) {
-    if (menu.id === menuId) return menu;
-    const child = menu.children?.length ? findMenu(menuId, menu.children) : undefined;
-    if (child) return child;
-  }
-  return undefined;
 }
 
 function findAncestorKeys(menuId: string, menus: OaMenuItem[], ancestors: string[] = []): string[] {

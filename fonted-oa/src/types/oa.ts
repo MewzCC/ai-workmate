@@ -24,6 +24,19 @@ export type AiTaskType = 'read' | 'create' | 'update' | 'delete' | 'approve' | '
 
 export type RiskLevel = 'low' | 'medium' | 'high' | 'critical';
 
+export type ComponentKey =
+  | 'DASHBOARD' | 'AI_WORKSPACE' | 'AI_TASK_CENTER' | 'ACCESS_CONTROL' | 'WORKBENCH_MODULE'
+  | 'DICTIONARY' | 'TENANT_CONFIG' | 'DATA_PERMISSION' | 'AI_PERMISSION'
+  | 'SUPPLIER' | 'CONTRACT' | 'EXPENSE' | 'BUDGET' | 'API_CENTER'
+  | 'PAGE_ACTIONS' | 'RUNTIME_LOGS' | 'SANDBOX_REPLAY'
+  | 'TODO_LIST' | 'LEAVE_FORM' | 'MY_APPLICATIONS' | 'AUDIT_CENTER'
+  | 'APPROVAL_LIST' | 'APPROVAL_START' | 'APPROVAL_FORM' | 'FORM_ENGINE'
+  | 'PROCESS_CONFIG' | 'APPROVAL_RULES' | 'ORG_TREE' | 'KNOWLEDGE_BASE'
+  | 'MESSAGE_CENTER' | 'SYSTEM_CONFIG' | 'ATTENDANCE_CLOCK'
+  | 'ATTENDANCE_EXCEPTION' | 'ATTENDANCE_REISSUE' | 'ATTENDANCE_STATISTICS'
+  | 'ATTENDANCE_SETTINGS' | 'EMPLOYEE_FILES' | 'EMPLOYEE_CHANGE'
+  | 'ASSET_LEDGER' | 'MEETING_ROOM' | 'VISITOR_BOOKING' | 'SEAL_USAGE';
+
 export interface OaMenuItem {
   id: string;
   parentId?: string;
@@ -31,15 +44,7 @@ export interface OaMenuItem {
   type: 'group' | 'menu' | 'page';
   icon?: string;
   path?: string;
-  componentKey?: 'DASHBOARD' | 'AI_WORKSPACE' | 'ACCESS_CONTROL' | 'WORKBENCH_MODULE' | 'DICTIONARY' | 'TENANT_CONFIG' | 'DATA_PERMISSION' | 'AI_PERMISSION' | 'SUPPLIER' | 'CONTRACT' | 'EXPENSE' | 'BUDGET' | 'API_CENTER' | 'PAGE_ACTIONS' | 'RUNTIME_LOGS' | 'SANDBOX_REPLAY'
-    | 'AI_TASK_CENTER'
-    | 'TODO_LIST' | 'LEAVE_FORM' | 'MY_APPLICATIONS' | 'AUDIT_CENTER'
-    | 'APPROVAL_LIST' | 'APPROVAL_START' | 'APPROVAL_FORM' | 'FORM_ENGINE' | 'PROCESS_CONFIG' | 'APPROVAL_RULES'
-    | 'ORG_TREE' | 'KNOWLEDGE_BASE' | 'MESSAGE_CENTER' | 'SYSTEM_CONFIG'
-    | 'ATTENDANCE_CLOCK' | 'ATTENDANCE_EXCEPTION' | 'ATTENDANCE_REISSUE'
-    | 'ATTENDANCE_STATISTICS' | 'ATTENDANCE_SETTINGS'
-    | 'EMPLOYEE_FILES' | 'EMPLOYEE_CHANGE'
-    | 'ASSET_LEDGER' | 'MEETING_ROOM' | 'VISITOR_BOOKING' | 'SEAL_USAGE';
+  componentKey?: ComponentKey;
   permissionCode?: string;
   sort: number;
   visible: boolean;

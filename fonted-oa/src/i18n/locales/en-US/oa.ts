@@ -87,6 +87,8 @@ export default {
   errors: {
     navLoadFailed: 'Failed to load navigation menu',
     wallpaperLoadFailed: 'Failed to load wallpaper',
+    unsupportedComponent: 'Page component unavailable',
+    unsupportedComponentDescription: 'Component {{componentKey}} is not registered in this workbench. Ask an administrator to check the route configuration.',
   },
 
   sidebar: {

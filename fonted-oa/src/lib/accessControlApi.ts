@@ -1,5 +1,6 @@
 import i18n from '@/i18n';
 import { buildApiHeaders } from '@/lib/apiHeaders';
+import type { ComponentKey } from '@/types/oa';
 
 export interface AccessUser {
   id: number;
@@ -38,12 +39,7 @@ export interface AccessRoute {
   path?: string;
   icon?: string;
   routeType: 'GROUP' | 'MENU' | 'PAGE';
-  componentKey?: 'DASHBOARD' | 'AI_WORKSPACE' | 'ACCESS_CONTROL' | 'WORKBENCH_MODULE' | 'DICTIONARY' | 'TENANT_CONFIG' | 'DATA_PERMISSION' | 'AI_PERMISSION' | 'SUPPLIER' | 'CONTRACT' | 'EXPENSE' | 'BUDGET' | 'API_CENTER' | 'PAGE_ACTIONS' | 'RUNTIME_LOGS' | 'SANDBOX_REPLAY'
-    | 'AI_TASK_CENTER'
-    | 'TODO_LIST' | 'LEAVE_FORM' | 'MY_APPLICATIONS' | 'AUDIT_CENTER'
-    | 'ORG_TREE' | 'KNOWLEDGE_BASE' | 'MESSAGE_CENTER' | 'SYSTEM_CONFIG'
-    | 'ATTENDANCE_CLOCK' | 'ATTENDANCE_EXCEPTION' | 'ATTENDANCE_REISSUE' | 'ATTENDANCE_STATISTICS'
-    | 'EMPLOYEE_CHANGE';
+  componentKey?: ComponentKey;
   permissionCode?: string;
   sortOrder: number;
   enabled: boolean;

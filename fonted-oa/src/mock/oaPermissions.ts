@@ -1,5 +1,6 @@
 import { oaMenus } from './oaMenus';
 import type { AIAction, OaMenuItem, OaRole, PermissionAction } from '@/types/oa';
+import { findMenu } from '@/lib/navigationTree';
 
 export const roleOptions: Array<{ label: string; value: OaRole }> = [
   { label: '超级管理员', value: 'super_admin' },
@@ -41,18 +42,9 @@ export function filterMenusByRole(role: OaRole, menus: OaMenuItem[] = oaMenus): 
     .filter((item) => !item.children || item.children.length > 0);
 }
 
-export function findMenu(menuId: string, menus: OaMenuItem[] = oaMenus): OaMenuItem | undefined {
-  for (const menu of menus) {
-    if (menu.id === menuId) return menu;
-    const child = menu.children ? findMenu(menuId, menu.children) : undefined;
-    if (child) return child;
-  }
-  return undefined;
-}
-
 export function can(role: OaRole, menuId: string, action: PermissionAction): boolean {
   if (role === 'super_admin') return true;
-  const menu = findMenu(menuId);
+  const menu = findMenu(menuId, oaMenus);
   if (!menu || !roleCanSee(menu, role)) return false;
   return menu.actions?.includes(action) ?? action === 'read';
 }

@@ -87,6 +87,8 @@ export default {
   errors: {
     navLoadFailed: '导航菜单加载失败',
     wallpaperLoadFailed: '壁纸加载失败',
+    unsupportedComponent: '页面组件不可用',
+    unsupportedComponentDescription: '组件 {{componentKey}} 未在当前工作台注册，请联系管理员检查路由配置。',
   },
 
   sidebar: {
