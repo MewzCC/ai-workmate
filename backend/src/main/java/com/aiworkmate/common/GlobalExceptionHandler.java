@@ -1,6 +1,8 @@
 package com.aiworkmate.common;
 
 import com.aiworkmate.agent.task.IdempotencyConflictException;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
@@ -18,6 +20,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -49,6 +52,19 @@ public class GlobalExceptionHandler {
                     return messageSource.getMessage(code, null, code, locale);
                 })
                 .filter(s -> !s.isBlank())
+                .collect(Collectors.joining(", "));
+        return Result.error(ErrorCode.REQUEST_INVALID, msg);
+    }
+
+    @ExceptionHandler(ConstraintViolationException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public Result<Void> handleConstraintViolation(ConstraintViolationException ex) {
+        Locale locale = LocaleContextHolder.getLocale();
+        Set<ConstraintViolation<?>> violations = ex.getConstraintViolations();
+        String msg = violations.stream()
+                .map(ConstraintViolation::getMessage)
+                .map(messageKey -> messageSource.getMessage(messageKey, null, messageKey, locale))
+                .filter(message -> message != null && !message.isBlank())
                 .collect(Collectors.joining(", "));
         return Result.error(ErrorCode.REQUEST_INVALID, msg);
     }

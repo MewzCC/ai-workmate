@@ -1,6 +1,8 @@
 export default {
   title: '企业运营总览',
-  description: '企业级 OA 工作台，支持审批、财务、人事、资产、联调和 AI 操作。看板当前为演示数据，AI 计划和执行仅调用后端真实能力。',
+  description: '汇总当前账号的真实待办、申请、消息和业务活动，所有数据均受租户与实时权限边界保护。',
+  generatedAt: '数据生成于 {{time}}',
+  loadFailed: '驾驶舱数据加载失败',
   exportDashboard: '导出看板',
   configMetrics: '配置指标',
   aiPreReview: '让 AI 预审',
@@ -10,6 +12,8 @@ export default {
     recordAccess: '记录访问',
   },
   cards: {
+    todoList: '本人待办摘要',
+    recentActivities: '最近业务活动',
     approvalList: '审批列表',
     searchPlaceholder: '查询流程、发起人、部门',
     timeline: 'AI 执行与审计时间线',
@@ -21,6 +25,8 @@ export default {
     systemHealth: '系统健康度',
   },
   chart: {
+    submitted: '发起',
+    completed: '完成',
     weekdays: ['周一', '周二', '周三', '周四', '周五', '周六'],
     totalModules: '总模块',
     moduleNames: {
@@ -33,6 +39,7 @@ export default {
     systemRunningWell: '系统运行良好',
   },
   status: {
+    overdue: '已逾期',
     warning: '即将超时',
     processing: '待审批',
     success: '低风险',
@@ -44,6 +51,9 @@ export default {
     applicant: '发起人',
     department: '部门',
     currentNode: '当前节点',
+    businessType: '业务类型',
+    submittedAt: '提交时间',
+    dueAt: '处理期限',
   },
   actions: {
     process: '处理',
@@ -61,6 +71,7 @@ export default {
     pageAuditRecorded: '已记录页面访问审计',
     exportNotAvailable: '真实导出能力尚未接入',
     metricsConfigComingSoon: '指标配置面板将在下一阶段接入',
+    preReviewPending: '待办预审入口将在审批跳转闭环完成后开放',
   },
   aiPrompts: {
     checkRisk: '帮我{{action}}{{name}}，并检查节点 {{node}} 的风险',
@@ -74,5 +85,24 @@ export default {
     chartEngine: '图表引擎',
     permissionModel: '权限模型',
     permissionModelValue: '前端权限演示，后端鉴权优先',
+  },
+  metrics: {
+    PENDING_TODOS: { title: '本人待办', description: '当前等待我处理' },
+    OVERDUE_TODOS: { title: '逾期待办', description: '已超过处理期限' },
+    MY_APPLICATIONS: { title: '本人申请', description: '我发起的全部申请' },
+    UNREAD_MESSAGES: { title: '未读消息', description: '站内消息未读数量' },
+  },
+  empty: {
+    todos: '当前没有待处理任务',
+    distribution: '近七日暂无业务分布数据',
+    activities: '近七日暂无业务活动',
+  },
+  businessTypes: {
+    LEAVE_APPLICATION: '请假申请',
+    GENERIC_APPROVAL: '通用审批',
+    ASSET_REQUEST: '资产申请',
+    MEETING_BOOKING: '会议预约',
+    VISITOR_BOOKING: '访客预约',
+    SEAL_USAGE: '用印申请',
   },
 };

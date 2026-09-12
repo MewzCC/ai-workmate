@@ -1,6 +1,8 @@
 export default {
   title: 'Enterprise Operations Overview',
-  description: 'Enterprise OA workspace supporting approvals, finance, HR, assets, integrations, and AI operations. The dashboard currently shows demo data. AI planning and execution call real backend capabilities only.',
+  description: 'A real-time summary of your tasks, applications, messages, and business activity, protected by tenant and live permission boundaries.',
+  generatedAt: 'Generated at {{time}}',
+  loadFailed: 'Failed to load dashboard data',
   exportDashboard: 'Export Dashboard',
   configMetrics: 'Configure Metrics',
   aiPreReview: 'AI Pre-review',
@@ -10,6 +12,8 @@ export default {
     recordAccess: 'Record Visit',
   },
   cards: {
+    todoList: 'My Pending Tasks',
+    recentActivities: 'Recent Business Activity',
     approvalList: 'Approval List',
     searchPlaceholder: 'Search by process, applicant, or department',
     timeline: 'AI Execution & Audit Timeline',
@@ -21,6 +25,8 @@ export default {
     systemHealth: 'System Health',
   },
   chart: {
+    submitted: 'Submitted',
+    completed: 'Completed',
     weekdays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
     totalModules: 'Total Modules',
     moduleNames: {
@@ -33,6 +39,7 @@ export default {
     systemRunningWell: 'System Running Smoothly',
   },
   status: {
+    overdue: 'Overdue',
     warning: 'Approaching Timeout',
     processing: 'Pending Approval',
     success: 'Low Risk',
@@ -44,6 +51,9 @@ export default {
     applicant: 'Applicant',
     department: 'Department',
     currentNode: 'Current Node',
+    businessType: 'Business Type',
+    submittedAt: 'Submitted At',
+    dueAt: 'Due At',
   },
   actions: {
     process: 'Process',
@@ -61,6 +71,7 @@ export default {
     pageAuditRecorded: 'Page access audit recorded',
     exportNotAvailable: 'Real export capability is not yet available',
     metricsConfigComingSoon: 'Metric configuration panel will be available in the next phase',
+    preReviewPending: 'Task pre-review will be enabled after the approval navigation loop is complete',
   },
   aiPrompts: {
     checkRisk: 'Help me {{action}} {{name}} and check the risk of node {{node}}',
@@ -74,5 +85,24 @@ export default {
     chartEngine: 'Chart Engine',
     permissionModel: 'Permission Model',
     permissionModelValue: 'Frontend permission demo; backend auth takes priority',
+  },
+  metrics: {
+    PENDING_TODOS: { title: 'My Pending Tasks', description: 'Waiting for my action' },
+    OVERDUE_TODOS: { title: 'Overdue Tasks', description: 'Past their due time' },
+    MY_APPLICATIONS: { title: 'My Applications', description: 'All applications I submitted' },
+    UNREAD_MESSAGES: { title: 'Unread Messages', description: 'Unread inbox messages' },
+  },
+  empty: {
+    todos: 'No pending tasks',
+    distribution: 'No business distribution data in the last seven days',
+    activities: 'No business activity in the last seven days',
+  },
+  businessTypes: {
+    LEAVE_APPLICATION: 'Leave Application',
+    GENERIC_APPROVAL: 'General Approval',
+    ASSET_REQUEST: 'Asset Request',
+    MEETING_BOOKING: 'Meeting Booking',
+    VISITOR_BOOKING: 'Visitor Booking',
+    SEAL_USAGE: 'Seal Usage',
   },
 };

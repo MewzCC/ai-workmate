@@ -53,15 +53,13 @@ export interface OaPageRendererProps {
   menu: OaMenuItem;
   role: OaRole;
   primaryColor: string;
-  auditItems: Array<{ color: string; content: string }>;
   onOpenAi: (prompt?: string) => void;
-  onAddAudit: (text: string) => void;
 }
 
 type PageRenderer = (props: OaPageRendererProps) => ReactNode;
 
 export const OA_PAGE_REGISTRY: Readonly<Record<ComponentKey, PageRenderer>> = {
-  DASHBOARD: (props) => <Dashboard role={props.role} pageId={props.menu.id} pageTitle={props.menu.name} primaryColor={props.primaryColor} auditItems={props.auditItems} onOpenAi={props.onOpenAi} onAddAudit={props.onAddAudit} />,
+  DASHBOARD: (props) => <Dashboard primaryColor={props.primaryColor} />,
   AI_WORKSPACE: ({ role }) => <AiChatWorkspace role={role} />,
   AI_TASK_CENTER: () => <AiTaskCenterPage />,
   MESSAGE_CENTER: () => <NotificationPage />,

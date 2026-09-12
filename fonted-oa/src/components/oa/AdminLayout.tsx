@@ -174,7 +174,7 @@ export default function AdminLayout() {
   const [wallpaper, setWallpaper] = useState<string | null>(null);
   const [wallpaperOpacity, setWallpaperOpacity] = useState(() => Number(readStorage('workmeta-oa-wallpaper-opacity', '0.28')));
   const [wallpaperBlur, setWallpaperBlur] = useState(() => Number(readStorage('workmeta-oa-wallpaper-blur', '4')));
-  const [auditItems, setAuditItems] = useState<Array<{ color: string; content: string }>>([]);
+  const [, setAuditItems] = useState<Array<{ color: string; content: string }>>([]);
   const [openTabs, setOpenTabs] = useState<OaPageTab[]>([]);
   const [openTabsReady, setOpenTabsReady] = useState(false);
 
@@ -541,9 +541,7 @@ export default function AdminLayout() {
                       }}
                       role={role}
                       primaryColor={currentTheme.primary}
-                      auditItems={auditItems}
                       onOpenAi={openAi}
-                      onAddAudit={addAudit}
                     />
                     )}
                   </div>
