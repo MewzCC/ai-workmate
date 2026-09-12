@@ -12,6 +12,7 @@ import type {
 import { buildApiHeaders } from '@/lib/apiHeaders';
 import i18n from '@/i18n';
 import { notifyAuthResponseStatus } from '@/lib/authEvents';
+import { requirePageUiCommandCodes } from '@/lib/pageUiCommands';
 
 const BASE = '/api';
 
@@ -111,7 +112,8 @@ export async function getServerTime(): Promise<{ epochMillis: number; iso: strin
 }
 
 export async function getPageCapabilities(pageId: string): Promise<PageCapability> {
-  return request<PageCapability>(`/ai/pages/${encodeURIComponent(pageId)}/capabilities`);
+  const capability = await request<PageCapability>(`/ai/pages/${encodeURIComponent(pageId)}/capabilities`);
+  return { ...capability, uiCommands: requirePageUiCommandCodes(capability.uiCommands) };
 }
 
 export function createIdempotencyKey(): string {

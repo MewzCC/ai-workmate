@@ -133,7 +133,7 @@ export interface AiTaskEvent {
   data: Record<string, unknown>;
 }
 
-export type PageUiCommand =
+export type PageUiCommandCode =
   | 'ui.navigate'
   | 'ui.applyFilter'
   | 'ui.openDetail'
@@ -156,7 +156,7 @@ export interface PageCapability {
   pageId: string;
   componentKey: ComponentKey;
   version: number;
-  uiCommands: PageUiCommand[];
+  uiCommands: PageUiCommandCode[];
   dataScopePolicy: PageCapabilityTool['ownershipPolicy'];
   effectiveDataScopes: string[];
   tools: PageCapabilityTool[];
