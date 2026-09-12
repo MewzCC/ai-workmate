@@ -204,6 +204,10 @@ class P1PostgresMigrationIT {
                         OR (component_key = 'DASHBOARD' AND route_key <> 'dashboard'))
                     """)).as("已启用业务页面不得回退到通用台账或驾驶舱占位组件").isZero();
             assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_route
+                    WHERE route_type = 'PAGE' AND enabled = TRUE
+                    """)).as("R4 浏览器回归清单必须覆盖全部已启用页面").isEqualTo(41);
+            assertThat(count(statement, """
                     SELECT COUNT(*) FROM information_schema.views
                     WHERE table_schema = current_schema() AND table_name = 'runtime_log_view'
                     """)).isOne();

@@ -13,6 +13,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -60,6 +61,24 @@ class NavigationServiceImplTest {
         ));
 
         assertThat(navigationService.navigation(7L)).isEmpty();
+    }
+
+    @Test
+    void shouldReadRoutesOnlyFromResolvedUsersTenant() {
+        when(userAccessService.resolveActiveUser(7L))
+                .thenReturn(new ResolvedUserAccess(
+                        7L, "employee@example.com", 99L, "EMPLOYEE", List.of("EMPLOYEE"),
+                        List.of("route:dashboard"), List.of("SELF"), 8L));
+        when(accessControlMapper.selectRoutesForTenant(99L)).thenReturn(List.of(
+                route("workspace", null, "GROUP", null, null, true, 1),
+                route("dashboard", "workspace", "PAGE", "DASHBOARD", "route:dashboard", true, 1)
+        ));
+
+        var navigation = navigationService.navigation(7L);
+
+        assertThat(navigation).hasSize(1);
+        assertThat(navigation.get(0).children()).extracting("routeKey").containsExactly("dashboard");
+        verify(accessControlMapper).selectRoutesForTenant(99L);
     }
 
     private AccessRouteResponse route(String key,

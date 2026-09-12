@@ -108,7 +108,7 @@ export function OaPageRenderer(props: OaPageRendererProps) {
   if (renderer) return renderer(props);
 
   return (
-    <Card className="oa-card oa-placeholder-card">
+    <Card className="oa-card oa-placeholder-card" data-testid="unsupported-component">
       <Alert type="error" showIcon title={t('oa.errors.unsupportedComponent')} />
       <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('oa.errors.unsupportedComponentDescription', { componentKey: props.menu.componentKey || '-' })} />
     </Card>
