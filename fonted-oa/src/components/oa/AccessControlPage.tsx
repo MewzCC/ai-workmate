@@ -41,7 +41,6 @@ import ResponsiveTable from './ResponsiveTable';
 
 const COMPONENT_VALUES = [
   'DASHBOARD',
-  'WORKBENCH_MODULE',
   'DICTIONARY',
   'TENANT_CONFIG',
   'DATA_PERMISSION',

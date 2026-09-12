@@ -4,6 +4,7 @@ import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.dto.AccessRoleResponse;
 import com.aiworkmate.dto.AccessControlOverviewResponse;
 import com.aiworkmate.dto.AccessUserRow;
+import com.aiworkmate.dto.SaveRouteRequest;
 import com.aiworkmate.mapper.AccessControlMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -232,6 +233,43 @@ class AccessControlServiceImplTest {
                 .isInstanceOf(BusinessException.class);
 
         verify(accessControlMapper, never()).deleteUserRoles(3L, 99L);
+    }
+
+    @Test
+    void shouldRejectEnablingPlaceholderPage() {
+        when(accessControlMapper.selectUserTenantId(7L)).thenReturn(3L);
+        SaveRouteRequest request = new SaveRouteRequest(
+                "legacy-ledger", null, "历史台账", "/oa/legacy-ledger", null,
+                "PAGE", "WORKBENCH_MODULE", 10, true);
+
+        assertThatThrownBy(() -> accessControlService.saveRoute(7L, request))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("error.route.placeholder_not_allowed");
+
+        verify(accessControlMapper, never()).insertRouteForTenant(
+                org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyInt(),
+                org.mockito.ArgumentMatchers.anyBoolean());
+    }
+
+    @Test
+    void shouldRejectAssigningDashboardComponentToAnotherRoute() {
+        when(accessControlMapper.selectUserTenantId(7L)).thenReturn(3L);
+        SaveRouteRequest request = new SaveRouteRequest(
+                "fake-dashboard", null, "错误驾驶舱", "/oa/fake-dashboard", null,
+                "PAGE", "DASHBOARD", 10, true);
+
+        assertThatThrownBy(() -> accessControlService.saveRoute(7L, request))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("error.route.dashboard_reserved");
     }
 
     private AccessUserRow userRow(Long id, Integer status) {

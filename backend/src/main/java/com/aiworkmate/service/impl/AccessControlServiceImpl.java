@@ -464,6 +464,17 @@ public class AccessControlServiceImpl implements AccessControlService {
         if (page && (request.path() == null || request.componentKey() == null)) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID, "页面路由必须配置路径和组件");
         }
+        if (page && Boolean.TRUE.equals(request.enabled())) {
+            String componentKey = request.componentKey().trim().toUpperCase();
+            if ("WORKBENCH_MODULE".equals(componentKey)) {
+                throw new BusinessException(ErrorCode.REQUEST_INVALID,
+                        "error.route.placeholder_not_allowed");
+            }
+            if ("DASHBOARD".equals(componentKey) && !"dashboard".equals(routeKey)) {
+                throw new BusinessException(ErrorCode.REQUEST_INVALID,
+                        "error.route.dashboard_reserved");
+            }
+        }
         if (!page && (request.path() != null || request.componentKey() != null)) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID, "分组和菜单不能配置页面路径或组件");
         }
