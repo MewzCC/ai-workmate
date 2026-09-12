@@ -38,7 +38,7 @@ public final class LeaveApplyToolHandler implements ToolHandler {
         String operationKey = "agent:" + context.taskId() + ":" + context.stepId() + ":"
                 + ToolCode.LEAVE_APPLY.code() + ":v1";
         LeaveToolPort.WriteResult application = leaveToolPort.apply(
-                context.userId(), request, operationKey);
+                context.actor(), request, operationKey);
         ObjectNode output = objectMapper.createObjectNode();
         output.put("applicationId", application.applicationId());
         output.put("status", application.status());

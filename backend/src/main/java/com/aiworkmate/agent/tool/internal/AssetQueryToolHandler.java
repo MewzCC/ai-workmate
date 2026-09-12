@@ -26,6 +26,6 @@ public final class AssetQueryToolHandler extends TypedReadToolHandler<AssetToolP
     }
 
     @Override protected AssetToolPort.Page invoke(TrustedToolContext context, AssetToolPort.Query query) {
-        return port.query(context.userId(), query);
+        return port.query(context.actor(), query);
     }
 }

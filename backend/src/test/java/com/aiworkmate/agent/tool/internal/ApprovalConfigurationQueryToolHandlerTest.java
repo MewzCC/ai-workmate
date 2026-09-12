@@ -29,7 +29,7 @@ class ApprovalConfigurationQueryToolHandlerTest {
         LocalDateTime updatedAt = LocalDateTime.of(2026, 9, 12, 9, 0);
         var query = new ApprovalConfigurationToolPort.Query(
                 ApprovalConfigurationToolPort.Resource.PROCESS, "采购", "ENABLED", 2, 50);
-        when(port.query(7L, query)).thenReturn(new ApprovalConfigurationToolPort.Page(List.of(
+        when(port.query(context.actor(), query)).thenReturn(new ApprovalConfigurationToolPort.Page(List.of(
                 new ApprovalConfigurationToolPort.Item(10L,
                         ApprovalConfigurationToolPort.Resource.PROCESS, "purchase", "采购审批", "采购流程",
                         "ENABLED", 2, "采购申请", null, null, updatedAt)), 1, 2, 50));
@@ -40,13 +40,13 @@ class ApprovalConfigurationQueryToolHandlerTest {
         assertThat(output.at("/items/0/name").asText()).isEqualTo("采购审批");
         assertThat(output.at("/items/0/formName").asText()).isEqualTo("采购申请");
         assertThat(output.toString()).doesNotContain("nodeJson", "schemaJson", "conditionJson", "actionJson");
-        verify(port).query(7L, query);
+        verify(port).query(context.actor(), query);
     }
 
     @Test
     void rejectsUnknownResourceBeforePortCall() throws Exception {
         assertThatThrownBy(() -> handler.execute(context, mapper.readTree("{\"resource\":\"UNKNOWN\"}")))
                 .isInstanceOf(BusinessException.class);
-        verify(port, never()).query(org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.any());
+        verify(port, never()).query(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
     }
 }

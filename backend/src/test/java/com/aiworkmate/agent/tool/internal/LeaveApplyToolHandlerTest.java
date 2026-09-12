@@ -25,7 +25,7 @@ class LeaveApplyToolHandlerTest {
         ObjectMapper objectMapper = new ObjectMapper();
         LeaveApplyToolHandler handler = new LeaveApplyToolHandler(leaveToolPort, objectMapper);
         TrustedToolContext context = new TrustedToolContext(91L, 7L, 10L, 20L, 1, "trace");
-        when(leaveToolPort.apply(eq(7L), any(),
+        when(leaveToolPort.apply(eq(context.actor()), any(),
                 eq("agent:10:20:leave.apply:v1"))).thenReturn(application());
 
         var output = handler.execute(context, objectMapper.readTree("""
@@ -37,7 +37,7 @@ class LeaveApplyToolHandlerTest {
                 "{\"applicationId\":30,\"status\":\"PENDING\",\"version\":1,\"approvalTaskId\":40}");
         ArgumentCaptor<LeaveToolPort.Draft> request =
                 ArgumentCaptor.forClass(LeaveToolPort.Draft.class);
-        verify(leaveToolPort).apply(eq(7L), request.capture(),
+        verify(leaveToolPort).apply(eq(context.actor()), request.capture(),
                 eq("agent:10:20:leave.apply:v1"));
         assertThat(request.getValue().reason()).isEqualTo("家庭事务");
     }

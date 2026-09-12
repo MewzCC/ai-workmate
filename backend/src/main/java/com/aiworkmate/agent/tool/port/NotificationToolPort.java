@@ -5,7 +5,7 @@ import java.util.List;
 
 /** Self-owned notification query port. */
 public interface NotificationToolPort {
-    Page mine(Long actorUserId, int page, int size);
+    Page mine(ToolActorContext context, int page, int size);
 
     record Page(List<Item> items, long total, int page, int size) {
         public Page { items = List.copyOf(items); }

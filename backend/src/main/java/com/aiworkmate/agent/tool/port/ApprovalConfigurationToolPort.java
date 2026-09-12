@@ -5,7 +5,7 @@ import java.util.List;
 
 /** Tenant-scoped read boundary for approval forms, processes and rules. */
 public interface ApprovalConfigurationToolPort {
-    Page query(Long actorUserId, Query query);
+    Page query(ToolActorContext context, Query query);
 
     enum Resource { FORM, PROCESS, RULE }
 

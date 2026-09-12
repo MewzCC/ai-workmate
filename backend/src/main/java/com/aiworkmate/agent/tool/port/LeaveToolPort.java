@@ -6,11 +6,11 @@ import java.util.List;
 
 /** Stable boundary for self-owned leave reads and single atomic writes. */
 public interface LeaveToolPort {
-    Page mine(Long actorUserId, Query query);
-    Item getMine(Long actorUserId, long applicationId);
-    WriteResult createDraft(Long actorUserId, Draft command, String operationKey);
-    WriteResult submit(Long actorUserId, long applicationId, int version, long taskId);
-    WriteResult apply(Long actorUserId, Draft command, String operationKey);
+    Page mine(ToolActorContext context, Query query);
+    Item getMine(ToolActorContext context, long applicationId);
+    WriteResult createDraft(ToolActorContext context, Draft command, String operationKey);
+    WriteResult submit(ToolActorContext context, long applicationId, int version);
+    WriteResult apply(ToolActorContext context, Draft command, String operationKey);
 
     record Query(String status, int page, int size) { }
     record Page(List<Item> items, long total, int page, int size) {

@@ -24,7 +24,7 @@ public final class NotificationMineToolHandler
     }
 
     @Override protected NotificationToolPort.Page invoke(TrustedToolContext context, Query query) {
-        return notificationToolPort.mine(context.userId(), query.page(), query.size());
+        return notificationToolPort.mine(context.actor(), query.page(), query.size());
     }
 
     record Query(int page, int size) { }

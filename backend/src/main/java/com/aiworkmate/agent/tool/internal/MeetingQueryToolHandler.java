@@ -28,6 +28,6 @@ public final class MeetingQueryToolHandler extends TypedReadToolHandler<MeetingT
     }
 
     @Override protected MeetingToolPort.Result invoke(TrustedToolContext context, MeetingToolPort.Query query) {
-        return port.query(context.userId(), query);
+        return port.query(context.actor(), query);
     }
 }

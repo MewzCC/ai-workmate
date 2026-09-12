@@ -34,7 +34,7 @@ public final class ApprovalConfigurationQueryToolHandler
 
     @Override protected ApprovalConfigurationToolPort.Page invoke(
             TrustedToolContext context, ApprovalConfigurationToolPort.Query query) {
-        return approvalConfigurationToolPort.query(context.userId(), query);
+        return approvalConfigurationToolPort.query(context.actor(), query);
     }
 
 }

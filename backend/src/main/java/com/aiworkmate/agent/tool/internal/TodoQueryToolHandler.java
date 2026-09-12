@@ -41,7 +41,7 @@ public final class TodoQueryToolHandler extends TypedReadToolHandler<TodoToolPor
     }
 
     @Override protected TodoToolPort.Page invoke(TrustedToolContext context, TodoToolPort.Query query) {
-        return todoToolPort.query(context.userId(), query);
+        return todoToolPort.query(context.actor(), query);
     }
 
 }

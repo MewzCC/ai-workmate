@@ -32,7 +32,7 @@ public final class KnowledgeSearchToolHandler
 
     @Override protected KnowledgeToolPort.Result invoke(
             TrustedToolContext context, KnowledgeToolPort.Query query) {
-        return knowledgeToolPort.search(context.userId(), query);
+        return knowledgeToolPort.search(context.actor(), query);
     }
 
     @Override protected JsonNode serializeResult(KnowledgeToolPort.Result result) {

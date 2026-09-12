@@ -4,7 +4,7 @@ import java.util.List;
 
 /** Fixed-resource search port. Returned content remains untrusted model input. */
 public interface KnowledgeToolPort {
-    Result search(Long actorUserId, Query query);
+    Result search(ToolActorContext context, Query query);
 
     record Query(String text, int topK, Double minScore) { }
     record Result(List<Item> items) {

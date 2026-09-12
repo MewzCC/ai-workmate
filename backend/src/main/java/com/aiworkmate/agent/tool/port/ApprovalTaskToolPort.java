@@ -5,7 +5,7 @@ import java.util.List;
 
 /** Tenant-scoped approval-center read boundary; domain service enforces live data scope. */
 public interface ApprovalTaskToolPort {
-    Page query(Long actorUserId, Query query);
+    Page query(ToolActorContext context, Query query);
 
     record Query(String status, LocalDateTime from, LocalDateTime to, String keyword,
                  String leaveType, int page, int size) { }

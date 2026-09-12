@@ -11,6 +11,7 @@ import com.aiworkmate.agent.tool.port.MeetingToolPort;
 import com.aiworkmate.agent.tool.port.LeaveToolPort;
 import com.aiworkmate.agent.tool.port.NotificationToolPort;
 import com.aiworkmate.agent.tool.port.TodoToolPort;
+import com.aiworkmate.agent.tool.port.ToolActorContext;
 import com.aiworkmate.dto.KnowledgeSearchRequest;
 import com.aiworkmate.dto.LeaveApplicationRequest;
 import com.aiworkmate.dto.LeaveApplicationResponse;
@@ -43,9 +44,9 @@ public class LocalAgentDomainToolAdapter implements TodoToolPort, LeaveToolPort,
     private final MeetingBookingService meetingBookingService;
 
     @Override
-    public MeetingToolPort.Result query(long actorUserId, MeetingToolPort.Query query) {
-        var rooms = adminAssetsService.listMeetingRooms(actorUserId, query.keyword(), query.roomStatus(), 1, 50);
-        var bookings = meetingBookingService.listMine(actorUserId, query.from(), query.to(), query.bookingStatus(),
+    public MeetingToolPort.Result query(ToolActorContext context, MeetingToolPort.Query query) {
+        var rooms = adminAssetsService.listMeetingRooms(context.userId(), query.keyword(), query.roomStatus(), 1, 50);
+        var bookings = meetingBookingService.listMine(context.userId(), query.from(), query.to(), query.bookingStatus(),
                 query.page(), query.size());
         return new MeetingToolPort.Result(rooms.records().stream().map(item -> new MeetingToolPort.Room(
                 item.id(), item.code(), item.name(), item.location(), item.capacity(), item.facilities(), item.status(),
@@ -58,8 +59,8 @@ public class LocalAgentDomainToolAdapter implements TodoToolPort, LeaveToolPort,
     }
 
     @Override
-    public AssetToolPort.Page query(long actorUserId, AssetToolPort.Query query) {
-        var result = adminAssetsService.listAssets(actorUserId, query.keyword(), query.category(), query.status(),
+    public AssetToolPort.Page query(ToolActorContext context, AssetToolPort.Query query) {
+        var result = adminAssetsService.listAssets(context.userId(), query.keyword(), query.category(), query.status(),
                 query.page(), query.size());
         return new AssetToolPort.Page(result.records().stream().map(item -> new AssetToolPort.Item(
                 item.id(), item.assetCode(), item.name(), item.category(), item.specification(), item.status(),
@@ -69,8 +70,8 @@ public class LocalAgentDomainToolAdapter implements TodoToolPort, LeaveToolPort,
     }
 
     @Override
-    public EmployeeChangeToolPort.Page query(long actorUserId, EmployeeChangeToolPort.Query query) {
-        var result = employeeChangeService.list(actorUserId, query.status(), query.changeType(), query.keyword(),
+    public EmployeeChangeToolPort.Page query(ToolActorContext context, EmployeeChangeToolPort.Query query) {
+        var result = employeeChangeService.list(context.userId(), query.status(), query.changeType(), query.keyword(),
                 query.page(), query.size());
         return new EmployeeChangeToolPort.Page(result.records().stream().map(item ->
                 new EmployeeChangeToolPort.Item(item.id(), item.employeeName(), item.applicantName(),
@@ -82,8 +83,8 @@ public class LocalAgentDomainToolAdapter implements TodoToolPort, LeaveToolPort,
     }
 
     @Override
-    public HrOrganizationToolPort.Result query(long actorUserId, HrOrganizationToolPort.Query query) {
-        var overview = hrService.overviewForActor(actorUserId);
+    public HrOrganizationToolPort.Result query(ToolActorContext context, HrOrganizationToolPort.Query query) {
+        var overview = hrService.overviewForActor(context.userId());
         Predicate<String> matches = value -> query.keyword() == null ||
                 (value != null && value.toLowerCase(Locale.ROOT).contains(query.keyword().toLowerCase(Locale.ROOT)));
         var departments = overview.departments().stream().filter(item -> matches.test(item.name()) || matches.test(item.code()))
@@ -100,8 +101,8 @@ public class LocalAgentDomainToolAdapter implements TodoToolPort, LeaveToolPort,
     }
 
     @Override
-    public HrEmployeeToolPort.Employee get(long actorUserId, long employeeId) {
-        var item = hrService.employeeDetailForActor(actorUserId, employeeId);
+    public HrEmployeeToolPort.Employee get(ToolActorContext context, long employeeId) {
+        var item = hrService.employeeDetailForActor(context.userId(), employeeId);
         var attendance = item.attendance();
         return new HrEmployeeToolPort.Employee(item.id(), item.name(), item.role(), item.status(), item.createdAt(),
                 item.departmentName(), item.positionName(), item.approverName(),
@@ -116,8 +117,8 @@ public class LocalAgentDomainToolAdapter implements TodoToolPort, LeaveToolPort,
     }
 
     @Override
-    public ApprovalTaskToolPort.Page query(Long actorUserId, ApprovalTaskToolPort.Query query) {
-        var result = leaveWorkflowService.adminList(actorUserId, query.status(), query.from(), query.to(),
+    public ApprovalTaskToolPort.Page query(ToolActorContext context, ApprovalTaskToolPort.Query query) {
+        var result = leaveWorkflowService.adminList(context.userId(), query.status(), query.from(), query.to(),
                 query.keyword(), query.leaveType(), query.page(), query.size());
         return new ApprovalTaskToolPort.Page(result.records().stream().map(item ->
                 new ApprovalTaskToolPort.Item(item.id(), item.taskId(), item.applicantName(), item.approverName(),
@@ -126,11 +127,11 @@ public class LocalAgentDomainToolAdapter implements TodoToolPort, LeaveToolPort,
     }
 
     @Override
-    public ApprovalConfigurationToolPort.Page query(Long actorUserId, ApprovalConfigurationToolPort.Query query) {
+    public ApprovalConfigurationToolPort.Page query(ToolActorContext context, ApprovalConfigurationToolPort.Query query) {
         return switch (query.resource()) {
             case FORM -> {
                 var result = approvalEngineService.listForms(
-                        actorUserId, query.keyword(), query.status(), query.page(), query.size());
+                        context.userId(), query.keyword(), query.status(), query.page(), query.size());
                 yield new ApprovalConfigurationToolPort.Page(result.records().stream().map(item ->
                         new ApprovalConfigurationToolPort.Item(item.id(), ApprovalConfigurationToolPort.Resource.FORM,
                                 item.formKey(), item.formName(), item.description(), item.status(), item.version(),
@@ -139,7 +140,7 @@ public class LocalAgentDomainToolAdapter implements TodoToolPort, LeaveToolPort,
             }
             case PROCESS -> {
                 var result = approvalEngineService.listProcesses(
-                        actorUserId, query.keyword(), query.status(), query.page(), query.size());
+                        context.userId(), query.keyword(), query.status(), query.page(), query.size());
                 yield new ApprovalConfigurationToolPort.Page(result.records().stream().map(item ->
                         new ApprovalConfigurationToolPort.Item(item.id(), ApprovalConfigurationToolPort.Resource.PROCESS,
                                 item.processKey(), item.processName(), item.description(), item.status(), item.version(),
@@ -148,7 +149,7 @@ public class LocalAgentDomainToolAdapter implements TodoToolPort, LeaveToolPort,
             }
             case RULE -> {
                 var result = approvalEngineService.listRules(
-                        actorUserId, query.keyword(), query.status(), query.page(), query.size());
+                        context.userId(), query.keyword(), query.status(), query.page(), query.size());
                 yield new ApprovalConfigurationToolPort.Page(result.records().stream().map(item ->
                         new ApprovalConfigurationToolPort.Item(item.id(), ApprovalConfigurationToolPort.Resource.RULE,
                                 item.ruleKey(), item.ruleName(), item.description(), item.status(), item.version(),
@@ -159,8 +160,8 @@ public class LocalAgentDomainToolAdapter implements TodoToolPort, LeaveToolPort,
     }
 
     @Override
-    public TodoToolPort.Page query(Long actorUserId, TodoToolPort.Query query) {
-        var result = leaveWorkflowService.todos(actorUserId, query.status(), query.from(), query.to(), query.page(), query.size());
+    public TodoToolPort.Page query(ToolActorContext context, TodoToolPort.Query query) {
+        var result = leaveWorkflowService.todos(context.userId(), query.status(), query.from(), query.to(), query.page(), query.size());
         return new TodoToolPort.Page(result.records().stream().map(item -> new TodoToolPort.Item(
                 item.id(), item.applicationId(), item.applicantName(), item.leaveType(), item.durationHalfDays(),
                 item.status(), item.version(), item.submittedAt(), item.dueAt(), item.overdue())).toList(),
@@ -168,35 +169,36 @@ public class LocalAgentDomainToolAdapter implements TodoToolPort, LeaveToolPort,
     }
 
     @Override
-    public LeaveToolPort.Page mine(Long actorUserId, LeaveToolPort.Query query) {
-        var result = leaveWorkflowService.mine(actorUserId, query.status(), query.page(), query.size());
+    public LeaveToolPort.Page mine(ToolActorContext context, LeaveToolPort.Query query) {
+        var result = leaveWorkflowService.mine(context.userId(), query.status(), query.page(), query.size());
         return new LeaveToolPort.Page(result.records().stream().map(this::leaveItem).toList(),
                 result.total(), result.page(), result.size());
     }
 
     @Override
-    public LeaveToolPort.Item getMine(Long actorUserId, long applicationId) {
-        return leaveItem(leaveWorkflowService.getMine(actorUserId, applicationId));
+    public LeaveToolPort.Item getMine(ToolActorContext context, long applicationId) {
+        return leaveItem(leaveWorkflowService.getMine(context.userId(), applicationId));
     }
 
     @Override
-    public LeaveToolPort.WriteResult createDraft(Long actorUserId, LeaveToolPort.Draft command, String operationKey) {
-        return writeResult(leaveWorkflowService.createAgentDraft(actorUserId, leaveRequest(command), operationKey));
+    public LeaveToolPort.WriteResult createDraft(ToolActorContext context, LeaveToolPort.Draft command, String operationKey) {
+        return writeResult(leaveWorkflowService.createAgentDraft(context.userId(), leaveRequest(command), operationKey));
     }
 
     @Override
-    public LeaveToolPort.WriteResult submit(Long actorUserId, long applicationId, int version, long taskId) {
-        return writeResult(leaveWorkflowService.submitAgent(actorUserId, applicationId, new VersionRequest(version), taskId));
+    public LeaveToolPort.WriteResult submit(ToolActorContext context, long applicationId, int version) {
+        return writeResult(leaveWorkflowService.submitAgent(
+                context.userId(), applicationId, new VersionRequest(version), context.taskId()));
     }
 
     @Override
-    public LeaveToolPort.WriteResult apply(Long actorUserId, LeaveToolPort.Draft command, String operationKey) {
-        return writeResult(leaveWorkflowService.applyAgent(actorUserId, leaveRequest(command), operationKey));
+    public LeaveToolPort.WriteResult apply(ToolActorContext context, LeaveToolPort.Draft command, String operationKey) {
+        return writeResult(leaveWorkflowService.applyAgent(context.userId(), leaveRequest(command), operationKey));
     }
 
     @Override
-    public KnowledgeToolPort.Result search(Long actorUserId, KnowledgeToolPort.Query query) {
-        var response = knowledgeService.search(actorUserId,
+    public KnowledgeToolPort.Result search(ToolActorContext context, KnowledgeToolPort.Query query) {
+        var response = knowledgeService.search(context.userId(),
                 new KnowledgeSearchRequest(query.text(), query.topK(), query.minScore()));
         return new KnowledgeToolPort.Result(response.records().stream().map(item -> new KnowledgeToolPort.Item(
                 item.content(), item.score(), item.matchType(), item.docId(), item.chunkId(),
@@ -204,8 +206,8 @@ public class LocalAgentDomainToolAdapter implements TodoToolPort, LeaveToolPort,
     }
 
     @Override
-    public NotificationToolPort.Page mine(Long actorUserId, int page, int size) {
-        var result = notificationService.list(actorUserId, page, size);
+    public NotificationToolPort.Page mine(ToolActorContext context, int page, int size) {
+        var result = notificationService.list(context.userId(), page, size);
         return new NotificationToolPort.Page(result.records().stream().map(item -> new NotificationToolPort.Item(
                 item.id(), item.type(), item.title(), item.content(), item.bizType(), item.read(), item.createdAt())).toList(),
                 result.total(), result.page(), result.size());

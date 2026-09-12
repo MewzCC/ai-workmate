@@ -3,7 +3,7 @@ package com.aiworkmate.agent.tool.port;
 import java.util.List;
 
 public interface HrOrganizationToolPort {
-    Result query(long actorUserId, Query query);
+    Result query(ToolActorContext context, Query query);
 
     record Query(String keyword, int limit) {}
 

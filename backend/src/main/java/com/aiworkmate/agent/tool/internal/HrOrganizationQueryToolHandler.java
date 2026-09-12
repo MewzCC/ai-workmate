@@ -26,7 +26,7 @@ public final class HrOrganizationQueryToolHandler
 
     @Override protected HrOrganizationToolPort.Result invoke(
             TrustedToolContext context, HrOrganizationToolPort.Query query) {
-        return port.query(context.userId(), query);
+        return port.query(context.actor(), query);
     }
 
 }

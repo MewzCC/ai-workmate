@@ -25,6 +25,9 @@ class AgentDomainToolPortContractTest {
             assertEquals("com.aiworkmate.agent.tool.port", port.getPackageName());
             for (Method method : port.getDeclaredMethods()) {
                 assertTrue(Modifier.isPublic(method.getModifiers()));
+                assertEquals(ToolActorContext.class, method.getParameterTypes()[0],
+                        () -> port.getSimpleName() + "." + method.getName()
+                                + " must receive the gateway-derived context first");
                 assertFalse(Set.of("execute", "executeAsAdmin", "testTool").contains(method.getName()));
                 assertFalse(method.toGenericString().contains("JsonNode"));
                 assertFalse(method.toGenericString().contains("Map<"));

@@ -5,7 +5,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 public interface EmployeeChangeToolPort {
-    Page query(long actorUserId, Query query);
+    Page query(ToolActorContext context, Query query);
     record Query(String status, String changeType, String keyword, int page, int size) {}
     record Page(List<Item> items, long total, int page, int size) {
         public Page { items = List.copyOf(items); }

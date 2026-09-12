@@ -22,6 +22,6 @@ public final class HrEmployeeQueryToolHandler extends TypedReadToolHandler<Long,
     }
 
     @Override protected HrEmployeeToolPort.Employee invoke(TrustedToolContext context, Long employeeId) {
-        return port.get(context.userId(), employeeId);
+        return port.get(context.actor(), employeeId);
     }
 }

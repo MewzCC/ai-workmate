@@ -28,6 +28,6 @@ public final class EmployeeChangeQueryToolHandler
 
     @Override protected EmployeeChangeToolPort.Page invoke(
             TrustedToolContext context, EmployeeChangeToolPort.Query query) {
-        return port.query(context.userId(), query);
+        return port.query(context.actor(), query);
     }
 }

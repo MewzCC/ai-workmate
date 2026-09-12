@@ -12,17 +12,18 @@ class HrEmployeeQueryToolHandlerTest {
     @Test
     void usesTrustedActorAndOmitsNullAndSensitiveFields() throws Exception {
         HrEmployeeToolPort port = mock(HrEmployeeToolPort.class);
+        var context = new TrustedToolContext(1L, 7L, 1L, 1L, 1, "trace");
         var employee = new HrEmployeeToolPort.Employee(9L, "张三", "EMPLOYEE", 1,
                 LocalDateTime.of(2026, 9, 1, 8, 0), "研发部", null, "李经理", List.of(),
                 new HrEmployeeToolPort.Attendance(20, 18, 1, 0, 0, 1), List.of());
-        when(port.get(7L, 9L)).thenReturn(employee);
+        when(port.get(context.actor(), 9L)).thenReturn(employee);
         ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
         var output = new HrEmployeeQueryToolHandler(port, mapper).execute(
-                new TrustedToolContext(1L, 7L, 1L, 1L, 1, "trace"),
+                context,
                 mapper.readTree("{\"employeeId\":9}"));
         assertThat(output.path("name").asText()).isEqualTo("张三");
         assertThat(output.has("positionName")).isFalse();
         assertThat(output.toString()).doesNotContain("email", "avatar", "tenantId");
-        verify(port).get(7L, 9L);
+        verify(port).get(context.actor(), 9L);
     }
 }

@@ -5,7 +5,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 public interface HrEmployeeToolPort {
-    Employee get(long actorUserId, long employeeId);
+    Employee get(ToolActorContext context, long employeeId);
 
     record Employee(long id, String name, String role, int status, LocalDateTime createdAt,
                     String departmentName, String positionName, String approverName,

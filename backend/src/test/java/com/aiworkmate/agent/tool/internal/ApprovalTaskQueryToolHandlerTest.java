@@ -28,7 +28,7 @@ class ApprovalTaskQueryToolHandlerTest {
         LocalDateTime from = LocalDateTime.of(2026, 9, 1, 0, 0);
         LocalDateTime to = LocalDateTime.of(2026, 9, 30, 23, 59);
         var query = new ApprovalTaskToolPort.Query("PENDING", from, to, "张三", "ANNUAL", 2, 50);
-        when(port.query(7L, query)).thenReturn(new ApprovalTaskToolPort.Page(List.of(
+        when(port.query(context.actor(), query)).thenReturn(new ApprovalTaskToolPort.Page(List.of(
                 new ApprovalTaskToolPort.Item(10L, 20L, "张三", "李经理", "ANNUAL", 1.5,
                         "PENDING", 3, from.plusDays(1), to.minusDays(1), true)), 1, 2, 50));
 
@@ -40,7 +40,7 @@ class ApprovalTaskQueryToolHandlerTest {
         assertThat(output.at("/items/0/applicantName").asText()).isEqualTo("张三");
         assertThat(output.at("/items/0/overdue").asBoolean()).isTrue();
         assertThat(output.toString()).doesNotContain("applicantUserId", "approverUserId", "dataJson");
-        verify(port).query(7L, query);
+        verify(port).query(context.actor(), query);
     }
 
     @Test
@@ -48,6 +48,6 @@ class ApprovalTaskQueryToolHandlerTest {
         assertThatThrownBy(() -> handler.execute(context, mapper.readTree(
                 "{\"from\":\"2026-09-30T00:00:00\",\"to\":\"2026-09-01T00:00:00\"}")))
                 .isInstanceOf(BusinessException.class);
-        verify(port, never()).query(org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.any());
+        verify(port, never()).query(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
     }
 }

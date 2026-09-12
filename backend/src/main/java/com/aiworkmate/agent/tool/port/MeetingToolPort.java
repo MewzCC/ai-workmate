@@ -4,7 +4,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 public interface MeetingToolPort {
-    Result query(long actorUserId, Query query);
+    Result query(ToolActorContext context, Query query);
     record Query(String keyword, String roomStatus, LocalDateTime from, LocalDateTime to,
                  String bookingStatus, int page, int size) {}
     record Result(List<Room> rooms, List<Booking> bookings, long bookingTotal, int page, int size) {

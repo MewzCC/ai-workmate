@@ -30,8 +30,7 @@ public final class LeaveSubmitToolHandler implements ToolHandler {
     public JsonNode execute(TrustedToolContext context, JsonNode arguments) {
         long applicationId = requiredLong(arguments, "applicationId", 1);
         int version = Math.toIntExact(requiredLong(arguments, "version", 0));
-        LeaveToolPort.WriteResult submitted = leaveToolPort.submit(
-                context.userId(), applicationId, version, context.taskId());
+        LeaveToolPort.WriteResult submitted = leaveToolPort.submit(context.actor(), applicationId, version);
         ObjectNode output = objectMapper.createObjectNode();
         output.put("applicationId", submitted.applicationId());
         output.put("status", submitted.status());

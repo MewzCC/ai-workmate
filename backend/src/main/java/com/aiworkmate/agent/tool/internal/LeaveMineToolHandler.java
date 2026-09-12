@@ -41,10 +41,10 @@ public final class LeaveMineToolHandler
     @Override protected LeaveToolPort.Page invoke(TrustedToolContext context, Query query) {
         if (query.applicationId() != null) {
             return new LeaveToolPort.Page(
-                    List.of(leaveToolPort.getMine(context.userId(), query.applicationId())),
+                    List.of(leaveToolPort.getMine(context.actor(), query.applicationId())),
                     1, 1, 1);
         }
-        return leaveToolPort.mine(context.userId(),
+        return leaveToolPort.mine(context.actor(),
                 new LeaveToolPort.Query(query.status(), query.page(), query.size()));
     }
 

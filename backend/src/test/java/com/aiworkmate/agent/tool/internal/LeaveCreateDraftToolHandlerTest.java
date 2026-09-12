@@ -26,7 +26,7 @@ class LeaveCreateDraftToolHandlerTest {
                 leaveToolPort, objectMapper);
         TrustedToolContext context = new TrustedToolContext(91L, 7L, 10L, 20L, 1, "trace");
         when(leaveToolPort.createDraft(
-                org.mockito.ArgumentMatchers.eq(7L), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.eq(context.actor()), org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.eq("agent:10:20:leave.createDraft:v1")))
                 .thenReturn(application());
 
@@ -39,7 +39,7 @@ class LeaveCreateDraftToolHandlerTest {
         ArgumentCaptor<LeaveToolPort.Draft> request =
                 ArgumentCaptor.forClass(LeaveToolPort.Draft.class);
         verify(leaveToolPort).createDraft(
-                org.mockito.ArgumentMatchers.eq(7L), request.capture(),
+                org.mockito.ArgumentMatchers.eq(context.actor()), request.capture(),
                 org.mockito.ArgumentMatchers.eq("agent:10:20:leave.createDraft:v1"));
         assertThat(request.getValue().reason()).isEqualTo("家庭事务");
     }

@@ -39,7 +39,7 @@ class LeaveMineToolHandlerTest {
 
     @Test
     void listsOnlySafeFieldsAndUsesTrustedUser() throws Exception {
-        when(leaveToolPort.mine(7L, new LeaveToolPort.Query("PENDING", 2, 50)))
+        when(leaveToolPort.mine(context.actor(), new LeaveToolPort.Query("PENDING", 2, 50)))
                 .thenReturn(new LeaveToolPort.Page(List.of(application()), 1, 2, 50));
 
         var result = handler.execute(context,
@@ -50,20 +50,20 @@ class LeaveMineToolHandlerTest {
         assertThat(result.at("/items/0/applicantUserId").isMissingNode()).isTrue();
         assertThat(result.at("/items/0/approverUserId").isMissingNode()).isTrue();
         assertThat(result.at("/items/0/taskId").isMissingNode()).isTrue();
-        verify(leaveToolPort).mine(7L, new LeaveToolPort.Query("PENDING", 2, 50));
+        verify(leaveToolPort).mine(context.actor(), new LeaveToolPort.Query("PENDING", 2, 50));
     }
 
     @Test
     void detailUsesOwnedDomainOperation() throws Exception {
-        when(leaveToolPort.getMine(7L, 10L)).thenReturn(application());
+        when(leaveToolPort.getMine(context.actor(), 10L)).thenReturn(application());
 
         var result = handler.execute(context, objectMapper.readTree("{\"applicationId\":10}"));
 
         assertThat(result.path("total").asLong()).isEqualTo(1);
         assertThat(result.at("/items/0/id").asLong()).isEqualTo(10L);
-        verify(leaveToolPort).getMine(7L, 10L);
+        verify(leaveToolPort).getMine(context.actor(), 10L);
         verify(leaveToolPort, never()).mine(
-                org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.any());
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
     }
 
     @Test
@@ -73,7 +73,7 @@ class LeaveMineToolHandlerTest {
                 .isInstanceOf(BusinessException.class);
 
         verify(leaveToolPort, never()).getMine(
-                org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyLong());
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyLong());
     }
 
     private LeaveToolPort.Item application() {

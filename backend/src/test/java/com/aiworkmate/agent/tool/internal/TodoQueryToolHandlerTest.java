@@ -43,7 +43,7 @@ class TodoQueryToolHandlerTest {
         TodoToolPort.Item todo = new TodoToolPort.Item(
                 31L, 41L, "张三", "ANNUAL", 2, "PENDING", 3,
                 submittedAt, dueAt, false);
-        when(todoToolPort.query(7L, new TodoToolPort.Query("PENDING", null, null, 1, 20)))
+        when(todoToolPort.query(context.actor(), new TodoToolPort.Query("PENDING", null, null, 1, 20)))
                 .thenReturn(new TodoToolPort.Page(List.of(todo), 1, 1, 20));
 
         var result = handler.execute(context, objectMapper.readTree("{\"status\":\"PENDING\"}"));
@@ -54,12 +54,12 @@ class TodoQueryToolHandlerTest {
         assertThat(result.at("/items/0/applicantUserId").isMissingNode()).isTrue();
         assertThat(result.at("/items/0/applicantAvatar").isMissingNode()).isTrue();
         assertThat(result.at("/items/0/applicantAvatarUrl").isMissingNode()).isTrue();
-        verify(todoToolPort).query(7L, new TodoToolPort.Query("PENDING", null, null, 1, 20));
+        verify(todoToolPort).query(context.actor(), new TodoToolPort.Query("PENDING", null, null, 1, 20));
     }
 
     @Test
     void returnsEmptyResultWithoutFabricatingData() throws Exception {
-        when(todoToolPort.query(7L, new TodoToolPort.Query(null, null, null, 1, 20)))
+        when(todoToolPort.query(context.actor(), new TodoToolPort.Query(null, null, null, 1, 20)))
                 .thenReturn(new TodoToolPort.Page(List.of(), 0, 1, 20));
 
         var result = handler.execute(context, objectMapper.readTree("{}"));
@@ -70,12 +70,12 @@ class TodoQueryToolHandlerTest {
 
     @Test
     void neverUsesCallerSuppliedIdentityAndCapsSizeDefensively() throws Exception {
-        when(todoToolPort.query(7L, new TodoToolPort.Query(null, null, null, 2, 50)))
+        when(todoToolPort.query(context.actor(), new TodoToolPort.Query(null, null, null, 2, 50)))
                 .thenReturn(new TodoToolPort.Page(List.of(), 0, 2, 50));
 
         handler.execute(context, objectMapper.readTree("{\"page\":2,\"size\":500}"));
 
-        verify(todoToolPort).query(7L, new TodoToolPort.Query(null, null, null, 2, 50));
+        verify(todoToolPort).query(context.actor(), new TodoToolPort.Query(null, null, null, 2, 50));
     }
 
     @Test
@@ -89,6 +89,6 @@ class TodoQueryToolHandlerTest {
                 .isInstanceOf(BusinessException.class);
 
         verify(todoToolPort, never()).query(
-                org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.any());
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
     }
 }

@@ -18,18 +18,19 @@ class HrOrganizationQueryToolHandlerTest {
 
     @Test
     void usesTrustedActorCapsLimitAndReturnsSafeOrganizationFields() throws Exception {
+        var context = new TrustedToolContext(99L, 7L, 1L, 2L, 1, "trace");
         var query = new HrOrganizationToolPort.Query("研发", 50);
-        when(port.query(7L, query)).thenReturn(new HrOrganizationToolPort.Result(
+        when(port.query(context.actor(), query)).thenReturn(new HrOrganizationToolPort.Result(
                 List.of(new HrOrganizationToolPort.Department(1L, "RD", "研发部", null, 1)),
                 List.of(new HrOrganizationToolPort.Position(2L, "DEV", "研发工程师", 1)),
                 List.of(new HrOrganizationToolPort.Employee(3L, "张三", "EMPLOYEE", 1, 1L, 2L, "李经理"))));
 
-        var output = handler.execute(new TrustedToolContext(99L, 7L, 1L, 2L, 1, "trace"),
+        var output = handler.execute(context,
                 mapper.readTree("{\"keyword\":\"研发\",\"limit\":500}"));
 
         assertThat(output.at("/departments/0/name").asText()).isEqualTo("研发部");
         assertThat(output.at("/employees/0/name").asText()).isEqualTo("张三");
         assertThat(output.toString()).doesNotContain("email", "avatar", "permission", "tenantId");
-        verify(port).query(7L, query);
+        verify(port).query(context.actor(), query);
     }
 }
