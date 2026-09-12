@@ -14,6 +14,47 @@ export interface DashboardOverview {
   healthSummary?: { status: string; checkedAt: string } | null;
 }
 
+export interface DashboardExportRequest {
+  from: string;
+  to: string;
+  keyword?: string;
+}
+
+export interface DashboardExportResponse {
+  filename: string;
+  contentType: string;
+  content: string;
+  rowCount: number;
+  generatedAt: string;
+}
+
 export function getDashboardOverview(days = 7): Promise<DashboardOverview> {
   return request(`/dashboard/overview?days=${days}`);
+}
+
+export function exportDashboard(payload: DashboardExportRequest): Promise<DashboardExportResponse> {
+  return request('/dashboard/export', { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function defaultDashboardExportRange(days = 7): DashboardExportRequest {
+  const to = new Date();
+  const from = new Date(to);
+  from.setDate(from.getDate() - Math.max(1, days) + 1);
+  return { from: localDate(from), to: localDate(to) };
+}
+
+export function downloadDashboardExport(response: DashboardExportResponse): void {
+  const url = URL.createObjectURL(new Blob([response.content], { type: response.contentType }));
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = response.filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+function localDate(value: Date): string {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, '0');
+  const day = String(value.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }

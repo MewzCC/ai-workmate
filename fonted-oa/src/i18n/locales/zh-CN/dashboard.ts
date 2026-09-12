@@ -69,7 +69,7 @@ export default {
     noApprovalPermission: '当前角色无权限执行审批类操作',
     actionDone: '{{action}}：{{name}}',
     pageAuditRecorded: '已记录页面访问审计',
-    exportNotAvailable: '真实导出能力尚未接入',
+    exported: '已导出 {{count}} 条当前可见待办',
     metricsConfigComingSoon: '指标配置面板将在下一阶段接入',
     selectTodoForPreReview: '请在待办列表中选择一条任务进行 AI 预审',
     noTodoForPreReview: '当前没有可预审的待办任务',

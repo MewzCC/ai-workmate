@@ -69,7 +69,7 @@ export default {
     noApprovalPermission: 'The current role is not authorized to perform approval actions',
     actionDone: '{{action}}: {{name}}',
     pageAuditRecorded: 'Page access audit recorded',
-    exportNotAvailable: 'Real export capability is not yet available',
+    exported: 'Exported {{count}} currently visible tasks',
     metricsConfigComingSoon: 'Metric configuration panel will be available in the next phase',
     selectTodoForPreReview: 'Choose one task from the todo list for AI pre-review',
     noTodoForPreReview: 'There are no tasks available for pre-review',

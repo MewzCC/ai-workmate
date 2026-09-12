@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { getDashboardOverview } from '@/lib/dashboardApi';
+import { defaultDashboardExportRange, exportDashboard, getDashboardOverview } from '@/lib/dashboardApi';
 
 const requestMock = vi.fn();
 vi.mock('@/lib/oaApi', () => ({
@@ -21,5 +21,20 @@ describe('dashboardApi', () => {
     requestMock.mockResolvedValue({});
     await getDashboardOverview();
     expect(requestMock).toHaveBeenCalledWith('/dashboard/overview?days=7');
+  });
+
+  it('posts the controlled export filter without a filesystem path', async () => {
+    requestMock.mockResolvedValue({ filename: 'dashboard.csv', content: 'taskId', rowCount: 0 });
+    await exportDashboard({ from: '2026-09-06', to: '2026-09-12', keyword: 'risk' });
+    expect(requestMock).toHaveBeenCalledWith('/dashboard/export', {
+      method: 'POST',
+      body: JSON.stringify({ from: '2026-09-06', to: '2026-09-12', keyword: 'risk' }),
+    });
+  });
+
+  it('builds an inclusive local-date range', () => {
+    const range = defaultDashboardExportRange(7);
+    expect(range.from).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(range.to).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 });

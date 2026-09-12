@@ -507,6 +507,7 @@ export default function AdminLayout() {
               <div className="oa-top-stack">
                 <Topbar
                   role={role}
+                  pageId={selectedMenu.id}
                   pageTitle={t(`oa.menu.${selectedMenu.id}`, { defaultValue: selectedMenu.name })}
                   onOpenAppearance={() => setAppearanceOpen(true)}
                   onOpenAi={openAi}

@@ -25,7 +25,9 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.http.MediaType.APPLICATION_JSON;
 
 @WebMvcTest(DashboardController.class)
 @Import({SecurityConfig.class, JwtAuthenticationFilter.class, RequestTraceFilter.class, GlobalExceptionHandler.class})
@@ -69,6 +71,23 @@ class DashboardControllerSecurityTest {
         mvc.perform(get("/api/dashboard/overview").header("Authorization", "Bearer valid").param("days", "31"))
                 .andExpect(status().isBadRequest());
         verify(dashboardService, never()).overview(42L, 31);
+    }
+
+    @Test
+    void exportRequiresLiveDataExportPermission() throws Exception {
+        mvc.perform(post("/api/dashboard/export").header("Authorization", "Bearer valid")
+                        .contentType(APPLICATION_JSON).content("{\"from\":\"2026-09-06\",\"to\":\"2026-09-12\"}"))
+                .andExpect(status().isForbidden());
+        verify(dashboardService, never()).export(org.mockito.ArgumentMatchers.eq(42L), org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void exportPassesValidatedRangeForAuthorizedUser() throws Exception {
+        when(userAccessService.resolveActiveUser(42L)).thenReturn(access(List.of("dashboard:read", "data:export")));
+        mvc.perform(post("/api/dashboard/export").header("Authorization", "Bearer valid")
+                        .contentType(APPLICATION_JSON).content("{\"from\":\"2026-09-06\",\"to\":\"2026-09-12\"}"))
+                .andExpect(status().isOk());
+        verify(dashboardService).export(org.mockito.ArgumentMatchers.eq(42L), org.mockito.ArgumentMatchers.any());
     }
 
     private ResolvedUserAccess access(List<String> permissions) {

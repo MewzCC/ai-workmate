@@ -5,9 +5,11 @@ import { Alert, Button, Card, Col, Empty, Row, Space, Spin, Statistic, Tag, Time
 import type { ColumnsType } from 'antd/es/table';
 import type { EChartsOption } from 'echarts';
 import { useTranslation } from 'react-i18next';
-import { getDashboardOverview, type DashboardMetricCode, type DashboardOverview } from '@/lib/dashboardApi';
+import { defaultDashboardExportRange, downloadDashboardExport, exportDashboard, getDashboardOverview, type DashboardMetricCode, type DashboardOverview } from '@/lib/dashboardApi';
 import { formatOaApiError } from '@/lib/oaApi';
 import { useRouter } from '@/lib/nextCompat';
+import { message } from '@/lib/antdMessage';
+import { usePermission } from '@/hooks/usePermission';
 import { OaIcon } from '@/components/OaIcon';
 import EChartsCard from './EChartsCard';
 import ResponsiveTable from './ResponsiveTable';
@@ -29,7 +31,9 @@ export default function Dashboard({ primaryColor, onOpenAi }: DashboardProps) {
   const { t, i18n } = useTranslation();
   const [overview, setOverview] = useState<DashboardOverview | null>(null);
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string>();
+  const { allowed: canExport } = usePermission('data:export');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -44,6 +48,19 @@ export default function Dashboard({ primaryColor, onOpenAi }: DashboardProps) {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const response = await exportDashboard(defaultDashboardExportRange(7));
+      downloadDashboardExport(response);
+      message.success(t('dashboard.messages.exported', { count: response.rowCount }));
+    } catch (cause) {
+      message.error(formatOaApiError(cause));
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const dateLocale = i18n.resolvedLanguage === 'en-US' ? 'en-US' : 'zh-CN';
   const formatDateTime = (value?: string | null) => value
@@ -107,9 +124,7 @@ export default function Dashboard({ primaryColor, onOpenAi }: DashboardProps) {
         </div>
         <Space className="oa-page-title-actions" wrap>
           <Button icon={<OaIcon name="reload" />} loading={loading} onClick={() => void load()}>{t('common.refresh')}</Button>
-          <Tooltip title={t('dashboard.messages.exportNotAvailable')}>
-            <Button disabled icon={<OaIcon name="export" />}>{t('dashboard.exportDashboard')}</Button>
-          </Tooltip>
+          {canExport && <Button loading={exporting} icon={<OaIcon name="export" />} onClick={() => void handleExport()}>{t('dashboard.exportDashboard')}</Button>}
           <Tooltip title={t('dashboard.messages.metricsConfigComingSoon')}>
             <Button disabled icon={<OaIcon name="audit" />}>{t('dashboard.configMetrics')}</Button>
           </Tooltip>

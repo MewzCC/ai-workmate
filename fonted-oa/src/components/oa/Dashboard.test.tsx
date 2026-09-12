@@ -16,6 +16,10 @@ vi.mock('@/lib/nextCompat', () => ({
   useRouter: () => ({ push: mocks.push }),
 }));
 
+vi.mock('@/hooks/usePermission', () => ({
+  usePermission: () => ({ allowed: true }),
+}));
+
 vi.mock('./EChartsCard', () => ({ default: ({ title }: { title: string }) => <div>{title}</div> }));
 
 const overview = {

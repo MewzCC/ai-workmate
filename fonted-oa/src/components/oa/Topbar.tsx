@@ -10,6 +10,9 @@ import { useAuth } from '@/components/auth/AuthProvider';
 import { OaIcon } from '@/components/OaIcon';
 import { useRouter } from '@/lib/nextCompat';
 import { useCallback, useEffect, useState } from 'react';
+import { usePermission } from '@/hooks/usePermission';
+import { defaultDashboardExportRange, downloadDashboardExport, exportDashboard } from '@/lib/dashboardApi';
+import { formatOaApiError } from '@/lib/oaApi';
 import ProfileSettingsModal from '@/components/profile/ProfileSettingsModal';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
 import { useLocale } from '@/i18n/useLocale';
@@ -29,13 +32,14 @@ const NOTIFY_POLL_INTERVAL_MS = 30_000;
 
 interface TopbarProps {
   role: OaRole;
+  pageId: string;
   pageTitle: string;
   onOpenAppearance: () => void;
   onOpenAi: (prompt?: string) => void;
   onToggleMenu: () => void;
 }
 
-export default function Topbar({ role, pageTitle, onOpenAppearance, onOpenAi, onToggleMenu }: TopbarProps) {
+export default function Topbar({ role, pageId, pageTitle, onOpenAppearance, onOpenAi, onToggleMenu }: TopbarProps) {
   const { user, logout } = useAuth();
   const router = useRouter();
   const { t } = useTranslation();
@@ -44,6 +48,9 @@ export default function Topbar({ role, pageTitle, onOpenAppearance, onOpenAi, on
   const [helpOpen, setHelpOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [notifyItems, setNotifyItems] = useState<NotificationItem[]>([]);
+  const [exporting, setExporting] = useState(false);
+  const { allowed: hasExportPermission } = usePermission('data:export');
+  const canExportDashboard = pageId === 'dashboard' && hasExportPermission;
 
   const loadNotifications = useCallback(async () => {
     try {
@@ -84,7 +91,19 @@ export default function Topbar({ role, pageTitle, onOpenAppearance, onOpenAi, on
 
   const handleHelp = () => setHelpOpen(true);
   const handleNewFlow = () => onOpenAi(t('oa.topbar.newFlowPrompt'));
-  const handleExport = () => message.warning(t('oa.topbar.exportUnavailable'));
+  const handleExport = async () => {
+    if (!canExportDashboard || exporting) return;
+    setExporting(true);
+    try {
+      const response = await exportDashboard(defaultDashboardExportRange(7));
+      downloadDashboardExport(response);
+      message.success(t('dashboard.messages.exported', { count: response.rowCount }));
+    } catch (cause) {
+      message.error(formatOaApiError(cause));
+    } finally {
+      setExporting(false);
+    }
+  };
 
   // 通知中心下拉内容（真实数据）
   const notifyContent = (
@@ -146,7 +165,7 @@ export default function Topbar({ role, pageTitle, onOpenAppearance, onOpenAi, on
   const moreMenuItems: MenuProps['items'] = [
     { key: 'newFlow', icon: <OaIcon name="add" />, label: t('oa.topbar.newFlow') },
     { key: 'notify', icon: <OaIcon name="notification" />, label: t('oa.topbar.notify') },
-    { key: 'export', icon: <OaIcon name="export" />, label: t('oa.topbar.exportBoard') },
+    ...(canExportDashboard ? [{ key: 'export', icon: <OaIcon name="export" />, label: t('oa.topbar.exportBoard') }] : []),
     { key: 'help', icon: <OaIcon name="help" />, label: t('oa.topbar.help') },
     { type: 'divider' },
     {
@@ -169,7 +188,7 @@ export default function Topbar({ role, pageTitle, onOpenAppearance, onOpenAi, on
   const onMoreMenuClick: MenuProps['onClick'] = ({ key }) => {
     if (key === 'newFlow') handleNewFlow();
     else if (key === 'notify') router.push('/oa/messages');
-    else if (key === 'export') handleExport();
+    else if (key === 'export') void handleExport();
     else if (key === 'help') handleHelp();
     else if (key.startsWith('lang-')) changeLanguage(key.slice('lang-'.length) as AppLocale);
     else if (key === 'profile') setProfileOpen(true);
@@ -199,9 +218,9 @@ export default function Topbar({ role, pageTitle, onOpenAppearance, onOpenAi, on
           <Button type="primary" icon={<OaIcon name="add" />} onClick={handleNewFlow}>
             {t('oa.topbar.newFlow')}
           </Button>
-          <Button icon={<OaIcon name="export" />} onClick={handleExport}>
+          {canExportDashboard && <Button loading={exporting} icon={<OaIcon name="export" />} onClick={() => void handleExport()}>
             {t('oa.topbar.exportBoard')}
-          </Button>
+          </Button>}
         </Space>
 
         {/* 移动端"更多"按钮 */}
