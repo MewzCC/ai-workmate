@@ -4,6 +4,7 @@ import com.aiworkmate.agent.registry.AgentPageActionPolicy;
 import com.aiworkmate.agent.registry.AgentPageActionPolicyMapper;
 import com.aiworkmate.agent.registry.ConfirmationPolicy;
 import com.aiworkmate.agent.registry.OwnershipPolicy;
+import com.aiworkmate.agent.capability.PageCapabilityCatalog;
 import com.aiworkmate.agent.registry.PageActionCatalog;
 import com.aiworkmate.agent.registry.PermissionMode;
 import com.aiworkmate.agent.registry.RetryPolicy;
@@ -51,7 +52,8 @@ class PageActionPolicyServiceImplTest {
                 schema, schema, RiskLevel.L0, Set.of("todo:read"), PermissionMode.ALL,
                 OwnershipPolicy.ASSIGNED_TO_SELF, RetryPolicy.READ_ONLY_SAFE, SideEffect.NONE,
                 ConfirmationPolicy.NONE, 20, 8192, 5000, "HASHED_ARGS_RESULT");
-        service = new PageActionPolicyServiceImpl(new PageActionCatalog(new ToolCatalog(List.of(tool))),
+        service = new PageActionPolicyServiceImpl(
+                new PageActionCatalog(new PageCapabilityCatalog(), new ToolCatalog(List.of(tool))),
                 mapper, accessService, auditService);
     }
 

@@ -1,6 +1,7 @@
 package com.aiworkmate.service.impl;
 
 import com.aiworkmate.agent.config.AgentRuntimeProperties;
+import com.aiworkmate.agent.capability.PageCapabilityCatalog;
 import com.aiworkmate.agent.planner.AgentPlanner;
 import com.aiworkmate.agent.planner.PageContextFilter;
 import com.aiworkmate.agent.planner.PlannerCandidate;
@@ -46,7 +47,8 @@ class AiTaskServiceImplTest {
         runtime.setExecutionEnabled(true);
         aiRuntime.setApiKey("unit-test-key");
         service = new AiTaskServiceImpl(runtime, aiRuntime, registry, planner,
-                new PageContextFilter(mapper, runtime), taskMapper, stepMapper, idempotency, events,
+                new PageContextFilter(mapper, runtime, new PageCapabilityCatalog()),
+                taskMapper, stepMapper, idempotency, events,
                 taskApiService, rateLimiter, hashing, mapper, eventPublisher);
         ToolDefinition tool = tool();
         when(registry.resolveAllowedTools(any(), eq("todo-list"))).thenReturn(List.of(tool));

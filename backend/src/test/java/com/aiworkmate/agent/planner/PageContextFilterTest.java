@@ -1,6 +1,7 @@
 package com.aiworkmate.agent.planner;
 
 import com.aiworkmate.agent.config.AgentRuntimeProperties;
+import com.aiworkmate.agent.capability.PageCapabilityCatalog;
 import com.aiworkmate.common.BusinessException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -10,7 +11,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class PageContextFilterTest {
     private final ObjectMapper mapper = new ObjectMapper();
-    private final PageContextFilter filter = new PageContextFilter(mapper, new AgentRuntimeProperties());
+    private final PageContextFilter filter = new PageContextFilter(
+            mapper, new AgentRuntimeProperties(), new PageCapabilityCatalog());
 
     @Test
     void rebuildsKnownPageContextFromScalarAllowlist() throws Exception {

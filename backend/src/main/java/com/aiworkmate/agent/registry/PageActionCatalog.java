@@ -1,11 +1,13 @@
 package com.aiworkmate.agent.registry;
 
+import com.aiworkmate.agent.capability.PageCapabilityCatalog;
+import com.aiworkmate.agent.capability.PageCapabilityDefinition;
 import org.springframework.stereotype.Component;
 
 import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Code-owned maximum mapping between an OA page and Agent tools.
@@ -13,36 +15,34 @@ import java.util.Set;
  */
 @Component
 public class PageActionCatalog {
-    private static final Map<String, Set<String>> PAGE_TOOLS = Map.of(
-            "todo-list", Set.of("todo.query"),
-            "my-applications", Set.of("leave.mine", "leave.createDraft", "leave.submit", "leave.apply"),
-            "knowledge-base", Set.of("knowledge.search"),
-            "message-center", Set.of("notification.mine"),
-            "dashboard", Set.of("todo.query", "notification.mine")
-    );
-
+    private final PageCapabilityCatalog pageCapabilityCatalog;
     private final ToolCatalog toolCatalog;
 
-    public PageActionCatalog(ToolCatalog toolCatalog) {
+    public PageActionCatalog(PageCapabilityCatalog pageCapabilityCatalog, ToolCatalog toolCatalog) {
+        this.pageCapabilityCatalog = pageCapabilityCatalog;
         this.toolCatalog = toolCatalog;
     }
 
     public Set<String> toolCodes(String pageId) {
-        if ("ai-workspace".equals(pageId)) {
-            return toolCatalog.all().stream().map(ToolDefinition::code)
-                    .collect(java.util.stream.Collectors.toUnmodifiableSet());
-        }
-        return PAGE_TOOLS.getOrDefault(pageId, Set.of());
+        return pageCapabilityCatalog.find(pageId)
+                .map(PageCapabilityDefinition::tools)
+                .orElse(List.of()).stream()
+                .map(reference -> reference.toolCode())
+                .collect(Collectors.toUnmodifiableSet());
     }
 
     public boolean contains(String pageId, String toolCode) {
         return toolCode != null && toolCodes(pageId).contains(toolCode);
     }
 
+    public String canonicalPageId(String pageId) {
+        return pageCapabilityCatalog.canonicalPageId(pageId);
+    }
+
     public List<Binding> all() {
         java.util.ArrayList<Binding> bindings = new java.util.ArrayList<>();
-        PAGE_TOOLS.forEach((pageId, tools) -> tools.forEach(tool -> add(bindings, pageId, tool)));
-        toolCatalog.all().forEach(tool -> bindings.add(new Binding("ai-workspace", tool)));
+        pageCapabilityCatalog.all().forEach(page -> page.tools()
+                .forEach(tool -> add(bindings, page.pageId(), tool.toolCode())));
         return bindings.stream()
                 .sorted(Comparator.comparing(Binding::pageId).thenComparing(binding -> binding.tool().code()))
                 .toList();

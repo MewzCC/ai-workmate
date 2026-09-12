@@ -15,9 +15,10 @@ public class PageActionPolicyResolver {
     private final AgentPageActionPolicyMapper mapper;
 
     public Set<String> enabledToolCodes(Long tenantId, String pageId) {
-        Set<String> baseline = catalog.toolCodes(pageId);
+        String canonicalPageId = catalog.canonicalPageId(pageId);
+        Set<String> baseline = catalog.toolCodes(canonicalPageId);
         if (tenantId == null || baseline.isEmpty()) return Set.of();
-        Map<String, AgentPageActionPolicy> policies = mapper.selectByTenantAndPage(tenantId, pageId).stream()
+        Map<String, AgentPageActionPolicy> policies = mapper.selectByTenantAndPage(tenantId, canonicalPageId).stream()
                 .collect(Collectors.toMap(AgentPageActionPolicy::getToolCode, Function.identity(), (left, right) -> left));
         return baseline.stream()
                 .filter(code -> !policies.containsKey(code) || Boolean.TRUE.equals(policies.get(code).getEnabled()))

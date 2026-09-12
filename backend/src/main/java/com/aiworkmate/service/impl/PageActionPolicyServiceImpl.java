@@ -67,7 +67,7 @@ public class PageActionPolicyServiceImpl implements PageActionPolicyService {
     public PageActionOverviewResponse update(Long userId, String pageId, String toolCode,
                                              UpdatePageActionPolicyRequest request) {
         ResolvedUserAccess actor = requireManage(userId);
-        String normalizedPage = pageId == null ? "" : pageId.trim();
+        String normalizedPage = catalog.canonicalPageId(pageId == null ? "" : pageId.trim());
         String normalizedTool = toolCode == null ? "" : toolCode.trim();
         if (!catalog.contains(normalizedPage, normalizedTool)) {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);

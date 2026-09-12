@@ -208,6 +208,10 @@ class P1PostgresMigrationIT {
                     WHERE route_type = 'PAGE' AND enabled = TRUE
                     """)).as("R4 浏览器回归清单必须覆盖全部已启用页面").isEqualTo(41);
             assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_page_action_policy
+                    WHERE page_id IN ('todo-list', 'message-center')
+                    """)).as("Agent 页面策略必须使用正式路由标识").isZero();
+            assertThat(count(statement, """
                     SELECT COUNT(*) FROM information_schema.views
                     WHERE table_schema = current_schema() AND table_name = 'runtime_log_view'
                     """)).isOne();
