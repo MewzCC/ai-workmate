@@ -23,7 +23,7 @@ class PageCapabilityCatalogTest {
     void exposesOnlyExistingPhaseTwoToolsAndKeepsWritesAtomic() {
         Set<String> knownTools = Set.of(
                 "todo.query", "leave.mine", "knowledge.search", "notification.mine",
-                "leave.createDraft", "leave.submit", "leave.apply"
+                "leave.createDraft", "leave.submit", "leave.apply", "approval.configuration.query"
         );
         Set<String> registered = catalog.all().stream()
                 .flatMap(page -> page.tools().stream())

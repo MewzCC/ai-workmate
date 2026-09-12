@@ -10,6 +10,14 @@ import java.util.Set;
 @Configuration(proxyBeanMethods = false)
 public class AgentReadToolDefinitions {
 
+    public static final String APPROVAL_CONFIGURATION_QUERY_INPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["resource"],"properties":{"resource":{"type":"string","enum":["FORM","PROCESS","RULE"]},"keyword":{"type":"string","maxLength":200},"status":{"type":"string","enum":["DRAFT","ENABLED","DISABLED"]},"page":{"type":"integer","minimum":1,"maximum":10000},"size":{"type":"integer","minimum":1,"maximum":50}}}
+            """.strip();
+
+    public static final String APPROVAL_CONFIGURATION_QUERY_OUTPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["items","total","page","size"],"properties":{"items":{"type":"array","maxItems":50,"items":{"type":"object","additionalProperties":false,"required":["id","resource","key","name","status","version","updatedAt"],"properties":{"id":{"type":"integer","minimum":1},"resource":{"type":"string","enum":["FORM","PROCESS","RULE"]},"key":{"type":"string","maxLength":120},"name":{"type":"string","maxLength":200},"description":{"type":"string","maxLength":1000},"status":{"type":"string","enum":["DRAFT","ENABLED","DISABLED"]},"version":{"type":"integer","minimum":0},"formName":{"type":"string","maxLength":200},"ruleType":{"type":"string","maxLength":80},"priority":{"type":"integer"},"updatedAt":{"type":"string","maxLength":32}}}},"total":{"type":"integer","minimum":0},"page":{"type":"integer","minimum":1},"size":{"type":"integer","minimum":1,"maximum":50}}}
+            """.strip();
+
     public static final String TODO_QUERY_INPUT_SCHEMA = """
             {"type":"object","additionalProperties":false,"properties":{"status":{"type":"string","enum":["PENDING","APPROVED","REJECTED","CANCELLED"]},"from":{"type":"string","minLength":16,"maxLength":32},"to":{"type":"string","minLength":16,"maxLength":32},"page":{"type":"integer","minimum":1,"maximum":10000},"size":{"type":"integer","minimum":1,"maximum":50}}}
             """.strip();
@@ -41,6 +49,19 @@ public class AgentReadToolDefinitions {
     public static final String NOTIFICATION_MINE_OUTPUT_SCHEMA = """
             {"type":"object","additionalProperties":false,"required":["items","total","page","size"],"properties":{"items":{"type":"array","maxItems":50,"items":{"type":"object","additionalProperties":false,"required":["id","type","title","content","read","createdAt"],"properties":{"id":{"type":"integer","minimum":1},"type":{"type":"string","maxLength":40},"title":{"type":"string","maxLength":200},"content":{"type":"string","maxLength":2000},"businessType":{"type":"string","maxLength":40},"read":{"type":"boolean"},"createdAt":{"type":"string","maxLength":32}}}},"total":{"type":"integer","minimum":0},"page":{"type":"integer","minimum":1},"size":{"type":"integer","minimum":1,"maximum":50}}}
             """.strip();
+
+    @Bean
+    ToolDefinition approvalConfigurationQueryToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {
+        return ToolDefinition.create(
+                "approval.configuration.query", "Query approval configuration",
+                "Returns bounded approval forms, processes or rules from the authenticated tenant.",
+                "Display tenant-scoped approval configuration summaries without executable schema or rule payloads.",
+                "1.0.0", objectMapper.readTree(APPROVAL_CONFIGURATION_QUERY_INPUT_SCHEMA),
+                objectMapper.readTree(APPROVAL_CONFIGURATION_QUERY_OUTPUT_SCHEMA), RiskLevel.L0,
+                Set.of("approval:read"), PermissionMode.ALL, OwnershipPolicy.TENANT_SCOPED,
+                RetryPolicy.READ_ONLY_SAFE, SideEffect.NONE, ConfirmationPolicy.NONE,
+                50, 65536, 15000, "HASHED_ARGS_RESULT");
+    }
 
     @Bean
     ToolDefinition todoQueryToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {

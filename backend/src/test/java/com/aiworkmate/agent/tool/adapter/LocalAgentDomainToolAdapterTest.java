@@ -6,12 +6,15 @@ import com.aiworkmate.agent.tool.port.TodoToolPort;
 import com.aiworkmate.common.PageResponse;
 import com.aiworkmate.dto.KnowledgeSearchItemResponse;
 import com.aiworkmate.dto.KnowledgeSearchResponse;
+import com.aiworkmate.dto.ApprovalFormResponse;
+import com.aiworkmate.agent.tool.port.ApprovalConfigurationToolPort;
 import com.aiworkmate.dto.LeaveApplicationResponse;
 import com.aiworkmate.dto.NotificationResponse;
 import com.aiworkmate.dto.TodoResponse;
 import com.aiworkmate.service.KnowledgeService;
 import com.aiworkmate.service.LeaveWorkflowService;
 import com.aiworkmate.service.NotificationService;
+import com.aiworkmate.service.ApprovalEngineService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -33,12 +36,14 @@ class LocalAgentDomainToolAdapterTest {
     @Mock private LeaveWorkflowService leaveWorkflowService;
     @Mock private KnowledgeService knowledgeService;
     @Mock private NotificationService notificationService;
+    @Mock private ApprovalEngineService approvalEngineService;
 
     private LocalAgentDomainToolAdapter adapter;
 
     @BeforeEach
     void setUp() {
-        adapter = new LocalAgentDomainToolAdapter(leaveWorkflowService, knowledgeService, notificationService);
+        adapter = new LocalAgentDomainToolAdapter(
+                leaveWorkflowService, knowledgeService, notificationService, approvalEngineService);
     }
 
     @Test
@@ -56,6 +61,23 @@ class LocalAgentDomainToolAdapterTest {
         assertThat(result.items()).containsExactly(new TodoToolPort.Item(
                 1L, 2L, "申请人", "ANNUAL", 2, "PENDING", 4,
                 now, now.plusDays(1), false));
+    }
+
+    @Test
+    void dispatchesApprovalResourceThroughTypedDomainMethod() {
+        LocalDateTime now = LocalDateTime.of(2026, 9, 12, 8, 30);
+        when(approvalEngineService.listForms(7L, "报销", "ENABLED", 1, 20))
+                .thenReturn(PageResponse.of(List.of(new ApprovalFormResponse(
+                        12L, "expense", "费用报销", "报销表单", "{sensitive-schema}",
+                        "ENABLED", 3, "管理员", now.minusDays(1), now, true, true)), 1, 1, 20));
+
+        var result = adapter.query(7L, new ApprovalConfigurationToolPort.Query(
+                ApprovalConfigurationToolPort.Resource.FORM, "报销", "ENABLED", 1, 20));
+
+        assertThat(result.items()).containsExactly(new ApprovalConfigurationToolPort.Item(
+                12L, ApprovalConfigurationToolPort.Resource.FORM, "expense", "费用报销", "报销表单",
+                "ENABLED", 3, null, null, null, now));
+        assertThat(result.toString()).doesNotContain("sensitive-schema");
     }
 
     @Test

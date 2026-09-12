@@ -45,7 +45,16 @@ class AgentReadToolSecurityCorpusTest {
                 "notification.mine", new Corpus(
                         definitions.notificationMineToolDefinition(objectMapper),
                         List.of("{}", "{\"page\":1}", "{\"page\":2,\"size\":50}"),
-                        hostileArguments("page", "0"))
+                        hostileArguments("page", "0")),
+                "approval.configuration.query", new Corpus(
+                        definitions.approvalConfigurationQueryToolDefinition(objectMapper),
+                        List.of("{\"resource\":\"FORM\"}",
+                                "{\"resource\":\"PROCESS\",\"keyword\":\"采购\"}",
+                                "{\"resource\":\"RULE\",\"page\":2,\"size\":50}"),
+                        List.of("{}", "{\"resource\":\"UNKNOWN\"}",
+                                "{\"resource\":\"FORM\",\"userId\":7}",
+                                "{\"resource\":\"FORM\",\"size\":51}",
+                                "{\"resource\":\"FORM\",\"url\":\"https://attacker.invalid\"}"))
         );
 
         return corpora.entrySet().stream().flatMap(entry -> {

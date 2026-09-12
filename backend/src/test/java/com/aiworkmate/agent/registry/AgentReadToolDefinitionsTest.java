@@ -9,6 +9,26 @@ import static org.assertj.core.api.Assertions.assertThat;
 class AgentReadToolDefinitionsTest {
 
     @Test
+    void approvalConfigurationDefinitionUsesOneClosedDiscriminatedQuery() throws Exception {
+        ObjectMapper objectMapper = new ObjectMapper();
+        ToolDefinition definition = new AgentReadToolDefinitions()
+                .approvalConfigurationQueryToolDefinition(objectMapper);
+        ToolSchemaValidator validator = new ToolSchemaValidator();
+
+        assertThat(definition.code()).isEqualTo("approval.configuration.query");
+        assertThat(definition.schemaHash()).isEqualTo(
+                "sha256:2e459355b6911204453ea0dc07f403477514a5df1fba877d52c29e48bf08fb22");
+        assertThat(definition.requiredPermissions()).containsExactly("approval:read");
+        assertThat(definition.ownershipPolicy()).isEqualTo(OwnershipPolicy.TENANT_SCOPED);
+        assertThat(validator.valid(definition.inputSchema(),
+                objectMapper.readTree("{\"resource\":\"FORM\",\"page\":1,\"size\":50}"))).isTrue();
+        assertThat(validator.valid(definition.inputSchema(),
+                objectMapper.readTree("{\"resource\":\"UNKNOWN\"}"))).isFalse();
+        assertThat(validator.valid(definition.inputSchema(),
+                objectMapper.readTree("{\"resource\":\"RULE\",\"tenantId\":9}"))).isFalse();
+    }
+
+    @Test
     void todoQueryDefinitionMatchesFrozenDatabaseSeed() throws Exception {
         ToolDefinition definition = new AgentReadToolDefinitions()
                 .todoQueryToolDefinition(new ObjectMapper());
