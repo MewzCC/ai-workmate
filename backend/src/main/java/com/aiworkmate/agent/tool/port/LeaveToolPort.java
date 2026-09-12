@@ -1,6 +1,5 @@
 package com.aiworkmate.agent.tool.port;
 
-import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -10,7 +9,7 @@ public interface LeaveToolPort {
     Page mine(Long actorUserId, Query query);
     Item getMine(Long actorUserId, long applicationId);
     WriteResult createDraft(Long actorUserId, Draft command, String operationKey);
-    WriteResult submit(Long actorUserId, long applicationId, int version, String taskId);
+    WriteResult submit(Long actorUserId, long applicationId, int version, long taskId);
     WriteResult apply(Long actorUserId, Draft command, String operationKey);
 
     record Query(String status, int page, int size) { }
@@ -20,7 +19,7 @@ public interface LeaveToolPort {
     record Draft(String leaveType, Long approverUserId, LocalDate startDate, String startPeriod,
                  LocalDate endDate, String endPeriod, String reason) { }
     record Item(long id, String approverName, String leaveType, LocalDate startDate, String startPeriod,
-                LocalDate endDate, String endPeriod, int durationHalfDays, BigDecimal durationDays,
+                LocalDate endDate, String endPeriod, int durationHalfDays, double durationDays,
                 String reason, String status, int version, LocalDateTime submittedAt,
                 LocalDateTime completedAt, LocalDateTime createdAt, LocalDateTime updatedAt) { }
     record WriteResult(long applicationId, String status, int version, Long approvalTaskId) { }

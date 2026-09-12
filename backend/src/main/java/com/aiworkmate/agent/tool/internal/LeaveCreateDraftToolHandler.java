@@ -2,9 +2,7 @@ package com.aiworkmate.agent.tool.internal;
 
 import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.common.ErrorCode;
-import com.aiworkmate.dto.LeaveApplicationRequest;
-import com.aiworkmate.dto.LeaveApplicationResponse;
-import com.aiworkmate.service.LeaveWorkflowService;
+import com.aiworkmate.agent.tool.port.LeaveToolPort;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -17,7 +15,7 @@ import java.time.format.DateTimeParseException;
 @Component
 @RequiredArgsConstructor
 public final class LeaveCreateDraftToolHandler implements ToolHandler {
-    private final LeaveWorkflowService leaveWorkflowService;
+    private final LeaveToolPort leaveToolPort;
     private final ObjectMapper objectMapper;
 
     @Override
@@ -32,16 +30,16 @@ public final class LeaveCreateDraftToolHandler implements ToolHandler {
 
     @Override
     public JsonNode execute(TrustedToolContext context, JsonNode arguments) {
-        LeaveApplicationRequest request = new LeaveApplicationRequest(
+        LeaveToolPort.Draft request = new LeaveToolPort.Draft(
                 requiredText(arguments, "leaveType"), optionalLong(arguments, "approverUserId"),
                 date(arguments, "startDate"), requiredText(arguments, "startPeriod"),
                 date(arguments, "endDate"), requiredText(arguments, "endPeriod"),
-                requiredText(arguments, "reason"), null);
+                requiredText(arguments, "reason"));
         String operationKey = "agent:" + context.taskId() + ":" + context.stepId() + ":leave.createDraft:v1";
-        LeaveApplicationResponse created = leaveWorkflowService.createAgentDraft(
+        LeaveToolPort.WriteResult created = leaveToolPort.createDraft(
                 context.userId(), request, operationKey);
         ObjectNode output = objectMapper.createObjectNode();
-        output.put("applicationId", created.id());
+        output.put("applicationId", created.applicationId());
         output.put("status", created.status());
         output.put("version", created.version());
         return output;

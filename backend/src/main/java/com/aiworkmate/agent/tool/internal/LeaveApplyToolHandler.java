@@ -2,9 +2,7 @@ package com.aiworkmate.agent.tool.internal;
 
 import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.common.ErrorCode;
-import com.aiworkmate.dto.LeaveApplicationRequest;
-import com.aiworkmate.dto.LeaveApplicationResponse;
-import com.aiworkmate.service.LeaveWorkflowService;
+import com.aiworkmate.agent.tool.port.LeaveToolPort;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -17,7 +15,7 @@ import java.time.format.DateTimeParseException;
 @Component
 @RequiredArgsConstructor
 public final class LeaveApplyToolHandler implements ToolHandler {
-    private final LeaveWorkflowService leaveWorkflowService;
+    private final LeaveToolPort leaveToolPort;
     private final ObjectMapper objectMapper;
 
     @Override
@@ -32,19 +30,19 @@ public final class LeaveApplyToolHandler implements ToolHandler {
 
     @Override
     public JsonNode execute(TrustedToolContext context, JsonNode arguments) {
-        LeaveApplicationRequest request = new LeaveApplicationRequest(
+        LeaveToolPort.Draft request = new LeaveToolPort.Draft(
                 requiredText(arguments, "leaveType"), optionalLong(arguments, "approverUserId"),
                 date(arguments, "startDate"), requiredText(arguments, "startPeriod"),
                 date(arguments, "endDate"), requiredText(arguments, "endPeriod"),
-                requiredText(arguments, "reason"), null);
+                requiredText(arguments, "reason"));
         String operationKey = "agent:" + context.taskId() + ":" + context.stepId() + ":leave.apply:v1";
-        LeaveApplicationResponse application = leaveWorkflowService.applyAgent(
+        LeaveToolPort.WriteResult application = leaveToolPort.apply(
                 context.userId(), request, operationKey);
         ObjectNode output = objectMapper.createObjectNode();
-        output.put("applicationId", application.id());
+        output.put("applicationId", application.applicationId());
         output.put("status", application.status());
         output.put("version", application.version());
-        output.put("approvalTaskId", application.taskId());
+        output.put("approvalTaskId", application.approvalTaskId());
         return output;
     }
 

@@ -2,9 +2,7 @@ package com.aiworkmate.agent.tool.internal;
 
 import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.common.ErrorCode;
-import com.aiworkmate.common.PageResponse;
-import com.aiworkmate.dto.TodoResponse;
-import com.aiworkmate.service.LeaveWorkflowService;
+import com.aiworkmate.agent.tool.port.TodoToolPort;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -22,7 +20,7 @@ public final class TodoQueryToolHandler implements ToolHandler {
     private static final int DEFAULT_SIZE = 20;
     private static final int MAX_SIZE = 50;
 
-    private final LeaveWorkflowService leaveWorkflowService;
+    private final TodoToolPort todoToolPort;
     private final ObjectMapper objectMapper;
 
     @Override
@@ -46,18 +44,18 @@ public final class TodoQueryToolHandler implements ToolHandler {
         int size = Math.min(MAX_SIZE, positiveInt(arguments, "size", DEFAULT_SIZE));
         String status = text(arguments, "status");
 
-        PageResponse<TodoResponse> result = leaveWorkflowService.todos(
-                context.userId(), status, from, to, page, size);
+        TodoToolPort.Page result = todoToolPort.query(
+                context.userId(), new TodoToolPort.Query(status, from, to, page, size));
         ObjectNode output = objectMapper.createObjectNode();
         ArrayNode items = output.putArray("items");
-        result.records().forEach(todo -> appendTodo(items, todo));
+        result.items().forEach(todo -> appendTodo(items, todo));
         output.put("total", result.total());
         output.put("page", result.page());
         output.put("size", result.size());
         return output;
     }
 
-    private void appendTodo(ArrayNode items, TodoResponse todo) {
+    private void appendTodo(ArrayNode items, TodoToolPort.Item todo) {
         ObjectNode item = items.addObject();
         item.put("id", todo.id());
         item.put("applicationId", todo.applicationId());

@@ -2,9 +2,7 @@ package com.aiworkmate.agent.tool.internal;
 
 import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.common.ErrorCode;
-import com.aiworkmate.dto.KnowledgeSearchRequest;
-import com.aiworkmate.dto.KnowledgeSearchResponse;
-import com.aiworkmate.service.KnowledgeService;
+import com.aiworkmate.agent.tool.port.KnowledgeToolPort;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -15,7 +13,7 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 public final class KnowledgeSearchToolHandler implements ToolHandler {
-    private final KnowledgeService knowledgeService;
+    private final KnowledgeToolPort knowledgeToolPort;
     private final ObjectMapper objectMapper;
 
     @Override
@@ -32,18 +30,18 @@ public final class KnowledgeSearchToolHandler implements ToolHandler {
         if (topK < 1) throw new BusinessException(ErrorCode.REQUEST_INVALID);
         topK = Math.min(10, topK);
         Double minScore = arguments.has("minScore") ? arguments.path("minScore").asDouble() : null;
-        KnowledgeSearchResponse result = knowledgeService.search(
-                context.userId(), new KnowledgeSearchRequest(query, topK, minScore));
+        KnowledgeToolPort.Result result = knowledgeToolPort.search(
+                context.userId(), new KnowledgeToolPort.Query(query, topK, minScore));
 
         ObjectNode output = objectMapper.createObjectNode();
         ArrayNode items = output.putArray("items");
-        result.records().stream().limit(10).forEach(record -> {
+        result.items().stream().limit(10).forEach(record -> {
             ObjectNode item = items.addObject();
             item.put("content", record.content());
             item.put("score", record.score());
             item.put("matchType", record.matchType());
             ObjectNode citation = item.putObject("citation");
-            citation.put("documentId", record.docId());
+            citation.put("documentId", record.documentId());
             citation.put("chunkId", record.chunkId());
             citation.put("filename", record.filename());
             citation.put("chunkIndex", record.chunkIndex());

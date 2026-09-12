@@ -1,0 +1,117 @@
+package com.aiworkmate.agent.tool.adapter;
+
+import com.aiworkmate.agent.tool.port.KnowledgeToolPort;
+import com.aiworkmate.agent.tool.port.LeaveToolPort;
+import com.aiworkmate.agent.tool.port.TodoToolPort;
+import com.aiworkmate.common.PageResponse;
+import com.aiworkmate.dto.KnowledgeSearchItemResponse;
+import com.aiworkmate.dto.KnowledgeSearchResponse;
+import com.aiworkmate.dto.LeaveApplicationResponse;
+import com.aiworkmate.dto.NotificationResponse;
+import com.aiworkmate.dto.TodoResponse;
+import com.aiworkmate.service.KnowledgeService;
+import com.aiworkmate.service.LeaveWorkflowService;
+import com.aiworkmate.service.NotificationService;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+@ExtendWith(MockitoExtension.class)
+class LocalAgentDomainToolAdapterTest {
+    @Mock private LeaveWorkflowService leaveWorkflowService;
+    @Mock private KnowledgeService knowledgeService;
+    @Mock private NotificationService notificationService;
+
+    private LocalAgentDomainToolAdapter adapter;
+
+    @BeforeEach
+    void setUp() {
+        adapter = new LocalAgentDomainToolAdapter(leaveWorkflowService, knowledgeService, notificationService);
+    }
+
+    @Test
+    void forwardsTrustedTodoQueryAndMapsOnlyPortFields() {
+        LocalDateTime now = LocalDateTime.of(2026, 9, 12, 9, 0);
+        when(leaveWorkflowService.todos(7L, "PENDING", now, now.plusDays(1), 2, 30))
+                .thenReturn(PageResponse.of(List.of(new TodoResponse(
+                        1L, 2L, 3L, "申请人", "ANNUAL", 2, "PENDING", 4,
+                        now, now.plusDays(1), false, "internal-avatar", now, "/private/avatar")),
+                        1, 2, 30));
+
+        TodoToolPort.Page result = adapter.query(7L,
+                new TodoToolPort.Query("PENDING", now, now.plusDays(1), 2, 30));
+
+        assertThat(result.items()).containsExactly(new TodoToolPort.Item(
+                1L, 2L, "申请人", "ANNUAL", 2, "PENDING", 4,
+                now, now.plusDays(1), false));
+    }
+
+    @Test
+    void keepsLeaveOperationKeyAndMapsWriteResult() {
+        when(leaveWorkflowService.createAgentDraft(eq(7L), org.mockito.ArgumentMatchers.any(), eq("operation-1")))
+                .thenReturn(leaveApplication());
+        LeaveToolPort.Draft command = new LeaveToolPort.Draft(
+                "PERSONAL", 8L, LocalDate.of(2026, 9, 15), "AM",
+                LocalDate.of(2026, 9, 15), "PM", "家庭事务");
+
+        LeaveToolPort.WriteResult result = adapter.createDraft(7L, command, "operation-1");
+
+        assertThat(result).isEqualTo(new LeaveToolPort.WriteResult(30L, "DRAFT", 0, null));
+        var request = ArgumentCaptor.forClass(com.aiworkmate.dto.LeaveApplicationRequest.class);
+        verify(leaveWorkflowService).createAgentDraft(eq(7L), request.capture(), eq("operation-1"));
+        assertThat(request.getValue().reason()).isEqualTo("家庭事务");
+        assertThat(request.getValue().version()).isNull();
+    }
+
+    @Test
+    void mapsKnowledgeSearchWithoutExposingProviderMetadata() {
+        when(knowledgeService.search(eq(7L), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(new KnowledgeSearchResponse("provider", "model", 8, List.of(
+                        new KnowledgeSearchItemResponse(11L, 12L, "policy.txt", 3,
+                                "制度内容", 0.86, "HYBRID"))));
+
+        KnowledgeToolPort.Result result = adapter.search(7L,
+                new KnowledgeToolPort.Query("请假制度", 5, 0.5));
+
+        assertThat(result.items()).containsExactly(new KnowledgeToolPort.Item(
+                "制度内容", 0.86, "HYBRID", 11L, 12L, "policy.txt", 3));
+        verify(knowledgeService).search(eq(7L), org.mockito.ArgumentMatchers.argThat(request ->
+                request.query().equals("请假制度") && request.topK() == 5 && request.minScore() == 0.5));
+    }
+
+    @Test
+    void mapsSelfOwnedNotificationsAndDropsInternalBusinessId() {
+        LocalDateTime now = LocalDateTime.of(2026, 9, 12, 10, 0);
+        when(notificationService.list(7L, 1, 20)).thenReturn(PageResponse.of(List.of(
+                new NotificationResponse(9L, "approval", "审批提醒", "请处理", "leave", 999L, false, now)),
+                1, 1, 20));
+
+        var result = adapter.mine(7L, 1, 20);
+
+        assertThat(result.items()).containsExactly(new com.aiworkmate.agent.tool.port.NotificationToolPort.Item(
+                9L, "approval", "审批提醒", "请处理", "leave", false, now));
+    }
+
+    private LeaveApplicationResponse leaveApplication() {
+        LocalDateTime now = LocalDateTime.of(2026, 9, 12, 11, 0);
+        return new LeaveApplicationResponse(
+                30L, 7L, "当前用户", 8L, "直属主管", "PERSONAL",
+                LocalDate.of(2026, 9, 15), "AM", LocalDate.of(2026, 9, 15), "PM",
+                2, 1.0, "家庭事务", "DRAFT", 0,
+                null, null, null, null, false, 0, null, null, false,
+                null, "DRAFT", List.of(), null, null, now, now,
+                true, true, false, false, null, null);
+    }
+}

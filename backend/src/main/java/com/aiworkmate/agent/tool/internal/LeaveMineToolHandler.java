@@ -2,9 +2,7 @@ package com.aiworkmate.agent.tool.internal;
 
 import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.common.ErrorCode;
-import com.aiworkmate.common.PageResponse;
-import com.aiworkmate.dto.LeaveApplicationResponse;
-import com.aiworkmate.service.LeaveWorkflowService;
+import com.aiworkmate.agent.tool.port.LeaveToolPort;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -17,7 +15,7 @@ import org.springframework.stereotype.Component;
 public final class LeaveMineToolHandler implements ToolHandler {
     private static final int MAX_SIZE = 50;
 
-    private final LeaveWorkflowService leaveWorkflowService;
+    private final LeaveToolPort leaveToolPort;
     private final ObjectMapper objectMapper;
 
     @Override
@@ -39,30 +37,30 @@ public final class LeaveMineToolHandler implements ToolHandler {
             throw new BusinessException(ErrorCode.REQUEST_INVALID);
         }
 
-        PageResponse<LeaveApplicationResponse> result;
+        LeaveToolPort.Page result;
         if (applicationId != null) {
-            result = PageResponse.of(
-                    java.util.List.of(leaveWorkflowService.getMine(context.userId(), applicationId)),
+            result = new LeaveToolPort.Page(
+                    java.util.List.of(leaveToolPort.getMine(context.userId(), applicationId)),
                     1, 1, 1);
         } else {
             int page = positiveInt(arguments, "page", 1);
             int size = Math.min(MAX_SIZE, positiveInt(arguments, "size", 20));
-            result = leaveWorkflowService.mine(context.userId(), status, page, size);
+            result = leaveToolPort.mine(context.userId(), new LeaveToolPort.Query(status, page, size));
         }
         return output(result);
     }
 
-    private JsonNode output(PageResponse<LeaveApplicationResponse> result) {
+    private JsonNode output(LeaveToolPort.Page result) {
         ObjectNode output = objectMapper.createObjectNode();
         ArrayNode items = output.putArray("items");
-        result.records().forEach(application -> append(items, application));
+        result.items().forEach(application -> append(items, application));
         output.put("total", result.total());
         output.put("page", result.page());
         output.put("size", result.size());
         return output;
     }
 
-    private void append(ArrayNode items, LeaveApplicationResponse application) {
+    private void append(ArrayNode items, LeaveToolPort.Item application) {
         ObjectNode item = items.addObject();
         item.put("id", application.id());
         if (application.approverName() != null) {

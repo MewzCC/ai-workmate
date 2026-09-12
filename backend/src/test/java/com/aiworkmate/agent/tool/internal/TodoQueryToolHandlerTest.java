@@ -1,9 +1,7 @@
 package com.aiworkmate.agent.tool.internal;
 
 import com.aiworkmate.common.BusinessException;
-import com.aiworkmate.common.PageResponse;
-import com.aiworkmate.dto.TodoResponse;
-import com.aiworkmate.service.LeaveWorkflowService;
+import com.aiworkmate.agent.tool.port.TodoToolPort;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -23,7 +21,7 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class TodoQueryToolHandlerTest {
     @Mock
-    private LeaveWorkflowService leaveWorkflowService;
+    private TodoToolPort todoToolPort;
 
     private ObjectMapper objectMapper;
     private TodoQueryToolHandler handler;
@@ -32,7 +30,7 @@ class TodoQueryToolHandlerTest {
     @BeforeEach
     void setUp() {
         objectMapper = new ObjectMapper();
-        handler = new TodoQueryToolHandler(leaveWorkflowService, objectMapper);
+        handler = new TodoQueryToolHandler(todoToolPort, objectMapper);
         context = new TrustedToolContext(91L, 7L, 10L, 20L, 1, "trace");
     }
 
@@ -40,12 +38,11 @@ class TodoQueryToolHandlerTest {
     void returnsOnlyBoundedSafeFieldsForTrustedUser() throws Exception {
         LocalDateTime submittedAt = LocalDateTime.of(2026, 8, 25, 9, 30);
         LocalDateTime dueAt = LocalDateTime.of(2026, 8, 26, 9, 30);
-        TodoResponse todo = new TodoResponse(
-                31L, 41L, 999L, "张三", "ANNUAL", 2, "PENDING", 3,
-                submittedAt, dueAt, false, "private-avatar-key", submittedAt,
-                "/api/users/999/avatar?token=secret");
-        when(leaveWorkflowService.todos(7L, "PENDING", null, null, 1, 20))
-                .thenReturn(PageResponse.of(List.of(todo), 1, 1, 20));
+        TodoToolPort.Item todo = new TodoToolPort.Item(
+                31L, 41L, "张三", "ANNUAL", 2, "PENDING", 3,
+                submittedAt, dueAt, false);
+        when(todoToolPort.query(7L, new TodoToolPort.Query("PENDING", null, null, 1, 20)))
+                .thenReturn(new TodoToolPort.Page(List.of(todo), 1, 1, 20));
 
         var result = handler.execute(context, objectMapper.readTree("{\"status\":\"PENDING\"}"));
 
@@ -55,14 +52,13 @@ class TodoQueryToolHandlerTest {
         assertThat(result.at("/items/0/applicantUserId").isMissingNode()).isTrue();
         assertThat(result.at("/items/0/applicantAvatar").isMissingNode()).isTrue();
         assertThat(result.at("/items/0/applicantAvatarUrl").isMissingNode()).isTrue();
-        assertThat(result.toString()).doesNotContain("secret", "private-avatar-key");
-        verify(leaveWorkflowService).todos(7L, "PENDING", null, null, 1, 20);
+        verify(todoToolPort).query(7L, new TodoToolPort.Query("PENDING", null, null, 1, 20));
     }
 
     @Test
     void returnsEmptyResultWithoutFabricatingData() throws Exception {
-        when(leaveWorkflowService.todos(7L, null, null, null, 1, 20))
-                .thenReturn(PageResponse.of(List.of(), 0, 1, 20));
+        when(todoToolPort.query(7L, new TodoToolPort.Query(null, null, null, 1, 20)))
+                .thenReturn(new TodoToolPort.Page(List.of(), 0, 1, 20));
 
         var result = handler.execute(context, objectMapper.readTree("{}"));
 
@@ -72,12 +68,12 @@ class TodoQueryToolHandlerTest {
 
     @Test
     void neverUsesCallerSuppliedIdentityAndCapsSizeDefensively() throws Exception {
-        when(leaveWorkflowService.todos(7L, null, null, null, 2, 50))
-                .thenReturn(PageResponse.of(List.of(), 0, 2, 50));
+        when(todoToolPort.query(7L, new TodoToolPort.Query(null, null, null, 2, 50)))
+                .thenReturn(new TodoToolPort.Page(List.of(), 0, 2, 50));
 
         handler.execute(context, objectMapper.readTree("{\"page\":2,\"size\":500}"));
 
-        verify(leaveWorkflowService).todos(7L, null, null, null, 2, 50);
+        verify(todoToolPort).query(7L, new TodoToolPort.Query(null, null, null, 2, 50));
     }
 
     @Test
@@ -90,9 +86,7 @@ class TodoQueryToolHandlerTest {
                         "{\"from\":\"2026-08-26T00:00:00\",\"to\":\"2026-08-25T00:00:00\"}")))
                 .isInstanceOf(BusinessException.class);
 
-        verify(leaveWorkflowService, never()).todos(
-                org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.anyInt(), org.mockito.ArgumentMatchers.anyInt());
+        verify(todoToolPort, never()).query(
+                org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.any());
     }
 }
