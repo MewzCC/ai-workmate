@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.lang.reflect.RecordComponent;
 import java.util.List;
 import java.util.Set;
 
@@ -26,6 +27,14 @@ class AgentDomainToolPortContractTest {
                 assertFalse(method.toGenericString().contains("JsonNode"));
                 assertFalse(method.toGenericString().contains("Map<"));
                 assertFalse(method.toGenericString().contains("Mapper"));
+            }
+            for (Class<?> contractType : port.getDeclaredClasses()) {
+                assertTrue(contractType.isRecord());
+                for (RecordComponent component : contractType.getRecordComponents()) {
+                    assertFalse(component.getGenericType().getTypeName().contains("com.aiworkmate.dto"));
+                    assertFalse(component.getGenericType().getTypeName().contains("com.fasterxml.jackson"));
+                    assertFalse(component.getGenericType().getTypeName().contains("java.util.Map"));
+                }
             }
         });
     }

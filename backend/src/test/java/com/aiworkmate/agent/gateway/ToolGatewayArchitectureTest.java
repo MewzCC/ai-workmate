@@ -23,6 +23,9 @@ class ToolGatewayArchitectureTest {
     void handlersMustNotDependOnInfrastructureEscapeHatches() {
         noClasses().that().resideInAPackage("..agent.tool.internal..")
                 .should().dependOnClassesThat().resideInAnyPackage(
+                        "..agent.tool.adapter..",
+                        "..service..",
+                        "..dto..",
                         "..mapper..",
                         "com.baomidou.mybatisplus.core.mapper..",
                         "..controller..",
@@ -41,5 +44,36 @@ class ToolGatewayArchitectureTest {
         noClasses().that().resideInAPackage("..agent.tool.internal..")
                 .should().dependOnClassesThat().haveFullyQualifiedName("java.lang.Runtime")
                 .check(classes);
+    }
+
+    @Test
+    void domainToolPortsMustRemainFrameworkAndInfrastructureNeutral() {
+        noClasses().that().resideInAPackage("..agent.tool.port..")
+                .should().dependOnClassesThat().resideInAnyPackage(
+                        "..agent.gateway..",
+                        "..agent.tool.adapter..",
+                        "..agent.tool.internal..",
+                        "..controller..",
+                        "..dto..",
+                        "..mapper..",
+                        "..service..",
+                        "com.fasterxml.jackson..",
+                        "org.springframework.."
+                ).check(classes);
+    }
+
+    @Test
+    void localAdaptersMustNotBypassGatewayOrDependOnWebAndPersistenceLayers() {
+        noClasses().that().resideInAPackage("..agent.tool.adapter..")
+                .should().dependOnClassesThat().resideInAnyPackage(
+                        "..agent.gateway..",
+                        "..agent.tool.internal..",
+                        "..controller..",
+                        "..mapper..",
+                        "com.baomidou.mybatisplus..",
+                        "org.springframework.jdbc..",
+                        "org.springframework.web.client..",
+                        "org.springframework.web.reactive.function.client.."
+                ).check(classes);
     }
 }
