@@ -174,7 +174,6 @@ export default function AdminLayout() {
   const [wallpaper, setWallpaper] = useState<string | null>(null);
   const [wallpaperOpacity, setWallpaperOpacity] = useState(() => Number(readStorage('workmeta-oa-wallpaper-opacity', '0.28')));
   const [wallpaperBlur, setWallpaperBlur] = useState(() => Number(readStorage('workmeta-oa-wallpaper-blur', '4')));
-  const [, setAuditItems] = useState<Array<{ color: string; content: string }>>([]);
   const [openTabs, setOpenTabs] = useState<OaPageTab[]>([]);
   const [openTabsReady, setOpenTabsReady] = useState(false);
 
@@ -370,10 +369,6 @@ export default function AdminLayout() {
   const openAi = (prompt?: string) => {
     setAiPrompt(prompt || '');
     setAiOpen(true);
-  };
-
-  const addAudit = (text: string) => {
-    setAuditItems((prev) => [{ color: currentTheme.primary, content: `${new Date().toLocaleTimeString()} ${text}` }, ...prev].slice(0, 6));
   };
 
   const navigateToPage = (tab: OaPageTab) => {
@@ -588,7 +583,6 @@ export default function AdminLayout() {
             initialPrompt={aiPrompt}
             onClose={() => setAiOpen(false)}
             onOpenChangeComplete={setAiDrawerPresent}
-            onExecuted={addAudit}
           />}
         </div>
       </>

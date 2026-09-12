@@ -15,7 +15,6 @@ interface AIOperationDrawerProps {
   initialPrompt?: string;
   onClose: () => void;
   onOpenChangeComplete?: (open: boolean) => void;
-  onExecuted: (text: string) => void;
 }
 
 interface ChatLine { role: 'user' | 'assistant'; content: string }
@@ -51,7 +50,7 @@ function eventStatus(event: AiTaskEvent): AgentTaskStatus | null {
     : null;
 }
 
-export default function AIOperationDrawer({ open, role, pageId, pageTitle, initialPrompt, onClose, onOpenChangeComplete, onExecuted }: AIOperationDrawerProps) {
+export default function AIOperationDrawer({ open, role, pageId, pageTitle, initialPrompt, onClose, onOpenChangeComplete }: AIOperationDrawerProps) {
   const { t } = useTranslation();
   const { message, modal } = AntdApp.useApp();
   const [input, setInput] = useState('');
@@ -128,7 +127,6 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, initi
           setExecuting(false);
           confirmationTokenRef.current = null;
           if (status === 'SUCCEEDED' || status === 'PARTIALLY_SUCCEEDED') {
-            onExecuted(t('oa.ai.executionCompleted', { taskId, status: t(`oa.ai.status.${status}`) }));
             message.success(t('oa.ai.executionCompletedMessage'));
           }
         }

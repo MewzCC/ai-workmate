@@ -28,7 +28,7 @@ const basePlan = {
   steps: [{ sequence: 1, toolCode: 'todo.query', title: '查询本人待办', arguments: { limit: 10 } }],
 };
 
-function renderDrawer(onExecuted = vi.fn()) {
+function renderDrawer() {
   render(
     <App>
       <AIOperationDrawer
@@ -37,7 +37,6 @@ function renderDrawer(onExecuted = vi.fn()) {
         pageId="todo-list"
         pageTitle="待办中心"
         onClose={vi.fn()}
-        onExecuted={onExecuted}
       />
     </App>,
   );

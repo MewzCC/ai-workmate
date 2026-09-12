@@ -13,11 +13,6 @@ export default {
     selectAtLeastOne: 'Keep at least one dashboard metric',
   },
   aiPreReview: 'AI Pre-review',
-  placeholder: {
-    description: 'The {{pageTitle}} page is not yet expanded. Menu permissions, title switching, and AI action entry points are ready.',
-    aiAnalyzePage: 'Let AI Analyze This Page',
-    recordAccess: 'Record Visit',
-  },
   cards: {
     todoList: 'My Pending Tasks',
     recentActivities: 'Recent Business Activity',
@@ -84,7 +79,6 @@ export default {
   aiPrompts: {
     preReviewTask: 'Pre-review approval task {{taskId}}',
     checkRisk: 'Help me {{action}} {{name}} and check the risk of node {{node}}',
-    analyzePage: 'Help me analyze what operations can be automated on the {{pageTitle}} page',
     preReviewList: 'Help me pre-review the current list and output a risk ranking',
   },
   auditEntry: '{{action}} {{id}}',

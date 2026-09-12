@@ -13,11 +13,6 @@ export default {
     selectAtLeastOne: '请至少保留一个工作台指标',
   },
   aiPreReview: '让 AI 预审',
-  placeholder: {
-    description: '{{pageTitle}} 业务页面暂未展开，当前已完成菜单权限、标题切换和 AI 操作入口。',
-    aiAnalyzePage: '让 AI 分析本页',
-    recordAccess: '记录访问',
-  },
   cards: {
     todoList: '本人待办摘要',
     recentActivities: '最近业务活动',
@@ -84,7 +79,6 @@ export default {
   aiPrompts: {
     preReviewTask: '预审审批任务 {{taskId}}',
     checkRisk: '帮我{{action}}{{name}}，并检查节点 {{node}} 的风险',
-    analyzePage: '帮我分析 {{pageTitle}} 页面当前可以自动化的操作',
     preReviewList: '帮我预审当前列表，并输出风险排序',
   },
   auditEntry: '{{action}} {{id}}',

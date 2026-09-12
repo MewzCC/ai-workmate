@@ -141,9 +141,9 @@ export default function Topbar({ role, pageId, pageTitle, onOpenAppearance, onOp
         ))}
       </ul>
       <div className="oa-notify-panel-foot">
-        <button type="button" className="oa-notify-link" onClick={() => router.push('/oa/messages')}>
+        <Button type="link" className="oa-notify-link" onClick={() => router.push('/oa/messages')}>
           {t('oa.topbar.viewAll')}
-        </button>
+        </Button>
       </div>
     </div>
   );

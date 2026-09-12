@@ -1,10 +1,9 @@
 'use client';
 
 import { lazy, type ReactNode } from 'react';
-import { Alert, Button, Card, Empty, Space } from 'antd';
+import { Alert, Card, Empty } from 'antd';
 import { useTranslation } from 'react-i18next';
 import type { ComponentKey, OaMenuItem, OaRole } from '@/types/oa';
-import { OaIcon } from '@/components/OaIcon';
 import Dashboard from './Dashboard';
 import NotificationPage from './NotificationPage';
 import TodoListPage from './TodoListPage';
@@ -112,11 +111,6 @@ export function OaPageRenderer(props: OaPageRendererProps) {
     <Card className="oa-card oa-placeholder-card">
       <Alert type="error" showIcon title={t('oa.errors.unsupportedComponent')} />
       <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('oa.errors.unsupportedComponentDescription', { componentKey: props.menu.componentKey || '-' })} />
-      <Space>
-        <Button type="primary" icon={<OaIcon name="ai" />} onClick={() => props.onOpenAi(t('dashboard.aiPrompts.analyzePage', { pageTitle: props.menu.name }))}>
-          {t('dashboard.placeholder.aiAnalyzePage')}
-        </Button>
-      </Space>
     </Card>
   );
 }
