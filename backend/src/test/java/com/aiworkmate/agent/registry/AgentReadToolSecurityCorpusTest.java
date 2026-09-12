@@ -54,7 +54,14 @@ class AgentReadToolSecurityCorpusTest {
                         List.of("{}", "{\"resource\":\"UNKNOWN\"}",
                                 "{\"resource\":\"FORM\",\"userId\":7}",
                                 "{\"resource\":\"FORM\",\"size\":51}",
-                                "{\"resource\":\"FORM\",\"url\":\"https://attacker.invalid\"}"))
+                                "{\"resource\":\"FORM\",\"url\":\"https://attacker.invalid\"}")),
+                "approval.task.query", new Corpus(
+                        definitions.approvalTaskQueryToolDefinition(objectMapper),
+                        List.of("{}", "{\"status\":\"PENDING\",\"keyword\":\"采购\"}",
+                                "{\"from\":\"2026-09-01T00:00:00\",\"to\":\"2026-09-30T23:59:00\",\"size\":50}"),
+                        List.of("{\"status\":\"UNKNOWN\"}", "{\"userId\":7}",
+                                "{\"tenantId\":99}", "{\"size\":51}",
+                                "{\"sql\":\"SELECT * FROM leave_application\"}"))
         );
 
         return corpora.entrySet().stream().flatMap(entry -> {

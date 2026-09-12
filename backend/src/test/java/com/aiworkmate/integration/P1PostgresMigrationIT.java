@@ -226,6 +226,20 @@ class P1PostgresMigrationIT {
                     WHERE code = 'agent:tool:approval.configuration.query'
                     """)).as("审批配置 Agent 工具必须具备独立实时权限").isOne();
             assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL
+                      AND code = 'approval.task.query'
+                      AND handler_version = '1.0.0'
+                      AND risk_level = 'L0'
+                      AND data_scope_policy = 'TENANT_SCOPED'
+                      AND side_effect = 'NONE'
+                      AND enabled = TRUE
+                    """)).as("审批中心 Agent 工具必须以只读租户范围种子存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code = 'agent:tool:approval.task.query'
+                    """)).as("审批中心 Agent 工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
                     SELECT COUNT(*) FROM information_schema.views
                     WHERE table_schema = current_schema() AND table_name = 'runtime_log_view'
                     """)).isOne();

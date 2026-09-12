@@ -15,7 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class AgentDomainToolPortContractTest {
     private static final List<Class<?>> PORTS = List.of(
             TodoToolPort.class, LeaveToolPort.class, KnowledgeToolPort.class, NotificationToolPort.class,
-            ApprovalConfigurationToolPort.class);
+            ApprovalConfigurationToolPort.class, ApprovalTaskToolPort.class);
 
     @Test
     void portsAreFrameworkNeutralInterfacesWithoutGenericExecutionEscapeHatch() {

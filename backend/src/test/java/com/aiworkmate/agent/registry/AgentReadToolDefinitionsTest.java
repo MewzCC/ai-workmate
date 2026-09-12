@@ -9,6 +9,27 @@ import static org.assertj.core.api.Assertions.assertThat;
 class AgentReadToolDefinitionsTest {
 
     @Test
+    void approvalTaskDefinitionUsesTenantScopeAndClosedBounds() throws Exception {
+        ObjectMapper objectMapper = new ObjectMapper();
+        ToolDefinition definition = new AgentReadToolDefinitions().approvalTaskQueryToolDefinition(objectMapper);
+        ToolSchemaValidator validator = new ToolSchemaValidator();
+
+        assertThat(definition.code()).isEqualTo("approval.task.query");
+        assertThat(definition.schemaHash()).isEqualTo(
+                "sha256:5c75860e7c13bb66edf25ddc589a41710a16de8a850c4c7fdb0b1df4d805f876");
+        assertThat(definition.requiredPermissions()).containsExactly("approval:read");
+        assertThat(definition.ownershipPolicy()).isEqualTo(OwnershipPolicy.TENANT_SCOPED);
+        assertThat(validator.valid(definition.inputSchema(), objectMapper.readTree(
+                "{\"status\":\"PENDING\",\"keyword\":\"张三\",\"page\":1,\"size\":50}"))).isTrue();
+        assertThat(validator.valid(definition.inputSchema(), objectMapper.readTree(
+                "{\"status\":\"UNKNOWN\"}"))).isFalse();
+        assertThat(validator.valid(definition.inputSchema(), objectMapper.readTree(
+                "{\"tenantId\":9}"))).isFalse();
+        assertThat(validator.valid(definition.inputSchema(), objectMapper.readTree(
+                "{\"size\":51}"))).isFalse();
+    }
+
+    @Test
     void approvalConfigurationDefinitionUsesOneClosedDiscriminatedQuery() throws Exception {
         ObjectMapper objectMapper = new ObjectMapper();
         ToolDefinition definition = new AgentReadToolDefinitions()

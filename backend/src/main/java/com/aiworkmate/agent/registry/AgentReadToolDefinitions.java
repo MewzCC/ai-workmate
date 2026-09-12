@@ -18,6 +18,14 @@ public class AgentReadToolDefinitions {
             {"type":"object","additionalProperties":false,"required":["items","total","page","size"],"properties":{"items":{"type":"array","maxItems":50,"items":{"type":"object","additionalProperties":false,"required":["id","resource","key","name","status","version","updatedAt"],"properties":{"id":{"type":"integer","minimum":1},"resource":{"type":"string","enum":["FORM","PROCESS","RULE"]},"key":{"type":"string","maxLength":120},"name":{"type":"string","maxLength":200},"description":{"type":"string","maxLength":1000},"status":{"type":"string","enum":["DRAFT","ENABLED","DISABLED"]},"version":{"type":"integer","minimum":0},"formName":{"type":"string","maxLength":200},"ruleType":{"type":"string","maxLength":80},"priority":{"type":"integer"},"updatedAt":{"type":"string","maxLength":32}}}},"total":{"type":"integer","minimum":0},"page":{"type":"integer","minimum":1},"size":{"type":"integer","minimum":1,"maximum":50}}}
             """.strip();
 
+    public static final String APPROVAL_TASK_QUERY_INPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"properties":{"status":{"type":"string","enum":["DRAFT","PENDING","APPROVED","REJECTED","WITHDRAWN","CANCELLED"]},"from":{"type":"string","minLength":16,"maxLength":32},"to":{"type":"string","minLength":16,"maxLength":32},"keyword":{"type":"string","maxLength":200},"leaveType":{"type":"string","maxLength":40},"page":{"type":"integer","minimum":1,"maximum":10000},"size":{"type":"integer","minimum":1,"maximum":50}}}
+            """.strip();
+
+    public static final String APPROVAL_TASK_QUERY_OUTPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["items","total","page","size"],"properties":{"items":{"type":"array","maxItems":50,"items":{"type":"object","additionalProperties":false,"required":["applicationId","applicantName","leaveType","durationDays","status","version","overdue"],"properties":{"applicationId":{"type":"integer","minimum":1},"taskId":{"type":"integer","minimum":1},"applicantName":{"type":"string","maxLength":120},"approverName":{"type":"string","maxLength":120},"leaveType":{"type":"string","maxLength":40},"durationDays":{"type":"number","minimum":0.5},"status":{"type":"string","enum":["DRAFT","PENDING","APPROVED","REJECTED","WITHDRAWN","CANCELLED"]},"version":{"type":"integer","minimum":0},"submittedAt":{"type":"string","maxLength":32},"dueAt":{"type":"string","maxLength":32},"overdue":{"type":"boolean"}}}},"total":{"type":"integer","minimum":0},"page":{"type":"integer","minimum":1},"size":{"type":"integer","minimum":1,"maximum":50}}}
+            """.strip();
+
     public static final String TODO_QUERY_INPUT_SCHEMA = """
             {"type":"object","additionalProperties":false,"properties":{"status":{"type":"string","enum":["PENDING","APPROVED","REJECTED","CANCELLED"]},"from":{"type":"string","minLength":16,"maxLength":32},"to":{"type":"string","minLength":16,"maxLength":32},"page":{"type":"integer","minimum":1,"maximum":10000},"size":{"type":"integer","minimum":1,"maximum":50}}}
             """.strip();
@@ -58,6 +66,19 @@ public class AgentReadToolDefinitions {
                 "Display tenant-scoped approval configuration summaries without executable schema or rule payloads.",
                 "1.0.0", objectMapper.readTree(APPROVAL_CONFIGURATION_QUERY_INPUT_SCHEMA),
                 objectMapper.readTree(APPROVAL_CONFIGURATION_QUERY_OUTPUT_SCHEMA), RiskLevel.L0,
+                Set.of("approval:read"), PermissionMode.ALL, OwnershipPolicy.TENANT_SCOPED,
+                RetryPolicy.READ_ONLY_SAFE, SideEffect.NONE, ConfirmationPolicy.NONE,
+                50, 65536, 15000, "HASHED_ARGS_RESULT");
+    }
+
+    @Bean
+    ToolDefinition approvalTaskQueryToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {
+        return ToolDefinition.create(
+                "approval.task.query", "Query tenant approval tasks",
+                "Returns bounded approval tasks visible to the authenticated actor's live tenant data scope.",
+                "Display approval-center task summaries without internal identities or workflow payloads.",
+                "1.0.0", objectMapper.readTree(APPROVAL_TASK_QUERY_INPUT_SCHEMA),
+                objectMapper.readTree(APPROVAL_TASK_QUERY_OUTPUT_SCHEMA), RiskLevel.L0,
                 Set.of("approval:read"), PermissionMode.ALL, OwnershipPolicy.TENANT_SCOPED,
                 RetryPolicy.READ_ONLY_SAFE, SideEffect.NONE, ConfirmationPolicy.NONE,
                 50, 65536, 15000, "HASHED_ARGS_RESULT");

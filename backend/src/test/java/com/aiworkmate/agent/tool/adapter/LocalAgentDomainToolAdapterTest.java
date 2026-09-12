@@ -1,6 +1,7 @@
 package com.aiworkmate.agent.tool.adapter;
 
 import com.aiworkmate.agent.tool.port.KnowledgeToolPort;
+import com.aiworkmate.agent.tool.port.ApprovalTaskToolPort;
 import com.aiworkmate.agent.tool.port.LeaveToolPort;
 import com.aiworkmate.agent.tool.port.TodoToolPort;
 import com.aiworkmate.common.PageResponse;
@@ -78,6 +79,23 @@ class LocalAgentDomainToolAdapterTest {
                 12L, ApprovalConfigurationToolPort.Resource.FORM, "expense", "费用报销", "报销表单",
                 "ENABLED", 3, null, null, null, now));
         assertThat(result.toString()).doesNotContain("sensitive-schema");
+    }
+
+    @Test
+    void forwardsTenantApprovalQueryAndDropsInternalIdentityFields() {
+        LocalDateTime from = LocalDateTime.of(2026, 9, 1, 0, 0);
+        LocalDateTime to = LocalDateTime.of(2026, 9, 30, 23, 59);
+        when(leaveWorkflowService.adminList(7L, "PENDING", from, to, "张三", "ANNUAL", 2, 30))
+                .thenReturn(PageResponse.of(List.of(leaveApplication()), 1, 2, 30));
+
+        var result = adapter.query(7L, new ApprovalTaskToolPort.Query(
+                "PENDING", from, to, "张三", "ANNUAL", 2, 30));
+
+        assertThat(result.items()).containsExactly(new ApprovalTaskToolPort.Item(
+                30L, null, "当前用户", "直属主管", "PERSONAL", 1.0,
+                "DRAFT", 0, null, null, false));
+        assertThat(result.toString()).doesNotContain("applicantUserId", "approverUserId");
+        verify(leaveWorkflowService).adminList(7L, "PENDING", from, to, "张三", "ANNUAL", 2, 30);
     }
 
     @Test

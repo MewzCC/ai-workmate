@@ -1,6 +1,7 @@
 package com.aiworkmate.agent.tool.adapter;
 
 import com.aiworkmate.agent.tool.port.ApprovalConfigurationToolPort;
+import com.aiworkmate.agent.tool.port.ApprovalTaskToolPort;
 import com.aiworkmate.agent.tool.port.KnowledgeToolPort;
 import com.aiworkmate.agent.tool.port.LeaveToolPort;
 import com.aiworkmate.agent.tool.port.NotificationToolPort;
@@ -19,11 +20,21 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 public class LocalAgentDomainToolAdapter implements TodoToolPort, LeaveToolPort, KnowledgeToolPort,
-        NotificationToolPort, ApprovalConfigurationToolPort {
+        NotificationToolPort, ApprovalConfigurationToolPort, ApprovalTaskToolPort {
     private final LeaveWorkflowService leaveWorkflowService;
     private final KnowledgeService knowledgeService;
     private final NotificationService notificationService;
     private final ApprovalEngineService approvalEngineService;
+
+    @Override
+    public ApprovalTaskToolPort.Page query(Long actorUserId, ApprovalTaskToolPort.Query query) {
+        var result = leaveWorkflowService.adminList(actorUserId, query.status(), query.from(), query.to(),
+                query.keyword(), query.leaveType(), query.page(), query.size());
+        return new ApprovalTaskToolPort.Page(result.records().stream().map(item ->
+                new ApprovalTaskToolPort.Item(item.id(), item.taskId(), item.applicantName(), item.approverName(),
+                        item.leaveType(), item.durationDays(), item.status(), item.version(), item.submittedAt(),
+                        item.taskDueAt(), item.overdue())).toList(), result.total(), result.page(), result.size());
+    }
 
     @Override
     public ApprovalConfigurationToolPort.Page query(Long actorUserId, ApprovalConfigurationToolPort.Query query) {

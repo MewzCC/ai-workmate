@@ -81,7 +81,8 @@ public class PageCapabilityCatalog {
                         context(text("applicationId"), text("status"), number("page"), number("size")),
                         read("leave.mine"), write("leave.createDraft"), write("leave.submit"), write("leave.apply")),
 
-                page("approval-list", "APPROVAL_LIST", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS),
+                page("approval-list", "APPROVAL_LIST", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
+                        read("approval.task.query")),
                 page("approval-start", "APPROVAL_START", OwnershipPolicy.SELF, READ_COMMANDS,
                         read("approval.configuration.query")),
                 page("approval-form", "APPROVAL_FORM", OwnershipPolicy.SELF, FORM_COMMANDS,
