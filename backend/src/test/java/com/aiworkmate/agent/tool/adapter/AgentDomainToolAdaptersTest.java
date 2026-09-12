@@ -41,7 +41,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-class LocalAgentDomainToolAdapterTest {
+class AgentDomainToolAdaptersTest {
     @Mock private LeaveWorkflowService leaveWorkflowService;
     @Mock private KnowledgeService knowledgeService;
     @Mock private NotificationService notificationService;
@@ -51,14 +51,21 @@ class LocalAgentDomainToolAdapterTest {
     @Mock private AdminAssetsService adminAssetsService;
     @Mock private MeetingBookingService meetingBookingService;
 
-    private LocalAgentDomainToolAdapter adapter;
+    private ApprovalAgentDomainToolAdapter approvalAdapter;
+    private HrAgentDomainToolAdapter hrAdapter;
+    private AdministrativeAssetsAgentDomainToolAdapter administrativeAssetsAdapter;
+    private KnowledgeAgentDomainToolAdapter knowledgeAdapter;
+    private NotificationAgentDomainToolAdapter notificationAdapter;
     private final ToolActorContext context = new ToolActorContext(91L, 7L, 10L, 20L, 1, "trace");
 
     @BeforeEach
     void setUp() {
-        adapter = new LocalAgentDomainToolAdapter(
-                leaveWorkflowService, knowledgeService, notificationService, approvalEngineService, hrService,
-                employeeChangeService, adminAssetsService, meetingBookingService);
+        approvalAdapter = new ApprovalAgentDomainToolAdapter(leaveWorkflowService, approvalEngineService);
+        hrAdapter = new HrAgentDomainToolAdapter(hrService, employeeChangeService);
+        administrativeAssetsAdapter = new AdministrativeAssetsAgentDomainToolAdapter(
+                adminAssetsService, meetingBookingService);
+        knowledgeAdapter = new KnowledgeAgentDomainToolAdapter(knowledgeService);
+        notificationAdapter = new NotificationAgentDomainToolAdapter(notificationService);
     }
 
     @Test
@@ -70,7 +77,7 @@ class LocalAgentDomainToolAdapterTest {
                         now, now.plusDays(1), false, "internal-avatar", now, "/private/avatar")),
                         1, 2, 30));
 
-        TodoToolPort.Page result = adapter.query(context,
+        TodoToolPort.Page result = approvalAdapter.query(context,
                 new TodoToolPort.Query("PENDING", now, now.plusDays(1), 2, 30));
 
         assertThat(result.items()).containsExactly(new TodoToolPort.Item(
@@ -86,7 +93,7 @@ class LocalAgentDomainToolAdapterTest {
                         12L, "expense", "费用报销", "报销表单", "{sensitive-schema}",
                         "ENABLED", 3, "管理员", now.minusDays(1), now, true, true)), 1, 1, 20));
 
-        var result = adapter.query(context, new ApprovalConfigurationToolPort.Query(
+        var result = approvalAdapter.query(context, new ApprovalConfigurationToolPort.Query(
                 ApprovalConfigurationToolPort.Resource.FORM, "报销", "ENABLED", 1, 20));
 
         assertThat(result.items()).containsExactly(new ApprovalConfigurationToolPort.Item(
@@ -102,7 +109,7 @@ class LocalAgentDomainToolAdapterTest {
         when(leaveWorkflowService.adminList(7L, "PENDING", from, to, "张三", "ANNUAL", 2, 30))
                 .thenReturn(PageResponse.of(List.of(leaveApplication()), 1, 2, 30));
 
-        var result = adapter.query(context, new ApprovalTaskToolPort.Query(
+        var result = approvalAdapter.query(context, new ApprovalTaskToolPort.Query(
                 "PENDING", from, to, "张三", "ANNUAL", 2, 30));
 
         assertThat(result.items()).containsExactly(new ApprovalTaskToolPort.Item(
@@ -121,7 +128,7 @@ class LocalAgentDomainToolAdapterTest {
                         3L, "张三", "secret@example.com", "EMPLOYEE", 1,
                         1L, 2L, 9L, "李经理", "/avatar/private", "/avatar/manager"))));
 
-        var result = adapter.query(context, new com.aiworkmate.agent.tool.port.HrOrganizationToolPort.Query("研发", 20));
+        var result = hrAdapter.query(context, new com.aiworkmate.agent.tool.port.HrOrganizationToolPort.Query("研发", 20));
 
         assertThat(result.departments()).hasSize(1);
         assertThat(result.positions()).isEmpty();
@@ -138,7 +145,7 @@ class LocalAgentDomainToolAdapterTest {
                 "PERSONAL", 8L, LocalDate.of(2026, 9, 15), "AM",
                 LocalDate.of(2026, 9, 15), "PM", "家庭事务");
 
-        LeaveToolPort.WriteResult result = adapter.createDraft(context, command, "operation-1");
+        LeaveToolPort.WriteResult result = approvalAdapter.createDraft(context, command, "operation-1");
 
         assertThat(result).isEqualTo(new LeaveToolPort.WriteResult(30L, "DRAFT", 0, null));
         var request = ArgumentCaptor.forClass(com.aiworkmate.dto.LeaveApplicationRequest.class);
@@ -154,7 +161,7 @@ class LocalAgentDomainToolAdapterTest {
                         new KnowledgeSearchItemResponse(11L, 12L, "policy.txt", 3,
                                 "制度内容", 0.86, "HYBRID"))));
 
-        KnowledgeToolPort.Result result = adapter.search(context,
+        KnowledgeToolPort.Result result = knowledgeAdapter.search(context,
                 new KnowledgeToolPort.Query("请假制度", 5, 0.5));
 
         assertThat(result.items()).containsExactly(new KnowledgeToolPort.Item(
@@ -170,7 +177,7 @@ class LocalAgentDomainToolAdapterTest {
                 new NotificationResponse(9L, "approval", "审批提醒", "请处理", "leave", 999L, false, now)),
                 1, 1, 20));
 
-        var result = adapter.mine(context, 1, 20);
+        var result = notificationAdapter.mine(context, 1, 20);
 
         assertThat(result.items()).containsExactly(new com.aiworkmate.agent.tool.port.NotificationToolPort.Item(
                 9L, "approval", "审批提醒", "请处理", "leave", false, now));
