@@ -7,6 +7,7 @@ import com.aiworkmate.agent.tool.port.HrOrganizationToolPort;
 import com.aiworkmate.agent.tool.port.HrEmployeeToolPort;
 import com.aiworkmate.agent.tool.port.EmployeeChangeToolPort;
 import com.aiworkmate.agent.tool.port.AssetToolPort;
+import com.aiworkmate.agent.tool.port.MeetingToolPort;
 import com.aiworkmate.agent.tool.port.LeaveToolPort;
 import com.aiworkmate.agent.tool.port.NotificationToolPort;
 import com.aiworkmate.agent.tool.port.TodoToolPort;
@@ -21,6 +22,7 @@ import com.aiworkmate.service.ApprovalEngineService;
 import com.aiworkmate.service.HrService;
 import com.aiworkmate.service.EmployeeChangeService;
 import com.aiworkmate.service.AdminAssetsService;
+import com.aiworkmate.service.MeetingBookingService;
 import java.util.Locale;
 import java.util.function.Predicate;
 import lombok.RequiredArgsConstructor;
@@ -30,7 +32,7 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class LocalAgentDomainToolAdapter implements TodoToolPort, LeaveToolPort, KnowledgeToolPort,
         NotificationToolPort, ApprovalConfigurationToolPort, ApprovalTaskToolPort, HrOrganizationToolPort,
-        HrEmployeeToolPort, EmployeeChangeToolPort, AssetToolPort {
+        HrEmployeeToolPort, EmployeeChangeToolPort, AssetToolPort, MeetingToolPort {
     private final LeaveWorkflowService leaveWorkflowService;
     private final KnowledgeService knowledgeService;
     private final NotificationService notificationService;
@@ -38,6 +40,22 @@ public class LocalAgentDomainToolAdapter implements TodoToolPort, LeaveToolPort,
     private final HrService hrService;
     private final EmployeeChangeService employeeChangeService;
     private final AdminAssetsService adminAssetsService;
+    private final MeetingBookingService meetingBookingService;
+
+    @Override
+    public MeetingToolPort.Result query(long actorUserId, MeetingToolPort.Query query) {
+        var rooms = adminAssetsService.listMeetingRooms(actorUserId, query.keyword(), query.roomStatus(), 1, 50);
+        var bookings = meetingBookingService.listMine(actorUserId, query.from(), query.to(), query.bookingStatus(),
+                query.page(), query.size());
+        return new MeetingToolPort.Result(rooms.records().stream().map(item -> new MeetingToolPort.Room(
+                item.id(), item.code(), item.name(), item.location(), item.capacity(), item.facilities(), item.status(),
+                item.remark(), item.canEdit(), item.canDelete())).toList(), bookings.records().stream().map(item ->
+                new MeetingToolPort.Booking(item.id(), item.roomId(), item.roomCode(), item.roomName(),
+                        item.roomLocation(), item.organizerName(), item.title(), item.agenda(), item.startAt(),
+                        item.endAt(), item.attendeeCount(), item.status(), item.version(), item.cancelledByName(),
+                        item.cancelledAt(), item.cancelReason(), item.createdAt(), item.updatedAt(), item.canCancel()))
+                .toList(), bookings.total(), bookings.page(), bookings.size());
+    }
 
     @Override
     public AssetToolPort.Page query(long actorUserId, AssetToolPort.Query query) {

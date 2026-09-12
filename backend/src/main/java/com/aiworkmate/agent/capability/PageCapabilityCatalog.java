@@ -105,7 +105,9 @@ public class PageCapabilityCatalog {
                 page("asset-ledger", "ASSET_LEDGER", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         context(text("keyword"), text("category"), text("status"), number("page"), number("size")),
                         read("asset.query")),
-                page("meeting-room", "MEETING_ROOM", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS),
+                page("meeting-room", "MEETING_ROOM", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
+                        context(text("keyword"), text("roomStatus"), text("from"), text("to"),
+                                text("bookingStatus"), number("page"), number("size")), read("meeting.query")),
                 page("visitor-booking", "VISITOR_BOOKING", OwnershipPolicy.SELF, LIST_COMMANDS),
                 page("seal-usage", "SEAL_USAGE", OwnershipPolicy.SELF, LIST_COMMANDS),
 

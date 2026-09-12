@@ -9,6 +9,22 @@ import static org.assertj.core.api.Assertions.assertThat;
 class AgentReadToolDefinitionsTest {
 
     @Test
+    void meetingDefinitionIsClosedAndHidesInternalIdentities() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        ToolDefinition definition = new AgentReadToolDefinitions().meetingQueryToolDefinition(mapper);
+        ToolSchemaValidator validator = new ToolSchemaValidator();
+        assertThat(definition.schemaHash()).isEqualTo(
+                "sha256:48a529200e1b903fe1623c118d9fc78b4504bcc8dbda8202cc056f83420db25b");
+        assertThat(definition.requiredPermissions()).containsExactly("meeting:read:self");
+        assertThat(definition.outputSchema().toString())
+                .doesNotContain("organizerUserId", "cancelledByUserId", "tenantId");
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree(
+                "{\"roomStatus\":\"OPEN\",\"bookingStatus\":\"BOOKED\",\"size\":50}"))).isTrue();
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree(
+                "{\"bookingStatus\":\"FINISHED\"}"))).isFalse();
+    }
+
+    @Test
     void assetDefinitionIsClosedAndTenantScoped() throws Exception {
         ObjectMapper mapper = new ObjectMapper();
         ToolDefinition definition = new AgentReadToolDefinitions().assetQueryToolDefinition(mapper);

@@ -22,6 +22,7 @@ import com.aiworkmate.service.ApprovalEngineService;
 import com.aiworkmate.service.HrService;
 import com.aiworkmate.service.EmployeeChangeService;
 import com.aiworkmate.service.AdminAssetsService;
+import com.aiworkmate.service.MeetingBookingService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -47,6 +48,7 @@ class LocalAgentDomainToolAdapterTest {
     @Mock private HrService hrService;
     @Mock private EmployeeChangeService employeeChangeService;
     @Mock private AdminAssetsService adminAssetsService;
+    @Mock private MeetingBookingService meetingBookingService;
 
     private LocalAgentDomainToolAdapter adapter;
 
@@ -54,7 +56,7 @@ class LocalAgentDomainToolAdapterTest {
     void setUp() {
         adapter = new LocalAgentDomainToolAdapter(
                 leaveWorkflowService, knowledgeService, notificationService, approvalEngineService, hrService,
-                employeeChangeService, adminAssetsService);
+                employeeChangeService, adminAssetsService, meetingBookingService);
     }
 
     @Test

@@ -58,6 +58,14 @@ public class AgentReadToolDefinitions {
             {"type":"object","additionalProperties":false,"required":["items","total","page","size"],"properties":{"items":{"type":"array","maxItems":50,"items":{"type":"object","additionalProperties":false,"required":["id","assetCode","name","category","status","version","canEdit","canDelete"],"properties":{"id":{"type":"integer","minimum":1},"assetCode":{"type":"string","maxLength":80},"name":{"type":"string","maxLength":160},"category":{"type":"string","maxLength":80},"specification":{"type":"string","maxLength":500},"status":{"type":"string","enum":["IDLE","IN_USE","REPAIRING","SCRAPPED"]},"departmentName":{"type":"string","maxLength":120},"ownerName":{"type":"string","maxLength":120},"purchaseDate":{"type":"string","maxLength":10},"originalValue":{"type":"number","minimum":0},"remark":{"type":"string","maxLength":1000},"version":{"type":"integer","minimum":0},"canEdit":{"type":"boolean"},"canDelete":{"type":"boolean"},"createdAt":{"type":"string","maxLength":32},"updatedAt":{"type":"string","maxLength":32}}}},"total":{"type":"integer","minimum":0},"page":{"type":"integer","minimum":1},"size":{"type":"integer","minimum":1,"maximum":50}}}
             """.strip();
 
+    public static final String MEETING_QUERY_INPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"properties":{"keyword":{"type":"string","maxLength":200},"roomStatus":{"type":"string","enum":["OPEN","CLOSED"]},"from":{"type":"string","minLength":16,"maxLength":32},"to":{"type":"string","minLength":16,"maxLength":32},"bookingStatus":{"type":"string","enum":["BOOKED","CANCELLED"]},"page":{"type":"integer","minimum":1,"maximum":10000},"size":{"type":"integer","minimum":1,"maximum":50}}}
+            """.strip();
+
+    public static final String MEETING_QUERY_OUTPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["rooms","bookings","bookingTotal","page","size"],"properties":{"rooms":{"type":"array","maxItems":50,"items":{"type":"object","additionalProperties":false,"required":["id","code","name","capacity","status","canEdit","canDelete"],"properties":{"id":{"type":"integer","minimum":1},"code":{"type":"string","maxLength":80},"name":{"type":"string","maxLength":160},"location":{"type":"string","maxLength":255},"capacity":{"type":"integer","minimum":0},"facilities":{"type":"string","maxLength":1000},"status":{"type":"string","enum":["OPEN","CLOSED"]},"remark":{"type":"string","maxLength":1000},"canEdit":{"type":"boolean"},"canDelete":{"type":"boolean"}}}},"bookings":{"type":"array","maxItems":50,"items":{"type":"object","additionalProperties":false,"required":["id","roomId","title","startAt","endAt","attendeeCount","status","version","canCancel"],"properties":{"id":{"type":"integer","minimum":1},"roomId":{"type":"integer","minimum":1},"roomCode":{"type":"string","maxLength":80},"roomName":{"type":"string","maxLength":160},"roomLocation":{"type":"string","maxLength":255},"organizerName":{"type":"string","maxLength":120},"title":{"type":"string","maxLength":200},"agenda":{"type":"string","maxLength":2000},"startAt":{"type":"string","maxLength":32},"endAt":{"type":"string","maxLength":32},"attendeeCount":{"type":"integer","minimum":1},"status":{"type":"string","enum":["BOOKED","CANCELLED"]},"version":{"type":"integer","minimum":0},"cancelledByName":{"type":"string","maxLength":120},"cancelledAt":{"type":"string","maxLength":32},"cancelReason":{"type":"string","maxLength":1000},"createdAt":{"type":"string","maxLength":32},"updatedAt":{"type":"string","maxLength":32},"canCancel":{"type":"boolean"}}}},"bookingTotal":{"type":"integer","minimum":0},"page":{"type":"integer","minimum":1},"size":{"type":"integer","minimum":1,"maximum":50}}}
+            """.strip();
+
     public static final String TODO_QUERY_INPUT_SCHEMA = """
             {"type":"object","additionalProperties":false,"properties":{"status":{"type":"string","enum":["PENDING","APPROVED","REJECTED","CANCELLED"]},"from":{"type":"string","minLength":16,"maxLength":32},"to":{"type":"string","minLength":16,"maxLength":32},"page":{"type":"integer","minimum":1,"maximum":10000},"size":{"type":"integer","minimum":1,"maximum":50}}}
             """.strip();
@@ -166,6 +174,19 @@ public class AgentReadToolDefinitions {
                 Set.of("assets:read"), PermissionMode.ALL, OwnershipPolicy.TENANT_SCOPED,
                 RetryPolicy.READ_ONLY_SAFE, SideEffect.NONE, ConfirmationPolicy.NONE,
                 50, 131072, 15000, "HASHED_ARGS_RESULT");
+    }
+
+    @Bean
+    ToolDefinition meetingQueryToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {
+        return ToolDefinition.create(
+                "meeting.query", "Query meeting rooms and my bookings",
+                "Returns bounded tenant meeting rooms and bookings owned by the authenticated actor.",
+                "Display room availability and the actor's booking summaries without internal user identities.",
+                "1.0.0", objectMapper.readTree(MEETING_QUERY_INPUT_SCHEMA),
+                objectMapper.readTree(MEETING_QUERY_OUTPUT_SCHEMA), RiskLevel.L0,
+                Set.of("meeting:read:self"), PermissionMode.ALL, OwnershipPolicy.TENANT_SCOPED,
+                RetryPolicy.READ_ONLY_SAFE, SideEffect.NONE, ConfirmationPolicy.NONE,
+                50, 196608, 15000, "HASHED_ARGS_RESULT");
     }
 
     @Bean
