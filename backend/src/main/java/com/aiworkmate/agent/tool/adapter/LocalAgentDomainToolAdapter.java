@@ -4,6 +4,7 @@ import com.aiworkmate.agent.tool.port.ApprovalConfigurationToolPort;
 import com.aiworkmate.agent.tool.port.ApprovalTaskToolPort;
 import com.aiworkmate.agent.tool.port.KnowledgeToolPort;
 import com.aiworkmate.agent.tool.port.HrOrganizationToolPort;
+import com.aiworkmate.agent.tool.port.HrEmployeeToolPort;
 import com.aiworkmate.agent.tool.port.LeaveToolPort;
 import com.aiworkmate.agent.tool.port.NotificationToolPort;
 import com.aiworkmate.agent.tool.port.TodoToolPort;
@@ -24,7 +25,8 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 public class LocalAgentDomainToolAdapter implements TodoToolPort, LeaveToolPort, KnowledgeToolPort,
-        NotificationToolPort, ApprovalConfigurationToolPort, ApprovalTaskToolPort, HrOrganizationToolPort {
+        NotificationToolPort, ApprovalConfigurationToolPort, ApprovalTaskToolPort, HrOrganizationToolPort,
+        HrEmployeeToolPort {
     private final LeaveWorkflowService leaveWorkflowService;
     private final KnowledgeService knowledgeService;
     private final NotificationService notificationService;
@@ -47,6 +49,22 @@ public class LocalAgentDomainToolAdapter implements TodoToolPort, LeaveToolPort,
                         item.id(), item.name(), item.role(), item.status(), item.departmentId(), item.positionId(),
                         item.approverName())).toList();
         return new HrOrganizationToolPort.Result(departments, positions, employees);
+    }
+
+    @Override
+    public HrEmployeeToolPort.Employee get(long actorUserId, long employeeId) {
+        var item = hrService.employeeDetailForActor(actorUserId, employeeId);
+        var attendance = item.attendance();
+        return new HrEmployeeToolPort.Employee(item.id(), item.name(), item.role(), item.status(), item.createdAt(),
+                item.departmentName(), item.positionName(), item.approverName(),
+                item.employmentHistory().stream().map(history -> new HrEmployeeToolPort.EmploymentHistory(
+                        history.id(), history.changeType(), history.effectiveDate(), history.targetDepartmentName(),
+                        history.targetPositionName(), history.targetSupervisorName(), history.appliedAt())).toList(),
+                new HrEmployeeToolPort.Attendance(attendance.totalDays(), attendance.normalDays(), attendance.lateDays(),
+                        attendance.earlyLeaveDays(), attendance.lateAndEarlyDays(), attendance.missingClockDays()),
+                item.recentActivities().stream().map(activity -> new HrEmployeeToolPort.Activity(
+                        activity.id(), activity.type(), activity.title(), activity.status(), activity.startDate(),
+                        activity.endDate(), activity.createdAt())).toList());
     }
 
     @Override

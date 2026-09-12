@@ -34,6 +34,14 @@ public class AgentReadToolDefinitions {
             {"type":"object","additionalProperties":false,"required":["departments","positions","employees"],"properties":{"departments":{"type":"array","maxItems":50,"items":{"type":"object","additionalProperties":false,"required":["id","code","name","status"],"properties":{"id":{"type":"integer","minimum":1},"code":{"type":"string","maxLength":80},"name":{"type":"string","maxLength":120},"parentId":{"type":"integer","minimum":1},"status":{"type":"integer","minimum":0,"maximum":1}}}},"positions":{"type":"array","maxItems":50,"items":{"type":"object","additionalProperties":false,"required":["id","code","name","status"],"properties":{"id":{"type":"integer","minimum":1},"code":{"type":"string","maxLength":80},"name":{"type":"string","maxLength":120},"status":{"type":"integer","minimum":0,"maximum":1}}}},"employees":{"type":"array","maxItems":50,"items":{"type":"object","additionalProperties":false,"required":["id","name","role","status"],"properties":{"id":{"type":"integer","minimum":1},"name":{"type":"string","maxLength":120},"role":{"type":"string","maxLength":80},"status":{"type":"integer","minimum":0,"maximum":1},"departmentId":{"type":"integer","minimum":1},"positionId":{"type":"integer","minimum":1},"approverName":{"type":"string","maxLength":120}}}}}}
             """.strip();
 
+    public static final String HR_EMPLOYEE_QUERY_INPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["employeeId"],"properties":{"employeeId":{"type":"integer","minimum":1}}}
+            """.strip();
+
+    public static final String HR_EMPLOYEE_QUERY_OUTPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["id","name","role","status","employmentHistory","attendance","recentActivities"],"properties":{"id":{"type":"integer","minimum":1},"name":{"type":"string","maxLength":120},"role":{"type":"string","maxLength":80},"status":{"type":"integer","minimum":0,"maximum":1},"createdAt":{"type":"string","maxLength":32},"departmentName":{"type":"string","maxLength":120},"positionName":{"type":"string","maxLength":120},"approverName":{"type":"string","maxLength":120},"employmentHistory":{"type":"array","maxItems":50,"items":{"type":"object","additionalProperties":false,"required":["id","changeType","effectiveDate"],"properties":{"id":{"type":"integer","minimum":1},"changeType":{"type":"string","maxLength":40},"effectiveDate":{"type":"string","maxLength":10},"targetDepartmentName":{"type":"string","maxLength":120},"targetPositionName":{"type":"string","maxLength":120},"targetSupervisorName":{"type":"string","maxLength":120},"appliedAt":{"type":"string","maxLength":32}}}},"attendance":{"type":"object","additionalProperties":false,"required":["totalDays","normalDays","lateDays","earlyLeaveDays","lateAndEarlyDays","missingClockDays"],"properties":{"totalDays":{"type":"integer","minimum":0},"normalDays":{"type":"integer","minimum":0},"lateDays":{"type":"integer","minimum":0},"earlyLeaveDays":{"type":"integer","minimum":0},"lateAndEarlyDays":{"type":"integer","minimum":0},"missingClockDays":{"type":"integer","minimum":0}}},"recentActivities":{"type":"array","maxItems":50,"items":{"type":"object","additionalProperties":false,"required":["id","type","title","status","createdAt"],"properties":{"id":{"type":"integer","minimum":1},"type":{"type":"string","maxLength":40},"title":{"type":"string","maxLength":200},"status":{"type":"string","maxLength":40},"startDate":{"type":"string","maxLength":10},"endDate":{"type":"string","maxLength":10},"createdAt":{"type":"string","maxLength":32}}}}}}
+            """.strip();
+
     public static final String TODO_QUERY_INPUT_SCHEMA = """
             {"type":"object","additionalProperties":false,"properties":{"status":{"type":"string","enum":["PENDING","APPROVED","REJECTED","CANCELLED"]},"from":{"type":"string","minLength":16,"maxLength":32},"to":{"type":"string","minLength":16,"maxLength":32},"page":{"type":"integer","minimum":1,"maximum":10000},"size":{"type":"integer","minimum":1,"maximum":50}}}
             """.strip();
@@ -100,6 +108,19 @@ public class AgentReadToolDefinitions {
                 "Display an organization overview without emails, avatars or internal permission data.",
                 "1.0.0", objectMapper.readTree(HR_ORGANIZATION_QUERY_INPUT_SCHEMA),
                 objectMapper.readTree(HR_ORGANIZATION_QUERY_OUTPUT_SCHEMA), RiskLevel.L0,
+                Set.of("hr:read"), PermissionMode.ALL, OwnershipPolicy.TENANT_SCOPED,
+                RetryPolicy.READ_ONLY_SAFE, SideEffect.NONE, ConfirmationPolicy.NONE,
+                50, 131072, 15000, "HASHED_ARGS_RESULT");
+    }
+
+    @Bean
+    ToolDefinition hrEmployeeQueryToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {
+        return ToolDefinition.create(
+                "hr.employee.query", "Query visible employee profile",
+                "Returns one employee profile only when visible in the authenticated actor's live data scope.",
+                "Display employment, attendance summary and recent activity without contact or attachment data.",
+                "1.0.0", objectMapper.readTree(HR_EMPLOYEE_QUERY_INPUT_SCHEMA),
+                objectMapper.readTree(HR_EMPLOYEE_QUERY_OUTPUT_SCHEMA), RiskLevel.L0,
                 Set.of("hr:read"), PermissionMode.ALL, OwnershipPolicy.TENANT_SCOPED,
                 RetryPolicy.READ_ONLY_SAFE, SideEffect.NONE, ConfirmationPolicy.NONE,
                 50, 131072, 15000, "HASHED_ARGS_RESULT");

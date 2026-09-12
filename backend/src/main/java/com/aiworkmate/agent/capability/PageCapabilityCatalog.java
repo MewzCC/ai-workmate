@@ -96,7 +96,8 @@ public class PageCapabilityCatalog {
 
                 page("org-tree", "ORG_TREE", OwnershipPolicy.TENANT_SCOPED, READ_COMMANDS,
                         context(text("keyword"), number("limit")), read("hr.organization.query")),
-                page("employee-files", "EMPLOYEE_FILES", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS),
+                page("employee-files", "EMPLOYEE_FILES", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
+                        context(number("employeeId")), read("hr.organization.query"), read("hr.employee.query")),
                 page("employee-change", "EMPLOYEE_CHANGE", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS),
 
                 page("asset-ledger", "ASSET_LEDGER", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS),

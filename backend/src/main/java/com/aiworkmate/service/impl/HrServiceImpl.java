@@ -151,6 +151,17 @@ public class HrServiceImpl implements HrService {
         return employeeDetail(actor.tenantId(), employeeId);
     }
 
+    @Override
+    public EmployeeDetailResponse employeeDetailForActor(Long actorUserId, Long employeeId) {
+        ResolvedUserAccess actor = userAccessService.resolveActiveUser(actorUserId);
+        if (actor == null) throw new BusinessException(ErrorCode.AUTH_REQUIRED);
+        if (!actor.permissions().contains("hr:read")) throw new BusinessException(ErrorCode.PERMISSION_DENIED);
+        if (!dataPermissionService.resolve(actor.tenantId(), actor.userId()).visibleUserIds().contains(employeeId)) {
+            throw new BusinessException(ErrorCode.RESOURCE_FORBIDDEN);
+        }
+        return employeeDetail(actor.tenantId(), employeeId);
+    }
+
     private List<EmployeeDetailResponse.EmploymentHistoryRecord> buildEmploymentHistory(
             Long tenantId,
             Long employeeId,

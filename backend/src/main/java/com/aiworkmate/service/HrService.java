@@ -23,4 +23,6 @@ public interface HrService {
     EmployeeDetailResponse employeeDetail(Long tenantId, Long employeeId);
 
     EmployeeDetailResponse employeeDetail(AuthenticatedUser actor, Long employeeId);
+
+    EmployeeDetailResponse employeeDetailForActor(Long actorUserId, Long employeeId);
 }

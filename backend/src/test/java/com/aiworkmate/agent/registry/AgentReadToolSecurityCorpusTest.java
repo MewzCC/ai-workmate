@@ -65,7 +65,11 @@ class AgentReadToolSecurityCorpusTest {
                 "hr.organization.query", new Corpus(
                         definitions.hrOrganizationQueryToolDefinition(objectMapper),
                         List.of("{}", "{\"keyword\":\"研发\"}", "{\"limit\":50}"),
-                        hostileArguments("limit", "51"))
+                        hostileArguments("limit", "51")),
+                "hr.employee.query", new Corpus(
+                        definitions.hrEmployeeQueryToolDefinition(objectMapper),
+                        List.of("{\"employeeId\":1}", "{\"employeeId\":999}"),
+                        List.of("{}", "{\"employeeId\":0}", "{\"employeeId\":1,\"tenantId\":2}"))
         );
 
         return corpora.entrySet().stream().flatMap(entry -> {

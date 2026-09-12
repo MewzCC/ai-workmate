@@ -9,6 +9,19 @@ import static org.assertj.core.api.Assertions.assertThat;
 class AgentReadToolDefinitionsTest {
 
     @Test
+    void hrEmployeeDefinitionRequiresOnlyVisibleEmployeeId() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        ToolDefinition definition = new AgentReadToolDefinitions().hrEmployeeQueryToolDefinition(mapper);
+        ToolSchemaValidator validator = new ToolSchemaValidator();
+        assertThat(definition.requiredPermissions()).containsExactly("hr:read");
+        assertThat(definition.schemaHash()).isEqualTo(
+                "sha256:0df65eae1431949822629ffa8927d5f9077dfc87b0aea607495a845f0ea5918c");
+        assertThat(definition.outputSchema().toString()).doesNotContain("email", "avatar", "document");
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree("{\"employeeId\":7}"))).isTrue();
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree("{\"employeeId\":7,\"userId\":8}"))).isFalse();
+    }
+
+    @Test
     void hrOrganizationDefinitionIsBoundedAndDropsSensitiveFields() throws Exception {
         ObjectMapper objectMapper = new ObjectMapper();
         ToolDefinition definition = new AgentReadToolDefinitions().hrOrganizationQueryToolDefinition(objectMapper);
