@@ -1,5 +1,6 @@
 package com.aiworkmate.agent.capability;
 
+import com.aiworkmate.agent.registry.ToolCode;
 import org.junit.jupiter.api.Test;
 
 import java.util.Set;
@@ -21,12 +22,7 @@ class PageCapabilityCatalogTest {
 
     @Test
     void exposesOnlyExistingPhaseTwoToolsAndKeepsWritesAtomic() {
-        Set<String> knownTools = Set.of(
-                "todo.query", "leave.mine", "knowledge.search", "notification.mine",
-                "leave.createDraft", "leave.submit", "leave.apply", "approval.configuration.query",
-                "approval.task.query", "hr.organization.query", "hr.employee.query",
-                "hr.change.query", "asset.query", "meeting.query"
-        );
+        Set<String> knownTools = ToolCode.codes();
         Set<String> registered = catalog.all().stream()
                 .flatMap(page -> page.tools().stream())
                 .map(PageToolReference::toolCode)
@@ -37,6 +33,9 @@ class PageCapabilityCatalogTest {
         assertThat(catalog.find("ai-workspace").orElseThrow().writeTools())
                 .extracting(PageToolReference::toolCode)
                 .containsExactlyInAnyOrder("leave.createDraft", "leave.submit", "leave.apply");
+        assertThat(catalog.find("todo").orElseThrow().readTools())
+                .extracting(PageToolReference::code)
+                .containsExactly(ToolCode.TODO_QUERY);
     }
 
     @Test

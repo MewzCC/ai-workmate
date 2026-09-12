@@ -35,7 +35,7 @@ public class AgentWriteToolDefinitions {
     @Bean
     public ToolDefinition leaveCreateDraftToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {
         return ToolDefinition.create(
-                "leave.createDraft", "Create my leave draft",
+                ToolCode.LEAVE_CREATE_DRAFT, "Create my leave draft",
                 "Creates exactly one draft owned by the authenticated user in the authenticated tenant.",
                 "Create an idempotent leave draft only after explicit confirmation.",
                 "1.0.0", objectMapper.readTree(LEAVE_CREATE_DRAFT_INPUT_SCHEMA),
@@ -48,7 +48,7 @@ public class AgentWriteToolDefinitions {
     @Bean
     public ToolDefinition leaveSubmitToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {
         return ToolDefinition.create(
-                "leave.submit", "Submit my existing leave draft",
+                ToolCode.LEAVE_SUBMIT, "Submit my existing leave draft",
                 "Submits one pre-existing draft owned by the authenticated user in the authenticated tenant.",
                 "Submit one version-bound pre-existing leave draft only after secondary confirmation.",
                 "1.0.0", objectMapper.readTree(LEAVE_SUBMIT_INPUT_SCHEMA),
@@ -61,7 +61,7 @@ public class AgentWriteToolDefinitions {
     @Bean
     public ToolDefinition leaveApplyToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {
         return ToolDefinition.create(
-                "leave.apply", "Apply for leave",
+                ToolCode.LEAVE_APPLY, "Apply for leave",
                 "Atomically creates and submits exactly one leave application owned by the authenticated user.",
                 "Use when the user asks to apply for leave in one request. Create the application and start its approval workflow as one transactional operation after secondary confirmation.",
                 "1.0.0", objectMapper.readTree(LEAVE_APPLY_INPUT_SCHEMA),

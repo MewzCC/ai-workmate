@@ -1,17 +1,23 @@
 package com.aiworkmate.agent.capability;
 
-import java.util.regex.Pattern;
+import com.aiworkmate.agent.registry.ToolCode;
 
-public record PageToolReference(String toolCode, PageToolAccess access) {
-    private static final Pattern TOOL_CODE_PATTERN =
-            Pattern.compile("^[a-z][A-Za-z0-9]*(\\.[a-z][A-Za-z0-9]*)+$");
+public record PageToolReference(ToolCode code, PageToolAccess access) {
+
+    public PageToolReference(String toolCode, PageToolAccess access) {
+        this(ToolCode.fromCode(toolCode), access);
+    }
 
     public PageToolReference {
-        if (toolCode == null || !TOOL_CODE_PATTERN.matcher(toolCode).matches()) {
-            throw new IllegalArgumentException("Invalid page tool code");
+        if (code == null) {
+            throw new IllegalArgumentException("Page tool code is required");
         }
         if (access == null) {
             throw new IllegalArgumentException("Page tool access is required");
         }
+    }
+
+    public String toolCode() {
+        return code.code();
     }
 }

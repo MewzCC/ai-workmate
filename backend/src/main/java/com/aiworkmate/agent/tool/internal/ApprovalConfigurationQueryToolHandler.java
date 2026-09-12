@@ -1,6 +1,7 @@
 package com.aiworkmate.agent.tool.internal;
 
 import com.aiworkmate.agent.tool.port.ApprovalConfigurationToolPort;
+import com.aiworkmate.agent.registry.ToolCode;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -19,7 +20,7 @@ public final class ApprovalConfigurationQueryToolHandler implements ToolHandler 
     private final ApprovalConfigurationToolPort approvalConfigurationToolPort;
     private final ObjectMapper objectMapper;
 
-    @Override public String toolCode() { return "approval.configuration.query"; }
+    @Override public String toolCode() { return ToolCode.APPROVAL_CONFIGURATION_QUERY.code(); }
     @Override public String handlerVersion() { return "1.0.0"; }
 
     @Override

@@ -1,6 +1,7 @@
 package com.aiworkmate.agent.tool.internal;
 
 import com.aiworkmate.agent.tool.port.LeaveToolPort;
+import com.aiworkmate.agent.registry.ToolCode;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -19,7 +20,7 @@ public final class LeaveCreateDraftToolHandler implements ToolHandler {
 
     @Override
     public String toolCode() {
-        return "leave.createDraft";
+        return ToolCode.LEAVE_CREATE_DRAFT.code();
     }
 
     @Override
@@ -34,7 +35,8 @@ public final class LeaveCreateDraftToolHandler implements ToolHandler {
                 requiredDate(arguments, "startDate"), requiredText(arguments, "startPeriod"),
                 requiredDate(arguments, "endDate"), requiredText(arguments, "endPeriod"),
                 requiredText(arguments, "reason"));
-        String operationKey = "agent:" + context.taskId() + ":" + context.stepId() + ":leave.createDraft:v1";
+        String operationKey = "agent:" + context.taskId() + ":" + context.stepId() + ":"
+                + ToolCode.LEAVE_CREATE_DRAFT.code() + ":v1";
         LeaveToolPort.WriteResult created = leaveToolPort.createDraft(
                 context.userId(), request, operationKey);
         ObjectNode output = objectMapper.createObjectNode();

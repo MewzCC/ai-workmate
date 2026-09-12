@@ -1,6 +1,7 @@
 package com.aiworkmate.agent.tool.internal;
 
 import com.aiworkmate.agent.tool.port.MeetingToolPort;
+import com.aiworkmate.agent.registry.ToolCode;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -15,7 +16,7 @@ import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.positiveIn
 public final class MeetingQueryToolHandler implements ToolHandler {
     private final MeetingToolPort port;
     private final ObjectMapper objectMapper;
-    @Override public String toolCode() { return "meeting.query"; }
+    @Override public String toolCode() { return ToolCode.MEETING_QUERY.code(); }
     @Override public String handlerVersion() { return "1.0.0"; }
 
     @Override

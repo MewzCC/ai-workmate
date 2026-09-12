@@ -1,6 +1,7 @@
 package com.aiworkmate.agent.capability;
 
 import com.aiworkmate.agent.registry.OwnershipPolicy;
+import com.aiworkmate.agent.registry.ToolCode;
 import org.springframework.stereotype.Component;
 
 import java.util.Collection;
@@ -19,6 +20,7 @@ import static com.aiworkmate.agent.capability.PageUiCommand.OPEN_CREATE_FORM;
 import static com.aiworkmate.agent.capability.PageUiCommand.OPEN_DETAIL;
 import static com.aiworkmate.agent.capability.PageUiCommand.PREVIEW_SUBMISSION;
 import static com.aiworkmate.agent.capability.PageUiCommand.REFRESH_PAGE;
+import static com.aiworkmate.agent.registry.ToolCode.*;
 
 /**
  * Single code-owned registry for every enabled OA page. Runtime policy and
@@ -66,48 +68,48 @@ public class PageCapabilityCatalog {
         return List.of(
                 page("dashboard", "DASHBOARD", OwnershipPolicy.SELF, LIST_COMMANDS,
                         context(text("status"), number("page"), number("size")),
-                        read("todo.query"), read("notification.mine")),
+                        read(TODO_QUERY), read(NOTIFICATION_MINE)),
                 page("ai-workspace", "AI_WORKSPACE", OwnershipPolicy.SELF, READ_COMMANDS, PageContextSchema.empty(),
-                        read("todo.query"), read("leave.mine"), read("knowledge.search"), read("notification.mine"),
-                        write("leave.createDraft"), write("leave.submit"), write("leave.apply")),
+                        read(TODO_QUERY), read(LEAVE_MINE), read(KNOWLEDGE_SEARCH), read(NOTIFICATION_MINE),
+                        write(LEAVE_CREATE_DRAFT), write(LEAVE_SUBMIT), write(LEAVE_APPLY)),
                 page("ai-tasks", "AI_TASK_CENTER", OwnershipPolicy.SELF, LIST_COMMANDS),
                 page("todo", "TODO_LIST", OwnershipPolicy.ASSIGNED_TO_SELF, LIST_COMMANDS,
                         context(text("status"), text("from"), text("to"), number("page"), number("size")),
-                        read("todo.query")),
+                        read(TODO_QUERY)),
                 page("messages", "MESSAGE_CENTER", OwnershipPolicy.SELF, LIST_COMMANDS,
-                        context(number("page"), number("size")), read("notification.mine")),
+                        context(number("page"), number("size")), read(NOTIFICATION_MINE)),
                 page("leave-application", "LEAVE_FORM", OwnershipPolicy.SELF, FORM_COMMANDS),
                 page("my-applications", "MY_APPLICATIONS", OwnershipPolicy.SELF, LIST_COMMANDS,
                         context(text("applicationId"), text("status"), number("page"), number("size")),
-                        read("leave.mine"), write("leave.createDraft"), write("leave.submit"), write("leave.apply")),
+                        read(LEAVE_MINE), write(LEAVE_CREATE_DRAFT), write(LEAVE_SUBMIT), write(LEAVE_APPLY)),
 
                 page("approval-list", "APPROVAL_LIST", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
-                        read("approval.task.query")),
+                        read(APPROVAL_TASK_QUERY)),
                 page("approval-start", "APPROVAL_START", OwnershipPolicy.SELF, READ_COMMANDS,
-                        read("approval.configuration.query")),
+                        read(APPROVAL_CONFIGURATION_QUERY)),
                 page("approval-form", "APPROVAL_FORM", OwnershipPolicy.SELF, FORM_COMMANDS,
-                        read("approval.configuration.query")),
+                        read(APPROVAL_CONFIGURATION_QUERY)),
                 page("form-engine", "FORM_ENGINE", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
-                        read("approval.configuration.query")),
+                        read(APPROVAL_CONFIGURATION_QUERY)),
                 page("process-config", "PROCESS_CONFIG", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
-                        read("approval.configuration.query")),
+                        read(APPROVAL_CONFIGURATION_QUERY)),
                 page("approval-rules", "APPROVAL_RULES", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
-                        read("approval.configuration.query")),
+                        read(APPROVAL_CONFIGURATION_QUERY)),
 
                 page("org-tree", "ORG_TREE", OwnershipPolicy.TENANT_SCOPED, READ_COMMANDS,
-                        context(text("keyword"), number("limit")), read("hr.organization.query")),
+                        context(text("keyword"), number("limit")), read(HR_ORGANIZATION_QUERY)),
                 page("employee-files", "EMPLOYEE_FILES", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
-                        context(number("employeeId")), read("hr.organization.query"), read("hr.employee.query")),
+                        context(number("employeeId")), read(HR_ORGANIZATION_QUERY), read(HR_EMPLOYEE_QUERY)),
                 page("employee-change", "EMPLOYEE_CHANGE", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         context(text("status"), text("changeType"), text("keyword"), number("page"), number("size")),
-                        read("hr.change.query")),
+                        read(HR_CHANGE_QUERY)),
 
                 page("asset-ledger", "ASSET_LEDGER", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         context(text("keyword"), text("category"), text("status"), number("page"), number("size")),
-                        read("asset.query")),
+                        read(ASSET_QUERY)),
                 page("meeting-room", "MEETING_ROOM", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         context(text("keyword"), text("roomStatus"), text("from"), text("to"),
-                                text("bookingStatus"), number("page"), number("size")), read("meeting.query")),
+                                text("bookingStatus"), number("page"), number("size")), read(MEETING_QUERY)),
                 page("visitor-booking", "VISITOR_BOOKING", OwnershipPolicy.SELF, LIST_COMMANDS),
                 page("seal-usage", "SEAL_USAGE", OwnershipPolicy.SELF, LIST_COMMANDS),
 
@@ -131,7 +133,7 @@ public class PageCapabilityCatalog {
                 page("data-permission", "DATA_PERMISSION", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS),
                 page("ai-permission", "AI_PERMISSION", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS),
                 page("knowledge-base", "KNOWLEDGE_BASE", OwnershipPolicy.FIXED_RESOURCE, LIST_COMMANDS,
-                        context(text("query"), number("topK"), number("minScore")), read("knowledge.search")),
+                        context(text("query"), number("topK"), number("minScore")), read(KNOWLEDGE_SEARCH)),
                 page("audit-center", "AUDIT_CENTER", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS),
                 page("tenant-config", "TENANT_CONFIG", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS),
                 page("dictionary", "DICTIONARY", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS),
@@ -151,11 +153,11 @@ public class PageCapabilityCatalog {
                 Set.of("route:" + pageId), scope, context);
     }
 
-    private PageToolReference read(String code) {
+    private PageToolReference read(ToolCode code) {
         return new PageToolReference(code, READ);
     }
 
-    private PageToolReference write(String code) {
+    private PageToolReference write(ToolCode code) {
         return new PageToolReference(code, SINGLE_WRITE);
     }
 

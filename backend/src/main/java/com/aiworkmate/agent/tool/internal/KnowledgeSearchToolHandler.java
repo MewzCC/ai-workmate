@@ -3,6 +3,7 @@ package com.aiworkmate.agent.tool.internal;
 import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.common.ErrorCode;
 import com.aiworkmate.agent.tool.port.KnowledgeToolPort;
+import com.aiworkmate.agent.registry.ToolCode;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -17,7 +18,7 @@ public final class KnowledgeSearchToolHandler implements ToolHandler {
     private final ObjectMapper objectMapper;
 
     @Override
-    public String toolCode() { return "knowledge.search"; }
+    public String toolCode() { return ToolCode.KNOWLEDGE_SEARCH.code(); }
 
     @Override
     public String handlerVersion() { return "1.0.0"; }

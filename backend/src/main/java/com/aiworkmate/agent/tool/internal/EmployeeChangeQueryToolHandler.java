@@ -1,6 +1,7 @@
 package com.aiworkmate.agent.tool.internal;
 
 import com.aiworkmate.agent.tool.port.EmployeeChangeToolPort;
+import com.aiworkmate.agent.registry.ToolCode;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -14,7 +15,7 @@ import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.positiveIn
 public final class EmployeeChangeQueryToolHandler implements ToolHandler {
     private final EmployeeChangeToolPort port;
     private final ObjectMapper objectMapper;
-    @Override public String toolCode() { return "hr.change.query"; }
+    @Override public String toolCode() { return ToolCode.HR_CHANGE_QUERY.code(); }
     @Override public String handlerVersion() { return "1.0.0"; }
 
     @Override

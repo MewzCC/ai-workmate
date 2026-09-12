@@ -1,6 +1,7 @@
 package com.aiworkmate.agent.tool.internal;
 
 import com.aiworkmate.agent.tool.port.LeaveToolPort;
+import com.aiworkmate.agent.registry.ToolCode;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -17,7 +18,7 @@ public final class LeaveSubmitToolHandler implements ToolHandler {
 
     @Override
     public String toolCode() {
-        return "leave.submit";
+        return ToolCode.LEAVE_SUBMIT.code();
     }
 
     @Override

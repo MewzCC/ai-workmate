@@ -1,6 +1,7 @@
 package com.aiworkmate.agent.tool.internal;
 
 import com.aiworkmate.agent.tool.port.HrOrganizationToolPort;
+import com.aiworkmate.agent.registry.ToolCode;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -16,7 +17,7 @@ public final class HrOrganizationQueryToolHandler implements ToolHandler {
     private final HrOrganizationToolPort port;
     private final ObjectMapper objectMapper;
 
-    @Override public String toolCode() { return "hr.organization.query"; }
+    @Override public String toolCode() { return ToolCode.HR_ORGANIZATION_QUERY.code(); }
     @Override public String handlerVersion() { return "1.0.0"; }
 
     @Override

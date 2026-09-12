@@ -101,7 +101,7 @@ public class AgentReadToolDefinitions {
     @Bean
     ToolDefinition approvalConfigurationQueryToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {
         return ToolDefinition.create(
-                "approval.configuration.query", "Query approval configuration",
+                ToolCode.APPROVAL_CONFIGURATION_QUERY, "Query approval configuration",
                 "Returns bounded approval forms, processes or rules from the authenticated tenant.",
                 "Display tenant-scoped approval configuration summaries without executable schema or rule payloads.",
                 "1.0.0", objectMapper.readTree(APPROVAL_CONFIGURATION_QUERY_INPUT_SCHEMA),
@@ -114,7 +114,7 @@ public class AgentReadToolDefinitions {
     @Bean
     ToolDefinition approvalTaskQueryToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {
         return ToolDefinition.create(
-                "approval.task.query", "Query tenant approval tasks",
+                ToolCode.APPROVAL_TASK_QUERY, "Query tenant approval tasks",
                 "Returns bounded approval tasks visible to the authenticated actor's live tenant data scope.",
                 "Display approval-center task summaries without internal identities or workflow payloads.",
                 "1.0.0", objectMapper.readTree(APPROVAL_TASK_QUERY_INPUT_SCHEMA),
@@ -127,7 +127,7 @@ public class AgentReadToolDefinitions {
     @Bean
     ToolDefinition hrOrganizationQueryToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {
         return ToolDefinition.create(
-                "hr.organization.query", "Query visible organization",
+                ToolCode.HR_ORGANIZATION_QUERY, "Query visible organization",
                 "Returns bounded departments, positions and employees visible in the authenticated actor's data scope.",
                 "Display an organization overview without emails, avatars or internal permission data.",
                 "1.0.0", objectMapper.readTree(HR_ORGANIZATION_QUERY_INPUT_SCHEMA),
@@ -140,7 +140,7 @@ public class AgentReadToolDefinitions {
     @Bean
     ToolDefinition hrEmployeeQueryToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {
         return ToolDefinition.create(
-                "hr.employee.query", "Query visible employee profile",
+                ToolCode.HR_EMPLOYEE_QUERY, "Query visible employee profile",
                 "Returns one employee profile only when visible in the authenticated actor's live data scope.",
                 "Display employment, attendance summary and recent activity without contact or attachment data.",
                 "1.0.0", objectMapper.readTree(HR_EMPLOYEE_QUERY_INPUT_SCHEMA),
@@ -153,7 +153,7 @@ public class AgentReadToolDefinitions {
     @Bean
     ToolDefinition employeeChangeQueryToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {
         return ToolDefinition.create(
-                "hr.change.query", "Query employee changes",
+                ToolCode.HR_CHANGE_QUERY, "Query employee changes",
                 "Returns bounded employee changes visible to the authenticated tenant actor.",
                 "Display employee-change summaries without internal user identities or decision payloads.",
                 "1.0.0", objectMapper.readTree(EMPLOYEE_CHANGE_QUERY_INPUT_SCHEMA),
@@ -166,7 +166,7 @@ public class AgentReadToolDefinitions {
     @Bean
     ToolDefinition assetQueryToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {
         return ToolDefinition.create(
-                "asset.query", "Query tenant assets",
+                ToolCode.ASSET_QUERY, "Query tenant assets",
                 "Returns bounded asset ledger records visible to the authenticated tenant actor.",
                 "Display asset summaries without internal owner, department or operation identities.",
                 "1.0.0", objectMapper.readTree(ASSET_QUERY_INPUT_SCHEMA),
@@ -179,7 +179,7 @@ public class AgentReadToolDefinitions {
     @Bean
     ToolDefinition meetingQueryToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {
         return ToolDefinition.create(
-                "meeting.query", "Query meeting rooms and my bookings",
+                ToolCode.MEETING_QUERY, "Query meeting rooms and my bookings",
                 "Returns bounded tenant meeting rooms and bookings owned by the authenticated actor.",
                 "Display room availability and the actor's booking summaries without internal user identities.",
                 "1.0.0", objectMapper.readTree(MEETING_QUERY_INPUT_SCHEMA),
@@ -192,7 +192,7 @@ public class AgentReadToolDefinitions {
     @Bean
     ToolDefinition todoQueryToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {
         return ToolDefinition.create(
-                "todo.query",
+                ToolCode.TODO_QUERY,
                 "Query my approval tasks",
                 "Returns approval tasks assigned to the authenticated user in the authenticated tenant.",
                 "Display a bounded, read-only list of the current user's approval tasks.",
@@ -216,7 +216,7 @@ public class AgentReadToolDefinitions {
     @Bean
     ToolDefinition leaveMineToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {
         return ToolDefinition.create(
-                "leave.mine",
+                ToolCode.LEAVE_MINE,
                 "Query my leave applications",
                 "Returns leave applications owned by the authenticated user in the authenticated tenant.",
                 "Display a bounded list or one owned leave application without exposing internal identities.",
@@ -240,7 +240,7 @@ public class AgentReadToolDefinitions {
     @Bean
     ToolDefinition knowledgeSearchToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {
         return ToolDefinition.create(
-                "knowledge.search", "Search authorized knowledge",
+                ToolCode.KNOWLEDGE_SEARCH, "Search authorized knowledge",
                 "Searches only ready knowledge chunks owned by the authenticated user and tenant.",
                 "Return cited untrusted knowledge data for display or a non-recursive summary.",
                 "1.0.0", objectMapper.readTree(KNOWLEDGE_SEARCH_INPUT_SCHEMA),
@@ -253,7 +253,7 @@ public class AgentReadToolDefinitions {
     @Bean
     ToolDefinition notificationMineToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {
         return ToolDefinition.create(
-                "notification.mine", "Query my notifications",
+                ToolCode.NOTIFICATION_MINE, "Query my notifications",
                 "Returns notifications owned by the authenticated user in the authenticated tenant.",
                 "Display a bounded read-only notification list without internal business identifiers.",
                 "1.0.0", objectMapper.readTree(NOTIFICATION_MINE_INPUT_SCHEMA),

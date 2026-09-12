@@ -1,6 +1,7 @@
 package com.aiworkmate.agent.tool.internal;
 
 import com.aiworkmate.agent.tool.port.NotificationToolPort;
+import com.aiworkmate.agent.registry.ToolCode;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -15,7 +16,7 @@ public final class NotificationMineToolHandler implements ToolHandler {
     private final NotificationToolPort notificationToolPort;
     private final ObjectMapper objectMapper;
 
-    @Override public String toolCode() { return "notification.mine"; }
+    @Override public String toolCode() { return ToolCode.NOTIFICATION_MINE.code(); }
     @Override public String handlerVersion() { return "1.0.0"; }
 
     @Override

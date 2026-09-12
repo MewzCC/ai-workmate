@@ -3,6 +3,7 @@ package com.aiworkmate.agent.tool.internal;
 import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.common.ErrorCode;
 import com.aiworkmate.agent.tool.port.TodoToolPort;
+import com.aiworkmate.agent.registry.ToolCode;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -28,7 +29,7 @@ public final class TodoQueryToolHandler implements ToolHandler {
 
     @Override
     public String toolCode() {
-        return "todo.query";
+        return ToolCode.TODO_QUERY.code();
     }
 
     @Override

@@ -1,6 +1,7 @@
 package com.aiworkmate.agent.tool.internal;
 
 import com.aiworkmate.agent.tool.port.AssetToolPort;
+import com.aiworkmate.agent.registry.ToolCode;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -14,7 +15,7 @@ import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.positiveIn
 public final class AssetQueryToolHandler implements ToolHandler {
     private final AssetToolPort port;
     private final ObjectMapper objectMapper;
-    @Override public String toolCode() { return "asset.query"; }
+    @Override public String toolCode() { return ToolCode.ASSET_QUERY.code(); }
     @Override public String handlerVersion() { return "1.0.0"; }
 
     @Override

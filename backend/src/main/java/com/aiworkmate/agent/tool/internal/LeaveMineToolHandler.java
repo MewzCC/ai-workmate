@@ -3,6 +3,7 @@ package com.aiworkmate.agent.tool.internal;
 import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.common.ErrorCode;
 import com.aiworkmate.agent.tool.port.LeaveToolPort;
+import com.aiworkmate.agent.registry.ToolCode;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -24,7 +25,7 @@ public final class LeaveMineToolHandler implements ToolHandler {
 
     @Override
     public String toolCode() {
-        return "leave.mine";
+        return ToolCode.LEAVE_MINE.code();
     }
 
     @Override

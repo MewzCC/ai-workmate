@@ -1,6 +1,7 @@
 package com.aiworkmate.agent.tool.internal;
 
 import com.aiworkmate.agent.tool.port.ApprovalTaskToolPort;
+import com.aiworkmate.agent.registry.ToolCode;
 import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.common.ErrorCode;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -21,7 +22,7 @@ public final class ApprovalTaskQueryToolHandler implements ToolHandler {
     private final ApprovalTaskToolPort approvalTaskToolPort;
     private final ObjectMapper objectMapper;
 
-    @Override public String toolCode() { return "approval.task.query"; }
+    @Override public String toolCode() { return ToolCode.APPROVAL_TASK_QUERY.code(); }
     @Override public String handlerVersion() { return "1.0.0"; }
 
     @Override
