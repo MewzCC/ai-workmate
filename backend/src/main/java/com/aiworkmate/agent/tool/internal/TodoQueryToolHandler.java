@@ -10,8 +10,11 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
-import java.time.DateTimeException;
 import java.time.LocalDateTime;
+
+import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.optionalDateTime;
+import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.optionalText;
+import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.positiveInt;
 
 @Component
 @RequiredArgsConstructor
@@ -35,14 +38,14 @@ public final class TodoQueryToolHandler implements ToolHandler {
 
     @Override
     public JsonNode execute(TrustedToolContext context, JsonNode arguments) {
-        LocalDateTime from = parseDateTime(arguments, "from");
-        LocalDateTime to = parseDateTime(arguments, "to");
+        LocalDateTime from = optionalDateTime(arguments, "from");
+        LocalDateTime to = optionalDateTime(arguments, "to");
         if (from != null && to != null && from.isAfter(to)) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID);
         }
-        int page = positiveInt(arguments, "page", DEFAULT_PAGE);
-        int size = Math.min(MAX_SIZE, positiveInt(arguments, "size", DEFAULT_SIZE));
-        String status = text(arguments, "status");
+        int page = positiveInt(arguments, "page", DEFAULT_PAGE, Integer.MAX_VALUE);
+        int size = positiveInt(arguments, "size", DEFAULT_SIZE, MAX_SIZE);
+        String status = optionalText(arguments, "status");
 
         TodoToolPort.Page result = todoToolPort.query(
                 context.userId(), new TodoToolPort.Query(status, from, to, page, size));
@@ -73,32 +76,4 @@ public final class TodoQueryToolHandler implements ToolHandler {
         item.put("overdue", todo.overdue());
     }
 
-    private LocalDateTime parseDateTime(JsonNode arguments, String field) {
-        String value = text(arguments, field);
-        if (value == null) {
-            return null;
-        }
-        try {
-            return LocalDateTime.parse(value);
-        } catch (DateTimeException exception) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID);
-        }
-    }
-
-    private int positiveInt(JsonNode arguments, String field, int fallback) {
-        JsonNode value = arguments.get(field);
-        if (value == null || value.isNull()) {
-            return fallback;
-        }
-        int parsed = value.asInt(0);
-        if (parsed < 1) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID);
-        }
-        return parsed;
-    }
-
-    private String text(JsonNode arguments, String field) {
-        JsonNode value = arguments.get(field);
-        return value == null || value.isNull() ? null : value.asText();
-    }
 }

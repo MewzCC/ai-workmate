@@ -1,13 +1,15 @@
 package com.aiworkmate.agent.tool.internal;
 
 import com.aiworkmate.agent.tool.port.ApprovalConfigurationToolPort;
-import com.aiworkmate.common.BusinessException;
-import com.aiworkmate.common.ErrorCode;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
+
+import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.optionalText;
+import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.positiveInt;
+import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.requiredEnum;
 
 @Component
 @RequiredArgsConstructor
@@ -22,17 +24,13 @@ public final class ApprovalConfigurationQueryToolHandler implements ToolHandler 
 
     @Override
     public JsonNode execute(TrustedToolContext context, JsonNode arguments) {
-        ApprovalConfigurationToolPort.Resource resource;
-        try {
-            resource = ApprovalConfigurationToolPort.Resource.valueOf(arguments.path("resource").asText(""));
-        } catch (IllegalArgumentException exception) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID);
-        }
-        int page = positive(arguments, "page", 1);
-        int size = Math.min(MAX_SIZE, positive(arguments, "size", 20));
+        ApprovalConfigurationToolPort.Resource resource = requiredEnum(
+                arguments, "resource", ApprovalConfigurationToolPort.Resource.class);
+        int page = positiveInt(arguments, "page", 1, Integer.MAX_VALUE);
+        int size = positiveInt(arguments, "size", 20, MAX_SIZE);
         var result = approvalConfigurationToolPort.query(context.userId(),
-                new ApprovalConfigurationToolPort.Query(resource, text(arguments, "keyword"),
-                        text(arguments, "status"), page, size));
+                new ApprovalConfigurationToolPort.Query(resource, optionalText(arguments, "keyword"),
+                        optionalText(arguments, "status"), page, size));
         ObjectNode output = objectMapper.createObjectNode();
         var items = output.putArray("items");
         result.items().forEach(record -> {
@@ -55,19 +53,4 @@ public final class ApprovalConfigurationQueryToolHandler implements ToolHandler 
         return output;
     }
 
-    private int positive(JsonNode arguments, String field, int fallback) {
-        if (!arguments.has(field)) return fallback;
-        JsonNode value = arguments.get(field);
-        if (!value.isIntegralNumber() || value.asInt() < 1) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID);
-        }
-        return value.asInt();
-    }
-
-    private String text(JsonNode arguments, String field) {
-        JsonNode value = arguments.get(field);
-        if (value == null || value.isNull()) return null;
-        String text = value.asText().strip();
-        return text.isEmpty() ? null : text;
-    }
 }

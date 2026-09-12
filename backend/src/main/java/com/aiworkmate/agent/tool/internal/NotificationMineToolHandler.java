@@ -1,13 +1,13 @@
 package com.aiworkmate.agent.tool.internal;
 
-import com.aiworkmate.common.BusinessException;
-import com.aiworkmate.common.ErrorCode;
 import com.aiworkmate.agent.tool.port.NotificationToolPort;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
+
+import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.positiveInt;
 
 @Component
 @RequiredArgsConstructor
@@ -20,8 +20,8 @@ public final class NotificationMineToolHandler implements ToolHandler {
 
     @Override
     public JsonNode execute(TrustedToolContext context, JsonNode arguments) {
-        int page = positive(arguments, "page", 1);
-        int size = Math.min(50, positive(arguments, "size", 20));
+        int page = positiveInt(arguments, "page", 1, Integer.MAX_VALUE);
+        int size = positiveInt(arguments, "size", 20, 50);
         var result = notificationToolPort.mine(context.userId(), page, size);
         ObjectNode output = objectMapper.createObjectNode();
         var items = output.putArray("items");
@@ -39,12 +39,5 @@ public final class NotificationMineToolHandler implements ToolHandler {
         output.put("page", result.page());
         output.put("size", result.size());
         return output;
-    }
-
-    private int positive(JsonNode arguments, String field, int fallback) {
-        if (!arguments.has(field)) return fallback;
-        int value = arguments.path(field).asInt(0);
-        if (value < 1) throw new BusinessException(ErrorCode.REQUEST_INVALID);
-        return value;
     }
 }

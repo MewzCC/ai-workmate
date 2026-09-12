@@ -10,6 +10,10 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.optionalPositiveLong;
+import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.optionalText;
+import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.positiveInt;
+
 @Component
 @RequiredArgsConstructor
 public final class LeaveMineToolHandler implements ToolHandler {
@@ -30,8 +34,8 @@ public final class LeaveMineToolHandler implements ToolHandler {
 
     @Override
     public JsonNode execute(TrustedToolContext context, JsonNode arguments) {
-        Long applicationId = positiveLong(arguments, "applicationId");
-        String status = text(arguments, "status");
+        Long applicationId = optionalPositiveLong(arguments, "applicationId");
+        String status = optionalText(arguments, "status");
         boolean hasListArguments = status != null || arguments.has("page") || arguments.has("size");
         if (applicationId != null && hasListArguments) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID);
@@ -43,8 +47,8 @@ public final class LeaveMineToolHandler implements ToolHandler {
                     java.util.List.of(leaveToolPort.getMine(context.userId(), applicationId)),
                     1, 1, 1);
         } else {
-            int page = positiveInt(arguments, "page", 1);
-            int size = Math.min(MAX_SIZE, positiveInt(arguments, "size", 20));
+            int page = positiveInt(arguments, "page", 1, Integer.MAX_VALUE);
+            int size = positiveInt(arguments, "size", 20, MAX_SIZE);
             result = leaveToolPort.mine(context.userId(), new LeaveToolPort.Query(status, page, size));
         }
         return output(result);
@@ -88,32 +92,4 @@ public final class LeaveMineToolHandler implements ToolHandler {
         }
     }
 
-    private Long positiveLong(JsonNode arguments, String field) {
-        JsonNode value = arguments.get(field);
-        if (value == null || value.isNull()) {
-            return null;
-        }
-        long parsed = value.asLong(0);
-        if (parsed < 1) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID);
-        }
-        return parsed;
-    }
-
-    private int positiveInt(JsonNode arguments, String field, int fallback) {
-        JsonNode value = arguments.get(field);
-        if (value == null || value.isNull()) {
-            return fallback;
-        }
-        int parsed = value.asInt(0);
-        if (parsed < 1) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID);
-        }
-        return parsed;
-    }
-
-    private String text(JsonNode arguments, String field) {
-        JsonNode value = arguments.get(field);
-        return value == null || value.isNull() ? null : value.asText();
-    }
 }
