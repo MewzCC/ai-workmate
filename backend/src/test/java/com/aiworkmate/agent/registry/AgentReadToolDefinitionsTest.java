@@ -9,6 +9,22 @@ import static org.assertj.core.api.Assertions.assertThat;
 class AgentReadToolDefinitionsTest {
 
     @Test
+    void employeeChangeDefinitionIsClosedAndTenantScoped() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        ToolDefinition definition = new AgentReadToolDefinitions().employeeChangeQueryToolDefinition(mapper);
+        ToolSchemaValidator validator = new ToolSchemaValidator();
+        assertThat(definition.requiredPermissions()).containsExactly("hr:read");
+        assertThat(definition.schemaHash()).isEqualTo(
+                "sha256:e7776fa61d680c418f2e210d5e0d7dd9d93d3d7d1ab153d7a81c224b8e457c53");
+        assertThat(definition.ownershipPolicy()).isEqualTo(OwnershipPolicy.TENANT_SCOPED);
+        assertThat(definition.outputSchema().toString()).doesNotContain("employeeUserId", "applicantUserId");
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree(
+                "{\"status\":\"PENDING\",\"changeType\":\"TRANSFER\",\"size\":50}"))).isTrue();
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree(
+                "{\"changeType\":\"DELETE\"}"))).isFalse();
+    }
+
+    @Test
     void hrEmployeeDefinitionRequiresOnlyVisibleEmployeeId() throws Exception {
         ObjectMapper mapper = new ObjectMapper();
         ToolDefinition definition = new AgentReadToolDefinitions().hrEmployeeQueryToolDefinition(mapper);

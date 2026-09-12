@@ -42,6 +42,14 @@ public class AgentReadToolDefinitions {
             {"type":"object","additionalProperties":false,"required":["id","name","role","status","employmentHistory","attendance","recentActivities"],"properties":{"id":{"type":"integer","minimum":1},"name":{"type":"string","maxLength":120},"role":{"type":"string","maxLength":80},"status":{"type":"integer","minimum":0,"maximum":1},"createdAt":{"type":"string","maxLength":32},"departmentName":{"type":"string","maxLength":120},"positionName":{"type":"string","maxLength":120},"approverName":{"type":"string","maxLength":120},"employmentHistory":{"type":"array","maxItems":50,"items":{"type":"object","additionalProperties":false,"required":["id","changeType","effectiveDate"],"properties":{"id":{"type":"integer","minimum":1},"changeType":{"type":"string","maxLength":40},"effectiveDate":{"type":"string","maxLength":10},"targetDepartmentName":{"type":"string","maxLength":120},"targetPositionName":{"type":"string","maxLength":120},"targetSupervisorName":{"type":"string","maxLength":120},"appliedAt":{"type":"string","maxLength":32}}}},"attendance":{"type":"object","additionalProperties":false,"required":["totalDays","normalDays","lateDays","earlyLeaveDays","lateAndEarlyDays","missingClockDays"],"properties":{"totalDays":{"type":"integer","minimum":0},"normalDays":{"type":"integer","minimum":0},"lateDays":{"type":"integer","minimum":0},"earlyLeaveDays":{"type":"integer","minimum":0},"lateAndEarlyDays":{"type":"integer","minimum":0},"missingClockDays":{"type":"integer","minimum":0}}},"recentActivities":{"type":"array","maxItems":50,"items":{"type":"object","additionalProperties":false,"required":["id","type","title","status","createdAt"],"properties":{"id":{"type":"integer","minimum":1},"type":{"type":"string","maxLength":40},"title":{"type":"string","maxLength":200},"status":{"type":"string","maxLength":40},"startDate":{"type":"string","maxLength":10},"endDate":{"type":"string","maxLength":10},"createdAt":{"type":"string","maxLength":32}}}}}}
             """.strip();
 
+    public static final String EMPLOYEE_CHANGE_QUERY_INPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"properties":{"status":{"type":"string","enum":["PENDING","APPROVED","EFFECTIVE","REJECTED","WITHDRAWN"]},"changeType":{"type":"string","enum":["ONBOARDING","REGULARIZATION","TRANSFER","OFFBOARDING"]},"keyword":{"type":"string","maxLength":200},"page":{"type":"integer","minimum":1,"maximum":10000},"size":{"type":"integer","minimum":1,"maximum":50}}}
+            """.strip();
+
+    public static final String EMPLOYEE_CHANGE_QUERY_OUTPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["items","total","page","size"],"properties":{"items":{"type":"array","maxItems":50,"items":{"type":"object","additionalProperties":false,"required":["id","employeeName","applicantName","reviewApproverName","changeType","effectiveDate","reason","status","version","canApprove","canWithdraw"],"properties":{"id":{"type":"integer","minimum":1},"employeeName":{"type":"string","maxLength":120},"applicantName":{"type":"string","maxLength":120},"reviewApproverName":{"type":"string","maxLength":120},"changeType":{"type":"string","enum":["ONBOARDING","REGULARIZATION","TRANSFER","OFFBOARDING"]},"effectiveDate":{"type":"string","maxLength":10},"currentDepartmentName":{"type":"string","maxLength":120},"currentPositionName":{"type":"string","maxLength":120},"targetDepartmentName":{"type":"string","maxLength":120},"targetPositionName":{"type":"string","maxLength":120},"targetSupervisorName":{"type":"string","maxLength":120},"reason":{"type":"string","maxLength":1000},"status":{"type":"string","enum":["PENDING","APPROVED","EFFECTIVE","REJECTED","WITHDRAWN"]},"version":{"type":"integer","minimum":0},"canApprove":{"type":"boolean"},"canWithdraw":{"type":"boolean"},"submittedAt":{"type":"string","maxLength":32},"decidedAt":{"type":"string","maxLength":32},"appliedAt":{"type":"string","maxLength":32}}}},"total":{"type":"integer","minimum":0},"page":{"type":"integer","minimum":1},"size":{"type":"integer","minimum":1,"maximum":50}}}
+            """.strip();
+
     public static final String TODO_QUERY_INPUT_SCHEMA = """
             {"type":"object","additionalProperties":false,"properties":{"status":{"type":"string","enum":["PENDING","APPROVED","REJECTED","CANCELLED"]},"from":{"type":"string","minLength":16,"maxLength":32},"to":{"type":"string","minLength":16,"maxLength":32},"page":{"type":"integer","minimum":1,"maximum":10000},"size":{"type":"integer","minimum":1,"maximum":50}}}
             """.strip();
@@ -121,6 +129,19 @@ public class AgentReadToolDefinitions {
                 "Display employment, attendance summary and recent activity without contact or attachment data.",
                 "1.0.0", objectMapper.readTree(HR_EMPLOYEE_QUERY_INPUT_SCHEMA),
                 objectMapper.readTree(HR_EMPLOYEE_QUERY_OUTPUT_SCHEMA), RiskLevel.L0,
+                Set.of("hr:read"), PermissionMode.ALL, OwnershipPolicy.TENANT_SCOPED,
+                RetryPolicy.READ_ONLY_SAFE, SideEffect.NONE, ConfirmationPolicy.NONE,
+                50, 131072, 15000, "HASHED_ARGS_RESULT");
+    }
+
+    @Bean
+    ToolDefinition employeeChangeQueryToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {
+        return ToolDefinition.create(
+                "hr.change.query", "Query employee changes",
+                "Returns bounded employee changes visible to the authenticated tenant actor.",
+                "Display employee-change summaries without internal user identities or decision payloads.",
+                "1.0.0", objectMapper.readTree(EMPLOYEE_CHANGE_QUERY_INPUT_SCHEMA),
+                objectMapper.readTree(EMPLOYEE_CHANGE_QUERY_OUTPUT_SCHEMA), RiskLevel.L0,
                 Set.of("hr:read"), PermissionMode.ALL, OwnershipPolicy.TENANT_SCOPED,
                 RetryPolicy.READ_ONLY_SAFE, SideEffect.NONE, ConfirmationPolicy.NONE,
                 50, 131072, 15000, "HASHED_ARGS_RESULT");

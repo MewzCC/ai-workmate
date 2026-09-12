@@ -69,7 +69,13 @@ class AgentReadToolSecurityCorpusTest {
                 "hr.employee.query", new Corpus(
                         definitions.hrEmployeeQueryToolDefinition(objectMapper),
                         List.of("{\"employeeId\":1}", "{\"employeeId\":999}"),
-                        List.of("{}", "{\"employeeId\":0}", "{\"employeeId\":1,\"tenantId\":2}"))
+                        List.of("{}", "{\"employeeId\":0}", "{\"employeeId\":1,\"tenantId\":2}")),
+                "hr.change.query", new Corpus(
+                        definitions.employeeChangeQueryToolDefinition(objectMapper),
+                        List.of("{}", "{\"status\":\"PENDING\"}",
+                                "{\"changeType\":\"TRANSFER\",\"page\":2,\"size\":50}"),
+                        List.of("{\"changeType\":\"DELETE\"}", "{\"size\":51}",
+                                "{\"tenantId\":2}", "{\"sql\":\"select * from employee_change\"}"))
         );
 
         return corpora.entrySet().stream().flatMap(entry -> {

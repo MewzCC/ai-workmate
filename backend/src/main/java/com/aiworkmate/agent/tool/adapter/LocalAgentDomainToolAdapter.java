@@ -5,6 +5,7 @@ import com.aiworkmate.agent.tool.port.ApprovalTaskToolPort;
 import com.aiworkmate.agent.tool.port.KnowledgeToolPort;
 import com.aiworkmate.agent.tool.port.HrOrganizationToolPort;
 import com.aiworkmate.agent.tool.port.HrEmployeeToolPort;
+import com.aiworkmate.agent.tool.port.EmployeeChangeToolPort;
 import com.aiworkmate.agent.tool.port.LeaveToolPort;
 import com.aiworkmate.agent.tool.port.NotificationToolPort;
 import com.aiworkmate.agent.tool.port.TodoToolPort;
@@ -17,6 +18,7 @@ import com.aiworkmate.service.LeaveWorkflowService;
 import com.aiworkmate.service.NotificationService;
 import com.aiworkmate.service.ApprovalEngineService;
 import com.aiworkmate.service.HrService;
+import com.aiworkmate.service.EmployeeChangeService;
 import java.util.Locale;
 import java.util.function.Predicate;
 import lombok.RequiredArgsConstructor;
@@ -26,12 +28,26 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class LocalAgentDomainToolAdapter implements TodoToolPort, LeaveToolPort, KnowledgeToolPort,
         NotificationToolPort, ApprovalConfigurationToolPort, ApprovalTaskToolPort, HrOrganizationToolPort,
-        HrEmployeeToolPort {
+        HrEmployeeToolPort, EmployeeChangeToolPort {
     private final LeaveWorkflowService leaveWorkflowService;
     private final KnowledgeService knowledgeService;
     private final NotificationService notificationService;
     private final ApprovalEngineService approvalEngineService;
     private final HrService hrService;
+    private final EmployeeChangeService employeeChangeService;
+
+    @Override
+    public EmployeeChangeToolPort.Page query(long actorUserId, EmployeeChangeToolPort.Query query) {
+        var result = employeeChangeService.list(actorUserId, query.status(), query.changeType(), query.keyword(),
+                query.page(), query.size());
+        return new EmployeeChangeToolPort.Page(result.records().stream().map(item ->
+                new EmployeeChangeToolPort.Item(item.id(), item.employeeName(), item.applicantName(),
+                        item.reviewApproverName(), item.changeType(), item.effectiveDate(),
+                        item.currentDepartmentName(), item.currentPositionName(), item.targetDepartmentName(),
+                        item.targetPositionName(), item.targetSupervisorName(), item.reason(), item.status(),
+                        item.version(), item.canApprove(), item.canWithdraw(), item.submittedAt(), item.decidedAt(),
+                        item.appliedAt())).toList(), result.total(), result.page(), result.size());
+    }
 
     @Override
     public HrOrganizationToolPort.Result query(long actorUserId, HrOrganizationToolPort.Query query) {

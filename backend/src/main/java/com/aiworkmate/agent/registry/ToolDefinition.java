@@ -36,7 +36,8 @@ public record ToolDefinition(
             "leave.createDraft", "leave.submit", "leave.apply", "approval.configuration.query",
             "approval.task.query",
             "hr.organization.query",
-            "hr.employee.query"
+            "hr.employee.query",
+            "hr.change.query"
     );
     private static final Set<String> FORBIDDEN_ARGUMENTS = Set.of(
             "userId", "tenantId", "role", "roles", "permission", "permissions", "dataScope",
