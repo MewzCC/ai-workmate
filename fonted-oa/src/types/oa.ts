@@ -133,6 +133,35 @@ export interface AiTaskEvent {
   data: Record<string, unknown>;
 }
 
+export type PageUiCommand =
+  | 'ui.navigate'
+  | 'ui.applyFilter'
+  | 'ui.openDetail'
+  | 'ui.openCreateForm'
+  | 'ui.fillForm'
+  | 'ui.previewSubmission'
+  | 'ui.refreshPage';
+
+export interface PageCapabilityTool {
+  code: string;
+  name: string;
+  description: string;
+  riskLevel: AgentRiskLevel;
+  sideEffect: 'NONE' | 'SINGLE_WRITE';
+  confirmationPolicy: 'NONE' | 'EXPLICIT' | 'SECONDARY';
+  ownershipPolicy: 'SELF' | 'ASSIGNED_TO_SELF' | 'TENANT_SCOPED' | 'FIXED_RESOURCE';
+}
+
+export interface PageCapability {
+  pageId: string;
+  componentKey: ComponentKey;
+  version: number;
+  uiCommands: PageUiCommand[];
+  dataScopePolicy: PageCapabilityTool['ownershipPolicy'];
+  effectiveDataScopes: string[];
+  tools: PageCapabilityTool[];
+}
+
 export interface AgentTaskSummary {
   taskId: string;
   pageId: string;

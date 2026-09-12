@@ -1,12 +1,13 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { App } from 'antd';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const api = vi.hoisted(() => ({
   planAiTask: vi.fn(),
   issueAiTaskConfirmation: vi.fn(),
   executeAiTask: vi.fn(),
   subscribeAiTaskEvents: vi.fn(() => vi.fn()),
+  getPageCapabilities: vi.fn(),
 }));
 
 vi.mock('@/lib/oaApi', async (importOriginal) => {
@@ -43,19 +44,40 @@ function renderDrawer() {
 }
 
 describe('AIOperationDrawer', () => {
+  beforeEach(() => {
+    api.getPageCapabilities.mockResolvedValue({
+      pageId: 'todo',
+      componentKey: 'TODO_LIST',
+      version: 1,
+      uiCommands: ['ui.navigate', 'ui.applyFilter', 'ui.openDetail', 'ui.refreshPage'],
+      dataScopePolicy: 'ASSIGNED_TO_SELF',
+      effectiveDataScopes: ['SELF'],
+      tools: [{
+        code: 'todo.query',
+        name: 'Query my approval tasks',
+        description: 'Only my assigned approval tasks',
+        riskLevel: 'L0',
+        sideEffect: 'NONE',
+        confirmationPolicy: 'NONE',
+        ownershipPolicy: 'ASSIGNED_TO_SELF',
+      }],
+    });
+  });
+
   afterEach(() => {
     cleanup();
     vi.clearAllMocks();
   });
 
-  it('keeps the bounded task composer in the fixed drawer footer', () => {
+  it('loads live page capabilities and keeps the bounded task composer in the fixed drawer footer', async () => {
     renderDrawer();
     const input = screen.getByPlaceholderText('例如：查询我的待办，并按截止时间排序');
     const footer = input.closest('.ant-drawer-footer');
     expect((input as HTMLTextAreaElement).maxLength).toBe(4096);
     expect(footer?.contains(screen.getByRole('button', { name: /发送 \/ 生成计划/ }))).toBe(true);
     expect(footer?.contains(screen.getByRole('button', { name: /取消计划/ }))).toBe(true);
-    expect(document.body.contains(screen.getByText('查询本人待办'))).toBe(true);
+    expect(document.body.contains(await screen.findByText('查询本人待办'))).toBe(true);
+    expect(api.getPageCapabilities).toHaveBeenCalledWith('todo-list');
   });
 
   it('executes an L0 plan only after the user clicks and starts the cookie event stream', async () => {

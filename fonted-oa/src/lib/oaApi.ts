@@ -7,6 +7,7 @@ import type {
   AiTaskPlanResponse,
   AgentTaskDetail,
   AgentTaskSummary,
+  PageCapability,
 } from '@/types/oa';
 import { buildApiHeaders } from '@/lib/apiHeaders';
 import i18n from '@/i18n';
@@ -107,6 +108,10 @@ export async function getSystemHealth(): Promise<{ status: string; service: stri
 export async function getServerTime(): Promise<{ epochMillis: number; iso: string }> {
   const res = await fetch(`${BASE}/system/time`);
   return parseResult(res);
+}
+
+export async function getPageCapabilities(pageId: string): Promise<PageCapability> {
+  return request<PageCapability>(`/ai/pages/${encodeURIComponent(pageId)}/capabilities`);
 }
 
 export function createIdempotencyKey(): string {
