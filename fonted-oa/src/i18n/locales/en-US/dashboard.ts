@@ -71,9 +71,11 @@ export default {
     pageAuditRecorded: 'Page access audit recorded',
     exportNotAvailable: 'Real export capability is not yet available',
     metricsConfigComingSoon: 'Metric configuration panel will be available in the next phase',
-    preReviewPending: 'Task pre-review will be enabled after the approval navigation loop is complete',
+    selectTodoForPreReview: 'Choose one task from the todo list for AI pre-review',
+    noTodoForPreReview: 'There are no tasks available for pre-review',
   },
   aiPrompts: {
+    preReviewTask: 'Pre-review approval task {{taskId}}',
     checkRisk: 'Help me {{action}} {{name}} and check the risk of node {{node}}',
     analyzePage: 'Help me analyze what operations can be automated on the {{pageTitle}} page',
     preReviewList: 'Help me pre-review the current list and output a risk ranking',

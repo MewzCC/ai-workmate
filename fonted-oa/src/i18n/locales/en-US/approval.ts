@@ -119,6 +119,7 @@ export default {
     empty: 'No requests for the current filter',
   },
   approvalDetail: {
+    backToDashboard: 'Back to Dashboard',
     backToTodo: 'Back to Tasks',
     backToMyApplications: 'Back to My Requests',
     backToApprovalList: 'Back to Approval Center',

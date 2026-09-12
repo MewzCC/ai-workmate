@@ -46,6 +46,7 @@ public interface DashboardMapper {
             LEFT JOIN approval_application aa ON aa.tenant_id=wt.tenant_id
               AND wt.business_type='GENERIC_APPROVAL' AND aa.id=wt.business_id
             WHERE wt.tenant_id=#{tenantId} AND wt.assignee_user_id=#{userId} AND wt.status='PENDING'
+              AND wt.business_type='LEAVE_APPLICATION'
             ORDER BY (wt.due_at IS NULL), wt.due_at, wt.created_at DESC, wt.id DESC
             LIMIT 8
             """)

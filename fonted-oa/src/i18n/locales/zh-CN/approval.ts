@@ -119,6 +119,7 @@ export default {
     empty: '当前筛选下暂无申请',
   },
   approvalDetail: {
+    backToDashboard: '返回工作台',
     backToTodo: '返回待办',
     backToMyApplications: '返回我的申请',
     backToApprovalList: '返回审批中心',

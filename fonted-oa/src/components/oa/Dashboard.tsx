@@ -7,11 +7,15 @@ import type { EChartsOption } from 'echarts';
 import { useTranslation } from 'react-i18next';
 import { getDashboardOverview, type DashboardMetricCode, type DashboardOverview } from '@/lib/dashboardApi';
 import { formatOaApiError } from '@/lib/oaApi';
+import { useRouter } from '@/lib/nextCompat';
 import { OaIcon } from '@/components/OaIcon';
 import EChartsCard from './EChartsCard';
 import ResponsiveTable from './ResponsiveTable';
 
-interface DashboardProps { primaryColor: string }
+interface DashboardProps {
+  primaryColor: string;
+  onOpenAi: (prompt?: string) => void;
+}
 
 const METRIC_COLORS: Record<DashboardMetricCode, string> = {
   PENDING_TODOS: '#1677ff',
@@ -20,7 +24,8 @@ const METRIC_COLORS: Record<DashboardMetricCode, string> = {
   UNREAD_MESSAGES: '#0891b2',
 };
 
-export default function Dashboard({ primaryColor }: DashboardProps) {
+export default function Dashboard({ primaryColor, onOpenAi }: DashboardProps) {
+  const router = useRouter();
   const { t, i18n } = useTranslation();
   const [overview, setOverview] = useState<DashboardOverview | null>(null);
   const [loading, setLoading] = useState(true);
@@ -62,6 +67,25 @@ export default function Dashboard({ primaryColor }: DashboardProps) {
         ? <Tag color="error">{t('dashboard.status.overdue')}</Tag>
         : formatDateTime(value),
     },
+    {
+      title: t('common.actions'),
+      key: 'actions',
+      width: 236,
+      fixed: 'right',
+      render: (_, record) => (
+        <Space size={4}>
+          <Button aria-label={t('dashboard.actions.process')} type="primary" size="small" onClick={() => router.push(`/oa/approval-tasks/${record.taskId}?from=dashboard`)}>
+            {t('dashboard.actions.process')}
+          </Button>
+          <Button aria-label={t('dashboard.actions.view')} size="small" onClick={() => router.push(`/oa/approval-tasks/${record.taskId}?from=dashboard`)}>
+            {t('dashboard.actions.view')}
+          </Button>
+          <Button aria-label={t('dashboard.actions.preReview')} size="small" icon={<OaIcon name="ai" />} onClick={() => onOpenAi(t('dashboard.aiPrompts.preReviewTask', { taskId: record.taskId }))}>
+            {t('dashboard.actions.preReview')}
+          </Button>
+        </Space>
+      ),
+    },
   ];
 
   const chartOptions = useMemo(() => overview ? createChartOptions(
@@ -89,7 +113,7 @@ export default function Dashboard({ primaryColor }: DashboardProps) {
           <Tooltip title={t('dashboard.messages.metricsConfigComingSoon')}>
             <Button disabled icon={<OaIcon name="audit" />}>{t('dashboard.configMetrics')}</Button>
           </Tooltip>
-          <Tooltip title={t('dashboard.messages.preReviewPending')}>
+          <Tooltip title={overview?.todos.length ? t('dashboard.messages.selectTodoForPreReview') : t('dashboard.messages.noTodoForPreReview')}>
             <Button disabled type="primary" icon={<OaIcon name="ai" />}>{t('dashboard.aiPreReview')}</Button>
           </Tooltip>
         </Space>

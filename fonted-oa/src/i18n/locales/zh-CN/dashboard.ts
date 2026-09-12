@@ -71,9 +71,11 @@ export default {
     pageAuditRecorded: '已记录页面访问审计',
     exportNotAvailable: '真实导出能力尚未接入',
     metricsConfigComingSoon: '指标配置面板将在下一阶段接入',
-    preReviewPending: '待办预审入口将在审批跳转闭环完成后开放',
+    selectTodoForPreReview: '请在待办列表中选择一条任务进行 AI 预审',
+    noTodoForPreReview: '当前没有可预审的待办任务',
   },
   aiPrompts: {
+    preReviewTask: '预审审批任务 {{taskId}}',
     checkRisk: '帮我{{action}}{{name}}，并检查节点 {{node}} 的风险',
     analyzePage: '帮我分析 {{pageTitle}} 页面当前可以自动化的操作',
     preReviewList: '帮我预审当前列表，并输出风险排序',

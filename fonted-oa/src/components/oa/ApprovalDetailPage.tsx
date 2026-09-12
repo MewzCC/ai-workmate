@@ -41,6 +41,7 @@ export default function ApprovalDetailPage({ taskId }: { taskId: number }) {
   const { t } = useTranslation();
   const fromMyApplications = searchParams.get('from') === 'my-applications';
   const fromTodo = searchParams.get('from') === 'todo';
+  const fromDashboard = searchParams.get('from') === 'dashboard';
   const [application, setApplication] = useState<LeaveApplication>();
   const [timeline, setTimeline] = useState<WorkflowTimelineItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -71,6 +72,7 @@ export default function ApprovalDetailPage({ taskId }: { taskId: number }) {
   useEffect(() => { void load(); }, [load]);
 
   const { target: returnTarget, label: returnLabel } = useMemo(() => {
+    if (fromDashboard) return { target: '/oa/dashboard', label: t('approval.approvalDetail.backToDashboard') };
     if (fromTodo) return { target: '/oa/todo', label: t('approval.approvalDetail.backToTodo') };
     if (fromMyApplications) return { target: '/oa/my-applications', label: t('approval.approvalDetail.backToMyApplications') };
     if (searchParams.get('from') === 'approval-list') {
@@ -79,7 +81,7 @@ export default function ApprovalDetailPage({ taskId }: { taskId: number }) {
     return application?.canApprove
       ? { target: '/oa/todo', label: t('approval.approvalDetail.backToTodo') }
       : { target: '/oa/my-applications', label: t('approval.approvalDetail.backToMyApplications') };
-  }, [fromTodo, fromMyApplications, application?.canApprove, searchParams, t]);
+  }, [fromDashboard, fromTodo, fromMyApplications, application?.canApprove, searchParams, t]);
 
   const submitDecision = async () => {
     if (application?.taskVersion == null || application.taskVersion < 0) return;

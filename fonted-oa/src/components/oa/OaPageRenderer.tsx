@@ -59,7 +59,7 @@ export interface OaPageRendererProps {
 type PageRenderer = (props: OaPageRendererProps) => ReactNode;
 
 export const OA_PAGE_REGISTRY: Readonly<Record<ComponentKey, PageRenderer>> = {
-  DASHBOARD: (props) => <Dashboard primaryColor={props.primaryColor} />,
+  DASHBOARD: (props) => <Dashboard primaryColor={props.primaryColor} onOpenAi={props.onOpenAi} />,
   AI_WORKSPACE: ({ role }) => <AiChatWorkspace role={role} />,
   AI_TASK_CENTER: () => <AiTaskCenterPage />,
   MESSAGE_CENTER: () => <NotificationPage />,
