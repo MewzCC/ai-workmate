@@ -1,11 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, Button, Card, Col, Empty, Row, Space, Spin, Statistic, Tag, Timeline, Tooltip, Typography } from 'antd';
+import { Alert, Button, Card, Checkbox, Col, Empty, Modal, Row, Space, Spin, Statistic, Tag, Timeline, Tooltip, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import type { EChartsOption } from 'echarts';
 import { useTranslation } from 'react-i18next';
-import { defaultDashboardExportRange, downloadDashboardExport, exportDashboard, getDashboardOverview, type DashboardMetricCode, type DashboardOverview } from '@/lib/dashboardApi';
+import { defaultDashboardExportRange, downloadDashboardExport, exportDashboard, getDashboardOverview, updateDashboardPreferences, type DashboardMetricCode, type DashboardOverview } from '@/lib/dashboardApi';
 import { formatOaApiError } from '@/lib/oaApi';
 import { useRouter } from '@/lib/nextCompat';
 import { message } from '@/lib/antdMessage';
@@ -32,6 +32,9 @@ export default function Dashboard({ primaryColor, onOpenAi }: DashboardProps) {
   const [overview, setOverview] = useState<DashboardOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [metricModalOpen, setMetricModalOpen] = useState(false);
+  const [metricDraft, setMetricDraft] = useState<DashboardMetricCode[]>([]);
+  const [savingMetrics, setSavingMetrics] = useState(false);
   const [error, setError] = useState<string>();
   const { allowed: canExport } = usePermission('data:export');
 
@@ -59,6 +62,45 @@ export default function Dashboard({ primaryColor, onOpenAi }: DashboardProps) {
       message.error(formatOaApiError(cause));
     } finally {
       setExporting(false);
+    }
+  };
+
+  const openMetricModal = () => {
+    if (!overview) return;
+    setMetricDraft(overview.metrics.map((metric) => metric.code));
+    setMetricModalOpen(true);
+  };
+
+  const toggleMetric = (code: DashboardMetricCode, checked: boolean) => {
+    setMetricDraft((current) => checked ? [...current, code] : current.filter((item) => item !== code));
+  };
+
+  const moveMetric = (code: DashboardMetricCode, offset: -1 | 1) => {
+    setMetricDraft((current) => {
+      const index = current.indexOf(code);
+      const target = index + offset;
+      if (index < 0 || target < 0 || target >= current.length) return current;
+      const next = [...current];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
+  };
+
+  const saveMetricPreference = async () => {
+    if (metricDraft.length === 0) {
+      message.warning(t('dashboard.metricConfig.selectAtLeastOne'));
+      return;
+    }
+    setSavingMetrics(true);
+    try {
+      await updateDashboardPreferences(metricDraft);
+      setMetricModalOpen(false);
+      message.success(t('dashboard.messages.metricsSaved'));
+      await load();
+    } catch (cause) {
+      message.error(formatOaApiError(cause));
+    } finally {
+      setSavingMetrics(false);
     }
   };
 
@@ -125,9 +167,7 @@ export default function Dashboard({ primaryColor, onOpenAi }: DashboardProps) {
         <Space className="oa-page-title-actions" wrap>
           <Button icon={<OaIcon name="reload" />} loading={loading} onClick={() => void load()}>{t('common.refresh')}</Button>
           {canExport && <Button loading={exporting} icon={<OaIcon name="export" />} onClick={() => void handleExport()}>{t('dashboard.exportDashboard')}</Button>}
-          <Tooltip title={t('dashboard.messages.metricsConfigComingSoon')}>
-            <Button disabled icon={<OaIcon name="audit" />}>{t('dashboard.configMetrics')}</Button>
-          </Tooltip>
+          <Button disabled={!overview} icon={<OaIcon name="audit" />} onClick={openMetricModal}>{t('dashboard.configMetrics')}</Button>
           <Tooltip title={overview?.todos.length ? t('dashboard.messages.selectTodoForPreReview') : t('dashboard.messages.noTodoForPreReview')}>
             <Button disabled type="primary" icon={<OaIcon name="ai" />}>{t('dashboard.aiPreReview')}</Button>
           </Tooltip>
@@ -186,6 +226,48 @@ export default function Dashboard({ primaryColor, onOpenAi }: DashboardProps) {
           </Card>
         </>
       )}
+
+      <Modal
+        title={t('dashboard.metricConfig.title')}
+        open={metricModalOpen}
+        okText={t('common.save')}
+        cancelText={t('common.cancel')}
+        okButtonProps={{ 'aria-label': t('common.save') }}
+        cancelButtonProps={{ 'aria-label': t('common.cancel') }}
+        confirmLoading={savingMetrics}
+        onOk={() => void saveMetricPreference()}
+        onCancel={() => setMetricModalOpen(false)}
+        destroyOnHidden
+      >
+        <Typography.Paragraph type="secondary">{t('dashboard.metricConfig.description')}</Typography.Paragraph>
+        <Space orientation="vertical" size={8} style={{ width: '100%' }}>
+          {overview?.availableMetricCodes.map((code) => {
+            const selectedIndex = metricDraft.indexOf(code);
+            const selected = selectedIndex >= 0;
+            return (
+              <Card key={code} size="small">
+                <Row align="middle" justify="space-between" gutter={12} wrap={false}>
+                  <Col flex="auto">
+                    <Checkbox checked={selected} onChange={(event) => toggleMetric(code, event.target.checked)}>
+                      {t(`dashboard.metrics.${code}.title`)}
+                    </Checkbox>
+                  </Col>
+                  <Col>
+                    <Space size={4}>
+                      <Button aria-label={t('dashboard.metricConfig.moveUp')} size="small" disabled={!selected || selectedIndex === 0} onClick={() => moveMetric(code, -1)}>
+                        {t('dashboard.metricConfig.moveUp')}
+                      </Button>
+                      <Button aria-label={t('dashboard.metricConfig.moveDown')} size="small" disabled={!selected || selectedIndex === metricDraft.length - 1} onClick={() => moveMetric(code, 1)}>
+                        {t('dashboard.metricConfig.moveDown')}
+                      </Button>
+                    </Space>
+                  </Col>
+                </Row>
+              </Card>
+            );
+          })}
+        </Space>
+      </Modal>
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { defaultDashboardExportRange, exportDashboard, getDashboardOverview } from '@/lib/dashboardApi';
+import { defaultDashboardExportRange, exportDashboard, getDashboardOverview, getDashboardPreferences, updateDashboardPreferences } from '@/lib/dashboardApi';
 
 const requestMock = vi.fn();
 vi.mock('@/lib/oaApi', () => ({
@@ -29,6 +29,19 @@ describe('dashboardApi', () => {
     expect(requestMock).toHaveBeenCalledWith('/dashboard/export', {
       method: 'POST',
       body: JSON.stringify({ from: '2026-09-06', to: '2026-09-12', keyword: 'risk' }),
+    });
+  });
+
+  it('loads and updates the authenticated dashboard metric preference', async () => {
+    requestMock.mockResolvedValue({ metricCodes: ['UNREAD_MESSAGES'] });
+
+    await getDashboardPreferences();
+    expect(requestMock).toHaveBeenCalledWith('/settings/dashboard');
+
+    await updateDashboardPreferences(['UNREAD_MESSAGES', 'PENDING_TODOS']);
+    expect(requestMock).toHaveBeenLastCalledWith('/settings/dashboard', {
+      method: 'PUT',
+      body: JSON.stringify({ metricCodes: ['UNREAD_MESSAGES', 'PENDING_TODOS'] }),
     });
   });
 

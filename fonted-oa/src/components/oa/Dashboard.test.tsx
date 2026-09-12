@@ -4,12 +4,13 @@ import Dashboard from './Dashboard';
 
 const mocks = vi.hoisted(() => ({
   getOverview: vi.fn(),
+  updatePreferences: vi.fn(),
   push: vi.fn(),
 }));
 
 vi.mock('@/lib/dashboardApi', async () => {
   const actual = await vi.importActual<typeof import('@/lib/dashboardApi')>('@/lib/dashboardApi');
-  return { ...actual, getDashboardOverview: mocks.getOverview };
+  return { ...actual, getDashboardOverview: mocks.getOverview, updateDashboardPreferences: mocks.updatePreferences };
 });
 
 vi.mock('@/lib/nextCompat', () => ({
@@ -54,6 +55,10 @@ describe('Dashboard approval entry workflow', () => {
   beforeEach(() => {
     mocks.getOverview.mockReset().mockResolvedValue(overview);
     mocks.push.mockReset();
+    mocks.updatePreferences.mockReset().mockResolvedValue({
+      metricCodes: ['UNREAD_MESSAGES', 'PENDING_TODOS'],
+      availableMetricCodes: overview.availableMetricCodes,
+    });
   });
 
   it('opens the existing approval detail without executing a decision on the dashboard', async () => {
@@ -71,5 +76,19 @@ describe('Dashboard approval entry workflow', () => {
     expect(prompt).toContain('91');
     expect(prompt).not.toContain('LV-000018');
     expect(prompt).not.toContain('不应发送给 Agent 的申请人');
+  });
+
+  it('persists selected metrics in the configured order and reloads the dashboard', async () => {
+    render(<Dashboard primaryColor="#1677ff" onOpenAi={vi.fn()} />);
+    fireEvent.click(await screen.findByRole('button', { name: '配置指标' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: '逾期待办' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: '本人申请' }));
+    fireEvent.click(screen.getAllByRole('button', { name: '下移' })[0]);
+    fireEvent.click(screen.getByRole('button', { name: '保存' }));
+
+    await waitFor(() => expect(mocks.updatePreferences).toHaveBeenCalledWith([
+      'UNREAD_MESSAGES', 'PENDING_TODOS',
+    ]));
+    await waitFor(() => expect(mocks.getOverview).toHaveBeenCalledTimes(2));
   });
 });

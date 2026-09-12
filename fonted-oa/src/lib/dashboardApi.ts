@@ -28,12 +28,25 @@ export interface DashboardExportResponse {
   generatedAt: string;
 }
 
+export interface DashboardPreferences {
+  metricCodes: DashboardMetricCode[];
+  availableMetricCodes: DashboardMetricCode[];
+}
+
 export function getDashboardOverview(days = 7): Promise<DashboardOverview> {
   return request(`/dashboard/overview?days=${days}`);
 }
 
 export function exportDashboard(payload: DashboardExportRequest): Promise<DashboardExportResponse> {
   return request('/dashboard/export', { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function getDashboardPreferences(): Promise<DashboardPreferences> {
+  return request('/settings/dashboard');
+}
+
+export function updateDashboardPreferences(metricCodes: DashboardMetricCode[]): Promise<DashboardPreferences> {
+  return request('/settings/dashboard', { method: 'PUT', body: JSON.stringify({ metricCodes }) });
 }
 
 export function defaultDashboardExportRange(days = 7): DashboardExportRequest {

@@ -5,10 +5,13 @@ import com.aiworkmate.common.ErrorCode;
 import com.aiworkmate.dto.DashboardOverviewResponse;
 import com.aiworkmate.dto.DashboardExportRequest;
 import com.aiworkmate.dto.DashboardExportResponse;
+import com.aiworkmate.dto.DashboardPreferenceRequest;
+import com.aiworkmate.dto.DashboardPreferenceResponse;
 import com.aiworkmate.mapper.DashboardMapper;
 import com.aiworkmate.service.DashboardService;
 import com.aiworkmate.service.BusinessAuditService;
 import com.aiworkmate.service.UserAccessService;
+import com.aiworkmate.service.UserSettingsService;
 import com.aiworkmate.service.model.ResolvedUserAccess;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -17,6 +20,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -30,6 +36,7 @@ public class DashboardServiceImpl implements DashboardService {
     private final UserAccessService userAccessService;
     private final DashboardMapper dashboardMapper;
     private final BusinessAuditService auditService;
+    private final UserSettingsService userSettingsService;
 
     @Override
     @Transactional(readOnly = true)
@@ -43,16 +50,14 @@ public class DashboardServiceImpl implements DashboardService {
             throw new BusinessException(ErrorCode.PERMISSION_DENIED);
         }
 
-        List<DashboardOverviewResponse.Metric> metrics = List.of(
-                new DashboardOverviewResponse.Metric("PENDING_TODOS",
-                        dashboardMapper.countPendingTodos(actor.tenantId(), actor.userId())),
-                new DashboardOverviewResponse.Metric("OVERDUE_TODOS",
-                        dashboardMapper.countOverdueTodos(actor.tenantId(), actor.userId())),
-                new DashboardOverviewResponse.Metric("MY_APPLICATIONS",
-                        dashboardMapper.countMyApplications(actor.tenantId(), actor.userId())),
-                new DashboardOverviewResponse.Metric("UNREAD_MESSAGES",
-                        dashboardMapper.countUnreadMessages(actor.tenantId(), actor.userId()))
-        );
+        Map<String, Long> metricValues = new LinkedHashMap<>();
+        metricValues.put("PENDING_TODOS", dashboardMapper.countPendingTodos(actor.tenantId(), actor.userId()));
+        metricValues.put("OVERDUE_TODOS", dashboardMapper.countOverdueTodos(actor.tenantId(), actor.userId()));
+        metricValues.put("MY_APPLICATIONS", dashboardMapper.countMyApplications(actor.tenantId(), actor.userId()));
+        metricValues.put("UNREAD_MESSAGES", dashboardMapper.countUnreadMessages(actor.tenantId(), actor.userId()));
+        List<DashboardOverviewResponse.Metric> metrics = selectedMetricCodes(actor).stream()
+                .map(code -> new DashboardOverviewResponse.Metric(code, metricValues.get(code)))
+                .toList();
 
         return new DashboardOverviewResponse(
                 OffsetDateTime.now(), days, METRIC_CODES, metrics,
@@ -82,6 +87,40 @@ public class DashboardServiceImpl implements DashboardService {
                 "EXPORT", "SUCCESS", "rows=" + rows.size() + ",from=" + request.from() + ",to=" + request.to());
         String filename = "dashboard-" + request.from() + "-" + request.to() + ".csv";
         return new DashboardExportResponse(filename, "text/csv;charset=UTF-8", content, rows.size(), OffsetDateTime.now());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public DashboardPreferenceResponse preferences(Long userId) {
+        ResolvedUserAccess actor = requirePermission(userId, READ_PERMISSION);
+        return new DashboardPreferenceResponse(selectedMetricCodes(actor), availableMetricCodes(actor));
+    }
+
+    @Override
+    @Transactional
+    public DashboardPreferenceResponse updatePreferences(Long userId, DashboardPreferenceRequest request) {
+        ResolvedUserAccess actor = requirePermission(userId, READ_PERMISSION);
+        List<String> available = availableMetricCodes(actor);
+        List<String> requested = request.metricCodes();
+        if (new LinkedHashSet<>(requested).size() != requested.size()
+                || requested.stream().anyMatch(code -> !available.contains(code))) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        userSettingsService.setDashboardMetricCodes(actor.userId(), requested);
+        return new DashboardPreferenceResponse(List.copyOf(requested), available);
+    }
+
+    private List<String> selectedMetricCodes(ResolvedUserAccess actor) {
+        List<String> available = availableMetricCodes(actor);
+        List<String> selected = userSettingsService.getDashboardMetricCodes(actor.userId()).stream()
+                .filter(available::contains)
+                .distinct()
+                .toList();
+        return selected.isEmpty() ? available : selected;
+    }
+
+    private List<String> availableMetricCodes(ResolvedUserAccess actor) {
+        return actor.permissions().contains(READ_PERMISSION) ? METRIC_CODES : List.of();
     }
 
     private ResolvedUserAccess requirePermission(Long userId, String permission) {

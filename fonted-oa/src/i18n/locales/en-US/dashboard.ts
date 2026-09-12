@@ -5,6 +5,13 @@ export default {
   loadFailed: 'Failed to load dashboard data',
   exportDashboard: 'Export Dashboard',
   configMetrics: 'Configure Metrics',
+  metricConfig: {
+    title: 'Dashboard Metric Settings',
+    description: 'Choose the metrics to display and arrange their order. The setting is saved with your account.',
+    moveUp: 'Move up',
+    moveDown: 'Move down',
+    selectAtLeastOne: 'Keep at least one dashboard metric',
+  },
   aiPreReview: 'AI Pre-review',
   placeholder: {
     description: 'The {{pageTitle}} page is not yet expanded. Menu permissions, title switching, and AI action entry points are ready.',
@@ -70,7 +77,7 @@ export default {
     actionDone: '{{action}}: {{name}}',
     pageAuditRecorded: 'Page access audit recorded',
     exported: 'Exported {{count}} currently visible tasks',
-    metricsConfigComingSoon: 'Metric configuration panel will be available in the next phase',
+    metricsSaved: 'Dashboard metric settings saved',
     selectTodoForPreReview: 'Choose one task from the todo list for AI pre-review',
     noTodoForPreReview: 'There are no tasks available for pre-review',
   },

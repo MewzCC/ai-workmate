@@ -5,6 +5,13 @@ export default {
   loadFailed: '驾驶舱数据加载失败',
   exportDashboard: '导出看板',
   configMetrics: '配置指标',
+  metricConfig: {
+    title: '工作台指标配置',
+    description: '选择需要展示的指标，并调整它们在工作台中的顺序。配置会随账号保存。',
+    moveUp: '上移',
+    moveDown: '下移',
+    selectAtLeastOne: '请至少保留一个工作台指标',
+  },
   aiPreReview: '让 AI 预审',
   placeholder: {
     description: '{{pageTitle}} 业务页面暂未展开，当前已完成菜单权限、标题切换和 AI 操作入口。',
@@ -70,7 +77,7 @@ export default {
     actionDone: '{{action}}：{{name}}',
     pageAuditRecorded: '已记录页面访问审计',
     exported: '已导出 {{count}} 条当前可见待办',
-    metricsConfigComingSoon: '指标配置面板将在下一阶段接入',
+    metricsSaved: '工作台指标配置已保存',
     selectTodoForPreReview: '请在待办列表中选择一条任务进行 AI 预审',
     noTodoForPreReview: '当前没有可预审的待办任务',
   },

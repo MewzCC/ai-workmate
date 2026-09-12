@@ -4,9 +4,11 @@ import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.dto.DashboardOverviewResponse;
 import com.aiworkmate.dto.DashboardExportRequest;
 import com.aiworkmate.dto.DashboardExportResponse;
+import com.aiworkmate.dto.DashboardPreferenceRequest;
 import com.aiworkmate.mapper.DashboardMapper;
 import com.aiworkmate.service.BusinessAuditService;
 import com.aiworkmate.service.UserAccessService;
+import com.aiworkmate.service.UserSettingsService;
 import com.aiworkmate.service.model.ResolvedUserAccess;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -29,11 +31,12 @@ class DashboardServiceImplTest {
     @Mock DashboardMapper mapper;
     @Mock UserAccessService accessService;
     @Mock BusinessAuditService auditService;
+    @Mock UserSettingsService userSettingsService;
     private DashboardServiceImpl service;
 
     @BeforeEach
     void setUp() {
-        service = new DashboardServiceImpl(accessService, mapper, auditService);
+        service = new DashboardServiceImpl(accessService, mapper, auditService, userSettingsService);
     }
 
     @Test
@@ -99,6 +102,59 @@ class DashboardServiceImplTest {
         assertThatThrownBy(() -> service.export(7L, request)).isInstanceOf(BusinessException.class);
         verify(mapper, never()).selectExportRows(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void appliesPersistedMetricSelectionAndOrderToOverview() {
+        when(accessService.resolveActiveUser(7L)).thenReturn(access(List.of("dashboard:read")));
+        when(userSettingsService.getDashboardMetricCodes(7L))
+                .thenReturn(List.of("UNREAD_MESSAGES", "PENDING_TODOS"));
+        when(mapper.selectPendingTodos(9L, 7L)).thenReturn(List.of());
+        when(mapper.selectTrends(9L, 7L, 7)).thenReturn(List.of());
+        when(mapper.selectDistribution(9L, 7L, 7)).thenReturn(List.of());
+        when(mapper.selectRecentActivities(9L, 7L, 7)).thenReturn(List.of());
+
+        DashboardOverviewResponse response = service.overview(7L, 7);
+
+        assertThat(response.metrics()).extracting(DashboardOverviewResponse.Metric::code)
+                .containsExactly("UNREAD_MESSAGES", "PENDING_TODOS");
+    }
+
+    @Test
+    void filtersLegacyUnknownMetricsAndFallsBackToAllowedDefaults() {
+        when(accessService.resolveActiveUser(7L)).thenReturn(access(List.of("dashboard:read")));
+        when(userSettingsService.getDashboardMetricCodes(7L)).thenReturn(List.of("TENANT_REVENUE"));
+
+        var response = service.preferences(7L);
+
+        assertThat(response.metricCodes()).containsExactlyElementsOf(response.availableMetricCodes());
+        assertThat(response.metricCodes()).doesNotContain("TENANT_REVENUE");
+    }
+
+    @Test
+    void rejectsUnknownOrDuplicateMetricCodesWithoutPersisting() {
+        when(accessService.resolveActiveUser(7L)).thenReturn(access(List.of("dashboard:read")));
+
+        assertThatThrownBy(() -> service.updatePreferences(7L,
+                new DashboardPreferenceRequest(List.of("PENDING_TODOS", "TENANT_REVENUE"))))
+                .isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> service.updatePreferences(7L,
+                new DashboardPreferenceRequest(List.of("PENDING_TODOS", "PENDING_TODOS"))))
+                .isInstanceOf(BusinessException.class);
+
+        verify(userSettingsService, never()).setDashboardMetricCodes(org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void persistsAuthorizedMetricCodesInRequestedOrder() {
+        when(accessService.resolveActiveUser(7L)).thenReturn(access(List.of("dashboard:read")));
+        List<String> requested = List.of("MY_APPLICATIONS", "PENDING_TODOS");
+
+        var response = service.updatePreferences(7L, new DashboardPreferenceRequest(requested));
+
+        assertThat(response.metricCodes()).containsExactlyElementsOf(requested);
+        verify(userSettingsService).setDashboardMetricCodes(7L, requested);
     }
 
     private ResolvedUserAccess access(List<String> permissions) {

@@ -5,8 +5,11 @@ import com.aiworkmate.dto.OcrSettingsRequest;
 import com.aiworkmate.dto.OcrSettingsResponse;
 import com.aiworkmate.dto.ChatPreferencesRequest;
 import com.aiworkmate.dto.ChatPreferencesResponse;
+import com.aiworkmate.dto.DashboardPreferenceRequest;
+import com.aiworkmate.dto.DashboardPreferenceResponse;
 import com.aiworkmate.security.AuthenticatedUser;
 import com.aiworkmate.service.UserSettingsService;
+import com.aiworkmate.service.DashboardService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -22,6 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class UserSettingsController {
 
     private final UserSettingsService userSettingsService;
+    private final DashboardService dashboardService;
 
     @GetMapping("/ocr")
     public Result<OcrSettingsResponse> get(@AuthenticationPrincipal AuthenticatedUser user) {
@@ -47,5 +51,18 @@ public class UserSettingsController {
             @Valid @RequestBody ChatPreferencesRequest request,
             @AuthenticationPrincipal AuthenticatedUser user) {
         return Result.ok(userSettingsService.updateChatPreferences(user.userId(), request));
+    }
+
+    @GetMapping("/dashboard")
+    public Result<DashboardPreferenceResponse> getDashboardPreferences(
+            @AuthenticationPrincipal AuthenticatedUser user) {
+        return Result.ok(dashboardService.preferences(user.userId()));
+    }
+
+    @PutMapping("/dashboard")
+    public Result<DashboardPreferenceResponse> updateDashboardPreferences(
+            @Valid @RequestBody DashboardPreferenceRequest request,
+            @AuthenticationPrincipal AuthenticatedUser user) {
+        return Result.ok(dashboardService.updatePreferences(user.userId(), request));
     }
 }
