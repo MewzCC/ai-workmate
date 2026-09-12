@@ -2,6 +2,7 @@ package com.aiworkmate.agent.tool.internal;
 
 import com.aiworkmate.agent.tool.port.NotificationToolPort;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
@@ -14,7 +15,8 @@ import static org.mockito.Mockito.when;
 
 class NotificationMineToolHandlerTest {
     private final NotificationToolPort service = mock(NotificationToolPort.class);
-    private final ObjectMapper mapper = new ObjectMapper();
+    private final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules()
+            .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
     private final NotificationMineToolHandler handler = new NotificationMineToolHandler(service, mapper);
 
     @Test

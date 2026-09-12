@@ -6,9 +6,6 @@ import com.aiworkmate.agent.tool.port.TodoToolPort;
 import com.aiworkmate.agent.registry.ToolCode;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
@@ -18,27 +15,19 @@ import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.optionalTe
 import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.positiveInt;
 
 @Component
-@RequiredArgsConstructor
-public final class TodoQueryToolHandler implements ToolHandler {
+public final class TodoQueryToolHandler extends TypedReadToolHandler<TodoToolPort.Query, TodoToolPort.Page> {
     private static final int DEFAULT_PAGE = 1;
     private static final int DEFAULT_SIZE = 20;
     private static final int MAX_SIZE = 50;
 
     private final TodoToolPort todoToolPort;
-    private final ObjectMapper objectMapper;
 
-    @Override
-    public String toolCode() {
-        return ToolCode.TODO_QUERY.code();
+    public TodoQueryToolHandler(TodoToolPort todoToolPort, ObjectMapper objectMapper) {
+        super(ToolCode.TODO_QUERY, objectMapper);
+        this.todoToolPort = todoToolPort;
     }
 
-    @Override
-    public String handlerVersion() {
-        return "1.0.0";
-    }
-
-    @Override
-    public JsonNode execute(TrustedToolContext context, JsonNode arguments) {
+    @Override protected TodoToolPort.Query parseArguments(JsonNode arguments) {
         LocalDateTime from = optionalDateTime(arguments, "from");
         LocalDateTime to = optionalDateTime(arguments, "to");
         if (from != null && to != null && from.isAfter(to)) {
@@ -48,33 +37,11 @@ public final class TodoQueryToolHandler implements ToolHandler {
         int size = positiveInt(arguments, "size", DEFAULT_SIZE, MAX_SIZE);
         String status = optionalText(arguments, "status");
 
-        TodoToolPort.Page result = todoToolPort.query(
-                context.userId(), new TodoToolPort.Query(status, from, to, page, size));
-        ObjectNode output = objectMapper.createObjectNode();
-        ArrayNode items = output.putArray("items");
-        result.items().forEach(todo -> appendTodo(items, todo));
-        output.put("total", result.total());
-        output.put("page", result.page());
-        output.put("size", result.size());
-        return output;
+        return new TodoToolPort.Query(status, from, to, page, size);
     }
 
-    private void appendTodo(ArrayNode items, TodoToolPort.Item todo) {
-        ObjectNode item = items.addObject();
-        item.put("id", todo.id());
-        item.put("applicationId", todo.applicationId());
-        item.put("applicantName", todo.applicantName());
-        item.put("leaveType", todo.leaveType());
-        item.put("durationHalfDays", todo.durationHalfDays());
-        item.put("status", todo.status());
-        item.put("version", todo.version());
-        if (todo.submittedAt() != null) {
-            item.put("submittedAt", todo.submittedAt().toString());
-        }
-        if (todo.dueAt() != null) {
-            item.put("dueAt", todo.dueAt().toString());
-        }
-        item.put("overdue", todo.overdue());
+    @Override protected TodoToolPort.Page invoke(TrustedToolContext context, TodoToolPort.Query query) {
+        return todoToolPort.query(context.userId(), query);
     }
 
 }

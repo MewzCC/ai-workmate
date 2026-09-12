@@ -6,8 +6,6 @@ import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.common.ErrorCode;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
@@ -17,46 +15,31 @@ import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.optionalTe
 import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.positiveInt;
 
 @Component
-@RequiredArgsConstructor
-public final class ApprovalTaskQueryToolHandler implements ToolHandler {
+public final class ApprovalTaskQueryToolHandler
+        extends TypedReadToolHandler<ApprovalTaskToolPort.Query, ApprovalTaskToolPort.Page> {
     private final ApprovalTaskToolPort approvalTaskToolPort;
-    private final ObjectMapper objectMapper;
 
-    @Override public String toolCode() { return ToolCode.APPROVAL_TASK_QUERY.code(); }
-    @Override public String handlerVersion() { return "1.0.0"; }
+    public ApprovalTaskQueryToolHandler(ApprovalTaskToolPort approvalTaskToolPort, ObjectMapper objectMapper) {
+        super(ToolCode.APPROVAL_TASK_QUERY, objectMapper);
+        this.approvalTaskToolPort = approvalTaskToolPort;
+    }
 
-    @Override
-    public JsonNode execute(TrustedToolContext context, JsonNode arguments) {
+    @Override protected ApprovalTaskToolPort.Query parseArguments(JsonNode arguments) {
         LocalDateTime from = optionalDateTime(arguments, "from");
         LocalDateTime to = optionalDateTime(arguments, "to");
         if (from != null && to != null && from.isAfter(to)) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID);
         }
-        var query = new ApprovalTaskToolPort.Query(
+        return new ApprovalTaskToolPort.Query(
                 optionalText(arguments, "status"), from, to,
                 optionalText(arguments, "keyword"), optionalText(arguments, "leaveType"),
                 positiveInt(arguments, "page", 1, 10000),
                 positiveInt(arguments, "size", 20, 50));
-        var result = approvalTaskToolPort.query(context.userId(), query);
-        ObjectNode output = objectMapper.createObjectNode();
-        var items = output.putArray("items");
-        result.items().forEach(record -> {
-            ObjectNode item = items.addObject();
-            item.put("applicationId", record.applicationId());
-            if (record.taskId() != null) item.put("taskId", record.taskId());
-            item.put("applicantName", record.applicantName());
-            if (record.approverName() != null) item.put("approverName", record.approverName());
-            item.put("leaveType", record.leaveType());
-            item.put("durationDays", record.durationDays());
-            item.put("status", record.status());
-            item.put("version", record.version());
-            if (record.submittedAt() != null) item.put("submittedAt", record.submittedAt().toString());
-            if (record.dueAt() != null) item.put("dueAt", record.dueAt().toString());
-            item.put("overdue", record.overdue());
-        });
-        output.put("total", result.total());
-        output.put("page", result.page());
-        output.put("size", result.size());
-        return output;
     }
+
+    @Override protected ApprovalTaskToolPort.Page invoke(
+            TrustedToolContext context, ApprovalTaskToolPort.Query query) {
+        return approvalTaskToolPort.query(context.userId(), query);
+    }
+
 }

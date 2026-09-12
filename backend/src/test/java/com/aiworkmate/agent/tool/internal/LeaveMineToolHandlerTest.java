@@ -3,6 +3,7 @@ package com.aiworkmate.agent.tool.internal;
 import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.agent.tool.port.LeaveToolPort;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -30,7 +31,8 @@ class LeaveMineToolHandlerTest {
 
     @BeforeEach
     void setUp() {
-        objectMapper = new ObjectMapper();
+        objectMapper = new ObjectMapper().findAndRegisterModules()
+                .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
         handler = new LeaveMineToolHandler(leaveToolPort, objectMapper);
         context = new TrustedToolContext(91L, 7L, 10L, 20L, 1, "trace");
     }

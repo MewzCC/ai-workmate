@@ -4,26 +4,30 @@ import com.aiworkmate.agent.tool.port.EmployeeChangeToolPort;
 import com.aiworkmate.agent.registry.ToolCode;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.optionalText;
 import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.positiveInt;
 
 @Component
-@RequiredArgsConstructor
-public final class EmployeeChangeQueryToolHandler implements ToolHandler {
+public final class EmployeeChangeQueryToolHandler
+        extends TypedReadToolHandler<EmployeeChangeToolPort.Query, EmployeeChangeToolPort.Page> {
     private final EmployeeChangeToolPort port;
-    private final ObjectMapper objectMapper;
-    @Override public String toolCode() { return ToolCode.HR_CHANGE_QUERY.code(); }
-    @Override public String handlerVersion() { return "1.0.0"; }
 
-    @Override
-    public JsonNode execute(TrustedToolContext context, JsonNode arguments) {
-        var result = port.query(context.userId(), new EmployeeChangeToolPort.Query(
+    public EmployeeChangeQueryToolHandler(EmployeeChangeToolPort port, ObjectMapper objectMapper) {
+        super(ToolCode.HR_CHANGE_QUERY, objectMapper);
+        this.port = port;
+    }
+
+    @Override protected EmployeeChangeToolPort.Query parseArguments(JsonNode arguments) {
+        return new EmployeeChangeToolPort.Query(
                 optionalText(arguments, "status"), optionalText(arguments, "changeType"),
                 optionalText(arguments, "keyword"), positiveInt(arguments, "page", 1, 10000),
-                positiveInt(arguments, "size", 20, 50)));
-        return ToolJsonOutput.omitNulls(objectMapper.valueToTree(result));
+                positiveInt(arguments, "size", 20, 50));
+    }
+
+    @Override protected EmployeeChangeToolPort.Page invoke(
+            TrustedToolContext context, EmployeeChangeToolPort.Query query) {
+        return port.query(context.userId(), query);
     }
 }

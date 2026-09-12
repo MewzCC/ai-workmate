@@ -3,6 +3,7 @@ package com.aiworkmate.agent.tool.internal;
 import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.agent.tool.port.TodoToolPort;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -29,7 +30,8 @@ class TodoQueryToolHandlerTest {
 
     @BeforeEach
     void setUp() {
-        objectMapper = new ObjectMapper();
+        objectMapper = new ObjectMapper().findAndRegisterModules()
+                .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
         handler = new TodoQueryToolHandler(todoToolPort, objectMapper);
         context = new TrustedToolContext(91L, 7L, 10L, 20L, 1, "trace");
     }
@@ -48,7 +50,7 @@ class TodoQueryToolHandlerTest {
 
         assertThat(result.path("items")).hasSize(1);
         assertThat(result.at("/items/0/applicantName").asText()).isEqualTo("张三");
-        assertThat(result.at("/items/0/submittedAt").asText()).isEqualTo("2026-08-25T09:30");
+        assertThat(result.at("/items/0/submittedAt").asText()).isEqualTo("2026-08-25T09:30:00");
         assertThat(result.at("/items/0/applicantUserId").isMissingNode()).isTrue();
         assertThat(result.at("/items/0/applicantAvatar").isMissingNode()).isTrue();
         assertThat(result.at("/items/0/applicantAvatarUrl").isMissingNode()).isTrue();

@@ -6,91 +6,47 @@ import com.aiworkmate.agent.tool.port.LeaveToolPort;
 import com.aiworkmate.agent.registry.ToolCode;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
+
+import java.util.List;
 
 import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.optionalPositiveLong;
 import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.optionalText;
 import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.positiveInt;
 
 @Component
-@RequiredArgsConstructor
-public final class LeaveMineToolHandler implements ToolHandler {
+public final class LeaveMineToolHandler
+        extends TypedReadToolHandler<LeaveMineToolHandler.Query, LeaveToolPort.Page> {
     private static final int MAX_SIZE = 50;
 
     private final LeaveToolPort leaveToolPort;
-    private final ObjectMapper objectMapper;
 
-    @Override
-    public String toolCode() {
-        return ToolCode.LEAVE_MINE.code();
+    public LeaveMineToolHandler(LeaveToolPort leaveToolPort, ObjectMapper objectMapper) {
+        super(ToolCode.LEAVE_MINE, objectMapper);
+        this.leaveToolPort = leaveToolPort;
     }
 
-    @Override
-    public String handlerVersion() {
-        return "1.0.0";
-    }
-
-    @Override
-    public JsonNode execute(TrustedToolContext context, JsonNode arguments) {
+    @Override protected Query parseArguments(JsonNode arguments) {
         Long applicationId = optionalPositiveLong(arguments, "applicationId");
         String status = optionalText(arguments, "status");
         boolean hasListArguments = status != null || arguments.has("page") || arguments.has("size");
         if (applicationId != null && hasListArguments) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID);
         }
+        return new Query(applicationId, status,
+                positiveInt(arguments, "page", 1, Integer.MAX_VALUE),
+                positiveInt(arguments, "size", 20, MAX_SIZE));
+    }
 
-        LeaveToolPort.Page result;
-        if (applicationId != null) {
-            result = new LeaveToolPort.Page(
-                    java.util.List.of(leaveToolPort.getMine(context.userId(), applicationId)),
+    @Override protected LeaveToolPort.Page invoke(TrustedToolContext context, Query query) {
+        if (query.applicationId() != null) {
+            return new LeaveToolPort.Page(
+                    List.of(leaveToolPort.getMine(context.userId(), query.applicationId())),
                     1, 1, 1);
-        } else {
-            int page = positiveInt(arguments, "page", 1, Integer.MAX_VALUE);
-            int size = positiveInt(arguments, "size", 20, MAX_SIZE);
-            result = leaveToolPort.mine(context.userId(), new LeaveToolPort.Query(status, page, size));
         }
-        return output(result);
+        return leaveToolPort.mine(context.userId(),
+                new LeaveToolPort.Query(query.status(), query.page(), query.size()));
     }
 
-    private JsonNode output(LeaveToolPort.Page result) {
-        ObjectNode output = objectMapper.createObjectNode();
-        ArrayNode items = output.putArray("items");
-        result.items().forEach(application -> append(items, application));
-        output.put("total", result.total());
-        output.put("page", result.page());
-        output.put("size", result.size());
-        return output;
-    }
-
-    private void append(ArrayNode items, LeaveToolPort.Item application) {
-        ObjectNode item = items.addObject();
-        item.put("id", application.id());
-        if (application.approverName() != null) {
-            item.put("approverName", application.approverName());
-        }
-        item.put("leaveType", application.leaveType());
-        item.put("startDate", application.startDate().toString());
-        item.put("startPeriod", application.startPeriod());
-        item.put("endDate", application.endDate().toString());
-        item.put("endPeriod", application.endPeriod());
-        item.put("durationHalfDays", application.durationHalfDays());
-        item.put("durationDays", application.durationDays());
-        item.put("reason", application.reason());
-        item.put("status", application.status());
-        item.put("version", application.version());
-        putTime(item, "submittedAt", application.submittedAt());
-        putTime(item, "completedAt", application.completedAt());
-        putTime(item, "createdAt", application.createdAt());
-        putTime(item, "updatedAt", application.updatedAt());
-    }
-
-    private void putTime(ObjectNode item, String field, java.time.LocalDateTime value) {
-        if (value != null) {
-            item.put(field, value.toString());
-        }
-    }
-
+    record Query(Long applicationId, String status, int page, int size) { }
 }
