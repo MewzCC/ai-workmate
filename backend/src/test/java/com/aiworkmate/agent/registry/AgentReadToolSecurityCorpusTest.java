@@ -95,7 +95,17 @@ class AgentReadToolSecurityCorpusTest {
                                 "{\"resource\":\"STATISTICS\",\"year\":2026,\"month\":9}"),
                         List.of("{}", "{\"resource\":\"CLOCK\"}", "{\"resource\":\"RECORDS\",\"userId\":7}",
                                 "{\"resource\":\"RECORDS\",\"size\":51}",
-                                "{\"resource\":\"STATISTICS\",\"month\":13}")))
+                                "{\"resource\":\"STATISTICS\",\"month\":13}"))),
+                Map.entry("visitor.query", new Corpus(
+                        definitions.visitorQueryToolDefinition(objectMapper),
+                        List.of("{}", "{\"bookingId\":1}", "{\"queue\":\"PENDING\",\"size\":50}"),
+                        List.of("{\"bookingId\":0}", "{\"bookingId\":1,\"status\":\"PENDING\"}",
+                                "{\"queue\":\"ALL\"}", "{\"userId\":7}", "{\"size\":51}"))),
+                Map.entry("seal.query", new Corpus(
+                        definitions.sealQueryToolDefinition(objectMapper),
+                        List.of("{}", "{\"usageId\":1}", "{\"status\":\"USED\",\"page\":2}"),
+                        List.of("{\"usageId\":0}", "{\"usageId\":1,\"queue\":\"MINE\"}",
+                                "{\"status\":\"DELETED\"}", "{\"tenantId\":7}", "{\"size\":51}")))
         );
 
         return corpora.entrySet().stream().flatMap(entry -> {

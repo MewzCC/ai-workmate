@@ -301,6 +301,26 @@ class P1PostgresMigrationIT {
                     WHERE code IN ('attendance:read', 'agent:tool:attendance.query')
                     """)).as("考勤 Agent 工具必须具备业务与工具两层实时权限").isEqualTo(2);
             assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'visitor.query' AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:aa6f923d24734c45f3022026885641deb9b74abbe6e9061394234e5cc739a3aa'
+                      AND risk_level = 'L0' AND data_scope_policy = 'SELF'
+                      AND required_permissions = '["visitor:read:self"]'::jsonb
+                      AND side_effect = 'NONE' AND enabled = TRUE
+                    """)).as("访客预约 Agent 工具必须以冻结契约的本人范围种子存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'seal.query' AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:9f896eeb4041562e8c0a7d33ed8117af6c9be6f91d71ce3c763a59d3ce3c0175'
+                      AND risk_level = 'L0' AND data_scope_policy = 'SELF'
+                      AND required_permissions = '["seal:read:self"]'::jsonb
+                      AND side_effect = 'NONE' AND enabled = TRUE
+                    """)).as("印章用印 Agent 工具必须以冻结契约的本人范围种子存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code IN ('agent:tool:visitor.query', 'agent:tool:seal.query')
+                    """)).as("访客与用印 Agent 工具必须具备独立实时权限").isEqualTo(2);
+            assertThat(count(statement, """
                     SELECT COUNT(*) FROM information_schema.views
                     WHERE table_schema = current_schema() AND table_name = 'runtime_log_view'
                     """)).isOne();

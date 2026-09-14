@@ -17,6 +17,8 @@ import com.aiworkmate.dto.TodoResponse;
 import com.aiworkmate.dto.OrganizationOverviewResponse;
 import com.aiworkmate.dto.DepartmentResponse;
 import com.aiworkmate.dto.PositionResponse;
+import com.aiworkmate.dto.SealUsageResponse;
+import com.aiworkmate.dto.VisitorBookingResponse;
 import com.aiworkmate.service.KnowledgeService;
 import com.aiworkmate.service.LeaveWorkflowService;
 import com.aiworkmate.service.NotificationService;
@@ -155,6 +157,49 @@ class AgentDomainToolAdaptersTest {
         assertThat(result.today().status()).isEqualTo("NORMAL");
         assertThat(result.toString()).doesNotContain("10.0.0.1", "tenantId", "userId");
         verify(attendanceService).getTodayStatus(7L);
+    }
+
+    @Test
+    void mapsVisitorSummaryWithoutPhonePlateOrInternalIdentities() {
+        LocalDateTime now = LocalDateTime.of(2026, 9, 14, 9, 30);
+        when(adminAssetsService.listMyVisitorBookings(7L, "APPROVED", 1, 20))
+                .thenReturn(PageResponse.of(List.of(new VisitorBookingResponse(
+                        31L, 7L, "申请人", 8L, "审批人", 9L, "接待人",
+                        "访客", "合作公司", "13800000000", "项目交流", now.plusDays(1),
+                        now.plusDays(1).plusHours(2), "粤A00000", 2, "APPROVED", 3,
+                        101L, 102L, 4, "APPROVED", now, now.plusHours(1), 10L,
+                        "登记人", null, null, null, null, now.minusDays(1), now,
+                        false, false, true, false, false, false)), 1, 1, 20));
+
+        var result = administrativeAssetsAdapter.query(context,
+                new com.aiworkmate.agent.tool.port.VisitorToolPort.Query(
+                        null, com.aiworkmate.agent.tool.port.VisitorToolPort.Queue.MINE,
+                        "APPROVED", 1, 20));
+
+        assertThat(result.items()).hasSize(1);
+        assertThat(result.items().get(0).visitorName()).isEqualTo("访客");
+        assertThat(result.toString()).doesNotContain(
+                "13800000000", "粤A00000", "applicantUserId", "hostUserId",
+                "workflowInstanceId", "taskId");
+    }
+
+    @Test
+    void mapsSealSummaryWithoutWorkflowOrStorageMetadata() {
+        LocalDateTime now = LocalDateTime.of(2026, 9, 14, 10, 0);
+        when(adminAssetsService.getSealUsage(7L, 41L)).thenReturn(new SealUsageResponse(
+                41L, 7L, "申请人", 8L, "审批人", "公章", "采购合同", "签约", 2,
+                "APPROVED", 5, 201L, 202L, 6, "APPROVED", now.minusHours(2), now.minusHours(1),
+                null, null, null, null, null, now.minusDays(1), now,
+                false, false, true, false, false));
+
+        var result = administrativeAssetsAdapter.query(context,
+                new com.aiworkmate.agent.tool.port.SealToolPort.Query(
+                        41L, com.aiworkmate.agent.tool.port.SealToolPort.Queue.MINE, null, 1, 20));
+
+        assertThat(result.items()).hasSize(1);
+        assertThat(result.items().get(0).documentTitle()).isEqualTo("采购合同");
+        assertThat(result.toString()).doesNotContain(
+                "workflowInstanceId", "taskId", "storage", "objectKey");
     }
 
     @Test

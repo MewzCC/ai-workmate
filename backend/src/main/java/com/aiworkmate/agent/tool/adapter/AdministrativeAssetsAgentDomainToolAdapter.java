@@ -2,17 +2,65 @@ package com.aiworkmate.agent.tool.adapter;
 
 import com.aiworkmate.agent.tool.port.AssetToolPort;
 import com.aiworkmate.agent.tool.port.MeetingToolPort;
+import com.aiworkmate.agent.tool.port.SealToolPort;
 import com.aiworkmate.agent.tool.port.ToolActorContext;
+import com.aiworkmate.agent.tool.port.VisitorToolPort;
 import com.aiworkmate.service.AdminAssetsService;
 import com.aiworkmate.service.MeetingBookingService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
+
 @Component
 @RequiredArgsConstructor
-public class AdministrativeAssetsAgentDomainToolAdapter implements AssetToolPort, MeetingToolPort {
+public class AdministrativeAssetsAgentDomainToolAdapter
+        implements AssetToolPort, MeetingToolPort, VisitorToolPort, SealToolPort {
     private final AdminAssetsService adminAssetsService;
     private final MeetingBookingService meetingBookingService;
+
+    @Override
+    public VisitorToolPort.Page query(ToolActorContext context, VisitorToolPort.Query query) {
+        if (query.bookingId() != null) {
+            return new VisitorToolPort.Page(List.of(visitor(adminAssetsService.getVisitorBooking(
+                    context.userId(), query.bookingId()))), 1, 1, 1);
+        }
+        var result = query.queue() == VisitorToolPort.Queue.PENDING
+                ? adminAssetsService.listPendingVisitorBookings(context.userId(), query.page(), query.size())
+                : adminAssetsService.listMyVisitorBookings(context.userId(), query.status(), query.page(), query.size());
+        return new VisitorToolPort.Page(result.records().stream().map(this::visitor).toList(),
+                result.total(), result.page(), result.size());
+    }
+
+    @Override
+    public SealToolPort.Page query(ToolActorContext context, SealToolPort.Query query) {
+        if (query.usageId() != null) {
+            return new SealToolPort.Page(List.of(seal(adminAssetsService.getSealUsage(
+                    context.userId(), query.usageId()))), 1, 1, 1);
+        }
+        var result = query.queue() == SealToolPort.Queue.PENDING
+                ? adminAssetsService.listPendingSealUsages(context.userId(), query.page(), query.size())
+                : adminAssetsService.listMySealUsages(context.userId(), query.status(), query.page(), query.size());
+        return new SealToolPort.Page(result.records().stream().map(this::seal).toList(),
+                result.total(), result.page(), result.size());
+    }
+
+    private VisitorToolPort.Item visitor(com.aiworkmate.dto.VisitorBookingResponse item) {
+        return new VisitorToolPort.Item(item.id(), item.applicantName(), item.approverName(), item.hostName(),
+                item.visitorName(), item.visitorCompany(), item.purpose(), item.expectedVisitAt(),
+                item.expectedLeaveAt(), item.partySize(), item.status(), item.version(), item.taskStatus(),
+                item.submittedAt(), item.completedAt(), item.registeredByName(), item.checkedInAt(), item.visitedAt(),
+                item.leftAt(), item.noShowAt(), item.canWithdraw(), item.canDecide(), item.canCheckIn(),
+                item.canMarkVisited(), item.canLeave(), item.canMarkNoShow());
+    }
+
+    private SealToolPort.Item seal(com.aiworkmate.dto.SealUsageResponse item) {
+        return new SealToolPort.Item(item.id(), item.applicantName(), item.approverName(), item.sealType(),
+                item.documentTitle(), item.usageReason(), item.copies(), item.status(), item.version(),
+                item.taskStatus(), item.submittedAt(), item.completedAt(), item.actualCopies(), item.handlerName(),
+                item.usedAt(), item.returnedAt(), item.canWithdraw(), item.canDecide(), item.canRegisterUse(),
+                item.canReturn(), item.canArchiveDocument());
+    }
 
     @Override
     public MeetingToolPort.Result query(ToolActorContext context, MeetingToolPort.Query query) {

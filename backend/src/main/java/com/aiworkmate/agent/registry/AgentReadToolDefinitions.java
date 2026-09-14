@@ -10,6 +10,22 @@ import java.util.Set;
 @Configuration(proxyBeanMethods = false)
 public class AgentReadToolDefinitions {
 
+    public static final String VISITOR_QUERY_INPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"properties":{"bookingId":{"type":"integer","minimum":1},"queue":{"type":"string","enum":["MINE","PENDING"]},"status":{"type":"string","enum":["PENDING","APPROVED","REJECTED","WITHDRAWN","CHECKED_IN","VISITED","LEFT","NO_SHOW"]},"page":{"type":"integer","minimum":1,"maximum":10000},"size":{"type":"integer","minimum":1,"maximum":50}},"oneOf":[{"required":["bookingId"],"not":{"anyOf":[{"required":["queue"]},{"required":["status"]},{"required":["page"]},{"required":["size"]}]}},{"not":{"required":["bookingId"]}}]}
+            """.strip();
+
+    public static final String VISITOR_QUERY_OUTPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["items","total","page","size"],"properties":{"items":{"type":"array","maxItems":50,"items":{"type":"object","additionalProperties":false,"required":["id","applicantName","hostName","visitorName","purpose","expectedVisitAt","expectedLeaveAt","partySize","status","version","canWithdraw","canDecide","canCheckIn","canMarkVisited","canLeave","canMarkNoShow"],"properties":{"id":{"type":"integer","minimum":1},"applicantName":{"type":"string","maxLength":120},"approverName":{"type":"string","maxLength":120},"hostName":{"type":"string","maxLength":120},"visitorName":{"type":"string","maxLength":120},"visitorCompany":{"type":"string","maxLength":200},"purpose":{"type":"string","maxLength":1000},"expectedVisitAt":{"type":"string","maxLength":32},"expectedLeaveAt":{"type":"string","maxLength":32},"partySize":{"type":"integer","minimum":1},"status":{"type":"string","enum":["PENDING","APPROVED","REJECTED","WITHDRAWN","CHECKED_IN","VISITED","LEFT","NO_SHOW"]},"version":{"type":"integer","minimum":0},"taskStatus":{"type":"string","maxLength":40},"submittedAt":{"type":"string","maxLength":32},"completedAt":{"type":"string","maxLength":32},"registeredByName":{"type":"string","maxLength":120},"checkedInAt":{"type":"string","maxLength":32},"visitedAt":{"type":"string","maxLength":32},"leftAt":{"type":"string","maxLength":32},"noShowAt":{"type":"string","maxLength":32},"canWithdraw":{"type":"boolean"},"canDecide":{"type":"boolean"},"canCheckIn":{"type":"boolean"},"canMarkVisited":{"type":"boolean"},"canLeave":{"type":"boolean"},"canMarkNoShow":{"type":"boolean"}}}},"total":{"type":"integer","minimum":0},"page":{"type":"integer","minimum":1},"size":{"type":"integer","minimum":1,"maximum":50}}}
+            """.strip();
+
+    public static final String SEAL_QUERY_INPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"properties":{"usageId":{"type":"integer","minimum":1},"queue":{"type":"string","enum":["MINE","PENDING"]},"status":{"type":"string","enum":["PENDING","APPROVED","REJECTED","WITHDRAWN","USED","RETURNED"]},"page":{"type":"integer","minimum":1,"maximum":10000},"size":{"type":"integer","minimum":1,"maximum":50}},"oneOf":[{"required":["usageId"],"not":{"anyOf":[{"required":["queue"]},{"required":["status"]},{"required":["page"]},{"required":["size"]}]}},{"not":{"required":["usageId"]}}]}
+            """.strip();
+
+    public static final String SEAL_QUERY_OUTPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["items","total","page","size"],"properties":{"items":{"type":"array","maxItems":50,"items":{"type":"object","additionalProperties":false,"required":["id","applicantName","sealType","documentTitle","usageReason","copies","status","version","canWithdraw","canDecide","canRegisterUse","canReturn","canArchiveDocument"],"properties":{"id":{"type":"integer","minimum":1},"applicantName":{"type":"string","maxLength":120},"approverName":{"type":"string","maxLength":120},"sealType":{"type":"string","maxLength":80},"documentTitle":{"type":"string","maxLength":255},"usageReason":{"type":"string","maxLength":1000},"copies":{"type":"integer","minimum":1},"status":{"type":"string","enum":["PENDING","APPROVED","REJECTED","WITHDRAWN","USED","RETURNED"]},"version":{"type":"integer","minimum":0},"taskStatus":{"type":"string","maxLength":40},"submittedAt":{"type":"string","maxLength":32},"completedAt":{"type":"string","maxLength":32},"actualCopies":{"type":"integer","minimum":1},"handlerName":{"type":"string","maxLength":120},"usedAt":{"type":"string","maxLength":32},"returnedAt":{"type":"string","maxLength":32},"canWithdraw":{"type":"boolean"},"canDecide":{"type":"boolean"},"canRegisterUse":{"type":"boolean"},"canReturn":{"type":"boolean"},"canArchiveDocument":{"type":"boolean"}}}},"total":{"type":"integer","minimum":0},"page":{"type":"integer","minimum":1},"size":{"type":"integer","minimum":1,"maximum":50}}}
+            """.strip();
+
     public static final String ATTENDANCE_QUERY_INPUT_SCHEMA = """
             {"type":"object","additionalProperties":false,"required":["resource"],"properties":{"resource":{"type":"string","enum":["TODAY","RECORDS","EXCEPTIONS","MY_REISSUES","PENDING_REISSUES","STATISTICS","SETTINGS"]},"from":{"type":"string","format":"date"},"to":{"type":"string","format":"date"},"employeeId":{"type":"integer","minimum":1},"status":{"type":"string","enum":["PENDING","APPROVED","REJECTED"]},"year":{"type":"integer","minimum":2000,"maximum":2100},"month":{"type":"integer","minimum":1,"maximum":12},"page":{"type":"integer","minimum":1,"maximum":10000},"size":{"type":"integer","minimum":1,"maximum":50}}}
             """.strip();
@@ -105,6 +121,32 @@ public class AgentReadToolDefinitions {
     public static final String NOTIFICATION_MINE_OUTPUT_SCHEMA = """
             {"type":"object","additionalProperties":false,"required":["items","total","page","size"],"properties":{"items":{"type":"array","maxItems":50,"items":{"type":"object","additionalProperties":false,"required":["id","type","title","content","read","createdAt"],"properties":{"id":{"type":"integer","minimum":1},"type":{"type":"string","maxLength":40},"title":{"type":"string","maxLength":200},"content":{"type":"string","maxLength":2000},"businessType":{"type":"string","maxLength":40},"read":{"type":"boolean"},"createdAt":{"type":"string","maxLength":32}}}},"total":{"type":"integer","minimum":0},"page":{"type":"integer","minimum":1},"size":{"type":"integer","minimum":1,"maximum":50}}}
             """.strip();
+
+    @Bean
+    ToolDefinition visitorQueryToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {
+        return ToolDefinition.create(
+                ToolCode.VISITOR_QUERY, "Query my visitor bookings",
+                "Returns a bounded owned, assigned or explicitly visible visitor booking summary.",
+                "Display visitor workflow and arrival status without phone, plate or internal identity fields.",
+                "1.0.0", objectMapper.readTree(VISITOR_QUERY_INPUT_SCHEMA),
+                objectMapper.readTree(VISITOR_QUERY_OUTPUT_SCHEMA), RiskLevel.L0,
+                Set.of("visitor:read:self"), PermissionMode.ALL, OwnershipPolicy.SELF,
+                RetryPolicy.READ_ONLY_SAFE, SideEffect.NONE, ConfirmationPolicy.NONE,
+                50, 131072, 15000, "HASHED_ARGS_RESULT");
+    }
+
+    @Bean
+    ToolDefinition sealQueryToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {
+        return ToolDefinition.create(
+                ToolCode.SEAL_QUERY, "Query my seal usages",
+                "Returns a bounded owned, assigned or explicitly visible seal usage summary.",
+                "Display approval and execution status without workflow identities or archive storage paths.",
+                "1.0.0", objectMapper.readTree(SEAL_QUERY_INPUT_SCHEMA),
+                objectMapper.readTree(SEAL_QUERY_OUTPUT_SCHEMA), RiskLevel.L0,
+                Set.of("seal:read:self"), PermissionMode.ALL, OwnershipPolicy.SELF,
+                RetryPolicy.READ_ONLY_SAFE, SideEffect.NONE, ConfirmationPolicy.NONE,
+                50, 131072, 15000, "HASHED_ARGS_RESULT");
+    }
 
     @Bean
     ToolDefinition attendanceQueryToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {

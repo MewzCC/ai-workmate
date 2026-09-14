@@ -9,6 +9,29 @@ import static org.assertj.core.api.Assertions.assertThat;
 class AgentReadToolDefinitionsTest {
 
     @Test
+    void visitorAndSealDefinitionsHideSensitiveOperationalFields() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        ToolSchemaValidator validator = new ToolSchemaValidator();
+        ToolDefinition visitor = new AgentReadToolDefinitions().visitorQueryToolDefinition(mapper);
+        ToolDefinition seal = new AgentReadToolDefinitions().sealQueryToolDefinition(mapper);
+        assertThat(visitor.schemaHash()).isEqualTo(
+                "sha256:aa6f923d24734c45f3022026885641deb9b74abbe6e9061394234e5cc739a3aa");
+        assertThat(seal.schemaHash()).isEqualTo(
+                "sha256:9f896eeb4041562e8c0a7d33ed8117af6c9be6f91d71ce3c763a59d3ce3c0175");
+        assertThat(visitor.requiredPermissions()).containsExactly("visitor:read:self");
+        assertThat(seal.requiredPermissions()).containsExactly("seal:read:self");
+        assertThat(visitor.outputSchema().toString())
+                .doesNotContain("visitorPhone", "plateNumber", "UserId", "workflowInstanceId", "taskId");
+        assertThat(seal.outputSchema().toString())
+                .doesNotContain("storage", "documentId", "UserId", "workflowInstanceId", "taskId");
+        assertThat(validator.valid(visitor.inputSchema(), mapper.readTree("{\"bookingId\":7}"))).isTrue();
+        assertThat(validator.valid(visitor.inputSchema(), mapper.readTree(
+                "{\"bookingId\":7,\"queue\":\"MINE\"}"))).isFalse();
+        assertThat(validator.valid(seal.inputSchema(), mapper.readTree(
+                "{\"queue\":\"PENDING\",\"size\":50}"))).isTrue();
+    }
+
+    @Test
     void attendanceDefinitionUsesOneBoundedDiscriminatedReadContract() throws Exception {
         ObjectMapper mapper = new ObjectMapper();
         ToolDefinition definition = new AgentReadToolDefinitions().attendanceQueryToolDefinition(mapper);

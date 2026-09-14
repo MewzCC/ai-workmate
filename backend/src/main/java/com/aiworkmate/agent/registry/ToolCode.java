@@ -24,7 +24,9 @@ public enum ToolCode {
     HR_CHANGE_QUERY("hr.change.query"),
     ATTENDANCE_QUERY("attendance.query"),
     ASSET_QUERY("asset.query"),
-    MEETING_QUERY("meeting.query");
+    MEETING_QUERY("meeting.query"),
+    VISITOR_QUERY("visitor.query"),
+    SEAL_QUERY("seal.query");
 
     private static final Map<String, ToolCode> BY_CODE;
     private static final Set<String> CODES;

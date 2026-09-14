@@ -53,4 +53,12 @@ class PageCapabilityCatalogTest {
                         .extracting(PageToolReference::code)
                         .containsExactly(ToolCode.ATTENDANCE_QUERY));
     }
+
+    @Test
+    void bindsAdministrativeRequestPagesToTheirLeastPrivilegeReadTools() {
+        assertThat(catalog.find("visitor-booking").orElseThrow().readTools())
+                .extracting(PageToolReference::code).containsExactly(ToolCode.VISITOR_QUERY);
+        assertThat(catalog.find("seal-usage").orElseThrow().readTools())
+                .extracting(PageToolReference::code).containsExactly(ToolCode.SEAL_QUERY);
+    }
 }
