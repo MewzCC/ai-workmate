@@ -5,6 +5,7 @@ import com.aiworkmate.agent.tool.port.ApprovalTaskToolPort;
 import com.aiworkmate.agent.tool.port.LeaveToolPort;
 import com.aiworkmate.agent.tool.port.TodoToolPort;
 import com.aiworkmate.agent.tool.port.ToolActorContext;
+import com.aiworkmate.agent.tool.port.AttendanceToolPort;
 import com.aiworkmate.common.PageResponse;
 import com.aiworkmate.dto.KnowledgeSearchItemResponse;
 import com.aiworkmate.dto.KnowledgeSearchResponse;
@@ -24,6 +25,7 @@ import com.aiworkmate.service.HrService;
 import com.aiworkmate.service.EmployeeChangeService;
 import com.aiworkmate.service.AdminAssetsService;
 import com.aiworkmate.service.MeetingBookingService;
+import com.aiworkmate.service.AttendanceService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -50,6 +52,7 @@ class AgentDomainToolAdaptersTest {
     @Mock private EmployeeChangeService employeeChangeService;
     @Mock private AdminAssetsService adminAssetsService;
     @Mock private MeetingBookingService meetingBookingService;
+    @Mock private AttendanceService attendanceService;
 
     private ApprovalAgentDomainToolAdapter approvalAdapter;
     private HrAgentDomainToolAdapter hrAdapter;
@@ -61,7 +64,7 @@ class AgentDomainToolAdaptersTest {
     @BeforeEach
     void setUp() {
         approvalAdapter = new ApprovalAgentDomainToolAdapter(leaveWorkflowService, approvalEngineService);
-        hrAdapter = new HrAgentDomainToolAdapter(hrService, employeeChangeService);
+        hrAdapter = new HrAgentDomainToolAdapter(hrService, employeeChangeService, attendanceService);
         administrativeAssetsAdapter = new AdministrativeAssetsAgentDomainToolAdapter(
                 adminAssetsService, meetingBookingService);
         knowledgeAdapter = new KnowledgeAgentDomainToolAdapter(knowledgeService);
@@ -135,6 +138,23 @@ class AgentDomainToolAdaptersTest {
         assertThat(result.employees()).isEmpty();
         assertThat(result.toString()).doesNotContain("secret@example.com", "avatar", "9L");
         verify(hrService).overviewForActor(7L);
+    }
+
+    @Test
+    void dispatchesAttendanceResourceAndDropsIpAndInternalUserIds() {
+        LocalDate day = LocalDate.of(2026, 9, 14);
+        when(attendanceService.getTodayStatus(7L)).thenReturn(
+                new com.aiworkmate.dto.AttendanceTodayStatusResponse(
+                        8L, day, day.atTime(9, 0), null, "NORMAL", 0, 0,
+                        "10.0.0.1", null, false, true));
+
+        var result = hrAdapter.query(context, new AttendanceToolPort.Query(
+                AttendanceToolPort.Resource.TODAY, null, null, null,
+                null, null, null, 1, 20));
+
+        assertThat(result.today().status()).isEqualTo("NORMAL");
+        assertThat(result.toString()).doesNotContain("10.0.0.1", "tenantId", "userId");
+        verify(attendanceService).getTodayStatus(7L);
     }
 
     @Test

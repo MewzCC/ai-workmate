@@ -123,11 +123,17 @@ public class PageCapabilityCatalog {
                 page("runtime-logs", "RUNTIME_LOGS", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS),
                 page("sandbox-replay", "SANDBOX_REPLAY", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS),
 
-                page("attendance-clock", "ATTENDANCE_CLOCK", OwnershipPolicy.SELF, READ_COMMANDS),
-                page("attendance-exception", "ATTENDANCE_EXCEPTION", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS),
-                page("attendance-reissue", "ATTENDANCE_REISSUE", OwnershipPolicy.SELF, LIST_COMMANDS),
-                page("attendance-statistics", "ATTENDANCE_STATISTICS", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS),
-                page("attendance-settings", "ATTENDANCE_SETTINGS", OwnershipPolicy.TENANT_SCOPED, READ_COMMANDS),
+                page("attendance-clock", "ATTENDANCE_CLOCK", OwnershipPolicy.SELF, READ_COMMANDS,
+                        context(text("resource")), read(ATTENDANCE_QUERY)),
+                page("attendance-exception", "ATTENDANCE_EXCEPTION", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
+                        attendanceListContext(), read(ATTENDANCE_QUERY)),
+                page("attendance-reissue", "ATTENDANCE_REISSUE", OwnershipPolicy.SELF, LIST_COMMANDS,
+                        context(text("resource"), text("status"), number("page"), number("size")),
+                        read(ATTENDANCE_QUERY)),
+                page("attendance-statistics", "ATTENDANCE_STATISTICS", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
+                        context(text("resource"), number("year"), number("month")), read(ATTENDANCE_QUERY)),
+                page("attendance-settings", "ATTENDANCE_SETTINGS", OwnershipPolicy.TENANT_SCOPED, READ_COMMANDS,
+                        context(text("resource")), read(ATTENDANCE_QUERY)),
 
                 page("access-control", "ACCESS_CONTROL", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS),
                 page("data-permission", "DATA_PERMISSION", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS),
@@ -171,5 +177,10 @@ public class PageCapabilityCatalog {
 
     private PageContextSchema context(PageContextField... fields) {
         return new PageContextSchema(4096, PageContextSchema.PLATFORM_MAX_DEPTH, List.of(fields));
+    }
+
+    private PageContextSchema attendanceListContext() {
+        return context(text("resource"), text("from"), text("to"), number("employeeId"),
+                number("page"), number("size"));
     }
 }

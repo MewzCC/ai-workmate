@@ -3,6 +3,7 @@ package com.aiworkmate.agent.tool.adapter;
 import com.aiworkmate.agent.tool.port.ApprovalConfigurationToolPort;
 import com.aiworkmate.agent.tool.port.ApprovalTaskToolPort;
 import com.aiworkmate.agent.tool.port.AssetToolPort;
+import com.aiworkmate.agent.tool.port.AttendanceToolPort;
 import com.aiworkmate.agent.tool.port.EmployeeChangeToolPort;
 import com.aiworkmate.agent.tool.port.HrEmployeeToolPort;
 import com.aiworkmate.agent.tool.port.HrOrganizationToolPort;
@@ -29,7 +30,8 @@ class AgentDomainToolAdapterBoundaryTest {
     private static final List<Class<?>> PORTS = List.of(
             TodoToolPort.class, LeaveToolPort.class, KnowledgeToolPort.class, NotificationToolPort.class,
             ApprovalConfigurationToolPort.class, ApprovalTaskToolPort.class, HrOrganizationToolPort.class,
-            HrEmployeeToolPort.class, EmployeeChangeToolPort.class, AssetToolPort.class, MeetingToolPort.class);
+            HrEmployeeToolPort.class, EmployeeChangeToolPort.class, AttendanceToolPort.class,
+            AssetToolPort.class, MeetingToolPort.class);
 
     @Test
     void eachPortHasOneLocalAdapterAndEachAdapterHasOneBusinessBoundary() {
@@ -45,7 +47,8 @@ class AgentDomainToolAdapterBoundaryTest {
                 TodoToolPort.class, LeaveToolPort.class,
                 ApprovalConfigurationToolPort.class, ApprovalTaskToolPort.class);
         assertThat(HrAgentDomainToolAdapter.class.getInterfaces()).containsExactlyInAnyOrder(
-                HrOrganizationToolPort.class, HrEmployeeToolPort.class, EmployeeChangeToolPort.class);
+                HrOrganizationToolPort.class, HrEmployeeToolPort.class, EmployeeChangeToolPort.class,
+                AttendanceToolPort.class);
         assertThat(AdministrativeAssetsAgentDomainToolAdapter.class.getInterfaces()).containsExactlyInAnyOrder(
                 AssetToolPort.class, MeetingToolPort.class);
         assertThat(KnowledgeAgentDomainToolAdapter.class.getInterfaces()).containsExactly(KnowledgeToolPort.class);

@@ -55,6 +55,24 @@ final class BoundedToolArguments {
         }
     }
 
+    static LocalDate optionalDate(JsonNode arguments, String field) {
+        String value = optionalText(arguments, field);
+        if (value == null) return null;
+        try {
+            return LocalDate.parse(value);
+        } catch (DateTimeException exception) {
+            throw invalid();
+        }
+    }
+
+    static Integer optionalInt(JsonNode arguments, String field, int minimum, int maximum) {
+        JsonNode value = arguments.get(field);
+        if (value == null || value.isNull()) return null;
+        if (!value.isIntegralNumber() || !value.canConvertToInt()
+                || value.asInt() < minimum || value.asInt() > maximum) throw invalid();
+        return value.asInt();
+    }
+
     static LocalDateTime optionalDateTime(JsonNode arguments, String field) {
         String value = optionalText(arguments, field);
         if (value == null) return null;

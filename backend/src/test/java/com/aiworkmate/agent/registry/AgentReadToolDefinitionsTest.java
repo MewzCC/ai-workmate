@@ -9,6 +9,23 @@ import static org.assertj.core.api.Assertions.assertThat;
 class AgentReadToolDefinitionsTest {
 
     @Test
+    void attendanceDefinitionUsesOneBoundedDiscriminatedReadContract() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        ToolDefinition definition = new AgentReadToolDefinitions().attendanceQueryToolDefinition(mapper);
+        ToolSchemaValidator validator = new ToolSchemaValidator();
+        assertThat(definition.schemaHash()).isEqualTo(
+                "sha256:4ff357d3836da753f0c32d3774ea04ba3cf83d1c6b8708de548e8ff711348d60");
+        assertThat(definition.requiredPermissions()).containsExactly("attendance:read");
+        assertThat(definition.ownershipPolicy()).isEqualTo(OwnershipPolicy.TENANT_SCOPED);
+        assertThat(definition.outputSchema().toString())
+                .doesNotContain("tenantId", "userId", "clockInIp", "clockOutIp");
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree(
+                "{\"resource\":\"EXCEPTIONS\",\"employeeId\":7,\"size\":50}"))).isTrue();
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree(
+                "{\"resource\":\"STATISTICS\",\"month\":13}"))).isFalse();
+    }
+
+    @Test
     void meetingDefinitionIsClosedAndHidesInternalIdentities() throws Exception {
         ObjectMapper mapper = new ObjectMapper();
         ToolDefinition definition = new AgentReadToolDefinitions().meetingQueryToolDefinition(mapper);

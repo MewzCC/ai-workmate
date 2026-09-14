@@ -87,7 +87,15 @@ class AgentReadToolSecurityCorpusTest {
                         List.of("{}", "{\"roomStatus\":\"OPEN\"}",
                                 "{\"from\":\"2026-09-13T09:00:00\",\"to\":\"2026-09-14T09:00:00\",\"bookingStatus\":\"BOOKED\",\"size\":50}"),
                         List.of("{\"roomStatus\":\"DELETED\"}", "{\"bookingStatus\":\"FINISHED\"}",
-                                "{\"size\":51}", "{\"tenantId\":2}", "{\"url\":\"https://attacker.invalid\"}")))
+                                "{\"size\":51}", "{\"tenantId\":2}", "{\"url\":\"https://attacker.invalid\"}"))),
+                Map.entry("attendance.query", new Corpus(
+                        definitions.attendanceQueryToolDefinition(objectMapper),
+                        List.of("{\"resource\":\"TODAY\"}",
+                                "{\"resource\":\"EXCEPTIONS\",\"from\":\"2026-09-01\",\"to\":\"2026-09-30\",\"size\":50}",
+                                "{\"resource\":\"STATISTICS\",\"year\":2026,\"month\":9}"),
+                        List.of("{}", "{\"resource\":\"CLOCK\"}", "{\"resource\":\"RECORDS\",\"userId\":7}",
+                                "{\"resource\":\"RECORDS\",\"size\":51}",
+                                "{\"resource\":\"STATISTICS\",\"month\":13}")))
         );
 
         return corpora.entrySet().stream().flatMap(entry -> {

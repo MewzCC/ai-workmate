@@ -1,23 +1,104 @@
 package com.aiworkmate.agent.tool.adapter;
 
 import com.aiworkmate.agent.tool.port.EmployeeChangeToolPort;
+import com.aiworkmate.agent.tool.port.AttendanceToolPort;
 import com.aiworkmate.agent.tool.port.HrEmployeeToolPort;
 import com.aiworkmate.agent.tool.port.HrOrganizationToolPort;
 import com.aiworkmate.agent.tool.port.ToolActorContext;
 import com.aiworkmate.service.EmployeeChangeService;
+import com.aiworkmate.service.AttendanceService;
 import com.aiworkmate.service.HrService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.function.Predicate;
 
 @Component
 @RequiredArgsConstructor
 public class HrAgentDomainToolAdapter implements HrOrganizationToolPort, HrEmployeeToolPort,
-        EmployeeChangeToolPort {
+        EmployeeChangeToolPort, AttendanceToolPort {
     private final HrService hrService;
     private final EmployeeChangeService employeeChangeService;
+    private final AttendanceService attendanceService;
+
+    @Override
+    public AttendanceToolPort.Result query(ToolActorContext context, AttendanceToolPort.Query query) {
+        return switch (query.resource()) {
+            case TODAY -> today(context, query);
+            case RECORDS -> records(context, query, false);
+            case EXCEPTIONS -> records(context, query, true);
+            case MY_REISSUES -> reissues(context, query, false);
+            case PENDING_REISSUES -> reissues(context, query, true);
+            case STATISTICS -> statistics(context, query);
+            case SETTINGS -> settings(context, query);
+        };
+    }
+
+    private AttendanceToolPort.Result today(ToolActorContext context, AttendanceToolPort.Query query) {
+        var item = attendanceService.getTodayStatus(context.userId());
+        var today = new AttendanceToolPort.Today(item.id(), item.clockDate(), item.clockInTime(),
+                item.clockOutTime(), item.status(), item.lateMinutes(), item.earlyLeaveMinutes(),
+                item.canClockIn(), item.canClockOut());
+        return attendanceResult(query, today, List.of(), List.of(), null, null, 1);
+    }
+
+    private AttendanceToolPort.Result records(ToolActorContext context, AttendanceToolPort.Query query,
+                                              boolean exceptions) {
+        var result = exceptions
+                ? attendanceService.listExceptions(context.userId(), query.from(), query.to(), query.employeeId(),
+                        query.page(), query.size())
+                : attendanceService.listRecords(context.userId(), query.from(), query.to(), query.employeeId(),
+                        query.page(), query.size());
+        var records = result.records().stream().map(item -> new AttendanceToolPort.Record(
+                item.id(), item.userName(), item.clockDate(), item.clockInTime(), item.clockOutTime(),
+                item.status(), item.lateMinutes(), item.earlyLeaveMinutes())).toList();
+        return new AttendanceToolPort.Result(query.resource(), null, records, List.of(), null, null,
+                result.total(), result.page(), result.size());
+    }
+
+    private AttendanceToolPort.Result reissues(ToolActorContext context, AttendanceToolPort.Query query,
+                                               boolean pending) {
+        var result = pending
+                ? attendanceService.listPendingReissues(context.userId(), query.page(), query.size())
+                : attendanceService.listMyReissues(context.userId(), query.status(), query.page(), query.size());
+        var reissues = result.records().stream().map(item -> new AttendanceToolPort.Reissue(
+                item.id(), item.applicantName(), item.approverName(), item.clockDate(), item.clockType(),
+                item.reason(), item.status(), item.approverComment(), item.submittedAt(), item.decidedAt(),
+                item.canDecide(), item.canWithdraw())).toList();
+        return new AttendanceToolPort.Result(query.resource(), null, List.of(), reissues, null, null,
+                result.total(), result.page(), result.size());
+    }
+
+    private AttendanceToolPort.Result statistics(ToolActorContext context, AttendanceToolPort.Query query) {
+        var item = attendanceService.getStatistics(context.userId(), query.year(), query.month());
+        var personal = item.personal();
+        var stats = new AttendanceToolPort.Statistics(item.startDate(), item.endDate(),
+                new AttendanceToolPort.PersonalStats(personal.userName(), personal.totalDays(),
+                        personal.normalDays(), personal.lateDays(), personal.earlyLeaveDays(),
+                        personal.missingDays(), personal.pendingReissueCount()),
+                item.team().stream().limit(50).map(member -> new AttendanceToolPort.TeamStats(
+                        member.userName(), member.departmentName(), member.totalDays(), member.normalDays(),
+                        member.lateDays(), member.earlyLeaveDays(), member.missingDays())).toList());
+        return attendanceResult(query, null, List.of(), List.of(), stats, null, 1);
+    }
+
+    private AttendanceToolPort.Result settings(ToolActorContext context, AttendanceToolPort.Query query) {
+        var item = attendanceService.getSettings(context.userId());
+        var settings = new AttendanceToolPort.Settings(item.workStartTime(), item.workEndTime(),
+                item.startFlexMinutes(), item.endFlexMinutes(), item.flexLinked(), item.updatedAt());
+        return attendanceResult(query, null, List.of(), List.of(), null, settings, 1);
+    }
+
+    private AttendanceToolPort.Result attendanceResult(AttendanceToolPort.Query query, AttendanceToolPort.Today today,
+                                                       List<AttendanceToolPort.Record> records,
+                                                       List<AttendanceToolPort.Reissue> reissues,
+                                                       AttendanceToolPort.Statistics statistics,
+                                                       AttendanceToolPort.Settings settings, long total) {
+        return new AttendanceToolPort.Result(query.resource(), today, records, reissues, statistics, settings,
+                total, query.page(), query.size());
+    }
 
     @Override
     public EmployeeChangeToolPort.Page query(ToolActorContext context, EmployeeChangeToolPort.Query query) {

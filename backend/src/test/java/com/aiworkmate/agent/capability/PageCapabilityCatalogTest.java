@@ -44,4 +44,13 @@ class PageCapabilityCatalogTest {
         assertThat(catalog.canonicalPageId("message-center")).isEqualTo("messages");
         assertThat(catalog.find("todo-list")).contains(catalog.find("todo").orElseThrow());
     }
+
+    @Test
+    void bindsTheSharedAttendanceReadContractToAllFiveAttendancePages() {
+        assertThat(Set.of("attendance-clock", "attendance-exception", "attendance-reissue",
+                "attendance-statistics", "attendance-settings")).allSatisfy(pageId ->
+                assertThat(catalog.find(pageId).orElseThrow().readTools())
+                        .extracting(PageToolReference::code)
+                        .containsExactly(ToolCode.ATTENDANCE_QUERY));
+    }
 }
