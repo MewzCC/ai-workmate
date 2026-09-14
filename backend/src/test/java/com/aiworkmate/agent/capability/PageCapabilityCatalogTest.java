@@ -61,4 +61,16 @@ class PageCapabilityCatalogTest {
         assertThat(catalog.find("seal-usage").orElseThrow().readTools())
                 .extracting(PageToolReference::code).containsExactly(ToolCode.SEAL_QUERY);
     }
+
+    @Test
+    void bindsEachFinancePageToItsLeastPrivilegeReadTool() {
+        assertThat(catalog.find("expense").orElseThrow().readTools())
+                .extracting(PageToolReference::code).containsExactly(ToolCode.EXPENSE_QUERY);
+        assertThat(catalog.find("budget").orElseThrow().readTools())
+                .extracting(PageToolReference::code).containsExactly(ToolCode.BUDGET_QUERY);
+        assertThat(catalog.find("contracts").orElseThrow().readTools())
+                .extracting(PageToolReference::code).containsExactly(ToolCode.CONTRACT_QUERY);
+        assertThat(catalog.find("suppliers").orElseThrow().readTools())
+                .extracting(PageToolReference::code).containsExactly(ToolCode.SUPPLIER_QUERY);
+    }
 }

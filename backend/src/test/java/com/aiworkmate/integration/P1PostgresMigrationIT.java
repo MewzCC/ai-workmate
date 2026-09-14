@@ -321,6 +321,20 @@ class P1PostgresMigrationIT {
                     WHERE code IN ('agent:tool:visitor.query', 'agent:tool:seal.query')
                     """)).as("访客与用印 Agent 工具必须具备独立实时权限").isEqualTo(2);
             assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND enabled = TRUE AND side_effect = 'NONE'
+                      AND (code, schema_hash, data_scope_policy) IN (
+                        ('expense.query','sha256:054bddbc37bd581b6feae1ad51fc702f1b5c48a4b93575b174eefbbe185f74c8','SELF'),
+                        ('budget.query','sha256:7d700b1b7b6c3556ed14833b9d7d1a4bb81e461a305afb108f4b75e651dd2760','TENANT_SCOPED'),
+                        ('contract.query','sha256:51c12cd5d1f1b3297dfce9fe7d11e0f7d603766dfbd3aeb1fb0584f775acb02b','TENANT_SCOPED'),
+                        ('supplier.query','sha256:7adf543de65a87fa28bbd4713d1c42f44e3522a90bacd00c12e178917d77ebe0','TENANT_SCOPED'))
+                    """)).as("四个财务页面 Agent 工具必须以冻结契约存在").isEqualTo(4);
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code IN ('expense:read:self','agent:tool:expense.query','agent:tool:budget.query',
+                                   'agent:tool:contract.query','agent:tool:supplier.query')
+                    """)).as("财务 Agent 工具必须具备业务与工具两层实时权限").isEqualTo(5);
+            assertThat(count(statement, """
                     SELECT COUNT(*) FROM information_schema.views
                     WHERE table_schema = current_schema() AND table_name = 'runtime_log_view'
                     """)).isOne();

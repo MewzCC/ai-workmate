@@ -26,7 +26,11 @@ public enum ToolCode {
     ASSET_QUERY("asset.query"),
     MEETING_QUERY("meeting.query"),
     VISITOR_QUERY("visitor.query"),
-    SEAL_QUERY("seal.query");
+    SEAL_QUERY("seal.query"),
+    EXPENSE_QUERY("expense.query"),
+    BUDGET_QUERY("budget.query"),
+    CONTRACT_QUERY("contract.query"),
+    SUPPLIER_QUERY("supplier.query");
 
     private static final Map<String, ToolCode> BY_CODE;
     private static final Set<String> CODES;
