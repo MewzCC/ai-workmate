@@ -38,26 +38,11 @@ import {
 import { useTranslation } from 'react-i18next';
 import { OaIcon, oaMenuIconOptions } from '@/components/OaIcon';
 import ResponsiveTable from './ResponsiveTable';
-
-const COMPONENT_VALUES = [
-  'DASHBOARD',
-  'WORKBENCH_MODULE',
-  'AI_WORKSPACE',
-  'AI_TASK_CENTER',
-  'ACCESS_CONTROL',
-  'TODO_LIST',
-  'LEAVE_FORM',
-  'MY_APPLICATIONS',
-  'AUDIT_CENTER',
-  'ORG_TREE',
-  'EMPLOYEE_CHANGE',
-  'KNOWLEDGE_BASE',
-  'SYSTEM_CONFIG',
-] as const;
+import { ENABLED_PAGE_COMPONENT_KEYS } from '@/types/oa';
 
 export default function AccessControlPage() {
   const { t } = useTranslation();
-  const componentOptions = COMPONENT_VALUES.map((value) => ({
+  const componentOptions = ENABLED_PAGE_COMPONENT_KEYS.map((value) => ({
     value,
     label: t(`access.componentTypes.${value}`),
   }));

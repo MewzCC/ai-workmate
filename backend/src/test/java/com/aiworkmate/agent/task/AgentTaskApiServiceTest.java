@@ -39,7 +39,8 @@ class AgentTaskApiServiceTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final AgentRuntimeProperties properties = new AgentRuntimeProperties();
     private final AuthenticatedUser user = new AuthenticatedUser(
-            7L, "alice", 9L, "EMPLOYEE", List.of("EMPLOYEE"), List.of("leave:create"), List.of("SELF"), 1L);
+            7L, "alice", 9L, "EMPLOYEE", List.of("EMPLOYEE"),
+            List.of("leave:create", "agent:tool:leave.createDraft"), List.of("SELF"), 1L);
     private AgentTaskApiService service;
 
     @BeforeEach

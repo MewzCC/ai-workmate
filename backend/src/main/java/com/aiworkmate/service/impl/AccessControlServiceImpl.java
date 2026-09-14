@@ -14,6 +14,7 @@ import com.aiworkmate.dto.PositionResponse;
 import com.aiworkmate.dto.SaveRouteRequest;
 import com.aiworkmate.mapper.AccessControlMapper;
 import com.aiworkmate.service.AccessControlService;
+import com.aiworkmate.service.model.NavigationComponentCatalog;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -463,6 +464,21 @@ public class AccessControlServiceImpl implements AccessControlService {
         }
         if (page && (request.path() == null || request.componentKey() == null)) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID, "页面路由必须配置路径和组件");
+        }
+        if (page && Boolean.TRUE.equals(request.enabled())) {
+            String componentKey = request.componentKey().trim().toUpperCase();
+            if ("WORKBENCH_MODULE".equals(componentKey)) {
+                throw new BusinessException(ErrorCode.REQUEST_INVALID,
+                        "error.route.placeholder_not_allowed");
+            }
+            if ("DASHBOARD".equals(componentKey) && !"dashboard".equals(routeKey)) {
+                throw new BusinessException(ErrorCode.REQUEST_INVALID,
+                        "error.route.dashboard_reserved");
+            }
+            if (!NavigationComponentCatalog.supportsEnabledRoute(routeKey, componentKey)) {
+                throw new BusinessException(ErrorCode.REQUEST_INVALID,
+                        "validation.componentKey.invalid");
+            }
         }
         if (!page && (request.path() != null || request.componentKey() != null)) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID, "分组和菜单不能配置页面路径或组件");

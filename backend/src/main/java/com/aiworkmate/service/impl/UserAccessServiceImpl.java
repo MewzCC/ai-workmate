@@ -2,6 +2,7 @@ package com.aiworkmate.service.impl;
 
 import com.aiworkmate.entity.User;
 import com.aiworkmate.mapper.AccessControlMapper;
+import com.aiworkmate.mapper.DataPermissionMapper;
 import com.aiworkmate.mapper.UserMapper;
 import com.aiworkmate.service.UserAccessService;
 import com.aiworkmate.service.model.ResolvedUserAccess;
@@ -20,6 +21,7 @@ public class UserAccessServiceImpl implements UserAccessService {
 
     private final UserMapper userMapper;
     private final AccessControlMapper accessControlMapper;
+    private final DataPermissionMapper dataPermissionMapper;
 
     @Override
     @Transactional(readOnly = true)
@@ -42,9 +44,16 @@ public class UserAccessServiceImpl implements UserAccessService {
                 primaryRole,
                 List.copyOf(roles),
                 permissionsForRoles(user.getTenantId(), roles),
-                List.copyOf(accessControlMapper.selectDataScopes(user.getTenantId(), roles)),
+                effectiveDataScopes(user.getTenantId(), user.getId(), roles),
                 user.getPermissionVersion()
         );
+    }
+
+    private List<String> effectiveDataScopes(Long tenantId, Long userId, List<String> roles) {
+        List<String> configured = dataPermissionMapper.selectEffectiveScopes(tenantId, userId);
+        return configured.isEmpty()
+                ? List.copyOf(accessControlMapper.selectDataScopes(tenantId, roles))
+                : List.copyOf(configured);
     }
 
     @Override

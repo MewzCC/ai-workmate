@@ -5,6 +5,7 @@ import com.aiworkmate.dto.NavigationRouteResponse;
 import com.aiworkmate.mapper.AccessControlMapper;
 import com.aiworkmate.service.NavigationService;
 import com.aiworkmate.service.UserAccessService;
+import com.aiworkmate.service.model.NavigationComponentCatalog;
 import com.aiworkmate.service.model.ResolvedUserAccess;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -33,6 +34,9 @@ public class NavigationServiceImpl implements NavigationService {
                 .filter(AccessRouteResponse::enabled)
                 .filter(route -> !"PAGE".equals(route.routeType())
                         || permissions.contains(route.permissionCode()))
+                .filter(route -> !"PAGE".equals(route.routeType())
+                        || NavigationComponentCatalog.supportsEnabledRoute(
+                                route.routeKey(), route.componentKey()))
                 .toList();
         return childrenOf(null, visible);
     }

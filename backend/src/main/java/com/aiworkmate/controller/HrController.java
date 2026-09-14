@@ -24,13 +24,13 @@ public class HrController {
     @GetMapping("/organization")
     public Result<OrganizationOverviewResponse> overview(
             @AuthenticationPrincipal AuthenticatedUser operator) {
-        return Result.ok(hrService.overview(operator.tenantId()));
+        return Result.ok(hrService.overview(operator));
     }
 
     @GetMapping("/employees/{id}")
     public Result<EmployeeDetailResponse> employeeDetail(
             @PathVariable("id") Long employeeId,
             @AuthenticationPrincipal AuthenticatedUser operator) {
-        return Result.ok(hrService.employeeDetail(operator.tenantId(), employeeId));
+        return Result.ok(hrService.employeeDetail(operator, employeeId));
     }
 }

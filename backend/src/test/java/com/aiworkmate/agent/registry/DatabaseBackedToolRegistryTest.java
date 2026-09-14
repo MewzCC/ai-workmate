@@ -18,6 +18,7 @@ class DatabaseBackedToolRegistryTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final AgentToolMapper toolMapper = mock(AgentToolMapper.class);
     private final AgentTenantPolicyMapper tenantPolicyMapper = mock(AgentTenantPolicyMapper.class);
+    private final PageActionPolicyResolver pageActionPolicyResolver = mock(PageActionPolicyResolver.class);
     private AgentRuntimeProperties properties;
     private ToolDefinition definition;
     private DatabaseBackedToolRegistry registry;
@@ -37,12 +38,15 @@ class DatabaseBackedToolRegistryTest {
                 ConfirmationPolicy.NONE, 50, 262144, 15000, "HASHED_ARGS"
         );
         registry = new DatabaseBackedToolRegistry(
-                properties, toolMapper, tenantPolicyMapper, new ToolCatalog(List.of(definition)), objectMapper
+                properties, toolMapper, tenantPolicyMapper, new ToolCatalog(List.of(definition)),
+                pageActionPolicyResolver, objectMapper
         );
         AgentTenantPolicy policy = new AgentTenantPolicy();
         policy.setTenantId(1L);
         policy.setEnabled(true);
         when(tenantPolicyMapper.selectById(1L)).thenReturn(policy);
+        when(pageActionPolicyResolver.enabledToolCodes(1L, "todo-list")).thenReturn(Set.of("todo.query"));
+        when(pageActionPolicyResolver.enabledToolCodes(1L, "knowledge-base")).thenReturn(Set.of());
     }
 
     @Test
@@ -50,13 +54,24 @@ class DatabaseBackedToolRegistryTest {
         when(toolMapper.selectPlatformTool("todo.query")).thenReturn(row("L0", true));
         ResolvedUserAccess access = new ResolvedUserAccess(
                 7L, "employee", 1L, "EMPLOYEE", List.of("EMPLOYEE"),
-                List.of("todo:read"), List.of("SELF"), 2L
+                List.of("todo:read", "agent:tool:todo.query"), List.of("SELF"), 2L
         );
 
         assertThat(registry.resolveAllowedTools(access, "todo-list"))
                 .extracting(ToolDefinition::code)
                 .containsExactly("todo.query");
         assertThat(registry.resolveAllowedTools(access, "knowledge-base")).isEmpty();
+    }
+
+    @Test
+    void pagePolicyCanOnlyRemoveCodeRegisteredTool() {
+        when(toolMapper.selectPlatformTool("todo.query")).thenReturn(row("L0", true));
+        when(pageActionPolicyResolver.enabledToolCodes(1L, "todo-list")).thenReturn(Set.of());
+        ResolvedUserAccess access = new ResolvedUserAccess(
+                7L, "employee", 1L, "EMPLOYEE", List.of("EMPLOYEE"),
+                List.of("todo:read", "agent:tool:todo.query"), List.of("SELF"), 2L);
+
+        assertThat(registry.resolveAllowedTools(access, "todo-list")).isEmpty();
     }
 
     @Test
@@ -128,7 +143,8 @@ class DatabaseBackedToolRegistryTest {
                 OwnershipPolicy.SELF, RetryPolicy.BUSINESS_IDEMPOTENT, SideEffect.SINGLE_WRITE,
                 ConfirmationPolicy.EXPLICIT, 1, 16384, 15000, "FULL_WRITE_AUDIT");
         registry = new DatabaseBackedToolRegistry(
-                properties, toolMapper, tenantPolicyMapper, new ToolCatalog(List.of(definition)), objectMapper);
+                properties, toolMapper, tenantPolicyMapper, new ToolCatalog(List.of(definition)),
+                pageActionPolicyResolver, objectMapper);
         AgentTenantPolicy policy = new AgentTenantPolicy();
         policy.setTenantId(1L);
         policy.setEnabled(true);

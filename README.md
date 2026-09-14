@@ -58,7 +58,7 @@ AI WorkMate 是一个面向企业协同场景的 AI 助手与 OA 工作台平台
 - SQL、代码执行、文件系统、任意 URL、权限修改、删除、批量操作、敏感导出、外部消息和后台自治属于永久禁止能力。
 - Agent 与写工具默认关闭；数据库策略只能进一步收紧能力，不能绕过代码安全上限。
 
-安全设计详见 [Phase 2 Agent 安全边界](docs/roadmap/phase-2-agent-security-boundary.md)、[Tool Gateway 架构](docs/architecture/agent-tool-gateway.md) 和 [Agent 任务引擎](docs/architecture/agent-task-engine.md)。
+全界面交付状态见 [R3–R4 全界面真实业务闭环验收记录](docs/roadmap/r3-r4-business-closure-acceptance.md)。安全设计详见 [Phase 2 Agent 安全边界](docs/roadmap/phase-2-agent-security-boundary.md)、[Tool Gateway 架构](docs/architecture/agent-tool-gateway.md) 和 [Agent 任务引擎](docs/architecture/agent-task-engine.md)。
 
 ## 技术栈
 

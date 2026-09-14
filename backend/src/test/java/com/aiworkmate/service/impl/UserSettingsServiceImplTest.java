@@ -101,6 +101,27 @@ class UserSettingsServiceImplTest {
         verify(userSettingMapper, times(4)).insert(any(UserSetting.class));
     }
 
+    @Test
+    void dashboardMetricsReadOrderedDistinctCodes() {
+        when(userSettingMapper.selectOne(any())).thenReturn(
+                setting("dashboard.metricCodes", "UNREAD_MESSAGES,PENDING_TODOS,UNREAD_MESSAGES"));
+
+        assertThat(settingsService.getDashboardMetricCodes(1001L))
+                .containsExactly("UNREAD_MESSAGES", "PENDING_TODOS");
+    }
+
+    @Test
+    void dashboardMetricsPersistOrderedCodesInExistingUserSetting() {
+        UserSetting existing = setting("dashboard.metricCodes", "PENDING_TODOS");
+        when(userSettingMapper.selectOne(any())).thenReturn(existing);
+
+        settingsService.setDashboardMetricCodes(1001L,
+                java.util.List.of("MY_APPLICATIONS", "PENDING_TODOS"));
+
+        assertThat(existing.getSettingValue()).isEqualTo("MY_APPLICATIONS,PENDING_TODOS");
+        verify(userSettingMapper).updateById(existing);
+    }
+
     private UserSetting setting(String value) {
         return setting("ocr.forcePdfOcr", value);
     }

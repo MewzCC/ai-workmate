@@ -87,6 +87,8 @@ export default {
   errors: {
     navLoadFailed: '导航菜单加载失败',
     wallpaperLoadFailed: '壁纸加载失败',
+    unsupportedComponent: '页面组件不可用',
+    unsupportedComponentDescription: '组件 {{componentKey}} 未在当前工作台注册，请联系管理员检查路由配置。',
   },
 
   sidebar: {
@@ -231,18 +233,16 @@ export default {
     securityBoundary: '执行边界',
     gatewayEnforced: '仅允许通过 Tool Gateway 执行已注册工具',
     noActions: '暂无可执行动作',
-    capabilities: {
-      todo: '查询本人待办',
-      leave: '查询本人申请',
-      knowledge: '检索获准知识',
-      notification: '查询本人消息',
-    },
+    capabilityLoadFailed: '页面能力加载失败',
     quickCommands: '快捷指令',
-    commands: {
-      todo: '查询我的待办',
-      leave: '查看我的请假申请',
-      knowledge: '检索知识库中的报销规范',
-      notification: '查看我的未读消息',
+    toolCommands: {
+      todo_query: '查询我的待办',
+      leave_mine: '查看我的请假申请',
+      knowledge_search: '检索知识库中的报销规范',
+      notification_mine: '查看我的未读消息',
+      leave_createDraft: '帮我创建一份请假草稿',
+      leave_submit: '提交我选择的请假草稿',
+      leave_apply: '帮我申请请假',
     },
     callFailed: 'AI 能力调用失败',
     messageArea: '消息区',

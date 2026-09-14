@@ -100,9 +100,10 @@ public class ApprovalApplicationController {
     public Result<PageResponse<ApprovalApplicationResponse>> mine(
             @AuthenticationPrincipal AuthenticatedUser user,
             @RequestParam(required = false) String status,
+            @RequestParam(required = false) String formKey,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size) {
-        return Result.ok(service.mine(user.userId(), status, page, size));
+        return Result.ok(service.mine(user.userId(), status, formKey, page, size));
     }
 
     @GetMapping("/{id}")

@@ -194,7 +194,9 @@ export default function ResponsiveTable<T extends AnyRecord>(props: ResponsiveTa
           pageSize={pagerPageSize}
           total={pagerTotal}
           showTotal={paginationConfig.showTotal}
-          onChange={paginationConfig.onChange}
+          onChange={(nextPage, nextPageSize) => {
+            paginationConfig.onChange?.(nextPage, nextPageSize);
+          }}
           onShowSizeChange={paginationConfig.onShowSizeChange}
         />
       )}

@@ -24,6 +24,23 @@ export type AiTaskType = 'read' | 'create' | 'update' | 'delete' | 'approve' | '
 
 export type RiskLevel = 'low' | 'medium' | 'high' | 'critical';
 
+export const COMPONENT_KEYS = [
+  'DASHBOARD', 'AI_WORKSPACE', 'AI_TASK_CENTER', 'ACCESS_CONTROL', 'WORKBENCH_MODULE',
+  'DICTIONARY', 'TENANT_CONFIG', 'DATA_PERMISSION', 'AI_PERMISSION', 'SUPPLIER',
+  'CONTRACT', 'EXPENSE', 'BUDGET', 'API_CENTER', 'PAGE_ACTIONS', 'RUNTIME_LOGS',
+  'SANDBOX_REPLAY', 'TODO_LIST', 'LEAVE_FORM', 'MY_APPLICATIONS', 'AUDIT_CENTER',
+  'APPROVAL_LIST', 'APPROVAL_START', 'APPROVAL_FORM', 'FORM_ENGINE', 'PROCESS_CONFIG',
+  'APPROVAL_RULES', 'ORG_TREE', 'KNOWLEDGE_BASE', 'MESSAGE_CENTER', 'SYSTEM_CONFIG',
+  'ATTENDANCE_CLOCK', 'ATTENDANCE_EXCEPTION', 'ATTENDANCE_REISSUE',
+  'ATTENDANCE_STATISTICS', 'ATTENDANCE_SETTINGS', 'EMPLOYEE_FILES', 'EMPLOYEE_CHANGE',
+  'ASSET_LEDGER', 'MEETING_ROOM', 'VISITOR_BOOKING', 'SEAL_USAGE',
+] as const;
+
+export type ComponentKey = typeof COMPONENT_KEYS[number];
+
+export const ENABLED_PAGE_COMPONENT_KEYS: readonly ComponentKey[] = COMPONENT_KEYS
+  .filter((key) => key !== 'WORKBENCH_MODULE');
+
 export interface OaMenuItem {
   id: string;
   parentId?: string;
@@ -31,15 +48,7 @@ export interface OaMenuItem {
   type: 'group' | 'menu' | 'page';
   icon?: string;
   path?: string;
-  componentKey?: 'DASHBOARD' | 'AI_WORKSPACE' | 'ACCESS_CONTROL' | 'WORKBENCH_MODULE'
-    | 'AI_TASK_CENTER'
-    | 'TODO_LIST' | 'LEAVE_FORM' | 'MY_APPLICATIONS' | 'AUDIT_CENTER'
-    | 'APPROVAL_LIST' | 'APPROVAL_START' | 'APPROVAL_FORM' | 'FORM_ENGINE' | 'PROCESS_CONFIG' | 'APPROVAL_RULES'
-    | 'ORG_TREE' | 'KNOWLEDGE_BASE' | 'MESSAGE_CENTER' | 'SYSTEM_CONFIG'
-    | 'ATTENDANCE_CLOCK' | 'ATTENDANCE_EXCEPTION' | 'ATTENDANCE_REISSUE'
-    | 'ATTENDANCE_STATISTICS' | 'ATTENDANCE_SETTINGS'
-    | 'EMPLOYEE_FILES' | 'EMPLOYEE_CHANGE'
-    | 'ASSET_LEDGER' | 'MEETING_ROOM' | 'VISITOR_BOOKING' | 'SEAL_USAGE';
+  componentKey?: ComponentKey;
   permissionCode?: string;
   sort: number;
   visible: boolean;
@@ -122,6 +131,35 @@ export interface AiTaskEvent {
   id: string;
   type: string;
   data: Record<string, unknown>;
+}
+
+export type PageUiCommandCode =
+  | 'ui.navigate'
+  | 'ui.applyFilter'
+  | 'ui.openDetail'
+  | 'ui.openCreateForm'
+  | 'ui.fillForm'
+  | 'ui.previewSubmission'
+  | 'ui.refreshPage';
+
+export interface PageCapabilityTool {
+  code: string;
+  name: string;
+  description: string;
+  riskLevel: AgentRiskLevel;
+  sideEffect: 'NONE' | 'SINGLE_WRITE';
+  confirmationPolicy: 'NONE' | 'EXPLICIT' | 'SECONDARY';
+  ownershipPolicy: 'SELF' | 'ASSIGNED_TO_SELF' | 'TENANT_SCOPED' | 'FIXED_RESOURCE';
+}
+
+export interface PageCapability {
+  pageId: string;
+  componentKey: ComponentKey;
+  version: number;
+  uiCommands: PageUiCommandCode[];
+  dataScopePolicy: PageCapabilityTool['ownershipPolicy'];
+  effectiveDataScopes: string[];
+  tools: PageCapabilityTool[];
 }
 
 export interface AgentTaskSummary {

@@ -27,6 +27,7 @@ public class UserSettingsServiceImpl implements UserSettingsService {
     static final String KEY_CHAT_MODEL = "chat.model";
     static final String KEY_CHAT_CONTEXT_ROUNDS = "chat.maxContextRounds";
     static final String KEY_CHAT_STREAM = "chat.stream";
+    static final String KEY_DASHBOARD_METRIC_CODES = "dashboard.metricCodes";
     private static final int DEFAULT_CONTEXT_ROUNDS = 10;
 
     private final UserSettingMapper userSettingMapper;
@@ -75,6 +76,27 @@ public class UserSettingsServiceImpl implements UserSettingsService {
                 userId, model, request.maxContextRounds(), request.stream(), request.forcePdfOcr());
         return new ChatPreferencesResponse(model, request.maxContextRounds(), request.stream(),
                 request.forcePdfOcr(), true);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<String> getDashboardMetricCodes(Long userId) {
+        UserSetting setting = findSetting(userId, KEY_DASHBOARD_METRIC_CODES);
+        if (setting == null || setting.getSettingValue() == null || setting.getSettingValue().isBlank()) {
+            return List.of();
+        }
+        return List.of(setting.getSettingValue().split(",")).stream()
+                .map(String::trim)
+                .filter(value -> !value.isEmpty())
+                .distinct()
+                .toList();
+    }
+
+    @Override
+    @Transactional
+    public void setDashboardMetricCodes(Long userId, List<String> metricCodes) {
+        upsert(userId, KEY_DASHBOARD_METRIC_CODES, String.join(",", metricCodes));
+        log.info("User dashboard metric preference updated, userId={}, metricCount={}", userId, metricCodes.size());
     }
 
     private Map<String, UserSetting> settings(Long userId) {

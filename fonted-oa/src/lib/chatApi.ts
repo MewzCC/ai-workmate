@@ -1,6 +1,7 @@
 import type { ChatAttachment, ChatConversation, ChatMessage, ChatStreamEvent } from '@/types/chat';
 import { buildApiHeaders } from '@/lib/apiHeaders';
 import i18n from '@/i18n';
+import { notifyAuthResponseStatus } from '@/lib/authEvents';
 
 const BASE = '/api';
 
@@ -26,9 +27,7 @@ function headers(json = true): HeadersInit {
 async function parse<T>(response: Response): Promise<T> {
   const body = await response.json().catch(() => null) as ApiResult<T> | null;
   if (!response.ok || !body || body.code !== 200) {
-    if (response.status === 401 && typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('oa-auth-expired'));
-    }
+    notifyAuthResponseStatus(response.status);
     throw new ChatApiError(body?.message || i18n.t('errors.requestFailed'), response.status, body?.errorCode, body?.traceId);
   }
   return body.data as T;
@@ -88,9 +87,7 @@ export async function uploadAttachment(
       } catch {
         body = null;
       }
-      if (xhr.status === 401 && typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('oa-auth-expired'));
-      }
+      notifyAuthResponseStatus(xhr.status);
       if (xhr.status >= 200 && xhr.status < 300 && body && body.code === 200) {
         resolve(body.data as ChatAttachment);
       } else {
@@ -105,15 +102,14 @@ export async function uploadAttachment(
 
 export async function loadAttachmentContent(id: number, signal?: AbortSignal): Promise<string> {
   const response = await fetch(`${BASE}/attachments/${id}/content`, { headers: headers(false), signal });
+  notifyAuthResponseStatus(response.status);
   if (!response.ok) throw new ChatApiError(i18n.t('errors.chat.attachmentLoadFailed'), response.status);
   return URL.createObjectURL(await response.blob());
 }
 
 export async function loadAttachmentText(id: number, signal?: AbortSignal): Promise<string> {
   const response = await fetch(`${BASE}/attachments/${id}/content`, { headers: headers(false), signal });
-  if (response.status === 401 && typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent('oa-auth-expired'));
-  }
+  notifyAuthResponseStatus(response.status);
   if (!response.ok) throw new ChatApiError(i18n.t('errors.chat.markdownLoadFailed'), response.status);
   return response.text();
 }

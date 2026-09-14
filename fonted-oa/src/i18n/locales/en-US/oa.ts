@@ -87,6 +87,8 @@ export default {
   errors: {
     navLoadFailed: 'Failed to load navigation menu',
     wallpaperLoadFailed: 'Failed to load wallpaper',
+    unsupportedComponent: 'Page component unavailable',
+    unsupportedComponentDescription: 'Component {{componentKey}} is not registered in this workbench. Ask an administrator to check the route configuration.',
   },
 
   sidebar: {
@@ -231,18 +233,16 @@ export default {
     securityBoundary: 'Execution boundary',
     gatewayEnforced: 'Only registered tools may run through the Tool Gateway',
     noActions: 'No actions available',
-    capabilities: {
-      todo: 'Query my tasks',
-      leave: 'Query my applications',
-      knowledge: 'Search authorized knowledge',
-      notification: 'Query my notifications',
-    },
+    capabilityLoadFailed: 'Failed to load page capabilities',
     quickCommands: 'Quick commands',
-    commands: {
-      todo: 'Query my tasks',
-      leave: 'Show my leave applications',
-      knowledge: 'Search the knowledge base for reimbursement rules',
-      notification: 'Show my unread notifications',
+    toolCommands: {
+      todo_query: 'Query my tasks',
+      leave_mine: 'Show my leave applications',
+      knowledge_search: 'Search the knowledge base for reimbursement rules',
+      notification_mine: 'Show my unread notifications',
+      leave_createDraft: 'Create a leave draft for me',
+      leave_submit: 'Submit my selected leave draft',
+      leave_apply: 'Apply for leave for me',
     },
     callFailed: 'AI capability call failed',
     messageArea: 'Messages',

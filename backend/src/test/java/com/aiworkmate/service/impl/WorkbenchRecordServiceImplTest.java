@@ -45,6 +45,15 @@ class WorkbenchRecordServiceImplTest {
     }
 
     @Test
+    void shouldRejectLegacyTenantConfigRecordEndpoint() {
+        assertThatThrownBy(() -> service.create(1001L, "tenant-config", request(null)))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo("RESOURCE_NOT_FOUND");
+        verifyNoInteractions(mapper, userAccessService);
+    }
+
+    @Test
     void shouldRequireRoutePermissionForRead() {
         when(userAccessService.resolveActiveUser(1001L)).thenReturn(access(List.of()));
 

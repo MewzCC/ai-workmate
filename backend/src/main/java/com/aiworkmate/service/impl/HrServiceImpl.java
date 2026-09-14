@@ -18,6 +18,10 @@ import com.aiworkmate.mapper.AttendanceReissueMapper;
 import com.aiworkmate.mapper.LeaveApplicationMapper;
 import com.aiworkmate.mapper.EmployeeChangeMapper;
 import com.aiworkmate.service.HrService;
+import com.aiworkmate.service.DataPermissionService;
+import com.aiworkmate.service.UserAccessService;
+import com.aiworkmate.service.model.ResolvedUserAccess;
+import com.aiworkmate.security.AuthenticatedUser;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -41,14 +45,35 @@ public class HrServiceImpl implements HrService {
     private final AttendanceReissueMapper attendanceReissueMapper;
     private final LeaveApplicationMapper leaveApplicationMapper;
     private final EmployeeChangeMapper employeeChangeMapper;
+    private final DataPermissionService dataPermissionService;
+    private final UserAccessService userAccessService;
 
     @Override
     public OrganizationOverviewResponse overview(Long tenantId) {
+        return overviewInternal(tenantId, null);
+    }
+
+    @Override
+    public OrganizationOverviewResponse overview(AuthenticatedUser actor) {
+        return overviewInternal(actor.tenantId(), dataPermissionService.resolve(actor.tenantId(), actor.userId()).visibleUserIds());
+    }
+
+    @Override
+    public OrganizationOverviewResponse overviewForActor(Long actorUserId) {
+        ResolvedUserAccess actor = userAccessService.resolveActiveUser(actorUserId);
+        if (actor == null) throw new BusinessException(ErrorCode.AUTH_REQUIRED);
+        if (!actor.permissions().contains("hr:read")) throw new BusinessException(ErrorCode.PERMISSION_DENIED);
+        return overviewInternal(actor.tenantId(),
+                dataPermissionService.resolve(actor.tenantId(), actor.userId()).visibleUserIds());
+    }
+
+    private OrganizationOverviewResponse overviewInternal(Long tenantId, java.util.Set<Long> visibleUserIds) {
         List<DepartmentResponse> departments = accessControlMapper.selectDepartments(tenantId);
         List<PositionResponse> positions = accessControlMapper.selectPositions(tenantId);
-        List<AccessUserRow> users = accessControlMapper.selectUsers(tenantId);
+        List<AccessUserRow> allUsers = accessControlMapper.selectUsers(tenantId);
+        List<AccessUserRow> users = visibleUserIds == null ? allUsers : allUsers.stream().filter(user -> visibleUserIds.contains(user.id())).toList();
 
-        Map<Long, AccessUserRow> userMap = users.stream()
+        Map<Long, AccessUserRow> userMap = allUsers.stream()
                 .collect(Collectors.toMap(AccessUserRow::id, user -> user, (a, b) -> a));
 
         List<OrganizationOverviewResponse.EmployeeSummary> employees = users.stream()
@@ -116,6 +141,25 @@ public class HrServiceImpl implements HrService {
                 buildAttendance(tenantId, employeeId),
                 buildActivities(tenantId, employeeId)
         );
+    }
+
+    @Override
+    public EmployeeDetailResponse employeeDetail(AuthenticatedUser actor, Long employeeId) {
+        if (!dataPermissionService.resolve(actor.tenantId(), actor.userId()).visibleUserIds().contains(employeeId)) {
+            throw new BusinessException(ErrorCode.RESOURCE_FORBIDDEN);
+        }
+        return employeeDetail(actor.tenantId(), employeeId);
+    }
+
+    @Override
+    public EmployeeDetailResponse employeeDetailForActor(Long actorUserId, Long employeeId) {
+        ResolvedUserAccess actor = userAccessService.resolveActiveUser(actorUserId);
+        if (actor == null) throw new BusinessException(ErrorCode.AUTH_REQUIRED);
+        if (!actor.permissions().contains("hr:read")) throw new BusinessException(ErrorCode.PERMISSION_DENIED);
+        if (!dataPermissionService.resolve(actor.tenantId(), actor.userId()).visibleUserIds().contains(employeeId)) {
+            throw new BusinessException(ErrorCode.RESOURCE_FORBIDDEN);
+        }
+        return employeeDetail(actor.tenantId(), employeeId);
     }
 
     private List<EmployeeDetailResponse.EmploymentHistoryRecord> buildEmploymentHistory(

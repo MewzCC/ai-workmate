@@ -19,13 +19,15 @@ public interface ApprovalApplicationMapper extends BaseMapper<ApprovalApplicatio
             @Param("tenantId") Long tenantId,
             @Param("userId") Long userId,
             @Param("status") String status,
+            @Param("formKey") String formKey,
             @Param("size") int size,
             @Param("offset") int offset);
 
     long countMine(
             @Param("tenantId") Long tenantId,
             @Param("userId") Long userId,
-            @Param("status") String status);
+            @Param("status") String status,
+            @Param("formKey") String formKey);
 
     /** 按角色解析审批人：同租户在职用户中取最小 id，排除申请人。 */
     Long resolveRoleApprover(

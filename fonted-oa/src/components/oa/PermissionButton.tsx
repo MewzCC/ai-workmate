@@ -4,27 +4,24 @@ import { Button } from 'antd';
 import { message } from '@/lib/antdMessage';
 import { useTranslation } from 'react-i18next';
 import type { ButtonProps } from 'antd';
-import type { OaRole, PermissionAction } from '@/types/oa';
-import { can } from '@/mock/oaPermissions';
+import { usePermission, type PermissionMatchMode } from '@/hooks/usePermission';
 
 interface PermissionButtonProps extends ButtonProps {
-  role: OaRole;
-  menuId: string;
-  action: PermissionAction;
+  permission: string | readonly string[];
+  mode?: PermissionMatchMode;
   deniedText?: string;
 }
 
 export default function PermissionButton({
-  role,
-  menuId,
-  action,
+  permission,
+  mode = 'ALL',
   deniedText,
   onClick,
   children,
   ...props
 }: PermissionButtonProps) {
   const { t } = useTranslation();
-  const allowed = can(role, menuId, action);
+  const { allowed } = usePermission(permission, mode);
 
   return (
     <Button

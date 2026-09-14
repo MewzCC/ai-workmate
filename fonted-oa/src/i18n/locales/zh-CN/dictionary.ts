@@ -1,0 +1,22 @@
+const dictionary = {
+  eyebrow: '系统设置 · 基础数据',
+  title: '数据字典',
+  description: '集中维护企业统一枚举值，启用项可被业务表单安全读取。',
+  totalTypes: '字典类型', activeTypes: '启用类型', totalItems: '字典项', activeItems: '启用字典项',
+  typeList: '字典类型', itemList: '字典项', addType: '新建类型', addItem: '新建字典项',
+  editType: '编辑字典类型', editItem: '编辑字典项',
+  searchType: '搜索编码或名称', searchItem: '搜索项值或名称', allStatuses: '全部状态',
+  code: '字典编码', name: '字典名称', value: '字典项值', label: '显示名称',
+  descriptionField: '描述', sortOrder: '排序', status: '状态', usageCount: '引用数', updatedAt: '更新时间', actions: '操作',
+  active: '启用', disabled: '停用', itemsSummary: '{{active}} / {{total}} 项启用',
+  emptyTypes: '暂无字典类型', emptyItems: '请选择字典类型或新增字典项',
+  codeHint: '例如 EMPLOYEE_STATUS，创建后不可修改', valueHint: '例如 ACTIVE，创建后不可修改',
+  nameHint: '便于管理员识别的名称', labelHint: '业务表单中展示的名称', descriptionHint: '说明适用范围与维护约定',
+  saveSuccess: '数据字典已保存', deleteSuccess: '已删除', statusSuccess: '状态已更新',
+  deleteTypeTitle: '删除字典类型？', deleteTypeContent: '仅空字典类型可以删除，此操作不可撤销。',
+  deleteItemTitle: '删除字典项？', deleteItemContent: '已被业务引用的字典项不能删除，可改为停用。',
+  disableTitle: '确认停用？', disableTypeContent: '停用后，业务表单将无法读取该类型下的启用项。',
+  disableItemContent: '停用后，新业务数据将不能再选择该字典项，历史数据不受影响。',
+  referenced: '已引用', readOnlyTip: '你可以查看数据字典，但没有维护权限。',
+};
+export default dictionary;

@@ -1,489 +1,302 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import {
-  Alert,
-  Button,
-  Card,
-  Col,
-  Descriptions,
-  Dropdown,
-  Empty,
-  Input,
-  Progress,
-  Row,
-  Space,
-  Statistic,
-  Tag,
-  Timeline,
-  Typography,
-  message,
-} from 'antd';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Alert, Button, Card, Checkbox, Col, Empty, Modal, Row, Space, Spin, Statistic, Tag, Timeline, Tooltip, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import type { EChartsOption } from 'echarts';
 import { useTranslation } from 'react-i18next';
-import { approvalRecords, oaMetrics, quickEntries, timelineSeed } from '@/mock/oaDashboard';
-import { can } from '@/mock/oaPermissions';
-import type { ApprovalRecord, OaRole } from '@/types/oa';
-import EChartsCard from './EChartsCard';
-import PermissionButton from './PermissionButton';
-import ResponsiveTable from './ResponsiveTable';
+import { defaultDashboardExportRange, downloadDashboardExport, exportDashboard, getDashboardOverview, updateDashboardPreferences, type DashboardMetricCode, type DashboardOverview } from '@/lib/dashboardApi';
+import { formatOaApiError } from '@/lib/oaApi';
+import { useRouter } from '@/lib/nextCompat';
+import { message } from '@/lib/antdMessage';
+import { usePermission } from '@/hooks/usePermission';
 import { OaIcon } from '@/components/OaIcon';
+import EChartsCard from './EChartsCard';
+import ResponsiveTable from './ResponsiveTable';
 
 interface DashboardProps {
-  role: OaRole;
-  pageId: string;
-  pageTitle: string;
   primaryColor: string;
-  auditItems: Array<{ color: string; content: string }>;
   onOpenAi: (prompt?: string) => void;
-  onAddAudit: (text: string) => void;
 }
 
-const ACTION_PROCESS = 'process';
-const ACTION_VIEW = 'view';
-const ACTION_PRE_REVIEW = 'preReview';
-const ACTION_APPROVE = 'approve';
-const ACTION_RETURN = 'return';
-const ACTION_REMIND = 'remind';
-const APPROVAL_ACTIONS = [ACTION_PROCESS, ACTION_PRE_REVIEW, ACTION_APPROVE, ACTION_RETURN, ACTION_REMIND];
-const AI_ACTIONS = [ACTION_PROCESS, ACTION_PRE_REVIEW, ACTION_APPROVE];
-
-const tagColor: Record<ApprovalRecord['status'], string> = {
-  warning: 'warning',
-  processing: 'processing',
-  success: 'success',
-  error: 'error',
-  default: 'default',
+const METRIC_COLORS: Record<DashboardMetricCode, string> = {
+  PENDING_TODOS: '#1677ff',
+  OVERDUE_TODOS: '#f97316',
+  MY_APPLICATIONS: '#7c3aed',
+  UNREAD_MESSAGES: '#0891b2',
 };
 
-interface ChartLabels {
-  weekdays: string[];
-  totalModules: string;
-  moduleNames: {
-    flowApproval: string;
-    financeContract: string;
-    orgHr: string;
-    adminAsset: string;
-    platformIntegration: string;
+export default function Dashboard({ primaryColor, onOpenAi }: DashboardProps) {
+  const router = useRouter();
+  const { t, i18n } = useTranslation();
+  const [overview, setOverview] = useState<DashboardOverview | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
+  const [metricModalOpen, setMetricModalOpen] = useState(false);
+  const [metricDraft, setMetricDraft] = useState<DashboardMetricCode[]>([]);
+  const [savingMetrics, setSavingMetrics] = useState(false);
+  const [error, setError] = useState<string>();
+  const { allowed: canExport } = usePermission('data:export');
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(undefined);
+    try {
+      setOverview(await getDashboardOverview(7));
+    } catch (cause) {
+      setError(formatOaApiError(cause));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { void load(); }, [load]);
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const response = await exportDashboard(defaultDashboardExportRange(7));
+      downloadDashboardExport(response);
+      message.success(t('dashboard.messages.exported', { count: response.rowCount }));
+    } catch (cause) {
+      message.error(formatOaApiError(cause));
+    } finally {
+      setExporting(false);
+    }
   };
-  systemRunningWell: string;
-}
 
-export default function Dashboard({ role, pageId, pageTitle, primaryColor, auditItems, onOpenAi, onAddAudit }: DashboardProps) {
-  const { t } = useTranslation();
-  const [query, setQuery] = useState('');
-
-  const statusText: Record<ApprovalRecord['status'], string> = {
-    warning: t('dashboard.status.warning'),
-    processing: t('dashboard.status.processing'),
-    success: t('dashboard.status.success'),
-    error: t('dashboard.status.error'),
-    default: t('dashboard.status.default'),
+  const openMetricModal = () => {
+    if (!overview) return;
+    setMetricDraft(overview.metrics.map((metric) => metric.code));
+    setMetricModalOpen(true);
   };
 
-  const getActionLabel = (action: string): string => {
-    const labels: Record<string, string> = {
-      [ACTION_PROCESS]: t('dashboard.actions.process'),
-      [ACTION_VIEW]: t('dashboard.actions.view'),
-      [ACTION_PRE_REVIEW]: t('dashboard.actions.preReview'),
-      [ACTION_APPROVE]: t('dashboard.actions.approve'),
-      [ACTION_RETURN]: t('dashboard.actions.return'),
-      [ACTION_REMIND]: t('dashboard.actions.remind'),
-    };
-    return labels[action] || action;
+  const toggleMetric = (code: DashboardMetricCode, checked: boolean) => {
+    setMetricDraft((current) => checked ? [...current, code] : current.filter((item) => item !== code));
   };
 
-  const filteredRecords = approvalRecords.filter((record) => {
-    if (!query.trim()) return true;
-    return [record.name, record.applicant, record.department, record.node].some((value) => value.includes(query.trim()));
-  });
+  const moveMetric = (code: DashboardMetricCode, offset: -1 | 1) => {
+    setMetricDraft((current) => {
+      const index = current.indexOf(code);
+      const target = index + offset;
+      if (index < 0 || target < 0 || target >= current.length) return current;
+      const next = [...current];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
+  };
 
-  const chartOptions = useMemo(
-    () => createChartOptions(primaryColor, {
-      weekdays: t('dashboard.chart.weekdays', { returnObjects: true }) as string[],
-      totalModules: t('dashboard.chart.totalModules'),
-      moduleNames: {
-        flowApproval: t('dashboard.chart.moduleNames.flowApproval'),
-        financeContract: t('dashboard.chart.moduleNames.financeContract'),
-        orgHr: t('dashboard.chart.moduleNames.orgHr'),
-        adminAsset: t('dashboard.chart.moduleNames.adminAsset'),
-        platformIntegration: t('dashboard.chart.moduleNames.platformIntegration'),
-      },
-      systemRunningWell: t('dashboard.chart.systemRunningWell'),
-    }),
-    [primaryColor, t],
-  );
-
-  const handleAction = (action: string, record: ApprovalRecord) => {
-    const approveAction = APPROVAL_ACTIONS.includes(action);
-    if (role === 'employee' && approveAction) {
-      message.warning(t('dashboard.messages.noApprovalPermission'));
+  const saveMetricPreference = async () => {
+    if (metricDraft.length === 0) {
+      message.warning(t('dashboard.metricConfig.selectAtLeastOne'));
       return;
     }
-
-    if (AI_ACTIONS.includes(action)) {
-      onOpenAi(t('dashboard.aiPrompts.checkRisk', {
-        action: getActionLabel(action),
-        name: record.name,
-        node: record.node,
-      }));
-      return;
+    setSavingMetrics(true);
+    try {
+      await updateDashboardPreferences(metricDraft);
+      setMetricModalOpen(false);
+      message.success(t('dashboard.messages.metricsSaved'));
+      await load();
+    } catch (cause) {
+      message.error(formatOaApiError(cause));
+    } finally {
+      setSavingMetrics(false);
     }
-
-    const actionLabel = getActionLabel(action);
-    message.success(t('dashboard.messages.actionDone', { action: actionLabel, name: record.name }));
-    onAddAudit(t('dashboard.auditEntry', { action: actionLabel, id: record.id }));
   };
 
-  const columns: ColumnsType<ApprovalRecord> = [
-    { title: t('dashboard.columns.processName'), dataIndex: 'name', key: 'name', ellipsis: true, minWidth: 160 },
-    { title: t('dashboard.columns.applicant'), dataIndex: 'applicant', key: 'applicant', width: 100 },
-    { title: t('dashboard.columns.department'), dataIndex: 'department', key: 'department', width: 120, responsive: ['md'] },
-    { title: t('dashboard.columns.currentNode'), dataIndex: 'node', key: 'node', width: 120, responsive: ['lg'] },
+  const dateLocale = i18n.resolvedLanguage === 'en-US' ? 'en-US' : 'zh-CN';
+  const formatDateTime = (value?: string | null) => value
+    ? new Intl.DateTimeFormat(dateLocale, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
+    : '-';
+
+  const columns: ColumnsType<DashboardOverview['todos'][number]> = [
+    { title: t('dashboard.columns.processName'), dataIndex: 'title', key: 'title', ellipsis: true, minWidth: 180 },
+    { title: t('dashboard.columns.applicant'), dataIndex: 'applicantName', key: 'applicantName', width: 120 },
     {
-      title: t('common.status'),
-      dataIndex: 'status',
-      key: 'status',
-      width: 110,
-      render: (status: ApprovalRecord['status']) => <Tag color={tagColor[status]}>{statusText[status]}</Tag>,
+      title: t('dashboard.columns.businessType'), dataIndex: 'businessType', key: 'businessType', width: 150,
+      render: (value: string) => t(`dashboard.businessTypes.${value}`, { defaultValue: value }),
+    },
+    {
+      title: t('dashboard.columns.submittedAt'), dataIndex: 'submittedAt', key: 'submittedAt', width: 180,
+      render: (value: string) => formatDateTime(value),
+    },
+    {
+      title: t('dashboard.columns.dueAt'), dataIndex: 'dueAt', key: 'dueAt', width: 180,
+      render: (value: string | null, record) => record.overdue
+        ? <Tag color="error">{t('dashboard.status.overdue')}</Tag>
+        : formatDateTime(value),
     },
     {
       title: t('common.actions'),
       key: 'actions',
-      width: 160,
+      width: 236,
       fixed: 'right',
       render: (_, record) => (
         <Space size={4}>
-          <Button size="small" type="primary" onClick={() => handleAction(ACTION_PROCESS, record)}>{t('dashboard.actions.process')}</Button>
-          <Button size="small" onClick={() => handleAction(ACTION_VIEW, record)}>{t('dashboard.actions.view')}</Button>
-          <Dropdown
-            menu={{
-              items: [
-                { key: ACTION_PRE_REVIEW, label: t('dashboard.actions.preReview') },
-                { key: ACTION_APPROVE, label: t('dashboard.actions.approve') },
-                { key: ACTION_RETURN, label: t('dashboard.actions.return') },
-                { key: ACTION_REMIND, label: t('dashboard.actions.remind') },
-              ],
-              onClick: ({ key: action }) => handleAction(action, record),
-            }}
-            trigger={['click']}
-          >
-            <Button size="small" icon={<OaIcon name="more" />} aria-label={t('dashboard.moreActionsAria')} />
-          </Dropdown>
+          <Button aria-label={t('dashboard.actions.process')} type="primary" size="small" onClick={() => router.push(`/oa/approval-tasks/${record.taskId}?from=dashboard`)}>
+            {t('dashboard.actions.process')}
+          </Button>
+          <Button aria-label={t('dashboard.actions.view')} size="small" onClick={() => router.push(`/oa/approval-tasks/${record.taskId}?from=dashboard`)}>
+            {t('dashboard.actions.view')}
+          </Button>
+          <Button aria-label={t('dashboard.actions.preReview')} size="small" icon={<OaIcon name="ai" />} onClick={() => onOpenAi(t('dashboard.aiPrompts.preReviewTask', { taskId: record.taskId }))}>
+            {t('dashboard.actions.preReview')}
+          </Button>
         </Space>
       ),
     },
   ];
 
-  if (pageId !== 'dashboard') {
-    return (
-      <Card className="oa-card oa-placeholder-card">
-        <Empty
-          image={Empty.PRESENTED_IMAGE_SIMPLE}
-          description={t('dashboard.placeholder.description', { pageTitle })}
-        />
-        <Space>
-          <Button type="primary" icon={<OaIcon name="ai" />} onClick={() => onOpenAi(t('dashboard.aiPrompts.analyzePage', { pageTitle }))}>
-            {t('dashboard.placeholder.aiAnalyzePage')}
-          </Button>
-          <Button onClick={() => message.info(t('dashboard.messages.pageAuditRecorded'))}>{t('dashboard.placeholder.recordAccess')}</Button>
-        </Space>
-      </Card>
-    );
-  }
+  const chartOptions = useMemo(() => overview ? createChartOptions(
+    overview,
+    primaryColor,
+    t('dashboard.chart.submitted'),
+    t('dashboard.chart.completed'),
+    (type) => t(`dashboard.businessTypes.${type}`, { defaultValue: type }),
+  ) : null, [overview, primaryColor, t]);
 
   return (
     <div className="oa-dashboard">
       <section className="oa-page-title">
         <div>
-          <Typography.Text type="secondary">Enterprise OA Workspace</Typography.Text>
+          <Typography.Text type="secondary">ENTERPRISE OPERATIONS</Typography.Text>
           <Typography.Title level={2}>{t('dashboard.title')}</Typography.Title>
-          <Typography.Paragraph>
-            {t('dashboard.description')}
-          </Typography.Paragraph>
+          <Typography.Paragraph>{t('dashboard.description')}</Typography.Paragraph>
+          {overview && <Typography.Text type="secondary">{t('dashboard.generatedAt', { time: formatDateTime(overview.generatedAt) })}</Typography.Text>}
         </div>
-        <Space className="oa-page-title-actions" wrap={false}>
-          <PermissionButton role={role} menuId="dashboard" action="export" icon={<OaIcon name="export" />} onClick={() => message.warning(t('dashboard.messages.exportNotAvailable'))}>
-            {t('dashboard.exportDashboard')}
-          </PermissionButton>
-          <Button icon={<OaIcon name="audit" />} onClick={() => message.info(t('dashboard.messages.metricsConfigComingSoon'))}>
-            {t('dashboard.configMetrics')}
-          </Button>
-          <Button type="primary" icon={<OaIcon name="ai" />} onClick={() => onOpenAi(t('dashboard.aiPrompts.preReviewList'))}>
-            {t('dashboard.aiPreReview')}
-          </Button>
+        <Space className="oa-page-title-actions" wrap>
+          <Button icon={<OaIcon name="reload" />} loading={loading} onClick={() => void load()}>{t('common.refresh')}</Button>
+          {canExport && <Button loading={exporting} icon={<OaIcon name="export" />} onClick={() => void handleExport()}>{t('dashboard.exportDashboard')}</Button>}
+          <Button disabled={!overview} icon={<OaIcon name="audit" />} onClick={openMetricModal}>{t('dashboard.configMetrics')}</Button>
+          <Tooltip title={overview?.todos.length ? t('dashboard.messages.selectTodoForPreReview') : t('dashboard.messages.noTodoForPreReview')}>
+            <Button disabled type="primary" icon={<OaIcon name="ai" />}>{t('dashboard.aiPreReview')}</Button>
+          </Tooltip>
         </Space>
       </section>
 
-      <Row gutter={[16, 16]}>
-        {oaMetrics.map((metric) => (
-          <Col xs={12} sm={12} md={6} key={metric.title}>
-            <Card className="oa-card oa-stat-card">
-              <Statistic title={metric.title} value={metric.value} suffix={metric.suffix} styles={{ content: { color: primaryColor } }} />
-              <Tag color="blue">{metric.trend}</Tag>
-            </Card>
-          </Col>
-        ))}
-      </Row>
+      {error && <Alert type="error" showIcon title={t('dashboard.loadFailed')} description={error} action={<Button size="small" onClick={() => void load()}>{t('common.retry')}</Button>} />}
 
-      <Row gutter={[16, 16]}>
-        {quickEntries.map((entry) => (
-          <Col xs={24} sm={12} xl={6} key={entry.title}>
-            <Card
-              className="oa-card oa-quick-card"
-              hoverable
-              onClick={() => onOpenAi(entry.prompt)}
-              actions={[
-                <Button key="start" type="link" icon={<OaIcon name="ai" />} onClick={(event) => {
-                  event.stopPropagation();
-                  onOpenAi(entry.prompt);
-                }}>
-                  {t('dashboard.quickEntryAction')}
-                </Button>,
-              ]}
-            >
-              <Card.Meta title={entry.title} description={entry.description} />
-            </Card>
-          </Col>
-        ))}
-      </Row>
+      {loading && !overview ? (
+        <Card className="oa-card oa-placeholder-card"><Spin size="large" description={t('common.loading')} /></Card>
+      ) : overview && (
+        <>
+          <Row gutter={[16, 16]}>
+            {overview.metrics.map((metric) => (
+              <Col xs={12} sm={12} xl={6} key={metric.code}>
+                <Card className="oa-card oa-stat-card">
+                  <Statistic title={t(`dashboard.metrics.${metric.code}.title`)} value={metric.value} styles={{ content: { color: METRIC_COLORS[metric.code] } }} />
+                  <Typography.Text type="secondary">{t(`dashboard.metrics.${metric.code}.description`)}</Typography.Text>
+                </Card>
+              </Col>
+            ))}
+          </Row>
 
-      <Row gutter={[16, 16]}>
-        <Col xs={24}>
-          <Card
-            className="oa-card"
-            title={t('dashboard.cards.approvalList')}
-            extra={
-              <Input.Search
-                placeholder={t('dashboard.cards.searchPlaceholder')}
-                allowClear
-                onSearch={(value) => setQuery(value)}
-                style={{ maxWidth: 260 }}
-                prefix={<OaIcon name="search" />}
-              />
-            }
-          >
+          <Card className="oa-card" title={t('dashboard.cards.todoList')}>
             <ResponsiveTable
-              rowKey="id"
+              rowKey="taskId"
               columns={columns}
-              dataSource={filteredRecords}
-              pagination={{ pageSize: 5 }}
+              dataSource={overview.todos}
+              pagination={false}
               scroll={{ x: 'max-content' }}
+              locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('dashboard.empty.todos')} /> }}
             />
           </Card>
-        </Col>
-      </Row>
 
-      <Row gutter={[16, 16]}>
-        <Col xs={24}>
-          <Card className="oa-card" title={t('dashboard.cards.timeline')}>
-            <Timeline items={[...auditItems, ...timelineSeed]} />
-            {!can(role, 'dashboard', 'ai_execute') && (
-              <Alert type="warning" showIcon title={t('dashboard.cards.aiLimitedAlert')} />
-            )}
+          <Row gutter={[16, 16]}>
+            <Col xs={24} xl={12}>
+              {chartOptions && <EChartsCard title={t('dashboard.charts.processTrend')} option={chartOptions.line} />}
+            </Col>
+            <Col xs={24} xl={12}>
+              {overview.businessDistribution.length > 0 && chartOptions
+                ? <EChartsCard title={t('dashboard.charts.moduleDistribution')} option={chartOptions.pie} />
+                : <Card className="oa-card" title={t('dashboard.charts.moduleDistribution')}><Empty description={t('dashboard.empty.distribution')} /></Card>}
+            </Col>
+          </Row>
+
+          <Card className="oa-card" title={t('dashboard.cards.recentActivities')}>
+            {overview.recentActivities.length > 0 ? (
+              <Timeline items={overview.recentActivities.map((activity) => ({
+                color: activity.result === 'SUCCESS' ? 'green' : activity.result === 'DENIED' ? 'red' : 'blue',
+                children: <Space direction="vertical" size={0}>
+                  <Typography.Text>{activity.summary || `${activity.resourceType} · ${activity.action}`}</Typography.Text>
+                  <Typography.Text type="secondary">{formatDateTime(activity.createdAt)}</Typography.Text>
+                </Space>,
+              }))} />
+            ) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('dashboard.empty.activities')} />}
           </Card>
-        </Col>
-      </Row>
+        </>
+      )}
 
-      <Row gutter={[16, 16]}>
-        <Col xs={24} lg={8}>
-          <EChartsCard title={t('dashboard.charts.processTrend')} option={chartOptions.line} />
-        </Col>
-        <Col xs={24} lg={8}>
-          <EChartsCard title={t('dashboard.charts.moduleDistribution')} option={chartOptions.pie} />
-        </Col>
-        <Col xs={24} lg={8}>
-          <EChartsCard title={t('dashboard.charts.systemHealth')} option={chartOptions.gauge} />
-        </Col>
-      </Row>
-
-      <Card className="oa-card">
-        <Descriptions
-          title={t('dashboard.integration.title')}
-          bordered
-          column={{ xs: 1, md: 3 }}
-          items={[
-            { key: 'backend', label: t('dashboard.integration.backendInterface'), children: 'System / AI Tasks（JWT）' },
-            { key: 'charts', label: t('dashboard.integration.chartEngine'), children: 'ECharts' },
-            { key: 'permissions', label: t('dashboard.integration.permissionModel'), children: t('dashboard.integration.permissionModelValue') },
-          ]}
-        />
-        <Progress percent={86} strokeColor={primaryColor} className="oa-health-progress" />
-      </Card>
+      <Modal
+        title={t('dashboard.metricConfig.title')}
+        open={metricModalOpen}
+        okText={t('common.save')}
+        cancelText={t('common.cancel')}
+        okButtonProps={{ 'aria-label': t('common.save') }}
+        cancelButtonProps={{ 'aria-label': t('common.cancel') }}
+        confirmLoading={savingMetrics}
+        onOk={() => void saveMetricPreference()}
+        onCancel={() => setMetricModalOpen(false)}
+        destroyOnHidden
+      >
+        <Typography.Paragraph type="secondary">{t('dashboard.metricConfig.description')}</Typography.Paragraph>
+        <Space orientation="vertical" size={8} style={{ width: '100%' }}>
+          {overview?.availableMetricCodes.map((code) => {
+            const selectedIndex = metricDraft.indexOf(code);
+            const selected = selectedIndex >= 0;
+            return (
+              <Card key={code} size="small">
+                <Row align="middle" justify="space-between" gutter={12} wrap={false}>
+                  <Col flex="auto">
+                    <Checkbox checked={selected} onChange={(event) => toggleMetric(code, event.target.checked)}>
+                      {t(`dashboard.metrics.${code}.title`)}
+                    </Checkbox>
+                  </Col>
+                  <Col>
+                    <Space size={4}>
+                      <Button aria-label={t('dashboard.metricConfig.moveUp')} size="small" disabled={!selected || selectedIndex === 0} onClick={() => moveMetric(code, -1)}>
+                        {t('dashboard.metricConfig.moveUp')}
+                      </Button>
+                      <Button aria-label={t('dashboard.metricConfig.moveDown')} size="small" disabled={!selected || selectedIndex === metricDraft.length - 1} onClick={() => moveMetric(code, 1)}>
+                        {t('dashboard.metricConfig.moveDown')}
+                      </Button>
+                    </Space>
+                  </Col>
+                </Row>
+              </Card>
+            );
+          })}
+        </Space>
+      </Modal>
     </div>
   );
 }
 
-function createChartOptions(primaryColor: string, labels: ChartLabels): Record<'line' | 'pie' | 'gauge', EChartsOption> {
+function createChartOptions(
+  overview: DashboardOverview,
+  primaryColor: string,
+  submittedLabel: string,
+  completedLabel: string,
+  businessTypeLabel: (type: string) => string,
+): Record<'line' | 'pie', EChartsOption> {
   return {
     line: {
-      color: [primaryColor],
-      tooltip: {
-        trigger: 'axis',
-        backgroundColor: 'rgba(15, 23, 42, 0.92)',
-        borderColor: 'transparent',
-        textStyle: { color: '#fff', fontSize: 12 },
-      },
-      grid: { left: 36, right: 16, top: 24, bottom: 28 },
-      xAxis: {
-        type: 'category',
-        data: labels.weekdays,
-        axisLine: { lineStyle: { color: 'rgba(148, 163, 184, 0.4)' } },
-        axisLabel: { color: '#94a3b8', fontSize: 11 },
-        axisTick: { show: false },
-      },
-      yAxis: {
-        type: 'value',
-        axisLine: { show: false },
-        axisTick: { show: false },
-        axisLabel: { color: '#94a3b8', fontSize: 11 },
-        splitLine: { lineStyle: { color: 'rgba(148, 163, 184, 0.16)', type: 'dashed' } },
-      },
-      series: [{
-        type: 'line',
-        smooth: true,
-        symbol: 'circle',
-        symbolSize: 6,
-        showSymbol: false,
-        lineStyle: { width: 3 },
-        itemStyle: { borderWidth: 2, borderColor: '#fff' },
-        areaStyle: {
-          opacity: 0.18,
-          color: {
-            type: 'linear',
-            x: 0, y: 0, x2: 0, y2: 1,
-            colorStops: [
-              { offset: 0, color: primaryColor },
-              { offset: 1, color: 'rgba(255, 255, 255, 0)' },
-            ],
-          },
-        },
-        emphasis: { focus: 'series' },
-        data: [42, 56, 48, 72, 69, 88],
-      }],
+      color: [primaryColor, '#22c55e'],
+      tooltip: { trigger: 'axis', backgroundColor: 'rgba(15, 23, 42, 0.92)', borderColor: 'transparent', textStyle: { color: '#fff', fontSize: 12 } },
+      legend: { data: [submittedLabel, completedLabel], bottom: 0 },
+      grid: { left: 36, right: 18, top: 28, bottom: 48, containLabel: true },
+      xAxis: { type: 'category', data: overview.trends.map((point) => point.date.slice(5)) },
+      yAxis: { type: 'value', minInterval: 1 },
+      series: [
+        { name: submittedLabel, type: 'line', smooth: true, data: overview.trends.map((point) => point.submitted), areaStyle: { opacity: 0.08 } },
+        { name: completedLabel, type: 'line', smooth: true, data: overview.trends.map((point) => point.completed) },
+      ],
     },
     pie: {
-      color: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'],
-      tooltip: {
-        trigger: 'item',
-        backgroundColor: 'rgba(15, 23, 42, 0.92)',
-        borderColor: 'transparent',
-        textStyle: { color: '#fff', fontSize: 12 },
-        formatter: '{b}: {c} ({d}%)',
-      },
-      legend: {
-        bottom: 4,
-        left: 'center',
-        type: 'scroll',
-        itemWidth: 8,
-        itemHeight: 8,
-        itemGap: 12,
-        textStyle: { fontSize: 11, color: '#64748b' },
-      },
-      graphic: [
-        {
-          type: 'text',
-          left: 'center',
-          top: '34%',
-          style: {
-            text: '100',
-            fontSize: 22,
-            fontWeight: 'bold',
-            fill: '#0f172a',
-          },
-        },
-        {
-          type: 'text',
-          left: 'center',
-          top: '46%',
-          style: {
-            text: labels.totalModules,
-            fontSize: 11,
-            fill: '#94a3b8',
-          },
-        },
-      ],
-      series: [
-        {
-          type: 'pie',
-          radius: ['44%', '66%'],
-          center: ['50%', '42%'],
-          avoidLabelOverlap: true,
-          itemStyle: {
-            borderColor: '#fff',
-            borderWidth: 3,
-            borderRadius: 6,
-          },
-          label: { show: false },
-          labelLine: { show: false },
-          emphasis: {
-            scale: true,
-            scaleSize: 8,
-            itemStyle: { shadowBlur: 16, shadowColor: 'rgba(15, 23, 42, 0.24)' },
-          },
-          data: [
-            { name: labels.moduleNames.flowApproval, value: 36 },
-            { name: labels.moduleNames.financeContract, value: 22 },
-            { name: labels.moduleNames.orgHr, value: 18 },
-            { name: labels.moduleNames.adminAsset, value: 14 },
-            { name: labels.moduleNames.platformIntegration, value: 10 },
-          ],
-        },
-      ],
-    },
-    gauge: {
-      series: [
-        {
-          type: 'gauge',
-          radius: '88%',
-          center: ['50%', '58%'],
-          startAngle: 200,
-          endAngle: -20,
-          progress: {
-            show: true,
-            width: 16,
-            roundCap: true,
-            itemStyle: {
-              color: {
-                type: 'linear',
-                x: 0, y: 0, x2: 1, y2: 0,
-                colorStops: [
-                  { offset: 0, color: '#10b981' },
-                  { offset: 0.5, color: '#34d399' },
-                  { offset: 1, color: primaryColor },
-                ],
-              },
-            },
-          },
-          axisLine: {
-            lineStyle: {
-              width: 16,
-              color: [[1, 'rgba(148, 163, 184, 0.18)']],
-            },
-          },
-          pointer: { show: false },
-          axisTick: { show: false },
-          splitLine: { show: false },
-          axisLabel: { show: false },
-          anchor: { show: false },
-          detail: {
-            valueAnimation: true,
-            formatter: '{value}%',
-            fontSize: 26,
-            fontWeight: 'bold',
-            color: '#0f172a',
-            offsetCenter: [0, '8%'],
-          },
-          title: {
-            show: true,
-            offsetCenter: [0, '38%'],
-            color: '#94a3b8',
-            fontSize: 12,
-          },
-          data: [{ value: 92, name: labels.systemRunningWell }],
-        },
-      ],
+      color: [primaryColor, '#22c55e', '#f59e0b', '#8b5cf6', '#06b6d4'],
+      tooltip: { trigger: 'item' },
+      legend: { bottom: 0, type: 'scroll' },
+      series: [{ type: 'pie', radius: ['42%', '68%'], center: ['50%', '43%'], data: overview.businessDistribution.map((item) => ({ name: businessTypeLabel(item.businessType), value: item.value })), label: { formatter: '{b}\n{c}' } }],
     },
   };
 }

@@ -1,5 +1,6 @@
 import i18n from '@/i18n';
 import { buildApiHeaders } from '@/lib/apiHeaders';
+import { notifyAuthResponseStatus } from '@/lib/authEvents';
 
 interface ApiResult<T> {
   code: number;
@@ -126,9 +127,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     headers: buildApiHeaders(!isFormData, init?.headers),
   });
   const result = await response.json().catch(() => null) as ApiResult<T> | null;
-  if (response.status === 401 && typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent('oa-auth-expired'));
-  }
+  notifyAuthResponseStatus(response.status);
   return resolveResult(result, response.ok, init?.method === 'DELETE');
 }
 
@@ -154,9 +153,7 @@ function requestWithProgress<T>(
       } catch {
         result = null;
       }
-      if (xhr.status === 401 && typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('oa-auth-expired'));
-      }
+      notifyAuthResponseStatus(xhr.status);
       try {
         resolve(resolveResult(result, xhr.status >= 200 && xhr.status < 300, false));
       } catch (error) {

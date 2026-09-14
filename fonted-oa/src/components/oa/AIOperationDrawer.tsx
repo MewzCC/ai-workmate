@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Alert, App as AntdApp, Button, Card, Descriptions, Drawer, Empty, Input, Space, Steps, Tag, Timeline, Typography } from 'antd';
-import type { AgentTaskStatus, AiTaskEvent, AiTaskExecuteResponse, AiTaskPlanResponse, OaRole } from '@/types/oa';
-import { executeAiTask, formatOaApiError, issueAiTaskConfirmation, OaApiError, planAiTask, subscribeAiTaskEvents } from '@/lib/oaApi';
+import { Alert, App as AntdApp, Button, Card, Descriptions, Drawer, Empty, Input, Space, Spin, Steps, Tag, Timeline, Typography } from 'antd';
+import type { AgentTaskStatus, AiTaskEvent, AiTaskExecuteResponse, AiTaskPlanResponse, OaRole, PageCapability } from '@/types/oa';
+import { executeAiTask, formatOaApiError, getPageCapabilities, issueAiTaskConfirmation, OaApiError, planAiTask, subscribeAiTaskEvents } from '@/lib/oaApi';
 import { OaIcon } from '@/components/OaIcon';
 
 interface AIOperationDrawerProps {
@@ -15,7 +15,6 @@ interface AIOperationDrawerProps {
   initialPrompt?: string;
   onClose: () => void;
   onOpenChangeComplete?: (open: boolean) => void;
-  onExecuted: (text: string) => void;
 }
 
 interface ChatLine { role: 'user' | 'assistant'; content: string }
@@ -27,14 +26,6 @@ const AGENT_STATUSES = new Set<AgentTaskStatus>([
   'RECEIVED', 'PLANNING', 'PLAN_READY', 'WAITING_CONFIRMATION', 'QUEUED', 'RUNNING',
   ...TERMINAL_STATUSES,
 ]);
-
-const PAGE_CAPABILITIES: Record<string, string[]> = {
-  dashboard: ['todo', 'notification'],
-  'todo-list': ['todo'],
-  'my-applications': ['leave'],
-  'knowledge-base': ['knowledge'],
-  'message-center': ['notification'],
-};
 
 function statusColor(status: AgentTaskStatus): string {
   if (status === 'SUCCEEDED') return 'success';
@@ -51,7 +42,7 @@ function eventStatus(event: AiTaskEvent): AgentTaskStatus | null {
     : null;
 }
 
-export default function AIOperationDrawer({ open, role, pageId, pageTitle, initialPrompt, onClose, onOpenChangeComplete, onExecuted }: AIOperationDrawerProps) {
+export default function AIOperationDrawer({ open, role, pageId, pageTitle, initialPrompt, onClose, onOpenChangeComplete }: AIOperationDrawerProps) {
   const { t } = useTranslation();
   const { message, modal } = AntdApp.useApp();
   const [input, setInput] = useState('');
@@ -63,9 +54,12 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, initi
   const [loading, setLoading] = useState(false);
   const [executing, setExecuting] = useState(false);
   const [operationError, setOperationError] = useState<{ message: string; retryable: boolean } | null>(null);
+  const [capability, setCapability] = useState<PageCapability | null>(null);
+  const [capabilityLoading, setCapabilityLoading] = useState(false);
+  const [capabilityError, setCapabilityError] = useState<string | null>(null);
+  const [capabilityReload, setCapabilityReload] = useState(0);
   const confirmationTokenRef = useRef<string | null>(null);
   const unsubscribeRef = useRef<(() => void) | null>(null);
-  const capabilities = useMemo(() => PAGE_CAPABILITIES[pageId] ?? [], [pageId]);
 
   const stopEventStream = () => {
     unsubscribeRef.current?.();
@@ -80,6 +74,25 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, initi
       stopEventStream();
     }
   }, [open, initialPrompt]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    let active = true;
+    setCapability(null);
+    setCapabilityError(null);
+    setCapabilityLoading(true);
+    getPageCapabilities(pageId)
+      .then((nextCapability) => {
+        if (active) setCapability(nextCapability);
+      })
+      .catch((error) => {
+        if (active) setCapabilityError(formatOaApiError(error));
+      })
+      .finally(() => {
+        if (active) setCapabilityLoading(false);
+      });
+    return () => { active = false; };
+  }, [open, pageId, capabilityReload]);
 
   const resetExecution = () => {
     confirmationTokenRef.current = null;
@@ -128,7 +141,6 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, initi
           setExecuting(false);
           confirmationTokenRef.current = null;
           if (status === 'SUCCEEDED' || status === 'PARTIALLY_SUCCEEDED') {
-            onExecuted(t('oa.ai.executionCompleted', { taskId, status: t(`oa.ai.status.${status}`) }));
             message.success(t('oa.ai.executionCompletedMessage'));
           }
         }
@@ -210,18 +222,27 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, initi
           <Descriptions size="small" column={1} items={[
             { key: 'page', label: t('oa.ai.currentPage'), children: pageTitle },
             { key: 'role', label: t('oa.ai.currentRole'), children: role },
-            { key: 'scope', label: t('oa.ai.dataScope'), children: t('oa.ai.serverVerifiedScope') },
+            { key: 'scope', label: t('oa.ai.dataScope'), children: capability?.effectiveDataScopes.join('、') || t('oa.ai.serverVerifiedScope') },
             { key: 'boundary', label: t('oa.ai.securityBoundary'), children: t('oa.ai.gatewayEnforced') },
           ]} />
           <Space wrap className="oa-ai-tags">
-            {capabilities.length ? capabilities.map((capability) => <Tag color="blue" key={capability}>{t(`oa.ai.capabilities.${capability}`)}</Tag>) : <Tag>{t('oa.ai.noActions')}</Tag>}
+            {capabilityLoading && <Spin size="small" />}
+            {!capabilityLoading && capability?.tools.map((tool) => (
+              <Tag color={tool.sideEffect === 'SINGLE_WRITE' ? 'gold' : 'blue'} key={tool.code}>
+                {t(`aiPermission.tools.${tool.code.replaceAll('.', '_')}.name`, { defaultValue: tool.name })}
+              </Tag>
+            ))}
+            {!capabilityLoading && capability && capability.tools.length === 0 && <Tag>{t('oa.ai.noActions')}</Tag>}
           </Space>
         </Card>
 
-        {capabilities.length > 0 && <Card size="small" title={t('oa.ai.quickCommands')}>
-          <Space wrap>{capabilities.map((capability) => {
-            const command = t(`oa.ai.commands.${capability}`);
-            return <Button key={capability} icon={<OaIcon name="ai" />} disabled={loading || executing} onClick={() => submitPlan(command)}>{command}</Button>;
+        {capabilityError && <Alert type="error" showIcon title={t('oa.ai.capabilityLoadFailed')} description={capabilityError}
+          action={<Button size="small" onClick={() => setCapabilityReload((value) => value + 1)}>{t('common.retry')}</Button>} />}
+
+        {Boolean(capability?.tools.length) && <Card size="small" title={t('oa.ai.quickCommands')}>
+          <Space wrap>{capability?.tools.map((tool) => {
+            const command = t(`oa.ai.toolCommands.${tool.code.replaceAll('.', '_')}`);
+            return <Button key={tool.code} icon={<OaIcon name="ai" />} disabled={loading || executing} onClick={() => submitPlan(command)}>{command}</Button>;
           })}</Space>
         </Card>}
 

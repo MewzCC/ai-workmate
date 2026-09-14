@@ -6,8 +6,7 @@ import { usePathname, useRouter } from '@/lib/nextCompat';
 import { ConfigProvider, FloatButton, Layout, Spin, theme as antdTheme } from 'antd';
 import { message } from '@/lib/antdMessage';
 import type { OaMenuItem, OaRole, OaTheme } from '@/types/oa';
-import { findMenu } from '@/mock/oaPermissions';
-import Dashboard from './Dashboard';
+import { findMenu, firstPage, flattenPages } from '@/lib/navigationTree';
 import SidebarMenu from './SidebarMenu';
 import Topbar from './Topbar';
 import AppearanceDrawer from './AppearanceDrawer';
@@ -15,42 +14,14 @@ import AIOperationDrawer from './AIOperationDrawer';
 import AiMiniPanel from './AiMiniPanel';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { OA_MOBILE_MEDIA_QUERY } from '@/hooks/useIsMobile';
-import NotificationPage from './NotificationPage';
 import { getNavigation, type NavigationRoute } from '@/lib/navigationApi';
 import { profileApi } from '@/lib/profileApi';
 import { OaIcon } from '@/components/OaIcon';
 import PageTabBar, { type OaPageTab } from './PageTabBar';
-import TodoListPage from './TodoListPage';
-import ApprovalListPage from './ApprovalListPage';
-import LeaveFormPage from './LeaveFormPage';
-import MyApplicationsPage from './MyApplicationsPage';
 import ApprovalDetailPage from './ApprovalDetailPage';
-import ApprovalStartPage from './ApprovalStartPage';
-import ApprovalFormPage from './ApprovalFormPage';
-import EmployeeFilePage from './EmployeeFilePage';
-import EmployeeChangePage from './EmployeeChangePage';
-import AttendanceClockPage from './AttendanceClockPage';
-import AttendanceExceptionPage from './AttendanceExceptionPage';
-import AttendanceReissuePage from './AttendanceReissuePage';
-import AttendanceStatisticsPage from './AttendanceStatisticsPage';
-import AttendanceSettingsPage from './AttendanceSettingsPage';
-import AssetLedgerPage from './AssetLedgerPage';
-import MeetingRoomPage from './MeetingRoomPage';
-import VisitorBookingPage from './VisitorBookingPage';
-import SealUsagePage from './SealUsagePage';
 import { useAiChatStore } from '@/store/aiChatStore';
-
-const AiChatWorkspace = lazy(() => import('@/components/ai-chat/AiChatWorkspace'));
-const AccessControlPage = lazy(() => import('./AccessControlPage'));
-const AiTaskCenterPage = lazy(() => import('./AiTaskCenterPage'));
-const ApprovalRulesPage = lazy(() => import('./ApprovalRulesPage'));
-const AuditCenterPage = lazy(() => import('./AuditCenterPage'));
-const FormEnginePage = lazy(() => import('./FormEnginePage'));
+import { OaPageRenderer } from './OaPageRenderer';
 const KnowledgeBasePage = lazy(() => import('./KnowledgeBasePage'));
-const OrganizationTreePage = lazy(() => import('./OrganizationTreePage'));
-const ProcessConfigPage = lazy(() => import('./ProcessConfigPage'));
-const SystemSettingsPage = lazy(() => import('./SystemSettingsPage'));
-const WorkbenchModulePage = lazy(() => import('./WorkbenchModulePage'));
 
 const { Content } = Layout;
 const OPEN_TABS_STORAGE_KEY = 'workmeta-oa-open-tabs';
@@ -180,6 +151,8 @@ export default function AdminLayout() {
     return segments.length > 1 ? decodeURIComponent(segments[1]) : 'dashboard';
   }, [approvalTaskId, kbId, pathname]);
   const { user } = useAuth();
+  const userId = user?.id;
+  const permissionVersion = user?.permissionVersion;
   const hydrateChatSettings = useAiChatStore((state) => state.hydrateSettings);
   const role = useMemo<OaRole>(() => {
     if (user?.role === 'SUPER_ADMIN') return 'super_admin';
@@ -201,7 +174,6 @@ export default function AdminLayout() {
   const [wallpaper, setWallpaper] = useState<string | null>(null);
   const [wallpaperOpacity, setWallpaperOpacity] = useState(() => Number(readStorage('workmeta-oa-wallpaper-opacity', '0.28')));
   const [wallpaperBlur, setWallpaperBlur] = useState(() => Number(readStorage('workmeta-oa-wallpaper-blur', '4')));
-  const [auditItems, setAuditItems] = useState<Array<{ color: string; content: string }>>([]);
   const [openTabs, setOpenTabs] = useState<OaPageTab[]>([]);
   const [openTabsReady, setOpenTabsReady] = useState(false);
 
@@ -212,13 +184,13 @@ export default function AdminLayout() {
   );
 
   useEffect(() => {
-    if (!user) return;
+    if (!userId) return;
     void hydrateChatSettings().catch(() => undefined);
-  }, [hydrateChatSettings, user]);
+  }, [hydrateChatSettings, userId]);
 
   useEffect(() => {
     let active = true;
-    if (!user) return;
+    if (!userId) return;
     setNavigationLoaded(false);
     setOpenTabsReady(false);
     getNavigation()
@@ -236,7 +208,7 @@ export default function AdminLayout() {
     return () => {
       active = false;
     };
-  }, [user]);
+  }, [permissionVersion, t, userId]);
 
   useEffect(() => {
     let active = true;
@@ -399,10 +371,6 @@ export default function AdminLayout() {
     setAiOpen(true);
   };
 
-  const addAudit = (text: string) => {
-    setAuditItems((prev) => [{ color: currentTheme.primary, content: `${new Date().toLocaleTimeString()} ${text}` }, ...prev].slice(0, 6));
-  };
-
   const navigateToPage = (tab: OaPageTab) => {
     if (tab.id === currentPageId) return;
     message.loading({
@@ -534,6 +502,7 @@ export default function AdminLayout() {
               <div className="oa-top-stack">
                 <Topbar
                   role={role}
+                  pageId={selectedMenu.id}
                   pageTitle={t(`oa.menu.${selectedMenu.id}`, { defaultValue: selectedMenu.name })}
                   onOpenAppearance={() => setAppearanceOpen(true)}
                   onOpenAi={openAi}
@@ -560,76 +529,15 @@ export default function AdminLayout() {
                       <ApprovalDetailPage taskId={approvalTaskId} />
                     ) : kbId ? (
                       <KnowledgeBasePage kbId={kbId} />
-                    ) : selectedMenu.componentKey === 'AI_WORKSPACE' ? (
-                      <AiChatWorkspace role={role} />
-                    ) : selectedMenu.componentKey === 'AI_TASK_CENTER' ? (
-                      <AiTaskCenterPage />
-                    ) : selectedMenu.componentKey === 'MESSAGE_CENTER' ? (
-                      <NotificationPage />
-                    ) : selectedMenu.componentKey === 'ACCESS_CONTROL' ? (
-                      <AccessControlPage />
-                    ) : selectedMenu.componentKey === 'TODO_LIST' ? (
-                    <TodoListPage />
-                  ) : selectedMenu.componentKey === 'APPROVAL_LIST' ? (
-                    <ApprovalListPage />
-                  ) : selectedMenu.componentKey === 'APPROVAL_START' ? (
-                    <ApprovalStartPage />
-                  ) : selectedMenu.componentKey === 'APPROVAL_FORM' ? (
-                    <ApprovalFormPage />
-                  ) : selectedMenu.componentKey === 'FORM_ENGINE' ? (
-                    <FormEnginePage />
-                  ) : selectedMenu.componentKey === 'PROCESS_CONFIG' ? (
-                    <ProcessConfigPage />
-                  ) : selectedMenu.componentKey === 'APPROVAL_RULES' ? (
-                    <ApprovalRulesPage />
-                  ) : selectedMenu.componentKey === 'LEAVE_FORM' ? (
-                    <LeaveFormPage />
-                  ) : selectedMenu.componentKey === 'MY_APPLICATIONS' ? (
-                    <MyApplicationsPage />
-                  ) : selectedMenu.componentKey === 'AUDIT_CENTER' ? (
-                    <AuditCenterPage />
-                  ) : selectedMenu.componentKey === 'ORG_TREE' ? (
-                    <OrganizationTreePage />
-                  ) : selectedMenu.componentKey === 'EMPLOYEE_FILES' ? (
-                    <EmployeeFilePage />
-                  ) : selectedMenu.componentKey === 'EMPLOYEE_CHANGE' ? (
-                    <EmployeeChangePage />
-                  ) : selectedMenu.componentKey === 'KNOWLEDGE_BASE' ? (
-                    <KnowledgeBasePage />
-                  ) : selectedMenu.componentKey === 'SYSTEM_CONFIG' ? (
-                    <SystemSettingsPage />
-                  ) : selectedMenu.componentKey === 'WORKBENCH_MODULE' ? (
-                    <WorkbenchModulePage
-                      moduleKey={selectedMenu.id}
-                      title={t(`oa.menu.${selectedMenu.id}`, { defaultValue: selectedMenu.name })}
-                    />
-                  ) : selectedMenu.componentKey === 'ATTENDANCE_CLOCK' ? (
-                    <AttendanceClockPage />
-                  ) : selectedMenu.componentKey === 'ATTENDANCE_EXCEPTION' ? (
-                    <AttendanceExceptionPage />
-                  ) : selectedMenu.componentKey === 'ATTENDANCE_REISSUE' ? (
-                    <AttendanceReissuePage />
-                  ) : selectedMenu.componentKey === 'ATTENDANCE_STATISTICS' ? (
-                    <AttendanceStatisticsPage />
-                  ) : selectedMenu.componentKey === 'ATTENDANCE_SETTINGS' ? (
-                    <AttendanceSettingsPage />
-                  ) : selectedMenu.componentKey === 'ASSET_LEDGER' ? (
-                    <AssetLedgerPage />
-                  ) : selectedMenu.componentKey === 'MEETING_ROOM' ? (
-                    <MeetingRoomPage />
-                  ) : selectedMenu.componentKey === 'VISITOR_BOOKING' ? (
-                    <VisitorBookingPage />
-                  ) : selectedMenu.componentKey === 'SEAL_USAGE' ? (
-                    <SealUsagePage />
                   ) : (
-                    <Dashboard
+                    <OaPageRenderer
+                      menu={{
+                        ...selectedMenu,
+                        name: t(`oa.menu.${selectedMenu.id}`, { defaultValue: selectedMenu.name }),
+                      }}
                       role={role}
-                      pageId={selectedMenu.id}
-                      pageTitle={t(`oa.menu.${selectedMenu.id}`, { defaultValue: selectedMenu.name })}
                       primaryColor={currentTheme.primary}
-                      auditItems={auditItems}
                       onOpenAi={openAi}
-                      onAddAudit={addAudit}
                     />
                     )}
                   </div>
@@ -675,7 +583,6 @@ export default function AdminLayout() {
             initialPrompt={aiPrompt}
             onClose={() => setAiOpen(false)}
             onOpenChangeComplete={setAiDrawerPresent}
-            onExecuted={addAudit}
           />}
         </div>
       </>
@@ -697,22 +604,6 @@ function toMenuItem(route: NavigationRoute): OaMenuItem {
     visible: true,
     children: route.children?.length ? route.children.map(toMenuItem) : undefined,
   };
-}
-
-function firstPage(menus: OaMenuItem[]): OaMenuItem | undefined {
-  for (const menu of menus) {
-    if (menu.type === 'page') return menu;
-    const child = firstPage(menu.children || []);
-    if (child) return child;
-  }
-  return undefined;
-}
-
-function flattenPages(menus: OaMenuItem[]): OaMenuItem[] {
-  return menus.flatMap((menu) => [
-    ...(menu.type === 'page' ? [menu] : []),
-    ...flattenPages(menu.children || []),
-  ]);
 }
 
 function toPageTab(menu: OaMenuItem): OaPageTab {

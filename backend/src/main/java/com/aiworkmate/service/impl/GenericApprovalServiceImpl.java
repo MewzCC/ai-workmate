@@ -509,16 +509,17 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
 
     @Override
     @Transactional(readOnly = true)
-    public PageResponse<ApprovalApplicationResponse> mine(Long userId, String status, int page, int size) {
+    public PageResponse<ApprovalApplicationResponse> mine(Long userId, String status, String formKey, int page, int size) {
         ResolvedUserAccess actor = requirePermission(userId, "route:approval-start");
         int safePage = Math.max(1, page);
         int safeSize = Math.min(100, Math.max(1, size));
         int offset = (safePage - 1) * safeSize;
+        String normalizedFormKey = normalize(formKey);
         List<ApprovalApplicationResponse> records = applicationMapper.selectMine(
-                        actor.tenantId(), actor.userId(), normalize(status), safeSize, offset)
+                        actor.tenantId(), actor.userId(), normalize(status), normalizedFormKey, safeSize, offset)
                 .stream().map(view -> response(actor, view, null)).toList();
         long total = applicationMapper.countMine(
-                actor.tenantId(), actor.userId(), normalize(status));
+                actor.tenantId(), actor.userId(), normalize(status), normalizedFormKey);
         return PageResponse.of(records, total, safePage, safeSize);
     }
 
@@ -820,6 +821,10 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
                     throw new BusinessException(ErrorCode.REQUEST_INVALID,
                             "validation.approval.submit.valueInvalid");
                 }
+                double numericValue = Double.parseDouble(String.valueOf(value));
+                if (!Double.isFinite(numericValue) || (def.min() != null && numericValue < def.min())) {
+                    throw invalidValue();
+                }
             }
             case "date" -> {
                 String text = requireScalarText(def, value);
@@ -835,6 +840,12 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
             case "time" -> {
                 String text = requireScalarText(def, value);
                 if (!TIME_PATTERN.matcher(text).matches()) {
+                    throw invalidValue();
+                }
+            }
+            case "select" -> {
+                String text = requireScalarText(def, value);
+                if (!def.options().isEmpty() && !def.options().contains(text)) {
                     throw invalidValue();
                 }
             }
@@ -892,11 +903,19 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
                 if (name == null || name.isBlank()) {
                     continue;
                 }
+                List<String> options = new java.util.ArrayList<>();
+                if (field.path("options").isArray()) {
+                    field.path("options").forEach(option -> options.add(option.asText()));
+                }
+                Double min = field.has("min") && field.path("min").isNumber()
+                        ? field.path("min").asDouble() : null;
                 defs.put(name, new FieldDef(
                         name,
                         field.path("label").asText(name),
                         field.path("type").asText("text"),
-                        field.path("required").asBoolean(false)));
+                        field.path("required").asBoolean(false),
+                        List.copyOf(options),
+                        min));
             }
         } catch (Exception e) {
             // schema 非法按空结构处理：无字段定义时仅做未知键拦截之外的宽松校验
@@ -1077,7 +1096,8 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
         return value == null || value.isBlank() ? null : value.trim();
     }
 
-    private record FieldDef(String name, String label, String type, boolean required) {
+    private record FieldDef(String name, String label, String type, boolean required,
+                            List<String> options, Double min) {
     }
 
     private record DefinitionSnapshot(String formSchema,

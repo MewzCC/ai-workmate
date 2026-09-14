@@ -188,7 +188,8 @@ public class AgentTaskApiService {
                     && definition.riskLevel().name().equals(step.getRiskLevel())
                     && (definition.permissionMode() == PermissionMode.ALL
                     ? user.permissions().containsAll(definition.requiredPermissions())
-                    : definition.requiredPermissions().stream().anyMatch(user.permissions()::contains));
+                    : definition.requiredPermissions().stream().anyMatch(user.permissions()::contains))
+                    && user.permissions().contains(ToolRegistry.TOOL_PERMISSION_PREFIX + definition.code());
             if (!permitted) throw new BusinessException(ErrorCode.PERMISSION_DENIED);
         }
     }

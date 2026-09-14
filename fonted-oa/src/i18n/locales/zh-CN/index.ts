@@ -15,6 +15,18 @@ import attendance from './attendance';
 import adminAssets from './adminAssets';
 import employeeChange from './employeeChange';
 import workbench from './workbench';
+import dictionary from './dictionary';
+import tenantConfig from './tenantConfig';
+import dataPermission from './dataPermission';
+import aiPermission from './aiPermission';
+import supplier from './supplier';
+import contract from './contract';
+import expense from './expense';
+import budget from './budget';
+import apiCenter from './apiCenter';
+import pageActions from './pageActions';
+import runtimeLogs from './runtimeLogs';
+import sandboxReplay from './sandboxReplay';
 
 const zhCN = {
   common,
@@ -34,6 +46,18 @@ const zhCN = {
   adminAssets,
   employeeChange,
   workbench,
+  dictionary,
+  tenantConfig,
+  dataPermission,
+  aiPermission,
+  supplier,
+  contract,
+  expense,
+  budget,
+  apiCenter,
+  pageActions,
+  runtimeLogs,
+  sandboxReplay,
 };
 
 export default zhCN;

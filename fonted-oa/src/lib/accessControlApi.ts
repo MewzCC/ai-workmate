@@ -1,5 +1,7 @@
 import i18n from '@/i18n';
 import { buildApiHeaders } from '@/lib/apiHeaders';
+import type { ComponentKey } from '@/types/oa';
+import { notifyAuthResponseStatus, notifyPermissionsChanged } from '@/lib/authEvents';
 
 export interface AccessUser {
   id: number;
@@ -38,12 +40,7 @@ export interface AccessRoute {
   path?: string;
   icon?: string;
   routeType: 'GROUP' | 'MENU' | 'PAGE';
-  componentKey?: 'DASHBOARD' | 'AI_WORKSPACE' | 'ACCESS_CONTROL' | 'WORKBENCH_MODULE'
-    | 'AI_TASK_CENTER'
-    | 'TODO_LIST' | 'LEAVE_FORM' | 'MY_APPLICATIONS' | 'AUDIT_CENTER'
-    | 'ORG_TREE' | 'KNOWLEDGE_BASE' | 'MESSAGE_CENTER' | 'SYSTEM_CONFIG'
-    | 'ATTENDANCE_CLOCK' | 'ATTENDANCE_EXCEPTION' | 'ATTENDANCE_REISSUE' | 'ATTENDANCE_STATISTICS'
-    | 'EMPLOYEE_CHANGE';
+  componentKey?: ComponentKey;
   permissionCode?: string;
   sortOrder: number;
   enabled: boolean;
@@ -91,14 +88,13 @@ async function request<T>(path = '', init?: RequestInit): Promise<T> {
     headers: buildApiHeaders(Boolean(init?.body), init?.headers),
   });
   const result = await response.json().catch(() => null) as ApiResult<T> | null;
-  if (response.status === 401 && typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent('oa-auth-expired'));
-  }
+  notifyAuthResponseStatus(response.status);
   const isVoidResponse = init?.method === 'DELETE';
   if (!response.ok || !result || result.code !== 200
       || (!isVoidResponse && result.data === null)) {
     throw new Error(result?.message || i18n.t('errors.access.requestFailed'));
   }
+  if (init?.method && init.method !== 'GET') notifyPermissionsChanged();
   return (result.data ?? null) as T;
 }
 

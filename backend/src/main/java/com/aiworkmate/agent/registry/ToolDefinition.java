@@ -31,14 +31,38 @@ public record ToolDefinition(
         String auditPolicy
 ) {
     private static final Pattern CODE_PATTERN = Pattern.compile("^[a-z][A-Za-z0-9]*(\\.[a-z][A-Za-z0-9]*)+$");
-    private static final Set<String> PHASE_2_TOOL_CODES = Set.of(
-            "todo.query", "leave.mine", "knowledge.search", "notification.mine",
-            "leave.createDraft", "leave.submit", "leave.apply"
-    );
     private static final Set<String> FORBIDDEN_ARGUMENTS = Set.of(
             "userId", "tenantId", "role", "roles", "permission", "permissions", "dataScope",
             "url", "uri", "sql", "file", "filePath", "path", "script", "className", "beanName"
     );
+
+    public static ToolDefinition create(
+            ToolCode code,
+            String name,
+            String description,
+            String purpose,
+            String handlerVersion,
+            JsonNode inputSchema,
+            JsonNode outputSchema,
+            RiskLevel riskLevel,
+            Set<String> requiredPermissions,
+            PermissionMode permissionMode,
+            OwnershipPolicy ownershipPolicy,
+            RetryPolicy retryPolicy,
+            SideEffect sideEffect,
+            ConfirmationPolicy confirmationPolicy,
+            int maxResultItems,
+            int maxResultBytes,
+            int timeoutMs,
+            String auditPolicy
+    ) {
+        if (code == null) {
+            throw new IllegalArgumentException("Tool code is required");
+        }
+        return create(code.code(), name, description, purpose, handlerVersion, inputSchema, outputSchema,
+                riskLevel, requiredPermissions, permissionMode, ownershipPolicy, retryPolicy, sideEffect,
+                confirmationPolicy, maxResultItems, maxResultBytes, timeoutMs, auditPolicy);
+    }
 
     public static ToolDefinition create(
             String code,
@@ -72,7 +96,7 @@ public record ToolDefinition(
 
     public void validate() {
         require(code != null && CODE_PATTERN.matcher(code).matches(), "Invalid tool code");
-        require(PHASE_2_TOOL_CODES.contains(code), "Tool code is outside the Phase 2 capability boundary");
+        require(ToolCode.isSupported(code), "Tool code is outside the Phase 2 capability boundary");
         require(notBlank(name) && notBlank(description) && notBlank(purpose), "Tool text metadata is required");
         require(notBlank(handlerVersion), "handlerVersion is required");
         requireClosedObjectSchema(inputSchema, "inputSchema");

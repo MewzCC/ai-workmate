@@ -1,0 +1,31 @@
+export default {
+  eyebrow: 'OBSERVABILITY · TENANT SCOPE',
+  title: '运行日志',
+  subtitle: '统一追踪受控接口与 Agent 工具执行，按租户查看结果、耗时和安全决策。',
+  readOnlyBadge: '只读可观测数据',
+  retentionHint: '默认最近 7 天，单次最多 31 天',
+  boundaryTitle: '数据边界',
+  boundaryDescription: '日志只包含当前租户的脱敏运行摘要；认证信息、原始请求和内部连接地址不会返回前端。',
+  durationMs: '{{value}} ms',
+  stats: { total: '匹配记录', succeeded: '执行成功', failed: '执行失败', blocked: '网关拦截', average: '平均耗时' },
+  filters: { keyword: '搜索任务、操作人、Trace ID 或错误码', source: '全部来源', outcome: '全部结果' },
+  source: { INTEGRATION: '接口联调', AGENT: 'Agent 工具' },
+  outcome: {
+    RUNNING: '执行中', SUCCEEDED: '成功', REJECTED: '已拒绝', FAILED: '失败',
+    TIMED_OUT: '已超时', RESULT_INVALID: '结果无效',
+  },
+  columns: {
+    startedAt: '开始时间', source: '来源', operation: '运行对象', outcome: '结果',
+    duration: '耗时', operator: '操作人', trace: 'Trace ID',
+  },
+  empty: '当前筛选范围内没有运行记录',
+  detail: {
+    title: '运行日志详情', safeTitle: '脱敏详情',
+    safeDescription: '指纹仅用于关联排障；详情摘要已在服务端脱敏，不能用于重放请求。',
+    source: '日志来源', outcome: '运行结果', reference: '关联编号', operation: '运行操作',
+    operator: '操作人', duration: '执行耗时', startedAt: '开始时间', completedAt: '完成时间',
+    trace: 'Trace ID', fingerprint: '请求指纹', decision: '网关决策', decisionCode: '决策代码',
+    statusCode: '响应状态码', attempt: '执行次数', resultBytes: '结果字节数', errorCode: '错误代码',
+    preview: '脱敏结果摘要', noPreview: '此记录没有可展示的结果摘要',
+  },
+};

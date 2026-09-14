@@ -78,6 +78,9 @@
         <if test="status != null and status != ''">
             AND a.status = #{status}
         </if>
+        <if test="formKey != null and formKey != ''">
+            AND a.form_key = #{formKey}
+        </if>
         ORDER BY a.created_at DESC, a.id DESC
         LIMIT #{size} OFFSET #{offset}
     </select>
@@ -89,6 +92,9 @@
           AND applicant_user_id = #{userId}
         <if test="status != null and status != ''">
             AND status = #{status}
+        </if>
+        <if test="formKey != null and formKey != ''">
+            AND form_key = #{formKey}
         </if>
     </select>
 

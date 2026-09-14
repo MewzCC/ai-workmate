@@ -168,7 +168,7 @@ OA 菜单和页面权限必须使用服务端动态 RBAC，不得再使用本地
 - 前端通过 `GET /api/navigation` 获取当前登录用户可访问的菜单树。
 - 用户角色与权限在每次 JWT 请求时从数据库重新解析，禁止信任 token 中的历史角色。
 - `/api/admin/access-control/**` 必须要求 `access:manage` 权限。
-- 页面组件使用前端安全注册表，只允许 `DASHBOARD`、`AI_WORKSPACE`、`ACCESS_CONTROL`，不得从数据库执行任意组件名或代码。
+- 页面组件使用 `fonted-oa/src/components/oa/OaPageRenderer.tsx` 的固定安全注册表；允许集合与 `fonted-oa/src/types/oa.ts` 的 `ENABLED_PAGE_COMPONENT_KEYS` 及后端 `NavigationComponentCatalog` 保持一致，不得从数据库执行任意组件名、动态 import 路径或代码。`WORKBENCH_MODULE` 仅兼容历史禁用记录，禁止用于启用页面。
 - 无权页面不能出现在菜单中，直接输入无权 URL 时也必须重定向到首个可访问页面。
 - `AdminLayout` 必须挂载在 `/oa/layout.tsx`，路由切换只更新内容区，不得重新挂载侧栏、主题和全局抽屉。
 - 动态菜单首次进入时全部目录折叠；允许同时展开多个目录；选择页面时保留已展开目录并补充其祖先目录；刷新叶子页面时恢复其目录链。

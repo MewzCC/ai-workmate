@@ -73,7 +73,8 @@ class DefaultToolGatewayPolicyTest {
                 .thenReturn(1);
         when(toolRegistry.resolveExecutableTool(1L, "todo.query")).thenReturn(Optional.of(definition));
         when(userAccessService.resolveActiveUser(7L)).thenReturn(new ResolvedUserAccess(
-                7L, "user", 1L, "EMPLOYEE", List.of("EMPLOYEE"), List.of("todo:read"), List.of("SELF"), 1L
+                7L, "user", 1L, "EMPLOYEE", List.of("EMPLOYEE"),
+                List.of("todo:read", "agent:tool:todo.query"), List.of("SELF"), 1L
         ));
         when(auditWriter.record(any(), any(), anyString(), anyBoolean())).thenReturn("decision-1");
         when(handler.execute(any(), any())).thenReturn(objectMapper.readTree("{\"items\":[]}"));
@@ -179,6 +180,17 @@ class DefaultToolGatewayPolicyTest {
     void revokedPermissionMustDenyAndNeverReachHandler() {
         when(userAccessService.resolveActiveUser(7L)).thenReturn(new ResolvedUserAccess(
                 7L, "user", 1L, "EMPLOYEE", List.of("EMPLOYEE"), List.of(), List.of("SELF"), 2L
+        ));
+
+        assertThat(execute().decision()).isEqualTo(GatewayDecision.DENY);
+        verify(handler, never()).execute(any(), any());
+    }
+
+    @Test
+    void revokedAgentToolGrantMustDenyEvenWhenBusinessPermissionRemains() {
+        when(userAccessService.resolveActiveUser(7L)).thenReturn(new ResolvedUserAccess(
+                7L, "user", 1L, "EMPLOYEE", List.of("EMPLOYEE"),
+                List.of("todo:read"), List.of("SELF"), 2L
         ));
 
         assertThat(execute().decision()).isEqualTo(GatewayDecision.DENY);

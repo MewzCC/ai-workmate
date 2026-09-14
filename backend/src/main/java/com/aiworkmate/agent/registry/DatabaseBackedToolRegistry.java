@@ -10,7 +10,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -18,18 +17,11 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class DatabaseBackedToolRegistry implements ToolRegistry {
 
-    private static final Map<String, Set<String>> PAGE_TOOLS = Map.of(
-            "todo-list", Set.of("todo.query"),
-            "my-applications", Set.of("leave.mine", "leave.createDraft", "leave.submit", "leave.apply"),
-            "knowledge-base", Set.of("knowledge.search"),
-            "message-center", Set.of("notification.mine"),
-            "dashboard", Set.of("todo.query", "notification.mine")
-    );
-
     private final AgentRuntimeProperties properties;
     private final AgentToolMapper toolMapper;
     private final AgentTenantPolicyMapper tenantPolicyMapper;
     private final ToolCatalog catalog;
+    private final PageActionPolicyResolver pageActionPolicyResolver;
     private final ObjectMapper objectMapper;
 
     @Override
@@ -38,9 +30,7 @@ public class DatabaseBackedToolRegistry implements ToolRegistry {
         if (access == null || !properties.isEnabled() || !properties.isPlanningEnabled() || !tenantEnabled(access.tenantId())) {
             return List.of();
         }
-        Set<String> pageTools = "ai-workspace".equals(pageId)
-                ? catalog.all().stream().map(ToolDefinition::code).collect(java.util.stream.Collectors.toUnmodifiableSet())
-                : PAGE_TOOLS.getOrDefault(pageId, Set.of());
+        Set<String> pageTools = pageActionPolicyResolver.enabledToolCodes(access.tenantId(), pageId);
         return catalog.all().stream()
                 .filter(definition -> pageTools.contains(definition.code()))
                 .map(definition -> resolveExecutableTool(access.tenantId(), definition.code()).orElse(null))
@@ -89,9 +79,10 @@ public class DatabaseBackedToolRegistry implements ToolRegistry {
     }
 
     private boolean hasPermissions(List<String> permissions, ToolDefinition definition) {
-        return definition.permissionMode() == PermissionMode.ALL
+        boolean businessPermission = definition.permissionMode() == PermissionMode.ALL
                 ? permissions.containsAll(definition.requiredPermissions())
                 : definition.requiredPermissions().stream().anyMatch(permissions::contains);
+        return businessPermission && permissions.contains(permissionCode(definition.code()));
     }
 
     private ToolDefinition narrow(ToolDefinition definition, AgentTool row) {

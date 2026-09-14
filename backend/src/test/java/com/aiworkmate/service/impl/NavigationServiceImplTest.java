@@ -13,6 +13,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -33,10 +34,10 @@ class NavigationServiceImplTest {
                 .thenReturn(new ResolvedUserAccess(
                         7L, "employee@example.com", "EMPLOYEE", List.of("route:dashboard")));
         when(accessControlMapper.selectRoutesForTenant(1L)).thenReturn(List.of(
-                route("workspace", null, "GROUP", null, true, 1),
-                route("dashboard", "workspace", "PAGE", "route:dashboard", true, 1),
-                route("access-control", "workspace", "PAGE", "route:access-control", true, 2),
-                route("disabled", "workspace", "PAGE", "route:dashboard", false, 3)
+                route("workspace", null, "GROUP", null, null, true, 1),
+                route("dashboard", "workspace", "PAGE", "DASHBOARD", "route:dashboard", true, 1),
+                route("access-control", "workspace", "PAGE", "ACCESS_CONTROL", "route:access-control", true, 2),
+                route("disabled", "workspace", "PAGE", "DASHBOARD", "route:dashboard", false, 3)
         ));
 
         var navigation = navigationService.navigation(7L);
@@ -47,9 +48,43 @@ class NavigationServiceImplTest {
                 .containsExactly("dashboard");
     }
 
+    @Test
+    void shouldFailClosedForEnabledPlaceholderAndMismatchedDashboardRoutes() {
+        when(userAccessService.resolveActiveUser(7L))
+                .thenReturn(new ResolvedUserAccess(
+                        7L, "employee@example.com", "EMPLOYEE",
+                        List.of("route:legacy", "route:fake-dashboard")));
+        when(accessControlMapper.selectRoutesForTenant(1L)).thenReturn(List.of(
+                route("workspace", null, "GROUP", null, null, true, 1),
+                route("legacy", "workspace", "PAGE", "WORKBENCH_MODULE", "route:legacy", true, 1),
+                route("fake-dashboard", "workspace", "PAGE", "DASHBOARD", "route:fake-dashboard", true, 2)
+        ));
+
+        assertThat(navigationService.navigation(7L)).isEmpty();
+    }
+
+    @Test
+    void shouldReadRoutesOnlyFromResolvedUsersTenant() {
+        when(userAccessService.resolveActiveUser(7L))
+                .thenReturn(new ResolvedUserAccess(
+                        7L, "employee@example.com", 99L, "EMPLOYEE", List.of("EMPLOYEE"),
+                        List.of("route:dashboard"), List.of("SELF"), 8L));
+        when(accessControlMapper.selectRoutesForTenant(99L)).thenReturn(List.of(
+                route("workspace", null, "GROUP", null, null, true, 1),
+                route("dashboard", "workspace", "PAGE", "DASHBOARD", "route:dashboard", true, 1)
+        ));
+
+        var navigation = navigationService.navigation(7L);
+
+        assertThat(navigation).hasSize(1);
+        assertThat(navigation.get(0).children()).extracting("routeKey").containsExactly("dashboard");
+        verify(accessControlMapper).selectRoutesForTenant(99L);
+    }
+
     private AccessRouteResponse route(String key,
                                       String parent,
                                       String type,
+                                      String componentKey,
                                       String permission,
                                       boolean enabled,
                                       int sort) {
@@ -60,7 +95,7 @@ class NavigationServiceImplTest {
                 "PAGE".equals(type) ? "/oa/" + key : null,
                 null,
                 type,
-                "PAGE".equals(type) ? "DASHBOARD" : null,
+                componentKey,
                 permission,
                 sort,
                 enabled
