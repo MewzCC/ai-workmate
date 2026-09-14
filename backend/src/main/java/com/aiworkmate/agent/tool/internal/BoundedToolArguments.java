@@ -73,6 +73,13 @@ final class BoundedToolArguments {
         return value.asInt();
     }
 
+    static Boolean optionalBoolean(JsonNode arguments, String field) {
+        JsonNode value = arguments.get(field);
+        if (value == null || value.isNull()) return null;
+        if (!value.isBoolean()) throw invalid();
+        return value.booleanValue();
+    }
+
     static LocalDateTime optionalDateTime(JsonNode arguments, String field) {
         String value = optionalText(arguments, field);
         if (value == null) return null;

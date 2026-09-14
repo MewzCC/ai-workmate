@@ -18,7 +18,7 @@ class AgentDomainToolPortContractTest {
             ApprovalConfigurationToolPort.class, ApprovalTaskToolPort.class, HrOrganizationToolPort.class,
             HrEmployeeToolPort.class, EmployeeChangeToolPort.class, AttendanceToolPort.class,
             AssetToolPort.class, MeetingToolPort.class, VisitorToolPort.class, SealToolPort.class,
-            FinanceToolPort.class);
+            FinanceToolPort.class, PlatformOperationsToolPort.class);
 
     @Test
     void portsAreFrameworkNeutralInterfacesWithoutGenericExecutionEscapeHatch() {

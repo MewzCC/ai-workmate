@@ -30,7 +30,11 @@ public enum ToolCode {
     EXPENSE_QUERY("expense.query"),
     BUDGET_QUERY("budget.query"),
     CONTRACT_QUERY("contract.query"),
-    SUPPLIER_QUERY("supplier.query");
+    SUPPLIER_QUERY("supplier.query"),
+    INTEGRATION_ENDPOINT_QUERY("integration.endpoint.query"),
+    PAGE_ACTION_QUERY("pageAction.query"),
+    RUNTIME_LOG_QUERY("runtimeLog.query"),
+    SANDBOX_REPLAY_QUERY("sandboxReplay.query");
 
     private static final Map<String, ToolCode> BY_CODE;
     private static final Set<String> CODES;

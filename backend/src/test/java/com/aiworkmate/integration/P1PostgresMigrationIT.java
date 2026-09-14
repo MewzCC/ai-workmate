@@ -335,6 +335,21 @@ class P1PostgresMigrationIT {
                                    'agent:tool:contract.query','agent:tool:supplier.query')
                     """)).as("财务 Agent 工具必须具备业务与工具两层实时权限").isEqualTo(5);
             assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND enabled = TRUE AND side_effect = 'NONE'
+                      AND (code, schema_hash, data_scope_policy) IN (
+                        ('integration.endpoint.query','sha256:77b6949a8aca42cdd8c7776e51e64e2fa4bf52c64bb4d950e5d61e2c19eadd22','TENANT_SCOPED'),
+                        ('pageAction.query','sha256:7f6c91f43b7a3416e8824b064421ec1be233c0a952fed1b068dc255c8e9cdd96','TENANT_SCOPED'),
+                        ('runtimeLog.query','sha256:d79d49ccc330312907ff310bb96264640e938dbedd5df7c5054fe93357cadcac','TENANT_SCOPED'),
+                        ('sandboxReplay.query','sha256:733b65aba2e3dc720f2d17d6af7be1ea434b93fc7f219c9a551fd4f08e551978','TENANT_SCOPED'))
+                    """)).as("四个平台运维页面 Agent 工具必须以冻结契约存在").isEqualTo(4);
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code IN ('integration:endpoint:read','page-action:read',
+                        'agent:tool:integration.endpoint.query','agent:tool:pageAction.query',
+                        'agent:tool:runtimeLog.query','agent:tool:sandboxReplay.query')
+                    """)).as("平台运维 Agent 工具必须具备业务与工具两层实时权限").isEqualTo(6);
+            assertThat(count(statement, """
                     SELECT COUNT(*) FROM information_schema.views
                     WHERE table_schema = current_schema() AND table_name = 'runtime_log_view'
                     """)).isOne();
