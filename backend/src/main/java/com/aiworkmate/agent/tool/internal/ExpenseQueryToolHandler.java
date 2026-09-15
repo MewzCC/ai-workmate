@@ -14,7 +14,7 @@ public final class ExpenseQueryToolHandler extends TypedReadToolHandler<FinanceT
     public ExpenseQueryToolHandler(FinanceToolPort port, ObjectMapper mapper) { super(ToolCode.EXPENSE_QUERY, mapper); this.port = port; }
     @Override protected FinanceToolPort.ExpenseQuery parseArguments(JsonNode a) {
         return new FinanceToolPort.ExpenseQuery(optionalPositiveLong(a, "applicationId"), optionalText(a, "status"),
-                positiveInt(a, "page", 1, 10000), positiveInt(a, "size", 20, 50));
+                pageNumber(a), pageSize(a));
     }
     @Override protected FinanceToolPort.Page<FinanceToolPort.Expense> invoke(TrustedToolContext c, FinanceToolPort.ExpenseQuery q) { return port.expenses(c.actor(), q); }
 }

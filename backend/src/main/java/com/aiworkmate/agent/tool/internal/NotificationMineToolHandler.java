@@ -6,7 +6,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Component;
 
-import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.positiveInt;
+import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.pageNumber;
+import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.pageSize;
 
 @Component
 public final class NotificationMineToolHandler
@@ -19,8 +20,8 @@ public final class NotificationMineToolHandler
     }
 
     @Override protected Query parseArguments(JsonNode arguments) {
-        return new Query(positiveInt(arguments, "page", 1, Integer.MAX_VALUE),
-                positiveInt(arguments, "size", 20, 50));
+        return new Query(pageNumber(arguments, Integer.MAX_VALUE),
+                pageSize(arguments));
     }
 
     @Override protected NotificationToolPort.Page invoke(TrustedToolContext context, Query query) {

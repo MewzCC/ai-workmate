@@ -8,7 +8,8 @@ import org.springframework.stereotype.Component;
 
 import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.optionalPositiveLong;
 import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.optionalText;
-import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.positiveInt;
+import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.pageNumber;
+import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.pageSize;
 
 @Component
 public final class SealQueryToolHandler extends TypedReadToolHandler<SealToolPort.Query, SealToolPort.Page> {
@@ -24,8 +25,8 @@ public final class SealQueryToolHandler extends TypedReadToolHandler<SealToolPor
         String queue = optionalText(arguments, "queue");
         return new SealToolPort.Query(id,
                 queue == null ? SealToolPort.Queue.MINE : SealToolPort.Queue.valueOf(queue),
-                optionalText(arguments, "status"), positiveInt(arguments, "page", 1, 10000),
-                positiveInt(arguments, "size", 20, 50));
+                optionalText(arguments, "status"), pageNumber(arguments),
+                pageSize(arguments));
     }
 
     @Override protected SealToolPort.Page invoke(TrustedToolContext context, SealToolPort.Query query) {

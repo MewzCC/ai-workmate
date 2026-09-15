@@ -12,6 +12,6 @@ import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.*;
 public final class AuditQueryToolHandler extends TypedReadToolHandler<OperationalGovernanceToolPort.AuditQuery, OperationalGovernanceToolPort.AuditPage> {
     private final OperationalGovernanceToolPort port;
     public AuditQueryToolHandler(OperationalGovernanceToolPort port, ObjectMapper mapper) { super(ToolCode.AUDIT_QUERY, mapper); this.port = port; }
-    @Override protected OperationalGovernanceToolPort.AuditQuery parseArguments(JsonNode a) { return new OperationalGovernanceToolPort.AuditQuery(optionalText(a, "action"), optionalText(a, "resourceType"), optionalText(a, "result"), optionalDateTime(a, "from"), optionalDateTime(a, "to"), positiveInt(a, "page", 1, 10000), positiveInt(a, "size", 20, 50)); }
+    @Override protected OperationalGovernanceToolPort.AuditQuery parseArguments(JsonNode a) { return new OperationalGovernanceToolPort.AuditQuery(optionalText(a, "action"), optionalText(a, "resourceType"), optionalText(a, "result"), optionalDateTime(a, "from"), optionalDateTime(a, "to"), pageNumber(a), pageSize(a)); }
     @Override protected OperationalGovernanceToolPort.AuditPage invoke(TrustedToolContext c, OperationalGovernanceToolPort.AuditQuery q) { return port.auditRecords(c.actor(), q); }
 }

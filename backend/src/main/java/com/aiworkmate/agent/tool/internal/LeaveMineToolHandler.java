@@ -12,12 +12,12 @@ import java.util.List;
 
 import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.optionalPositiveLong;
 import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.optionalText;
-import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.positiveInt;
+import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.pageNumber;
+import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.pageSize;
 
 @Component
 public final class LeaveMineToolHandler
         extends TypedReadToolHandler<LeaveMineToolHandler.Query, LeaveToolPort.Page> {
-    private static final int MAX_SIZE = 50;
 
     private final LeaveToolPort leaveToolPort;
 
@@ -34,8 +34,8 @@ public final class LeaveMineToolHandler
             throw new BusinessException(ErrorCode.REQUEST_INVALID);
         }
         return new Query(applicationId, status,
-                positiveInt(arguments, "page", 1, Integer.MAX_VALUE),
-                positiveInt(arguments, "size", 20, MAX_SIZE));
+                pageNumber(arguments, Integer.MAX_VALUE),
+                pageSize(arguments));
     }
 
     @Override protected LeaveToolPort.Page invoke(TrustedToolContext context, Query query) {

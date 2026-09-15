@@ -15,7 +15,7 @@ public final class BudgetQueryToolHandler extends TypedReadToolHandler<FinanceTo
     @Override protected FinanceToolPort.BudgetQuery parseArguments(JsonNode a) {
         return new FinanceToolPort.BudgetQuery(optionalPositiveLong(a, "budgetId"), optionalText(a, "keyword"), optionalText(a, "status"),
                 a.path("fiscalYear").isIntegralNumber() ? a.path("fiscalYear").intValue() : null,
-                positiveInt(a, "page", 1, 10000), positiveInt(a, "size", 20, 50));
+                pageNumber(a), pageSize(a));
     }
     @Override protected FinanceToolPort.Page<FinanceToolPort.Budget> invoke(TrustedToolContext c, FinanceToolPort.BudgetQuery q) { return port.budgets(c.actor(), q); }
 }

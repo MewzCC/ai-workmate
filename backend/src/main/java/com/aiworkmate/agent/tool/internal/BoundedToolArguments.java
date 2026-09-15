@@ -12,6 +12,19 @@ import java.time.LocalDateTime;
 final class BoundedToolArguments {
     private BoundedToolArguments() { }
 
+    static int pageNumber(JsonNode arguments) {
+        return pageNumber(arguments, 10000);
+    }
+
+    /** Legacy contracts without a page maximum retain their frozen schema semantics. */
+    static int pageNumber(JsonNode arguments, int maximum) {
+        return positiveInt(arguments, "page", 1, maximum);
+    }
+
+    static int pageSize(JsonNode arguments) {
+        return positiveInt(arguments, "size", 20, 50);
+    }
+
     static String optionalText(JsonNode arguments, String field) {
         JsonNode value = arguments.get(field);
         if (value == null || value.isNull()) return null;

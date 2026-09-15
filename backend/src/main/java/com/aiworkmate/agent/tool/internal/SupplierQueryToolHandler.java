@@ -14,7 +14,7 @@ public final class SupplierQueryToolHandler extends TypedReadToolHandler<Finance
     public SupplierQueryToolHandler(FinanceToolPort port, ObjectMapper mapper) { super(ToolCode.SUPPLIER_QUERY, mapper); this.port = port; }
     @Override protected FinanceToolPort.SupplierQuery parseArguments(JsonNode a) {
         return new FinanceToolPort.SupplierQuery(optionalPositiveLong(a, "supplierId"), optionalText(a, "keyword"), optionalText(a, "status"),
-                optionalText(a, "category"), positiveInt(a, "page", 1, 10000), positiveInt(a, "size", 20, 50));
+                optionalText(a, "category"), pageNumber(a), pageSize(a));
     }
     @Override protected FinanceToolPort.Page<FinanceToolPort.Supplier> invoke(TrustedToolContext c, FinanceToolPort.SupplierQuery q) { return port.suppliers(c.actor(), q); }
 }

@@ -12,13 +12,11 @@ import java.time.LocalDateTime;
 
 import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.optionalDateTime;
 import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.optionalText;
-import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.positiveInt;
+import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.pageNumber;
+import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.pageSize;
 
 @Component
 public final class TodoQueryToolHandler extends TypedReadToolHandler<TodoToolPort.Query, TodoToolPort.Page> {
-    private static final int DEFAULT_PAGE = 1;
-    private static final int DEFAULT_SIZE = 20;
-    private static final int MAX_SIZE = 50;
 
     private final TodoToolPort todoToolPort;
 
@@ -33,8 +31,8 @@ public final class TodoQueryToolHandler extends TypedReadToolHandler<TodoToolPor
         if (from != null && to != null && from.isAfter(to)) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID);
         }
-        int page = positiveInt(arguments, "page", DEFAULT_PAGE, Integer.MAX_VALUE);
-        int size = positiveInt(arguments, "size", DEFAULT_SIZE, MAX_SIZE);
+        int page = pageNumber(arguments, Integer.MAX_VALUE);
+        int size = pageSize(arguments);
         String status = optionalText(arguments, "status");
 
         return new TodoToolPort.Query(status, from, to, page, size);
