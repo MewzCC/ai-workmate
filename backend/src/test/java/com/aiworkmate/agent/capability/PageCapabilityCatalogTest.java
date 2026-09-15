@@ -39,6 +39,18 @@ class PageCapabilityCatalogTest {
     }
 
     @Test
+    void everyProductionPageHasAtLeastOneControlledTool() {
+        assertThat(catalog.all()).allSatisfy(page ->
+                assertThat(page.tools()).as(page.pageId()).isNotEmpty());
+        assertThat(catalog.find("ai-tasks").orElseThrow().readTools())
+                .extracting(PageToolReference::code).containsExactly(ToolCode.AGENT_TASK_MINE_QUERY);
+        assertThat(catalog.find("leave-application").orElseThrow().tools())
+                .extracting(PageToolReference::code)
+                .containsExactlyInAnyOrder(ToolCode.LEAVE_MINE, ToolCode.LEAVE_CREATE_DRAFT,
+                        ToolCode.LEAVE_SUBMIT, ToolCode.LEAVE_APPLY);
+    }
+
+    @Test
     void mapsLegacyDrawerPageNamesToCanonicalRoutes() {
         assertThat(catalog.canonicalPageId("todo-list")).isEqualTo("todo");
         assertThat(catalog.canonicalPageId("message-center")).isEqualTo("messages");

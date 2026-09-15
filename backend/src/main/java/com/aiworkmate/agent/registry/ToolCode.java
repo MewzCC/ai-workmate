@@ -41,7 +41,8 @@ public enum ToolCode {
     AUDIT_QUERY("audit.query"),
     TENANT_CONFIGURATION_QUERY("tenantConfiguration.query"),
     DICTIONARY_QUERY("dictionary.query"),
-    SYSTEM_CAPABILITY_QUERY("systemCapability.query");
+    SYSTEM_CAPABILITY_QUERY("systemCapability.query"),
+    AGENT_TASK_MINE_QUERY("agentTask.mine.query");
 
     private static final Map<String, ToolCode> BY_CODE;
     private static final Set<String> CODES;

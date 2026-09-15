@@ -376,6 +376,17 @@ class P1PostgresMigrationIT {
                         'agent:tool:dictionary.query','agent:tool:systemCapability.query')
                     """)).as("运行治理 Agent 工具必须具备独立实时权限").isEqualTo(4);
             assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='NONE'
+                      AND code='agentTask.mine.query'
+                      AND schema_hash='sha256:1d4697a6ea535d206068ea1b0e6d8605c2c8f7d80686f90602131dde3df87658'
+                      AND data_scope_policy='SELF'
+                    """)).as("AI 任务中心本人查询工具必须以冻结契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code IN ('agent:task:read','agent:tool:agentTask.mine.query')
+                    """)).as("AI 任务中心工具必须具备业务与工具两层实时权限").isEqualTo(2);
+            assertThat(count(statement, """
                     SELECT COUNT(*) FROM information_schema.views
                     WHERE table_schema = current_schema() AND table_name = 'runtime_log_view'
                     """)).isOne();
