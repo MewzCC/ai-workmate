@@ -24,7 +24,6 @@ import com.aiworkmate.service.LeaveWorkflowService;
 import com.aiworkmate.service.NotificationService;
 import com.aiworkmate.service.ApprovalEngineService;
 import com.aiworkmate.service.HrService;
-import com.aiworkmate.service.EmployeeChangeService;
 import com.aiworkmate.service.AdminAssetsService;
 import com.aiworkmate.service.AttendanceService;
 import org.junit.jupiter.api.BeforeEach;
@@ -50,12 +49,12 @@ class AgentDomainToolAdaptersTest {
     @Mock private NotificationService notificationService;
     @Mock private ApprovalEngineService approvalEngineService;
     @Mock private HrService hrService;
-    @Mock private EmployeeChangeService employeeChangeService;
     @Mock private AdminAssetsService adminAssetsService;
     @Mock private AttendanceService attendanceService;
 
     private ApprovalAgentDomainToolAdapter approvalAdapter;
-    private HrAgentDomainToolAdapter hrAdapter;
+    private HrOrganizationAgentDomainToolAdapter organizationAdapter;
+    private AttendanceAgentDomainToolAdapter attendanceAdapter;
     private VisitorAgentDomainToolAdapter visitorAdapter;
     private SealAgentDomainToolAdapter sealAdapter;
     private KnowledgeAgentDomainToolAdapter knowledgeAdapter;
@@ -65,7 +64,8 @@ class AgentDomainToolAdaptersTest {
     @BeforeEach
     void setUp() {
         approvalAdapter = new ApprovalAgentDomainToolAdapter(leaveWorkflowService, approvalEngineService);
-        hrAdapter = new HrAgentDomainToolAdapter(hrService, employeeChangeService, attendanceService);
+        organizationAdapter = new HrOrganizationAgentDomainToolAdapter(hrService);
+        attendanceAdapter = new AttendanceAgentDomainToolAdapter(attendanceService);
         visitorAdapter = new VisitorAgentDomainToolAdapter(adminAssetsService);
         sealAdapter = new SealAgentDomainToolAdapter(adminAssetsService);
         knowledgeAdapter = new KnowledgeAgentDomainToolAdapter(knowledgeService);
@@ -132,7 +132,8 @@ class AgentDomainToolAdaptersTest {
                         3L, "张三", "secret@example.com", "EMPLOYEE", 1,
                         1L, 2L, 9L, "李经理", "/avatar/private", "/avatar/manager"))));
 
-        var result = hrAdapter.query(context, new com.aiworkmate.agent.tool.port.HrOrganizationToolPort.Query("研发", 20));
+        var result = organizationAdapter.query(context,
+                new com.aiworkmate.agent.tool.port.HrOrganizationToolPort.Query("研发", 20));
 
         assertThat(result.departments()).hasSize(1);
         assertThat(result.positions()).isEmpty();
@@ -149,7 +150,7 @@ class AgentDomainToolAdaptersTest {
                         8L, day, day.atTime(9, 0), null, "NORMAL", 0, 0,
                         "10.0.0.1", null, false, true));
 
-        var result = hrAdapter.query(context, new AttendanceToolPort.Query(
+        var result = attendanceAdapter.query(context, new AttendanceToolPort.Query(
                 AttendanceToolPort.Resource.TODAY, null, null, null,
                 null, null, null, 1, 20));
 

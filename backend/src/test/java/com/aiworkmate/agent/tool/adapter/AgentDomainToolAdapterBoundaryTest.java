@@ -29,7 +29,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 class AgentDomainToolAdapterBoundaryTest {
     private static final List<Class<?>> ADAPTERS = List.of(
             ApprovalAgentDomainToolAdapter.class,
-            HrAgentDomainToolAdapter.class,
+            HrOrganizationAgentDomainToolAdapter.class,
+            HrEmployeeAgentDomainToolAdapter.class,
+            EmployeeChangeAgentDomainToolAdapter.class,
+            AttendanceAgentDomainToolAdapter.class,
             AssetAgentDomainToolAdapter.class,
             VisitorAgentDomainToolAdapter.class,
             SealAgentDomainToolAdapter.class,
@@ -63,9 +66,12 @@ class AgentDomainToolAdapterBoundaryTest {
         assertThat(ApprovalAgentDomainToolAdapter.class.getInterfaces()).containsExactlyInAnyOrder(
                 TodoToolPort.class, LeaveToolPort.class,
                 ApprovalConfigurationToolPort.class, ApprovalTaskToolPort.class);
-        assertThat(HrAgentDomainToolAdapter.class.getInterfaces()).containsExactlyInAnyOrder(
-                HrOrganizationToolPort.class, HrEmployeeToolPort.class, EmployeeChangeToolPort.class,
-                AttendanceToolPort.class);
+        assertThat(HrOrganizationAgentDomainToolAdapter.class.getInterfaces())
+                .containsExactly(HrOrganizationToolPort.class);
+        assertThat(HrEmployeeAgentDomainToolAdapter.class.getInterfaces()).containsExactly(HrEmployeeToolPort.class);
+        assertThat(EmployeeChangeAgentDomainToolAdapter.class.getInterfaces())
+                .containsExactly(EmployeeChangeToolPort.class);
+        assertThat(AttendanceAgentDomainToolAdapter.class.getInterfaces()).containsExactly(AttendanceToolPort.class);
         assertThat(AssetAgentDomainToolAdapter.class.getInterfaces()).containsExactly(AssetToolPort.class);
         assertThat(VisitorAgentDomainToolAdapter.class.getInterfaces()).containsExactly(VisitorToolPort.class);
         assertThat(SealAgentDomainToolAdapter.class.getInterfaces()).containsExactly(SealToolPort.class);
