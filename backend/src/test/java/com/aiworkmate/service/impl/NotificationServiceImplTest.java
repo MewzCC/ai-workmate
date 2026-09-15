@@ -4,6 +4,7 @@ import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.entity.Notification;
 import com.aiworkmate.mapper.NotificationMapper;
 import com.aiworkmate.service.UserAccessService;
+import com.aiworkmate.service.BusinessAuditService;
 import com.aiworkmate.service.model.ResolvedUserAccess;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
@@ -37,6 +38,7 @@ class NotificationServiceImplTest {
     @Mock private StringRedisTemplate redisTemplate;
     @Mock private ListOperations<String, String> listOps;
     @Mock private UserAccessService userAccessService;
+    @Mock private BusinessAuditService auditService;
 
     private NotificationServiceImpl notificationService;
 
@@ -45,7 +47,7 @@ class NotificationServiceImplTest {
         TableInfoHelper.initTableInfo(
                 new MapperBuilderAssistant(new MybatisConfiguration(), ""), Notification.class);
         notificationService = new NotificationServiceImpl(
-                notificationMapper, redisTemplate, new ObjectMapper(), userAccessService);
+                notificationMapper, redisTemplate, new ObjectMapper(), userAccessService, auditService);
         org.mockito.Mockito.lenient().when(userAccessService.resolveActiveUser(2L)).thenReturn(
                 new ResolvedUserAccess(2L, "user", 1L, "EMPLOYEE", java.util.List.of("EMPLOYEE"),
                         java.util.List.of("notification:read:self"), java.util.List.of("SELF"), 1L));
@@ -138,6 +140,23 @@ class NotificationServiceImplTest {
         assertThatThrownBy(() -> notificationService.markRead(2L, 99L))
                 .isInstanceOf(BusinessException.class);
         verify(notificationMapper, never()).update(any(), any());
+        verifyNoInteractions(auditService);
+    }
+
+    @Test
+    void markReadShouldAuditTheOwnedSingleItemUpdate() {
+        Notification notification = new Notification();
+        notification.setId(99L);
+        notification.setTenantId(1L);
+        notification.setUserId(2L);
+        notification.setReadFlag(false);
+        when(notificationMapper.selectOne(any())).thenReturn(notification);
+        when(notificationMapper.update(any(), any())).thenReturn(1);
+
+        notificationService.markRead(2L, 99L);
+
+        verify(auditService).recordTransactional(1L, 2L, "NOTIFICATION", "99",
+                "MARK_READ", "SUCCESS", "single=true");
     }
 
     @Test

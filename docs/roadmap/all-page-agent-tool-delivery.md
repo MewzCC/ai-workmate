@@ -16,7 +16,7 @@
 | ai-workspace | TODO_QUERY、LEAVE_MINE、KNOWLEDGE_SEARCH、NOTIFICATION_MINE | LEAVE_CREATE_DRAFT、LEAVE_SUBMIT、LEAVE_APPLY；后续复用领域工具，不另写业务逻辑 |
 | ai-tasks | AGENT_TASK_MINE_QUERY | 任务状态查询；不得创建后台自治链路 |
 | todo | TODO_QUERY | 待办详情和受控预审；最终审批保持详情人工确认 |
-| messages | NOTIFICATION_MINE | 候选：本人单条已读 |
+| messages | NOTIFICATION_MINE | NOTIFICATION_MARK_READ；仅允许标记本人单条消息已读，默认关闭且需显式确认 |
 | leave-application | LEAVE_MINE | LEAVE_CREATE_DRAFT、LEAVE_SUBMIT、LEAVE_APPLY；候选撤回 |
 | my-applications | LEAVE_MINE | 复用请假写工具；待扩展通用申请查询与生命周期 |
 | approval-list | APPROVAL_TASK_QUERY | 候选：本人申请撤回；不得把查询权限当审批权限 |
@@ -81,6 +81,8 @@ T3 行政边界切片：移除同时实现资产、访客和印章 Port 的综�
 T3 人事边界切片：移除同时实现组织、员工档案、员工变动和考勤 Port 的综合适配器，分别建立四个本地适配器。组织与员工档案仍复用 HrService，员工变动与考勤继续复用各自现有领域 Service；本切片只收口 Agent 适配层替换点，不改变工具契约、数据裁剪、实时权限、业务状态机或数据库。一 Port 一适配器门禁用于防止这些边界再次合并。
 
 T3 审批边界切片：移除同时实现待办、请假、审批配置和审批任务 Port 的综合适配器，分别建立四个本地适配器。待办、请假和审批任务仍复用 LeaveWorkflowService，审批配置继续复用 ApprovalEngineService；请假写入仍携带稳定操作键或任务 ID 并由领域 Service 执行实时身份、状态及幂等校验。本切片不增加审批决定能力，不改变工具开关、风险等级、确认策略、数据库或现有页面接口。
+
+T6 消息已读切片：增加 `notification.markRead` 单条原子写工具，只接收消息 ID，用户和租户身份来自 ToolGateway 可信上下文。领域 Service 重新解析实时用户权限，并按租户与本人所有权查询后更新；重复执行保持已读状态，返回可核验的消息 ID 与已读标志。工具为 L1、显式确认、业务幂等、单写步骤，平台和租户写开关继续默认关闭；不开放批量已读，也不返回内部业务 ID。
 
 ## 服务化验收
 

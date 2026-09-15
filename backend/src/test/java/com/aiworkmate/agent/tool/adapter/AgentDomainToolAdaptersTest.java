@@ -254,6 +254,14 @@ class AgentDomainToolAdaptersTest {
                 9L, "approval", "审批提醒", "请处理", "leave", false, now));
     }
 
+    @Test
+    void marksOnlyTheTrustedUsersNotificationAsRead() {
+        var result = notificationAdapter.markRead(context, 9L);
+
+        assertThat(result).isEqualTo(new com.aiworkmate.agent.tool.port.NotificationToolPort.ReadResult(9L, true));
+        verify(notificationService).markRead(7L, 9L);
+    }
+
     private LeaveApplicationResponse leaveApplication() {
         LocalDateTime now = LocalDateTime.of(2026, 9, 12, 11, 0);
         return new LeaveApplicationResponse(

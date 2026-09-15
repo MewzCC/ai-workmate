@@ -14,6 +14,7 @@ public enum ToolCode {
     LEAVE_MINE("leave.mine"),
     KNOWLEDGE_SEARCH("knowledge.search"),
     NOTIFICATION_MINE("notification.mine"),
+    NOTIFICATION_MARK_READ("notification.markRead"),
     LEAVE_CREATE_DRAFT("leave.createDraft"),
     LEAVE_SUBMIT("leave.submit"),
     LEAVE_APPLY("leave.apply"),

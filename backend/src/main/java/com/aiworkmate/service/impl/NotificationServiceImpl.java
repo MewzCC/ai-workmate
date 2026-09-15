@@ -7,6 +7,7 @@ import com.aiworkmate.dto.NotificationResponse;
 import com.aiworkmate.entity.Notification;
 import com.aiworkmate.mapper.NotificationMapper;
 import com.aiworkmate.service.NotificationService;
+import com.aiworkmate.service.BusinessAuditService;
 import com.aiworkmate.service.UserAccessService;
 import com.aiworkmate.service.model.ResolvedUserAccess;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -18,6 +19,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -39,6 +41,7 @@ public class NotificationServiceImpl implements NotificationService {
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
     private final UserAccessService userAccessService;
+    private final BusinessAuditService auditService;
 
     @PostConstruct
     public void init() {
@@ -137,6 +140,7 @@ public class NotificationServiceImpl implements NotificationService {
     }
 
     @Override
+    @Transactional
     public void markRead(long userId, long notificationId) {
         ResolvedUserAccess access = requireNotificationAccess(userId);
         Notification notification = notificationMapper.selectOne(new LambdaQueryWrapper<Notification>()
@@ -146,12 +150,16 @@ public class NotificationServiceImpl implements NotificationService {
         if (notification == null) {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "通知不存在");
         }
-        notificationMapper.update(null, new LambdaUpdateWrapper<Notification>()
+        int updated = notificationMapper.update(null, new LambdaUpdateWrapper<Notification>()
                 .eq(Notification::getId, notificationId)
                 .eq(Notification::getTenantId, access.tenantId())
                 .eq(Notification::getUserId, access.userId())
                 .eq(Notification::getReadFlag, false)
                 .set(Notification::getReadFlag, true));
+        if (updated == 1) {
+            auditService.recordTransactional(access.tenantId(), access.userId(), "NOTIFICATION",
+                    Long.toString(notificationId), "MARK_READ", "SUCCESS", "single=true");
+        }
     }
 
     @Override

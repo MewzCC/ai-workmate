@@ -32,7 +32,8 @@ class PageCapabilityCatalogTest {
         assertThat(catalog.find("access-control").orElseThrow().writeTools()).isEmpty();
         assertThat(catalog.find("ai-workspace").orElseThrow().writeTools())
                 .extracting(PageToolReference::toolCode)
-                .containsExactlyInAnyOrder("leave.createDraft", "leave.submit", "leave.apply");
+                .containsExactlyInAnyOrder("notification.markRead", "leave.createDraft", "leave.submit",
+                        "leave.apply");
         assertThat(catalog.find("todo").orElseThrow().readTools())
                 .extracting(PageToolReference::code)
                 .containsExactly(ToolCode.TODO_QUERY);
@@ -57,6 +58,15 @@ class PageCapabilityCatalogTest {
                 .containsExactly(ToolCode.MEETING_QUERY);
         assertThat(page.writeTools()).extracting(PageToolReference::code)
                 .containsExactly(ToolCode.MEETING_BOOK);
+    }
+
+    @Test
+    void messagePageOffersSelfOwnedReadAndSingleItemWrite() {
+        var page = catalog.find("messages").orElseThrow();
+        assertThat(page.readTools()).extracting(PageToolReference::code)
+                .containsExactly(ToolCode.NOTIFICATION_MINE);
+        assertThat(page.writeTools()).extracting(PageToolReference::code)
+                .containsExactly(ToolCode.NOTIFICATION_MARK_READ);
     }
 
     @Test

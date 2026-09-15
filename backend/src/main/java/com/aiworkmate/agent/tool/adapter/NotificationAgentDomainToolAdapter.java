@@ -18,4 +18,10 @@ public class NotificationAgentDomainToolAdapter implements NotificationToolPort 
                 item.id(), item.type(), item.title(), item.content(), item.bizType(), item.read(), item.createdAt()))
                 .toList(), result.total(), result.page(), result.size());
     }
+
+    @Override
+    public NotificationToolPort.ReadResult markRead(ToolActorContext context, long notificationId) {
+        notificationService.markRead(context.userId(), notificationId);
+        return new NotificationToolPort.ReadResult(notificationId, true);
+    }
 }
