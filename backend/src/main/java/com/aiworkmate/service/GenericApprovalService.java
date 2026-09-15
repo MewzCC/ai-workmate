@@ -18,6 +18,10 @@ public interface GenericApprovalService {
     /** 保存一份未提交草稿；必填字段可暂缺，不创建工作流或待办。 */
     ApprovalApplicationResponse createDraft(Long userId, ApprovalDraftRequest request);
 
+    /** Agent 专用的本人草稿入口；稳定操作键只用于幂等核验，不代替实时授权。 */
+    ApprovalApplicationResponse createAgentDraft(
+            Long userId, ApprovalDraftRequest request, String operationKey);
+
     /** 更新本人处于 DRAFT 状态的草稿，使用乐观锁防止覆盖。 */
     ApprovalApplicationResponse updateDraft(Long userId, Long id, ApprovalDraftUpdateRequest request);
 

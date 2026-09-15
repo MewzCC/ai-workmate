@@ -30,6 +30,7 @@ public class ApprovalApplication {
     private String formName;
     private String title;
     private String dataJson;
+    private String agentOperationKey;
     private String formSchemaSnapshot;
     private Integer formVersionSnapshot;
     private String processNodeSnapshot;

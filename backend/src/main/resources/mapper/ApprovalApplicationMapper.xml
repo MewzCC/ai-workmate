@@ -4,6 +4,15 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.aiworkmate.mapper.ApprovalApplicationMapper">
 
+    <select id="findAgentOperation" resultType="com.aiworkmate.entity.ApprovalApplication">
+        SELECT *
+        FROM approval_application
+        WHERE tenant_id = #{tenantId}
+          AND applicant_user_id = #{applicantUserId}
+          AND agent_operation_key = #{operationKey}
+        LIMIT 1
+    </select>
+
     <sql id="approvalApplicationViewColumns">
         a.id,
         a.applicant_user_id AS applicantUserId,

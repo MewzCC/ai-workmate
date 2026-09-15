@@ -2,6 +2,7 @@ package com.aiworkmate.agent.tool.adapter;
 
 import com.aiworkmate.agent.tool.port.ApprovalConfigurationToolPort;
 import com.aiworkmate.agent.tool.port.ApprovalTaskToolPort;
+import com.aiworkmate.agent.tool.port.ApprovalApplicationToolPort;
 import com.aiworkmate.agent.tool.port.AgentTaskCenterToolPort;
 import com.aiworkmate.agent.tool.port.AssetToolPort;
 import com.aiworkmate.agent.tool.port.AttendanceToolPort;
@@ -32,6 +33,7 @@ class AgentDomainToolAdapterBoundaryTest {
             LeaveAgentDomainToolAdapter.class,
             ApprovalConfigurationAgentDomainToolAdapter.class,
             ApprovalTaskAgentDomainToolAdapter.class,
+            ApprovalApplicationAgentDomainToolAdapter.class,
             HrOrganizationAgentDomainToolAdapter.class,
             HrEmployeeAgentDomainToolAdapter.class,
             EmployeeChangeAgentDomainToolAdapter.class,
@@ -51,6 +53,7 @@ class AgentDomainToolAdapterBoundaryTest {
     private static final List<Class<?>> PORTS = List.of(
             TodoToolPort.class, LeaveToolPort.class, KnowledgeToolPort.class, NotificationToolPort.class,
             ApprovalConfigurationToolPort.class, ApprovalTaskToolPort.class, HrOrganizationToolPort.class,
+            ApprovalApplicationToolPort.class,
             HrEmployeeToolPort.class, EmployeeChangeToolPort.class, AttendanceToolPort.class,
             AssetToolPort.class, MeetingToolPort.class, VisitorToolPort.class, SealToolPort.class,
             FinanceToolPort.class, PlatformOperationsToolPort.class, SecurityGovernanceToolPort.class,
@@ -72,6 +75,8 @@ class AgentDomainToolAdapterBoundaryTest {
                 .containsExactly(ApprovalConfigurationToolPort.class);
         assertThat(ApprovalTaskAgentDomainToolAdapter.class.getInterfaces())
                 .containsExactly(ApprovalTaskToolPort.class);
+        assertThat(ApprovalApplicationAgentDomainToolAdapter.class.getInterfaces())
+                .containsExactly(ApprovalApplicationToolPort.class);
         assertThat(HrOrganizationAgentDomainToolAdapter.class.getInterfaces())
                 .containsExactly(HrOrganizationToolPort.class);
         assertThat(HrEmployeeAgentDomainToolAdapter.class.getInterfaces()).containsExactly(HrEmployeeToolPort.class);

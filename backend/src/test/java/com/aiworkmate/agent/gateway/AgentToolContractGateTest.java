@@ -26,7 +26,7 @@ class AgentToolContractGateTest {
     private static final Set<ToolCode> WRITE_TOOLS = Set.of(
             ToolCode.LEAVE_CREATE_DRAFT, ToolCode.LEAVE_SUBMIT, ToolCode.LEAVE_APPLY, ToolCode.LEAVE_WITHDRAW,
             ToolCode.MEETING_BOOK, ToolCode.MEETING_CANCEL, ToolCode.NOTIFICATION_MARK_READ,
-            ToolCode.ATTENDANCE_REISSUE_APPLY);
+            ToolCode.ATTENDANCE_REISSUE_APPLY, ToolCode.APPROVAL_APPLICATION_CREATE_DRAFT);
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final PageCapabilityCatalog pages = new PageCapabilityCatalog();
 

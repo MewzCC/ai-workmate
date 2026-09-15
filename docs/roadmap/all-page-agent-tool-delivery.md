@@ -13,15 +13,15 @@
 | 页面 ID | 已登记查询工具 | 已登记写工具 / 后续范围 |
 | --- | --- | --- |
 | dashboard | TODO_QUERY、NOTIFICATION_MINE | 真实详情导航；不在驾驶舱直接最终审批 |
-| ai-workspace | TODO_QUERY、LEAVE_MINE、KNOWLEDGE_SEARCH、NOTIFICATION_MINE | LEAVE_CREATE_DRAFT、LEAVE_SUBMIT、LEAVE_APPLY、LEAVE_WITHDRAW、ATTENDANCE_REISSUE_APPLY；复用领域工具，不另写业务逻辑 |
+| ai-workspace | TODO_QUERY、LEAVE_MINE、KNOWLEDGE_SEARCH、NOTIFICATION_MINE | LEAVE_CREATE_DRAFT、LEAVE_SUBMIT、LEAVE_APPLY、LEAVE_WITHDRAW、ATTENDANCE_REISSUE_APPLY、APPROVAL_APPLICATION_CREATE_DRAFT；复用领域工具，不另写业务逻辑 |
 | ai-tasks | AGENT_TASK_MINE_QUERY | 任务状态查询；不得创建后台自治链路 |
 | todo | TODO_QUERY | 待办详情和受控预审；最终审批保持详情人工确认 |
 | messages | NOTIFICATION_MINE | NOTIFICATION_MARK_READ；仅允许标记本人单条消息已读，默认关闭且需显式确认 |
 | leave-application | LEAVE_MINE | LEAVE_CREATE_DRAFT、LEAVE_SUBMIT、LEAVE_APPLY、LEAVE_WITHDRAW；默认关闭写开关，撤回禁止自动重试 |
-| my-applications | LEAVE_MINE | 复用请假写工具；待扩展通用申请查询与生命周期 |
+| my-applications | LEAVE_MINE | 复用请假写工具与 APPROVAL_APPLICATION_CREATE_DRAFT；待扩展通用申请查询及其余生命周期 |
 | approval-list | APPROVAL_TASK_QUERY | 候选：本人申请撤回；不得把查询权限当审批权限 |
-| approval-start | APPROVAL_CONFIGURATION_QUERY | 待开发通用申请原子提交 |
-| approval-form | APPROVAL_CONFIGURATION_QUERY | 待开发通用草稿、提交、撤回、重新提交 |
+| approval-start | APPROVAL_CONFIGURATION_QUERY | APPROVAL_APPLICATION_CREATE_DRAFT；待开发通用申请原子提交 |
+| approval-form | APPROVAL_CONFIGURATION_QUERY | APPROVAL_APPLICATION_CREATE_DRAFT；待开发提交、撤回、重新提交 |
 | form-engine | APPROVAL_CONFIGURATION_QUERY | 配置只读；不开放流程定义写入 |
 | process-config | APPROVAL_CONFIGURATION_QUERY | 配置只读 |
 | approval-rules | APPROVAL_CONFIGURATION_QUERY | 配置只读 |
@@ -132,6 +132,8 @@ P4 会议取消核验协议切片：MeetingToolPort 增加类型化 findCancella
 P5 补卡领域基础切片：普通页面和后续 Agent 共用 AttendanceService.submitReissue。服务端新增 attendance:reissue:apply 独立业务权限，不再把页面路由当作写权限；在事务中锁定当前租户的有效申请人，串行完成待审重复检查、申请插入和业务审计。申请人必须属于实时租户，直属审批人必须有效、同租户且不是本人。提交只创建 PENDING 申请，不直接补写打卡记录。前端复用实时权限 Hook 控制 Ant Design 创建入口，权限撤销后关闭已打开弹窗，服务端仍逐请求鉴权。真实 PostgreSQL 验证并发只成功一次且只写一次审计、审计失败回滚、打卡记录为零；空库和旧库升级、70个迁移validate及重复启动通过，数据库测试零跳过。
 
 P5 补卡 Agent 工具切片：新增 `attendance.reissue.apply` 冻结契约，输入只含日期、上下班类型和原因，申请人与租户只取 ToolGateway 可信上下文。Handler 通过类型化 AttendanceToolPort 调用既有领域 Service；稳定操作键持久化在申请表，重放相同命令返回原结果，不同命令冲突关闭。工具同时要求实时 `attendance:reissue:apply` 业务权限与独立 Agent 权限，L1、本人范围、单写步骤且显式确认；全局与租户写开关仍默认关闭。真实 PostgreSQL 覆盖相同操作仅一条申请及一条审计、命令冲突、审计失败回滚和考勤记录零直接写入；空库与旧库升级、71 个迁移 validate、重复迁移零变更通过。人工发布门、浏览器逐工具和真实 LLM 端到端仍待验收，因此代码具备受控执行能力不等于生产已开放。
+
+P6 通用审批草稿工具切片：新增 `approval.application.createDraft` 封闭契约，动态表单通过类型化字段列表进入 `ApprovalApplicationToolPort`，不向 Port 暴露 Map、JSON、DTO 或框架类型。Adapter 复用页面的 `GenericApprovalService`；领域重新校验实时用户、租户、`route:approval-start`、独立 `approval:create` 权限、有效表单及字段 Schema。稳定操作键持久化并由本人范围唯一索引约束；相同草稿重放返回原结果，参数或状态改变失败关闭。该工具只保存 DRAFT，不创建流程或待办，L1 显式确认、业务幂等、单写步骤，写开关保持默认关闭。OA lint 无错误（3 条既有警告）、91 项测试和构建通过；后端 785 项零失败、9 项既有环境测试跳过。真实 PostgreSQL 空库与旧库升级、72 个迁移 validate、开发库升级至 V202609152020 及二次启动零迁移均通过。P6 的提交、撤回及重新提交仍须按独立里程碑交付。
 
 权限、租户、安全配置、审计、运行日志和接口配置页面保持受控只读。每页面有工具不等于每页面可写；永久禁止能力及人工发布门不因本计划改变。
 

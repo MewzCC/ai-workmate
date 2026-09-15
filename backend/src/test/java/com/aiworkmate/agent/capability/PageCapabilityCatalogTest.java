@@ -33,7 +33,8 @@ class PageCapabilityCatalogTest {
         assertThat(catalog.find("ai-workspace").orElseThrow().writeTools())
                 .extracting(PageToolReference::toolCode)
                 .containsExactlyInAnyOrder("notification.markRead", "leave.createDraft", "leave.submit",
-                        "leave.apply", "leave.withdraw", "attendance.reissue.apply");
+                        "leave.apply", "leave.withdraw", "attendance.reissue.apply",
+                        "approval.application.createDraft");
         assertThat(catalog.find("todo").orElseThrow().readTools())
                 .extracting(PageToolReference::code)
                 .containsExactly(ToolCode.TODO_QUERY);
@@ -58,6 +59,14 @@ class PageCapabilityCatalogTest {
                 .containsExactly(ToolCode.MEETING_QUERY);
         assertThat(page.writeTools()).extracting(PageToolReference::code)
                 .containsExactly(ToolCode.MEETING_BOOK, ToolCode.MEETING_CANCEL);
+    }
+
+    @Test
+    void genericApprovalEntryPagesShareOneDraftTool() {
+        assertThat(Set.of("approval-start", "approval-form", "my-applications")).allSatisfy(pageId ->
+                assertThat(catalog.find(pageId).orElseThrow().writeTools())
+                        .extracting(PageToolReference::code)
+                        .contains(ToolCode.APPROVAL_APPLICATION_CREATE_DRAFT));
     }
 
     @Test
