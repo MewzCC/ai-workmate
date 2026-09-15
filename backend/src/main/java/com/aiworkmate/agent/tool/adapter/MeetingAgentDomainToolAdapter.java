@@ -60,4 +60,13 @@ public final class MeetingAgentDomainToolAdapter implements MeetingToolPort {
                 item.id(), item.roomId(), item.status(), item.version(), item.startAt(), item.endAt()));
     }
 
+    @Override
+    public java.util.Optional<MeetingToolPort.CancelResult> findCancellation(
+            ToolActorContext context, MeetingToolPort.CancelCommand command, String operationKey) {
+        return meetingBookingService.findAgentCancellation(context.userId(), command.bookingId(),
+                new MeetingBookingCancelRequest(command.version(), command.reason()), operationKey)
+                .map(item -> new MeetingToolPort.CancelResult(item.id(), item.roomId(), item.status(),
+                        item.version(), item.cancelledAt()));
+    }
+
 }

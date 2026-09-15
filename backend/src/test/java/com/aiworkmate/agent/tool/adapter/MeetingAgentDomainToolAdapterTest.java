@@ -78,4 +78,35 @@ class MeetingAgentDomainToolAdapterTest {
         verifyNoMoreInteractions(bookings);
         verifyNoInteractions(rooms);
     }
+
+    @Test
+    void mapsCancellationReceiptWithoutReplayingCancellation() {
+        var cancel = new MeetingToolPort.CancelCommand(12, 0, "changed");
+        var request = new com.aiworkmate.dto.MeetingBookingCancelRequest(0, "changed");
+        var response = mock(MeetingBookingResponse.class);
+        when(response.id()).thenReturn(12L);
+        when(response.roomId()).thenReturn(3L);
+        when(response.status()).thenReturn("CANCELLED");
+        when(response.version()).thenReturn(1);
+        when(response.cancelledAt()).thenReturn(start);
+        when(bookings.findAgentCancellation(7L, 12L, request, "operation"))
+                .thenReturn(java.util.Optional.of(response));
+        assertThat(adapter.findCancellation(actor, cancel, "operation"))
+                .contains(new MeetingToolPort.CancelResult(12, 3, "CANCELLED", 1, start));
+        verify(bookings).findAgentCancellation(7L, 12L, request, "operation");
+        verifyNoMoreInteractions(bookings);
+        verifyNoInteractions(rooms);
+    }
+
+    @Test
+    void cancellationReceiptRejectionDoesNotFallBackToAWrite() {
+        var cancel = new MeetingToolPort.CancelCommand(12, 0, null);
+        var request = new com.aiworkmate.dto.MeetingBookingCancelRequest(0, null);
+        var denied = new BusinessException(ErrorCode.PERMISSION_DENIED);
+        when(bookings.findAgentCancellation(7L, 12L, request, "operation")).thenThrow(denied);
+        assertThatThrownBy(() -> adapter.findCancellation(actor, cancel, "operation")).isSameAs(denied);
+        verify(bookings).findAgentCancellation(7L, 12L, request, "operation");
+        verifyNoMoreInteractions(bookings);
+        verifyNoInteractions(rooms);
+    }
 }

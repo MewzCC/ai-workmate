@@ -77,6 +77,24 @@ class MeetingBookingServiceImplTest {
     }
 
     @Test
+    void missingCancellationOutcomeDoesNotReplayAWrite() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(access(false));
+        assertThat(service.findAgentCancellation(USER_ID, BOOKING_ID,
+                new MeetingBookingCancelRequest(0, null), "operation")).isEmpty();
+        verify(bookingMapper).findAgentCancelOperation(TENANT_ID, USER_ID, "operation");
+        org.mockito.Mockito.verifyNoMoreInteractions(bookingMapper);
+        org.mockito.Mockito.verifyNoInteractions(roomMapper, userMapper, auditService);
+    }
+
+    @Test
+    void cancellationOutcomeRejectsInactiveActorBeforeReadingResources() {
+        assertThatThrownBy(() -> service.findAgentCancellation(USER_ID, BOOKING_ID,
+                new MeetingBookingCancelRequest(0, null), "operation"))
+                .isInstanceOf(BusinessException.class);
+        org.mockito.Mockito.verifyNoInteractions(bookingMapper, roomMapper, userMapper, auditService);
+    }
+
+    @Test
     void missingCreationOutcomeRemainsUnobservedWithoutAnyWrite() {
         when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(access(false));
         assertThat(service.findAgentCreation(USER_ID, request(6), "agent:10:20:meeting.book:v1"))

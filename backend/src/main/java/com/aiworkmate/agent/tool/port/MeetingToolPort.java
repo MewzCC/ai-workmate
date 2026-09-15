@@ -10,6 +10,9 @@ public interface MeetingToolPort {
     java.util.Optional<WriteResult> findCreation(
             ToolActorContext context, BookCommand expectedCommand, String operationKey);
     CancelResult cancel(ToolActorContext context, CancelCommand command, String operationKey);
+    /** Unobserved does not authorize another cancellation attempt. */
+    java.util.Optional<CancelResult> findCancellation(
+            ToolActorContext context, CancelCommand expectedCommand, String operationKey);
     record Query(String keyword, String roomStatus, LocalDateTime from, LocalDateTime to,
                  String bookingStatus, int page, int size) {}
     record BookCommand(long roomId, String title, String agenda, LocalDateTime startAt,

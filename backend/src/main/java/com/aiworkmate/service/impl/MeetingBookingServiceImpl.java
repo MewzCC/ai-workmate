@@ -249,6 +249,21 @@ public class MeetingBookingServiceImpl implements MeetingBookingService {
                 userMapper.selectById(actor.userId()));
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public java.util.Optional<MeetingBookingResponse> findAgentCancellation(
+            Long userId, Long id, MeetingBookingCancelRequest expectedRequest, String operationKey) {
+        ResolvedUserAccess actor = requirePermission(userId, "meeting:cancel");
+        validateCancelRequest(id, expectedRequest);
+        if (operationKey == null || operationKey.isBlank() || operationKey.length() > 128) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        MeetingBooking booking = bookingMapper.findAgentCancelOperation(
+                actor.tenantId(), actor.userId(), operationKey);
+        return booking == null ? java.util.Optional.empty()
+                : java.util.Optional.of(replayCancellation(actor, booking, id, expectedRequest));
+    }
+
     private MeetingBookingResponse replayCancellation(ResolvedUserAccess actor, MeetingBooking booking,
                                                        Long expectedId, MeetingBookingCancelRequest request) {
         if (!Objects.equals(booking.getId(), expectedId)

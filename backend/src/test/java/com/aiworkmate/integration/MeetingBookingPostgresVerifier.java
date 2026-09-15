@@ -122,6 +122,19 @@ final class MeetingBookingPostgresVerifier {
                     assertThat(result.status()).isEqualTo("CANCELLED");
                     assertThat(result.version()).isEqualTo(1);
                 });
+        var cancellation = tx.execute(status -> service.findAgentCancellation(user, observed.orElseThrow().id(),
+                new MeetingBookingCancelRequest(0, "changed"), "same-cancellation"));
+        assertThat(cancellation).hasValueSatisfying(result -> {
+            assertThat(result.status()).isEqualTo("CANCELLED");
+            assertThat(result.version()).isEqualTo(1);
+        });
+        assertThatThrownBy(() -> tx.execute(status -> service.findAgentCancellation(
+                user, observed.orElseThrow().id(), new MeetingBookingCancelRequest(0, "different"),
+                "same-cancellation"))).isInstanceOf(com.aiworkmate.common.BusinessException.class)
+                .extracting("errorCode").isEqualTo("IDEMPOTENCY_CONFLICT");
+        var missingCancellation = tx.execute(status -> service.findAgentCancellation(user, cancellable.id(),
+                new MeetingBookingCancelRequest(0, null), "cancel-rollback"));
+        assertThat(missingCancellation).isEmpty();
         var rolledBack = tx.execute(status -> service.findAgentCreation(user, rollback, "rollback-operation"));
         assertThat(rolledBack).isEmpty();
         long foreignUser = user + 100000;
@@ -136,6 +149,10 @@ final class MeetingBookingPostgresVerifier {
         when(access.resolveActiveUser(user)).thenReturn(new ResolvedUserAccess(user, "test", tenant,
                 "EMPLOYEE", List.of("EMPLOYEE"), List.of(), List.of("SELF"), 1L));
         assertThatThrownBy(() -> tx.execute(status -> service.findAgentCreation(user, command, "same-operation")))
+                .isInstanceOf(com.aiworkmate.common.BusinessException.class)
+                .extracting("errorCode").isEqualTo("PERMISSION_DENIED");
+        assertThatThrownBy(() -> tx.execute(status -> service.findAgentCancellation(user,
+                observed.orElseThrow().id(), new MeetingBookingCancelRequest(0, "changed"), "same-cancellation")))
                 .isInstanceOf(com.aiworkmate.common.BusinessException.class)
                 .extracting("errorCode").isEqualTo("PERMISSION_DENIED");
     }

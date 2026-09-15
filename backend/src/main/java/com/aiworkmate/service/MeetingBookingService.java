@@ -26,4 +26,8 @@ public interface MeetingBookingService {
 
     MeetingBookingResponse cancelAgent(Long userId, Long id, MeetingBookingCancelRequest request,
                                        String operationKey);
+
+    /** Empty is not evidence that an in-flight cancellation failed. */
+    java.util.Optional<MeetingBookingResponse> findAgentCancellation(
+            Long userId, Long id, MeetingBookingCancelRequest expectedRequest, String operationKey);
 }
