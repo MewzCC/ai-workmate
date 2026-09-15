@@ -18,6 +18,7 @@ public enum ToolCode {
     LEAVE_CREATE_DRAFT("leave.createDraft"),
     LEAVE_SUBMIT("leave.submit"),
     LEAVE_APPLY("leave.apply"),
+    LEAVE_WITHDRAW("leave.withdraw"),
     APPROVAL_CONFIGURATION_QUERY("approval.configuration.query"),
     APPROVAL_TASK_QUERY("approval.task.query"),
     HR_ORGANIZATION_QUERY("hr.organization.query"),

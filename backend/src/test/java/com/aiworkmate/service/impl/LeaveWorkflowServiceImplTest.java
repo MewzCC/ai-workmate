@@ -482,6 +482,8 @@ class LeaveWorkflowServiceImplTest {
         verify(actionLogMapper).insert(logCaptor.capture());
         assertThat(logCaptor.getValue().getAction()).isEqualTo("WITHDRAW");
         assertThat(logCaptor.getValue().getToStatus()).isEqualTo("WITHDRAWN");
+        verify(auditService).recordTransactional(TENANT_ID, APPLICANT_ID, "LEAVE_APPLICATION", "10",
+                "WITHDRAW", "SUCCESS", "撤回请假申请");
     }
 
     @Test

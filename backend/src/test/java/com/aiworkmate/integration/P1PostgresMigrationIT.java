@@ -62,6 +62,7 @@ class P1PostgresMigrationIT {
         assertP1Schema(emptySchema);
         MeetingBookingPostgresVerifier.verify(databaseUrl, databaseUsername, databasePassword, emptySchema);
         NotificationMarkReadPostgresVerifier.verify(databaseUrl, databaseUsername, databasePassword, emptySchema);
+        LeaveWithdrawalPostgresVerifier.verify(databaseUrl, databaseUsername, databasePassword, emptySchema);
         Flyway restartedEmpty = flyway(emptySchema, null);
         assertThat(restartedEmpty.migrate().migrationsExecuted).isZero();
         assertThat(restartedEmpty.validateWithResult().validationSuccessful).isTrue();
@@ -311,6 +312,18 @@ class P1PostgresMigrationIT {
                       AND retry_policy = 'BUSINESS_IDEMPOTENT' AND side_effect = 'SINGLE_WRITE'
                       AND confirmation_policy = 'EXPLICIT' AND enabled = TRUE
                     """)).as("消息已读写工具必须以冻结的本人单条写契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'leave.withdraw' AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:8d093edc7124a4cd99ba92352223c2934524fe4a022d63916dc33513844571a9'
+                      AND risk_level = 'L1' AND data_scope_policy = 'SELF'
+                      AND retry_policy = 'NEVER' AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'EXPLICIT' AND enabled = TRUE
+                    """)).as("请假撤回工具必须以本人单写且禁止自动重试契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code IN ('leave:withdraw', 'agent:tool:leave.withdraw')
+                    """)).as("请假撤回必须具备业务与工具两层权限").isEqualTo(2);
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM rbac_permission
                     WHERE code IN ('notification:read:self', 'agent:tool:notification.markRead')

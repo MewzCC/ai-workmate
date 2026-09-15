@@ -33,7 +33,7 @@ class PageCapabilityCatalogTest {
         assertThat(catalog.find("ai-workspace").orElseThrow().writeTools())
                 .extracting(PageToolReference::toolCode)
                 .containsExactlyInAnyOrder("notification.markRead", "leave.createDraft", "leave.submit",
-                        "leave.apply");
+                        "leave.apply", "leave.withdraw");
         assertThat(catalog.find("todo").orElseThrow().readTools())
                 .extracting(PageToolReference::code)
                 .containsExactly(ToolCode.TODO_QUERY);
@@ -48,7 +48,7 @@ class PageCapabilityCatalogTest {
         assertThat(catalog.find("leave-application").orElseThrow().tools())
                 .extracting(PageToolReference::code)
                 .containsExactlyInAnyOrder(ToolCode.LEAVE_MINE, ToolCode.LEAVE_CREATE_DRAFT,
-                        ToolCode.LEAVE_SUBMIT, ToolCode.LEAVE_APPLY);
+                        ToolCode.LEAVE_SUBMIT, ToolCode.LEAVE_APPLY, ToolCode.LEAVE_WITHDRAW);
     }
 
     @Test

@@ -11,6 +11,8 @@ public interface LeaveToolPort {
     WriteResult createDraft(ToolActorContext context, Draft command, String operationKey);
     WriteResult submit(ToolActorContext context, long applicationId, int version);
     WriteResult apply(ToolActorContext context, Draft command, String operationKey);
+    WithdrawalResult withdraw(ToolActorContext context, long applicationId, int version);
+    record WithdrawalResult(long applicationId, String status, int version) { }
 
     record Query(String status, int page, int size) { }
     record Page(List<Item> items, long total, int page, int size) {

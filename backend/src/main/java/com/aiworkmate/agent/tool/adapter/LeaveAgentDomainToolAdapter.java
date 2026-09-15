@@ -44,6 +44,12 @@ public final class LeaveAgentDomainToolAdapter implements LeaveToolPort {
                 context.userId(), leaveRequest(command), operationKey));
     }
 
+    @Override
+    public WithdrawalResult withdraw(ToolActorContext context, long applicationId, int version) {
+        var item = leaveWorkflowService.withdraw(context.userId(), applicationId, new VersionRequest(version));
+        return new WithdrawalResult(item.id(), item.status(), item.version());
+    }
+
     private LeaveApplicationRequest leaveRequest(Draft command) {
         return new LeaveApplicationRequest(command.leaveType(), command.approverUserId(), command.startDate(),
                 command.startPeriod(), command.endDate(), command.endPeriod(), command.reason(), null);

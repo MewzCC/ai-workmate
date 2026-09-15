@@ -17,7 +17,7 @@
 | ai-tasks | AGENT_TASK_MINE_QUERY | 任务状态查询；不得创建后台自治链路 |
 | todo | TODO_QUERY | 待办详情和受控预审；最终审批保持详情人工确认 |
 | messages | NOTIFICATION_MINE | NOTIFICATION_MARK_READ；仅允许标记本人单条消息已读，默认关闭且需显式确认 |
-| leave-application | LEAVE_MINE | LEAVE_CREATE_DRAFT、LEAVE_SUBMIT、LEAVE_APPLY；候选撤回 |
+| leave-application | LEAVE_MINE | LEAVE_CREATE_DRAFT、LEAVE_SUBMIT、LEAVE_APPLY、LEAVE_WITHDRAW；默认关闭写开关，撤回禁止自动重试 |
 | my-applications | LEAVE_MINE | 复用请假写工具；待扩展通用申请查询与生命周期 |
 | approval-list | APPROVAL_TASK_QUERY | 候选：本人申请撤回；不得把查询权限当审批权限 |
 | approval-start | APPROVAL_CONFIGURATION_QUERY | 待开发通用申请原子提交 |
@@ -85,6 +85,8 @@ T3 审批边界切片：移除同时实现待办、请假、审批配置和审�
 T6 消息已读切片：增加 `notification.markRead` 单条原子写工具，只接收消息 ID，用户和租户身份来自 ToolGateway 可信上下文。领域 Service 重新解析实时用户权限，并按租户与本人所有权查询后更新；重复执行保持已读状态，返回可核验的消息 ID 与已读标志。工具为 L1、显式确认、业务幂等、单写步骤，平台和租户写开关继续默认关闭；不开放批量已读，也不返回内部业务 ID。
 
 ## 服务化验收
+
+T6 请假撤回代码切片：新增 leave.withdraw 封闭契约、Handler 和类型化 Port，Adapter 复用现有 LeaveWorkflowService.withdraw，不复制审批状态机。仅接收申请 ID 和预期版本，要求本人归属与实时 leave:withdraw 权限，风险 L1、显式确认、单写步骤、RetryPolicy.NEVER；未知执行结果不能自动重试。成功审计改为参与业务事务。定向55项及冻结契约测试通过，真实PostgreSQL撤回并发、任务取消、审计失败回滚、权限回收、跨租户及其他申请人失败场景通过；空库、旧库升级、69个迁移validate与重复启动零迁移通过。OA lint无错误（3条既有警告）、89项及构建通过；后端756项零失败、9项既有环境测试跳过。开发库V202609151740二次启动与健康检查通过。写开关保持默认关闭，真实模型端到端、浏览器逐工具和人工发布门待验收，不标记全页面目标完成。
 
 T4 稳定操作键代码切片：四个既有请假及会议写 Handler 统一调用纯函数 StableToolOperationKey.v1，保留已持久化键格式且不包含 Worker attempt 或 traceId。此函数只生成操作标识，不构成执行许可；租户和本人隔离仍由领域查询条件及唯一索引保证。工具 Schema、版本、数据库迁移与业务事务不变。兼容性、重试稳定性、非法可信坐标及既有 Handler 定向共10项通过；OA lint无错误（3条既有警告）、89项测试和构建通过；后端754项零失败、9项既有环境测试跳过。远程 Adapter 的超时结果查询协议仍待后续实现，不能标记T4整体完成。
 
