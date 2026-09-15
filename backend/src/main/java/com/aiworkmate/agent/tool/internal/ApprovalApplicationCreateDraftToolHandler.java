@@ -6,8 +6,6 @@ import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.common.ErrorCode;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -17,23 +15,17 @@ import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.optionalTe
 import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.requiredText;
 
 @Component
-@RequiredArgsConstructor
-public final class ApprovalApplicationCreateDraftToolHandler implements ToolHandler {
+public final class ApprovalApplicationCreateDraftToolHandler extends TypedWriteToolHandler<ApprovalApplicationToolPort.Draft, ApprovalApplicationToolPort.WriteResult> {
     private final ApprovalApplicationToolPort approvalApplicationToolPort;
-    private final ObjectMapper objectMapper;
 
-    @Override
-    public String toolCode() {
-        return ToolCode.APPROVAL_APPLICATION_CREATE_DRAFT.code();
+    public ApprovalApplicationCreateDraftToolHandler(
+            ApprovalApplicationToolPort approvalApplicationToolPort, ObjectMapper objectMapper) {
+        super(ToolCode.APPROVAL_APPLICATION_CREATE_DRAFT, objectMapper);
+        this.approvalApplicationToolPort = approvalApplicationToolPort;
     }
 
     @Override
-    public String handlerVersion() {
-        return "1.0.0";
-    }
-
-    @Override
-    public JsonNode execute(TrustedToolContext context, JsonNode arguments) {
+    protected ApprovalApplicationToolPort.Draft parseArguments(JsonNode arguments) {
         JsonNode fieldsNode = arguments.path("fields");
         if (!fieldsNode.isArray() || fieldsNode.size() > 100) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID);
@@ -62,17 +54,14 @@ public final class ApprovalApplicationCreateDraftToolHandler implements ToolHand
                 fields.add(new ApprovalApplicationToolPort.FieldValue(name, values, true));
             }
         }
-        ApprovalApplicationToolPort.Draft command = new ApprovalApplicationToolPort.Draft(
-                requiredText(arguments, "formKey"), optionalText(arguments, "processKey"), fields);
-        String operationKey = StableToolOperationKey.v1(
-                context, ToolCode.APPROVAL_APPLICATION_CREATE_DRAFT);
-        ApprovalApplicationToolPort.WriteResult result = approvalApplicationToolPort.createDraft(
-                context.actor(), command, operationKey);
-        ObjectNode output = objectMapper.createObjectNode();
-        output.put("applicationId", result.applicationId());
-        output.put("formKey", result.formKey());
-        output.put("status", result.status());
-        output.put("version", result.version());
-        return output;
+        return new ApprovalApplicationToolPort.Draft(requiredText(arguments, "formKey"),
+                optionalText(arguments, "processKey"), fields);
+    }
+
+    @Override
+    protected ApprovalApplicationToolPort.WriteResult invoke(
+            TrustedToolContext context, ApprovalApplicationToolPort.Draft command) {
+        return approvalApplicationToolPort.createDraft(
+                context.actor(), command, stableOperationKey(context));
     }
 }

@@ -4,7 +4,6 @@ import com.aiworkmate.agent.registry.ToolCode;
 import com.aiworkmate.agent.tool.port.AttendanceToolPort;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.requiredDate;
@@ -12,29 +11,26 @@ import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.requiredEn
 import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.requiredText;
 
 @Component
-@RequiredArgsConstructor
-public final class AttendanceReissueApplyToolHandler implements ToolHandler {
+public final class AttendanceReissueApplyToolHandler extends TypedWriteToolHandler<AttendanceToolPort.ReissueCommand, AttendanceToolPort.ReissueWriteResult> {
     private final AttendanceToolPort port;
-    private final ObjectMapper objectMapper;
 
-    @Override
-    public String toolCode() {
-        return ToolCode.ATTENDANCE_REISSUE_APPLY.code();
+    public AttendanceReissueApplyToolHandler(AttendanceToolPort port, ObjectMapper objectMapper) {
+        super(ToolCode.ATTENDANCE_REISSUE_APPLY, objectMapper);
+        this.port = port;
     }
 
     @Override
-    public String handlerVersion() {
-        return "1.0.0";
-    }
-
-    @Override
-    public JsonNode execute(TrustedToolContext context, JsonNode arguments) {
-        var command = new AttendanceToolPort.ReissueCommand(
+    protected AttendanceToolPort.ReissueCommand parseArguments(JsonNode arguments) {
+        return new AttendanceToolPort.ReissueCommand(
                 requiredDate(arguments, "clockDate"),
                 requiredEnum(arguments, "clockType", ClockType.class).name(),
                 requiredText(arguments, "reason"));
-        String operationKey = StableToolOperationKey.v1(context, ToolCode.ATTENDANCE_REISSUE_APPLY);
-        return objectMapper.valueToTree(port.submitReissue(context.actor(), command, operationKey));
+    }
+
+    @Override
+    protected AttendanceToolPort.ReissueWriteResult invoke(
+            TrustedToolContext context, AttendanceToolPort.ReissueCommand command) {
+        return port.submitReissue(context.actor(), command, stableOperationKey(context));
     }
 
     private enum ClockType { CLOCK_IN, CLOCK_OUT }

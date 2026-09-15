@@ -4,30 +4,26 @@ import com.aiworkmate.agent.registry.ToolCode;
 import com.aiworkmate.agent.tool.port.NotificationToolPort;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.requiredLong;
 
 @Component
-@RequiredArgsConstructor
-public final class NotificationMarkReadToolHandler implements ToolHandler {
+public final class NotificationMarkReadToolHandler extends TypedWriteToolHandler<Long, NotificationToolPort.ReadResult> {
     private final NotificationToolPort port;
-    private final ObjectMapper objectMapper;
 
-    @Override
-    public String toolCode() {
-        return ToolCode.NOTIFICATION_MARK_READ.code();
+    public NotificationMarkReadToolHandler(NotificationToolPort port, ObjectMapper objectMapper) {
+        super(ToolCode.NOTIFICATION_MARK_READ, objectMapper);
+        this.port = port;
     }
 
     @Override
-    public String handlerVersion() {
-        return "1.0.0";
+    protected Long parseArguments(JsonNode arguments) {
+        return requiredLong(arguments, "notificationId", 1);
     }
 
     @Override
-    public JsonNode execute(TrustedToolContext context, JsonNode arguments) {
-        long notificationId = requiredLong(arguments, "notificationId", 1);
-        return objectMapper.valueToTree(port.markRead(context.actor(), notificationId));
+    protected NotificationToolPort.ReadResult invoke(TrustedToolContext context, Long notificationId) {
+        return port.markRead(context.actor(), notificationId);
     }
 }

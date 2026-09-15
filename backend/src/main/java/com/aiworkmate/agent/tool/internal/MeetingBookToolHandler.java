@@ -4,7 +4,6 @@ import com.aiworkmate.agent.registry.ToolCode;
 import com.aiworkmate.agent.tool.port.MeetingToolPort;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.optionalText;
@@ -14,28 +13,25 @@ import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.requiredLo
 import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.requiredText;
 
 @Component
-@RequiredArgsConstructor
-public final class MeetingBookToolHandler implements ToolHandler {
+public final class MeetingBookToolHandler extends TypedWriteToolHandler<MeetingToolPort.BookCommand, MeetingToolPort.WriteResult> {
     private final MeetingToolPort port;
-    private final ObjectMapper objectMapper;
 
-    @Override
-    public String toolCode() {
-        return ToolCode.MEETING_BOOK.code();
+    public MeetingBookToolHandler(MeetingToolPort port, ObjectMapper objectMapper) {
+        super(ToolCode.MEETING_BOOK, objectMapper);
+        this.port = port;
     }
 
     @Override
-    public String handlerVersion() {
-        return "1.0.0";
-    }
-
-    @Override
-    public JsonNode execute(TrustedToolContext context, JsonNode arguments) {
-        var command = new MeetingToolPort.BookCommand(
+    protected MeetingToolPort.BookCommand parseArguments(JsonNode arguments) {
+        return new MeetingToolPort.BookCommand(
                 requiredLong(arguments, "roomId", 1), requiredText(arguments, "title"),
                 optionalText(arguments, "agenda"), requiredDateTime(arguments, "startAt"),
                 requiredDateTime(arguments, "endAt"), requiredInt(arguments, "attendeeCount", 1, 10000));
-        String operationKey = StableToolOperationKey.v1(context, ToolCode.MEETING_BOOK);
-        return objectMapper.valueToTree(port.book(context.actor(), command, operationKey));
+    }
+
+    @Override
+    protected MeetingToolPort.WriteResult invoke(
+            TrustedToolContext context, MeetingToolPort.BookCommand command) {
+        return port.book(context.actor(), command, stableOperationKey(context));
     }
 }

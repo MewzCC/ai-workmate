@@ -4,7 +4,6 @@ import com.aiworkmate.agent.registry.ToolCode;
 import com.aiworkmate.agent.tool.port.MeetingToolPort;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.optionalText;
@@ -12,28 +11,25 @@ import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.requiredIn
 import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.requiredLong;
 
 @Component
-@RequiredArgsConstructor
-public final class MeetingCancelToolHandler implements ToolHandler {
+public final class MeetingCancelToolHandler extends TypedWriteToolHandler<MeetingToolPort.CancelCommand, MeetingToolPort.CancelResult> {
     private final MeetingToolPort port;
-    private final ObjectMapper objectMapper;
 
-    @Override
-    public String toolCode() {
-        return ToolCode.MEETING_CANCEL.code();
+    public MeetingCancelToolHandler(MeetingToolPort port, ObjectMapper objectMapper) {
+        super(ToolCode.MEETING_CANCEL, objectMapper);
+        this.port = port;
     }
 
     @Override
-    public String handlerVersion() {
-        return "1.0.0";
-    }
-
-    @Override
-    public JsonNode execute(TrustedToolContext context, JsonNode arguments) {
-        var command = new MeetingToolPort.CancelCommand(
+    protected MeetingToolPort.CancelCommand parseArguments(JsonNode arguments) {
+        return new MeetingToolPort.CancelCommand(
                 requiredLong(arguments, "bookingId", 1),
                 requiredInt(arguments, "version", 0, Integer.MAX_VALUE - 1),
                 optionalText(arguments, "reason"));
-        String operationKey = StableToolOperationKey.v1(context, ToolCode.MEETING_CANCEL);
-        return objectMapper.valueToTree(port.cancel(context.actor(), command, operationKey));
+    }
+
+    @Override
+    protected MeetingToolPort.CancelResult invoke(
+            TrustedToolContext context, MeetingToolPort.CancelCommand command) {
+        return port.cancel(context.actor(), command, stableOperationKey(context));
     }
 }
