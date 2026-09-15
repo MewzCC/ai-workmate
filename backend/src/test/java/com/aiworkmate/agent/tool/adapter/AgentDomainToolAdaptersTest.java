@@ -52,7 +52,10 @@ class AgentDomainToolAdaptersTest {
     @Mock private AdminAssetsService adminAssetsService;
     @Mock private AttendanceService attendanceService;
 
-    private ApprovalAgentDomainToolAdapter approvalAdapter;
+    private TodoAgentDomainToolAdapter todoAdapter;
+    private LeaveAgentDomainToolAdapter leaveAdapter;
+    private ApprovalConfigurationAgentDomainToolAdapter approvalConfigurationAdapter;
+    private ApprovalTaskAgentDomainToolAdapter approvalTaskAdapter;
     private HrOrganizationAgentDomainToolAdapter organizationAdapter;
     private AttendanceAgentDomainToolAdapter attendanceAdapter;
     private VisitorAgentDomainToolAdapter visitorAdapter;
@@ -63,7 +66,10 @@ class AgentDomainToolAdaptersTest {
 
     @BeforeEach
     void setUp() {
-        approvalAdapter = new ApprovalAgentDomainToolAdapter(leaveWorkflowService, approvalEngineService);
+        todoAdapter = new TodoAgentDomainToolAdapter(leaveWorkflowService);
+        leaveAdapter = new LeaveAgentDomainToolAdapter(leaveWorkflowService);
+        approvalConfigurationAdapter = new ApprovalConfigurationAgentDomainToolAdapter(approvalEngineService);
+        approvalTaskAdapter = new ApprovalTaskAgentDomainToolAdapter(leaveWorkflowService);
         organizationAdapter = new HrOrganizationAgentDomainToolAdapter(hrService);
         attendanceAdapter = new AttendanceAgentDomainToolAdapter(attendanceService);
         visitorAdapter = new VisitorAgentDomainToolAdapter(adminAssetsService);
@@ -81,7 +87,7 @@ class AgentDomainToolAdaptersTest {
                         now, now.plusDays(1), false, "internal-avatar", now, "/private/avatar")),
                         1, 2, 30));
 
-        TodoToolPort.Page result = approvalAdapter.query(context,
+        TodoToolPort.Page result = todoAdapter.query(context,
                 new TodoToolPort.Query("PENDING", now, now.plusDays(1), 2, 30));
 
         assertThat(result.items()).containsExactly(new TodoToolPort.Item(
@@ -97,7 +103,7 @@ class AgentDomainToolAdaptersTest {
                         12L, "expense", "费用报销", "报销表单", "{sensitive-schema}",
                         "ENABLED", 3, "管理员", now.minusDays(1), now, true, true)), 1, 1, 20));
 
-        var result = approvalAdapter.query(context, new ApprovalConfigurationToolPort.Query(
+        var result = approvalConfigurationAdapter.query(context, new ApprovalConfigurationToolPort.Query(
                 ApprovalConfigurationToolPort.Resource.FORM, "报销", "ENABLED", 1, 20));
 
         assertThat(result.items()).containsExactly(new ApprovalConfigurationToolPort.Item(
@@ -113,7 +119,7 @@ class AgentDomainToolAdaptersTest {
         when(leaveWorkflowService.adminList(7L, "PENDING", from, to, "张三", "ANNUAL", 2, 30))
                 .thenReturn(PageResponse.of(List.of(leaveApplication()), 1, 2, 30));
 
-        var result = approvalAdapter.query(context, new ApprovalTaskToolPort.Query(
+        var result = approvalTaskAdapter.query(context, new ApprovalTaskToolPort.Query(
                 "PENDING", from, to, "张三", "ANNUAL", 2, 30));
 
         assertThat(result.items()).containsExactly(new ApprovalTaskToolPort.Item(
@@ -210,7 +216,7 @@ class AgentDomainToolAdaptersTest {
                 "PERSONAL", 8L, LocalDate.of(2026, 9, 15), "AM",
                 LocalDate.of(2026, 9, 15), "PM", "家庭事务");
 
-        LeaveToolPort.WriteResult result = approvalAdapter.createDraft(context, command, "operation-1");
+        LeaveToolPort.WriteResult result = leaveAdapter.createDraft(context, command, "operation-1");
 
         assertThat(result).isEqualTo(new LeaveToolPort.WriteResult(30L, "DRAFT", 0, null));
         var request = ArgumentCaptor.forClass(com.aiworkmate.dto.LeaveApplicationRequest.class);
