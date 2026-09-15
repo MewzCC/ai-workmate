@@ -28,6 +28,7 @@ public enum ToolCode {
     ATTENDANCE_REISSUE_APPLY("attendance.reissue.apply"),
     APPROVAL_APPLICATION_CREATE_DRAFT("approval.application.createDraft"),
     APPROVAL_APPLICATION_SUBMIT_DRAFT("approval.application.submitDraft"),
+    APPROVAL_APPLICATION_WITHDRAW("approval.application.withdraw"),
     ASSET_QUERY("asset.query"),
     MEETING_QUERY("meeting.query"),
     MEETING_BOOK("meeting.book"),

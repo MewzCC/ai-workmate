@@ -8,6 +8,8 @@ public interface ApprovalApplicationToolPort {
 
     WriteResult submitDraft(ToolActorContext context, long applicationId, int version);
 
+    WriteResult withdraw(ToolActorContext context, long applicationId, int version);
+
     record Draft(String formKey, String processKey, List<FieldValue> fields) {
         public Draft {
             fields = List.copyOf(fields);

@@ -311,6 +311,22 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
     @Transactional
     public ApprovalApplicationResponse withdraw(Long userId, Long id, VersionRequest request) {
         ResolvedUserAccess actor = requirePermission(userId, "route:approval-start");
+        return withdrawInternal(actor, id, request);
+    }
+
+    @Override
+    @Transactional
+    public ApprovalApplicationResponse withdrawAgentApplication(
+            Long userId, Long id, VersionRequest request) {
+        ResolvedUserAccess actor = requirePermission(userId, "route:approval-start");
+        if (!actor.permissions().contains("approval:withdraw")) {
+            throw new BusinessException(ErrorCode.PERMISSION_DENIED);
+        }
+        return withdrawInternal(actor, id, request);
+    }
+
+    private ApprovalApplicationResponse withdrawInternal(
+            ResolvedUserAccess actor, Long id, VersionRequest request) {
         ApprovalApplication application = requireOwnedApplication(actor, id);
         if (!"PENDING".equals(application.getStatus())) {
             throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID,
@@ -368,7 +384,7 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
 
         insertAction(actor, instance.getId(), task.getId(),
                 "WITHDRAW", "PENDING", "WITHDRAWN", "申请人主动撤回");
-        auditService.record(actor.tenantId(), actor.userId(), BUSINESS_TYPE,
+        auditService.recordTransactional(actor.tenantId(), actor.userId(), BUSINESS_TYPE,
                 id.toString(), "WITHDRAW", "SUCCESS", "撤回通用审批申请");
         notificationService.publish(actor.tenantId(), task.getAssigneeUserId(),
                 NotificationService.TYPE_APPROVAL,

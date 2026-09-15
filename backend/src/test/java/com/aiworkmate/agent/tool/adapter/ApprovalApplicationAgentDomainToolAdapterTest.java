@@ -74,4 +74,21 @@ class ApprovalApplicationAgentDomainToolAdapterTest {
                 new ApprovalApplicationToolPort.WriteResult(30L, "expense", "PENDING", 3));
         verify(service).submitAgentDraft(20L, 30L, new com.aiworkmate.dto.VersionRequest(2));
     }
+
+    @Test
+    void withdrawsOwnedPendingApplicationThroughExistingDomainService() {
+        var response = mock(ApprovalApplicationResponse.class);
+        when(response.id()).thenReturn(30L);
+        when(response.formKey()).thenReturn("expense");
+        when(response.status()).thenReturn("WITHDRAWN");
+        when(response.version()).thenReturn(4);
+        when(service.withdrawAgentApplication(20L, 30L, new com.aiworkmate.dto.VersionRequest(3)))
+                .thenReturn(response);
+
+        var result = adapter.withdraw(actor, 30L, 3);
+
+        assertThat(result).isEqualTo(
+                new ApprovalApplicationToolPort.WriteResult(30L, "expense", "WITHDRAWN", 4));
+        verify(service).withdrawAgentApplication(20L, 30L, new com.aiworkmate.dto.VersionRequest(3));
+    }
 }

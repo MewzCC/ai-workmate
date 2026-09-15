@@ -34,7 +34,8 @@ class PageCapabilityCatalogTest {
                 .extracting(PageToolReference::toolCode)
                 .containsExactlyInAnyOrder("notification.markRead", "leave.createDraft", "leave.submit",
                         "leave.apply", "leave.withdraw", "attendance.reissue.apply",
-                        "approval.application.createDraft", "approval.application.submitDraft");
+                        "approval.application.createDraft", "approval.application.submitDraft",
+                        "approval.application.withdraw");
         assertThat(catalog.find("todo").orElseThrow().readTools())
                 .extracting(PageToolReference::code)
                 .containsExactly(ToolCode.TODO_QUERY);
@@ -68,6 +69,12 @@ class PageCapabilityCatalogTest {
                         .extracting(PageToolReference::code)
                         .contains(ToolCode.APPROVAL_APPLICATION_CREATE_DRAFT,
                                 ToolCode.APPROVAL_APPLICATION_SUBMIT_DRAFT));
+        assertThat(catalog.find("my-applications").orElseThrow().writeTools())
+                .extracting(PageToolReference::code)
+                .contains(ToolCode.APPROVAL_APPLICATION_WITHDRAW);
+        assertThat(catalog.find("approval-start").orElseThrow().writeTools())
+                .extracting(PageToolReference::code)
+                .doesNotContain(ToolCode.APPROVAL_APPLICATION_WITHDRAW);
     }
 
     @Test

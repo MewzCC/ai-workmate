@@ -378,6 +378,49 @@ class GenericApprovalServiceImplTest {
         verify(notificationService).publish(TENANT_ID, 2002L,
                 NotificationService.TYPE_APPROVAL, "审批申请已撤回",
                 "申请人已撤回「费用报销」，原待办已取消", "generic-approval", 10L);
+        verify(auditService).recordTransactional(TENANT_ID, USER_ID, "GENERIC_APPROVAL", "10",
+                "WITHDRAW", "SUCCESS", "撤回通用审批申请");
+    }
+
+    @Test
+    void withdrawAgentApplicationUsesSharedWorkflowTransaction() {
+        ApprovalApplication pending = application("PENDING", 2);
+        when(applicationMapper.selectOne(any())).thenReturn(pending);
+        when(instanceMapper.selectOne(any())).thenReturn(instance("RUNNING", 0));
+        when(taskMapper.selectOne(any())).thenReturn(task("PENDING", 1));
+        when(applicationMapper.update(any(), any())).thenReturn(1);
+        when(taskMapper.update(any(), any())).thenReturn(1);
+        when(instanceMapper.update(any(), any())).thenReturn(1);
+        when(applicationMapper.selectView(TENANT_ID, 10L)).thenReturn(view("WITHDRAWN", 3));
+        when(actionLogMapper.selectBusinessTimeline(TENANT_ID, "GENERIC_APPROVAL", 10L))
+                .thenReturn(List.of());
+
+        ApprovalApplicationResponse response = service.withdrawAgentApplication(
+                USER_ID, 10L, new VersionRequest(2));
+
+        assertThat(response.status()).isEqualTo("WITHDRAWN");
+        verify(taskMapper).update(any(), any());
+        verify(instanceMapper).update(any(), any());
+        verify(auditService).recordTransactional(TENANT_ID, USER_ID, "GENERIC_APPROVAL", "10",
+                "WITHDRAW", "SUCCESS", "撤回通用审批申请");
+    }
+
+    @Test
+    void withdrawAgentApplicationFailsClosedWhenBusinessPermissionWasRevoked() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(new ResolvedUserAccess(
+                USER_ID, "applicant", TENANT_ID, "EMPLOYEE", List.of("EMPLOYEE"),
+                List.of("route:approval-start", "approval:create", "approval:submit"),
+                List.of("SELF"), 2L));
+
+        assertThatThrownBy(() -> service.withdrawAgentApplication(
+                USER_ID, 10L, new VersionRequest(2)))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo("PERMISSION_DENIED");
+
+        verify(applicationMapper, never()).selectOne(any());
+        verify(taskMapper, never()).update(any(), any());
+        verify(instanceMapper, never()).update(any(), any());
     }
 
     @Test
@@ -465,7 +508,7 @@ class GenericApprovalServiceImplTest {
     private ResolvedUserAccess access() {
         return new ResolvedUserAccess(USER_ID, "applicant", TENANT_ID, "EMPLOYEE",
                 List.of("EMPLOYEE"),
-                List.of("route:approval-start", "approval:create", "approval:submit"),
+                List.of("route:approval-start", "approval:create", "approval:submit", "approval:withdraw"),
                 List.of("SELF"), 1L);
     }
 

@@ -42,4 +42,12 @@ public final class ApprovalApplicationAgentDomainToolAdapter implements Approval
         return new WriteResult(
                 submitted.id(), submitted.formKey(), submitted.status(), submitted.version());
     }
+
+    @Override
+    public WriteResult withdraw(ToolActorContext context, long applicationId, int version) {
+        ApprovalApplicationResponse withdrawn = approvalService.withdrawAgentApplication(
+                context.userId(), applicationId, new VersionRequest(version));
+        return new WriteResult(
+                withdrawn.id(), withdrawn.formKey(), withdrawn.status(), withdrawn.version());
+    }
 }

@@ -399,6 +399,19 @@ class P1PostgresMigrationIT {
                     WHERE code IN ('approval:submit', 'agent:tool:approval.application.submitDraft')
                     """)).as("通用审批草稿提交工具必须具备业务与工具两层实时权限").isEqualTo(2);
             assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'approval.application.withdraw'
+                      AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:35ce035131933d4068d30efa845969773cacbfbe9d329ef8bc4aa17f291ac6fd'
+                      AND risk_level = 'L1' AND data_scope_policy = 'SELF'
+                      AND retry_policy = 'NEVER' AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'EXPLICIT' AND enabled = TRUE
+                    """)).as("通用审批撤回工具必须以本人单写且禁止自动重试契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code IN ('approval:withdraw', 'agent:tool:approval.application.withdraw')
+                    """)).as("通用审批撤回工具必须具备业务与工具两层实时权限").isEqualTo(2);
+            assertThat(count(statement, """
                     SELECT COUNT(*) FROM information_schema.columns
                     WHERE table_schema = current_schema() AND table_name = 'approval_application'
                       AND column_name = 'agent_operation_key'

@@ -48,4 +48,24 @@ class AgentApprovalApplicationWriteToolDefinitionsTest {
         assertThat(validator.valid(definition.inputSchema(), mapper.readTree(
                 "{\"applicationId\":10,\"version\":2,\"tenantId\":9}"))).isFalse();
     }
+
+    @Test
+    void genericApplicationWithdrawUsesOwnedVersionedNonRetryableWrite() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        var definition = new AgentApprovalApplicationWriteToolDefinitions()
+                .approvalApplicationWithdrawToolDefinition(mapper);
+        var validator = new ToolSchemaValidator();
+
+        assertThat(definition.schemaHash()).isEqualTo(
+                "sha256:35ce035131933d4068d30efa845969773cacbfbe9d329ef8bc4aa17f291ac6fd");
+        assertThat(definition.requiredPermissions()).containsExactly("approval:withdraw");
+        assertThat(definition.riskLevel()).isEqualTo(RiskLevel.L1);
+        assertThat(definition.retryPolicy()).isEqualTo(RetryPolicy.NEVER);
+        assertThat(definition.sideEffect()).isEqualTo(SideEffect.SINGLE_WRITE);
+        assertThat(definition.confirmationPolicy()).isEqualTo(ConfirmationPolicy.EXPLICIT);
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree(
+                "{\"applicationId\":10,\"version\":2}"))).isTrue();
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree(
+                "{\"applicationId\":10,\"version\":2,\"reason\":\"绕过\"}"))).isFalse();
+    }
 }

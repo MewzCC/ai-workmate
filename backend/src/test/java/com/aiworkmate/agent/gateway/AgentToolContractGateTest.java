@@ -27,7 +27,7 @@ class AgentToolContractGateTest {
             ToolCode.LEAVE_CREATE_DRAFT, ToolCode.LEAVE_SUBMIT, ToolCode.LEAVE_APPLY, ToolCode.LEAVE_WITHDRAW,
             ToolCode.MEETING_BOOK, ToolCode.MEETING_CANCEL, ToolCode.NOTIFICATION_MARK_READ,
             ToolCode.ATTENDANCE_REISSUE_APPLY, ToolCode.APPROVAL_APPLICATION_CREATE_DRAFT,
-            ToolCode.APPROVAL_APPLICATION_SUBMIT_DRAFT);
+            ToolCode.APPROVAL_APPLICATION_SUBMIT_DRAFT, ToolCode.APPROVAL_APPLICATION_WITHDRAW);
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final PageCapabilityCatalog pages = new PageCapabilityCatalog();
 

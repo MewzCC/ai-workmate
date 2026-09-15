@@ -37,6 +37,9 @@ public interface GenericApprovalService {
     /** 撤回本人审批中的申请，同时取消当前流程实例和唯一有效待办。 */
     ApprovalApplicationResponse withdraw(Long userId, Long id, VersionRequest request);
 
+    /** Agent 专用的本人申请撤回入口；实时写权限与页面权限必须同时满足。 */
+    ApprovalApplicationResponse withdrawAgentApplication(Long userId, Long id, VersionRequest request);
+
     /** 催办当前有效待办，按服务端频率窗口限流并写入审计与消息中心。 */
     ApprovalApplicationResponse remind(Long userId, Long id, VersionRequest request);
 
