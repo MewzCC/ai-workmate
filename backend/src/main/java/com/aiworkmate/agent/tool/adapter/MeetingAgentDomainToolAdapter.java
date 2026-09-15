@@ -51,4 +51,13 @@ public final class MeetingAgentDomainToolAdapter implements MeetingToolPort {
                 item.cancelledAt());
     }
 
+    @Override
+    public java.util.Optional<MeetingToolPort.WriteResult> findCreation(
+            ToolActorContext context, MeetingToolPort.BookCommand command, String operationKey) {
+        return meetingBookingService.findAgentCreation(context.userId(), new MeetingBookingRequest(
+                command.roomId(), command.title(), command.agenda(), command.startAt(), command.endAt(),
+                command.attendeeCount()), operationKey).map(item -> new MeetingToolPort.WriteResult(
+                item.id(), item.roomId(), item.status(), item.version(), item.startAt(), item.endAt()));
+    }
+
 }

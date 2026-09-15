@@ -6,6 +6,9 @@ import java.util.List;
 public interface MeetingToolPort {
     Result query(ToolActorContext context, Query query);
     WriteResult book(ToolActorContext context, BookCommand command, String operationKey);
+    /** Empty is an unobserved outcome; it must not authorize replay of a write. */
+    java.util.Optional<WriteResult> findCreation(
+            ToolActorContext context, BookCommand expectedCommand, String operationKey);
     CancelResult cancel(ToolActorContext context, CancelCommand command, String operationKey);
     record Query(String keyword, String roomStatus, LocalDateTime from, LocalDateTime to,
                  String bookingStatus, int page, int size) {}

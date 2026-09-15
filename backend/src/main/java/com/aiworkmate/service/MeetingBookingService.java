@@ -12,6 +12,10 @@ public interface MeetingBookingService {
 
     MeetingBookingResponse createAgent(Long userId, MeetingBookingRequest request, String operationKey);
 
+    /** Empty means not observed, not proof that an in-flight operation failed. */
+    java.util.Optional<MeetingBookingResponse> findAgentCreation(
+            Long userId, MeetingBookingRequest expectedRequest, String operationKey);
+
     PageResponse<MeetingBookingResponse> listMine(Long userId, LocalDateTime from, LocalDateTime to,
                                                    String status, int page, int size);
 

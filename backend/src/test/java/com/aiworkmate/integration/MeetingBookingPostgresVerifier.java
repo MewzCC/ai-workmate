@@ -115,5 +115,28 @@ final class MeetingBookingPostgresVerifier {
                 cancellable.id())).isEqualTo("BOOKED");
         assertThat(jdbc.queryForObject("SELECT agent_cancel_operation_key FROM meeting_booking WHERE id=?", String.class,
                 cancellable.id())).isNull();
+
+        var observed = tx.execute(status -> service.findAgentCreation(user, command, "same-operation"));
+        assertThat(observed)
+                .hasValueSatisfying(result -> {
+                    assertThat(result.status()).isEqualTo("CANCELLED");
+                    assertThat(result.version()).isEqualTo(1);
+                });
+        var rolledBack = tx.execute(status -> service.findAgentCreation(user, rollback, "rollback-operation"));
+        assertThat(rolledBack).isEmpty();
+        long foreignUser = user + 100000;
+        when(access.resolveActiveUser(foreignUser)).thenReturn(new ResolvedUserAccess(foreignUser, "test", tenant,
+                "EMPLOYEE", List.of("EMPLOYEE"), List.of("meeting:book"), List.of("SELF"), 1L));
+        var otherOwner = tx.execute(status -> service.findAgentCreation(foreignUser, command, "same-operation"));
+        assertThat(otherOwner).isEmpty();
+        when(access.resolveActiveUser(user)).thenReturn(new ResolvedUserAccess(user, "test", tenant + 100000,
+                "EMPLOYEE", List.of("EMPLOYEE"), List.of("meeting:book"), List.of("SELF"), 1L));
+        var otherTenant = tx.execute(status -> service.findAgentCreation(user, command, "same-operation"));
+        assertThat(otherTenant).isEmpty();
+        when(access.resolveActiveUser(user)).thenReturn(new ResolvedUserAccess(user, "test", tenant,
+                "EMPLOYEE", List.of("EMPLOYEE"), List.of(), List.of("SELF"), 1L));
+        assertThatThrownBy(() -> tx.execute(status -> service.findAgentCreation(user, command, "same-operation")))
+                .isInstanceOf(com.aiworkmate.common.BusinessException.class)
+                .extracting("errorCode").isEqualTo("PERMISSION_DENIED");
     }
 }

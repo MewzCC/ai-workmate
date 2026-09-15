@@ -77,6 +77,35 @@ class MeetingBookingServiceImplTest {
     }
 
     @Test
+    void missingCreationOutcomeRemainsUnobservedWithoutAnyWrite() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(access(false));
+        assertThat(service.findAgentCreation(USER_ID, request(6), "agent:10:20:meeting.book:v1"))
+                .isEmpty();
+        verify(bookingMapper).findAgentOperation(TENANT_ID, USER_ID, "agent:10:20:meeting.book:v1");
+        org.mockito.Mockito.verifyNoInteractions(roomMapper, userMapper, auditService);
+        verify(bookingMapper, never()).insert(any(MeetingBooking.class));
+    }
+
+    @Test
+    void creationOutcomeLookupStillRequiresAnActiveActor() {
+        assertThatThrownBy(() -> service.findAgentCreation(
+                USER_ID, request(6), "agent:10:20:meeting.book:v1"))
+                .isInstanceOf(BusinessException.class);
+        org.mockito.Mockito.verifyNoInteractions(bookingMapper, roomMapper, userMapper, auditService);
+    }
+
+    @Test
+    void creationOutcomeLookupRejectsADifferentFrozenCommand() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(access(false));
+        when(bookingMapper.findAgentOperation(TENANT_ID, USER_ID, "agent:10:20:meeting.book:v1"))
+                .thenReturn(booking(TENANT_ID, "BOOKED", 0));
+        assertThatThrownBy(() -> service.findAgentCreation(
+                USER_ID, request(6), "agent:10:20:meeting.book:v1"))
+                .isInstanceOf(BusinessException.class);
+        org.mockito.Mockito.verifyNoInteractions(roomMapper, userMapper, auditService);
+    }
+
+    @Test
     void agentBookingReturnsExistingOwnedOperationWithoutSecondWrite() {
         when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(access(false));
         MeetingBooking existing = booking(TENANT_ID, "BOOKED", 0);

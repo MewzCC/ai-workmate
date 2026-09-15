@@ -68,4 +68,14 @@ class MeetingAgentDomainToolAdapterTest {
         verify(bookings).listMine(7L, start, start.plusDays(1), "BOOKED", 2, 20);
         verifyNoMoreInteractions(rooms, bookings);
     }
+
+    @Test
+    void unobservedCreationIsNotConvertedIntoAWrite() {
+        var request = new MeetingBookingRequest(3L, "Planning", "Agenda", start, start.plusHours(1), 4);
+        when(bookings.findAgentCreation(7L, request, "operation")).thenReturn(java.util.Optional.empty());
+        assertThat(adapter.findCreation(actor, command, "operation")).isEmpty();
+        verify(bookings).findAgentCreation(7L, request, "operation");
+        verifyNoMoreInteractions(bookings);
+        verifyNoInteractions(rooms);
+    }
 }

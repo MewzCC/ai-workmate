@@ -54,6 +54,20 @@ public class MeetingBookingServiceImpl implements MeetingBookingService {
         return createInternal(userId, request, operationKey);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public java.util.Optional<MeetingBookingResponse> findAgentCreation(
+            Long userId, MeetingBookingRequest expectedRequest, String operationKey) {
+        ResolvedUserAccess actor = requirePermission(userId, "meeting:book");
+        if (operationKey == null || operationKey.isBlank() || operationKey.length() > 128) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        validateRequest(expectedRequest);
+        MeetingBooking booking = findAgentBooking(actor, operationKey);
+        return booking == null ? java.util.Optional.empty()
+                : java.util.Optional.of(replayResponse(actor, booking, expectedRequest));
+    }
+
     private MeetingBookingResponse createInternal(
             Long userId, MeetingBookingRequest request, String operationKey) {
         ResolvedUserAccess actor = requirePermission(userId, "meeting:book");
