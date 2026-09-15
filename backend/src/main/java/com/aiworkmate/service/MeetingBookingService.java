@@ -10,6 +10,8 @@ import java.time.LocalDateTime;
 public interface MeetingBookingService {
     MeetingBookingResponse create(Long userId, MeetingBookingRequest request);
 
+    MeetingBookingResponse createAgent(Long userId, MeetingBookingRequest request, String operationKey);
+
     PageResponse<MeetingBookingResponse> listMine(Long userId, LocalDateTime from, LocalDateTime to,
                                                    String status, int page, int size);
 

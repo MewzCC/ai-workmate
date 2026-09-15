@@ -25,6 +25,7 @@ public enum ToolCode {
     ATTENDANCE_QUERY("attendance.query"),
     ASSET_QUERY("asset.query"),
     MEETING_QUERY("meeting.query"),
+    MEETING_BOOK("meeting.book"),
     VISITOR_QUERY("visitor.query"),
     SEAL_QUERY("seal.query"),
     EXPENSE_QUERY("expense.query"),

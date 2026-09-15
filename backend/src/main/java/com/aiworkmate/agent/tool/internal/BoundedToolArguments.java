@@ -33,6 +33,13 @@ final class BoundedToolArguments {
         return Math.min(maximum, value.asInt());
     }
 
+    static int requiredInt(JsonNode arguments, String field, int minimum, int maximum) {
+        JsonNode value = arguments.get(field);
+        if (value == null || !value.isIntegralNumber() || !value.canConvertToInt()
+                || value.asInt() < minimum || value.asInt() > maximum) throw invalid();
+        return value.asInt();
+    }
+
     static Long optionalPositiveLong(JsonNode arguments, String field) {
         JsonNode value = arguments.get(field);
         if (value == null || value.isNull()) return null;
@@ -88,6 +95,12 @@ final class BoundedToolArguments {
         } catch (DateTimeException exception) {
             throw invalid();
         }
+    }
+
+    static LocalDateTime requiredDateTime(JsonNode arguments, String field) {
+        LocalDateTime value = optionalDateTime(arguments, field);
+        if (value == null) throw invalid();
+        return value;
     }
 
     static <E extends Enum<E>> E requiredEnum(JsonNode arguments, String field, Class<E> type) {

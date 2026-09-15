@@ -41,7 +41,27 @@ public class MeetingBookingServiceImpl implements MeetingBookingService {
     @Override
     @Transactional
     public MeetingBookingResponse create(Long userId, MeetingBookingRequest request) {
+        return createInternal(userId, request, null);
+    }
+
+    @Override
+    @Transactional
+    public MeetingBookingResponse createAgent(Long userId, MeetingBookingRequest request, String operationKey) {
+        if (operationKey == null || operationKey.isBlank() || operationKey.length() > 128) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        return createInternal(userId, request, operationKey);
+    }
+
+    private MeetingBookingResponse createInternal(
+            Long userId, MeetingBookingRequest request, String operationKey) {
         ResolvedUserAccess actor = requirePermission(userId, "meeting:book");
+        validateRequest(request);
+        MeetingBooking existing = findAgentBooking(actor, operationKey);
+        if (existing != null) return replayResponse(actor, existing, request);
+        if (!request.startAt().isAfter(LocalDateTime.now())) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.meeting.booking.start.future");
+        }
         if (!request.endAt().isAfter(request.startAt())) {
             throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID, "oa.meeting.booking.time.invalid");
         }
@@ -56,6 +76,8 @@ public class MeetingBookingServiceImpl implements MeetingBookingService {
                 && request.attendeeCount() > room.getCapacity()) {
             throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID, "oa.meeting.booking.capacity.exceeded");
         }
+        existing = findAgentBooking(actor, operationKey);
+        if (existing != null) return replayResponse(actor, existing, request);
         long conflicts = bookingMapper.selectCount(new LambdaQueryWrapper<MeetingBooking>()
                 .eq(MeetingBooking::getTenantId, actor.tenantId())
                 .eq(MeetingBooking::getRoomId, room.getId())
@@ -70,6 +92,7 @@ public class MeetingBookingServiceImpl implements MeetingBookingService {
         booking.setTenantId(actor.tenantId());
         booking.setRoomId(room.getId());
         booking.setOrganizerUserId(actor.userId());
+        booking.setAgentOperationKey(operationKey);
         booking.setTitle(request.title().trim());
         booking.setAgenda(trim(request.agenda()));
         booking.setStartAt(request.startAt());
@@ -85,6 +108,39 @@ public class MeetingBookingServiceImpl implements MeetingBookingService {
                 "roomId=" + room.getId() + ",startAt=" + booking.getStartAt()
                         + ",endAt=" + booking.getEndAt());
         return toResponse(actor, booking, room, userMapper.selectById(actor.userId()), null);
+    }
+
+    private MeetingBooking findAgentBooking(ResolvedUserAccess actor, String operationKey) {
+        if (operationKey == null) return null;
+        return bookingMapper.findAgentOperation(actor.tenantId(), actor.userId(), operationKey);
+    }
+
+    private MeetingBookingResponse response(ResolvedUserAccess actor, MeetingBooking booking) {
+        return toResponse(actor, booking, roomMapper.selectById(booking.getRoomId()),
+                userMapper.selectById(actor.userId()), null);
+    }
+
+    private MeetingBookingResponse replayResponse(ResolvedUserAccess actor, MeetingBooking booking,
+                                                   MeetingBookingRequest request) {
+        if (!java.util.Objects.equals(booking.getRoomId(), request.roomId())
+                || !java.util.Objects.equals(booking.getTitle(), request.title().trim())
+                || !java.util.Objects.equals(booking.getAgenda(), trim(request.agenda()))
+                || !java.util.Objects.equals(booking.getStartAt(), request.startAt())
+                || !java.util.Objects.equals(booking.getEndAt(), request.endAt())
+                || !java.util.Objects.equals(booking.getAttendeeCount(), request.attendeeCount())) {
+            throw new BusinessException(ErrorCode.IDEMPOTENCY_CONFLICT);
+        }
+        return response(actor, booking);
+    }
+
+    private void validateRequest(MeetingBookingRequest request) {
+        if (request == null || request.roomId() == null || request.roomId() < 1
+                || request.title() == null || request.title().isBlank()
+                || request.title().length() > 120 || request.startAt() == null || request.endAt() == null
+                || request.attendeeCount() == null || request.attendeeCount() < 1
+                || request.attendeeCount() > 10000 || request.agenda() != null && request.agenda().length() > 500) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
     }
 
     @Override

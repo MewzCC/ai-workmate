@@ -77,6 +77,80 @@ class MeetingBookingServiceImplTest {
     }
 
     @Test
+    void agentBookingReturnsExistingOwnedOperationWithoutSecondWrite() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(access(false));
+        MeetingBooking existing = booking(TENANT_ID, "BOOKED", 0);
+        MeetingBookingRequest command = request(6);
+        existing.setTitle(command.title());
+        existing.setAgenda(command.agenda());
+        existing.setStartAt(command.startAt());
+        existing.setEndAt(command.endAt());
+        existing.setAttendeeCount(command.attendeeCount());
+        existing.setAgentOperationKey("agent:10:20:meeting.book:v1");
+        when(bookingMapper.findAgentOperation(TENANT_ID, USER_ID, "agent:10:20:meeting.book:v1"))
+                .thenReturn(existing);
+        when(roomMapper.selectById(ROOM_ID)).thenReturn(room("OPEN", 10));
+        when(userMapper.selectById(USER_ID)).thenReturn(user());
+
+        MeetingBookingResponse response = service.createAgent(
+                USER_ID, command, "agent:10:20:meeting.book:v1");
+
+        assertThat(response.id()).isEqualTo(BOOKING_ID);
+        verify(roomMapper, never()).lockForBooking(any(), any());
+        verify(bookingMapper, never()).insert(any(MeetingBooking.class));
+        verify(auditService, never()).recordTransactional(any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void agentBookingRejectsInvalidOperationKeyBeforeWriting() {
+        assertThatThrownBy(() -> service.createAgent(USER_ID, request(6), " "))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("REQUEST_INVALID");
+        verify(userAccessService, never()).resolveActiveUser(any());
+        verify(bookingMapper, never()).insert(any(MeetingBooking.class));
+    }
+
+    @Test
+    void agentBookingRejectsDifferentContentForSameOperationKey() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(access(false));
+        when(bookingMapper.findAgentOperation(TENANT_ID, USER_ID, "agent:10:20:meeting.book:v1"))
+                .thenReturn(booking(TENANT_ID, "BOOKED", 0));
+        assertThatThrownBy(() -> service.createAgent(USER_ID, request(6), "agent:10:20:meeting.book:v1"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("IDEMPOTENCY_CONFLICT");
+        verify(bookingMapper, never()).insert(any(MeetingBooking.class));
+    }
+
+    @Test
+    void agentBookingFailsClosedWhenUserIsInactive() {
+        assertThatThrownBy(() -> service.createAgent(USER_ID, request(6), "agent:10:20:meeting.book:v1"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("AUTH_REQUIRED");
+        verify(bookingMapper, never()).selectOne(any());
+    }
+
+    @Test
+    void agentBookingRejectsRevokedPermissionBeforeReadingResources() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(new ResolvedUserAccess(
+                USER_ID, "test", TENANT_ID, "EMPLOYEE", List.of("EMPLOYEE"), List.of(), List.of("SELF"), 2L));
+        assertThatThrownBy(() -> service.createAgent(USER_ID, request(6), "agent:10:20:meeting.book:v1"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("PERMISSION_DENIED");
+        verify(bookingMapper, never()).selectOne(any());
+        verify(roomMapper, never()).lockForBooking(any(), any());
+    }
+
+    @Test
+    void agentBookingCannotUseRoomFromAnotherTenant() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(access(false));
+        assertThatThrownBy(() -> service.createAgent(USER_ID, request(6), "agent:10:20:meeting.book:v1"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("RESOURCE_NOT_FOUND");
+        verify(roomMapper).lockForBooking(TENANT_ID, ROOM_ID);
+        verify(bookingMapper, never()).insert(any(MeetingBooking.class));
+    }
+
+    @Test
     void rejectsOverlappingBooking() {
         when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(access(false));
         when(roomMapper.lockForBooking(TENANT_ID, ROOM_ID)).thenReturn(room("OPEN", 10));

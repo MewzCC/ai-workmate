@@ -60,6 +60,7 @@ class P1PostgresMigrationIT {
         assertThat(emptyResult.migrationsExecuted).isGreaterThan(0);
         assertThat(empty.validateWithResult().validationSuccessful).isTrue();
         assertP1Schema(emptySchema);
+        MeetingBookingPostgresVerifier.verify(databaseUrl, databaseUsername, databasePassword, emptySchema);
         Flyway restartedEmpty = flyway(emptySchema, null);
         assertThat(restartedEmpty.migrate().migrationsExecuted).isZero();
         assertThat(restartedEmpty.validateWithResult().validationSuccessful).isTrue();
@@ -289,6 +290,28 @@ class P1PostgresMigrationIT {
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM rbac_permission WHERE code = 'agent:tool:meeting.query'
                     """)).as("会议室 Agent 工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'meeting.book' AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:08abfb0571d3c4b1576423f7aae0849039062dccca5025efef23e9cb0e88f276'
+                      AND risk_level = 'L1' AND data_scope_policy = 'SELF'
+                      AND retry_policy = 'BUSINESS_IDEMPOTENT' AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'EXPLICIT' AND enabled = TRUE
+                    """)).as("会议室预约写工具必须以冻结的本人原子写契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code IN ('meeting:book', 'agent:tool:meeting.book')
+                    """)).as("会议室预约写工具必须具备业务与工具两层实时权限").isEqualTo(2);
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM information_schema.columns
+                    WHERE table_schema = current_schema() AND table_name = 'meeting_booking'
+                      AND column_name = 'agent_operation_key'
+                    """)).as("会议预约必须持久化 Agent 领域幂等键").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM pg_indexes
+                    WHERE schemaname = current_schema() AND tablename = 'meeting_booking'
+                      AND indexname = 'ux_meeting_booking_agent_operation'
+                    """)).as("会议预约 Agent 幂等键必须具备唯一索引").isOne();
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM agent_tool
                     WHERE tenant_id IS NULL AND code = 'attendance.query' AND handler_version = '1.0.0'

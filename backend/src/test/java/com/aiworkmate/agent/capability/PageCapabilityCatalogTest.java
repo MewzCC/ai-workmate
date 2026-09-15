@@ -51,6 +51,15 @@ class PageCapabilityCatalogTest {
     }
 
     @Test
+    void meetingPageOffersReadAndOneConfirmedAtomicWrite() {
+        var page = catalog.find("meeting-room").orElseThrow();
+        assertThat(page.readTools()).extracting(PageToolReference::code)
+                .containsExactly(ToolCode.MEETING_QUERY);
+        assertThat(page.writeTools()).extracting(PageToolReference::code)
+                .containsExactly(ToolCode.MEETING_BOOK);
+    }
+
+    @Test
     void mapsLegacyDrawerPageNamesToCanonicalRoutes() {
         assertThat(catalog.canonicalPageId("todo-list")).isEqualTo("todo");
         assertThat(catalog.canonicalPageId("message-center")).isEqualTo("messages");

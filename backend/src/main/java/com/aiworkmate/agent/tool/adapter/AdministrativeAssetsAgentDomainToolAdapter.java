@@ -7,6 +7,7 @@ import com.aiworkmate.agent.tool.port.ToolActorContext;
 import com.aiworkmate.agent.tool.port.VisitorToolPort;
 import com.aiworkmate.service.AdminAssetsService;
 import com.aiworkmate.service.MeetingBookingService;
+import com.aiworkmate.dto.MeetingBookingRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -76,6 +77,16 @@ public class AdministrativeAssetsAgentDomainToolAdapter
                         item.endAt(), item.attendeeCount(), item.status(), item.version(), item.cancelledByName(),
                         item.cancelledAt(), item.cancelReason(), item.createdAt(), item.updatedAt(), item.canCancel()))
                 .toList(), bookings.total(), bookings.page(), bookings.size());
+    }
+
+    @Override
+    public MeetingToolPort.WriteResult book(
+            ToolActorContext context, MeetingToolPort.BookCommand command, String operationKey) {
+        var item = meetingBookingService.createAgent(context.userId(), new MeetingBookingRequest(
+                command.roomId(), command.title(), command.agenda(), command.startAt(), command.endAt(),
+                command.attendeeCount()), operationKey);
+        return new MeetingToolPort.WriteResult(item.id(), item.roomId(), item.status(), item.version(),
+                item.startAt(), item.endAt());
     }
 
     @Override
