@@ -46,7 +46,7 @@ class AttendanceServiceImplTest {
     private static final long USER_ID = 1001L;
 
     private static final ResolvedUserAccess ACTOR = new ResolvedUserAccess(
-            USER_ID, "alice", "EMPLOYEE", List.of("route:attendance-clock"));
+            USER_ID, "alice", "EMPLOYEE", List.of("route:attendance-clock", "attendance:reissue:apply"));
 
     @Mock
     private AttendanceRecordMapper recordMapper;
@@ -63,8 +63,62 @@ class AttendanceServiceImplTest {
     @Mock
     private UserAccessService userAccessService;
 
+    @Mock
+    private com.aiworkmate.service.BusinessAuditService auditService;
+
     @InjectMocks
     private AttendanceServiceImpl attendanceService;
+
+    @Test
+    void reissueRequiresBusinessPermissionRatherThanOnlyThePageRoute() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(new ResolvedUserAccess(
+                USER_ID, "alice", "EMPLOYEE", List.of("route:attendance-reissue")));
+        assertThatThrownBy(() -> attendanceService.submitReissue(USER_ID,
+                new com.aiworkmate.dto.AttendanceReissueRequest(LocalDate.now(), "CLOCK_IN", "reason")))
+                .isInstanceOf(BusinessException.class).extracting("errorCode").isEqualTo("PERMISSION_DENIED");
+        org.mockito.Mockito.verifyNoInteractions(userMapper, reissueMapper, recordMapper, auditService);
+    }
+
+    @Test
+    void reissueRejectsInvalidTypedRequestsBeforeAccessingBusinessData() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(ACTOR);
+        for (var request : java.util.Arrays.asList(null,
+                new com.aiworkmate.dto.AttendanceReissueRequest(LocalDate.now(), "INVALID", "reason"),
+                new com.aiworkmate.dto.AttendanceReissueRequest(LocalDate.now(), "CLOCK_IN", " "),
+                new com.aiworkmate.dto.AttendanceReissueRequest(null, "CLOCK_IN", "reason"))) {
+            assertThatThrownBy(() -> attendanceService.submitReissue(USER_ID, request))
+                    .isInstanceOf(BusinessException.class).extracting("errorCode").isEqualTo("REQUEST_INVALID");
+        }
+        org.mockito.Mockito.verifyNoInteractions(userMapper, reissueMapper, recordMapper);
+    }
+
+    @Test
+    void reissueRejectsAnApplicantOutsideTheResolvedTenant() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(ACTOR);
+        var applicant = new com.aiworkmate.entity.User();
+        applicant.setId(USER_ID); applicant.setStatus(1); applicant.setTenantId(ACTOR.tenantId() + 1);
+        when(userMapper.lockActiveApplicant(ACTOR.tenantId(), USER_ID)).thenReturn(applicant);
+        assertThatThrownBy(() -> attendanceService.submitReissue(USER_ID,
+                new com.aiworkmate.dto.AttendanceReissueRequest(LocalDate.now(), "CLOCK_IN", "reason")))
+                .isInstanceOf(BusinessException.class).extracting("errorCode").isEqualTo("RESOURCE_NOT_FOUND");
+        org.mockito.Mockito.verifyNoInteractions(reissueMapper, recordMapper);
+    }
+
+    @Test
+    void reissueRejectsSelfApprovalAndInactiveApproverBeforeInserting() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(ACTOR);
+        var applicant = new com.aiworkmate.entity.User();
+        applicant.setId(USER_ID); applicant.setStatus(1); applicant.setTenantId(ACTOR.tenantId());
+        when(userMapper.lockActiveApplicant(ACTOR.tenantId(), USER_ID)).thenReturn(applicant);
+        for (long approver : new long[]{USER_ID, USER_ID + 1}) {
+            applicant.setApproverUserId(approver);
+            assertThatThrownBy(() -> attendanceService.submitReissue(USER_ID,
+                    new com.aiworkmate.dto.AttendanceReissueRequest(LocalDate.now(), "CLOCK_IN", "reason")))
+                    .isInstanceOf(BusinessException.class).extracting("errorCode")
+                    .isEqualTo("ATTENDANCE_APPROVER_MISSING");
+        }
+        org.mockito.Mockito.verifyNoInteractions(reissueMapper, recordMapper);
+    }
 
     @Test
     void clockIn_shouldInsertRecordWithTimestamps() {
