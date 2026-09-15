@@ -49,7 +49,8 @@ public class PageCapabilityServiceImpl implements PageCapabilityService {
                 commands,
                 page.dataScopePolicy().name(),
                 scopes,
-                tools
+                tools,
+                tools.isEmpty() ? PageCapabilityResponse.UnavailableReason.NO_AVAILABLE_TOOLS : null
         );
     }
 

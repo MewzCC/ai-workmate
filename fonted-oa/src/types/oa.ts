@@ -160,6 +160,7 @@ export interface PageCapability {
   dataScopePolicy: PageCapabilityTool['ownershipPolicy'];
   effectiveDataScopes: string[];
   tools: PageCapabilityTool[];
+  unavailableReason?: 'NO_AVAILABLE_TOOLS' | null;
 }
 
 export interface AgentTaskSummary {

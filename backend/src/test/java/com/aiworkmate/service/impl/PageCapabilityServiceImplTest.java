@@ -72,6 +72,7 @@ class PageCapabilityServiceImplTest {
         assertEquals(1, response.tools().size());
         assertEquals("todo.query", response.tools().get(0).code());
         assertEquals("ASSIGNED_TO_SELF", response.tools().get(0).ownershipPolicy());
+        assertEquals(null, response.unavailableReason());
         verify(userAccessService).resolveActiveUser(42L);
         verify(toolRegistry).resolveAllowedTools(access, "todo");
     }
@@ -79,5 +80,15 @@ class PageCapabilityServiceImplTest {
     private ResolvedUserAccess access(List<String> permissions) {
         return new ResolvedUserAccess(42L, "alice", 9L, "EMPLOYEE", List.of("EMPLOYEE"),
                 permissions, List.of("SELF"), 3L);
+    }
+
+    @Test
+    void returnsGenericReasonWithoutEnumeratingRestrictedTools() {
+        var access = access(List.of("route:todo"));
+        when(userAccessService.resolveActiveUser(42L)).thenReturn(access);
+        when(toolRegistry.resolveAllowedTools(access, "todo")).thenReturn(List.of());
+        var response = service.resolve(42L, "todo");
+        assertEquals(List.of(), response.tools());
+        assertEquals(PageCapabilityResponse.UnavailableReason.NO_AVAILABLE_TOOLS, response.unavailableReason());
     }
 }

@@ -72,6 +72,8 @@ T2 分页切片：21 个查询 Handler 统一复用 `BoundedToolArguments.pageNu
 
 T2 可用性内部切片：`ToolRegistry.resolveAvailability` 与旧执行解析复用单一实现，返回 AVAILABLE、DISABLED、UNAVAILABLE；只有 AVAILABLE 可携带领域契约。结果仅表示租户工具配置解析，不代表用户权限、页面权限、Worker 租约或确认通过，不能作为执行许可。未注册、非法契约及范围不符不返回定义；策略依赖异常仍传播并失败关闭。没有新增公共诊断或执行接口。页面级权限安全过滤、国际化原因和前端展示尚未接入，T2 保持未完成。
 
+T2 页面提示切片：既有受认证页面能力接口在实时页面权限与注册表过滤后，仅为空工具集合返回 `unavailableReason=NO_AVAILABLE_TOOLS`；有工具时为 null。不会列举受限工具、内部开关、权限策略或异常。AI Drawer 复用独立 Ant Design 提示组件，提供中英文安全通用说明；旧后端缺字段时仍显示空工具提示，未知原因不回显。请求失败继续走错误与重试态，不转换成空集合或假成功。此字段不授予执行权限，也不证明模型或外部依赖健康；实际执行仍由 Gateway 复核。浏览器响应式验收仍待完成。
+
 ## 服务化验收
 
 Handler 只能转换封闭参数并调用 Port。Port 使用类型化命令及结果，不依赖 Spring、HTTP、数据库实体或通用参数 Map。本地 Adapter 与普通页面接口复用同一领域 Service。远程化仅替换 Adapter，但领域服务仍须从可信身份解析租户与用户，不能信任客户端字段。

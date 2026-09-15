@@ -233,6 +233,7 @@ export default {
     securityBoundary: 'Execution boundary',
     gatewayEnforced: 'Only registered tools may run through the Tool Gateway',
     noActions: 'No actions available',
+    noAvailableToolsReason: 'No tools are available for your account on this page. Ask an administrator to check business permissions and capability settings. Authorization and confirmation are still required.',
     capabilityLoadFailed: 'Failed to load page capabilities',
     quickCommands: 'Quick commands',
     toolCommands: {
