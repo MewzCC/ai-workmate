@@ -70,6 +70,8 @@ T2 当前切片：`PageToolContractValidator` 在 Spring 启动时交叉校验�
 
 T2 分页切片：21 个查询 Handler 统一复用 `BoundedToolArguments.pageNumber/pageSize`，默认页码 1、每页 20、每页硬上限 50；已有 10000 页上限的工具保持该上限，旧版无页码上限工具显式保留其冻结契约。Schema、版本、输出结构、领域权限及数据库迁移不变。共享参数测试覆盖默认值、边界、旧契约及数值类型混淆；各领域仍使用自身类型化查询模型，不引入万能参数 Map。工具不可用原因仍待后续收口。
 
+T2 可用性内部切片：`ToolRegistry.resolveAvailability` 与旧执行解析复用单一实现，返回 AVAILABLE、DISABLED、UNAVAILABLE；只有 AVAILABLE 可携带领域契约。结果仅表示租户工具配置解析，不代表用户权限、页面权限、Worker 租约或确认通过，不能作为执行许可。未注册、非法契约及范围不符不返回定义；策略依赖异常仍传播并失败关闭。没有新增公共诊断或执行接口。页面级权限安全过滤、国际化原因和前端展示尚未接入，T2 保持未完成。
+
 ## 服务化验收
 
 Handler 只能转换封闭参数并调用 Port。Port 使用类型化命令及结果，不依赖 Spring、HTTP、数据库实体或通用参数 Map。本地 Adapter 与普通页面接口复用同一领域 Service。远程化仅替换 Adapter，但领域服务仍须从可信身份解析租户与用户，不能信任客户端字段。
