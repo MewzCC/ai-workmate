@@ -2,7 +2,7 @@
 
 ## 口径与边界
 
-核对日期：2026-09-15。代码依据为 `PageCapabilityCatalog`、`ToolCode`、代码工具契约和对应领域 Port。目录登记不等同于运行启用、接口完整或浏览器验收通过。会议预约代码已在 7f8b44e0 提交，写开关仍默认关闭，尚未通过生产人工发布门及真实 LLM 端到端验收。
+核对日期：2026-09-15。代码依据为 `PageCapabilityCatalog`、`ToolCode`、代码工具契约和对应领域 Port。目录登记不等同于运行启用、接口完整或浏览器验收通过。已登记写工具的全局与租户写开关仍默认关闭，尚未通过生产人工发布门及真实 LLM 端到端验收。
 
 所有工具必须经过进程内 ToolGateway；实时业务权限和独立 Agent 工具权限均须满足。领域再次校验租户、本人或数据范围、业务状态和版本。一个任务最多一个写步骤；全局与租户写开关默认关闭，开发完成不代表人工发布门通过。
 
@@ -13,7 +13,7 @@
 | 页面 ID | 已登记查询工具 | 已登记写工具 / 后续范围 |
 | --- | --- | --- |
 | dashboard | TODO_QUERY、NOTIFICATION_MINE | 真实详情导航；不在驾驶舱直接最终审批 |
-| ai-workspace | TODO_QUERY、LEAVE_MINE、KNOWLEDGE_SEARCH、NOTIFICATION_MINE | LEAVE_CREATE_DRAFT、LEAVE_SUBMIT、LEAVE_APPLY；后续复用领域工具，不另写业务逻辑 |
+| ai-workspace | TODO_QUERY、LEAVE_MINE、KNOWLEDGE_SEARCH、NOTIFICATION_MINE | LEAVE_CREATE_DRAFT、LEAVE_SUBMIT、LEAVE_APPLY、LEAVE_WITHDRAW、ATTENDANCE_REISSUE_APPLY；复用领域工具，不另写业务逻辑 |
 | ai-tasks | AGENT_TASK_MINE_QUERY | 任务状态查询；不得创建后台自治链路 |
 | todo | TODO_QUERY | 待办详情和受控预审；最终审批保持详情人工确认 |
 | messages | NOTIFICATION_MINE | NOTIFICATION_MARK_READ；仅允许标记本人单条消息已读，默认关闭且需显式确认 |
@@ -42,7 +42,7 @@
 | sandbox-replay | SANDBOX_REPLAY_QUERY | 历史只读；不增加通用工具试运行 |
 | attendance-clock | ATTENDANCE_QUERY | 保持只读；不让 Agent 伪造位置或打卡证据 |
 | attendance-exception | ATTENDANCE_QUERY | 受权限和数据范围控制的异常查询 |
-| attendance-reissue | ATTENDANCE_QUERY | 候选：本人补卡申请 |
+| attendance-reissue | ATTENDANCE_QUERY | ATTENDANCE_REISSUE_APPLY；只提交本人单条待审批申请，不直接改打卡证据 |
 | attendance-statistics | ATTENDANCE_QUERY | 受限统计只读 |
 | attendance-settings | ATTENDANCE_QUERY | 配置只读 |
 | access-control | ACCESS_GOVERNANCE_QUERY | 权限治理只读，写入永久禁止 |
@@ -129,7 +129,9 @@ P4 会议创建核验协议切片：MeetingToolPort 增加类型化 findCreation
 
 P4 会议取消核验协议切片：MeetingToolPort 增加类型化 findCancellation，Adapter 只读调用领域 findAgentCancellation，不调用取消写入口。领域重新校验有效用户及 meeting:cancel 权限，SQL 限定实时租户与本人，复用取消操作键及原有预约ID、版本、理由、取消人和状态匹配；管理员不能代核验其他用户。空结果不证明在途取消失败，不授予重试许可。Adapter 测试覆盖成功收据裁剪和拒绝无写入回退；领域测试覆盖空结果和无效用户拒绝。真实 PostgreSQL 覆盖成功核验、命令冲突、审计回滚后空结果及权限回收，空库及旧库升级、69个迁移validate和重复启动零迁移通过，数据库测试零跳过。未新增公共入口、工具契约、迁移、自动恢复或写开关；P4 全工具与远程协议仍未完成。
 
-P5 补卡领域基础切片：普通页面和后续 Agent 共用 AttendanceService.submitReissue。服务端新增 attendance:reissue:apply 独立业务权限，不再把页面路由当作写权限；在事务中锁定当前租户的有效申请人，串行完成待审重复检查、申请插入和业务审计。申请人必须属于实时租户，直属审批人必须有效、同租户且不是本人。提交只创建 PENDING 申请，不直接补写打卡记录。前端复用实时权限 Hook 控制 Ant Design 创建入口，权限撤销后关闭已打开弹窗，服务端仍逐请求鉴权。真实 PostgreSQL 验证并发只成功一次且只写一次审计、审计失败回滚、打卡记录为零；空库和旧库升级、70个迁移validate及重复启动通过，数据库测试零跳过。此切片尚未注册 Agent 工具或开放写开关，不能宣称一句话补卡已可用。
+P5 补卡领域基础切片：普通页面和后续 Agent 共用 AttendanceService.submitReissue。服务端新增 attendance:reissue:apply 独立业务权限，不再把页面路由当作写权限；在事务中锁定当前租户的有效申请人，串行完成待审重复检查、申请插入和业务审计。申请人必须属于实时租户，直属审批人必须有效、同租户且不是本人。提交只创建 PENDING 申请，不直接补写打卡记录。前端复用实时权限 Hook 控制 Ant Design 创建入口，权限撤销后关闭已打开弹窗，服务端仍逐请求鉴权。真实 PostgreSQL 验证并发只成功一次且只写一次审计、审计失败回滚、打卡记录为零；空库和旧库升级、70个迁移validate及重复启动通过，数据库测试零跳过。
+
+P5 补卡 Agent 工具切片：新增 `attendance.reissue.apply` 冻结契约，输入只含日期、上下班类型和原因，申请人与租户只取 ToolGateway 可信上下文。Handler 通过类型化 AttendanceToolPort 调用既有领域 Service；稳定操作键持久化在申请表，重放相同命令返回原结果，不同命令冲突关闭。工具同时要求实时 `attendance:reissue:apply` 业务权限与独立 Agent 权限，L1、本人范围、单写步骤且显式确认；全局与租户写开关仍默认关闭。真实 PostgreSQL 覆盖相同操作仅一条申请及一条审计、命令冲突、审计失败回滚和考勤记录零直接写入；空库与旧库升级、71 个迁移 validate、重复迁移零变更通过。人工发布门、浏览器逐工具和真实 LLM 端到端仍待验收，因此代码具备受控执行能力不等于生产已开放。
 
 权限、租户、安全配置、审计、运行日志和接口配置页面保持受控只读。每页面有工具不等于每页面可写；永久禁止能力及人工发布门不因本计划改变。
 

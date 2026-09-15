@@ -70,6 +70,22 @@ final class AttendanceReissuePostgresVerifier {
                 Integer.class, user)).isOne();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM business_audit_log WHERE resource_type='ATTENDANCE_REISSUE'",
                 Integer.class)).isOne();
+        var agentRequest = new AttendanceReissueRequest(
+                LocalDate.now().minusDays(2), "CLOCK_OUT", "agent test reason");
+        var agentFirst = tx.execute(status -> service.submitAgentReissue(user, agentRequest, "agent-operation-1"));
+        var agentReplay = tx.execute(status -> service.submitAgentReissue(user, agentRequest, "agent-operation-1"));
+        assertThat(agentFirst).isNotNull();
+        assertThat(agentReplay).isNotNull();
+        assertThat(agentReplay.id()).isEqualTo(agentFirst.id());
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM attendance_reissue WHERE applicant_user_id=?",
+                Integer.class, user)).isEqualTo(2);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM business_audit_log WHERE resource_type='ATTENDANCE_REISSUE'",
+                Integer.class)).isEqualTo(2);
+        assertThatThrownBy(() -> tx.execute(status -> service.submitAgentReissue(user,
+                new AttendanceReissueRequest(agentRequest.clockDate(), agentRequest.clockType(), "changed"),
+                "agent-operation-1"))).isInstanceOfSatisfying(
+                        com.aiworkmate.common.BusinessException.class,
+                        exception -> assertThat(exception.getErrorCode()).isEqualTo("IDEMPOTENCY_CONFLICT"));
         var failingAudit = mock(BusinessAuditService.class);
         doThrow(new IllegalStateException("audit unavailable")).when(failingAudit)
                 .recordTransactional(any(), any(), any(), any(), any(), any(), any());
@@ -78,7 +94,7 @@ final class AttendanceReissuePostgresVerifier {
         assertThatThrownBy(() -> tx.execute(status -> failing.submitReissue(user, other)))
                 .isInstanceOf(IllegalStateException.class);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM attendance_reissue WHERE applicant_user_id=?",
-                Integer.class, user)).isOne();
+                Integer.class, user)).isEqualTo(2);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM attendance_record WHERE user_id=?",
                 Integer.class, user)).isZero();
     }

@@ -25,6 +25,7 @@ public enum ToolCode {
     HR_EMPLOYEE_QUERY("hr.employee.query"),
     HR_CHANGE_QUERY("hr.change.query"),
     ATTENDANCE_QUERY("attendance.query"),
+    ATTENDANCE_REISSUE_APPLY("attendance.reissue.apply"),
     ASSET_QUERY("asset.query"),
     MEETING_QUERY("meeting.query"),
     MEETING_BOOK("meeting.book"),

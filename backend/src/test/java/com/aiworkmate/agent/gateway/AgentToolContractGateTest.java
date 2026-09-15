@@ -25,7 +25,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class AgentToolContractGateTest {
     private static final Set<ToolCode> WRITE_TOOLS = Set.of(
             ToolCode.LEAVE_CREATE_DRAFT, ToolCode.LEAVE_SUBMIT, ToolCode.LEAVE_APPLY, ToolCode.LEAVE_WITHDRAW,
-            ToolCode.MEETING_BOOK, ToolCode.MEETING_CANCEL, ToolCode.NOTIFICATION_MARK_READ);
+            ToolCode.MEETING_BOOK, ToolCode.MEETING_CANCEL, ToolCode.NOTIFICATION_MARK_READ,
+            ToolCode.ATTENDANCE_REISSUE_APPLY);
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final PageCapabilityCatalog pages = new PageCapabilityCatalog();
 

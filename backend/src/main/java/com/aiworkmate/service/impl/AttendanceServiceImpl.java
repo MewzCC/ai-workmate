@@ -185,6 +185,21 @@ public class AttendanceServiceImpl implements AttendanceService {
     @Override
     @Transactional
     public AttendanceReissueResponse submitReissue(Long userId, AttendanceReissueRequest request) {
+        return submitReissueInternal(userId, request, null);
+    }
+
+    @Override
+    @Transactional
+    public AttendanceReissueResponse submitAgentReissue(
+            Long userId, AttendanceReissueRequest request, String operationKey) {
+        if (operationKey == null || operationKey.isBlank() || operationKey.length() > 128) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        return submitReissueInternal(userId, request, operationKey);
+    }
+
+    private AttendanceReissueResponse submitReissueInternal(
+            Long userId, AttendanceReissueRequest request, String operationKey) {
         ResolvedUserAccess actor = requireActiveUser(userId);
         if (!actor.permissions().contains("attendance:reissue:apply")) {
             throw new BusinessException(ErrorCode.PERMISSION_DENIED);
@@ -203,6 +218,8 @@ public class AttendanceServiceImpl implements AttendanceService {
                 || applicant.getStatus() == null || applicant.getStatus() != 1) {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
         }
+        AttendanceReissue existing = findAgentReissue(actor, operationKey);
+        if (existing != null) return replayAgentReissue(existing, request);
         Long approverId = applicant.getApproverUserId();
         if (approverId == null) {
             throw new BusinessException(ErrorCode.ATTENDANCE_APPROVER_MISSING);
@@ -227,6 +244,7 @@ public class AttendanceServiceImpl implements AttendanceService {
         reissue.setTenantId(actor.tenantId());
         reissue.setApplicantUserId(actor.userId());
         reissue.setApproverUserId(approverId);
+        reissue.setAgentOperationKey(operationKey);
         reissue.setClockDate(request.clockDate());
         reissue.setClockType(request.clockType());
         reissue.setReason(request.reason());
@@ -240,6 +258,22 @@ public class AttendanceServiceImpl implements AttendanceService {
                 reissue.getId().toString(), "SUBMIT", "SUCCESS",
                 "clockDate=" + reissue.getClockDate() + ",clockType=" + reissue.getClockType());
         return toReissueResponse(reissue, actor.userId());
+    }
+
+    private AttendanceReissue findAgentReissue(ResolvedUserAccess actor, String operationKey) {
+        return operationKey == null ? null
+                : reissueMapper.findAgentOperation(actor.tenantId(), actor.userId(), operationKey);
+    }
+
+    private AttendanceReissueResponse replayAgentReissue(
+            AttendanceReissue existing, AttendanceReissueRequest request) {
+        if (!java.util.Objects.equals(existing.getClockDate(), request.clockDate())
+                || !java.util.Objects.equals(existing.getClockType(), request.clockType())
+                || !java.util.Objects.equals(existing.getReason(), request.reason())
+                || !"PENDING".equals(existing.getStatus())) {
+            throw new BusinessException(ErrorCode.IDEMPOTENCY_CONFLICT);
+        }
+        return toReissueResponse(existing, existing.getApplicantUserId());
     }
 
     @Override

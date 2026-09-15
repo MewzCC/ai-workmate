@@ -352,6 +352,28 @@ class P1PostgresMigrationIT {
                     """)).as("考勤 Agent 工具必须具备业务与工具两层实时权限").isEqualTo(2);
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'attendance.reissue.apply' AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:bb3f7af3920e01290f14107d053425e8d986f988069eaa20031455ce49cce760'
+                      AND risk_level = 'L1' AND data_scope_policy = 'SELF'
+                      AND retry_policy = 'BUSINESS_IDEMPOTENT' AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'EXPLICIT' AND enabled = TRUE
+                    """)).as("补卡申请工具必须以冻结的本人原子写契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code IN ('attendance:reissue:apply', 'agent:tool:attendance.reissue.apply')
+                    """)).as("补卡申请工具必须具备业务与工具两层实时权限").isEqualTo(2);
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM information_schema.columns
+                    WHERE table_schema = current_schema() AND table_name = 'attendance_reissue'
+                      AND column_name = 'agent_operation_key'
+                    """)).as("补卡申请必须持久化 Agent 领域幂等键").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM pg_indexes
+                    WHERE schemaname = current_schema() AND tablename = 'attendance_reissue'
+                      AND indexname = 'ux_attendance_reissue_agent_operation'
+                    """)).as("补卡申请 Agent 幂等键必须具备唯一索引").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
                     WHERE tenant_id IS NULL AND code = 'visitor.query' AND handler_version = '1.0.0'
                       AND schema_hash = 'sha256:aa6f923d24734c45f3022026885641deb9b74abbe6e9061394234e5cc739a3aa'
                       AND risk_level = 'L0' AND data_scope_policy = 'SELF'

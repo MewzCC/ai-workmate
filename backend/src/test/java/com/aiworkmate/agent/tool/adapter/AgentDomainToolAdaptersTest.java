@@ -166,6 +166,27 @@ class AgentDomainToolAdaptersTest {
     }
 
     @Test
+    void mapsAttendanceReissueCommandToIdempotentDomainWrite() {
+        LocalDate date = LocalDate.of(2026, 9, 14);
+        LocalDateTime submittedAt = LocalDateTime.of(2026, 9, 15, 9, 0);
+        when(attendanceService.submitAgentReissue(eq(7L), org.mockito.ArgumentMatchers.any(),
+                eq("operation-1"))).thenReturn(new com.aiworkmate.dto.AttendanceReissueResponse(
+                31L, 7L, "当前用户", 8L, "直属主管", date, "CLOCK_IN", "忘记打卡",
+                "PENDING", null, submittedAt, null, submittedAt, submittedAt,
+                false, true));
+
+        var result = attendanceAdapter.submitReissue(context,
+                new AttendanceToolPort.ReissueCommand(date, "CLOCK_IN", "忘记打卡"), "operation-1");
+
+        assertThat(result).isEqualTo(new AttendanceToolPort.ReissueWriteResult(
+                31L, "PENDING", date, "CLOCK_IN", submittedAt));
+        var request = ArgumentCaptor.forClass(com.aiworkmate.dto.AttendanceReissueRequest.class);
+        verify(attendanceService).submitAgentReissue(eq(7L), request.capture(), eq("operation-1"));
+        assertThat(request.getValue()).isEqualTo(
+                new com.aiworkmate.dto.AttendanceReissueRequest(date, "CLOCK_IN", "忘记打卡"));
+    }
+
+    @Test
     void mapsVisitorSummaryWithoutPhonePlateOrInternalIdentities() {
         LocalDateTime now = LocalDateTime.of(2026, 9, 14, 9, 30);
         when(adminAssetsService.listMyVisitorBookings(7L, "APPROVED", 1, 20))

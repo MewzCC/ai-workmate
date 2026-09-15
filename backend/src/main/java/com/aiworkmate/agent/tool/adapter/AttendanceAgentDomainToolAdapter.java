@@ -2,6 +2,7 @@ package com.aiworkmate.agent.tool.adapter;
 
 import com.aiworkmate.agent.tool.port.AttendanceToolPort;
 import com.aiworkmate.agent.tool.port.ToolActorContext;
+import com.aiworkmate.dto.AttendanceReissueRequest;
 import com.aiworkmate.service.AttendanceService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -24,6 +25,15 @@ public final class AttendanceAgentDomainToolAdapter implements AttendanceToolPor
             case STATISTICS -> statistics(context, query);
             case SETTINGS -> settings(context, query);
         };
+    }
+
+    @Override
+    public ReissueWriteResult submitReissue(
+            ToolActorContext context, ReissueCommand command, String operationKey) {
+        var item = attendanceService.submitAgentReissue(context.userId(), new AttendanceReissueRequest(
+                command.clockDate(), command.clockType(), command.reason()), operationKey);
+        return new ReissueWriteResult(item.id(), item.status(), item.clockDate(),
+                item.clockType(), item.submittedAt());
     }
 
     private Result today(ToolActorContext context, Query query) {

@@ -3,6 +3,8 @@ package com.aiworkmate.mapper;
 import com.aiworkmate.entity.AttendanceReissue;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
 
 /**
  * 补卡申请 Mapper。
@@ -12,4 +14,8 @@ import org.apache.ibatis.annotations.Mapper;
  */
 @Mapper
 public interface AttendanceReissueMapper extends BaseMapper<AttendanceReissue> {
+    @Select("SELECT * FROM attendance_reissue WHERE tenant_id=#{tenantId} "
+            + "AND applicant_user_id=#{userId} AND agent_operation_key=#{operationKey} LIMIT 1")
+    AttendanceReissue findAgentOperation(@Param("tenantId") Long tenantId, @Param("userId") Long userId,
+                                         @Param("operationKey") String operationKey);
 }

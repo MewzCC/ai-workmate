@@ -7,7 +7,9 @@ import com.aiworkmate.dto.AttendanceClockResponse;
 import com.aiworkmate.dto.AttendanceSettingsRequest;
 import com.aiworkmate.dto.AttendanceSettingsResponse;
 import com.aiworkmate.entity.AttendanceRecord;
+import com.aiworkmate.entity.AttendanceReissue;
 import com.aiworkmate.entity.AttendanceSetting;
+import com.aiworkmate.entity.User;
 import com.aiworkmate.mapper.AttendanceRecordMapper;
 import com.aiworkmate.mapper.AttendanceReissueMapper;
 import com.aiworkmate.mapper.AttendanceSettingMapper;
@@ -29,6 +31,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -118,6 +121,41 @@ class AttendanceServiceImplTest {
                     .isEqualTo("ATTENDANCE_APPROVER_MISSING");
         }
         org.mockito.Mockito.verifyNoInteractions(reissueMapper, recordMapper);
+    }
+
+    @Test
+    void agentReissueReplaysMatchingOperationWithoutSecondWrite() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(ACTOR);
+        User applicant = activeApplicant();
+        when(userMapper.lockActiveApplicant(ACTOR.tenantId(), USER_ID)).thenReturn(applicant);
+        AttendanceReissue existing = pendingReissue("operation-1");
+        when(reissueMapper.findAgentOperation(ACTOR.tenantId(), USER_ID, "operation-1"))
+                .thenReturn(existing);
+        when(userMapper.selectBatchIds(any())).thenReturn(List.of(applicant));
+        var request = new com.aiworkmate.dto.AttendanceReissueRequest(
+                existing.getClockDate(), existing.getClockType(), existing.getReason());
+
+        var response = attendanceService.submitAgentReissue(USER_ID, request, "operation-1");
+
+        assertThat(response.id()).isEqualTo(existing.getId());
+        assertThat(response.status()).isEqualTo("PENDING");
+        verify(reissueMapper).findAgentOperation(ACTOR.tenantId(), USER_ID, "operation-1");
+        verifyNoInteractions(auditService, recordMapper);
+    }
+
+    @Test
+    void agentReissueRejectsChangedArgumentsForExistingOperation() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(ACTOR);
+        when(userMapper.lockActiveApplicant(ACTOR.tenantId(), USER_ID)).thenReturn(activeApplicant());
+        when(reissueMapper.findAgentOperation(ACTOR.tenantId(), USER_ID, "operation-1"))
+                .thenReturn(pendingReissue("operation-1"));
+
+        assertThatThrownBy(() -> attendanceService.submitAgentReissue(USER_ID,
+                new com.aiworkmate.dto.AttendanceReissueRequest(
+                        LocalDate.now().minusDays(1), "CLOCK_OUT", "changed"), "operation-1"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("IDEMPOTENCY_CONFLICT");
+        verifyNoInteractions(auditService, recordMapper);
     }
 
     @Test
@@ -268,5 +306,32 @@ class AttendanceServiceImplTest {
         record.setCreatedAt(java.time.LocalDateTime.now());
         record.setUpdatedAt(java.time.LocalDateTime.now());
         return record;
+    }
+
+    private User activeApplicant() {
+        User user = new User();
+        user.setId(USER_ID);
+        user.setUsername("alice");
+        user.setTenantId(ACTOR.tenantId());
+        user.setApproverUserId(USER_ID + 1);
+        user.setStatus(1);
+        return user;
+    }
+
+    private AttendanceReissue pendingReissue(String operationKey) {
+        AttendanceReissue reissue = new AttendanceReissue();
+        reissue.setId(41L);
+        reissue.setTenantId(ACTOR.tenantId());
+        reissue.setApplicantUserId(USER_ID);
+        reissue.setApproverUserId(USER_ID + 1);
+        reissue.setClockDate(LocalDate.now().minusDays(1));
+        reissue.setClockType("CLOCK_IN");
+        reissue.setReason("忘记打卡");
+        reissue.setStatus("PENDING");
+        reissue.setAgentOperationKey(operationKey);
+        reissue.setSubmittedAt(java.time.LocalDateTime.now());
+        reissue.setCreatedAt(reissue.getSubmittedAt());
+        reissue.setUpdatedAt(reissue.getSubmittedAt());
+        return reissue;
     }
 }
