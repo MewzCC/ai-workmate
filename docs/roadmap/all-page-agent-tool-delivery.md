@@ -76,6 +76,8 @@ T2 页面提示切片：既有受认证页面能力接口在实时页面权限�
 
 T3 会议边界切片：会议查询与预约移入独立 `MeetingAgentDomainToolAdapter`，综合行政适配器不再实现 MeetingToolPort 或依赖预约 Service。Port、Handler、领域方法、工具 Schema 和权限均保持不变，不复制业务状态机。会议室基础查询暂时复用现有 AdminAssetsService，完整领域 Service 拆分仍待实施，不能宣称已经可以独立部署。新增适配器测试验证本人身份和稳定操作键映射、领域拒绝无回退、会议室查询上限和本人预约分页；一 Port 一适配器门禁继续生效。
 
+T3 行政边界切片：移除同时实现资产、访客和印章 Port 的综合适配器，分别建立 Asset、Visitor、Seal 本地适配器。三个适配器当前仍复用 AdminAssetsService，因此只完成 Agent 适配层边界，不代表领域 Service 或数据库已拆分。工具契约、查询结果裁剪、本人或待办队列语义、实时权限和数据库均不变；一 Port 一适配器门禁阻止后续重新聚合。
+
 ## 服务化验收
 
 Handler 只能转换封闭参数并调用 Port。Port 使用类型化命令及结果，不依赖 Spring、HTTP、数据库实体或通用参数 Map。本地 Adapter 与普通页面接口复用同一领域 Service。远程化仅替换 Adapter，但领域服务仍须从可信身份解析租户与用户，不能信任客户端字段。

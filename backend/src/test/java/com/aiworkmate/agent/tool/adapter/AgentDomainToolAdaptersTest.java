@@ -56,7 +56,8 @@ class AgentDomainToolAdaptersTest {
 
     private ApprovalAgentDomainToolAdapter approvalAdapter;
     private HrAgentDomainToolAdapter hrAdapter;
-    private AdministrativeAssetsAgentDomainToolAdapter administrativeAssetsAdapter;
+    private VisitorAgentDomainToolAdapter visitorAdapter;
+    private SealAgentDomainToolAdapter sealAdapter;
     private KnowledgeAgentDomainToolAdapter knowledgeAdapter;
     private NotificationAgentDomainToolAdapter notificationAdapter;
     private final ToolActorContext context = new ToolActorContext(91L, 7L, 10L, 20L, 1, "trace");
@@ -65,7 +66,8 @@ class AgentDomainToolAdaptersTest {
     void setUp() {
         approvalAdapter = new ApprovalAgentDomainToolAdapter(leaveWorkflowService, approvalEngineService);
         hrAdapter = new HrAgentDomainToolAdapter(hrService, employeeChangeService, attendanceService);
-        administrativeAssetsAdapter = new AdministrativeAssetsAgentDomainToolAdapter(adminAssetsService);
+        visitorAdapter = new VisitorAgentDomainToolAdapter(adminAssetsService);
+        sealAdapter = new SealAgentDomainToolAdapter(adminAssetsService);
         knowledgeAdapter = new KnowledgeAgentDomainToolAdapter(knowledgeService);
         notificationAdapter = new NotificationAgentDomainToolAdapter(notificationService);
     }
@@ -168,7 +170,7 @@ class AgentDomainToolAdaptersTest {
                         "登记人", null, null, null, null, now.minusDays(1), now,
                         false, false, true, false, false, false)), 1, 1, 20));
 
-        var result = administrativeAssetsAdapter.query(context,
+        var result = visitorAdapter.query(context,
                 new com.aiworkmate.agent.tool.port.VisitorToolPort.Query(
                         null, com.aiworkmate.agent.tool.port.VisitorToolPort.Queue.MINE,
                         "APPROVED", 1, 20));
@@ -189,7 +191,7 @@ class AgentDomainToolAdaptersTest {
                 null, null, null, null, null, now.minusDays(1), now,
                 false, false, true, false, false));
 
-        var result = administrativeAssetsAdapter.query(context,
+        var result = sealAdapter.query(context,
                 new com.aiworkmate.agent.tool.port.SealToolPort.Query(
                         41L, com.aiworkmate.agent.tool.port.SealToolPort.Queue.MINE, null, 1, 20));
 

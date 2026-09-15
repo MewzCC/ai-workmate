@@ -1,0 +1,37 @@
+package com.aiworkmate.agent.tool.adapter;
+
+import com.aiworkmate.agent.tool.port.ToolActorContext;
+import com.aiworkmate.agent.tool.port.VisitorToolPort;
+import com.aiworkmate.service.AdminAssetsService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Component;
+
+import java.util.List;
+
+@Component
+@RequiredArgsConstructor
+public final class VisitorAgentDomainToolAdapter implements VisitorToolPort {
+    private final AdminAssetsService adminAssetsService;
+
+    @Override
+    public Page query(ToolActorContext context, Query query) {
+        if (query.bookingId() != null) {
+            return new Page(List.of(toItem(adminAssetsService.getVisitorBooking(
+                    context.userId(), query.bookingId()))), 1, 1, 1);
+        }
+        var result = query.queue() == Queue.PENDING
+                ? adminAssetsService.listPendingVisitorBookings(context.userId(), query.page(), query.size())
+                : adminAssetsService.listMyVisitorBookings(context.userId(), query.status(), query.page(), query.size());
+        return new Page(result.records().stream().map(this::toItem).toList(),
+                result.total(), result.page(), result.size());
+    }
+
+    private Item toItem(com.aiworkmate.dto.VisitorBookingResponse item) {
+        return new Item(item.id(), item.applicantName(), item.approverName(), item.hostName(),
+                item.visitorName(), item.visitorCompany(), item.purpose(), item.expectedVisitAt(),
+                item.expectedLeaveAt(), item.partySize(), item.status(), item.version(), item.taskStatus(),
+                item.submittedAt(), item.completedAt(), item.registeredByName(), item.checkedInAt(), item.visitedAt(),
+                item.leftAt(), item.noShowAt(), item.canWithdraw(), item.canDecide(), item.canCheckIn(),
+                item.canMarkVisited(), item.canLeave(), item.canMarkNoShow());
+    }
+}

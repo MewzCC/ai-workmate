@@ -30,7 +30,9 @@ class AgentDomainToolAdapterBoundaryTest {
     private static final List<Class<?>> ADAPTERS = List.of(
             ApprovalAgentDomainToolAdapter.class,
             HrAgentDomainToolAdapter.class,
-            AdministrativeAssetsAgentDomainToolAdapter.class,
+            AssetAgentDomainToolAdapter.class,
+            VisitorAgentDomainToolAdapter.class,
+            SealAgentDomainToolAdapter.class,
             MeetingAgentDomainToolAdapter.class,
             FinanceAgentDomainToolAdapter.class,
             PlatformOperationsAgentDomainToolAdapter.class,
@@ -64,8 +66,9 @@ class AgentDomainToolAdapterBoundaryTest {
         assertThat(HrAgentDomainToolAdapter.class.getInterfaces()).containsExactlyInAnyOrder(
                 HrOrganizationToolPort.class, HrEmployeeToolPort.class, EmployeeChangeToolPort.class,
                 AttendanceToolPort.class);
-        assertThat(AdministrativeAssetsAgentDomainToolAdapter.class.getInterfaces()).containsExactlyInAnyOrder(
-                AssetToolPort.class, VisitorToolPort.class, SealToolPort.class);
+        assertThat(AssetAgentDomainToolAdapter.class.getInterfaces()).containsExactly(AssetToolPort.class);
+        assertThat(VisitorAgentDomainToolAdapter.class.getInterfaces()).containsExactly(VisitorToolPort.class);
+        assertThat(SealAgentDomainToolAdapter.class.getInterfaces()).containsExactly(SealToolPort.class);
         assertThat(MeetingAgentDomainToolAdapter.class.getInterfaces()).containsExactly(MeetingToolPort.class);
         assertThat(FinanceAgentDomainToolAdapter.class.getInterfaces()).containsExactly(FinanceToolPort.class);
         assertThat(PlatformOperationsAgentDomainToolAdapter.class.getInterfaces()).containsExactly(PlatformOperationsToolPort.class);
