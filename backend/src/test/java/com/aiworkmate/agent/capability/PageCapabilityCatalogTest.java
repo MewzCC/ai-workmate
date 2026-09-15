@@ -81,4 +81,11 @@ class PageCapabilityCatalogTest {
         assertThat(catalog.find("runtime-logs").orElseThrow().readTools()).extracting(PageToolReference::code).containsExactly(ToolCode.RUNTIME_LOG_QUERY);
         assertThat(catalog.find("sandbox-replay").orElseThrow().readTools()).extracting(PageToolReference::code).containsExactly(ToolCode.SANDBOX_REPLAY_QUERY);
     }
+
+    @Test
+    void bindsSecurityGovernancePagesWithoutGenericAdministrationTools() {
+        assertThat(catalog.find("access-control").orElseThrow().readTools()).extracting(PageToolReference::code).containsExactly(ToolCode.ACCESS_GOVERNANCE_QUERY);
+        assertThat(catalog.find("data-permission").orElseThrow().readTools()).extracting(PageToolReference::code).containsExactly(ToolCode.DATA_PERMISSION_QUERY);
+        assertThat(catalog.find("ai-permission").orElseThrow().readTools()).extracting(PageToolReference::code).containsExactly(ToolCode.AI_PERMISSION_QUERY);
+    }
 }

@@ -1,0 +1,33 @@
+INSERT INTO rbac_permission(code,name,module,description,tenant_id)
+SELECT 'agent:tool:'||tool_code,'Agent 安全治理查询','AI 能力','允许 Agent 通过受控只读工具查询安全治理摘要',id
+FROM tenant CROSS JOIN (VALUES ('accessGovernance.query'),('dataPermission.query'),('aiPermission.query')) AS tools(tool_code)
+WHERE code='DEFAULT' ON CONFLICT (code) DO UPDATE SET name=EXCLUDED.name,module=EXCLUDED.module,description=EXCLUDED.description;
+
+INSERT INTO rbac_role_permission(tenant_id,role_code,permission_code)
+SELECT DISTINCT rp.tenant_id,rp.role_code,'agent:tool:'||mapping.tool_code
+FROM rbac_role_permission rp JOIN (VALUES
+ ('access:manage','accessGovernance.query'),
+ ('data-scope:manage','dataPermission.query'),
+ ('agent-permission:manage','aiPermission.query')) AS mapping(base_permission,tool_code)
+ ON rp.permission_code=mapping.base_permission ON CONFLICT DO NOTHING;
+
+INSERT INTO agent_tool(tenant_id,code,name,description,handler_version,parameters_schema,output_schema,schema_hash,risk_level,required_permissions,permission_mode,data_scope_policy,retry_policy,side_effect,confirmation_policy,max_result_items,max_result_bytes,timeout_ms,audit_level,enabled)
+VALUES(NULL,'accessGovernance.query','Query access governance','Returns role and access catalog counts without user identities.','1.0.0',
+'{"type":"object","additionalProperties":false,"properties":{"filterCode":{"type":"string","maxLength":80}}}'::jsonb,
+'{"type":"object","additionalProperties":false,"required":["roles","userCount","permissionCount","routeCount","departmentCount","positionCount"],"properties":{"roles":{"type":"array","maxItems":50,"items":{"type":"object","additionalProperties":false,"required":["code","name","builtin","permissionCount"],"properties":{"code":{"type":"string","maxLength":80},"name":{"type":"string","maxLength":160},"description":{"type":"string","maxLength":500},"builtin":{"type":"boolean"},"permissionCount":{"type":"integer","minimum":0}}}},"userCount":{"type":"integer","minimum":0},"permissionCount":{"type":"integer","minimum":0},"routeCount":{"type":"integer","minimum":0},"departmentCount":{"type":"integer","minimum":0},"positionCount":{"type":"integer","minimum":0}}}'::jsonb,
+'sha256:d622f57307336098c25b779333ff842a874adcbf1880ae687c08276d3c6bbc61','L0','["access:manage"]'::jsonb,'ALL','TENANT_SCOPED','READ_ONLY_SAFE','NONE','NONE',50,196608,15000,'HASHED_ARGS_RESULT',TRUE)
+ON CONFLICT (code) WHERE tenant_id IS NULL DO NOTHING;
+
+INSERT INTO agent_tool(tenant_id,code,name,description,handler_version,parameters_schema,output_schema,schema_hash,risk_level,required_permissions,permission_mode,data_scope_policy,retry_policy,side_effect,confirmation_policy,max_result_items,max_result_bytes,timeout_ms,audit_level,enabled)
+VALUES(NULL,'dataPermission.query','Query data permissions','Returns tenant data-scope policy summaries without user or department identifiers.','1.0.0',
+'{"type":"object","additionalProperties":false,"properties":{"scopeType":{"type":"string","enum":["SELF","DEPARTMENT","DEPARTMENT_TREE","CUSTOM_DEPARTMENTS","ALL"]},"enabled":{"type":"boolean"}}}'::jsonb,
+'{"type":"object","additionalProperties":false,"required":["policies","roleBindingCount","userExceptionCount"],"properties":{"policies":{"type":"array","maxItems":50,"items":{"type":"object","additionalProperties":false,"required":["id","name","scopeType","enabled","version"],"properties":{"id":{"type":"integer","minimum":1},"name":{"type":"string","maxLength":160},"description":{"type":"string","maxLength":500},"scopeType":{"type":"string","maxLength":40},"departmentCount":{"type":"integer","minimum":0},"enabled":{"type":"boolean"},"version":{"type":"integer","minimum":0},"updatedAt":{"type":"string","format":"date-time"}}}},"roleBindingCount":{"type":"integer","minimum":0},"userExceptionCount":{"type":"integer","minimum":0}}}'::jsonb,
+'sha256:858c22c5e8947762eda39892caf2fbf962282c21d94945491daf34ebde3f6c21','L0','["data-scope:manage"]'::jsonb,'ALL','TENANT_SCOPED','READ_ONLY_SAFE','NONE','NONE',50,196608,15000,'HASHED_ARGS_RESULT',TRUE)
+ON CONFLICT (code) WHERE tenant_id IS NULL DO NOTHING;
+
+INSERT INTO agent_tool(tenant_id,code,name,description,handler_version,parameters_schema,output_schema,schema_hash,risk_level,required_permissions,permission_mode,data_scope_policy,retry_policy,side_effect,confirmation_policy,max_result_items,max_result_bytes,timeout_ms,audit_level,enabled)
+VALUES(NULL,'aiPermission.query','Query Agent permissions','Returns effective Agent switches and grant counts without internal policy rows.','1.0.0',
+'{"type":"object","additionalProperties":false,"properties":{"toolCode":{"type":"string","maxLength":120},"filterCode":{"type":"string","maxLength":80},"effectiveEnabled":{"type":"boolean"}}}'::jsonb,
+'{"type":"object","additionalProperties":false,"required":["runtime","tenant","tools","roles"],"properties":{"runtime":{"type":"object","additionalProperties":false,"required":["agentEnabled","planningEnabled","executionEnabled","writeToolsEnabled"],"properties":{"agentEnabled":{"type":"boolean"},"planningEnabled":{"type":"boolean"},"executionEnabled":{"type":"boolean"},"writeToolsEnabled":{"type":"boolean"}}},"tenant":{"type":"object","additionalProperties":false,"required":["enabled","writeToolsEnabled"],"properties":{"enabled":{"type":"boolean"},"writeToolsEnabled":{"type":"boolean"}}},"tools":{"type":"array","maxItems":50,"items":{"type":"object","additionalProperties":false,"required":["code","name","riskLevel","effectiveEnabled"],"properties":{"code":{"type":"string","maxLength":120},"name":{"type":"string","maxLength":160},"riskLevel":{"type":"string","maxLength":8},"sideEffect":{"type":"string","maxLength":30},"confirmationPolicy":{"type":"string","maxLength":30},"pageIds":{"type":"array","maxItems":50,"items":{"type":"string","maxLength":80}},"platformEnabled":{"type":"boolean"},"tenantEnabled":{"type":"boolean"},"effectiveEnabled":{"type":"boolean"}}}},"roles":{"type":"array","maxItems":50,"items":{"type":"object","additionalProperties":false,"required":["code","name","builtin","immutable","eligibleToolCount","grantedToolCount"],"properties":{"code":{"type":"string","maxLength":80},"name":{"type":"string","maxLength":160},"builtin":{"type":"boolean"},"immutable":{"type":"boolean"},"eligibleToolCount":{"type":"integer","minimum":0},"grantedToolCount":{"type":"integer","minimum":0}}}}}}'::jsonb,
+'sha256:270d6da876eea0376fddf296219842f25f2bdc594ec61023ac365006cfc7ae87','L0','["agent-permission:manage"]'::jsonb,'ALL','TENANT_SCOPED','READ_ONLY_SAFE','NONE','NONE',50,196608,15000,'HASHED_ARGS_RESULT',TRUE)
+ON CONFLICT (code) WHERE tenant_id IS NULL DO NOTHING;

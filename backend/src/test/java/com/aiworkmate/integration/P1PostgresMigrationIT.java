@@ -350,6 +350,18 @@ class P1PostgresMigrationIT {
                         'agent:tool:runtimeLog.query','agent:tool:sandboxReplay.query')
                     """)).as("平台运维 Agent 工具必须具备业务与工具两层实时权限").isEqualTo(6);
             assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='NONE'
+                      AND (code,schema_hash,data_scope_policy) IN (
+                        ('accessGovernance.query','sha256:d622f57307336098c25b779333ff842a874adcbf1880ae687c08276d3c6bbc61','TENANT_SCOPED'),
+                        ('dataPermission.query','sha256:858c22c5e8947762eda39892caf2fbf962282c21d94945491daf34ebde3f6c21','TENANT_SCOPED'),
+                        ('aiPermission.query','sha256:270d6da876eea0376fddf296219842f25f2bdc594ec61023ac365006cfc7ae87','TENANT_SCOPED'))
+                    """)).as("三个安全治理 Agent 工具必须以冻结契约存在").isEqualTo(3);
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code IN ('agent:tool:accessGovernance.query','agent:tool:dataPermission.query','agent:tool:aiPermission.query')
+                    """)).as("安全治理 Agent 工具必须具备独立实时权限").isEqualTo(3);
+            assertThat(count(statement, """
                     SELECT COUNT(*) FROM information_schema.views
                     WHERE table_schema = current_schema() AND table_name = 'runtime_log_view'
                     """)).isOne();
