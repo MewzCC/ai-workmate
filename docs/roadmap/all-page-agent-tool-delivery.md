@@ -74,6 +74,8 @@ T2 可用性内部切片：`ToolRegistry.resolveAvailability` 与旧执行解析
 
 T2 页面提示切片：既有受认证页面能力接口在实时页面权限与注册表过滤后，仅为空工具集合返回 `unavailableReason=NO_AVAILABLE_TOOLS`；有工具时为 null。不会列举受限工具、内部开关、权限策略或异常。AI Drawer 复用独立 Ant Design 提示组件，提供中英文安全通用说明；旧后端缺字段时仍显示空工具提示，未知原因不回显。请求失败继续走错误与重试态，不转换成空集合或假成功。此字段不授予执行权限，也不证明模型或外部依赖健康；实际执行仍由 Gateway 复核。浏览器响应式验收仍待完成。
 
+T3 会议边界切片：会议查询与预约移入独立 `MeetingAgentDomainToolAdapter`，综合行政适配器不再实现 MeetingToolPort 或依赖预约 Service。Port、Handler、领域方法、工具 Schema 和权限均保持不变，不复制业务状态机。会议室基础查询暂时复用现有 AdminAssetsService，完整领域 Service 拆分仍待实施，不能宣称已经可以独立部署。新增适配器测试验证本人身份和稳定操作键映射、领域拒绝无回退、会议室查询上限和本人预约分页；一 Port 一适配器门禁继续生效。
+
 ## 服务化验收
 
 Handler 只能转换封闭参数并调用 Port。Port 使用类型化命令及结果，不依赖 Spring、HTTP、数据库实体或通用参数 Map。本地 Adapter 与普通页面接口复用同一领域 Service。远程化仅替换 Adapter，但领域服务仍须从可信身份解析租户与用户，不能信任客户端字段。

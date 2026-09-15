@@ -31,6 +31,7 @@ class AgentDomainToolAdapterBoundaryTest {
             ApprovalAgentDomainToolAdapter.class,
             HrAgentDomainToolAdapter.class,
             AdministrativeAssetsAgentDomainToolAdapter.class,
+            MeetingAgentDomainToolAdapter.class,
             FinanceAgentDomainToolAdapter.class,
             PlatformOperationsAgentDomainToolAdapter.class,
             SecurityGovernanceAgentDomainToolAdapter.class,
@@ -64,7 +65,8 @@ class AgentDomainToolAdapterBoundaryTest {
                 HrOrganizationToolPort.class, HrEmployeeToolPort.class, EmployeeChangeToolPort.class,
                 AttendanceToolPort.class);
         assertThat(AdministrativeAssetsAgentDomainToolAdapter.class.getInterfaces()).containsExactlyInAnyOrder(
-                AssetToolPort.class, MeetingToolPort.class, VisitorToolPort.class, SealToolPort.class);
+                AssetToolPort.class, VisitorToolPort.class, SealToolPort.class);
+        assertThat(MeetingAgentDomainToolAdapter.class.getInterfaces()).containsExactly(MeetingToolPort.class);
         assertThat(FinanceAgentDomainToolAdapter.class.getInterfaces()).containsExactly(FinanceToolPort.class);
         assertThat(PlatformOperationsAgentDomainToolAdapter.class.getInterfaces()).containsExactly(PlatformOperationsToolPort.class);
         assertThat(SecurityGovernanceAgentDomainToolAdapter.class.getInterfaces()).containsExactly(SecurityGovernanceToolPort.class);

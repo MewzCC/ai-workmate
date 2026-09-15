@@ -26,7 +26,6 @@ import com.aiworkmate.service.ApprovalEngineService;
 import com.aiworkmate.service.HrService;
 import com.aiworkmate.service.EmployeeChangeService;
 import com.aiworkmate.service.AdminAssetsService;
-import com.aiworkmate.service.MeetingBookingService;
 import com.aiworkmate.service.AttendanceService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -53,7 +52,6 @@ class AgentDomainToolAdaptersTest {
     @Mock private HrService hrService;
     @Mock private EmployeeChangeService employeeChangeService;
     @Mock private AdminAssetsService adminAssetsService;
-    @Mock private MeetingBookingService meetingBookingService;
     @Mock private AttendanceService attendanceService;
 
     private ApprovalAgentDomainToolAdapter approvalAdapter;
@@ -67,8 +65,7 @@ class AgentDomainToolAdaptersTest {
     void setUp() {
         approvalAdapter = new ApprovalAgentDomainToolAdapter(leaveWorkflowService, approvalEngineService);
         hrAdapter = new HrAgentDomainToolAdapter(hrService, employeeChangeService, attendanceService);
-        administrativeAssetsAdapter = new AdministrativeAssetsAgentDomainToolAdapter(
-                adminAssetsService, meetingBookingService);
+        administrativeAssetsAdapter = new AdministrativeAssetsAgentDomainToolAdapter(adminAssetsService);
         knowledgeAdapter = new KnowledgeAgentDomainToolAdapter(knowledgeService);
         notificationAdapter = new NotificationAgentDomainToolAdapter(notificationService);
     }
