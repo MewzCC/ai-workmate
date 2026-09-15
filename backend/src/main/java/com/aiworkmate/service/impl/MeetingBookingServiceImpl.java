@@ -26,6 +26,7 @@ import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -162,12 +163,36 @@ public class MeetingBookingServiceImpl implements MeetingBookingService {
     @Override
     @Transactional
     public MeetingBookingResponse cancel(Long userId, Long id, MeetingBookingCancelRequest request) {
+        return cancelInternal(userId, id, request, null, false);
+    }
+
+    @Override
+    @Transactional
+    public MeetingBookingResponse cancelAgent(
+            Long userId, Long id, MeetingBookingCancelRequest request, String operationKey) {
+        if (operationKey == null || operationKey.isBlank() || operationKey.length() > 128) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        return cancelInternal(userId, id, request, operationKey, true);
+    }
+
+    private MeetingBookingResponse cancelInternal(
+            Long userId, Long id, MeetingBookingCancelRequest request, String operationKey, boolean ownerOnly) {
         ResolvedUserAccess actor = requireAccess(userId);
+        validateCancelRequest(id, request);
+        if (ownerOnly && !actor.permissions().contains("meeting:cancel")) {
+            throw new BusinessException(ErrorCode.PERMISSION_DENIED);
+        }
+        if (operationKey != null) {
+            MeetingBooking replay = bookingMapper.findAgentCancelOperation(
+                    actor.tenantId(), actor.userId(), operationKey);
+            if (replay != null) return replayCancellation(actor, replay, id, request);
+        }
         MeetingBooking booking = bookingMapper.selectById(id);
         if (booking == null || !actor.tenantId().equals(booking.getTenantId())) {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
         }
-        boolean admin = actor.permissions().contains("meeting:write");
+        boolean admin = !ownerOnly && actor.permissions().contains("meeting:write");
         boolean owner = actor.userId().equals(booking.getOrganizerUserId())
                 && actor.permissions().contains("meeting:cancel");
         if (!admin && !owner) {
@@ -175,6 +200,11 @@ public class MeetingBookingServiceImpl implements MeetingBookingService {
         }
         LocalDateTime now = LocalDateTime.now();
         if (!"BOOKED".equals(booking.getStatus()) || !booking.getEndAt().isAfter(now)) {
+            if (operationKey != null) {
+                MeetingBooking replay = bookingMapper.findAgentCancelOperation(
+                        actor.tenantId(), actor.userId(), operationKey);
+                if (replay != null) return replayCancellation(actor, replay, id, request);
+            }
             throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID, "oa.meeting.booking.cancel.invalid");
         }
         int updated = bookingMapper.update(null, new LambdaUpdateWrapper<MeetingBooking>()
@@ -186,9 +216,15 @@ public class MeetingBookingServiceImpl implements MeetingBookingService {
                 .set(MeetingBooking::getCancelledByUserId, actor.userId())
                 .set(MeetingBooking::getCancelledAt, now)
                 .set(MeetingBooking::getCancelReason, trim(request.reason()))
+                .set(operationKey != null, MeetingBooking::getAgentCancelOperationKey, operationKey)
                 .set(MeetingBooking::getUpdatedAt, now)
                 .setSql("version = version + 1"));
         if (updated != 1) {
+            if (operationKey != null) {
+                MeetingBooking replay = bookingMapper.findAgentCancelOperation(
+                        actor.tenantId(), actor.userId(), operationKey);
+                if (replay != null) return replayCancellation(actor, replay, id, request);
+            }
             throw new BusinessException(ErrorCode.VERSION_CONFLICT);
         }
         auditService.recordTransactional(actor.tenantId(), actor.userId(), "MEETING_BOOKING",
@@ -197,6 +233,29 @@ public class MeetingBookingServiceImpl implements MeetingBookingService {
         MeetingRoom room = roomMapper.selectById(cancelled.getRoomId());
         return toResponse(actor, cancelled, room, userMapper.selectById(cancelled.getOrganizerUserId()),
                 userMapper.selectById(actor.userId()));
+    }
+
+    private MeetingBookingResponse replayCancellation(ResolvedUserAccess actor, MeetingBooking booking,
+                                                       Long expectedId, MeetingBookingCancelRequest request) {
+        if (!Objects.equals(booking.getId(), expectedId)
+                || !Objects.equals(booking.getTenantId(), actor.tenantId())
+                || !Objects.equals(booking.getOrganizerUserId(), actor.userId())
+                || !"CANCELLED".equals(booking.getStatus())
+                || !Objects.equals(booking.getCancelledByUserId(), actor.userId())
+                || !Objects.equals(booking.getVersion(), request.version() + 1)
+                || !Objects.equals(booking.getCancelReason(), trim(request.reason()))) {
+            throw new BusinessException(ErrorCode.IDEMPOTENCY_CONFLICT);
+        }
+        return toResponse(actor, booking, roomMapper.selectById(booking.getRoomId()),
+                userMapper.selectById(booking.getOrganizerUserId()), userMapper.selectById(actor.userId()));
+    }
+
+    private void validateCancelRequest(Long id, MeetingBookingCancelRequest request) {
+        if (id == null || id < 1 || request == null || request.version() == null || request.version() < 0
+                || request.version() == Integer.MAX_VALUE
+                || request.reason() != null && request.reason().length() > 500) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
     }
 
     private PageResponse<MeetingBookingResponse> list(ResolvedUserAccess actor, Long organizerUserId,

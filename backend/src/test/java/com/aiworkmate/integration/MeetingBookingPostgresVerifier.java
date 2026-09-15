@@ -1,6 +1,7 @@
 package com.aiworkmate.integration;
 
 import com.aiworkmate.dto.MeetingBookingRequest;
+import com.aiworkmate.dto.MeetingBookingCancelRequest;
 import com.aiworkmate.entity.MeetingRoom;
 import com.aiworkmate.mapper.*;
 import com.aiworkmate.service.BusinessAuditService;
@@ -52,7 +53,7 @@ final class MeetingBookingPostgresVerifier {
         var audit = new BusinessAuditServiceImpl(session.getMapper(BusinessAuditLogMapper.class));
         var access = mock(UserAccessService.class);
         when(access.resolveActiveUser(user)).thenReturn(new ResolvedUserAccess(user, "test", tenant,
-                "EMPLOYEE", List.of("EMPLOYEE"), List.of("meeting:book"), List.of("SELF"), 1L));
+                "EMPLOYEE", List.of("EMPLOYEE"), List.of("meeting:book", "meeting:cancel"), List.of("SELF"), 1L));
         var tx = new TransactionTemplate(new DataSourceTransactionManager(datasource));
         var service = new MeetingBookingServiceImpl(bookings, rooms, users, access, audit);
         var room = new MeetingRoom();
@@ -70,6 +71,20 @@ final class MeetingBookingPostgresVerifier {
             assertThat(first.get(20, TimeUnit.SECONDS)).isEqualTo(second.get(20, TimeUnit.SECONDS));
             assertThat(jdbc.queryForObject("SELECT count(*) FROM meeting_booking WHERE agent_operation_key='same-operation'", Integer.class)).isOne();
             assertThat(jdbc.queryForObject("SELECT count(*) FROM business_audit_log WHERE resource_type='MEETING_BOOKING'", Integer.class)).isOne();
+
+            Long bookingId = jdbc.queryForObject("SELECT id FROM meeting_booking WHERE agent_operation_key='same-operation'", Long.class);
+            var cancelBarrier = new CyclicBarrier(2);
+            Callable<Integer> cancel = () -> { cancelBarrier.await(10, TimeUnit.SECONDS);
+                return tx.execute(status -> service.cancelAgent(user, bookingId,
+                        new MeetingBookingCancelRequest(0, "changed"), "same-cancellation").version()); };
+            var cancelFirst = executor.submit(cancel); var cancelSecond = executor.submit(cancel);
+            assertThat(cancelFirst.get(20, TimeUnit.SECONDS)).isEqualTo(1);
+            assertThat(cancelSecond.get(20, TimeUnit.SECONDS)).isEqualTo(1);
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM business_audit_log WHERE resource_type='MEETING_BOOKING' AND action='CANCEL'", Integer.class)).isOne();
+            assertThatThrownBy(() -> tx.execute(status -> service.cancelAgent(user, bookingId,
+                    new MeetingBookingCancelRequest(0, "different"), "same-cancellation")))
+                    .isInstanceOf(com.aiworkmate.common.BusinessException.class)
+                    .extracting("errorCode").isEqualTo("IDEMPOTENCY_CONFLICT");
 
             var later = new MeetingBookingRequest(room.getId(), "Conflict", null, start.plusHours(2), start.plusHours(3), 2);
             var conflictBarrier = new CyclicBarrier(2);
@@ -91,5 +106,14 @@ final class MeetingBookingPostgresVerifier {
         assertThatThrownBy(() -> tx.execute(status -> failingService.createAgent(user, rollback, "rollback-operation")))
                 .isInstanceOf(IllegalStateException.class);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM meeting_booking WHERE agent_operation_key='rollback-operation'", Integer.class)).isZero();
+
+        var cancellable = tx.execute(status -> service.createAgent(user, rollback, "cancel-rollback-booking"));
+        assertThatThrownBy(() -> tx.execute(status -> failingService.cancelAgent(user, cancellable.id(),
+                new MeetingBookingCancelRequest(0, null), "cancel-rollback")))
+                .isInstanceOf(IllegalStateException.class);
+        assertThat(jdbc.queryForObject("SELECT status FROM meeting_booking WHERE id=?", String.class,
+                cancellable.id())).isEqualTo("BOOKED");
+        assertThat(jdbc.queryForObject("SELECT agent_cancel_operation_key FROM meeting_booking WHERE id=?", String.class,
+                cancellable.id())).isNull();
     }
 }

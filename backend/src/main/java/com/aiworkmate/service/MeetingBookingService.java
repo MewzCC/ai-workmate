@@ -19,4 +19,7 @@ public interface MeetingBookingService {
                                                     LocalDateTime to, String status, int page, int size);
 
     MeetingBookingResponse cancel(Long userId, Long id, MeetingBookingCancelRequest request);
+
+    MeetingBookingResponse cancelAgent(Long userId, Long id, MeetingBookingCancelRequest request,
+                                       String operationKey);
 }

@@ -3,6 +3,7 @@ package com.aiworkmate.agent.tool.adapter;
 import com.aiworkmate.agent.tool.port.MeetingToolPort;
 import com.aiworkmate.agent.tool.port.ToolActorContext;
 import com.aiworkmate.dto.MeetingBookingRequest;
+import com.aiworkmate.dto.MeetingBookingCancelRequest;
 import com.aiworkmate.service.AdminAssetsService;
 import com.aiworkmate.service.MeetingBookingService;
 import lombok.RequiredArgsConstructor;
@@ -39,6 +40,15 @@ public final class MeetingAgentDomainToolAdapter implements MeetingToolPort {
                 command.attendeeCount()), operationKey);
         return new MeetingToolPort.WriteResult(item.id(), item.roomId(), item.status(), item.version(),
                 item.startAt(), item.endAt());
+    }
+
+    @Override
+    public MeetingToolPort.CancelResult cancel(
+            ToolActorContext context, MeetingToolPort.CancelCommand command, String operationKey) {
+        var item = meetingBookingService.cancelAgent(context.userId(), command.bookingId(),
+                new MeetingBookingCancelRequest(command.version(), command.reason()), operationKey);
+        return new MeetingToolPort.CancelResult(item.id(), item.roomId(), item.status(), item.version(),
+                item.cancelledAt());
     }
 
 }

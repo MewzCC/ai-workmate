@@ -116,7 +116,7 @@ public class PageCapabilityCatalog {
                 page("meeting-room", "MEETING_ROOM", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         context(text("keyword"), text("roomStatus"), text("from"), text("to"),
                                 text("bookingStatus"), number("page"), number("size")),
-                        read(MEETING_QUERY), write(MEETING_BOOK)),
+                        read(MEETING_QUERY), write(MEETING_BOOK), write(MEETING_CANCEL)),
                 page("visitor-booking", "VISITOR_BOOKING", OwnershipPolicy.SELF, LIST_COMMANDS,
                         context(number("bookingId"), text("queue"), text("status"), number("page"), number("size")),
                         read(VISITOR_QUERY)),

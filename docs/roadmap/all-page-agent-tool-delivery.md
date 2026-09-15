@@ -29,7 +29,7 @@
 | employee-files | HR_ORGANIZATION_QUERY、HR_EMPLOYEE_QUERY | 档案最小字段查询；不输出薪酬或附件内部路径 |
 | employee-change | HR_CHANGE_QUERY | 候选：单条员工变动申请；生效需独立评审 |
 | asset-ledger | ASSET_QUERY | 候选：领用、归还、维修登记，逐工具交付 |
-| meeting-room | MEETING_QUERY | MEETING_BOOK 已提交、默认关闭；候选本人取消 |
+| meeting-room | MEETING_QUERY | MEETING_BOOK、MEETING_CANCEL；本人单条预约与取消，写开关默认关闭，发布门及真实模型端到端待验收 |
 | visitor-booking | VISITOR_QUERY | 候选：申请、签到、离场，逐工具交付 |
 | seal-usage | SEAL_QUERY | 候选：申请、实际用印登记，逐工具交付 |
 | expense | EXPENSE_QUERY | 候选：本人草稿和原子提交；不付款 |
@@ -85,6 +85,8 @@ T3 审批边界切片：移除同时实现待办、请假、审批配置和审�
 T6 消息已读切片：增加 `notification.markRead` 单条原子写工具，只接收消息 ID，用户和租户身份来自 ToolGateway 可信上下文。领域 Service 重新解析实时用户权限，并按租户与本人所有权查询后更新；重复执行保持已读状态，返回可核验的消息 ID 与已读标志。工具为 L1、显式确认、业务幂等、单写步骤，平台和租户写开关继续默认关闭；不开放批量已读，也不返回内部业务 ID。
 
 ## 服务化验收
+
+T6 会议取消代码切片：复用 MeetingBookingService 的事务核心，Agent 专用入口强制本人预约和实时 meeting:cancel 权限；即使幂等重放也重新鉴权。独立取消操作键用于重复调用结果核验，不复用创建操作键；管理员权限不允许 Agent 代取消。封闭命令携带预约 ID、预期版本和可选理由，取消更新与审计同事务。定向 36 项测试通过，真实 PostgreSQL 验证并发重复取消只写一次审计、重放内容冲突拒绝与审计失败事务回滚；空库、旧库升级、68 个迁移 validate 和二次启动零迁移通过。前端 lint 无错误（3 条既有警告）、89 项测试和构建通过；后端 752 项测试零失败、9 项既有环境测试跳过。开发库版本为 V202609151700。写开关继续默认关闭，人工发布门、浏览器逐工具与真实 LLM 端到端仍待验收，不等于全页面交付完成。
 
 Handler 只能转换封闭参数并调用 Port。Port 使用类型化命令及结果，不依赖 Spring、HTTP、数据库实体或通用参数 Map。本地 Adapter 与普通页面接口复用同一领域 Service。远程化仅替换 Adapter，但领域服务仍须从可信身份解析租户与用户，不能信任客户端字段。
 

@@ -14,4 +14,10 @@ public interface MeetingBookingMapper extends BaseMapper<MeetingBooking> {
     @Options(useCache = false, flushCache = Options.FlushCachePolicy.TRUE)
     MeetingBooking findAgentOperation(@Param("tenantId") Long tenantId, @Param("userId") Long userId,
                                       @Param("operationKey") String operationKey);
+
+    @Select("SELECT * FROM meeting_booking WHERE tenant_id=#{tenantId} "
+            + "AND organizer_user_id=#{userId} AND agent_cancel_operation_key=#{operationKey} LIMIT 1")
+    @Options(useCache = false, flushCache = Options.FlushCachePolicy.TRUE)
+    MeetingBooking findAgentCancelOperation(@Param("tenantId") Long tenantId, @Param("userId") Long userId,
+                                            @Param("operationKey") String operationKey);
 }

@@ -6,12 +6,16 @@ import java.util.List;
 public interface MeetingToolPort {
     Result query(ToolActorContext context, Query query);
     WriteResult book(ToolActorContext context, BookCommand command, String operationKey);
+    CancelResult cancel(ToolActorContext context, CancelCommand command, String operationKey);
     record Query(String keyword, String roomStatus, LocalDateTime from, LocalDateTime to,
                  String bookingStatus, int page, int size) {}
     record BookCommand(long roomId, String title, String agenda, LocalDateTime startAt,
                        LocalDateTime endAt, int attendeeCount) {}
+    record CancelCommand(long bookingId, int version, String reason) {}
     record WriteResult(long bookingId, long roomId, String status, int version,
                        LocalDateTime startAt, LocalDateTime endAt) {}
+    record CancelResult(long bookingId, long roomId, String status, int version,
+                        LocalDateTime cancelledAt) {}
     record Result(List<Room> rooms, List<Booking> bookings, long bookingTotal, int page, int size) {
         public Result { rooms = List.copyOf(rooms); bookings = List.copyOf(bookings); }
     }

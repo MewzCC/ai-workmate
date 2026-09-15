@@ -219,6 +219,50 @@ class MeetingBookingServiceImplTest {
         verify(auditService, never()).recordTransactional(any(), any(), any(), any(), any(), any(), any());
     }
 
+    @Test
+    void agentCancellationRejectsRevokedPermissionBeforeIdempotencyLookup() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(new ResolvedUserAccess(
+                USER_ID, "test", TENANT_ID, "EMPLOYEE", List.of("EMPLOYEE"),
+                List.of("meeting:write"), List.of("SELF"), 2L));
+        assertThatThrownBy(() -> service.cancelAgent(USER_ID, BOOKING_ID,
+                new MeetingBookingCancelRequest(2, null), "operation"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("PERMISSION_DENIED");
+        verify(bookingMapper, never()).findAgentCancelOperation(any(), any(), any());
+        verify(bookingMapper, never()).selectById(BOOKING_ID);
+    }
+
+    @Test
+    void agentCancellationCannotUseAdministratorPermissionToCancelAnotherOwner() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(access(true));
+        var other = booking(TENANT_ID, "BOOKED", 2);
+        other.setOrganizerUserId(2002L);
+        when(bookingMapper.selectById(BOOKING_ID)).thenReturn(other);
+        assertThatThrownBy(() -> service.cancelAgent(USER_ID, BOOKING_ID,
+                new MeetingBookingCancelRequest(2, null), "operation"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("PERMISSION_DENIED");
+        verify(bookingMapper, never()).update(any(), any());
+    }
+
+    @Test
+    void agentCancellationReplaysOnlyMatchingOwnedCancellationWithoutAudit() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(access(false));
+        var cancelled = booking(TENANT_ID, "CANCELLED", 3);
+        cancelled.setCancelledByUserId(USER_ID);
+        cancelled.setCancelledAt(LocalDateTime.now());
+        when(bookingMapper.findAgentCancelOperation(TENANT_ID, USER_ID, "operation"))
+                .thenReturn(cancelled);
+        assertThat(service.cancelAgent(USER_ID, BOOKING_ID,
+                new MeetingBookingCancelRequest(2, null), "operation").status()).isEqualTo("CANCELLED");
+        verify(bookingMapper, never()).update(any(), any());
+        verify(auditService, never()).recordTransactional(any(), any(), any(), any(), any(), any(), any());
+        assertThatThrownBy(() -> service.cancelAgent(USER_ID, BOOKING_ID,
+                new MeetingBookingCancelRequest(2, "different"), "operation"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("IDEMPOTENCY_CONFLICT");
+    }
+
     private ResolvedUserAccess access(boolean admin) {
         List<String> permissions = admin
                 ? List.of("meeting:book", "meeting:read:self", "meeting:cancel", "meeting:write")
