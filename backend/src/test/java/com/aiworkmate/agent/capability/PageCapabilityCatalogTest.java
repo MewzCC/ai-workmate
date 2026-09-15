@@ -34,7 +34,7 @@ class PageCapabilityCatalogTest {
                 .extracting(PageToolReference::toolCode)
                 .containsExactlyInAnyOrder("notification.markRead", "leave.createDraft", "leave.submit",
                         "leave.apply", "leave.withdraw", "attendance.reissue.apply",
-                        "approval.application.createDraft");
+                        "approval.application.createDraft", "approval.application.submitDraft");
         assertThat(catalog.find("todo").orElseThrow().readTools())
                 .extracting(PageToolReference::code)
                 .containsExactly(ToolCode.TODO_QUERY);
@@ -62,11 +62,12 @@ class PageCapabilityCatalogTest {
     }
 
     @Test
-    void genericApprovalEntryPagesShareOneDraftTool() {
+    void genericApprovalEntryPagesShareAtomicDraftLifecycleTools() {
         assertThat(Set.of("approval-start", "approval-form", "my-applications")).allSatisfy(pageId ->
                 assertThat(catalog.find(pageId).orElseThrow().writeTools())
                         .extracting(PageToolReference::code)
-                        .contains(ToolCode.APPROVAL_APPLICATION_CREATE_DRAFT));
+                        .contains(ToolCode.APPROVAL_APPLICATION_CREATE_DRAFT,
+                                ToolCode.APPROVAL_APPLICATION_SUBMIT_DRAFT));
     }
 
     @Test

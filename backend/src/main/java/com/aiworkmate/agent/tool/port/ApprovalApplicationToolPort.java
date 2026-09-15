@@ -6,6 +6,8 @@ import java.util.List;
 public interface ApprovalApplicationToolPort {
     WriteResult createDraft(ToolActorContext context, Draft command, String operationKey);
 
+    WriteResult submitDraft(ToolActorContext context, long applicationId, int version);
+
     record Draft(String formKey, String processKey, List<FieldValue> fields) {
         public Draft {
             fields = List.copyOf(fields);

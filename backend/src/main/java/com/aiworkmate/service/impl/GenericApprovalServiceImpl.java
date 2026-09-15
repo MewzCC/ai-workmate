@@ -221,6 +221,21 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
     @Transactional
     public ApprovalApplicationResponse submitDraft(Long userId, Long id, VersionRequest request) {
         ResolvedUserAccess actor = requirePermission(userId, "route:approval-start");
+        return submitDraftInternal(actor, id, request);
+    }
+
+    @Override
+    @Transactional
+    public ApprovalApplicationResponse submitAgentDraft(Long userId, Long id, VersionRequest request) {
+        ResolvedUserAccess actor = requirePermission(userId, "route:approval-start");
+        if (!actor.permissions().contains("approval:submit")) {
+            throw new BusinessException(ErrorCode.PERMISSION_DENIED);
+        }
+        return submitDraftInternal(actor, id, request);
+    }
+
+    private ApprovalApplicationResponse submitDraftInternal(
+            ResolvedUserAccess actor, Long id, VersionRequest request) {
         ApprovalApplication application = requireOwnedApplication(actor, id);
         requireDraft(application);
         if (!request.version().equals(application.getVersion())) {
@@ -261,7 +276,7 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
         }
 
         insertAction(actor, instance.getId(), task.getId(), "SUBMIT", "DRAFT", "PENDING", null);
-        auditService.record(actor.tenantId(), actor.userId(), BUSINESS_TYPE,
+        auditService.recordTransactional(actor.tenantId(), actor.userId(), BUSINESS_TYPE,
                 id.toString(), "SUBMIT", "SUCCESS", "提交通用表单草稿：" + form.getFormName());
         publishApprovalNotification(actor, approverId, form, id);
         return response(actor, requireView(actor.tenantId(), id), null);

@@ -245,6 +245,54 @@ class GenericApprovalServiceImplTest {
         verify(notificationService).publish(TENANT_ID, 2002L,
                 NotificationService.TYPE_APPROVAL, "新的「费用报销」待审批",
                 "员工通过发起审批模板提交了申请，请及时处理", "generic-approval", 10L);
+        verify(auditService).recordTransactional(TENANT_ID, USER_ID, "GENERIC_APPROVAL", "10",
+                "SUBMIT", "SUCCESS", "提交通用表单草稿：费用报销");
+    }
+
+    @Test
+    void submitAgentDraftUsesRealtimeBusinessPermissionAndSharedTransaction() {
+        when(applicationMapper.selectOne(any())).thenReturn(application("DRAFT", 2));
+        when(formMapper.selectOne(any())).thenReturn(form());
+        when(processMapper.selectOne(any())).thenReturn(process());
+        when(leaveMapper.resolveApprover(TENANT_ID, USER_ID)).thenReturn(2002L);
+        when(applicationMapper.selectGenericDefinitionId(TENANT_ID)).thenReturn(3L);
+        when(instanceMapper.insert(any(WorkflowInstance.class))).thenAnswer(invocation -> {
+            WorkflowInstance value = invocation.getArgument(0);
+            value.setId(4L);
+            return 1;
+        });
+        when(taskMapper.insert(any(WorkflowTask.class))).thenAnswer(invocation -> {
+            WorkflowTask value = invocation.getArgument(0);
+            value.setId(5L);
+            return 1;
+        });
+        when(applicationMapper.update(any(), any())).thenReturn(1);
+        when(applicationMapper.selectView(TENANT_ID, 10L)).thenReturn(view("PENDING", 3));
+
+        ApprovalApplicationResponse response = service.submitAgentDraft(
+                USER_ID, 10L, new VersionRequest(2));
+
+        assertThat(response.status()).isEqualTo("PENDING");
+        verify(instanceMapper).insert(any(WorkflowInstance.class));
+        verify(taskMapper).insert(any(WorkflowTask.class));
+        verify(auditService).recordTransactional(TENANT_ID, USER_ID, "GENERIC_APPROVAL", "10",
+                "SUBMIT", "SUCCESS", "提交通用表单草稿：费用报销");
+    }
+
+    @Test
+    void submitAgentDraftFailsClosedWhenBusinessPermissionWasRevoked() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(new ResolvedUserAccess(
+                USER_ID, "applicant", TENANT_ID, "EMPLOYEE", List.of("EMPLOYEE"),
+                List.of("route:approval-start", "approval:create"), List.of("SELF"), 2L));
+
+        assertThatThrownBy(() -> service.submitAgentDraft(USER_ID, 10L, new VersionRequest(2)))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo("PERMISSION_DENIED");
+
+        verify(applicationMapper, never()).selectOne(any());
+        verify(instanceMapper, never()).insert(any(WorkflowInstance.class));
+        verify(taskMapper, never()).insert(any(WorkflowTask.class));
     }
 
     @Test
@@ -416,7 +464,9 @@ class GenericApprovalServiceImplTest {
 
     private ResolvedUserAccess access() {
         return new ResolvedUserAccess(USER_ID, "applicant", TENANT_ID, "EMPLOYEE",
-                List.of("EMPLOYEE"), List.of("route:approval-start", "approval:create"), List.of("SELF"), 1L);
+                List.of("EMPLOYEE"),
+                List.of("route:approval-start", "approval:create", "approval:submit"),
+                List.of("SELF"), 1L);
     }
 
     private User applicant() {

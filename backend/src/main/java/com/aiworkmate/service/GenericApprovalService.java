@@ -28,6 +28,9 @@ public interface GenericApprovalService {
     /** 提交本人草稿并原子创建工作流实例与首个待办。 */
     ApprovalApplicationResponse submitDraft(Long userId, Long id, VersionRequest request);
 
+    /** Agent 专用的本人草稿提交入口；实时写权限与页面权限必须同时满足。 */
+    ApprovalApplicationResponse submitAgentDraft(Long userId, Long id, VersionRequest request);
+
     /** 取消本人草稿；取消后只保留审计记录，不允许继续编辑。 */
     ApprovalApplicationResponse cancelDraft(Long userId, Long id, VersionRequest request);
 

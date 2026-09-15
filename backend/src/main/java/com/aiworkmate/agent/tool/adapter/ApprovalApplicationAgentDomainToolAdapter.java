@@ -6,6 +6,7 @@ import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.common.ErrorCode;
 import com.aiworkmate.dto.ApprovalApplicationResponse;
 import com.aiworkmate.dto.ApprovalDraftRequest;
+import com.aiworkmate.dto.VersionRequest;
 import com.aiworkmate.service.GenericApprovalService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -32,5 +33,13 @@ public final class ApprovalApplicationAgentDomainToolAdapter implements Approval
                 new ApprovalDraftRequest(command.formKey(), command.processKey(), formData),
                 operationKey);
         return new WriteResult(created.id(), created.formKey(), created.status(), created.version());
+    }
+
+    @Override
+    public WriteResult submitDraft(ToolActorContext context, long applicationId, int version) {
+        ApprovalApplicationResponse submitted = approvalService.submitAgentDraft(
+                context.userId(), applicationId, new VersionRequest(version));
+        return new WriteResult(
+                submitted.id(), submitted.formKey(), submitted.status(), submitted.version());
     }
 }

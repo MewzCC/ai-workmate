@@ -28,4 +28,24 @@ class AgentApprovalApplicationWriteToolDefinitionsTest {
                 {"formKey":"expense","fields":[],"tenantId":9}
                 """))).isFalse();
     }
+
+    @Test
+    void genericDraftSubmitUsesOwnedVersionedNonRetryableWrite() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        var definition = new AgentApprovalApplicationWriteToolDefinitions()
+                .approvalApplicationSubmitDraftToolDefinition(mapper);
+        var validator = new ToolSchemaValidator();
+
+        assertThat(definition.schemaHash()).isEqualTo(
+                "sha256:edbe7ad52b50a98e339f5e7cf83b572c26d3b71ddccb1f50aa11496fbed80426");
+        assertThat(definition.requiredPermissions()).containsExactly("approval:submit");
+        assertThat(definition.riskLevel()).isEqualTo(RiskLevel.L1);
+        assertThat(definition.retryPolicy()).isEqualTo(RetryPolicy.NEVER);
+        assertThat(definition.sideEffect()).isEqualTo(SideEffect.SINGLE_WRITE);
+        assertThat(definition.confirmationPolicy()).isEqualTo(ConfirmationPolicy.EXPLICIT);
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree(
+                "{\"applicationId\":10,\"version\":2}"))).isTrue();
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree(
+                "{\"applicationId\":10,\"version\":2,\"tenantId\":9}"))).isFalse();
+    }
 }

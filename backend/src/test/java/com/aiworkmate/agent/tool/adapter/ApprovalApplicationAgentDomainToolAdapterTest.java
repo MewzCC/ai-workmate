@@ -57,4 +57,21 @@ class ApprovalApplicationAgentDomainToolAdapterTest {
                 .isInstanceOf(BusinessException.class);
         verifyNoInteractions(service);
     }
+
+    @Test
+    void submitsOwnedDraftThroughExistingDomainService() {
+        var response = mock(ApprovalApplicationResponse.class);
+        when(response.id()).thenReturn(30L);
+        when(response.formKey()).thenReturn("expense");
+        when(response.status()).thenReturn("PENDING");
+        when(response.version()).thenReturn(3);
+        when(service.submitAgentDraft(20L, 30L, new com.aiworkmate.dto.VersionRequest(2)))
+                .thenReturn(response);
+
+        var result = adapter.submitDraft(actor, 30L, 2);
+
+        assertThat(result).isEqualTo(
+                new ApprovalApplicationToolPort.WriteResult(30L, "expense", "PENDING", 3));
+        verify(service).submitAgentDraft(20L, 30L, new com.aiworkmate.dto.VersionRequest(2));
+    }
 }

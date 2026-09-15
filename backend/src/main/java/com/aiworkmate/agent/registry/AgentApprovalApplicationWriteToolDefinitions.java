@@ -15,6 +15,12 @@ public class AgentApprovalApplicationWriteToolDefinitions {
     public static final String CREATE_DRAFT_OUTPUT_SCHEMA = """
             {"type":"object","additionalProperties":false,"required":["applicationId","formKey","status","version"],"properties":{"applicationId":{"type":"integer","minimum":1},"formKey":{"type":"string","maxLength":64},"status":{"type":"string","const":"DRAFT"},"version":{"type":"integer","minimum":0}}}
             """.strip();
+    public static final String SUBMIT_DRAFT_INPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["applicationId","version"],"properties":{"applicationId":{"type":"integer","minimum":1},"version":{"type":"integer","minimum":0,"maximum":2147483646}}}
+            """.strip();
+    public static final String SUBMIT_DRAFT_OUTPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["applicationId","formKey","status","version"],"properties":{"applicationId":{"type":"integer","minimum":1},"formKey":{"type":"string","maxLength":64},"status":{"type":"string","const":"PENDING"},"version":{"type":"integer","minimum":1}}}
+            """.strip();
 
     @Bean
     public ToolDefinition approvalApplicationCreateDraftToolDefinition(ObjectMapper objectMapper)
@@ -28,5 +34,19 @@ public class AgentApprovalApplicationWriteToolDefinitions {
                 Set.of("approval:create"), PermissionMode.ALL, OwnershipPolicy.SELF,
                 RetryPolicy.BUSINESS_IDEMPOTENT, SideEffect.SINGLE_WRITE, ConfirmationPolicy.EXPLICIT,
                 1, 16384, 15000, "FULL_WRITE_AUDIT");
+    }
+
+    @Bean
+    public ToolDefinition approvalApplicationSubmitDraftToolDefinition(ObjectMapper objectMapper)
+            throws JsonProcessingException {
+        return ToolDefinition.create(
+                ToolCode.APPROVAL_APPLICATION_SUBMIT_DRAFT, "Submit my approval application draft",
+                "Submits exactly one generic approval draft owned by the authenticated user.",
+                "Atomically freeze the configured form and workflow, then create the first approval task.",
+                "1.0.0", objectMapper.readTree(SUBMIT_DRAFT_INPUT_SCHEMA),
+                objectMapper.readTree(SUBMIT_DRAFT_OUTPUT_SCHEMA), RiskLevel.L1,
+                Set.of("approval:submit"), PermissionMode.ALL, OwnershipPolicy.SELF,
+                RetryPolicy.NEVER, SideEffect.SINGLE_WRITE, ConfirmationPolicy.EXPLICIT,
+                1, 4096, 15000, "FULL_WRITE_AUDIT");
     }
 }

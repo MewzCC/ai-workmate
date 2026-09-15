@@ -135,6 +135,8 @@ P5 补卡 Agent 工具切片：新增 `attendance.reissue.apply` 冻结契约，
 
 P6 通用审批草稿工具切片：新增 `approval.application.createDraft` 封闭契约，动态表单通过类型化字段列表进入 `ApprovalApplicationToolPort`，不向 Port 暴露 Map、JSON、DTO 或框架类型。Adapter 复用页面的 `GenericApprovalService`；领域重新校验实时用户、租户、`route:approval-start`、独立 `approval:create` 权限、有效表单及字段 Schema。稳定操作键持久化并由本人范围唯一索引约束；相同草稿重放返回原结果，参数或状态改变失败关闭。该工具只保存 DRAFT，不创建流程或待办，L1 显式确认、业务幂等、单写步骤，写开关保持默认关闭。OA lint 无错误（3 条既有警告）、91 项测试和构建通过；后端 785 项零失败、9 项既有环境测试跳过。真实 PostgreSQL 空库与旧库升级、72 个迁移 validate、开发库升级至 V202609152020 及二次启动零迁移均通过。P6 的提交、撤回及重新提交仍须按独立里程碑交付。
 
+P6 通用审批草稿提交工具切片：新增 `approval.application.submitDraft` 封闭契约，只接收本人申请 ID 与预期版本。工具复用同一个 `ApprovalApplicationToolPort` 和 Adapter，领域入口与页面提交共用表单完整校验、流程解析、版本快照、实例、首待办、动作流水及事务审计，不复制审批状态机。网关独立工具权限之外，领域再次检查实时 `route:approval-start`、`approval:submit`、本人归属、DRAFT 状态和乐观锁版本。该操作会启动审批流程，因此设为 L1、显式确认、单写步骤和禁止自动重试；未知结果不得盲目重放。OA lint 无错误（3 条既有警告）、91 项测试和构建通过；后端 792 项零失败、9 项既有环境测试跳过。真实 PostgreSQL 空库与旧库升级、73 个迁移 validate、开发库升级至 V202609152100、健康检查及二次启动零迁移均通过。全局与租户写开关继续默认关闭。P6 的撤回及重新提交仍须按独立里程碑交付。
+
 权限、租户、安全配置、审计、运行日志和接口配置页面保持受控只读。每页面有工具不等于每页面可写；永久禁止能力及人工发布门不因本计划改变。
 
 每个里程碑验证后独立中文提交到 feature/zcc；较大业务节点每个原子工具一个提交。仅暂存节点相关文件，不使用 git add .。文档更新也遵守既定前后端全量门槛；数据库变更另执行真实 PostgreSQL 迁移及并发验收。
