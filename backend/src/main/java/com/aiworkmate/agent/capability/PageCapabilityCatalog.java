@@ -74,7 +74,7 @@ public class PageCapabilityCatalog {
                         write(NOTIFICATION_MARK_READ), write(LEAVE_CREATE_DRAFT), write(LEAVE_SUBMIT),
                         write(LEAVE_APPLY), write(LEAVE_WITHDRAW), write(ATTENDANCE_REISSUE_APPLY),
                         write(APPROVAL_APPLICATION_CREATE_DRAFT), write(APPROVAL_APPLICATION_SUBMIT_DRAFT),
-                        write(APPROVAL_APPLICATION_WITHDRAW)),
+                        write(APPROVAL_APPLICATION_WITHDRAW), write(APPROVAL_APPLICATION_REOPEN)),
                 page("ai-tasks", "AI_TASK_CENTER", OwnershipPolicy.SELF, LIST_COMMANDS,
                         context(text("status"), text("from"), text("to"), number("page"), number("size")),
                         read(AGENT_TASK_MINE_QUERY)),
@@ -91,7 +91,8 @@ public class PageCapabilityCatalog {
                         context(text("applicationId"), text("status"), number("page"), number("size")),
                         read(LEAVE_MINE), write(LEAVE_CREATE_DRAFT), write(LEAVE_SUBMIT), write(LEAVE_APPLY),
                         write(LEAVE_WITHDRAW), write(APPROVAL_APPLICATION_CREATE_DRAFT),
-                        write(APPROVAL_APPLICATION_SUBMIT_DRAFT), write(APPROVAL_APPLICATION_WITHDRAW)),
+                        write(APPROVAL_APPLICATION_SUBMIT_DRAFT), write(APPROVAL_APPLICATION_WITHDRAW),
+                        write(APPROVAL_APPLICATION_REOPEN)),
 
                 page("approval-list", "APPROVAL_LIST", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         read(APPROVAL_TASK_QUERY)),

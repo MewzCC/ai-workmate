@@ -29,6 +29,7 @@ public enum ToolCode {
     APPROVAL_APPLICATION_CREATE_DRAFT("approval.application.createDraft"),
     APPROVAL_APPLICATION_SUBMIT_DRAFT("approval.application.submitDraft"),
     APPROVAL_APPLICATION_WITHDRAW("approval.application.withdraw"),
+    APPROVAL_APPLICATION_REOPEN("approval.application.reopen"),
     ASSET_QUERY("asset.query"),
     MEETING_QUERY("meeting.query"),
     MEETING_BOOK("meeting.book"),

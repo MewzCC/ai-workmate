@@ -25,6 +25,8 @@ public class AgentApprovalApplicationWriteToolDefinitions {
     public static final String WITHDRAW_OUTPUT_SCHEMA = """
             {"type":"object","additionalProperties":false,"required":["applicationId","formKey","status","version"],"properties":{"applicationId":{"type":"integer","minimum":1},"formKey":{"type":"string","maxLength":64},"status":{"type":"string","const":"WITHDRAWN"},"version":{"type":"integer","minimum":1}}}
             """.strip();
+    public static final String REOPEN_INPUT_SCHEMA = SUBMIT_DRAFT_INPUT_SCHEMA;
+    public static final String REOPEN_OUTPUT_SCHEMA = CREATE_DRAFT_OUTPUT_SCHEMA;
 
     @Bean
     public ToolDefinition approvalApplicationCreateDraftToolDefinition(ObjectMapper objectMapper)
@@ -64,6 +66,20 @@ public class AgentApprovalApplicationWriteToolDefinitions {
                 "1.0.0", objectMapper.readTree(WITHDRAW_INPUT_SCHEMA),
                 objectMapper.readTree(WITHDRAW_OUTPUT_SCHEMA), RiskLevel.L1,
                 Set.of("approval:withdraw"), PermissionMode.ALL, OwnershipPolicy.SELF,
+                RetryPolicy.NEVER, SideEffect.SINGLE_WRITE, ConfirmationPolicy.EXPLICIT,
+                1, 4096, 15000, "FULL_WRITE_AUDIT");
+    }
+
+    @Bean
+    public ToolDefinition approvalApplicationReopenToolDefinition(ObjectMapper objectMapper)
+            throws JsonProcessingException {
+        return ToolDefinition.create(
+                ToolCode.APPROVAL_APPLICATION_REOPEN, "Reopen my approval application as draft",
+                "Reopens exactly one rejected or withdrawn generic application owned by the authenticated user.",
+                "Restore one completed application to an editable draft while preserving its prior workflow history.",
+                "1.0.0", objectMapper.readTree(REOPEN_INPUT_SCHEMA),
+                objectMapper.readTree(REOPEN_OUTPUT_SCHEMA), RiskLevel.L1,
+                Set.of("approval:reopen"), PermissionMode.ALL, OwnershipPolicy.SELF,
                 RetryPolicy.NEVER, SideEffect.SINGLE_WRITE, ConfirmationPolicy.EXPLICIT,
                 1, 4096, 15000, "FULL_WRITE_AUDIT");
     }

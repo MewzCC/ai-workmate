@@ -68,4 +68,24 @@ class AgentApprovalApplicationWriteToolDefinitionsTest {
         assertThat(validator.valid(definition.inputSchema(), mapper.readTree(
                 "{\"applicationId\":10,\"version\":2,\"reason\":\"绕过\"}"))).isFalse();
     }
+
+    @Test
+    void genericApplicationReopenRestoresOnlyOneOwnedDraft() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        var definition = new AgentApprovalApplicationWriteToolDefinitions()
+                .approvalApplicationReopenToolDefinition(mapper);
+        var validator = new ToolSchemaValidator();
+
+        assertThat(definition.schemaHash()).isEqualTo(
+                "sha256:3c896994338b1fea1ecd2afcdfb96f200a4ff0ad3f9f74856cd0e3acda290241");
+        assertThat(definition.requiredPermissions()).containsExactly("approval:reopen");
+        assertThat(definition.riskLevel()).isEqualTo(RiskLevel.L1);
+        assertThat(definition.retryPolicy()).isEqualTo(RetryPolicy.NEVER);
+        assertThat(definition.sideEffect()).isEqualTo(SideEffect.SINGLE_WRITE);
+        assertThat(definition.confirmationPolicy()).isEqualTo(ConfirmationPolicy.EXPLICIT);
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree(
+                "{\"applicationId\":10,\"version\":4}"))).isTrue();
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree(
+                "{\"applicationId\":10,\"version\":4,\"submit\":true}"))).isFalse();
+    }
 }

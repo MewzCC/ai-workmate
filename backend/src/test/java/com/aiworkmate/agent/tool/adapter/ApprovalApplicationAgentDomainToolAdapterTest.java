@@ -91,4 +91,21 @@ class ApprovalApplicationAgentDomainToolAdapterTest {
                 new ApprovalApplicationToolPort.WriteResult(30L, "expense", "WITHDRAWN", 4));
         verify(service).withdrawAgentApplication(20L, 30L, new com.aiworkmate.dto.VersionRequest(3));
     }
+
+    @Test
+    void reopensOwnedCompletedApplicationThroughExistingDomainService() {
+        var response = mock(ApprovalApplicationResponse.class);
+        when(response.id()).thenReturn(30L);
+        when(response.formKey()).thenReturn("expense");
+        when(response.status()).thenReturn("DRAFT");
+        when(response.version()).thenReturn(5);
+        when(service.reopenAgentApplication(20L, 30L, new com.aiworkmate.dto.VersionRequest(4)))
+                .thenReturn(response);
+
+        var result = adapter.reopen(actor, 30L, 4);
+
+        assertThat(result).isEqualTo(
+                new ApprovalApplicationToolPort.WriteResult(30L, "expense", "DRAFT", 5));
+        verify(service).reopenAgentApplication(20L, 30L, new com.aiworkmate.dto.VersionRequest(4));
+    }
 }

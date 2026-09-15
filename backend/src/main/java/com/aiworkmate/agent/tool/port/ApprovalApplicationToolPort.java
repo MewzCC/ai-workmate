@@ -10,6 +10,8 @@ public interface ApprovalApplicationToolPort {
 
     WriteResult withdraw(ToolActorContext context, long applicationId, int version);
 
+    WriteResult reopen(ToolActorContext context, long applicationId, int version);
+
     record Draft(String formKey, String processKey, List<FieldValue> fields) {
         public Draft {
             fields = List.copyOf(fields);

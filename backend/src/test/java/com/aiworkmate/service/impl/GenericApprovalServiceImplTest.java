@@ -437,6 +437,44 @@ class GenericApprovalServiceImplTest {
         assertThat(response.canEditDraft()).isTrue();
         verify(actionLogMapper).insert(any(WorkflowActionLog.class));
         verify(instanceMapper, never()).insert(any(WorkflowInstance.class));
+        verify(auditService).recordTransactional(TENANT_ID, USER_ID, "GENERIC_APPROVAL", "10",
+                "REOPEN", "SUCCESS", "恢复通用审批申请为草稿");
+    }
+
+    @Test
+    void reopenAgentApplicationUsesSharedHistoryPreservingTransaction() {
+        when(applicationMapper.selectOne(any())).thenReturn(application("WITHDRAWN", 4));
+        when(applicationMapper.update(any(), any())).thenReturn(1);
+        when(applicationMapper.selectView(TENANT_ID, 10L)).thenReturn(view("DRAFT", 5));
+        when(actionLogMapper.selectBusinessTimeline(TENANT_ID, "GENERIC_APPROVAL", 10L))
+                .thenReturn(List.of());
+
+        ApprovalApplicationResponse response = service.reopenAgentApplication(
+                USER_ID, 10L, new VersionRequest(4));
+
+        assertThat(response.status()).isEqualTo("DRAFT");
+        assertThat(response.canEditDraft()).isTrue();
+        verify(actionLogMapper).insert(any(WorkflowActionLog.class));
+        verify(instanceMapper, never()).insert(any(WorkflowInstance.class));
+        verify(auditService).recordTransactional(TENANT_ID, USER_ID, "GENERIC_APPROVAL", "10",
+                "REOPEN", "SUCCESS", "恢复通用审批申请为草稿");
+    }
+
+    @Test
+    void reopenAgentApplicationFailsClosedWhenBusinessPermissionWasRevoked() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(new ResolvedUserAccess(
+                USER_ID, "applicant", TENANT_ID, "EMPLOYEE", List.of("EMPLOYEE"),
+                List.of("route:approval-start", "approval:create", "approval:submit", "approval:withdraw"),
+                List.of("SELF"), 2L));
+
+        assertThatThrownBy(() -> service.reopenAgentApplication(
+                USER_ID, 10L, new VersionRequest(4)))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo("PERMISSION_DENIED");
+
+        verify(applicationMapper, never()).selectOne(any());
+        verify(applicationMapper, never()).update(any(), any());
     }
 
     @Test
@@ -508,7 +546,8 @@ class GenericApprovalServiceImplTest {
     private ResolvedUserAccess access() {
         return new ResolvedUserAccess(USER_ID, "applicant", TENANT_ID, "EMPLOYEE",
                 List.of("EMPLOYEE"),
-                List.of("route:approval-start", "approval:create", "approval:submit", "approval:withdraw"),
+                List.of("route:approval-start", "approval:create", "approval:submit", "approval:withdraw",
+                        "approval:reopen"),
                 List.of("SELF"), 1L);
     }
 

@@ -456,6 +456,22 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
     @Transactional
     public ApprovalApplicationResponse reopen(Long userId, Long id, VersionRequest request) {
         ResolvedUserAccess actor = requirePermission(userId, "route:approval-start");
+        return reopenInternal(actor, id, request);
+    }
+
+    @Override
+    @Transactional
+    public ApprovalApplicationResponse reopenAgentApplication(
+            Long userId, Long id, VersionRequest request) {
+        ResolvedUserAccess actor = requirePermission(userId, "route:approval-start");
+        if (!actor.permissions().contains("approval:reopen")) {
+            throw new BusinessException(ErrorCode.PERMISSION_DENIED);
+        }
+        return reopenInternal(actor, id, request);
+    }
+
+    private ApprovalApplicationResponse reopenInternal(
+            ResolvedUserAccess actor, Long id, VersionRequest request) {
         ApprovalApplication application = requireOwnedApplication(actor, id);
         String previousStatus = application.getStatus();
         if (!"REJECTED".equals(previousStatus) && !"WITHDRAWN".equals(previousStatus)) {
@@ -481,7 +497,7 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
             insertAction(actor, application.getWorkflowInstanceId(), null,
                     "REOPEN", previousStatus, "DRAFT", "恢复为草稿并准备重新提交");
         }
-        auditService.record(actor.tenantId(), actor.userId(), BUSINESS_TYPE,
+        auditService.recordTransactional(actor.tenantId(), actor.userId(), BUSINESS_TYPE,
                 id.toString(), "REOPEN", "SUCCESS", "恢复通用审批申请为草稿");
         return response(actor, requireView(actor.tenantId(), id),
                 actionLogMapper.selectBusinessTimeline(actor.tenantId(), BUSINESS_TYPE, id));

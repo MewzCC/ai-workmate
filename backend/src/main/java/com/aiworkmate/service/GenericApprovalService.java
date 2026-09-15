@@ -46,6 +46,9 @@ public interface GenericApprovalService {
     /** 将本人被拒绝或已撤回的申请恢复为草稿，保留原流程历史供重新提交。 */
     ApprovalApplicationResponse reopen(Long userId, Long id, VersionRequest request);
 
+    /** Agent 专用的本人申请恢复入口；只恢复为草稿，不在同一任务中再次提交。 */
+    ApprovalApplicationResponse reopenAgentApplication(Long userId, Long id, VersionRequest request);
+
     /** 按表单 Key 提交一份申请，返回创建后的申请单（含首个待办信息）。 */
     ApprovalApplicationResponse submit(Long userId, ApprovalSubmitRequest request);
 
