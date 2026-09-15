@@ -362,6 +362,20 @@ class P1PostgresMigrationIT {
                     WHERE code IN ('agent:tool:accessGovernance.query','agent:tool:dataPermission.query','agent:tool:aiPermission.query')
                     """)).as("安全治理 Agent 工具必须具备独立实时权限").isEqualTo(3);
             assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='NONE'
+                      AND (code,schema_hash,data_scope_policy) IN (
+                        ('audit.query','sha256:c20374b208d69def5365f321daa3c9d80c8c7a54ed7ab0a1b0cd10ade022ab04','TENANT_SCOPED'),
+                        ('tenantConfiguration.query','sha256:884afa367781930d66fdafc2b64205710c17b546099610be43be6e960531cba6','TENANT_SCOPED'),
+                        ('dictionary.query','sha256:d4cc084b963a3e48f1a63c8ab6b988c1f4a8ce361db6b4a74d28867cb821ff92','TENANT_SCOPED'),
+                        ('systemCapability.query','sha256:4e80069fa10fe0a961e030bd54c85a87f69238ed9ddab94675085576bcefae88','TENANT_SCOPED'))
+                    """)).as("四个运行治理 Agent 工具必须以冻结契约存在").isEqualTo(4);
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code IN ('agent:tool:audit.query','agent:tool:tenantConfiguration.query',
+                        'agent:tool:dictionary.query','agent:tool:systemCapability.query')
+                    """)).as("运行治理 Agent 工具必须具备独立实时权限").isEqualTo(4);
+            assertThat(count(statement, """
                     SELECT COUNT(*) FROM information_schema.views
                     WHERE table_schema = current_schema() AND table_name = 'runtime_log_view'
                     """)).isOne();

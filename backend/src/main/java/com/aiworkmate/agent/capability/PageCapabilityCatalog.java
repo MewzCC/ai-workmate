@@ -163,10 +163,15 @@ public class PageCapabilityCatalog {
                         context(text("toolCode"), text("filterCode"), text("effectiveEnabled")), read(AI_PERMISSION_QUERY)),
                 page("knowledge-base", "KNOWLEDGE_BASE", OwnershipPolicy.FIXED_RESOURCE, LIST_COMMANDS,
                         context(text("query"), number("topK"), number("minScore")), read(KNOWLEDGE_SEARCH)),
-                page("audit-center", "AUDIT_CENTER", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS),
-                page("tenant-config", "TENANT_CONFIG", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS),
-                page("dictionary", "DICTIONARY", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS),
-                page("system-config", "SYSTEM_CONFIG", OwnershipPolicy.SELF, READ_COMMANDS)
+                page("audit-center", "AUDIT_CENTER", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
+                        context(text("action"), text("resourceType"), text("result"), text("from"), text("to"),
+                                number("page"), number("size")), read(AUDIT_QUERY)),
+                page("tenant-config", "TENANT_CONFIG", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
+                        context(), read(TENANT_CONFIGURATION_QUERY)),
+                page("dictionary", "DICTIONARY", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
+                        context(text("keyword"), text("status")), read(DICTIONARY_QUERY)),
+                page("system-config", "SYSTEM_CONFIG", OwnershipPolicy.SELF, READ_COMMANDS,
+                        context(), read(SYSTEM_CAPABILITY_QUERY))
         );
     }
 

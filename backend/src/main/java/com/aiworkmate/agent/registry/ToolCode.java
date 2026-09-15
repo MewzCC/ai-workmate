@@ -37,7 +37,11 @@ public enum ToolCode {
     SANDBOX_REPLAY_QUERY("sandboxReplay.query"),
     ACCESS_GOVERNANCE_QUERY("accessGovernance.query"),
     DATA_PERMISSION_QUERY("dataPermission.query"),
-    AI_PERMISSION_QUERY("aiPermission.query");
+    AI_PERMISSION_QUERY("aiPermission.query"),
+    AUDIT_QUERY("audit.query"),
+    TENANT_CONFIGURATION_QUERY("tenantConfiguration.query"),
+    DICTIONARY_QUERY("dictionary.query"),
+    SYSTEM_CAPABILITY_QUERY("systemCapability.query");
 
     private static final Map<String, ToolCode> BY_CODE;
     private static final Set<String> CODES;

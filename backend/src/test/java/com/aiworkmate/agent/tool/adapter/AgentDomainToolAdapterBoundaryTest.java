@@ -12,6 +12,7 @@ import com.aiworkmate.agent.tool.port.KnowledgeToolPort;
 import com.aiworkmate.agent.tool.port.LeaveToolPort;
 import com.aiworkmate.agent.tool.port.MeetingToolPort;
 import com.aiworkmate.agent.tool.port.NotificationToolPort;
+import com.aiworkmate.agent.tool.port.OperationalGovernanceToolPort;
 import com.aiworkmate.agent.tool.port.PlatformOperationsToolPort;
 import com.aiworkmate.agent.tool.port.SealToolPort;
 import com.aiworkmate.agent.tool.port.SecurityGovernanceToolPort;
@@ -32,6 +33,7 @@ class AgentDomainToolAdapterBoundaryTest {
             FinanceAgentDomainToolAdapter.class,
             PlatformOperationsAgentDomainToolAdapter.class,
             SecurityGovernanceAgentDomainToolAdapter.class,
+            OperationalGovernanceAgentDomainToolAdapter.class,
             KnowledgeAgentDomainToolAdapter.class,
             NotificationAgentDomainToolAdapter.class);
 
@@ -40,7 +42,8 @@ class AgentDomainToolAdapterBoundaryTest {
             ApprovalConfigurationToolPort.class, ApprovalTaskToolPort.class, HrOrganizationToolPort.class,
             HrEmployeeToolPort.class, EmployeeChangeToolPort.class, AttendanceToolPort.class,
             AssetToolPort.class, MeetingToolPort.class, VisitorToolPort.class, SealToolPort.class,
-            FinanceToolPort.class, PlatformOperationsToolPort.class, SecurityGovernanceToolPort.class);
+            FinanceToolPort.class, PlatformOperationsToolPort.class, SecurityGovernanceToolPort.class,
+            OperationalGovernanceToolPort.class);
 
     @Test
     void eachPortHasOneLocalAdapterAndEachAdapterHasOneBusinessBoundary() {
@@ -63,6 +66,7 @@ class AgentDomainToolAdapterBoundaryTest {
         assertThat(FinanceAgentDomainToolAdapter.class.getInterfaces()).containsExactly(FinanceToolPort.class);
         assertThat(PlatformOperationsAgentDomainToolAdapter.class.getInterfaces()).containsExactly(PlatformOperationsToolPort.class);
         assertThat(SecurityGovernanceAgentDomainToolAdapter.class.getInterfaces()).containsExactly(SecurityGovernanceToolPort.class);
+        assertThat(OperationalGovernanceAgentDomainToolAdapter.class.getInterfaces()).containsExactly(OperationalGovernanceToolPort.class);
         assertThat(KnowledgeAgentDomainToolAdapter.class.getInterfaces()).containsExactly(KnowledgeToolPort.class);
         assertThat(NotificationAgentDomainToolAdapter.class.getInterfaces()).containsExactly(NotificationToolPort.class);
     }
