@@ -35,8 +35,7 @@ public final class LeaveCreateDraftToolHandler implements ToolHandler {
                 requiredDate(arguments, "startDate"), requiredText(arguments, "startPeriod"),
                 requiredDate(arguments, "endDate"), requiredText(arguments, "endPeriod"),
                 requiredText(arguments, "reason"));
-        String operationKey = "agent:" + context.taskId() + ":" + context.stepId() + ":"
-                + ToolCode.LEAVE_CREATE_DRAFT.code() + ":v1";
+        String operationKey = StableToolOperationKey.v1(context, ToolCode.LEAVE_CREATE_DRAFT);
         LeaveToolPort.WriteResult created = leaveToolPort.createDraft(
                 context.actor(), request, operationKey);
         ObjectNode output = objectMapper.createObjectNode();

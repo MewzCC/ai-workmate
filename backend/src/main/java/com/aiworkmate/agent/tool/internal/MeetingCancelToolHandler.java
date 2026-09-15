@@ -33,8 +33,7 @@ public final class MeetingCancelToolHandler implements ToolHandler {
                 requiredLong(arguments, "bookingId", 1),
                 requiredInt(arguments, "version", 0, Integer.MAX_VALUE - 1),
                 optionalText(arguments, "reason"));
-        String operationKey = "agent:" + context.taskId() + ":" + context.stepId() + ":"
-                + ToolCode.MEETING_CANCEL.code() + ":v1";
+        String operationKey = StableToolOperationKey.v1(context, ToolCode.MEETING_CANCEL);
         return objectMapper.valueToTree(port.cancel(context.actor(), command, operationKey));
     }
 }

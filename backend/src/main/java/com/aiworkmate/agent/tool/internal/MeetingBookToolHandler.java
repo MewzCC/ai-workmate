@@ -35,8 +35,7 @@ public final class MeetingBookToolHandler implements ToolHandler {
                 requiredLong(arguments, "roomId", 1), requiredText(arguments, "title"),
                 optionalText(arguments, "agenda"), requiredDateTime(arguments, "startAt"),
                 requiredDateTime(arguments, "endAt"), requiredInt(arguments, "attendeeCount", 1, 10000));
-        String operationKey = "agent:" + context.taskId() + ":" + context.stepId() + ":"
-                + ToolCode.MEETING_BOOK.code() + ":v1";
+        String operationKey = StableToolOperationKey.v1(context, ToolCode.MEETING_BOOK);
         return objectMapper.valueToTree(port.book(context.actor(), command, operationKey));
     }
 }
