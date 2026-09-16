@@ -2,6 +2,7 @@ package com.aiworkmate.agent.tool.adapter;
 
 import com.aiworkmate.agent.tool.port.ApprovalApplicationToolPort;
 import com.aiworkmate.agent.tool.port.ToolActorContext;
+import com.aiworkmate.agent.tool.port.ToolOperationKey;
 import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.dto.ApprovalApplicationResponse;
 import com.aiworkmate.service.GenericApprovalService;
@@ -37,7 +38,7 @@ class ApprovalApplicationAgentDomainToolAdapterTest {
         when(service.createAgentDraft(eq(20L), org.mockito.ArgumentMatchers.any(), eq("stable")))
                 .thenReturn(response);
 
-        var result = adapter.createDraft(actor, command, "stable");
+        var result = adapter.createDraft(actor, command, new ToolOperationKey("stable"));
 
         assertThat(result).isEqualTo(new ApprovalApplicationToolPort.WriteResult(30L, "expense", "DRAFT", 0));
         var request = ArgumentCaptor.forClass(com.aiworkmate.dto.ApprovalDraftRequest.class);
@@ -53,7 +54,7 @@ class ApprovalApplicationAgentDomainToolAdapterTest {
                 new ApprovalApplicationToolPort.FieldValue("reason", List.of("a"), false),
                 new ApprovalApplicationToolPort.FieldValue("reason", List.of("b"), false)));
 
-        assertThatThrownBy(() -> adapter.createDraft(actor, command, "stable"))
+        assertThatThrownBy(() -> adapter.createDraft(actor, command, new ToolOperationKey("stable")))
                 .isInstanceOf(BusinessException.class);
         verifyNoInteractions(service);
     }

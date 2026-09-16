@@ -5,6 +5,7 @@ import com.aiworkmate.agent.tool.port.ApprovalTaskToolPort;
 import com.aiworkmate.agent.tool.port.LeaveToolPort;
 import com.aiworkmate.agent.tool.port.TodoToolPort;
 import com.aiworkmate.agent.tool.port.ToolActorContext;
+import com.aiworkmate.agent.tool.port.ToolOperationKey;
 import com.aiworkmate.agent.tool.port.AttendanceToolPort;
 import com.aiworkmate.common.PageResponse;
 import com.aiworkmate.dto.KnowledgeSearchItemResponse;
@@ -176,7 +177,8 @@ class AgentDomainToolAdaptersTest {
                 false, true));
 
         var result = attendanceAdapter.submitReissue(context,
-                new AttendanceToolPort.ReissueCommand(date, "CLOCK_IN", "忘记打卡"), "operation-1");
+                new AttendanceToolPort.ReissueCommand(date, "CLOCK_IN", "忘记打卡"),
+                new ToolOperationKey("operation-1"));
 
         assertThat(result).isEqualTo(new AttendanceToolPort.ReissueWriteResult(
                 31L, "PENDING", date, "CLOCK_IN", submittedAt));
@@ -237,7 +239,8 @@ class AgentDomainToolAdaptersTest {
                 "PERSONAL", 8L, LocalDate.of(2026, 9, 15), "AM",
                 LocalDate.of(2026, 9, 15), "PM", "家庭事务");
 
-        LeaveToolPort.WriteResult result = leaveAdapter.createDraft(context, command, "operation-1");
+        LeaveToolPort.WriteResult result = leaveAdapter.createDraft(
+                context, command, new ToolOperationKey("operation-1"));
 
         assertThat(result).isEqualTo(new LeaveToolPort.WriteResult(30L, "DRAFT", 0, null));
         var request = ArgumentCaptor.forClass(com.aiworkmate.dto.LeaveApplicationRequest.class);

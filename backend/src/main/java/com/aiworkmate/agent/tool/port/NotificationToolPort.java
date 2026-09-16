@@ -14,5 +14,5 @@ public interface NotificationToolPort {
     }
     record Item(long id, String type, String title, String content, String businessType,
                 boolean read, LocalDateTime createdAt) { }
-    record ReadResult(long notificationId, boolean read) { }
+    record ReadResult(long notificationId, boolean read) implements ToolWriteReceipt { }
 }

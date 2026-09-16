@@ -2,6 +2,7 @@ package com.aiworkmate.agent.tool.adapter;
 
 import com.aiworkmate.agent.tool.port.LeaveToolPort;
 import com.aiworkmate.agent.tool.port.ToolActorContext;
+import com.aiworkmate.agent.tool.port.ToolOperationKey;
 import com.aiworkmate.dto.LeaveApplicationRequest;
 import com.aiworkmate.dto.LeaveApplicationResponse;
 import com.aiworkmate.dto.VersionRequest;
@@ -27,9 +28,9 @@ public final class LeaveAgentDomainToolAdapter implements LeaveToolPort {
     }
 
     @Override
-    public WriteResult createDraft(ToolActorContext context, Draft command, String operationKey) {
+    public WriteResult createDraft(ToolActorContext context, Draft command, ToolOperationKey operationKey) {
         return writeResult(leaveWorkflowService.createAgentDraft(
-                context.userId(), leaveRequest(command), operationKey));
+                context.userId(), leaveRequest(command), operationKey.value()));
     }
 
     @Override
@@ -39,9 +40,9 @@ public final class LeaveAgentDomainToolAdapter implements LeaveToolPort {
     }
 
     @Override
-    public WriteResult apply(ToolActorContext context, Draft command, String operationKey) {
+    public WriteResult apply(ToolActorContext context, Draft command, ToolOperationKey operationKey) {
         return writeResult(leaveWorkflowService.applyAgent(
-                context.userId(), leaveRequest(command), operationKey));
+                context.userId(), leaveRequest(command), operationKey.value()));
     }
 
     @Override

@@ -2,6 +2,7 @@ package com.aiworkmate.agent.tool.adapter;
 
 import com.aiworkmate.agent.tool.port.AttendanceToolPort;
 import com.aiworkmate.agent.tool.port.ToolActorContext;
+import com.aiworkmate.agent.tool.port.ToolOperationKey;
 import com.aiworkmate.dto.AttendanceReissueRequest;
 import com.aiworkmate.service.AttendanceService;
 import lombok.RequiredArgsConstructor;
@@ -29,9 +30,9 @@ public final class AttendanceAgentDomainToolAdapter implements AttendanceToolPor
 
     @Override
     public ReissueWriteResult submitReissue(
-            ToolActorContext context, ReissueCommand command, String operationKey) {
+            ToolActorContext context, ReissueCommand command, ToolOperationKey operationKey) {
         var item = attendanceService.submitAgentReissue(context.userId(), new AttendanceReissueRequest(
-                command.clockDate(), command.clockType(), command.reason()), operationKey);
+                command.clockDate(), command.clockType(), command.reason()), operationKey.value());
         return new ReissueWriteResult(item.id(), item.status(), item.clockDate(),
                 item.clockType(), item.submittedAt());
     }

@@ -4,7 +4,7 @@ import java.util.List;
 
 /** Transport-neutral boundary for self-owned generic approval application writes. */
 public interface ApprovalApplicationToolPort {
-    WriteResult createDraft(ToolActorContext context, Draft command, String operationKey);
+    WriteResult createDraft(ToolActorContext context, Draft command, ToolOperationKey operationKey);
 
     WriteResult submitDraft(ToolActorContext context, long applicationId, int version);
 
@@ -24,5 +24,6 @@ public interface ApprovalApplicationToolPort {
         }
     }
 
-    record WriteResult(long applicationId, String formKey, String status, int version) { }
+    record WriteResult(long applicationId, String formKey, String status, int version)
+            implements ToolWriteReceipt { }
 }

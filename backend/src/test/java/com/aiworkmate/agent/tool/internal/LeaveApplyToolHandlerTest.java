@@ -1,6 +1,7 @@
 package com.aiworkmate.agent.tool.internal;
 
 import com.aiworkmate.agent.tool.port.LeaveToolPort;
+import com.aiworkmate.agent.tool.port.ToolOperationKey;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -26,7 +27,7 @@ class LeaveApplyToolHandlerTest {
         LeaveApplyToolHandler handler = new LeaveApplyToolHandler(leaveToolPort, objectMapper);
         TrustedToolContext context = new TrustedToolContext(91L, 7L, 10L, 20L, 1, "trace");
         when(leaveToolPort.apply(eq(context.actor()), any(),
-                eq("agent:10:20:leave.apply:v1"))).thenReturn(application());
+                eq(new ToolOperationKey("agent:10:20:leave.apply:v1")))).thenReturn(application());
 
         var output = handler.execute(context, objectMapper.readTree("""
                 {"leaveType":"PERSONAL","startDate":"2026-09-09","startPeriod":"AM",
@@ -38,7 +39,7 @@ class LeaveApplyToolHandlerTest {
         ArgumentCaptor<LeaveToolPort.Draft> request =
                 ArgumentCaptor.forClass(LeaveToolPort.Draft.class);
         verify(leaveToolPort).apply(eq(context.actor()), request.capture(),
-                eq("agent:10:20:leave.apply:v1"));
+                eq(new ToolOperationKey("agent:10:20:leave.apply:v1")));
         assertThat(request.getValue().reason()).isEqualTo("家庭事务");
     }
 

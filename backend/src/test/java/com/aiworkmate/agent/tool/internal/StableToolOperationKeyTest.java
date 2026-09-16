@@ -10,7 +10,8 @@ class StableToolOperationKeyTest {
         var first = new TrustedToolContext(1, 7, 10, 20, 1, "first");
         var retry = new TrustedToolContext(1, 7, 10, 20, 2, "retry");
         assertThat(StableToolOperationKey.v1(first, ToolCode.MEETING_BOOK))
-                .isEqualTo("agent:10:20:meeting.book:v1")
+                .extracting("value").isEqualTo("agent:10:20:meeting.book:v1");
+        assertThat(StableToolOperationKey.v1(first, ToolCode.MEETING_BOOK))
                 .isEqualTo(StableToolOperationKey.v1(retry, ToolCode.MEETING_BOOK));
         assertThat(StableToolOperationKey.v1(first, ToolCode.MEETING_CANCEL))
                 .isNotEqualTo(StableToolOperationKey.v1(first, ToolCode.MEETING_BOOK));

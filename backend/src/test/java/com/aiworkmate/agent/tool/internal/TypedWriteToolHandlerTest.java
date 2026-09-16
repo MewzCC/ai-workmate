@@ -1,6 +1,7 @@
 package com.aiworkmate.agent.tool.internal;
 
 import com.aiworkmate.agent.registry.ToolCode;
+import com.aiworkmate.agent.tool.port.ToolOperationKey;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -105,11 +106,11 @@ class TypedWriteToolHandlerTest {
         protected JsonNode serializeResult(Result result) {
             return objectMapper().createObjectNode()
                     .put("value", result.value())
-                    .put("operationKey", result.operationKey());
+                    .put("operationKey", result.operationKey().value());
         }
     }
 
-    private record Result(String value, String operationKey, String internalValue) { }
+    private record Result(String value, ToolOperationKey operationKey, String internalValue) { }
 
     private static final class SampleVersionedHandler extends TypedVersionedWriteToolHandler<Result> {
         private SampleVersionedHandler(ObjectMapper objectMapper, String idArgument) {
@@ -118,7 +119,8 @@ class TypedWriteToolHandlerTest {
 
         @Override
         protected Result invokeVersioned(TrustedToolContext context, long resourceId, int version) {
-            return new Result(resourceId + ":" + version + ":" + context.userId(), "unused", null);
+            return new Result(resourceId + ":" + version + ":" + context.userId(),
+                    new ToolOperationKey("unused"), null);
         }
     }
 }

@@ -1,6 +1,7 @@
 package com.aiworkmate.agent.tool.internal;
 
 import com.aiworkmate.agent.tool.port.ApprovalApplicationToolPort;
+import com.aiworkmate.agent.tool.port.ToolOperationKey;
 import com.aiworkmate.common.BusinessException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -26,7 +27,7 @@ class ApprovalApplicationCreateDraftToolHandlerTest {
                 new ApprovalApplicationToolPort.FieldValue("reason", List.of("客户拜访"), false),
                 new ApprovalApplicationToolPort.FieldValue("tags", List.of("差旅", "客户"), true)));
         when(port.createDraft(eq(context.actor()), eq(command),
-                eq("agent:10:20:approval.application.createDraft:v1")))
+                eq(new ToolOperationKey("agent:10:20:approval.application.createDraft:v1"))))
                 .thenReturn(new ApprovalApplicationToolPort.WriteResult(30L, "expense", "DRAFT", 0));
 
         var output = new ApprovalApplicationCreateDraftToolHandler(port, mapper).execute(context,
@@ -40,7 +41,7 @@ class ApprovalApplicationCreateDraftToolHandlerTest {
         assertThat(output.path("applicationId").asLong()).isEqualTo(30L);
         assertThat(output.path("status").asText()).isEqualTo("DRAFT");
         verify(port).createDraft(context.actor(), command,
-                "agent:10:20:approval.application.createDraft:v1");
+                new ToolOperationKey("agent:10:20:approval.application.createDraft:v1"));
     }
 
     @Test

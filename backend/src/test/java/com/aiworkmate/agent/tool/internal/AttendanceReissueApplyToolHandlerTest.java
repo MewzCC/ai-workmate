@@ -1,6 +1,7 @@
 package com.aiworkmate.agent.tool.internal;
 
 import com.aiworkmate.agent.tool.port.AttendanceToolPort;
+import com.aiworkmate.agent.tool.port.ToolOperationKey;
 import com.aiworkmate.common.BusinessException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -33,7 +34,7 @@ class AttendanceReissueApplyToolHandlerTest {
         var result = new AttendanceToolPort.ReissueWriteResult(
                 30L, "PENDING", date, "CLOCK_IN", LocalDateTime.of(2026, 9, 15, 9, 0));
         when(port.submitReissue(eq(context.actor()), any(),
-                eq("agent:10:20:attendance.reissue.apply:v1"))).thenReturn(result);
+                eq(new ToolOperationKey("agent:10:20:attendance.reissue.apply:v1")))).thenReturn(result);
 
         var output = new AttendanceReissueApplyToolHandler(port, mapper).execute(context, mapper.readTree("""
                 {"clockDate":"2026-09-14","clockType":"CLOCK_IN","reason":"忘记打卡"}
@@ -43,7 +44,7 @@ class AttendanceReissueApplyToolHandlerTest {
         assertThat(output.path("status").asText()).isEqualTo("PENDING");
         var command = ArgumentCaptor.forClass(AttendanceToolPort.ReissueCommand.class);
         verify(port).submitReissue(eq(context.actor()), command.capture(),
-                eq("agent:10:20:attendance.reissue.apply:v1"));
+                eq(new ToolOperationKey("agent:10:20:attendance.reissue.apply:v1")));
         assertThat(command.getValue()).isEqualTo(
                 new AttendanceToolPort.ReissueCommand(date, "CLOCK_IN", "忘记打卡"));
     }

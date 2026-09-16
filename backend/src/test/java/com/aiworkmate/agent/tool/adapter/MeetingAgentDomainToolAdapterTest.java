@@ -2,6 +2,8 @@ package com.aiworkmate.agent.tool.adapter;
 
 import com.aiworkmate.agent.tool.port.MeetingToolPort;
 import com.aiworkmate.agent.tool.port.ToolActorContext;
+import com.aiworkmate.agent.tool.port.ToolOperationKey;
+import com.aiworkmate.agent.tool.port.ToolWriteVerification;
 import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.common.ErrorCode;
 import com.aiworkmate.common.PageResponse;
@@ -22,6 +24,7 @@ class MeetingAgentDomainToolAdapterTest {
     private final MeetingBookingService bookings = mock(MeetingBookingService.class);
     private final MeetingAgentDomainToolAdapter adapter = new MeetingAgentDomainToolAdapter(rooms, bookings);
     private final ToolActorContext actor = new ToolActorContext(9, 7, 10, 20, 1, "trace");
+    private final ToolOperationKey operationKey = new ToolOperationKey("operation");
     private final LocalDateTime start = LocalDateTime.of(2026, 10, 1, 9, 0);
     private final MeetingToolPort.BookCommand command =
             new MeetingToolPort.BookCommand(3, "Planning", "Agenda", start, start.plusHours(1), 4);
@@ -37,7 +40,7 @@ class MeetingAgentDomainToolAdapterTest {
         when(response.startAt()).thenReturn(start);
         when(response.endAt()).thenReturn(start.plusHours(1));
         when(bookings.createAgent(7L, request, "operation")).thenReturn(response);
-        assertThat(adapter.book(actor, command, "operation"))
+        assertThat(adapter.book(actor, command, operationKey))
                 .isEqualTo(new MeetingToolPort.WriteResult(12, 3, "BOOKED", 0, start, start.plusHours(1)));
         verify(bookings).createAgent(7L, request, "operation");
         verifyNoMoreInteractions(bookings);
@@ -49,7 +52,7 @@ class MeetingAgentDomainToolAdapterTest {
         var request = new MeetingBookingRequest(3L, "Planning", "Agenda", start, start.plusHours(1), 4);
         var rejection = new BusinessException(ErrorCode.PERMISSION_DENIED);
         when(bookings.createAgent(7L, request, "operation")).thenThrow(rejection);
-        assertThatThrownBy(() -> adapter.book(actor, command, "operation")).isSameAs(rejection);
+        assertThatThrownBy(() -> adapter.book(actor, command, operationKey)).isSameAs(rejection);
         verify(bookings).createAgent(7L, request, "operation");
         verifyNoMoreInteractions(bookings);
         verifyNoInteractions(rooms);
@@ -73,7 +76,8 @@ class MeetingAgentDomainToolAdapterTest {
     void unobservedCreationIsNotConvertedIntoAWrite() {
         var request = new MeetingBookingRequest(3L, "Planning", "Agenda", start, start.plusHours(1), 4);
         when(bookings.findAgentCreation(7L, request, "operation")).thenReturn(java.util.Optional.empty());
-        assertThat(adapter.findCreation(actor, command, "operation")).isEmpty();
+        assertThat(adapter.findCreation(actor, command, operationKey))
+                .isEqualTo(ToolWriteVerification.unobserved());
         verify(bookings).findAgentCreation(7L, request, "operation");
         verifyNoMoreInteractions(bookings);
         verifyNoInteractions(rooms);
@@ -91,8 +95,9 @@ class MeetingAgentDomainToolAdapterTest {
         when(response.cancelledAt()).thenReturn(start);
         when(bookings.findAgentCancellation(7L, 12L, request, "operation"))
                 .thenReturn(java.util.Optional.of(response));
-        assertThat(adapter.findCancellation(actor, cancel, "operation"))
-                .contains(new MeetingToolPort.CancelResult(12, 3, "CANCELLED", 1, start));
+        assertThat(adapter.findCancellation(actor, cancel, operationKey))
+                .isEqualTo(ToolWriteVerification.observed(
+                        new MeetingToolPort.CancelResult(12, 3, "CANCELLED", 1, start)));
         verify(bookings).findAgentCancellation(7L, 12L, request, "operation");
         verifyNoMoreInteractions(bookings);
         verifyNoInteractions(rooms);
@@ -104,7 +109,7 @@ class MeetingAgentDomainToolAdapterTest {
         var request = new com.aiworkmate.dto.MeetingBookingCancelRequest(0, null);
         var denied = new BusinessException(ErrorCode.PERMISSION_DENIED);
         when(bookings.findAgentCancellation(7L, 12L, request, "operation")).thenThrow(denied);
-        assertThatThrownBy(() -> adapter.findCancellation(actor, cancel, "operation")).isSameAs(denied);
+        assertThatThrownBy(() -> adapter.findCancellation(actor, cancel, operationKey)).isSameAs(denied);
         verify(bookings).findAgentCancellation(7L, 12L, request, "operation");
         verifyNoMoreInteractions(bookings);
         verifyNoInteractions(rooms);

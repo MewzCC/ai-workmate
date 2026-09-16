@@ -1,6 +1,7 @@
 package com.aiworkmate.agent.tool.internal;
 
 import com.aiworkmate.agent.registry.ToolCode;
+import com.aiworkmate.agent.tool.port.ToolOperationKey;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -49,7 +50,7 @@ abstract class TypedWriteToolHandler<C, R> implements ToolHandler {
         return objectMapper.valueToTree(result);
     }
 
-    protected final String stableOperationKey(TrustedToolContext context) {
+    protected final ToolOperationKey stableOperationKey(TrustedToolContext context) {
         return StableToolOperationKey.v1(context, code);
     }
 
