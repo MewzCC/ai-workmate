@@ -24,25 +24,25 @@ public class AgentMeetingWriteToolDefinitions {
 
     @Bean
     public ToolDefinition meetingBookToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {
-        return ToolDefinition.create(
+        return ToolDefinitionFactory.singleWrite(
                 ToolCode.MEETING_BOOK, "Book a meeting room",
                 "Creates exactly one meeting-room booking owned by the authenticated user.",
                 "Book one available room for one bounded future time range after explicit confirmation.",
-                "1.0.0", objectMapper.readTree(INPUT_SCHEMA), objectMapper.readTree(OUTPUT_SCHEMA),
-                RiskLevel.L1, Set.of("meeting:book"), PermissionMode.ALL, OwnershipPolicy.SELF,
-                RetryPolicy.BUSINESS_IDEMPOTENT, SideEffect.SINGLE_WRITE, ConfirmationPolicy.EXPLICIT,
-                1, 16384, 15000, "FULL_WRITE_AUDIT");
+                objectMapper.readTree(INPUT_SCHEMA), objectMapper.readTree(OUTPUT_SCHEMA),
+                RiskLevel.L1, Set.of("meeting:book"), OwnershipPolicy.SELF,
+                RetryPolicy.BUSINESS_IDEMPOTENT, ConfirmationPolicy.EXPLICIT,
+                1, 16384, 15000);
     }
 
     @Bean
     public ToolDefinition meetingCancelToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {
-        return ToolDefinition.create(
+        return ToolDefinitionFactory.singleWrite(
                 ToolCode.MEETING_CANCEL, "Cancel my meeting-room booking",
                 "Cancels exactly one active meeting-room booking owned by the authenticated user.",
                 "Cancel one owned future booking at its expected version after explicit confirmation.",
-                "1.0.0", objectMapper.readTree(CANCEL_INPUT_SCHEMA), objectMapper.readTree(CANCEL_OUTPUT_SCHEMA),
-                RiskLevel.L1, Set.of("meeting:cancel"), PermissionMode.ALL, OwnershipPolicy.SELF,
-                RetryPolicy.BUSINESS_IDEMPOTENT, SideEffect.SINGLE_WRITE, ConfirmationPolicy.EXPLICIT,
-                1, 8192, 10000, "FULL_WRITE_AUDIT");
+                objectMapper.readTree(CANCEL_INPUT_SCHEMA), objectMapper.readTree(CANCEL_OUTPUT_SCHEMA),
+                RiskLevel.L1, Set.of("meeting:cancel"), OwnershipPolicy.SELF,
+                RetryPolicy.BUSINESS_IDEMPOTENT, ConfirmationPolicy.EXPLICIT,
+                1, 8192, 10000);
     }
 }

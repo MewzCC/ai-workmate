@@ -19,14 +19,14 @@ public class AgentAttendanceWriteToolDefinitions {
     @Bean
     public ToolDefinition attendanceReissueApplyToolDefinition(ObjectMapper objectMapper)
             throws JsonProcessingException {
-        return ToolDefinition.create(
+        return ToolDefinitionFactory.singleWrite(
                 ToolCode.ATTENDANCE_REISSUE_APPLY, "Apply for my attendance correction",
                 "Creates exactly one attendance correction request for the authenticated user.",
                 "Submit one personal correction request for approval without modifying attendance records directly.",
-                "1.0.0", objectMapper.readTree(REISSUE_INPUT_SCHEMA),
+                objectMapper.readTree(REISSUE_INPUT_SCHEMA),
                 objectMapper.readTree(REISSUE_OUTPUT_SCHEMA), RiskLevel.L1,
-                Set.of("attendance:reissue:apply"), PermissionMode.ALL, OwnershipPolicy.SELF,
-                RetryPolicy.BUSINESS_IDEMPOTENT, SideEffect.SINGLE_WRITE, ConfirmationPolicy.EXPLICIT,
-                1, 8192, 10000, "FULL_WRITE_AUDIT");
+                Set.of("attendance:reissue:apply"), OwnershipPolicy.SELF,
+                RetryPolicy.BUSINESS_IDEMPOTENT, ConfirmationPolicy.EXPLICIT,
+                1, 8192, 10000);
     }
 }

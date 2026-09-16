@@ -25,11 +25,9 @@ public class AgentTaskCenterToolDefinitions {
 
     @Bean
     ToolDefinition agentTaskMineQueryToolDefinition(ObjectMapper mapper) throws JsonProcessingException {
-        return ToolDefinition.create(ToolCode.AGENT_TASK_MINE_QUERY, "Query my Agent tasks",
+        return ToolDefinitionFactory.read(ToolCode.AGENT_TASK_MINE_QUERY, "Query my Agent tasks",
                 "Returns only the authenticated user's Agent task summaries without plan, arguments or results.",
-                "Display bounded personal Agent task status.", "1.0.0", mapper.readTree(INPUT), mapper.readTree(OUTPUT),
-                RiskLevel.L0, Set.of("agent:task:read"), PermissionMode.ALL, OwnershipPolicy.SELF,
-                RetryPolicy.READ_ONLY_SAFE, SideEffect.NONE, ConfirmationPolicy.NONE,
-                50, 131072, 15000, "HASHED_ARGS_RESULT");
+                "Display bounded personal Agent task status.", mapper.readTree(INPUT), mapper.readTree(OUTPUT),
+                Set.of("agent:task:read"), OwnershipPolicy.SELF, 50, 131072, 15000);
     }
 }

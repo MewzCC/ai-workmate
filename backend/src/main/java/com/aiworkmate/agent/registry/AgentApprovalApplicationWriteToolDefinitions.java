@@ -15,9 +15,8 @@ public class AgentApprovalApplicationWriteToolDefinitions {
     public static final String CREATE_DRAFT_OUTPUT_SCHEMA = """
             {"type":"object","additionalProperties":false,"required":["applicationId","formKey","status","version"],"properties":{"applicationId":{"type":"integer","minimum":1},"formKey":{"type":"string","maxLength":64},"status":{"type":"string","const":"DRAFT"},"version":{"type":"integer","minimum":0}}}
             """.strip();
-    public static final String SUBMIT_DRAFT_INPUT_SCHEMA = """
-            {"type":"object","additionalProperties":false,"required":["applicationId","version"],"properties":{"applicationId":{"type":"integer","minimum":1},"version":{"type":"integer","minimum":0,"maximum":2147483646}}}
-            """.strip();
+    public static final String SUBMIT_DRAFT_INPUT_SCHEMA =
+            ClosedToolSchemas.versionedResourceInput("applicationId");
     public static final String SUBMIT_DRAFT_OUTPUT_SCHEMA = """
             {"type":"object","additionalProperties":false,"required":["applicationId","formKey","status","version"],"properties":{"applicationId":{"type":"integer","minimum":1},"formKey":{"type":"string","maxLength":64},"status":{"type":"string","const":"PENDING"},"version":{"type":"integer","minimum":1}}}
             """.strip();
@@ -31,56 +30,56 @@ public class AgentApprovalApplicationWriteToolDefinitions {
     @Bean
     public ToolDefinition approvalApplicationCreateDraftToolDefinition(ObjectMapper objectMapper)
             throws JsonProcessingException {
-        return ToolDefinition.create(
+        return ToolDefinitionFactory.singleWrite(
                 ToolCode.APPROVAL_APPLICATION_CREATE_DRAFT, "Create my approval application draft",
                 "Creates exactly one generic approval draft owned by the authenticated user.",
                 "Save one schema-validated draft without starting an approval workflow.",
-                "1.0.0", objectMapper.readTree(CREATE_DRAFT_INPUT_SCHEMA),
+                objectMapper.readTree(CREATE_DRAFT_INPUT_SCHEMA),
                 objectMapper.readTree(CREATE_DRAFT_OUTPUT_SCHEMA), RiskLevel.L1,
-                Set.of("approval:create"), PermissionMode.ALL, OwnershipPolicy.SELF,
-                RetryPolicy.BUSINESS_IDEMPOTENT, SideEffect.SINGLE_WRITE, ConfirmationPolicy.EXPLICIT,
-                1, 16384, 15000, "FULL_WRITE_AUDIT");
+                Set.of("approval:create"), OwnershipPolicy.SELF,
+                RetryPolicy.BUSINESS_IDEMPOTENT, ConfirmationPolicy.EXPLICIT,
+                1, 16384, 15000);
     }
 
     @Bean
     public ToolDefinition approvalApplicationSubmitDraftToolDefinition(ObjectMapper objectMapper)
             throws JsonProcessingException {
-        return ToolDefinition.create(
+        return ToolDefinitionFactory.singleWrite(
                 ToolCode.APPROVAL_APPLICATION_SUBMIT_DRAFT, "Submit my approval application draft",
                 "Submits exactly one generic approval draft owned by the authenticated user.",
                 "Atomically freeze the configured form and workflow, then create the first approval task.",
-                "1.0.0", objectMapper.readTree(SUBMIT_DRAFT_INPUT_SCHEMA),
+                objectMapper.readTree(SUBMIT_DRAFT_INPUT_SCHEMA),
                 objectMapper.readTree(SUBMIT_DRAFT_OUTPUT_SCHEMA), RiskLevel.L1,
-                Set.of("approval:submit"), PermissionMode.ALL, OwnershipPolicy.SELF,
-                RetryPolicy.NEVER, SideEffect.SINGLE_WRITE, ConfirmationPolicy.EXPLICIT,
-                1, 4096, 15000, "FULL_WRITE_AUDIT");
+                Set.of("approval:submit"), OwnershipPolicy.SELF,
+                RetryPolicy.NEVER, ConfirmationPolicy.EXPLICIT,
+                1, 4096, 15000);
     }
 
     @Bean
     public ToolDefinition approvalApplicationWithdrawToolDefinition(ObjectMapper objectMapper)
             throws JsonProcessingException {
-        return ToolDefinition.create(
+        return ToolDefinitionFactory.singleWrite(
                 ToolCode.APPROVAL_APPLICATION_WITHDRAW, "Withdraw my approval application",
                 "Withdraws exactly one pending generic approval application owned by the authenticated user.",
                 "Atomically cancel the current approval task and workflow instance for one owned application.",
-                "1.0.0", objectMapper.readTree(WITHDRAW_INPUT_SCHEMA),
+                objectMapper.readTree(WITHDRAW_INPUT_SCHEMA),
                 objectMapper.readTree(WITHDRAW_OUTPUT_SCHEMA), RiskLevel.L1,
-                Set.of("approval:withdraw"), PermissionMode.ALL, OwnershipPolicy.SELF,
-                RetryPolicy.NEVER, SideEffect.SINGLE_WRITE, ConfirmationPolicy.EXPLICIT,
-                1, 4096, 15000, "FULL_WRITE_AUDIT");
+                Set.of("approval:withdraw"), OwnershipPolicy.SELF,
+                RetryPolicy.NEVER, ConfirmationPolicy.EXPLICIT,
+                1, 4096, 15000);
     }
 
     @Bean
     public ToolDefinition approvalApplicationReopenToolDefinition(ObjectMapper objectMapper)
             throws JsonProcessingException {
-        return ToolDefinition.create(
+        return ToolDefinitionFactory.singleWrite(
                 ToolCode.APPROVAL_APPLICATION_REOPEN, "Reopen my approval application as draft",
                 "Reopens exactly one rejected or withdrawn generic application owned by the authenticated user.",
                 "Restore one completed application to an editable draft while preserving its prior workflow history.",
-                "1.0.0", objectMapper.readTree(REOPEN_INPUT_SCHEMA),
+                objectMapper.readTree(REOPEN_INPUT_SCHEMA),
                 objectMapper.readTree(REOPEN_OUTPUT_SCHEMA), RiskLevel.L1,
-                Set.of("approval:reopen"), PermissionMode.ALL, OwnershipPolicy.SELF,
-                RetryPolicy.NEVER, SideEffect.SINGLE_WRITE, ConfirmationPolicy.EXPLICIT,
-                1, 4096, 15000, "FULL_WRITE_AUDIT");
+                Set.of("approval:reopen"), OwnershipPolicy.SELF,
+                RetryPolicy.NEVER, ConfirmationPolicy.EXPLICIT,
+                1, 4096, 15000);
     }
 }

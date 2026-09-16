@@ -64,9 +64,8 @@ public class AgentFinanceToolDefinitions {
 
     private ToolDefinition definition(ToolCode code, String name, String description, String permission,
                                       OwnershipPolicy scope, String input, String output, ObjectMapper m) throws JsonProcessingException {
-        return ToolDefinition.create(code, name, description, "Display an authorized finance summary.", "1.0.0",
-                m.readTree(input), m.readTree(output), RiskLevel.L0, Set.of(permission), PermissionMode.ALL, scope,
-                RetryPolicy.READ_ONLY_SAFE, SideEffect.NONE, ConfirmationPolicy.NONE, 50, 196608, 15000, "HASHED_ARGS_RESULT");
+        return ToolDefinitionFactory.read(code, name, description, "Display an authorized finance summary.",
+                m.readTree(input), m.readTree(output), Set.of(permission), scope, 50, 196608, 15000);
     }
     private static String listDetail(String id, String filters) {
         return "{\"type\":\"object\",\"additionalProperties\":false,\"properties\":{\"" + id + "\":" + id() + "," + filters + ",\"page\":{\"type\":\"integer\",\"minimum\":1,\"maximum\":10000},\"size\":{\"type\":\"integer\",\"minimum\":1,\"maximum\":50}},\"oneOf\":[{\"required\":[\"" + id + "\"]},{\"not\":{\"required\":[\"" + id + "\"]}}]}";
