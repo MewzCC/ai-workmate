@@ -131,6 +131,8 @@ P4 会议取消核验协议切片：MeetingToolPort 增加类型化 findCancella
 
 P4 写操作契约收口切片：新增传输中立的 `ToolOperationKey`、`ToolWriteReceipt` 与 `ToolWriteVerification`，统一稳定操作键、领域专属写收据及显式 `OBSERVED/UNOBSERVED` 核验语义。现有操作键写 Port 改用受限值对象，Adapter 仅在调用本地领域 Service 时解包；会议创建与取消由 Optional 改为显式核验结果，`UNOBSERVED` 继续禁止自动重试。既有领域结果 record 只增加无字段标记，不改变工具 JSON、冻结 Schema、版本 Hash、权限、确认、开关或状态机；未来远程 Adapter 可复用同一可信身份、操作键和只读核验协议，不引入任意 URL、Spring Cloud 依赖或分布式事务。73 项定向契约与冻结 Hash 测试通过；OA lint 无错误（3 条既有警告）、91 项测试与生产构建通过；后端 816 项零失败、9 项既有环境测试跳过。
 
+P3 安全错误分类切片：ToolGateway 新增消息无关的代码白名单分类，将确定性的参数、访问、资源不存在、状态/版本冲突和限流映射为稳定公开错误；未识别异常继续按只读不可用或写入结果未知失败关闭。审计、任务、SSE 和模型上下文不接收异常消息或堆栈，Worker 不会重试确定性拒绝；OA 任务中心提供中英文安全说明，未知错误只显示通用错误码文案。本切片不改变工具 Schema、权限、确认、写开关、领域事务或重试策略，也不新增迁移与远程依赖。44 项网关、Worker 与架构定向测试通过；OA lint 无错误（3 条既有警告）、92 项测试与生产构建通过；后端 823 项零失败、9 项既有环境测试跳过。
+
 P5 补卡领域基础切片：普通页面和后续 Agent 共用 AttendanceService.submitReissue。服务端新增 attendance:reissue:apply 独立业务权限，不再把页面路由当作写权限；在事务中锁定当前租户的有效申请人，串行完成待审重复检查、申请插入和业务审计。申请人必须属于实时租户，直属审批人必须有效、同租户且不是本人。提交只创建 PENDING 申请，不直接补写打卡记录。前端复用实时权限 Hook 控制 Ant Design 创建入口，权限撤销后关闭已打开弹窗，服务端仍逐请求鉴权。真实 PostgreSQL 验证并发只成功一次且只写一次审计、审计失败回滚、打卡记录为零；空库和旧库升级、70个迁移validate及重复启动通过，数据库测试零跳过。
 
 P5 补卡 Agent 工具切片：新增 `attendance.reissue.apply` 冻结契约，输入只含日期、上下班类型和原因，申请人与租户只取 ToolGateway 可信上下文。Handler 通过类型化 AttendanceToolPort 调用既有领域 Service；稳定操作键持久化在申请表，重放相同命令返回原结果，不同命令冲突关闭。工具同时要求实时 `attendance:reissue:apply` 业务权限与独立 Agent 权限，L1、本人范围、单写步骤且显式确认；全局与租户写开关仍默认关闭。真实 PostgreSQL 覆盖相同操作仅一条申请及一条审计、命令冲突、审计失败回滚和考勤记录零直接写入；空库与旧库升级、71 个迁移 validate、重复迁移零变更通过。人工发布门、浏览器逐工具和真实 LLM 端到端仍待验收，因此代码具备受控执行能力不等于生产已开放。

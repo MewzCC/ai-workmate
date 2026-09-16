@@ -41,6 +41,7 @@ public class DefaultToolGateway implements ToolGateway {
     private final GatewayAuditWriter auditWriter;
     private final ObjectMapper objectMapper;
     private final ExecutorService toolExecutor;
+    private final ToolFailureClassifier failureClassifier = new ToolFailureClassifier();
 
     public DefaultToolGateway(AgentRuntimeProperties runtimeProperties,
                               GatewayExecutionSnapshotMapper snapshotMapper,
@@ -181,8 +182,10 @@ public class DefaultToolGateway implements ToolGateway {
             completeQuietly(decisionId, true, "FAILED", null, "WORKER_INTERRUPTED", elapsedMillis(started));
             return postInvocationFailure(definition);
         } catch (ExecutionException exception) {
-            completeQuietly(decisionId, true, "FAILED", null, "DOMAIN_OR_HANDLER_FAILURE", elapsedMillis(started));
-            return postInvocationFailure(definition);
+            ToolFailureClassifier.Classification failure =
+                    failureClassifier.classify(exception, definition.sideEffect());
+            completeQuietly(decisionId, true, "FAILED", null, failure.auditCode(), elapsedMillis(started));
+            return failure.result();
         }
 
         int resultBytes;

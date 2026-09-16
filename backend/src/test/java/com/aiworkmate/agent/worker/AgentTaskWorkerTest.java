@@ -106,6 +106,25 @@ class AgentTaskWorkerTest {
     }
 
     @Test
+    void deterministicToolFailurePersistsStableCategoryWithoutRetry() {
+        properties.setEnabled(true);
+        properties.setExecutionEnabled(true);
+        AgentTask task = task();
+        AgentTaskStep step = step();
+        when(mapper.claim(anyString(), anyString(), any(), anyInt())).thenReturn(task);
+        when(transitions.startNextStep(any(), anyString(), anyString(), any())).thenReturn(step);
+        when(gateway.execute(anyLong(), any())).thenReturn(new ToolGatewayResult(
+                GatewayDecision.DENY, GatewayDecisionCode.TOOL_STATE_CONFLICT, null));
+
+        worker.poll();
+
+        verify(transitions).fail(any(), any(), anyString(), anyString(),
+                org.mockito.ArgumentMatchers.eq("TOOL_STATE_CONFLICT"));
+        verify(transitions, never()).retryReadOnly(any(), any(), anyString(), anyString());
+        verify(transitions, never()).markOutcomeUnknown(any(), any(), anyString(), anyString());
+    }
+
+    @Test
     void recoveryClosesUnsafeWorkBeforeRequeuingSafeExpiredLeases() {
         properties.setEnabled(true);
         properties.setExecutionEnabled(true);

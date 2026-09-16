@@ -39,6 +39,11 @@ export default function AiTaskCenterPage() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [detail, setDetail] = useState<AgentTaskDetail | null>(null);
   const [cancellingTaskId, setCancellingTaskId] = useState<string | null>(null);
+  const formatTaskError = (errorCode?: string | null) => errorCode
+    ? t(`pages.agentTasks.errors.${errorCode}`, {
+      defaultValue: t('pages.agentTasks.errors.UNKNOWN', { code: errorCode }),
+    })
+    : '-';
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -118,7 +123,7 @@ export default function AiTaskCenterPage() {
       title: t('pages.agentTasks.columnError'),
       dataIndex: 'errorCode',
       ellipsis: true,
-      render: (value) => <Typography.Text type={value ? 'danger' : 'secondary'}>{value || '-'}</Typography.Text>,
+      render: (value) => <Typography.Text type={value ? 'danger' : 'secondary'}>{formatTaskError(value)}</Typography.Text>,
     },
     {
       title: t('common.actions'),
@@ -166,7 +171,7 @@ export default function AiTaskCenterPage() {
 
     <Drawer title={t('pages.agentTasks.detailTitle')} styles={{ wrapper: { width: 660 } }} open={Boolean(detail) || detailLoading} loading={detailLoading} onClose={() => setDetail(null)}>
       {detail && <Space orientation="vertical" size={18} className="agent-task-detail">
-        {detail.errorCode && <Alert type="error" showIcon title={t('pages.agentTasks.errorTitle')} description={detail.errorCode} />}
+        {detail.errorCode && <Alert type="error" showIcon title={t('pages.agentTasks.errorTitle')} description={formatTaskError(detail.errorCode)} />}
         <Descriptions size="small" column={1} items={[
           { key: 'taskId', label: t('pages.agentTasks.taskId'), children: <Typography.Text copyable={{ text: detail.taskId }}>{detail.taskId}</Typography.Text> },
           { key: 'status', label: t('common.status'), children: <Tag color={statusColor(detail.status)}>{t(`oa.ai.status.${detail.status}`)}</Tag> },

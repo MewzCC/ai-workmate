@@ -84,4 +84,17 @@ describe('AiTaskCenterPage', () => {
     fireEvent.click(await screen.findByRole('button', { name: '确认取消' }));
     await waitFor(() => expect(api.cancel).toHaveBeenCalledWith(summary.taskId));
   });
+
+  it('renders a localized safe error category instead of a raw internal failure', async () => {
+    api.list.mockResolvedValue({
+      records: [{ ...summary, status: 'FAILED', errorCode: 'TOOL_STATE_CONFLICT' }],
+      total: 1,
+      page: 1,
+      size: 20,
+    });
+    renderPage();
+
+    expect(await screen.findByText('业务状态或数据版本已发生变化，请刷新后重试')).toBeTruthy();
+    expect(screen.queryByText('DOMAIN_STATE_CONFLICT')).toBeNull();
+  });
 });
