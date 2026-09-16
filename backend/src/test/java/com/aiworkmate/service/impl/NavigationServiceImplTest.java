@@ -49,15 +49,16 @@ class NavigationServiceImplTest {
     }
 
     @Test
-    void shouldFailClosedForEnabledPlaceholderAndMismatchedDashboardRoutes() {
+    void shouldFailClosedForPlaceholderAndEveryMismatchedEnabledRoute() {
         when(userAccessService.resolveActiveUser(7L))
                 .thenReturn(new ResolvedUserAccess(
                         7L, "employee@example.com", "EMPLOYEE",
-                        List.of("route:legacy", "route:fake-dashboard")));
+                        List.of("route:legacy", "route:fake-dashboard", "route:asset-ledger")));
         when(accessControlMapper.selectRoutesForTenant(1L)).thenReturn(List.of(
                 route("workspace", null, "GROUP", null, null, true, 1),
                 route("legacy", "workspace", "PAGE", "WORKBENCH_MODULE", "route:legacy", true, 1),
-                route("fake-dashboard", "workspace", "PAGE", "DASHBOARD", "route:fake-dashboard", true, 2)
+                route("fake-dashboard", "workspace", "PAGE", "DASHBOARD", "route:fake-dashboard", true, 2),
+                route("asset-ledger", "workspace", "PAGE", "MEETING_ROOM", "route:asset-ledger", true, 3)
         ));
 
         assertThat(navigationService.navigation(7L)).isEmpty();

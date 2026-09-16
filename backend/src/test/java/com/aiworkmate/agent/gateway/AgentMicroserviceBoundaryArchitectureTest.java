@@ -39,6 +39,14 @@ class AgentMicroserviceBoundaryArchitectureTest {
     }
 
     @Test
+    void sharedOaPageContractRemainsFrameworkNeutral() {
+        classes().that().resideInAPackage("..oa.page..")
+                .should().onlyDependOnClassesThat().resideInAnyPackage(
+                        "java..", "..oa.page..")
+                .check(classes);
+    }
+
+    @Test
     void portsDoNotReplaceTypedDomainContractsWithGenericMaps() {
         noClasses().that().resideInAPackage("..agent.tool.port..")
                 .should().dependOnClassesThat().areAssignableTo(java.util.Map.class)

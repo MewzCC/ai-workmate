@@ -3,9 +3,9 @@ package com.aiworkmate.service.impl;
 import com.aiworkmate.dto.AccessRouteResponse;
 import com.aiworkmate.dto.NavigationRouteResponse;
 import com.aiworkmate.mapper.AccessControlMapper;
+import com.aiworkmate.oa.page.OaPage;
 import com.aiworkmate.service.NavigationService;
 import com.aiworkmate.service.UserAccessService;
-import com.aiworkmate.service.model.NavigationComponentCatalog;
 import com.aiworkmate.service.model.ResolvedUserAccess;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -35,7 +35,7 @@ public class NavigationServiceImpl implements NavigationService {
                 .filter(route -> !"PAGE".equals(route.routeType())
                         || permissions.contains(route.permissionCode()))
                 .filter(route -> !"PAGE".equals(route.routeType())
-                        || NavigationComponentCatalog.supportsEnabledRoute(
+                        || OaPage.supportsEnabledRoute(
                                 route.routeKey(), route.componentKey()))
                 .toList();
         return childrenOf(null, visible);

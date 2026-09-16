@@ -13,8 +13,8 @@ import com.aiworkmate.dto.DepartmentResponse;
 import com.aiworkmate.dto.PositionResponse;
 import com.aiworkmate.dto.SaveRouteRequest;
 import com.aiworkmate.mapper.AccessControlMapper;
+import com.aiworkmate.oa.page.OaPage;
 import com.aiworkmate.service.AccessControlService;
-import com.aiworkmate.service.model.NavigationComponentCatalog;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -475,7 +475,7 @@ public class AccessControlServiceImpl implements AccessControlService {
                 throw new BusinessException(ErrorCode.REQUEST_INVALID,
                         "error.route.dashboard_reserved");
             }
-            if (!NavigationComponentCatalog.supportsEnabledRoute(routeKey, componentKey)) {
+            if (!OaPage.supportsEnabledRoute(routeKey, componentKey)) {
                 throw new BusinessException(ErrorCode.REQUEST_INVALID,
                         "validation.componentKey.invalid");
             }

@@ -2,6 +2,7 @@ package com.aiworkmate.agent.capability;
 
 import com.aiworkmate.agent.registry.OwnershipPolicy;
 import com.aiworkmate.agent.registry.ToolCode;
+import com.aiworkmate.oa.page.OaPage;
 import org.springframework.stereotype.Component;
 
 import java.util.Collection;
@@ -59,6 +60,15 @@ public class PageCapabilityCatalog {
         return definitions.values();
     }
 
+    /**
+     * Returns whether an enabled database PAGE route exactly matches the code-owned page manifest.
+     * Legacy aliases are intentionally excluded: they remain accepted only as inbound page context
+     * compatibility values and cannot be enabled as new navigation routes.
+     */
+    public boolean supportsEnabledRoute(String pageId, String componentKey) {
+        return definitions.containsKey(pageId) && OaPage.supportsEnabledRoute(pageId, componentKey);
+    }
+
     public String canonicalPageId(String pageId) {
         if (pageId == null) return null;
         return LEGACY_PAGE_ALIASES.getOrDefault(pageId, pageId);
@@ -66,139 +76,139 @@ public class PageCapabilityCatalog {
 
     private List<PageCapabilityDefinition> pages() {
         return List.of(
-                page("dashboard", "DASHBOARD", OwnershipPolicy.SELF, LIST_COMMANDS,
+                page(OaPage.DASHBOARD, OwnershipPolicy.SELF, LIST_COMMANDS,
                         context(text("status"), number("page"), number("size")),
                         read(TODO_QUERY), read(NOTIFICATION_MINE)),
-                page("ai-workspace", "AI_WORKSPACE", OwnershipPolicy.SELF, READ_COMMANDS, PageContextSchema.empty(),
+                page(OaPage.AI_WORKSPACE, OwnershipPolicy.SELF, READ_COMMANDS, PageContextSchema.empty(),
                         read(TODO_QUERY), read(LEAVE_MINE), read(KNOWLEDGE_SEARCH), read(NOTIFICATION_MINE),
                         write(NOTIFICATION_MARK_READ), write(LEAVE_CREATE_DRAFT), write(LEAVE_SUBMIT),
                         write(LEAVE_APPLY), write(LEAVE_WITHDRAW), write(ATTENDANCE_REISSUE_APPLY),
                         write(APPROVAL_APPLICATION_CREATE_DRAFT), write(APPROVAL_APPLICATION_SUBMIT_DRAFT),
                         write(APPROVAL_APPLICATION_WITHDRAW), write(APPROVAL_APPLICATION_REOPEN)),
-                page("ai-tasks", "AI_TASK_CENTER", OwnershipPolicy.SELF, LIST_COMMANDS,
+                page(OaPage.AI_TASKS, OwnershipPolicy.SELF, LIST_COMMANDS,
                         context(text("status"), text("from"), text("to"), number("page"), number("size")),
                         read(AGENT_TASK_MINE_QUERY)),
-                page("todo", "TODO_LIST", OwnershipPolicy.ASSIGNED_TO_SELF, LIST_COMMANDS,
+                page(OaPage.TODO, OwnershipPolicy.ASSIGNED_TO_SELF, LIST_COMMANDS,
                         context(text("status"), text("from"), text("to"), number("page"), number("size")),
                         read(TODO_QUERY)),
-                page("messages", "MESSAGE_CENTER", OwnershipPolicy.SELF, LIST_COMMANDS,
+                page(OaPage.MESSAGES, OwnershipPolicy.SELF, LIST_COMMANDS,
                         context(number("notificationId"), number("page"), number("size")),
                         read(NOTIFICATION_MINE), write(NOTIFICATION_MARK_READ)),
-                page("leave-application", "LEAVE_FORM", OwnershipPolicy.SELF, FORM_COMMANDS,
+                page(OaPage.LEAVE_APPLICATION, OwnershipPolicy.SELF, FORM_COMMANDS,
                         context(text("applicationId"), text("status"), number("page"), number("size")),
                         read(LEAVE_MINE), write(LEAVE_CREATE_DRAFT), write(LEAVE_SUBMIT), write(LEAVE_APPLY), write(LEAVE_WITHDRAW)),
-                page("my-applications", "MY_APPLICATIONS", OwnershipPolicy.SELF, LIST_COMMANDS,
+                page(OaPage.MY_APPLICATIONS, OwnershipPolicy.SELF, LIST_COMMANDS,
                         context(text("applicationId"), text("status"), number("page"), number("size")),
                         read(LEAVE_MINE), write(LEAVE_CREATE_DRAFT), write(LEAVE_SUBMIT), write(LEAVE_APPLY),
                         write(LEAVE_WITHDRAW), write(APPROVAL_APPLICATION_CREATE_DRAFT),
                         write(APPROVAL_APPLICATION_SUBMIT_DRAFT), write(APPROVAL_APPLICATION_WITHDRAW),
                         write(APPROVAL_APPLICATION_REOPEN)),
 
-                page("approval-list", "APPROVAL_LIST", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
+                page(OaPage.APPROVAL_LIST, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         read(APPROVAL_TASK_QUERY)),
-                page("approval-start", "APPROVAL_START", OwnershipPolicy.SELF, READ_COMMANDS,
+                page(OaPage.APPROVAL_START, OwnershipPolicy.SELF, READ_COMMANDS,
                         read(APPROVAL_CONFIGURATION_QUERY), write(APPROVAL_APPLICATION_CREATE_DRAFT),
                         write(APPROVAL_APPLICATION_SUBMIT_DRAFT)),
-                page("approval-form", "APPROVAL_FORM", OwnershipPolicy.SELF, FORM_COMMANDS,
+                page(OaPage.APPROVAL_FORM, OwnershipPolicy.SELF, FORM_COMMANDS,
                         read(APPROVAL_CONFIGURATION_QUERY), write(APPROVAL_APPLICATION_CREATE_DRAFT),
                         write(APPROVAL_APPLICATION_SUBMIT_DRAFT)),
-                page("form-engine", "FORM_ENGINE", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
+                page(OaPage.FORM_ENGINE, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         read(APPROVAL_CONFIGURATION_QUERY)),
-                page("process-config", "PROCESS_CONFIG", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
+                page(OaPage.PROCESS_CONFIG, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         read(APPROVAL_CONFIGURATION_QUERY)),
-                page("approval-rules", "APPROVAL_RULES", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
+                page(OaPage.APPROVAL_RULES, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         read(APPROVAL_CONFIGURATION_QUERY)),
 
-                page("org-tree", "ORG_TREE", OwnershipPolicy.TENANT_SCOPED, READ_COMMANDS,
+                page(OaPage.ORG_TREE, OwnershipPolicy.TENANT_SCOPED, READ_COMMANDS,
                         context(text("keyword"), number("limit")), read(HR_ORGANIZATION_QUERY)),
-                page("employee-files", "EMPLOYEE_FILES", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
+                page(OaPage.EMPLOYEE_FILES, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         context(number("employeeId")), read(HR_ORGANIZATION_QUERY), read(HR_EMPLOYEE_QUERY)),
-                page("employee-change", "EMPLOYEE_CHANGE", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
+                page(OaPage.EMPLOYEE_CHANGE, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         context(text("status"), text("changeType"), text("keyword"), number("page"), number("size")),
                         read(HR_CHANGE_QUERY)),
 
-                page("asset-ledger", "ASSET_LEDGER", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
+                page(OaPage.ASSET_LEDGER, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         context(text("keyword"), text("category"), text("status"), number("page"), number("size")),
                         read(ASSET_QUERY)),
-                page("meeting-room", "MEETING_ROOM", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
+                page(OaPage.MEETING_ROOM, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         context(text("keyword"), text("roomStatus"), text("from"), text("to"),
                                 text("bookingStatus"), number("page"), number("size")),
                         read(MEETING_QUERY), write(MEETING_BOOK), write(MEETING_CANCEL)),
-                page("visitor-booking", "VISITOR_BOOKING", OwnershipPolicy.SELF, LIST_COMMANDS,
+                page(OaPage.VISITOR_BOOKING, OwnershipPolicy.SELF, LIST_COMMANDS,
                         context(number("bookingId"), text("queue"), text("status"), number("page"), number("size")),
                         read(VISITOR_QUERY)),
-                page("seal-usage", "SEAL_USAGE", OwnershipPolicy.SELF, LIST_COMMANDS,
+                page(OaPage.SEAL_USAGE, OwnershipPolicy.SELF, LIST_COMMANDS,
                         context(number("usageId"), text("queue"), text("status"), number("page"), number("size")),
                         read(SEAL_QUERY)),
 
-                page("expense", "EXPENSE", OwnershipPolicy.SELF, FORM_COMMANDS,
+                page(OaPage.EXPENSE, OwnershipPolicy.SELF, FORM_COMMANDS,
                         context(number("applicationId"), text("status"), number("page"), number("size")),
                         read(EXPENSE_QUERY)),
-                page("budget", "BUDGET", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
+                page(OaPage.BUDGET, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         context(number("budgetId"), text("keyword"), text("status"), number("fiscalYear"),
                                 number("page"), number("size")), read(BUDGET_QUERY)),
-                page("contracts", "CONTRACT", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
+                page(OaPage.CONTRACTS, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         context(number("contractId"), text("keyword"), text("status"), text("contractType"),
                                 text("expiryState"), number("page"), number("size")), read(CONTRACT_QUERY)),
-                page("suppliers", "SUPPLIER", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
+                page(OaPage.SUPPLIERS, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         context(number("supplierId"), text("keyword"), text("status"), text("category"),
                                 number("page"), number("size")), read(SUPPLIER_QUERY)),
 
-                page("api-center", "API_CENTER", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
+                page(OaPage.API_CENTER, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         context(number("endpointId"), text("keyword"), text("status"), number("page"), number("size")),
                         read(INTEGRATION_ENDPOINT_QUERY)),
-                page("page-actions", "PAGE_ACTIONS", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
+                page(OaPage.PAGE_ACTIONS, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         context(text("targetPageId"), text("enabled"), number("page"), number("size")),
                         read(PAGE_ACTION_QUERY)),
-                page("runtime-logs", "RUNTIME_LOGS", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
+                page(OaPage.RUNTIME_LOGS, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         context(text("source"), number("recordId"), text("outcome"), text("keyword"),
                                 text("from"), text("to"), number("page"), number("size")), read(RUNTIME_LOG_QUERY)),
-                page("sandbox-replay", "SANDBOX_REPLAY", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
+                page(OaPage.SANDBOX_REPLAY, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         context(number("replayId"), text("keyword"), text("status"), number("page"), number("size")),
                         read(SANDBOX_REPLAY_QUERY)),
 
-                page("attendance-clock", "ATTENDANCE_CLOCK", OwnershipPolicy.SELF, READ_COMMANDS,
+                page(OaPage.ATTENDANCE_CLOCK, OwnershipPolicy.SELF, READ_COMMANDS,
                         context(text("resource")), read(ATTENDANCE_QUERY)),
-                page("attendance-exception", "ATTENDANCE_EXCEPTION", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
+                page(OaPage.ATTENDANCE_EXCEPTION, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         attendanceListContext(), read(ATTENDANCE_QUERY)),
-                page("attendance-reissue", "ATTENDANCE_REISSUE", OwnershipPolicy.SELF, LIST_COMMANDS,
+                page(OaPage.ATTENDANCE_REISSUE, OwnershipPolicy.SELF, LIST_COMMANDS,
                         context(text("resource"), text("status"), number("page"), number("size")),
                         read(ATTENDANCE_QUERY), write(ATTENDANCE_REISSUE_APPLY)),
-                page("attendance-statistics", "ATTENDANCE_STATISTICS", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
+                page(OaPage.ATTENDANCE_STATISTICS, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         context(text("resource"), number("year"), number("month")), read(ATTENDANCE_QUERY)),
-                page("attendance-settings", "ATTENDANCE_SETTINGS", OwnershipPolicy.TENANT_SCOPED, READ_COMMANDS,
+                page(OaPage.ATTENDANCE_SETTINGS, OwnershipPolicy.TENANT_SCOPED, READ_COMMANDS,
                         context(text("resource")), read(ATTENDANCE_QUERY)),
 
-                page("access-control", "ACCESS_CONTROL", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
+                page(OaPage.ACCESS_CONTROL, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         context(text("filterCode")), read(ACCESS_GOVERNANCE_QUERY)),
-                page("data-permission", "DATA_PERMISSION", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
+                page(OaPage.DATA_PERMISSION, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         context(text("scopeType"), text("enabled")), read(DATA_PERMISSION_QUERY)),
-                page("ai-permission", "AI_PERMISSION", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
+                page(OaPage.AI_PERMISSION, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         context(text("toolCode"), text("filterCode"), text("effectiveEnabled")), read(AI_PERMISSION_QUERY)),
-                page("knowledge-base", "KNOWLEDGE_BASE", OwnershipPolicy.FIXED_RESOURCE, LIST_COMMANDS,
+                page(OaPage.KNOWLEDGE_BASE, OwnershipPolicy.FIXED_RESOURCE, LIST_COMMANDS,
                         context(text("query"), number("topK"), number("minScore")), read(KNOWLEDGE_SEARCH)),
-                page("audit-center", "AUDIT_CENTER", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
+                page(OaPage.AUDIT_CENTER, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         context(text("action"), text("resourceType"), text("result"), text("from"), text("to"),
                                 number("page"), number("size")), read(AUDIT_QUERY)),
-                page("tenant-config", "TENANT_CONFIG", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
+                page(OaPage.TENANT_CONFIG, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         context(), read(TENANT_CONFIGURATION_QUERY)),
-                page("dictionary", "DICTIONARY", OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
+                page(OaPage.DICTIONARY, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         context(text("keyword"), text("status")), read(DICTIONARY_QUERY)),
-                page("system-config", "SYSTEM_CONFIG", OwnershipPolicy.SELF, READ_COMMANDS,
+                page(OaPage.SYSTEM_CONFIG, OwnershipPolicy.SELF, READ_COMMANDS,
                         context(), read(SYSTEM_CAPABILITY_QUERY))
         );
     }
 
-    private PageCapabilityDefinition page(String pageId, String componentKey, OwnershipPolicy scope,
+    private PageCapabilityDefinition page(OaPage page, OwnershipPolicy scope,
                                           Set<PageUiCommand> commands, PageToolReference... tools) {
-        return page(pageId, componentKey, scope, commands, PageContextSchema.empty(), tools);
+        return page(page, scope, commands, PageContextSchema.empty(), tools);
     }
 
-    private PageCapabilityDefinition page(String pageId, String componentKey, OwnershipPolicy scope,
+    private PageCapabilityDefinition page(OaPage page, OwnershipPolicy scope,
                                           Set<PageUiCommand> commands, PageContextSchema context,
                                           PageToolReference... tools) {
-        return new PageCapabilityDefinition(pageId, componentKey, 1, commands, List.of(tools),
-                Set.of("route:" + pageId), scope, context);
+        return new PageCapabilityDefinition(page.routeKey(), page.componentKey(), 1,
+                commands, List.of(tools), Set.of("route:" + page.routeKey()), scope, context);
     }
 
     private PageToolReference read(ToolCode code) {

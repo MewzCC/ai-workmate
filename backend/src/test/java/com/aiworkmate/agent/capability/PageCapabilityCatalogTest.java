@@ -1,9 +1,11 @@
 package com.aiworkmate.agent.capability;
 
 import com.aiworkmate.agent.registry.ToolCode;
+import com.aiworkmate.oa.page.OaPage;
 import org.junit.jupiter.api.Test;
 
 import java.util.Set;
+import java.util.Arrays;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -13,11 +15,23 @@ class PageCapabilityCatalogTest {
 
     @Test
     void registersAllFortyOneEnabledPagesWithUniqueComponents() {
-        assertThat(catalog.all()).hasSize(41);
+        assertThat(catalog.all()).hasSize(OaPage.values().length);
         assertThat(catalog.all()).extracting(PageCapabilityDefinition::pageId).doesNotHaveDuplicates();
         assertThat(catalog.all()).extracting(PageCapabilityDefinition::componentKey).doesNotHaveDuplicates();
+        assertThat(catalog.all()).extracting(PageCapabilityDefinition::pageId)
+                .containsExactlyInAnyOrderElementsOf(Arrays.stream(OaPage.values()).map(OaPage::routeKey).toList());
+        assertThat(catalog.all()).extracting(PageCapabilityDefinition::componentKey)
+                .containsExactlyInAnyOrderElementsOf(Arrays.stream(OaPage.values()).map(OaPage::componentKey).toList());
         assertThat(catalog.all()).allSatisfy(page ->
                 assertThat(page.requiredPermissions()).containsExactly("route:" + page.pageId()));
+    }
+
+    @Test
+    void isTheOnlyBackendAuthorityForEnabledRouteAndComponentPairs() {
+        assertThat(catalog.supportsEnabledRoute("asset-ledger", "ASSET_LEDGER")).isTrue();
+        assertThat(catalog.supportsEnabledRoute("asset-ledger", "MEETING_ROOM")).isFalse();
+        assertThat(catalog.supportsEnabledRoute("unknown-page", "ASSET_LEDGER")).isFalse();
+        assertThat(catalog.supportsEnabledRoute("todo-list", "TODO_LIST")).isFalse();
     }
 
     @Test
