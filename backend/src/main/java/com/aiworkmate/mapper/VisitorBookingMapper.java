@@ -24,4 +24,9 @@ public interface VisitorBookingMapper extends BaseMapper<VisitorBooking> {
             LIMIT 1
             """)
     Long selectDefinitionId(@Param("tenantId") Long tenantId);
+
+    @Select("SELECT * FROM visitor_booking WHERE tenant_id=#{tenantId} "
+            + "AND applicant_user_id=#{userId} AND agent_operation_key=#{operationKey} LIMIT 1")
+    VisitorBooking findAgentOperation(@Param("tenantId") Long tenantId, @Param("userId") Long userId,
+                                      @Param("operationKey") String operationKey);
 }

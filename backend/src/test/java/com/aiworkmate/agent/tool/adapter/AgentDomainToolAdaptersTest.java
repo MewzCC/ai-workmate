@@ -213,6 +213,33 @@ class AgentDomainToolAdaptersTest {
     }
 
     @Test
+    void mapsVisitorApplicationAndReadOnlyVerificationToTypedDomainContracts() {
+        LocalDateTime visitAt = LocalDateTime.of(2026, 9, 20, 9, 0);
+        LocalDateTime submittedAt = LocalDateTime.of(2026, 9, 17, 16, 0);
+        var command = new com.aiworkmate.agent.tool.port.VisitorToolPort.ApplicationCommand(
+                "访客甲", "合作公司", "13800000000", "项目交流", 9,
+                visitAt, visitAt.plusHours(2), "粤A00000", 2);
+        var domain = new com.aiworkmate.service.model.VisitorAgentApplicationCommand(
+                "访客甲", "合作公司", "13800000000", "项目交流", 9,
+                visitAt, visitAt.plusHours(2), "粤A00000", 2);
+        var receipt = new com.aiworkmate.service.model.VisitorAgentApplicationReceipt(
+                31, "PENDING", 0, submittedAt);
+        when(adminAssetsService.submitVisitorBookingAgent(7L, domain, "operation-1"))
+                .thenReturn(receipt);
+        when(adminAssetsService.findAgentVisitorBooking(7L, domain, "operation-1"))
+                .thenReturn(java.util.Optional.of(receipt));
+
+        var expected = new com.aiworkmate.agent.tool.port.VisitorToolPort.ApplicationResult(
+                31, "PENDING", 0, submittedAt);
+        assertThat(visitorAdapter.apply(context, command, new ToolOperationKey("operation-1")))
+                .isEqualTo(expected);
+        assertThat(visitorAdapter.findApplication(context, command, new ToolOperationKey("operation-1")))
+                .isEqualTo(com.aiworkmate.agent.tool.port.ToolWriteVerification.observed(expected));
+        verify(adminAssetsService).submitVisitorBookingAgent(7L, domain, "operation-1");
+        verify(adminAssetsService).findAgentVisitorBooking(7L, domain, "operation-1");
+    }
+
+    @Test
     void mapsSealSummaryWithoutWorkflowOrStorageMetadata() {
         LocalDateTime now = LocalDateTime.of(2026, 9, 14, 10, 0);
         when(adminAssetsService.getSealUsage(7L, 41L)).thenReturn(new SealUsageResponse(

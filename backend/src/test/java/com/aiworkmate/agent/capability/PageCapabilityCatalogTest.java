@@ -132,8 +132,11 @@ class PageCapabilityCatalogTest {
 
     @Test
     void bindsAdministrativeRequestPagesToTheirLeastPrivilegeReadTools() {
-        assertThat(catalog.find("visitor-booking").orElseThrow().readTools())
+        var visitor = catalog.find("visitor-booking").orElseThrow();
+        assertThat(visitor.readTools())
                 .extracting(PageToolReference::code).containsExactly(ToolCode.VISITOR_QUERY);
+        assertThat(visitor.writeTools())
+                .extracting(PageToolReference::code).containsExactly(ToolCode.VISITOR_APPLY);
         assertThat(catalog.find("seal-usage").orElseThrow().readTools())
                 .extracting(PageToolReference::code).containsExactly(ToolCode.SEAL_QUERY);
     }

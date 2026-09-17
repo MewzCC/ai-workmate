@@ -70,6 +70,8 @@ class P1PostgresMigrationIT {
         NotificationMarkReadPostgresVerifier.verify(databaseUrl, databaseUsername, databasePassword, emptySchema);
         LeaveWithdrawalPostgresVerifier.verify(databaseUrl, databaseUsername, databasePassword, emptySchema);
         AssetClaimPostgresVerifier.verify(databaseUrl, databaseUsername, databasePassword, emptySchema);
+        VisitorApplicationPostgresVerifier.verify(
+                databaseUrl, databaseUsername, databasePassword, emptySchema);
         Flyway restartedEmpty = flyway(emptySchema, null);
         assertThat(restartedEmpty.migrate().migrationsExecuted).isZero();
         assertThat(restartedEmpty.validateWithResult().validationSuccessful).isTrue();
@@ -328,6 +330,27 @@ class P1PostgresMigrationIT {
                     SELECT COUNT(*) FROM rbac_permission
                     WHERE code IN ('asset:repair', 'agent:tool:asset.repair.start')
                     """)).as("资产维修业务权限与 Agent 工具权限必须同时存在").isEqualTo(2);
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'visitor.apply' AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:c4bc3759bc77b4289d9391e14f018f6680234c4d1becbc0099bb207a434a877b'
+                      AND risk_level = 'L1' AND data_scope_policy = 'SELF'
+                      AND retry_policy = 'BUSINESS_IDEMPOTENT' AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'EXPLICIT' AND enabled = TRUE
+                    """)).as("访客申请工具必须以冻结的本人原子写契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission WHERE code = 'agent:tool:visitor.apply'
+                    """)).as("访客申请 Agent 工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM information_schema.columns
+                    WHERE table_schema = current_schema() AND table_name = 'visitor_booking'
+                      AND column_name = 'agent_operation_key'
+                    """)).as("访客申请必须保存 Agent 稳定操作键").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM pg_indexes
+                    WHERE schemaname = current_schema() AND tablename = 'visitor_booking'
+                      AND indexname = 'ux_visitor_booking_agent_key'
+                    """)).as("访客申请稳定操作键必须由本人范围唯一索引防重").isOne();
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM information_schema.columns
                     WHERE table_schema = current_schema() AND table_name = 'asset_operation'

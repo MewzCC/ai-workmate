@@ -5,8 +5,17 @@ import java.util.List;
 
 public interface VisitorToolPort {
     Page query(ToolActorContext context, Query query);
+    ApplicationResult apply(
+            ToolActorContext context, ApplicationCommand command, ToolOperationKey operationKey);
+    ToolWriteVerification<ApplicationResult> findApplication(
+            ToolActorContext context, ApplicationCommand command, ToolOperationKey operationKey);
     enum Queue { MINE, PENDING }
     record Query(Long bookingId, Queue queue, String status, int page, int size) { }
+    record ApplicationCommand(String visitorName, String visitorCompany, String visitorPhone,
+                              String purpose, long hostUserId, LocalDateTime expectedVisitAt,
+                              LocalDateTime expectedLeaveAt, String plateNumber, int partySize) { }
+    record ApplicationResult(long bookingId, String status, int version, LocalDateTime submittedAt)
+            implements ToolWriteReceipt { }
     record Page(List<Item> items, long total, int page, int size) {
         public Page { items = List.copyOf(items); }
     }

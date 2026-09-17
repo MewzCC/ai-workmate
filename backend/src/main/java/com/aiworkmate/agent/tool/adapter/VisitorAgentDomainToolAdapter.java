@@ -1,8 +1,11 @@
 package com.aiworkmate.agent.tool.adapter;
 
 import com.aiworkmate.agent.tool.port.ToolActorContext;
+import com.aiworkmate.agent.tool.port.ToolOperationKey;
+import com.aiworkmate.agent.tool.port.ToolWriteVerification;
 import com.aiworkmate.agent.tool.port.VisitorToolPort;
 import com.aiworkmate.service.AdminAssetsService;
+import com.aiworkmate.service.model.VisitorAgentApplicationCommand;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -24,6 +27,32 @@ public final class VisitorAgentDomainToolAdapter implements VisitorToolPort {
                 : adminAssetsService.listMyVisitorBookings(context.userId(), query.status(), query.page(), query.size());
         return new Page(result.records().stream().map(this::toItem).toList(),
                 result.total(), result.page(), result.size());
+    }
+
+    @Override
+    public ApplicationResult apply(
+            ToolActorContext context, ApplicationCommand command, ToolOperationKey operationKey) {
+        var result = adminAssetsService.submitVisitorBookingAgent(
+                context.userId(), toDomain(command), operationKey.value());
+        return new ApplicationResult(
+                result.bookingId(), result.status(), result.version(), result.submittedAt());
+    }
+
+    @Override
+    public ToolWriteVerification<ApplicationResult> findApplication(
+            ToolActorContext context, ApplicationCommand command, ToolOperationKey operationKey) {
+        return adminAssetsService.findAgentVisitorBooking(
+                        context.userId(), toDomain(command), operationKey.value())
+                .map(result -> ToolWriteVerification.observed(new ApplicationResult(
+                        result.bookingId(), result.status(), result.version(), result.submittedAt())))
+                .orElseGet(ToolWriteVerification::unobserved);
+    }
+
+    private VisitorAgentApplicationCommand toDomain(ApplicationCommand command) {
+        return new VisitorAgentApplicationCommand(
+                command.visitorName(), command.visitorCompany(), command.visitorPhone(), command.purpose(),
+                command.hostUserId(), command.expectedVisitAt(), command.expectedLeaveAt(),
+                command.plateNumber(), command.partySize());
     }
 
     private Item toItem(com.aiworkmate.dto.VisitorBookingResponse item) {

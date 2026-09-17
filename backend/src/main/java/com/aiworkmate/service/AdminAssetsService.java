@@ -20,6 +20,8 @@ import com.aiworkmate.service.model.AssetAgentClaimCommand;
 import com.aiworkmate.service.model.AssetAgentClaimReceipt;
 import com.aiworkmate.service.model.AssetAgentReturnCommand;
 import com.aiworkmate.service.model.AssetAgentReturnReceipt;
+import com.aiworkmate.service.model.VisitorAgentApplicationCommand;
+import com.aiworkmate.service.model.VisitorAgentApplicationReceipt;
 import com.aiworkmate.service.model.AssetAgentRepairStartCommand;
 import com.aiworkmate.service.model.AssetAgentRepairStartReceipt;
 
@@ -103,6 +105,12 @@ public interface AdminAssetsService {
     // ---------- 访客预约 ----------
 
     VisitorBookingResponse submitVisitorBooking(Long userId, VisitorBookingRequest request);
+
+    VisitorAgentApplicationReceipt submitVisitorBookingAgent(
+            Long userId, VisitorAgentApplicationCommand command, String operationKey);
+
+    Optional<VisitorAgentApplicationReceipt> findAgentVisitorBooking(
+            Long userId, VisitorAgentApplicationCommand command, String operationKey);
 
     VisitorBookingResponse getVisitorBooking(Long userId, Long id);
 

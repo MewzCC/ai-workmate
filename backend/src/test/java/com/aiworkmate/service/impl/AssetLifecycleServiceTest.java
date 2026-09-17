@@ -119,7 +119,7 @@ class AssetLifecycleServiceTest {
     @Test
     void agentClaimUsesTrustedOperatorAndPersistsVersionedOperationKey() {
         when(userAccessService.resolveActiveUser(ACTOR_ID)).thenReturn(access());
-        when(operationMapper.selectOne(any())).thenReturn(null);
+        when(operationMapper.findAgentOperation(any(), any(), anyString())).thenReturn(null);
         when(assetMapper.selectById(ASSET_ID)).thenReturn(asset("IDLE", 10L, null, 2));
         when(userMapper.selectById(OWNER_ID)).thenReturn(owner(20L));
         when(accessControlMapper.countDepartment(TENANT_ID, 20L)).thenReturn(1);
@@ -151,7 +151,7 @@ class AssetLifecycleServiceTest {
         stored.setReason("新员工领用");
         stored.setSourceVersion(2);
         stored.setResultVersion(3);
-        when(operationMapper.selectOne(any())).thenReturn(stored);
+        when(operationMapper.findAgentOperation(any(), any(), anyString())).thenReturn(stored);
 
         assertThat(service.claimAssetAgent(ACTOR_ID,
                 new AssetAgentClaimCommand(ASSET_ID, OWNER_ID, 2, "新员工领用"), "agent-operation"))
@@ -172,7 +172,7 @@ class AssetLifecycleServiceTest {
         stored.setReason("原原因");
         stored.setSourceVersion(2);
         stored.setResultVersion(3);
-        when(operationMapper.selectOne(any())).thenReturn(stored);
+        when(operationMapper.findAgentOperation(any(), any(), anyString())).thenReturn(stored);
 
         assertThatThrownBy(() -> service.claimAssetAgent(ACTOR_ID,
                 new AssetAgentClaimCommand(ASSET_ID, OWNER_ID, 2, "变更原因"), "agent-operation"))
@@ -184,7 +184,7 @@ class AssetLifecycleServiceTest {
     @Test
     void agentClaimRejectsEmployeeOutsideTheAuthenticatedTenant() {
         when(userAccessService.resolveActiveUser(ACTOR_ID)).thenReturn(access());
-        when(operationMapper.selectOne(any())).thenReturn(null);
+        when(operationMapper.findAgentOperation(any(), any(), anyString())).thenReturn(null);
         when(assetMapper.selectById(ASSET_ID)).thenReturn(asset("IDLE", 10L, null, 2));
         User otherTenantEmployee = owner(20L);
         otherTenantEmployee.setTenantId(TENANT_ID + 1);
@@ -202,7 +202,7 @@ class AssetLifecycleServiceTest {
     @Test
     void agentReturnClearsOwnerAndPersistsVersionedReceipt() {
         when(userAccessService.resolveActiveUser(ACTOR_ID)).thenReturn(access());
-        when(operationMapper.selectOne(any())).thenReturn(null);
+        when(operationMapper.findAgentOperation(any(), any(), anyString())).thenReturn(null);
         when(assetMapper.selectById(ASSET_ID)).thenReturn(asset("IN_USE", 20L, OWNER_ID, 3));
         when(assetMapper.update(any(), any())).thenReturn(1);
         when(operationMapper.insert(any(AssetOperation.class))).thenReturn(1);
@@ -230,7 +230,7 @@ class AssetLifecycleServiceTest {
         stored.setReason("原原因");
         stored.setSourceVersion(3);
         stored.setResultVersion(4);
-        when(operationMapper.selectOne(any())).thenReturn(stored);
+        when(operationMapper.findAgentOperation(any(), any(), anyString())).thenReturn(stored);
 
         assertThatThrownBy(() -> service.returnAssetAgent(ACTOR_ID,
                 new AssetAgentReturnCommand(ASSET_ID, 3, "变更原因"), "return-operation"))
@@ -243,7 +243,7 @@ class AssetLifecycleServiceTest {
     @Test
     void agentRepairStartMovesIdleAssetAndPersistsVersionedReceipt() {
         when(userAccessService.resolveActiveUser(ACTOR_ID)).thenReturn(access());
-        when(operationMapper.selectOne(any())).thenReturn(null);
+        when(operationMapper.findAgentOperation(any(), any(), anyString())).thenReturn(null);
         when(assetMapper.selectById(ASSET_ID)).thenReturn(asset("IDLE", 10L, null, 4));
         when(assetMapper.update(any(), any())).thenReturn(1);
         when(operationMapper.insert(any(AssetOperation.class))).thenReturn(1);
@@ -271,7 +271,7 @@ class AssetLifecycleServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode").isEqualTo("REQUEST_INVALID");
 
-        when(operationMapper.selectOne(any())).thenReturn(null);
+        when(operationMapper.findAgentOperation(any(), any(), anyString())).thenReturn(null);
         when(assetMapper.selectById(ASSET_ID)).thenReturn(asset("IN_USE", 10L, OWNER_ID, 4));
         assertThatThrownBy(() -> service.startAssetRepairAgent(ACTOR_ID,
                 new AssetAgentRepairStartCommand(ASSET_ID, 4, "设备故障"), "repair-operation"))

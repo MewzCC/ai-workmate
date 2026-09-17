@@ -38,6 +38,7 @@ public enum ToolCode {
     MEETING_BOOK("meeting.book"),
     MEETING_CANCEL("meeting.cancel"),
     VISITOR_QUERY("visitor.query"),
+    VISITOR_APPLY("visitor.apply"),
     SEAL_QUERY("seal.query"),
     EXPENSE_QUERY("expense.query"),
     BUDGET_QUERY("budget.query"),

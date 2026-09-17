@@ -54,6 +54,8 @@ import com.aiworkmate.service.model.AssetAgentRepairStartReceipt;
 import com.aiworkmate.service.model.AssetAgentReturnCommand;
 import com.aiworkmate.service.model.AssetAgentReturnReceipt;
 import com.aiworkmate.service.model.ResolvedUserAccess;
+import com.aiworkmate.service.model.VisitorAgentApplicationCommand;
+import com.aiworkmate.service.model.VisitorAgentApplicationReceipt;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import lombok.RequiredArgsConstructor;
@@ -63,6 +65,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -689,11 +692,50 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
     @Transactional
     public VisitorBookingResponse submitVisitorBooking(Long userId, VisitorBookingRequest request) {
         ResolvedUserAccess actor = requirePermission(userId, "visitor:create");
-        if (request.expectedLeaveAt() != null
-                && request.expectedLeaveAt().isBefore(request.expectedVisitAt())) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID,
-                    "validation.visitor.leaveBeforeVisit");
+        validateVisitorBookingRequest(request);
+        VisitorBooking booking = submitVisitorBookingInternal(actor, request, null);
+        return toVisitorResponse(actor, booking,
+                activeTask(actor.tenantId(), BUSINESS_VISITOR, booking.getId()));
+    }
+
+    @Override
+    @Transactional
+    public VisitorAgentApplicationReceipt submitVisitorBookingAgent(
+            Long userId, VisitorAgentApplicationCommand command, String operationKey) {
+        ResolvedUserAccess actor = requirePermission(userId, "visitor:create");
+        requireAgentOperationKey(operationKey);
+        VisitorBookingRequest request = toVisitorBookingRequest(command);
+        validateVisitorBookingRequest(request);
+        VisitorBooking booking = submitVisitorBookingInternal(actor, request, operationKey);
+        return toVisitorApplicationReceipt(booking);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<VisitorAgentApplicationReceipt> findAgentVisitorBooking(
+            Long userId, VisitorAgentApplicationCommand command, String operationKey) {
+        ResolvedUserAccess actor = requirePermission(userId, "visitor:create");
+        requireAgentOperationKey(operationKey);
+        VisitorBookingRequest request = toVisitorBookingRequest(command);
+        validateVisitorBookingRequest(request);
+        VisitorBooking existing = visitorMapper.findAgentOperation(
+                actor.tenantId(), actor.userId(), operationKey);
+        return existing == null ? Optional.empty()
+                : Optional.of(toVisitorApplicationReceipt(requireMatchingVisitorApplication(existing, request)));
+    }
+
+    private VisitorBooking submitVisitorBookingInternal(
+            ResolvedUserAccess actor, VisitorBookingRequest request, String operationKey) {
+        User applicant = userMapper.lockActiveApplicant(actor.tenantId(), actor.userId());
+        if (applicant == null) {
+            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
         }
+        VisitorBooking existing = operationKey == null ? null
+                : visitorMapper.findAgentOperation(actor.tenantId(), actor.userId(), operationKey);
+        if (existing != null) {
+            return requireMatchingVisitorApplication(existing, request);
+        }
+        requireActiveTenantUser(actor.tenantId(), request.hostUserId());
         Long approverId = resolveApprover(actor);
         if (approverId == null) {
             auditService.record(actor.tenantId(), actor.userId(), BUSINESS_VISITOR,
@@ -710,13 +752,14 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
         v.setTenantId(actor.tenantId());
         v.setApplicantUserId(actor.userId());
         v.setApproverUserId(approverId);
+        v.setAgentOperationKey(operationKey);
         v.setVisitorName(request.visitorName().trim());
         v.setVisitorCompany(trim(request.visitorCompany()));
         v.setVisitorPhone(trim(request.visitorPhone()));
         v.setPurpose(request.purpose().trim());
         v.setHostUserId(request.hostUserId());
-        v.setExpectedVisitAt(request.expectedVisitAt());
-        v.setExpectedLeaveAt(request.expectedLeaveAt());
+        v.setExpectedVisitAt(normalizeTimestamp(request.expectedVisitAt()));
+        v.setExpectedLeaveAt(normalizeTimestamp(request.expectedLeaveAt()));
         v.setPlateNumber(trim(request.plateNumber()));
         v.setPartySize(request.partySize() == null ? 1 : request.partySize());
         v.setStatus("PENDING");
@@ -734,13 +777,81 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
                 .set(VisitorBooking::getWorkflowInstanceId, instance.getId()));
         v.setWorkflowInstanceId(instance.getId());
         insertAction(actor, instance.getId(), task.getId(), "SUBMIT", null, "PENDING", null);
-        auditService.record(actor.tenantId(), actor.userId(), BUSINESS_VISITOR,
-                v.getId().toString(), "SUBMIT", "SUCCESS", "提交访客预约");
+        if (operationKey == null) {
+            auditService.record(actor.tenantId(), actor.userId(), BUSINESS_VISITOR,
+                    v.getId().toString(), "SUBMIT", "SUCCESS", "提交访客预约");
+        } else {
+            auditService.recordTransactional(actor.tenantId(), actor.userId(), BUSINESS_VISITOR,
+                    v.getId().toString(), "SUBMIT", "SUCCESS", "Agent 提交访客预约");
+        }
         notificationService.publish(actor.tenantId(), approverId,
                 NotificationService.TYPE_APPROVAL,
                 "新的访客预约待审批", "员工提交了访客来访预约，请及时处理",
                 "visitor", v.getId());
-        return toVisitorResponse(actor, v, task);
+        return v;
+    }
+
+    private VisitorBookingRequest toVisitorBookingRequest(VisitorAgentApplicationCommand command) {
+        if (command == null) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        return new VisitorBookingRequest(
+                command.visitorName(), command.visitorCompany(), command.visitorPhone(), command.purpose(),
+                command.hostUserId(), command.expectedVisitAt(), command.expectedLeaveAt(),
+                command.plateNumber(), command.partySize());
+    }
+
+    private void validateVisitorBookingRequest(VisitorBookingRequest request) {
+        if (request == null || request.visitorName() == null || request.visitorName().isBlank()
+                || request.visitorName().length() > 60
+                || (request.visitorCompany() != null && request.visitorCompany().length() > 120)
+                || (request.visitorPhone() != null && request.visitorPhone().length() > 40)
+                || request.purpose() == null || request.purpose().isBlank() || request.purpose().length() > 200
+                || request.hostUserId() == null || request.hostUserId() < 1
+                || request.expectedVisitAt() == null
+                || (request.plateNumber() != null && request.plateNumber().length() > 40)
+                || (request.partySize() != null
+                    && (request.partySize() < 1 || request.partySize() > 1000))) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        if (request.expectedLeaveAt() != null
+                && request.expectedLeaveAt().isBefore(request.expectedVisitAt())) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID,
+                    "validation.visitor.leaveBeforeVisit");
+        }
+    }
+
+    private VisitorBooking requireMatchingVisitorApplication(
+            VisitorBooking existing, VisitorBookingRequest request) {
+        if (!Objects.equals(existing.getVisitorName(), request.visitorName().trim())
+                || !Objects.equals(existing.getVisitorCompany(), trim(request.visitorCompany()))
+                || !Objects.equals(existing.getVisitorPhone(), trim(request.visitorPhone()))
+                || !Objects.equals(existing.getPurpose(), request.purpose().trim())
+                || !Objects.equals(existing.getHostUserId(), request.hostUserId())
+                || !Objects.equals(existing.getExpectedVisitAt(), normalizeTimestamp(request.expectedVisitAt()))
+                || !Objects.equals(existing.getExpectedLeaveAt(), normalizeTimestamp(request.expectedLeaveAt()))
+                || !Objects.equals(existing.getPlateNumber(), trim(request.plateNumber()))
+                || !Objects.equals(existing.getPartySize(), request.partySize())) {
+            throw new BusinessException(ErrorCode.IDEMPOTENCY_CONFLICT);
+        }
+        return existing;
+    }
+
+    private VisitorAgentApplicationReceipt toVisitorApplicationReceipt(VisitorBooking booking) {
+        return new VisitorAgentApplicationReceipt(
+                booking.getId(), booking.getStatus(), booking.getVersion(), booking.getSubmittedAt());
+    }
+
+    private void requireActiveTenantUser(Long tenantId, Long userId) {
+        User user = userMapper.selectById(userId);
+        if (user == null || !tenantId.equals(user.getTenantId())
+                || !Integer.valueOf(1).equals(user.getStatus())) {
+            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        }
+    }
+
+    private LocalDateTime normalizeTimestamp(LocalDateTime value) {
+        return value == null ? null : value.truncatedTo(ChronoUnit.MICROS);
     }
 
     @Override
@@ -1390,11 +1501,8 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
     private Optional<AgentAssetTransitionReceipt> resolveAgentTransition(
             ResolvedUserAccess actor, long assetId, int expectedVersion, String reason,
             String operationKey, String operationType, String targetStatus, Long targetOwnerUserId) {
-        AssetOperation operation = assetOperationMapper.selectOne(new LambdaQueryWrapper<AssetOperation>()
-                .eq(AssetOperation::getTenantId, actor.tenantId())
-                .eq(AssetOperation::getOperatorUserId, actor.userId())
-                .eq(AssetOperation::getAgentOperationKey, operationKey)
-                .last("LIMIT 1"));
+        AssetOperation operation = assetOperationMapper.findAgentOperation(
+                actor.tenantId(), actor.userId(), operationKey);
         if (operation == null) {
             return Optional.empty();
         }
@@ -1577,11 +1685,14 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
 
     private Long resolveApprover(ResolvedUserAccess actor) {
         User applicant = userMapper.selectById(actor.userId());
-        if (applicant == null || applicant.getApproverUserId() == null) {
+        if (applicant == null || !actor.tenantId().equals(applicant.getTenantId())
+                || applicant.getApproverUserId() == null) {
             return null;
         }
         User approver = userMapper.selectById(applicant.getApproverUserId());
-        if (approver == null || approver.getStatus() == null || approver.getStatus() != 1) {
+        if (approver == null || !actor.tenantId().equals(approver.getTenantId())
+                || approver.getStatus() == null || approver.getStatus() != 1
+                || actor.userId().equals(approver.getId())) {
             return null;
         }
         return approver.getId();
