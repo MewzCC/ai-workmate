@@ -74,6 +74,8 @@ class P1PostgresMigrationIT {
                 databaseUrl, databaseUsername, databasePassword, emptySchema);
         VisitorCheckInPostgresVerifier.verify(
                 databaseUrl, databaseUsername, databasePassword, emptySchema);
+        SealApplicationPostgresVerifier.verify(
+                databaseUrl, databaseUsername, databasePassword, emptySchema);
         Flyway restartedEmpty = flyway(emptySchema, null);
         assertThat(restartedEmpty.migrate().migrationsExecuted).isZero();
         assertThat(restartedEmpty.validateWithResult().validationSuccessful).isTrue();
@@ -571,6 +573,22 @@ class P1PostgresMigrationIT {
                       AND required_permissions = '["seal:read:self"]'::jsonb
                       AND side_effect = 'NONE' AND enabled = TRUE
                     """)).as("印章用印 Agent 工具必须以冻结契约的本人范围种子存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'seal.apply' AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:7c88a6102e7a8048fcef44592c6ecf28c21bb21e1e4bd3f11c81a91ce4d80632'
+                      AND risk_level = 'L1' AND data_scope_policy = 'SELF'
+                      AND retry_policy = 'BUSINESS_IDEMPOTENT' AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'EXPLICIT' AND enabled = TRUE
+                    """)).as("用印申请工具必须以冻结的本人原子写契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission WHERE code = 'agent:tool:seal.apply'
+                    """)).as("用印申请 Agent 工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM pg_indexes
+                    WHERE schemaname = current_schema()
+                      AND indexname = 'ux_seal_usage_agent_key'
+                    """)).as("用印申请稳定操作键必须由申请人范围唯一约束防重").isOne();
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM rbac_permission
                     WHERE code IN ('agent:tool:visitor.query', 'agent:tool:seal.query')

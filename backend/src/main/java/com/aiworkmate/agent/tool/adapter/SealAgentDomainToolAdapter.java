@@ -2,7 +2,10 @@ package com.aiworkmate.agent.tool.adapter;
 
 import com.aiworkmate.agent.tool.port.SealToolPort;
 import com.aiworkmate.agent.tool.port.ToolActorContext;
+import com.aiworkmate.agent.tool.port.ToolOperationKey;
+import com.aiworkmate.agent.tool.port.ToolWriteVerification;
 import com.aiworkmate.service.AdminAssetsService;
+import com.aiworkmate.service.model.SealAgentApplicationCommand;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -24,6 +27,30 @@ public final class SealAgentDomainToolAdapter implements SealToolPort {
                 : adminAssetsService.listMySealUsages(context.userId(), query.status(), query.page(), query.size());
         return new Page(result.records().stream().map(this::toItem).toList(),
                 result.total(), result.page(), result.size());
+    }
+
+    @Override
+    public ApplicationResult apply(
+            ToolActorContext context, ApplicationCommand command, ToolOperationKey operationKey) {
+        var result = adminAssetsService.submitSealUsageAgent(
+                context.userId(), toDomain(command), operationKey.value());
+        return new ApplicationResult(
+                result.usageId(), result.status(), result.version(), result.submittedAt());
+    }
+
+    @Override
+    public ToolWriteVerification<ApplicationResult> findApplication(
+            ToolActorContext context, ApplicationCommand command, ToolOperationKey operationKey) {
+        return adminAssetsService.findAgentSealUsage(
+                        context.userId(), toDomain(command), operationKey.value())
+                .map(result -> ToolWriteVerification.observed(new ApplicationResult(
+                        result.usageId(), result.status(), result.version(), result.submittedAt())))
+                .orElseGet(ToolWriteVerification::unobserved);
+    }
+
+    private SealAgentApplicationCommand toDomain(ApplicationCommand command) {
+        return new SealAgentApplicationCommand(
+                command.sealType(), command.documentTitle(), command.usageReason(), command.copies());
     }
 
     private Item toItem(com.aiworkmate.dto.SealUsageResponse item) {

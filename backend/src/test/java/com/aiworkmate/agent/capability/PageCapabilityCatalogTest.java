@@ -141,6 +141,8 @@ class PageCapabilityCatalogTest {
                         ToolCode.VISITOR_MARK_ARRIVED, ToolCode.VISITOR_LEAVE);
         assertThat(catalog.find("seal-usage").orElseThrow().readTools())
                 .extracting(PageToolReference::code).containsExactly(ToolCode.SEAL_QUERY);
+        assertThat(catalog.find("seal-usage").orElseThrow().writeTools())
+                .extracting(PageToolReference::code).containsExactly(ToolCode.SEAL_APPLY);
     }
 
     @Test

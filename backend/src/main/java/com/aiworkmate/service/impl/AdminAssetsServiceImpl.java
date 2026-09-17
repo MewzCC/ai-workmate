@@ -55,6 +55,8 @@ import com.aiworkmate.service.model.AssetAgentRepairStartReceipt;
 import com.aiworkmate.service.model.AssetAgentReturnCommand;
 import com.aiworkmate.service.model.AssetAgentReturnReceipt;
 import com.aiworkmate.service.model.ResolvedUserAccess;
+import com.aiworkmate.service.model.SealAgentApplicationCommand;
+import com.aiworkmate.service.model.SealAgentApplicationReceipt;
 import com.aiworkmate.service.model.VisitorAgentApplicationCommand;
 import com.aiworkmate.service.model.VisitorAgentApplicationReceipt;
 import com.aiworkmate.service.model.VisitorAgentVisitCommand;
@@ -75,6 +77,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -1251,6 +1254,48 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
     @Transactional
     public SealUsageResponse submitSealUsage(Long userId, SealUsageRequest request) {
         ResolvedUserAccess actor = requirePermission(userId, "seal:create");
+        validateSealUsageRequest(request);
+        SealUsage usage = submitSealUsageInternal(actor, request, null);
+        return toSealResponse(actor, usage,
+                activeTask(actor.tenantId(), BUSINESS_SEAL, usage.getId()));
+    }
+
+    @Override
+    @Transactional
+    public SealAgentApplicationReceipt submitSealUsageAgent(
+            Long userId, SealAgentApplicationCommand command, String operationKey) {
+        ResolvedUserAccess actor = requirePermission(userId, "seal:create");
+        requireAgentOperationKey(operationKey);
+        SealUsageRequest request = toSealUsageRequest(command);
+        validateSealUsageRequest(request);
+        return toSealApplicationReceipt(submitSealUsageInternal(actor, request, operationKey));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<SealAgentApplicationReceipt> findAgentSealUsage(
+            Long userId, SealAgentApplicationCommand command, String operationKey) {
+        ResolvedUserAccess actor = requirePermission(userId, "seal:create");
+        requireAgentOperationKey(operationKey);
+        SealUsageRequest request = toSealUsageRequest(command);
+        validateSealUsageRequest(request);
+        SealUsage existing = sealMapper.findAgentOperation(
+                actor.tenantId(), actor.userId(), operationKey);
+        return existing == null ? Optional.empty()
+                : Optional.of(toSealApplicationReceipt(requireMatchingSealApplication(existing, request)));
+    }
+
+    private SealUsage submitSealUsageInternal(
+            ResolvedUserAccess actor, SealUsageRequest request, String operationKey) {
+        User applicant = userMapper.lockActiveApplicant(actor.tenantId(), actor.userId());
+        if (applicant == null) {
+            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        }
+        SealUsage existing = operationKey == null ? null
+                : sealMapper.findAgentOperation(actor.tenantId(), actor.userId(), operationKey);
+        if (existing != null) {
+            return requireMatchingSealApplication(existing, request);
+        }
         Long approverId = resolveApprover(actor);
         if (approverId == null) {
             auditService.record(actor.tenantId(), actor.userId(), BUSINESS_SEAL,
@@ -1267,6 +1312,7 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
         s.setTenantId(actor.tenantId());
         s.setApplicantUserId(actor.userId());
         s.setApproverUserId(approverId);
+        s.setAgentOperationKey(operationKey);
         s.setSealType(request.sealType() == null ? "OTHER" : request.sealType());
         s.setDocumentTitle(request.documentTitle().trim());
         s.setUsageReason(request.usageReason().trim());
@@ -1286,13 +1332,53 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
                 .set(SealUsage::getWorkflowInstanceId, instance.getId()));
         s.setWorkflowInstanceId(instance.getId());
         insertAction(actor, instance.getId(), task.getId(), "SUBMIT", null, "PENDING", null);
-        auditService.record(actor.tenantId(), actor.userId(), BUSINESS_SEAL,
-                s.getId().toString(), "SUBMIT", "SUCCESS", "提交用印申请");
+        if (operationKey == null) {
+            auditService.record(actor.tenantId(), actor.userId(), BUSINESS_SEAL,
+                    s.getId().toString(), "SUBMIT", "SUCCESS", "提交用印申请");
+        } else {
+            auditService.recordTransactional(actor.tenantId(), actor.userId(), BUSINESS_SEAL,
+                    s.getId().toString(), "SUBMIT", "SUCCESS", "Agent 提交用印申请");
+        }
         notificationService.publish(actor.tenantId(), approverId,
                 NotificationService.TYPE_APPROVAL,
                 "新的用印申请待审批", "员工提交了印章使用申请，请及时处理",
                 "seal", s.getId());
-        return toSealResponse(actor, s, task);
+        return s;
+    }
+
+    private SealUsageRequest toSealUsageRequest(SealAgentApplicationCommand command) {
+        if (command == null) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        return new SealUsageRequest(
+                command.sealType(), command.documentTitle(), command.usageReason(), command.copies());
+    }
+
+    private void validateSealUsageRequest(SealUsageRequest request) {
+        if (request == null || (request.sealType() != null
+                && !Set.of("OFFICIAL", "CONTRACT", "LEGAL", "FINANCE", "OTHER").contains(request.sealType()))
+                || request.documentTitle() == null || request.documentTitle().isBlank()
+                || request.documentTitle().length() > 200
+                || request.usageReason() == null || request.usageReason().isBlank()
+                || request.usageReason().length() > 500
+                || (request.copies() != null && (request.copies() < 1 || request.copies() > 1000))) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+    }
+
+    private SealUsage requireMatchingSealApplication(SealUsage existing, SealUsageRequest request) {
+        if (!Objects.equals(existing.getSealType(), request.sealType() == null ? "OTHER" : request.sealType())
+                || !Objects.equals(existing.getDocumentTitle(), request.documentTitle().trim())
+                || !Objects.equals(existing.getUsageReason(), request.usageReason().trim())
+                || !Objects.equals(existing.getCopies(), request.copies() == null ? 1 : request.copies())) {
+            throw new BusinessException(ErrorCode.IDEMPOTENCY_CONFLICT);
+        }
+        return existing;
+    }
+
+    private SealAgentApplicationReceipt toSealApplicationReceipt(SealUsage usage) {
+        return new SealAgentApplicationReceipt(
+                usage.getId(), usage.getStatus(), usage.getVersion(), usage.getSubmittedAt());
     }
 
     @Override
