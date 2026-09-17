@@ -1,6 +1,7 @@
 package com.aiworkmate.agent.gateway;
 
 import com.aiworkmate.agent.capability.PageCapabilityCatalog;
+import com.aiworkmate.agent.capability.PageCapabilityDefinition;
 import com.aiworkmate.agent.registry.ConfirmationPolicy;
 import com.aiworkmate.agent.registry.OwnershipPolicy;
 import com.aiworkmate.agent.registry.PermissionMode;
@@ -16,6 +17,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 
@@ -64,6 +66,22 @@ class AgentToolContractGateTest {
         assertThatThrownBy(() -> new AgentToolContractGate(incomplete, handlers(incomplete), pages))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("definitions");
+    }
+
+    @Test
+    void rejectsPageCapabilityMissingFromTheCodeOwnedManifest() {
+        List<ToolDefinition> definitions = definitions();
+        PageCapabilityCatalog incompletePages = new PageCapabilityCatalog() {
+            @Override
+            public Collection<PageCapabilityDefinition> all() {
+                return pages.all().stream().skip(1).toList();
+            }
+        };
+
+        assertThatThrownBy(() -> new AgentToolContractGate(
+                definitions, handlers(definitions), incompletePages))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("page capabilities");
     }
 
     private List<ToolDefinition> definitions() {

@@ -1,5 +1,6 @@
 package com.aiworkmate.integration;
 
+import com.aiworkmate.oa.page.OaPage;
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.MigrationVersion;
 import org.junit.jupiter.api.AfterAll;
@@ -10,8 +11,12 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.Statement;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -211,6 +216,7 @@ class P1PostgresMigrationIT {
                     SELECT COUNT(*) FROM rbac_route
                     WHERE route_type = 'PAGE' AND enabled = TRUE
                     """)).as("R4 浏览器回归清单必须覆盖全部已启用页面").isEqualTo(41);
+            assertEnabledPageManifest(statement);
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM agent_page_action_policy
                     WHERE page_id IN ('todo-list', 'message-center')
@@ -549,6 +555,35 @@ class P1PostgresMigrationIT {
             assertThat(result.next()).isTrue();
             return result.getLong(1);
         }
+    }
+
+    private static void assertEnabledPageManifest(Statement statement) throws Exception {
+        Map<String, String> expected = Arrays.stream(OaPage.values())
+                .collect(Collectors.toMap(
+                        OaPage::routeKey,
+                        OaPage::componentKey,
+                        (left, right) -> {
+                            throw new IllegalStateException("Duplicate OA page route key");
+                        },
+                        LinkedHashMap::new
+                ));
+        Map<String, String> actual = new LinkedHashMap<>();
+        try (ResultSet result = statement.executeQuery("""
+                SELECT route_key, component_key
+                FROM rbac_route
+                WHERE route_type = 'PAGE' AND enabled = TRUE
+                ORDER BY route_key
+                """)) {
+            while (result.next()) {
+                String routeKey = result.getString("route_key");
+                assertThat(actual.put(routeKey, result.getString("component_key")))
+                        .as("启用页面路由键不得重复: %s", routeKey)
+                        .isNull();
+            }
+        }
+        assertThat(actual)
+                .as("数据库启用页面必须与代码拥有的 OA 页面清单逐项一致")
+                .containsExactlyInAnyOrderEntriesOf(expected);
     }
 
     private static void insertLegacySupplierRecord(String schema) throws Exception {

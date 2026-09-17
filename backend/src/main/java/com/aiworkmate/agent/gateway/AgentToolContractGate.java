@@ -6,8 +6,10 @@ import com.aiworkmate.agent.registry.SideEffect;
 import com.aiworkmate.agent.registry.ToolCode;
 import com.aiworkmate.agent.registry.ToolDefinition;
 import com.aiworkmate.agent.tool.internal.ToolHandler;
+import com.aiworkmate.oa.page.OaPage;
 import org.springframework.stereotype.Component;
 
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -32,6 +34,16 @@ public class AgentToolContractGate {
                 .collect(Collectors.toUnmodifiableSet());
         require(handlersByKey.keySet().equals(expectedHandlers),
                 "Tool handlers must exactly match definition codes and versions");
+
+        Map<String, String> expectedPages = Arrays.stream(OaPage.values())
+                .collect(Collectors.toUnmodifiableMap(OaPage::routeKey, OaPage::componentKey));
+        Map<String, String> actualPages = pageCapabilities.all().stream()
+                .collect(Collectors.toUnmodifiableMap(
+                        page -> page.pageId(),
+                        page -> page.componentKey()
+                ));
+        require(actualPages.equals(expectedPages),
+                "Agent page capabilities must exactly match the code-owned OA page manifest");
 
         Set<String> pageToolCodes = pageCapabilities.all().stream()
                 .flatMap(page -> page.tools().stream())
