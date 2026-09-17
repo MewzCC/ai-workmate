@@ -138,6 +138,38 @@ final class VisitorCheckInPostgresVerifier {
         assertThat(observedArrival).isPresent();
         assertThat(observedArrival.orElseThrow().status()).isEqualTo("VISITED");
 
+        var leaveCommand = new VisitorAgentVisitCommand(bookingId, 4, "前台确认离场");
+        var leaveExecutor = Executors.newFixedThreadPool(2);
+        try {
+            var barrier = new CyclicBarrier(2);
+            Callable<Integer> leave = () -> {
+                barrier.await(10, TimeUnit.SECONDS);
+                return tx.execute(status -> service.leaveVisitorAgent(
+                        applicant, leaveCommand, "visitor-leave-operation").version());
+            };
+            var first = leaveExecutor.submit(leave);
+            var second = leaveExecutor.submit(leave);
+            assertThat(first.get(20, TimeUnit.SECONDS)).isEqualTo(5);
+            assertThat(second.get(20, TimeUnit.SECONDS)).isEqualTo(5);
+        } finally {
+            leaveExecutor.shutdownNow();
+        }
+        assertThat(jdbc.queryForObject(
+                "SELECT status FROM visitor_booking WHERE id=?", String.class, bookingId))
+                .isEqualTo("LEFT");
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM visitor_visit_operation
+                WHERE agent_operation_key='visitor-leave-operation' AND operation_type='LEAVE'
+                """, Integer.class)).isOne();
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM business_audit_log
+                WHERE resource_type='VISITOR_BOOKING' AND resource_id=? AND action='LEAVE'
+                """, Integer.class, bookingId.toString())).isOne();
+        var observedLeave = tx.execute(status -> service.findAgentVisitorLeave(
+                applicant, leaveCommand, "visitor-leave-operation"));
+        assertThat(observedLeave).isPresent();
+        assertThat(observedLeave.orElseThrow().status()).isEqualTo("LEFT");
+
         Long rollbackBooking = insertApprovedBooking(jdbc, tenant, applicant, "回滚签到访客");
         BusinessAuditService failingAudit = mock(BusinessAuditService.class);
         doThrow(new IllegalStateException("audit unavailable")).when(failingAudit)
@@ -170,15 +202,31 @@ final class VisitorCheckInPostgresVerifier {
                 WHERE agent_operation_key='visitor-arrival-rollback'
                 """, Integer.class)).isZero();
 
+        Long leaveRollbackBooking = insertApprovedBooking(jdbc, tenant, applicant, "回滚离场访客");
+        jdbc.update("""
+                UPDATE visitor_booking SET status='VISITED', version=4,
+                    checked_in_at=CURRENT_TIMESTAMP, visited_at=CURRENT_TIMESTAMP WHERE id=?
+                """, leaveRollbackBooking);
+        assertThatThrownBy(() -> tx.execute(status -> failingService.leaveVisitorAgent(
+                applicant, new VisitorAgentVisitCommand(leaveRollbackBooking, 4, null),
+                "visitor-leave-rollback"))).isInstanceOf(IllegalStateException.class);
+        assertThat(jdbc.queryForObject(
+                "SELECT status FROM visitor_booking WHERE id=?", String.class, leaveRollbackBooking))
+                .isEqualTo("VISITED");
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM visitor_visit_operation
+                WHERE agent_operation_key='visitor-leave-rollback'
+                """, Integer.class)).isZero();
+
         when(access.resolveActiveUser(unrelated)).thenReturn(actor(
                 unrelated, tenant, List.of("visitor:register", "visitor:register:any")));
-        assertThatThrownBy(() -> tx.execute(status -> service.findAgentVisitorCheckIn(
-                unrelated, command, "visitor-checkin-operation")))
+        assertThatThrownBy(() -> tx.execute(status -> service.findAgentVisitorLeave(
+                unrelated, leaveCommand, "visitor-leave-operation")))
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode").isEqualTo("RESOURCE_FORBIDDEN");
         when(access.resolveActiveUser(applicant)).thenReturn(actor(applicant, tenant, List.of()));
-        assertThatThrownBy(() -> tx.execute(status -> service.findAgentVisitorCheckIn(
-                applicant, command, "visitor-checkin-operation")))
+        assertThatThrownBy(() -> tx.execute(status -> service.findAgentVisitorLeave(
+                applicant, leaveCommand, "visitor-leave-operation")))
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode").isEqualTo("PERMISSION_DENIED");
     }

@@ -98,6 +98,25 @@ public final class VisitorAgentDomainToolAdapter implements VisitorToolPort {
                 .orElseGet(ToolWriteVerification::unobserved);
     }
 
+    @Override
+    public VisitResult leave(
+            ToolActorContext context, VisitCommand command, ToolOperationKey operationKey) {
+        var result = adminAssetsService.leaveVisitorAgent(
+                context.userId(), toDomain(command), operationKey.value());
+        return new VisitResult(
+                result.bookingId(), result.status(), result.version(), result.occurredAt());
+    }
+
+    @Override
+    public ToolWriteVerification<VisitResult> findLeave(
+            ToolActorContext context, VisitCommand command, ToolOperationKey operationKey) {
+        return adminAssetsService.findAgentVisitorLeave(
+                        context.userId(), toDomain(command), operationKey.value())
+                .map(result -> ToolWriteVerification.observed(new VisitResult(
+                        result.bookingId(), result.status(), result.version(), result.occurredAt())))
+                .orElseGet(ToolWriteVerification::unobserved);
+    }
+
     private Item toItem(com.aiworkmate.dto.VisitorBookingResponse item) {
         return new Item(item.id(), item.applicantName(), item.approverName(), item.hostName(),
                 item.visitorName(), item.visitorCompany(), item.purpose(), item.expectedVisitAt(),

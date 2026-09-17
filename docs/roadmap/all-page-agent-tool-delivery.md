@@ -30,7 +30,7 @@
 | employee-change | HR_CHANGE_QUERY | 候选：单条员工变动申请；生效需独立评审 |
 | asset-ledger | ASSET_QUERY | ASSET_CLAIM、ASSET_RETURN、ASSET_REPAIR_START；单件资产领用、归还与维修登记，写开关默认关闭 |
 | meeting-room | MEETING_QUERY | MEETING_BOOK、MEETING_CANCEL；本人单条预约与取消，写开关默认关闭，发布门及真实模型端到端待验收 |
-| visitor-booking | VISITOR_QUERY | VISITOR_APPLY、VISITOR_CHECK_IN、VISITOR_MARK_ARRIVED；本人单条申请及关联预约的签到、确认到访，写开关默认关闭；离场仍按独立工具交付 |
+| visitor-booking | VISITOR_QUERY | VISITOR_APPLY、VISITOR_CHECK_IN、VISITOR_MARK_ARRIVED、VISITOR_LEAVE；本人单条申请及关联预约的签到、到访和离场，写开关默认关闭 |
 | seal-usage | SEAL_QUERY | 候选：申请、实际用印登记，逐工具交付 |
 | expense | EXPENSE_QUERY | 候选：本人草稿和原子提交；不付款 |
 | budget | BUDGET_QUERY | 保持受控只读；预算生效不自动开放 |
@@ -160,6 +160,8 @@ P8 访客申请原子工具切片：新增 `visitor.apply` 封闭契约，只接
 P8 访客签到原子工具切片：新增 `visitor.checkIn` 封闭契约，只接收预约 ID、预期版本和可选备注；租户与操作人来自 ToolGateway 可信上下文。普通页面与 Agent 复用同一个 `APPROVED -> CHECKED_IN` 乐观锁状态迁移核心，Agent 路径额外限制为申请人或被访人本人，即使持有 `visitor:register:any` 也不能经 Agent 代登记无关访客。类型化 `visitor_visit_operation` 收据保存操作类型、稳定操作键、源/结果版本、结果状态、备注和时间，可供后续到访及离场工具复用，也为未来远程 Adapter 提供明确的超时结果核验协议。相同命令并发重放只更新一次预约并写入一条操作收据和审计；命令冲突、权限回收、无关用户和非法状态失败关闭，审计异常整笔回滚。工具为 L1、本人范围、显式确认、业务幂等和单写步骤，写开关继续默认关闭。真实 PostgreSQL 空库、旧库升级、80 个迁移 validate、并发、结果核验与重复迁移零变更通过；开发库已升级至 V202609171745，二次启动无待执行迁移。OA lint 无错误（3 条既有警告）、93 项测试和生产构建通过，后端 858 项零失败、9 项既有环境测试跳过。到访和离场仍须独立工具交付。
 
 P8 访客确认到访原子工具切片：新增 `visitor.markArrived` 封闭契约，只接收预约 ID、预期版本和可选备注；租户与操作人继续来自 ToolGateway 可信上下文。签到与到访 Handler 共用类型化状态迁移模板，Port、Adapter 和领域 Service 复用 `visitor_visit_operation` 收据及乐观锁事务核心，不复制参数解析、稳定操作键、幂等核验或审计逻辑；领域仍显式声明 `CHECKED_IN -> VISITED` 合法状态和 ARRIVE 操作类型。Agent 路径只允许申请人或被访人本人，即使具有 `visitor:register:any` 也不能代登记无关访客；实时权限回收、无关用户、跨租户、版本冲突和非法状态全部失败关闭。相同命令并发重放只更新一次预约并产生一条操作收据与审计，审计失败整笔回滚，结果可通过类型化只读核验协议确认。工具为 L1、本人范围、显式确认、业务幂等和单写步骤，全局及租户写开关保持默认关闭。真实 PostgreSQL 空库、旧库升级、81 个迁移 validate、并发、结果核验、审计回滚与重复迁移零变更通过；开发库已升级至 V202609171950，二次启动无待执行迁移。OA lint 无错误（3 条既有警告）、93 项测试和生产构建通过，后端 862 项零失败、9 项既有环境测试跳过。离场仍须作为独立原子工具交付。
+
+P8 访客离场原子工具切片：新增 `visitor.leave` 封闭契约，只接收预约 ID、预期版本和可选备注；租户及操作人仍由 ToolGateway 可信上下文提供。签到、到访与离场共用 `VisitorVisitTransitionToolHandler`、类型化 Port/Adapter、稳定操作键、`visitor_visit_operation` 收据和领域事务模板；离场工具仅显式声明 `VISITED -> LEFT` 状态迁移与 LEAVE 操作类型，不复制通用解析、幂等核验和审计代码。Agent 路径仅允许申请人或被访人本人，`visitor:register:any` 不扩大 Agent 代办范围；实时权限回收、无关用户、跨租户、版本冲突和非法状态失败关闭。并发重放仅产生一次状态更新、一条收据和一条审计，审计失败整笔回滚，类型化只读核验可确认最终结果。工具为 L1、本人范围、显式确认、业务幂等和单写步骤，全局及租户写开关保持默认关闭。真实 PostgreSQL 空库、旧库升级、82 个迁移 validate、并发、结果核验、审计回滚及重复迁移零变更通过；开发库已升级至 V202609172005，二次启动无待执行迁移。OA lint 无错误（3 条既有警告）、93 项测试和生产构建通过，后端 866 项零失败、9 项既有环境测试跳过。
 
 R6 页面能力目录收口切片：新增纯 Java `OaPage` 作为导航、权限和 Agent 共同依赖的中立页面契约，删除独立维护的导航组件白名单和 DTO 组件枚举列表；`PageCapabilityCatalog` 只在该契约上附加 UI 指令、页面上下文和工具绑定，领域导航不反向依赖 Agent 包。启用页面必须精确命中 `routeKey + componentKey`，数据库、租户配置和管理接口不能把专属组件挂到任意新路由；历史页面别名只用于输入兼容，不能重新启用为正式菜单。架构门禁保证共享页面契约不依赖 Spring、Agent 或领域实现；前端固定组件注册表仍作为语言边界内的安全渲染白名单，跨端一致性由后续门禁覆盖。本切片不改变工具定义、页面权限、数据库数据和迁移。34 项页面与路由定向测试通过；OA lint 无错误（3 条既有警告）、92 项测试与生产构建通过；后端 827 项零失败、9 项既有环境测试跳过。
 

@@ -15,6 +15,9 @@ public interface VisitorToolPort {
     VisitResult markArrived(ToolActorContext context, VisitCommand command, ToolOperationKey operationKey);
     ToolWriteVerification<VisitResult> findArrival(
             ToolActorContext context, VisitCommand command, ToolOperationKey operationKey);
+    VisitResult leave(ToolActorContext context, VisitCommand command, ToolOperationKey operationKey);
+    ToolWriteVerification<VisitResult> findLeave(
+            ToolActorContext context, VisitCommand command, ToolOperationKey operationKey);
     enum Queue { MINE, PENDING }
     record Query(Long bookingId, Queue queue, String status, int page, int size) { }
     record ApplicationCommand(String visitorName, String visitorCompany, String visitorPhone,

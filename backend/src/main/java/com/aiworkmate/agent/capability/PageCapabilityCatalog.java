@@ -137,7 +137,7 @@ public class PageCapabilityCatalog {
                 page(OaPage.VISITOR_BOOKING, OwnershipPolicy.SELF, LIST_COMMANDS,
                         context(number("bookingId"), text("queue"), text("status"), number("page"), number("size")),
                         read(VISITOR_QUERY), write(VISITOR_APPLY), write(VISITOR_CHECK_IN),
-                        write(VISITOR_MARK_ARRIVED)),
+                        write(VISITOR_MARK_ARRIVED), write(VISITOR_LEAVE)),
                 page(OaPage.SEAL_USAGE, OwnershipPolicy.SELF, LIST_COMMANDS,
                         context(number("usageId"), text("queue"), text("status"), number("page"), number("size")),
                         read(SEAL_QUERY)),

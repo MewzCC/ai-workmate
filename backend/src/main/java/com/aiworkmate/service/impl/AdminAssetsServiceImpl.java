@@ -757,6 +757,21 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
         return findAgentVisitorTransition(userId, command, operationKey, "ARRIVE", "VISITED");
     }
 
+    @Override
+    @Transactional
+    public VisitorAgentVisitReceipt leaveVisitorAgent(
+            Long userId, VisitorAgentVisitCommand command, String operationKey) {
+        return transitionVisitorVisitAgent(userId, command, operationKey,
+                "VISITED", "LEFT", "LEAVE");
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<VisitorAgentVisitReceipt> findAgentVisitorLeave(
+            Long userId, VisitorAgentVisitCommand command, String operationKey) {
+        return findAgentVisitorTransition(userId, command, operationKey, "LEAVE", "LEFT");
+    }
+
     private VisitorAgentVisitReceipt transitionVisitorVisitAgent(
             Long userId, VisitorAgentVisitCommand command, String operationKey,
             String expectedStatus, String targetStatus, String action) {

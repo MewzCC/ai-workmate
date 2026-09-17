@@ -385,6 +385,17 @@ class P1PostgresMigrationIT {
                     SELECT COUNT(*) FROM rbac_permission WHERE code = 'agent:tool:visitor.markArrived'
                     """)).as("访客到访 Agent 工具必须具备独立实时权限").isOne();
             assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'visitor.leave' AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:1c372b6905396188d7f748da1ef6fae69168fc635a69c44e2f3e5e87003fe0c7'
+                      AND risk_level = 'L1' AND data_scope_policy = 'SELF'
+                      AND retry_policy = 'BUSINESS_IDEMPOTENT' AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'EXPLICIT' AND enabled = TRUE
+                    """)).as("访客离场工具必须以冻结的本人原子写契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission WHERE code = 'agent:tool:visitor.leave'
+                    """)).as("访客离场 Agent 工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
                     SELECT COUNT(*) FROM information_schema.columns
                     WHERE table_schema = current_schema() AND table_name = 'asset_operation'
                       AND column_name IN ('agent_operation_key', 'source_version', 'result_version')

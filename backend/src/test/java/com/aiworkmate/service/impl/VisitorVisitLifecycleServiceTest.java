@@ -150,6 +150,34 @@ class VisitorVisitLifecycleServiceTest {
     }
 
     @Test
+    void agentLeaveReusesLifecycleReceiptAndRequiresVisitedState() {
+        stubAccess(access(ACTOR_ID, List.of("visitor:register")));
+        when(visitorMapper.selectById(VISITOR_ID))
+                .thenReturn(booking("VISITED", 4, ACTOR_ID, ACTOR_ID));
+        when(visitorMapper.update(any(), any())).thenReturn(1);
+        when(visitorMapper.insertVisitAgentOperation(any())).thenReturn(1);
+
+        var command = new VisitorAgentVisitCommand(VISITOR_ID, 4, "前台确认离场");
+        var result = service.leaveVisitorAgent(ACTOR_ID, command, "operation-leave");
+
+        assertThat(result.status()).isEqualTo("LEFT");
+        assertThat(result.version()).isEqualTo(5);
+        ArgumentCaptor<VisitorVisitOperation> operation = ArgumentCaptor.forClass(VisitorVisitOperation.class);
+        verify(visitorMapper).insertVisitAgentOperation(operation.capture());
+        assertThat(operation.getValue().getOperationType()).isEqualTo("LEAVE");
+        assertThat(operation.getValue().getResultStatus()).isEqualTo("LEFT");
+        verify(auditService).recordTransactional(TENANT_ID, ACTOR_ID, "VISITOR_BOOKING",
+                Long.toString(VISITOR_ID), "LEAVE", "SUCCESS",
+                "fromStatus=VISITED,toStatus=LEFT,remark=前台确认离场");
+
+        when(visitorMapper.selectById(VISITOR_ID)).thenReturn(booking("LEFT", 5, ACTOR_ID, ACTOR_ID));
+        when(visitorMapper.findVisitAgentOperation(TENANT_ID, ACTOR_ID, "operation-leave"))
+                .thenReturn(operation.getValue());
+        assertThat(service.findAgentVisitorLeave(ACTOR_ID, command, "operation-leave"))
+                .contains(result);
+    }
+
+    @Test
     void arrivalRequiresCheckedInStatus() {
         stubAccess(access(ACTOR_ID, List.of("visitor:register")));
         when(visitorMapper.selectById(VISITOR_ID)).thenReturn(booking("APPROVED", 2, ACTOR_ID, ACTOR_ID));

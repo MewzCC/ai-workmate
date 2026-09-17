@@ -24,6 +24,9 @@ public class AgentVisitorWriteToolDefinitions {
     public static final String ARRIVAL_OUTPUT_SCHEMA = """
             {"type":"object","additionalProperties":false,"required":["bookingId","status","version","occurredAt"],"properties":{"bookingId":{"type":"integer","minimum":1},"status":{"type":"string","const":"VISITED"},"version":{"type":"integer","minimum":1},"occurredAt":{"type":"string","format":"date-time"}}}
             """.strip();
+    public static final String LEAVE_OUTPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["bookingId","status","version","occurredAt"],"properties":{"bookingId":{"type":"integer","minimum":1},"status":{"type":"string","const":"LEFT"},"version":{"type":"integer","minimum":1},"occurredAt":{"type":"string","format":"date-time"}}}
+            """.strip();
 
     @Bean
     ToolDefinition visitorApplyToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {
@@ -56,6 +59,18 @@ public class AgentVisitorWriteToolDefinitions {
                 "Marks one checked-in visitor application related to the authenticated user as arrived.",
                 "Use only for one version-bound visitor arrival after explicit confirmation.",
                 objectMapper.readTree(CHECK_IN_INPUT_SCHEMA), objectMapper.readTree(ARRIVAL_OUTPUT_SCHEMA),
+                RiskLevel.L1, Set.of("visitor:register"), OwnershipPolicy.SELF,
+                RetryPolicy.BUSINESS_IDEMPOTENT, ConfirmationPolicy.EXPLICIT,
+                1, 8192, 10000);
+    }
+
+    @Bean
+    ToolDefinition visitorLeaveToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {
+        return ToolDefinitionFactory.singleWrite(
+                ToolCode.VISITOR_LEAVE, "Register one visitor departure",
+                "Registers departure for one visited application related to the authenticated user.",
+                "Use only for one version-bound visitor departure after explicit confirmation.",
+                objectMapper.readTree(CHECK_IN_INPUT_SCHEMA), objectMapper.readTree(LEAVE_OUTPUT_SCHEMA),
                 RiskLevel.L1, Set.of("visitor:register"), OwnershipPolicy.SELF,
                 RetryPolicy.BUSINESS_IDEMPOTENT, ConfirmationPolicy.EXPLICIT,
                 1, 8192, 10000);
