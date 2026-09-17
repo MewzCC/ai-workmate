@@ -15,6 +15,12 @@ public class AgentAssetWriteToolDefinitions {
     public static final String OUTPUT_SCHEMA = """
             {"type":"object","additionalProperties":false,"required":["assetId","status","version"],"properties":{"assetId":{"type":"integer","minimum":1},"status":{"type":"string","const":"IN_USE"},"version":{"type":"integer","minimum":1}}}
             """.strip();
+    public static final String RETURN_INPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["assetId","version"],"properties":{"assetId":{"type":"integer","minimum":1},"version":{"type":"integer","minimum":0,"maximum":2147483646},"reason":{"type":"string","maxLength":500}}}
+            """.strip();
+    public static final String RETURN_OUTPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["assetId","status","version"],"properties":{"assetId":{"type":"integer","minimum":1},"status":{"type":"string","const":"IDLE"},"version":{"type":"integer","minimum":1}}}
+            """.strip();
 
     @Bean
     ToolDefinition assetClaimToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {
@@ -24,6 +30,18 @@ public class AgentAssetWriteToolDefinitions {
                 "Use only for one version-bound asset assignment after explicit confirmation.",
                 objectMapper.readTree(INPUT_SCHEMA), objectMapper.readTree(OUTPUT_SCHEMA),
                 RiskLevel.L1, Set.of("asset:claim"), OwnershipPolicy.TENANT_SCOPED,
+                RetryPolicy.BUSINESS_IDEMPOTENT, ConfirmationPolicy.EXPLICIT,
+                1, 8192, 10000);
+    }
+
+    @Bean
+    ToolDefinition assetReturnToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {
+        return ToolDefinitionFactory.singleWrite(
+                ToolCode.ASSET_RETURN, "Return one assigned asset",
+                "Returns one in-use tenant asset to the idle pool for the authenticated operator.",
+                "Use only for one version-bound asset return after explicit confirmation.",
+                objectMapper.readTree(RETURN_INPUT_SCHEMA), objectMapper.readTree(RETURN_OUTPUT_SCHEMA),
+                RiskLevel.L1, Set.of("asset:return"), OwnershipPolicy.TENANT_SCOPED,
                 RetryPolicy.BUSINESS_IDEMPOTENT, ConfirmationPolicy.EXPLICIT,
                 1, 8192, 10000);
     }

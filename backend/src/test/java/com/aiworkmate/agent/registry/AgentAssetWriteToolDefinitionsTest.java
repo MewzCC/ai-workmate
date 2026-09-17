@@ -26,4 +26,21 @@ class AgentAssetWriteToolDefinitionsTest {
         assertThat(validator.valid(definition.inputSchema(), mapper.readTree(
                 "{\"assetId\":9,\"employeeId\":20,\"version\":2,\"tenantId\":99}"))).isFalse();
     }
+
+    @Test
+    void returnIsOneConfirmedTenantScopedWriteWithFrozenSchema() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        ToolDefinition definition = new AgentAssetWriteToolDefinitions().assetReturnToolDefinition(mapper);
+
+        assertThat(definition.schemaHash()).isEqualTo(
+                "sha256:2370eb1e5d8a544c52f331ccd8deaff7865ee1db276844e2237f63496ee95f3e");
+        assertThat(definition.requiredPermissions()).containsExactly("asset:return");
+        assertThat(definition.riskLevel()).isEqualTo(RiskLevel.L1);
+        assertThat(definition.sideEffect()).isEqualTo(SideEffect.SINGLE_WRITE);
+        assertThat(definition.retryPolicy()).isEqualTo(RetryPolicy.BUSINESS_IDEMPOTENT);
+        assertThat(definition.confirmationPolicy()).isEqualTo(ConfirmationPolicy.EXPLICIT);
+        assertThat(definition.ownershipPolicy()).isEqualTo(OwnershipPolicy.TENANT_SCOPED);
+        assertThat(new ToolSchemaValidator().valid(definition.inputSchema(), mapper.readTree(
+                "{\"assetId\":9,\"version\":3,\"userId\":7}"))).isFalse();
+    }
 }

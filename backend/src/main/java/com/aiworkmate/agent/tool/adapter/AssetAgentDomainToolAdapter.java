@@ -6,6 +6,7 @@ import com.aiworkmate.agent.tool.port.ToolOperationKey;
 import com.aiworkmate.agent.tool.port.ToolWriteVerification;
 import com.aiworkmate.service.AdminAssetsService;
 import com.aiworkmate.service.model.AssetAgentClaimCommand;
+import com.aiworkmate.service.model.AssetAgentReturnCommand;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -44,5 +45,26 @@ public final class AssetAgentDomainToolAdapter implements AssetToolPort {
     private AssetAgentClaimCommand toDomain(ClaimCommand command) {
         return new AssetAgentClaimCommand(
                 command.assetId(), command.employeeId(), command.version(), command.reason());
+    }
+
+    @Override
+    public ReturnResult returnAsset(
+            ToolActorContext context, ReturnCommand command, ToolOperationKey operationKey) {
+        var result = adminAssetsService.returnAssetAgent(
+                context.userId(), toDomain(command), operationKey.value());
+        return new ReturnResult(result.assetId(), result.status(), result.version());
+    }
+
+    @Override
+    public ToolWriteVerification<ReturnResult> findReturn(
+            ToolActorContext context, ReturnCommand command, ToolOperationKey operationKey) {
+        return adminAssetsService.findAgentAssetReturn(context.userId(), toDomain(command), operationKey.value())
+                .map(result -> ToolWriteVerification.observed(
+                        new ReturnResult(result.assetId(), result.status(), result.version())))
+                .orElseGet(ToolWriteVerification::unobserved);
+    }
+
+    private AssetAgentReturnCommand toDomain(ReturnCommand command) {
+        return new AssetAgentReturnCommand(command.assetId(), command.version(), command.reason());
     }
 }

@@ -26,6 +26,8 @@ import com.aiworkmate.service.UserAccessService;
 import com.aiworkmate.service.model.ResolvedUserAccess;
 import com.aiworkmate.service.model.AssetAgentClaimCommand;
 import com.aiworkmate.service.model.AssetAgentClaimReceipt;
+import com.aiworkmate.service.model.AssetAgentReturnCommand;
+import com.aiworkmate.service.model.AssetAgentReturnReceipt;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
@@ -192,6 +194,47 @@ class AssetLifecycleServiceTest {
                 .extracting("errorCode").isEqualTo("BUSINESS_STATE_INVALID");
         verify(assetMapper, never()).update(any(), any());
         verify(operationMapper, never()).insert(any(AssetOperation.class));
+        verifyNoInteractions(auditService);
+    }
+
+    @Test
+    void agentReturnClearsOwnerAndPersistsVersionedReceipt() {
+        when(userAccessService.resolveActiveUser(ACTOR_ID)).thenReturn(access());
+        when(operationMapper.selectOne(any())).thenReturn(null);
+        when(assetMapper.selectById(ASSET_ID)).thenReturn(asset("IN_USE", 20L, OWNER_ID, 3));
+        when(assetMapper.update(any(), any())).thenReturn(1);
+        when(operationMapper.insert(any(AssetOperation.class))).thenReturn(1);
+
+        assertThat(service.returnAssetAgent(ACTOR_ID,
+                new AssetAgentReturnCommand(ASSET_ID, 3, "员工归还"), "return-operation"))
+                .isEqualTo(new AssetAgentReturnReceipt(ASSET_ID, "IDLE", 4));
+        ArgumentCaptor<AssetOperation> operation = ArgumentCaptor.forClass(AssetOperation.class);
+        verify(operationMapper).insert(operation.capture());
+        assertThat(operation.getValue().getOperationType()).isEqualTo("RETURN");
+        assertThat(operation.getValue().getToOwnerUserId()).isNull();
+        assertThat(operation.getValue().getSourceVersion()).isEqualTo(3);
+        assertThat(operation.getValue().getResultVersion()).isEqualTo(4);
+        verify(auditService).recordTransactional(any(), any(), anyString(), anyString(),
+                anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void agentReturnReplayRejectsChangedReasonWithoutWritingAgain() {
+        when(userAccessService.resolveActiveUser(ACTOR_ID)).thenReturn(access());
+        AssetOperation stored = new AssetOperation();
+        stored.setAssetId(ASSET_ID);
+        stored.setOperationType("RETURN");
+        stored.setToStatus("IDLE");
+        stored.setReason("原原因");
+        stored.setSourceVersion(3);
+        stored.setResultVersion(4);
+        when(operationMapper.selectOne(any())).thenReturn(stored);
+
+        assertThatThrownBy(() -> service.returnAssetAgent(ACTOR_ID,
+                new AssetAgentReturnCommand(ASSET_ID, 3, "变更原因"), "return-operation"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("IDEMPOTENCY_CONFLICT");
+        verify(assetMapper, never()).update(any(), any());
         verifyNoInteractions(auditService);
     }
 
@@ -378,7 +421,7 @@ class AssetLifecycleServiceTest {
 
     private ResolvedUserAccess access() {
         return new ResolvedUserAccess(ACTOR_ID, "admin@example.com", TENANT_ID, "SYSTEM_ADMIN",
-                List.of("SYSTEM_ADMIN"), List.of("assets:read", "asset:write", "asset:claim"),
+                List.of("SYSTEM_ADMIN"), List.of("assets:read", "asset:write", "asset:claim", "asset:return"),
                 List.of("ALL"), 1L);
     }
 

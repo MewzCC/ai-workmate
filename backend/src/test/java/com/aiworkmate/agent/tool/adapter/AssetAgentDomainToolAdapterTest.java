@@ -9,6 +9,8 @@ import com.aiworkmate.dto.AssetLedgerResponse;
 import com.aiworkmate.service.AdminAssetsService;
 import com.aiworkmate.service.model.AssetAgentClaimCommand;
 import com.aiworkmate.service.model.AssetAgentClaimReceipt;
+import com.aiworkmate.service.model.AssetAgentReturnCommand;
+import com.aiworkmate.service.model.AssetAgentReturnReceipt;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -67,6 +69,25 @@ class AssetAgentDomainToolAdapterTest {
         assertThat(adapter.findClaim(actor, command, new ToolOperationKey("operation")))
                 .isEqualTo(ToolWriteVerification.unobserved());
         verify(service).findAgentAssetClaim(7L, domainCommand, "operation");
+        verifyNoMoreInteractions(service);
+    }
+
+    @Test
+    void mapsReturnAndItsReadOnlyVerificationToTypedDomainContracts() {
+        var command = new AssetToolPort.ReturnCommand(3, 4, "员工归还");
+        var domain = new AssetAgentReturnCommand(3, 4, "员工归还");
+        when(service.returnAssetAgent(7L, domain, "operation"))
+                .thenReturn(new AssetAgentReturnReceipt(3, "IDLE", 5));
+        when(service.findAgentAssetReturn(7L, domain, "operation"))
+                .thenReturn(java.util.Optional.of(new AssetAgentReturnReceipt(3, "IDLE", 5)));
+
+        assertThat(adapter.returnAsset(actor, command, new ToolOperationKey("operation")))
+                .isEqualTo(new AssetToolPort.ReturnResult(3, "IDLE", 5));
+        assertThat(adapter.findReturn(actor, command, new ToolOperationKey("operation")))
+                .isEqualTo(ToolWriteVerification.observed(
+                        new AssetToolPort.ReturnResult(3, "IDLE", 5)));
+        verify(service).returnAssetAgent(7L, domain, "operation");
+        verify(service).findAgentAssetReturn(7L, domain, "operation");
         verifyNoMoreInteractions(service);
     }
 }

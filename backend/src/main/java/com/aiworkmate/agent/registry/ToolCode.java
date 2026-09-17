@@ -32,6 +32,7 @@ public enum ToolCode {
     APPROVAL_APPLICATION_REOPEN("approval.application.reopen"),
     ASSET_QUERY("asset.query"),
     ASSET_CLAIM("asset.claim"),
+    ASSET_RETURN("asset.return"),
     MEETING_QUERY("meeting.query"),
     MEETING_BOOK("meeting.book"),
     MEETING_CANCEL("meeting.cancel"),

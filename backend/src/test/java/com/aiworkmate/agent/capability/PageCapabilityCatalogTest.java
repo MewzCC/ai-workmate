@@ -77,12 +77,12 @@ class PageCapabilityCatalogTest {
     }
 
     @Test
-    void assetPageOffersReadAndOneAtomicClaimWrite() {
+    void assetPageOffersReadAndAtomicClaimAndReturnWrites() {
         var page = catalog.find("asset-ledger").orElseThrow();
         assertThat(page.readTools()).extracting(PageToolReference::code)
                 .containsExactly(ToolCode.ASSET_QUERY);
         assertThat(page.writeTools()).extracting(PageToolReference::code)
-                .containsExactly(ToolCode.ASSET_CLAIM);
+                .containsExactly(ToolCode.ASSET_CLAIM, ToolCode.ASSET_RETURN);
     }
 
     @Test

@@ -151,13 +151,13 @@ class P1PostgresMigrationIT {
                     """)).isEqualTo(23);
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM rbac_permission
-                    WHERE code IN ('approval:manage', 'hr:manage', 'asset:write', 'asset:claim',
+                    WHERE code IN ('approval:manage', 'hr:manage', 'asset:write', 'asset:claim', 'asset:return',
                       'meeting:book', 'visitor:register', 'seal:register', 'dictionary:manage',
                       'tenant:config:manage', 'agent-permission:manage', 'supplier:manage', 'contract:manage',
                       'budget:manage', 'integration:endpoint:manage', 'integration:endpoint:execute',
                       'page-action:manage', 'runtime-log:read', 'integration:replay:read',
                       'integration:replay:execute')
-                    """)).isEqualTo(19);
+                    """)).isEqualTo(20);
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM flyway_schema_history WHERE success
                     """)).isGreaterThan(30);
@@ -303,6 +303,18 @@ class P1PostgresMigrationIT {
                     SELECT COUNT(*) FROM rbac_permission
                     WHERE code IN ('asset:claim', 'agent:tool:asset.claim')
                     """)).as("资产领用业务权限与 Agent 工具权限必须同时存在").isEqualTo(2);
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'asset.return' AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:2370eb1e5d8a544c52f331ccd8deaff7865ee1db276844e2237f63496ee95f3e'
+                      AND risk_level = 'L1' AND data_scope_policy = 'TENANT_SCOPED'
+                      AND retry_policy = 'BUSINESS_IDEMPOTENT' AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'EXPLICIT' AND enabled = TRUE
+                    """)).as("资产归还写工具必须以冻结的租户原子写契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code IN ('asset:return', 'agent:tool:asset.return')
+                    """)).as("资产归还业务权限与 Agent 工具权限必须同时存在").isEqualTo(2);
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM information_schema.columns
                     WHERE table_schema = current_schema() AND table_name = 'asset_operation'
