@@ -6,6 +6,7 @@ import com.aiworkmate.agent.tool.port.ToolOperationKey;
 import com.aiworkmate.agent.tool.port.ToolWriteVerification;
 import com.aiworkmate.service.AdminAssetsService;
 import com.aiworkmate.service.model.SealAgentApplicationCommand;
+import com.aiworkmate.service.model.SealAgentUseCommand;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -51,6 +52,31 @@ public final class SealAgentDomainToolAdapter implements SealToolPort {
     private SealAgentApplicationCommand toDomain(ApplicationCommand command) {
         return new SealAgentApplicationCommand(
                 command.sealType(), command.documentTitle(), command.usageReason(), command.copies());
+    }
+
+    @Override
+    public UseResult registerUse(
+            ToolActorContext context, UseCommand command, ToolOperationKey operationKey) {
+        var result = adminAssetsService.registerSealUseAgent(
+                context.userId(), toDomain(command), operationKey.value());
+        return new UseResult(result.usageId(), result.status(), result.version(),
+                result.actualCopies(), result.usedAt());
+    }
+
+    @Override
+    public ToolWriteVerification<UseResult> findRegisteredUse(
+            ToolActorContext context, UseCommand command, ToolOperationKey operationKey) {
+        return adminAssetsService.findAgentRegisteredSealUse(
+                        context.userId(), toDomain(command), operationKey.value())
+                .map(result -> ToolWriteVerification.observed(new UseResult(
+                        result.usageId(), result.status(), result.version(),
+                        result.actualCopies(), result.usedAt())))
+                .orElseGet(ToolWriteVerification::unobserved);
+    }
+
+    private SealAgentUseCommand toDomain(UseCommand command) {
+        return new SealAgentUseCommand(
+                command.usageId(), command.version(), command.actualCopies(), command.remark());
     }
 
     private Item toItem(com.aiworkmate.dto.SealUsageResponse item) {

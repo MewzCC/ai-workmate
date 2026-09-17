@@ -355,6 +355,31 @@ class AgentDomainToolAdaptersTest {
     }
 
     @Test
+    void mapsSealUseRegistrationAndReadOnlyVerificationToTypedDomainContracts() {
+        LocalDateTime usedAt = LocalDateTime.of(2026, 9, 20, 10, 0);
+        var command = new com.aiworkmate.agent.tool.port.SealToolPort.UseCommand(
+                41, 2, 2, "现场核对");
+        var domain = new com.aiworkmate.service.model.SealAgentUseCommand(
+                41, 2, 2, "现场核对");
+        var receipt = new com.aiworkmate.service.model.SealAgentUseReceipt(
+                41, "USED", 3, 2, usedAt);
+        when(adminAssetsService.registerSealUseAgent(7L, domain, "seal-use-operation"))
+                .thenReturn(receipt);
+        when(adminAssetsService.findAgentRegisteredSealUse(7L, domain, "seal-use-operation"))
+                .thenReturn(java.util.Optional.of(receipt));
+
+        var expected = new com.aiworkmate.agent.tool.port.SealToolPort.UseResult(
+                41, "USED", 3, 2, usedAt);
+        assertThat(sealAdapter.registerUse(
+                context, command, new ToolOperationKey("seal-use-operation"))).isEqualTo(expected);
+        assertThat(sealAdapter.findRegisteredUse(
+                context, command, new ToolOperationKey("seal-use-operation")))
+                .isEqualTo(com.aiworkmate.agent.tool.port.ToolWriteVerification.observed(expected));
+        verify(adminAssetsService).registerSealUseAgent(7L, domain, "seal-use-operation");
+        verify(adminAssetsService).findAgentRegisteredSealUse(7L, domain, "seal-use-operation");
+    }
+
+    @Test
     void keepsLeaveOperationKeyAndMapsWriteResult() {
         when(leaveWorkflowService.createAgentDraft(eq(7L), org.mockito.ArgumentMatchers.any(), eq("operation-1")))
                 .thenReturn(leaveApplication());

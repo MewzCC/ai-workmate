@@ -29,4 +29,27 @@ class AgentSealWriteToolDefinitionsTest {
                  "copies":2,"applicantUserId":7}
                 """))).isFalse();
     }
+
+    @Test
+    void sealUseRegistrationRequiresSecondaryConfirmationAndRejectsTrustedFields() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        ToolDefinition definition = new AgentSealWriteToolDefinitions()
+                .sealRegisterUseToolDefinition(mapper);
+        ToolSchemaValidator validator = new ToolSchemaValidator();
+
+        assertThat(definition.schemaHash()).isEqualTo(
+                "sha256:36cb2a0464946f14877a70e591e8643fba0a01d40e5b0348dc337f787e60b8e0");
+        assertThat(definition.requiredPermissions()).containsExactly("seal:register");
+        assertThat(definition.riskLevel()).isEqualTo(RiskLevel.L2);
+        assertThat(definition.sideEffect()).isEqualTo(SideEffect.SINGLE_WRITE);
+        assertThat(definition.retryPolicy()).isEqualTo(RetryPolicy.NEVER);
+        assertThat(definition.confirmationPolicy()).isEqualTo(ConfirmationPolicy.SECONDARY);
+        assertThat(definition.ownershipPolicy()).isEqualTo(OwnershipPolicy.SELF);
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree("""
+                {"usageId":41,"version":2,"actualCopies":2,"remark":"现场核对"}
+                """))).isTrue();
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree("""
+                {"usageId":41,"version":2,"actualCopies":2,"handlerUserId":7}
+                """))).isFalse();
+    }
 }

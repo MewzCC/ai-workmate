@@ -76,6 +76,8 @@ class P1PostgresMigrationIT {
                 databaseUrl, databaseUsername, databasePassword, emptySchema);
         SealApplicationPostgresVerifier.verify(
                 databaseUrl, databaseUsername, databasePassword, emptySchema);
+        SealRegisterUsePostgresVerifier.verify(
+                databaseUrl, databaseUsername, databasePassword, emptySchema);
         Flyway restartedEmpty = flyway(emptySchema, null);
         assertThat(restartedEmpty.migrate().migrationsExecuted).isZero();
         assertThat(restartedEmpty.validateWithResult().validationSuccessful).isTrue();
@@ -589,6 +591,26 @@ class P1PostgresMigrationIT {
                     WHERE schemaname = current_schema()
                       AND indexname = 'ux_seal_usage_agent_key'
                     """)).as("用印申请稳定操作键必须由申请人范围唯一约束防重").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'seal.registerUse' AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:36cb2a0464946f14877a70e591e8643fba0a01d40e5b0348dc337f787e60b8e0'
+                      AND risk_level = 'L2' AND data_scope_policy = 'SELF'
+                      AND retry_policy = 'NEVER' AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'SECONDARY' AND enabled = TRUE
+                    """)).as("实际用印登记必须以本人二次确认且禁止自动重试契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission WHERE code = 'agent:tool:seal.registerUse'
+                    """)).as("实际用印登记 Agent 工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM information_schema.tables
+                    WHERE table_schema = current_schema() AND table_name = 'seal_usage_operation'
+                    """)).as("实际用印登记必须持久化类型化操作收据").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM pg_indexes
+                    WHERE schemaname = current_schema()
+                      AND indexname = 'ux_seal_usage_agent_operation_key'
+                    """)).as("实际用印稳定操作键必须具备租户与操作人唯一约束").isOne();
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM rbac_permission
                     WHERE code IN ('agent:tool:visitor.query', 'agent:tool:seal.query')

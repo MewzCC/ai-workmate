@@ -1,8 +1,11 @@
 package com.aiworkmate.mapper;
 
 import com.aiworkmate.entity.SealUsage;
+import com.aiworkmate.entity.SealUsageOperation;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Options;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
@@ -29,4 +32,26 @@ public interface SealUsageMapper extends BaseMapper<SealUsage> {
             + "AND applicant_user_id=#{userId} AND agent_operation_key=#{operationKey} LIMIT 1")
     SealUsage findAgentOperation(@Param("tenantId") Long tenantId, @Param("userId") Long userId,
                                  @Param("operationKey") String operationKey);
+
+    @Select("SELECT * FROM seal_usage WHERE tenant_id=#{tenantId} "
+            + "AND applicant_user_id=#{userId} AND id=#{usageId} LIMIT 1")
+    SealUsage findAgentOwnedUsage(@Param("tenantId") Long tenantId, @Param("userId") Long userId,
+                                  @Param("usageId") Long usageId);
+
+    @Select("SELECT * FROM seal_usage_operation WHERE tenant_id=#{tenantId} "
+            + "AND operator_user_id=#{userId} AND agent_operation_key=#{operationKey} LIMIT 1")
+    @Options(useCache = false, flushCache = Options.FlushCachePolicy.TRUE)
+    SealUsageOperation findUsageAgentOperation(
+            @Param("tenantId") Long tenantId, @Param("userId") Long userId,
+            @Param("operationKey") String operationKey);
+
+    @Insert("""
+            INSERT INTO seal_usage_operation(
+                tenant_id,usage_id,operator_user_id,operation_type,agent_operation_key,
+                source_version,result_version,result_status,actual_copies,remark,occurred_at,created_at)
+            VALUES(#{tenantId},#{usageId},#{operatorUserId},#{operationType},#{agentOperationKey},
+                #{sourceVersion},#{resultVersion},#{resultStatus},#{actualCopies},#{remark},#{occurredAt},#{createdAt})
+            ON CONFLICT (tenant_id,operator_user_id,agent_operation_key) DO NOTHING
+            """)
+    int insertUsageAgentOperation(SealUsageOperation operation);
 }

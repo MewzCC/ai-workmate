@@ -26,6 +26,8 @@ import com.aiworkmate.service.model.VisitorAgentVisitCommand;
 import com.aiworkmate.service.model.VisitorAgentVisitReceipt;
 import com.aiworkmate.service.model.SealAgentApplicationCommand;
 import com.aiworkmate.service.model.SealAgentApplicationReceipt;
+import com.aiworkmate.service.model.SealAgentUseCommand;
+import com.aiworkmate.service.model.SealAgentUseReceipt;
 import com.aiworkmate.service.model.AssetAgentRepairStartCommand;
 import com.aiworkmate.service.model.AssetAgentRepairStartReceipt;
 
@@ -162,6 +164,10 @@ public interface AdminAssetsService {
             Long userId, SealAgentApplicationCommand command, String operationKey);
     Optional<SealAgentApplicationReceipt> findAgentSealUsage(
             Long userId, SealAgentApplicationCommand command, String operationKey);
+    SealAgentUseReceipt registerSealUseAgent(
+            Long userId, SealAgentUseCommand command, String operationKey);
+    Optional<SealAgentUseReceipt> findAgentRegisteredSealUse(
+            Long userId, SealAgentUseCommand command, String operationKey);
     SealUsageResponse getSealUsage(Long userId, Long id);
     PageResponse<SealUsageResponse> listMySealUsages(Long userId, String status, int page, int size);
     PageResponse<SealUsageResponse> listPendingSealUsages(Long userId, int page, int size);

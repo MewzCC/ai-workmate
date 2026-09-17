@@ -27,6 +27,7 @@ import com.aiworkmate.entity.AssetOperation;
 import com.aiworkmate.entity.MeetingRoom;
 import com.aiworkmate.entity.MeetingBooking;
 import com.aiworkmate.entity.SealUsage;
+import com.aiworkmate.entity.SealUsageOperation;
 import com.aiworkmate.entity.User;
 import com.aiworkmate.entity.VisitorBooking;
 import com.aiworkmate.entity.VisitorVisitOperation;
@@ -57,6 +58,8 @@ import com.aiworkmate.service.model.AssetAgentReturnReceipt;
 import com.aiworkmate.service.model.ResolvedUserAccess;
 import com.aiworkmate.service.model.SealAgentApplicationCommand;
 import com.aiworkmate.service.model.SealAgentApplicationReceipt;
+import com.aiworkmate.service.model.SealAgentUseCommand;
+import com.aiworkmate.service.model.SealAgentUseReceipt;
 import com.aiworkmate.service.model.VisitorAgentApplicationCommand;
 import com.aiworkmate.service.model.VisitorAgentApplicationReceipt;
 import com.aiworkmate.service.model.VisitorAgentVisitCommand;
@@ -1510,16 +1513,61 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
     public SealUsageResponse registerSealUse(Long userId, Long id, SealUseRequest request) {
         ResolvedUserAccess actor = requirePermission(userId, "seal:register");
         SealUsage usage = requireSealExecutionAccess(actor, id);
+        registerSealUse(actor, usage, request, null);
+        return toSealResponse(actor, sealMapper.selectById(id), null);
+    }
+
+    @Override
+    @Transactional
+    public SealAgentUseReceipt registerSealUseAgent(
+            Long userId, SealAgentUseCommand command, String operationKey) {
+        ResolvedUserAccess actor = requirePermission(userId, "seal:register");
+        requireAgentOperationKey(operationKey);
+        validateSealAgentUseCommand(command);
+        SealUsage usage = sealMapper.findAgentOwnedUsage(
+                actor.tenantId(), actor.userId(), command.usageId());
+        if (usage == null) {
+            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        }
+        SealUsageOperation existing = sealMapper.findUsageAgentOperation(
+                actor.tenantId(), actor.userId(), operationKey);
+        if (existing != null) {
+            return toSealAgentUseReceipt(requireMatchingSealUseOperation(existing, command));
+        }
+        return toSealAgentUseReceipt(registerSealUse(actor, usage,
+                new SealUseRequest(command.expectedVersion(), command.actualCopies(), command.remark()),
+                operationKey));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<SealAgentUseReceipt> findAgentRegisteredSealUse(
+            Long userId, SealAgentUseCommand command, String operationKey) {
+        ResolvedUserAccess actor = requirePermission(userId, "seal:register");
+        requireAgentOperationKey(operationKey);
+        validateSealAgentUseCommand(command);
+        if (sealMapper.findAgentOwnedUsage(actor.tenantId(), actor.userId(), command.usageId()) == null) {
+            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        }
+        SealUsageOperation existing = sealMapper.findUsageAgentOperation(
+                actor.tenantId(), actor.userId(), operationKey);
+        return existing == null ? Optional.empty()
+                : Optional.of(toSealAgentUseReceipt(requireMatchingSealUseOperation(existing, command)));
+    }
+
+    private SealUsageOperation registerSealUse(
+            ResolvedUserAccess actor, SealUsage usage, SealUseRequest request, String operationKey) {
         if (!"APPROVED".equals(usage.getStatus())) {
             throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID, "oa.seal.use.transition.invalid");
         }
         if (usage.getCopies() != null && request.actualCopies() > usage.getCopies()) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID, "oa.seal.use.copies.exceeded");
         }
-        LocalDateTime now = LocalDateTime.now();
-        int updated = sealMapper.update(null, new LambdaUpdateWrapper<SealUsage>()
-                .eq(SealUsage::getId, id)
+        LocalDateTime now = normalizeTimestamp(LocalDateTime.now());
+        LambdaUpdateWrapper<SealUsage> update = new LambdaUpdateWrapper<SealUsage>()
+                .eq(SealUsage::getId, usage.getId())
                 .eq(SealUsage::getTenantId, actor.tenantId())
+                .eq(operationKey != null, SealUsage::getApplicantUserId, actor.userId())
                 .eq(SealUsage::getStatus, "APPROVED")
                 .eq(SealUsage::getVersion, request.version())
                 .set(SealUsage::getStatus, "USED")
@@ -1527,15 +1575,71 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
                 .set(SealUsage::getHandlerUserId, actor.userId())
                 .set(SealUsage::getUsedAt, now)
                 .set(SealUsage::getUpdatedAt, now)
-                .setSql("version = version + 1"));
-        if (updated != 1) {
+                .setSql("version = version + 1");
+        if (sealMapper.update(null, update) != 1) {
+            if (operationKey != null) {
+                SealUsageOperation concurrent = sealMapper.findUsageAgentOperation(
+                        actor.tenantId(), actor.userId(), operationKey);
+                if (concurrent != null) {
+                    return requireMatchingSealUseOperation(concurrent,
+                            new SealAgentUseCommand(usage.getId(), request.version(),
+                                    request.actualCopies(), request.remark()));
+                }
+            }
             throw new BusinessException(ErrorCode.VERSION_CONFLICT);
         }
+        SealUsageOperation operation = null;
+        if (operationKey != null) {
+            operation = new SealUsageOperation();
+            operation.setTenantId(actor.tenantId());
+            operation.setUsageId(usage.getId());
+            operation.setOperatorUserId(actor.userId());
+            operation.setOperationType("USE");
+            operation.setAgentOperationKey(operationKey);
+            operation.setSourceVersion(request.version());
+            operation.setResultVersion(request.version() + 1);
+            operation.setResultStatus("USED");
+            operation.setActualCopies(request.actualCopies());
+            operation.setRemark(trim(request.remark()));
+            operation.setOccurredAt(now);
+            operation.setCreatedAt(now);
+            if (sealMapper.insertUsageAgentOperation(operation) != 1) {
+                throw new BusinessException(ErrorCode.IDEMPOTENCY_CONFLICT);
+            }
+        }
         auditService.recordTransactional(actor.tenantId(), actor.userId(), BUSINESS_SEAL,
-                id.toString(), "USE", "SUCCESS",
+                usage.getId().toString(), "USE", "SUCCESS",
                 "approvedCopies=" + usage.getCopies() + ",actualCopies=" + request.actualCopies()
                         + ",handlerUserId=" + actor.userId() + ",remark=" + trim(request.remark()));
-        return toSealResponse(actor, sealMapper.selectById(id), null);
+        return operation;
+    }
+
+    private void validateSealAgentUseCommand(SealAgentUseCommand command) {
+        if (command == null || command.usageId() < 1 || command.expectedVersion() < 0
+                || command.expectedVersion() == Integer.MAX_VALUE
+                || command.actualCopies() < 1 || command.actualCopies() > 1000
+                || (command.remark() != null && command.remark().length() > 500)) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+    }
+
+    private SealUsageOperation requireMatchingSealUseOperation(
+            SealUsageOperation operation, SealAgentUseCommand command) {
+        if (!Objects.equals(operation.getUsageId(), command.usageId())
+                || !Objects.equals(operation.getOperationType(), "USE")
+                || !Objects.equals(operation.getSourceVersion(), command.expectedVersion())
+                || !Objects.equals(operation.getResultStatus(), "USED")
+                || !Objects.equals(operation.getActualCopies(), command.actualCopies())
+                || !Objects.equals(operation.getRemark(), trim(command.remark()))) {
+            throw new BusinessException(ErrorCode.IDEMPOTENCY_CONFLICT);
+        }
+        return operation;
+    }
+
+    private SealAgentUseReceipt toSealAgentUseReceipt(SealUsageOperation operation) {
+        return new SealAgentUseReceipt(
+                operation.getUsageId(), operation.getResultStatus(), operation.getResultVersion(),
+                operation.getActualCopies(), operation.getOccurredAt());
     }
 
     @Override

@@ -5,6 +5,7 @@ import com.aiworkmate.dto.SealReturnRequest;
 import com.aiworkmate.dto.SealUsageResponse;
 import com.aiworkmate.dto.SealUseRequest;
 import com.aiworkmate.entity.SealUsage;
+import com.aiworkmate.entity.SealUsageOperation;
 import com.aiworkmate.entity.User;
 import com.aiworkmate.mapper.AccessControlMapper;
 import com.aiworkmate.mapper.AssetLedgerMapper;
@@ -21,6 +22,7 @@ import com.aiworkmate.service.BusinessAuditService;
 import com.aiworkmate.service.NotificationService;
 import com.aiworkmate.service.UserAccessService;
 import com.aiworkmate.service.model.ResolvedUserAccess;
+import com.aiworkmate.service.model.SealAgentUseCommand;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
@@ -28,6 +30,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
@@ -185,6 +188,70 @@ class SealUsageLifecycleServiceTest {
 
         verify(auditService, never()).recordTransactional(anyLong(), anyLong(), anyString(), anyString(),
                 anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void agentRegistrationUsesTrustedApplicantAndPersistsVerifiableReceipt() {
+        stubAccess(ACTOR_ID, List.of("seal:register"));
+        SealUsage before = usage("APPROVED", 2, ACTOR_ID);
+        when(sealMapper.findAgentOwnedUsage(TENANT_ID, ACTOR_ID, USAGE_ID)).thenReturn(before);
+        when(sealMapper.findUsageAgentOperation(TENANT_ID, ACTOR_ID, "operation"))
+                .thenReturn(null);
+        when(sealMapper.update(any(), any())).thenReturn(1);
+        when(sealMapper.insertUsageAgentOperation(any())).thenReturn(1);
+
+        var result = service.registerSealUseAgent(ACTOR_ID,
+                new SealAgentUseCommand(USAGE_ID, 2, 2, "现场核对"), "operation");
+
+        assertThat(result.usageId()).isEqualTo(USAGE_ID);
+        assertThat(result.status()).isEqualTo("USED");
+        assertThat(result.version()).isEqualTo(3);
+        assertThat(result.actualCopies()).isEqualTo(2);
+        assertThat(result.usedAt()).isNotNull();
+        ArgumentCaptor<SealUsageOperation> operation = ArgumentCaptor.forClass(SealUsageOperation.class);
+        verify(sealMapper).insertUsageAgentOperation(operation.capture());
+        assertThat(operation.getValue()).extracting(
+                SealUsageOperation::getOperationType,
+                SealUsageOperation::getAgentOperationKey,
+                SealUsageOperation::getSourceVersion,
+                SealUsageOperation::getResultVersion,
+                SealUsageOperation::getActualCopies)
+                .containsExactly("USE", "operation", 2, 3, 2);
+        verify(auditService).recordTransactional(TENANT_ID, ACTOR_ID, "SEAL_USAGE",
+                Long.toString(USAGE_ID), "USE", "SUCCESS",
+                "approvedCopies=2,actualCopies=2,handlerUserId=1001,remark=现场核对");
+    }
+
+    @Test
+    void agentRegistrationRejectsTenantWideSubstitutionAndReplayConflict() {
+        long adminId = 4004L;
+        stubAccess(adminId, List.of("seal:register", "seal:register:any"));
+        when(sealMapper.findAgentOwnedUsage(TENANT_ID, adminId, USAGE_ID)).thenReturn(null);
+
+        assertThatThrownBy(() -> service.registerSealUseAgent(adminId,
+                new SealAgentUseCommand(USAGE_ID, 2, 2, null), "operation"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("RESOURCE_NOT_FOUND");
+
+        stubAccess(ACTOR_ID, List.of("seal:register"));
+        when(sealMapper.findAgentOwnedUsage(TENANT_ID, ACTOR_ID, USAGE_ID))
+                .thenReturn(usage("USED", 3, ACTOR_ID));
+        SealUsageOperation existing = new SealUsageOperation();
+        existing.setUsageId(USAGE_ID);
+        existing.setOperationType("USE");
+        existing.setSourceVersion(2);
+        existing.setResultVersion(3);
+        existing.setResultStatus("USED");
+        existing.setActualCopies(1);
+        existing.setOccurredAt(LocalDateTime.now());
+        when(sealMapper.findUsageAgentOperation(TENANT_ID, ACTOR_ID, "operation"))
+                .thenReturn(existing);
+
+        assertThatThrownBy(() -> service.registerSealUseAgent(ACTOR_ID,
+                new SealAgentUseCommand(USAGE_ID, 2, 2, null), "operation"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("IDEMPOTENCY_CONFLICT");
+        verify(sealMapper, never()).insertUsageAgentOperation(any());
     }
 
     private void stubAccess(Long userId, List<String> permissions) {

@@ -44,6 +44,7 @@ public enum ToolCode {
     VISITOR_LEAVE("visitor.leave"),
     SEAL_QUERY("seal.query"),
     SEAL_APPLY("seal.apply"),
+    SEAL_REGISTER_USE("seal.registerUse"),
     EXPENSE_QUERY("expense.query"),
     BUDGET_QUERY("budget.query"),
     CONTRACT_QUERY("contract.query"),

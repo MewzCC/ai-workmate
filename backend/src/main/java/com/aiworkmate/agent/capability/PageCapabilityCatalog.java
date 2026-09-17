@@ -140,7 +140,7 @@ public class PageCapabilityCatalog {
                         write(VISITOR_MARK_ARRIVED), write(VISITOR_LEAVE)),
                 page(OaPage.SEAL_USAGE, OwnershipPolicy.SELF, LIST_COMMANDS,
                         context(number("usageId"), text("queue"), text("status"), number("page"), number("size")),
-                        read(SEAL_QUERY), write(SEAL_APPLY)),
+                        read(SEAL_QUERY), write(SEAL_APPLY), write(SEAL_REGISTER_USE)),
 
                 page(OaPage.EXPENSE, OwnershipPolicy.SELF, FORM_COMMANDS,
                         context(number("applicationId"), text("status"), number("page"), number("size")),
