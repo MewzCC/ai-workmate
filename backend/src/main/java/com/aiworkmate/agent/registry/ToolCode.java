@@ -40,6 +40,7 @@ public enum ToolCode {
     VISITOR_QUERY("visitor.query"),
     VISITOR_APPLY("visitor.apply"),
     VISITOR_CHECK_IN("visitor.checkIn"),
+    VISITOR_MARK_ARRIVED("visitor.markArrived"),
     SEAL_QUERY("seal.query"),
     EXPENSE_QUERY("expense.query"),
     BUDGET_QUERY("budget.query"),

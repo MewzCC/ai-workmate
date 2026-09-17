@@ -374,6 +374,17 @@ class P1PostgresMigrationIT {
                       AND indexname = 'ux_visitor_visit_agent_key'
                     """)).as("访客生命周期稳定操作键必须由操作人范围唯一约束防重").isOne();
             assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'visitor.markArrived' AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:d42a274c0b07852fbef93d734436875a289a0565c45c2beb92d547d27375a4e3'
+                      AND risk_level = 'L1' AND data_scope_policy = 'SELF'
+                      AND retry_policy = 'BUSINESS_IDEMPOTENT' AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'EXPLICIT' AND enabled = TRUE
+                    """)).as("访客到访工具必须以冻结的本人原子写契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission WHERE code = 'agent:tool:visitor.markArrived'
+                    """)).as("访客到访 Agent 工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
                     SELECT COUNT(*) FROM information_schema.columns
                     WHERE table_schema = current_schema() AND table_name = 'asset_operation'
                       AND column_name IN ('agent_operation_key', 'source_version', 'result_version')

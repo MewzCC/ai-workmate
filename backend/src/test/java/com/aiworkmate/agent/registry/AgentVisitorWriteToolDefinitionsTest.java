@@ -54,4 +54,25 @@ class AgentVisitorWriteToolDefinitionsTest {
                 {"bookingId":31,"version":2,"operatorUserId":7}
                 """))).isFalse();
     }
+
+    @Test
+    void visitorArrivalReusesTheBoundedVisitCommandWithFrozenResult() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        ToolDefinition definition = new AgentVisitorWriteToolDefinitions()
+                .visitorMarkArrivedToolDefinition(mapper);
+        ToolSchemaValidator validator = new ToolSchemaValidator();
+
+        assertThat(definition.schemaHash()).isEqualTo(
+                "sha256:d42a274c0b07852fbef93d734436875a289a0565c45c2beb92d547d27375a4e3");
+        assertThat(definition.requiredPermissions()).containsExactly("visitor:register");
+        assertThat(definition.ownershipPolicy()).isEqualTo(OwnershipPolicy.SELF);
+        assertThat(definition.sideEffect()).isEqualTo(SideEffect.SINGLE_WRITE);
+        assertThat(definition.retryPolicy()).isEqualTo(RetryPolicy.BUSINESS_IDEMPOTENT);
+        assertThat(definition.confirmationPolicy()).isEqualTo(ConfirmationPolicy.EXPLICIT);
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree("""
+                {"bookingId":31,"version":3,"remark":"前台确认到访"}
+                """))).isTrue();
+        assertThat(definition.outputSchema().path("properties").path("status").path("const").asText())
+                .isEqualTo("VISITED");
+    }
 }

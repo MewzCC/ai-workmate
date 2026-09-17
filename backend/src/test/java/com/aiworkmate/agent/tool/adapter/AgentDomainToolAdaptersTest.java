@@ -264,6 +264,30 @@ class AgentDomainToolAdaptersTest {
     }
 
     @Test
+    void mapsVisitorArrivalAndReadOnlyVerificationToTheSharedVisitContract() {
+        LocalDateTime occurredAt = LocalDateTime.of(2026, 9, 20, 9, 0);
+        var command = new com.aiworkmate.agent.tool.port.VisitorToolPort.VisitCommand(
+                31, 3, "前台确认到访");
+        var domain = new com.aiworkmate.service.model.VisitorAgentVisitCommand(
+                31, 3, "前台确认到访");
+        var receipt = new com.aiworkmate.service.model.VisitorAgentVisitReceipt(
+                31, "VISITED", 4, occurredAt);
+        when(adminAssetsService.markVisitorArrivedAgent(7L, domain, "operation-3"))
+                .thenReturn(receipt);
+        when(adminAssetsService.findAgentVisitorArrival(7L, domain, "operation-3"))
+                .thenReturn(java.util.Optional.of(receipt));
+
+        var expected = new com.aiworkmate.agent.tool.port.VisitorToolPort.VisitResult(
+                31, "VISITED", 4, occurredAt);
+        assertThat(visitorAdapter.markArrived(context, command, new ToolOperationKey("operation-3")))
+                .isEqualTo(expected);
+        assertThat(visitorAdapter.findArrival(context, command, new ToolOperationKey("operation-3")))
+                .isEqualTo(com.aiworkmate.agent.tool.port.ToolWriteVerification.observed(expected));
+        verify(adminAssetsService).markVisitorArrivedAgent(7L, domain, "operation-3");
+        verify(adminAssetsService).findAgentVisitorArrival(7L, domain, "operation-3");
+    }
+
+    @Test
     void mapsSealSummaryWithoutWorkflowOrStorageMetadata() {
         LocalDateTime now = LocalDateTime.of(2026, 9, 14, 10, 0);
         when(adminAssetsService.getSealUsage(7L, 41L)).thenReturn(new SealUsageResponse(

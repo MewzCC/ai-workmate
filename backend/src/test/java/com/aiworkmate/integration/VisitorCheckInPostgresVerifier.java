@@ -106,6 +106,38 @@ final class VisitorCheckInPostgresVerifier {
         assertThat(observed).isPresent();
         assertThat(observed.orElseThrow().status()).isEqualTo("CHECKED_IN");
 
+        var arrivalCommand = new VisitorAgentVisitCommand(bookingId, 3, "前台确认到访");
+        var arrivalExecutor = Executors.newFixedThreadPool(2);
+        try {
+            var barrier = new CyclicBarrier(2);
+            Callable<Integer> arrive = () -> {
+                barrier.await(10, TimeUnit.SECONDS);
+                return tx.execute(status -> service.markVisitorArrivedAgent(
+                        applicant, arrivalCommand, "visitor-arrival-operation").version());
+            };
+            var first = arrivalExecutor.submit(arrive);
+            var second = arrivalExecutor.submit(arrive);
+            assertThat(first.get(20, TimeUnit.SECONDS)).isEqualTo(4);
+            assertThat(second.get(20, TimeUnit.SECONDS)).isEqualTo(4);
+        } finally {
+            arrivalExecutor.shutdownNow();
+        }
+        assertThat(jdbc.queryForObject(
+                "SELECT status FROM visitor_booking WHERE id=?", String.class, bookingId))
+                .isEqualTo("VISITED");
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM visitor_visit_operation
+                WHERE agent_operation_key='visitor-arrival-operation' AND operation_type='ARRIVE'
+                """, Integer.class)).isOne();
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM business_audit_log
+                WHERE resource_type='VISITOR_BOOKING' AND resource_id=? AND action='ARRIVE'
+                """, Integer.class, bookingId.toString())).isOne();
+        var observedArrival = tx.execute(status -> service.findAgentVisitorArrival(
+                applicant, arrivalCommand, "visitor-arrival-operation"));
+        assertThat(observedArrival).isPresent();
+        assertThat(observedArrival.orElseThrow().status()).isEqualTo("VISITED");
+
         Long rollbackBooking = insertApprovedBooking(jdbc, tenant, applicant, "回滚签到访客");
         BusinessAuditService failingAudit = mock(BusinessAuditService.class);
         doThrow(new IllegalStateException("audit unavailable")).when(failingAudit)
@@ -120,6 +152,22 @@ final class VisitorCheckInPostgresVerifier {
         assertThat(jdbc.queryForObject("""
                 SELECT count(*) FROM visitor_visit_operation
                 WHERE agent_operation_key='visitor-checkin-rollback'
+                """, Integer.class)).isZero();
+
+        Long arrivalRollbackBooking = insertApprovedBooking(jdbc, tenant, applicant, "回滚到访访客");
+        jdbc.update("""
+                UPDATE visitor_booking SET status='CHECKED_IN', version=3,
+                    checked_in_at=CURRENT_TIMESTAMP WHERE id=?
+                """, arrivalRollbackBooking);
+        assertThatThrownBy(() -> tx.execute(status -> failingService.markVisitorArrivedAgent(
+                applicant, new VisitorAgentVisitCommand(arrivalRollbackBooking, 3, null),
+                "visitor-arrival-rollback"))).isInstanceOf(IllegalStateException.class);
+        assertThat(jdbc.queryForObject(
+                "SELECT status FROM visitor_booking WHERE id=?", String.class, arrivalRollbackBooking))
+                .isEqualTo("CHECKED_IN");
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM visitor_visit_operation
+                WHERE agent_operation_key='visitor-arrival-rollback'
                 """, Integer.class)).isZero();
 
         when(access.resolveActiveUser(unrelated)).thenReturn(actor(

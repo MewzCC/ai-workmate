@@ -128,6 +128,28 @@ class VisitorVisitLifecycleServiceTest {
     }
 
     @Test
+    void agentArrivalReusesLifecycleReceiptAndRequiresCheckedInState() {
+        stubAccess(access(ACTOR_ID, List.of("visitor:register")));
+        when(visitorMapper.selectById(VISITOR_ID))
+                .thenReturn(booking("CHECKED_IN", 3, ACTOR_ID, ACTOR_ID));
+        when(visitorMapper.update(any(), any())).thenReturn(1);
+        when(visitorMapper.insertVisitAgentOperation(any())).thenReturn(1);
+
+        var result = service.markVisitorArrivedAgent(ACTOR_ID,
+                new VisitorAgentVisitCommand(VISITOR_ID, 3, "前台确认到访"), "operation-arrive");
+
+        assertThat(result.status()).isEqualTo("VISITED");
+        assertThat(result.version()).isEqualTo(4);
+        ArgumentCaptor<VisitorVisitOperation> operation = ArgumentCaptor.forClass(VisitorVisitOperation.class);
+        verify(visitorMapper).insertVisitAgentOperation(operation.capture());
+        assertThat(operation.getValue().getOperationType()).isEqualTo("ARRIVE");
+        assertThat(operation.getValue().getResultStatus()).isEqualTo("VISITED");
+        verify(auditService).recordTransactional(TENANT_ID, ACTOR_ID, "VISITOR_BOOKING",
+                Long.toString(VISITOR_ID), "ARRIVE", "SUCCESS",
+                "fromStatus=CHECKED_IN,toStatus=VISITED,remark=前台确认到访");
+    }
+
+    @Test
     void arrivalRequiresCheckedInStatus() {
         stubAccess(access(ACTOR_ID, List.of("visitor:register")));
         when(visitorMapper.selectById(VISITOR_ID)).thenReturn(booking("APPROVED", 2, ACTOR_ID, ACTOR_ID));

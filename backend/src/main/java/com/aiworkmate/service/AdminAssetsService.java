@@ -120,6 +120,12 @@ public interface AdminAssetsService {
     Optional<VisitorAgentVisitReceipt> findAgentVisitorCheckIn(
             Long userId, VisitorAgentVisitCommand command, String operationKey);
 
+    VisitorAgentVisitReceipt markVisitorArrivedAgent(
+            Long userId, VisitorAgentVisitCommand command, String operationKey);
+
+    Optional<VisitorAgentVisitReceipt> findAgentVisitorArrival(
+            Long userId, VisitorAgentVisitCommand command, String operationKey);
+
     VisitorBookingResponse getVisitorBooking(Long userId, Long id);
 
     PageResponse<VisitorBookingResponse> listMyVisitorBookings(Long userId, String status,

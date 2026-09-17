@@ -7,12 +7,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Component;
 
 @Component
-public final class VisitorCheckInToolHandler
-        extends VisitorVisitTransitionToolHandler {
+public final class VisitorMarkArrivedToolHandler extends VisitorVisitTransitionToolHandler {
     private final VisitorToolPort port;
 
-    public VisitorCheckInToolHandler(VisitorToolPort port, ObjectMapper objectMapper) {
-        super(ToolCode.VISITOR_CHECK_IN, objectMapper);
+    public VisitorMarkArrivedToolHandler(VisitorToolPort port, ObjectMapper objectMapper) {
+        super(ToolCode.VISITOR_MARK_ARRIVED, objectMapper);
         this.port = port;
     }
 
@@ -20,6 +19,6 @@ public final class VisitorCheckInToolHandler
     protected VisitorToolPort.VisitResult invokeVisit(
             TrustedToolContext context, VisitorToolPort.VisitCommand command,
             ToolOperationKey operationKey) {
-        return port.checkIn(context.actor(), command, operationKey);
+        return port.markArrived(context.actor(), command, operationKey);
     }
 }

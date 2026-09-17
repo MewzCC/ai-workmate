@@ -731,6 +731,35 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
     @Transactional
     public VisitorAgentVisitReceipt checkInVisitorAgent(
             Long userId, VisitorAgentVisitCommand command, String operationKey) {
+        return transitionVisitorVisitAgent(userId, command, operationKey,
+                "APPROVED", "CHECKED_IN", "CHECK_IN");
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<VisitorAgentVisitReceipt> findAgentVisitorCheckIn(
+            Long userId, VisitorAgentVisitCommand command, String operationKey) {
+        return findAgentVisitorTransition(userId, command, operationKey, "CHECK_IN", "CHECKED_IN");
+    }
+
+    @Override
+    @Transactional
+    public VisitorAgentVisitReceipt markVisitorArrivedAgent(
+            Long userId, VisitorAgentVisitCommand command, String operationKey) {
+        return transitionVisitorVisitAgent(userId, command, operationKey,
+                "CHECKED_IN", "VISITED", "ARRIVE");
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<VisitorAgentVisitReceipt> findAgentVisitorArrival(
+            Long userId, VisitorAgentVisitCommand command, String operationKey) {
+        return findAgentVisitorTransition(userId, command, operationKey, "ARRIVE", "VISITED");
+    }
+
+    private VisitorAgentVisitReceipt transitionVisitorVisitAgent(
+            Long userId, VisitorAgentVisitCommand command, String operationKey,
+            String expectedStatus, String targetStatus, String action) {
         ResolvedUserAccess actor = requirePermission(userId, "visitor:register");
         requireAgentOperationKey(operationKey);
         validateVisitorVisitCommand(command);
@@ -740,17 +769,16 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
                 actor.tenantId(), actor.userId(), operationKey);
         if (existing != null) {
             return toVisitorVisitReceipt(requireMatchingVisitorVisitOperation(
-                    existing, command, "CHECK_IN", "CHECKED_IN"));
+                    existing, command, action, targetStatus));
         }
         return toVisitorVisitReceipt(transitionVisitorVisit(
                 actor, visitor, new VisitorVisitActionRequest(command.expectedVersion(), command.remark()),
-                "APPROVED", "CHECKED_IN", "CHECK_IN", operationKey));
+                expectedStatus, targetStatus, action, operationKey));
     }
 
-    @Override
-    @Transactional(readOnly = true)
-    public Optional<VisitorAgentVisitReceipt> findAgentVisitorCheckIn(
-            Long userId, VisitorAgentVisitCommand command, String operationKey) {
+    private Optional<VisitorAgentVisitReceipt> findAgentVisitorTransition(
+            Long userId, VisitorAgentVisitCommand command, String operationKey,
+            String action, String targetStatus) {
         ResolvedUserAccess actor = requirePermission(userId, "visitor:register");
         requireAgentOperationKey(operationKey);
         validateVisitorVisitCommand(command);
@@ -760,7 +788,7 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
                 actor.tenantId(), actor.userId(), operationKey);
         return existing == null ? Optional.empty()
                 : Optional.of(toVisitorVisitReceipt(requireMatchingVisitorVisitOperation(
-                        existing, command, "CHECK_IN", "CHECKED_IN")));
+                        existing, command, action, targetStatus)));
     }
 
     private VisitorBooking submitVisitorBookingInternal(
