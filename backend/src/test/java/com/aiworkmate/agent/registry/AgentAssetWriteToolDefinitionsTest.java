@@ -43,4 +43,26 @@ class AgentAssetWriteToolDefinitionsTest {
         assertThat(new ToolSchemaValidator().valid(definition.inputSchema(), mapper.readTree(
                 "{\"assetId\":9,\"version\":3,\"userId\":7}"))).isFalse();
     }
+
+    @Test
+    void repairStartRequiresAReasonAndKeepsIdentityOutsideTheSchema() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        ToolDefinition definition = new AgentAssetWriteToolDefinitions().assetRepairStartToolDefinition(mapper);
+        ToolSchemaValidator validator = new ToolSchemaValidator();
+
+        assertThat(definition.schemaHash()).isEqualTo(
+                "sha256:e890d896f8792d1e24271ab93b2cde6ce4585fdd262c20204660fddd2d95368f");
+        assertThat(definition.requiredPermissions()).containsExactly("asset:repair");
+        assertThat(definition.riskLevel()).isEqualTo(RiskLevel.L1);
+        assertThat(definition.sideEffect()).isEqualTo(SideEffect.SINGLE_WRITE);
+        assertThat(definition.retryPolicy()).isEqualTo(RetryPolicy.BUSINESS_IDEMPOTENT);
+        assertThat(definition.confirmationPolicy()).isEqualTo(ConfirmationPolicy.EXPLICIT);
+        assertThat(definition.ownershipPolicy()).isEqualTo(OwnershipPolicy.TENANT_SCOPED);
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree(
+                "{\"assetId\":9,\"version\":4,\"reason\":\"电源故障\"}"))).isTrue();
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree(
+                "{\"assetId\":9,\"version\":4,\"reason\":\"\"}"))).isFalse();
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree(
+                "{\"assetId\":9,\"version\":4,\"reason\":\"电源故障\",\"tenantId\":99}"))).isFalse();
+    }
 }

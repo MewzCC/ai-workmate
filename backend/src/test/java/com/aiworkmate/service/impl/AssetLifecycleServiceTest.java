@@ -26,6 +26,8 @@ import com.aiworkmate.service.UserAccessService;
 import com.aiworkmate.service.model.ResolvedUserAccess;
 import com.aiworkmate.service.model.AssetAgentClaimCommand;
 import com.aiworkmate.service.model.AssetAgentClaimReceipt;
+import com.aiworkmate.service.model.AssetAgentRepairStartCommand;
+import com.aiworkmate.service.model.AssetAgentRepairStartReceipt;
 import com.aiworkmate.service.model.AssetAgentReturnCommand;
 import com.aiworkmate.service.model.AssetAgentReturnReceipt;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
@@ -239,6 +241,47 @@ class AssetLifecycleServiceTest {
     }
 
     @Test
+    void agentRepairStartMovesIdleAssetAndPersistsVersionedReceipt() {
+        when(userAccessService.resolveActiveUser(ACTOR_ID)).thenReturn(access());
+        when(operationMapper.selectOne(any())).thenReturn(null);
+        when(assetMapper.selectById(ASSET_ID)).thenReturn(asset("IDLE", 10L, null, 4));
+        when(assetMapper.update(any(), any())).thenReturn(1);
+        when(operationMapper.insert(any(AssetOperation.class))).thenReturn(1);
+
+        assertThat(service.startAssetRepairAgent(ACTOR_ID,
+                new AssetAgentRepairStartCommand(ASSET_ID, 4, "电源故障送修"), "repair-operation"))
+                .isEqualTo(new AssetAgentRepairStartReceipt(ASSET_ID, "REPAIRING", 5));
+        ArgumentCaptor<AssetOperation> operation = ArgumentCaptor.forClass(AssetOperation.class);
+        verify(operationMapper).insert(operation.capture());
+        assertThat(operation.getValue().getOperationType()).isEqualTo("REPAIR_START");
+        assertThat(operation.getValue().getToStatus()).isEqualTo("REPAIRING");
+        assertThat(operation.getValue().getAgentOperationKey()).isEqualTo("repair-operation");
+        assertThat(operation.getValue().getSourceVersion()).isEqualTo(4);
+        assertThat(operation.getValue().getResultVersion()).isEqualTo(5);
+        verify(auditService).recordTransactional(any(), any(), anyString(), anyString(),
+                anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void agentRepairStartRejectsInUseAssetAndBlankReason() {
+        when(userAccessService.resolveActiveUser(ACTOR_ID)).thenReturn(access());
+
+        assertThatThrownBy(() -> service.startAssetRepairAgent(ACTOR_ID,
+                new AssetAgentRepairStartCommand(ASSET_ID, 4, " "), "repair-operation"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("REQUEST_INVALID");
+
+        when(operationMapper.selectOne(any())).thenReturn(null);
+        when(assetMapper.selectById(ASSET_ID)).thenReturn(asset("IN_USE", 10L, OWNER_ID, 4));
+        assertThatThrownBy(() -> service.startAssetRepairAgent(ACTOR_ID,
+                new AssetAgentRepairStartCommand(ASSET_ID, 4, "设备故障"), "repair-operation"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("BUSINESS_STATE_INVALID");
+        verify(assetMapper, never()).update(any(), any());
+        verify(operationMapper, never()).insert(any(AssetOperation.class));
+    }
+
+    @Test
     void returnRejectsAssetThatIsNotInUse() {
         when(userAccessService.resolveActiveUser(ACTOR_ID)).thenReturn(access());
         when(assetMapper.selectById(ASSET_ID)).thenReturn(asset("IDLE", 10L, null, 1));
@@ -421,7 +464,8 @@ class AssetLifecycleServiceTest {
 
     private ResolvedUserAccess access() {
         return new ResolvedUserAccess(ACTOR_ID, "admin@example.com", TENANT_ID, "SYSTEM_ADMIN",
-                List.of("SYSTEM_ADMIN"), List.of("assets:read", "asset:write", "asset:claim", "asset:return"),
+                List.of("SYSTEM_ADMIN"), List.of("assets:read", "asset:write", "asset:claim", "asset:return",
+                        "asset:repair"),
                 List.of("ALL"), 1L);
     }
 

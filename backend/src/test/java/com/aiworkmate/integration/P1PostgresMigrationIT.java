@@ -152,12 +152,13 @@ class P1PostgresMigrationIT {
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM rbac_permission
                     WHERE code IN ('approval:manage', 'hr:manage', 'asset:write', 'asset:claim', 'asset:return',
+                      'asset:repair',
                       'meeting:book', 'visitor:register', 'seal:register', 'dictionary:manage',
                       'tenant:config:manage', 'agent-permission:manage', 'supplier:manage', 'contract:manage',
                       'budget:manage', 'integration:endpoint:manage', 'integration:endpoint:execute',
                       'page-action:manage', 'runtime-log:read', 'integration:replay:read',
                       'integration:replay:execute')
-                    """)).isEqualTo(20);
+                    """)).isEqualTo(21);
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM flyway_schema_history WHERE success
                     """)).isGreaterThan(30);
@@ -315,6 +316,18 @@ class P1PostgresMigrationIT {
                     SELECT COUNT(*) FROM rbac_permission
                     WHERE code IN ('asset:return', 'agent:tool:asset.return')
                     """)).as("资产归还业务权限与 Agent 工具权限必须同时存在").isEqualTo(2);
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'asset.repair.start' AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:e890d896f8792d1e24271ab93b2cde6ce4585fdd262c20204660fddd2d95368f'
+                      AND risk_level = 'L1' AND data_scope_policy = 'TENANT_SCOPED'
+                      AND retry_policy = 'BUSINESS_IDEMPOTENT' AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'EXPLICIT' AND enabled = TRUE
+                    """)).as("资产维修登记工具必须以冻结的租户原子写契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code IN ('asset:repair', 'agent:tool:asset.repair.start')
+                    """)).as("资产维修业务权限与 Agent 工具权限必须同时存在").isEqualTo(2);
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM information_schema.columns
                     WHERE table_schema = current_schema() AND table_name = 'asset_operation'

@@ -9,6 +9,8 @@ import com.aiworkmate.dto.AssetLedgerResponse;
 import com.aiworkmate.service.AdminAssetsService;
 import com.aiworkmate.service.model.AssetAgentClaimCommand;
 import com.aiworkmate.service.model.AssetAgentClaimReceipt;
+import com.aiworkmate.service.model.AssetAgentRepairStartCommand;
+import com.aiworkmate.service.model.AssetAgentRepairStartReceipt;
 import com.aiworkmate.service.model.AssetAgentReturnCommand;
 import com.aiworkmate.service.model.AssetAgentReturnReceipt;
 import org.junit.jupiter.api.Test;
@@ -88,6 +90,26 @@ class AssetAgentDomainToolAdapterTest {
                         new AssetToolPort.ReturnResult(3, "IDLE", 5)));
         verify(service).returnAssetAgent(7L, domain, "operation");
         verify(service).findAgentAssetReturn(7L, domain, "operation");
+        verifyNoMoreInteractions(service);
+    }
+
+    @Test
+    void mapsRepairStartAndItsVerificationWithoutForwardingIdentityFields() {
+        var command = new AssetToolPort.RepairStartCommand(3, 5, "电源故障送修");
+        var domain = new AssetAgentRepairStartCommand(3, 5, "电源故障送修");
+        when(service.startAssetRepairAgent(7L, domain, "operation"))
+                .thenReturn(new AssetAgentRepairStartReceipt(3, "REPAIRING", 6));
+        when(service.findAgentAssetRepairStart(7L, domain, "operation"))
+                .thenReturn(java.util.Optional.of(
+                        new AssetAgentRepairStartReceipt(3, "REPAIRING", 6)));
+
+        assertThat(adapter.startRepair(actor, command, new ToolOperationKey("operation")))
+                .isEqualTo(new AssetToolPort.RepairStartResult(3, "REPAIRING", 6));
+        assertThat(adapter.findRepairStart(actor, command, new ToolOperationKey("operation")))
+                .isEqualTo(ToolWriteVerification.observed(
+                        new AssetToolPort.RepairStartResult(3, "REPAIRING", 6)));
+        verify(service).startAssetRepairAgent(7L, domain, "operation");
+        verify(service).findAgentAssetRepairStart(7L, domain, "operation");
         verifyNoMoreInteractions(service);
     }
 }

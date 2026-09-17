@@ -49,6 +49,8 @@ import com.aiworkmate.service.NotificationService;
 import com.aiworkmate.service.UserAccessService;
 import com.aiworkmate.service.model.AssetAgentClaimCommand;
 import com.aiworkmate.service.model.AssetAgentClaimReceipt;
+import com.aiworkmate.service.model.AssetAgentRepairStartCommand;
+import com.aiworkmate.service.model.AssetAgentRepairStartReceipt;
 import com.aiworkmate.service.model.AssetAgentReturnCommand;
 import com.aiworkmate.service.model.AssetAgentReturnReceipt;
 import com.aiworkmate.service.model.ResolvedUserAccess;
@@ -284,45 +286,19 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
         ResolvedUserAccess actor = requirePermission(userId, "asset:claim");
         requireAgentClaimCommand(command);
         requireAgentOperationKey(operationKey);
-        Optional<AssetAgentClaimReceipt> replay = resolveAgentClaim(actor, command, operationKey);
+        Optional<AgentAssetTransitionReceipt> replay = resolveAgentTransition(
+                actor, command.assetId(), command.expectedVersion(), command.reason(), operationKey,
+                "CLAIM", "IN_USE", command.employeeId());
         if (replay.isPresent()) {
-            return replay.orElseThrow();
+            return toClaimReceipt(replay.orElseThrow());
         }
 
         AssetLedger asset = requireAsset(actor.tenantId(), command.assetId());
         User owner = requireClaimOwner(actor.tenantId(), command.employeeId());
-        if (!"IDLE".equals(asset.getStatus())) {
-            return resolveAgentClaim(actor, command, operationKey)
-                    .orElseThrow(() -> new BusinessException(
-                            ErrorCode.BUSINESS_STATE_INVALID, "oa.asset.claim.invalid"));
-        }
-        int updated = assetMapper.update(null, new LambdaUpdateWrapper<AssetLedger>()
-                .eq(AssetLedger::getId, asset.getId())
-                .eq(AssetLedger::getTenantId, actor.tenantId())
-                .eq(AssetLedger::getDeleted, false)
-                .eq(AssetLedger::getVersion, command.expectedVersion())
-                .eq(AssetLedger::getStatus, "IDLE")
-                .set(AssetLedger::getStatus, "IN_USE")
-                .set(AssetLedger::getDepartmentId, owner.getDepartmentId())
-                .set(AssetLedger::getOwnerUserId, owner.getId())
-                .set(AssetLedger::getUpdatedAt, LocalDateTime.now())
-                .setSql("version = version + 1"));
-        if (updated != 1) {
-            return resolveAgentClaim(actor, command, operationKey)
-                    .orElseThrow(() -> new BusinessException(ErrorCode.VERSION_CONFLICT));
-        }
-
-        AssetOperation operation = newAssetOperation(actor, asset, "CLAIM", "IN_USE",
-                owner.getDepartmentId(), owner.getId(), command.reason());
-        operation.setAgentOperationKey(operationKey);
-        operation.setSourceVersion(command.expectedVersion());
-        operation.setResultVersion(command.expectedVersion() + 1);
-        assetOperationMapper.insert(operation);
-        auditService.recordTransactional(actor.tenantId(), actor.userId(), "ASSET_LEDGER",
-                asset.getId().toString(), "CLAIM", "SUCCESS",
-                "fromStatus=IDLE,toStatus=IN_USE,toDepartmentId=" + owner.getDepartmentId()
-                        + ",toOwnerUserId=" + owner.getId());
-        return new AssetAgentClaimReceipt(asset.getId(), "IN_USE", command.expectedVersion() + 1);
+        return toClaimReceipt(applyAgentAssetTransition(
+                actor, asset, command.expectedVersion(), command.reason(), operationKey,
+                "IDLE", "CLAIM", "IN_USE", owner.getDepartmentId(), owner.getId(),
+                "oa.asset.claim.invalid"));
     }
 
     @Override
@@ -332,7 +308,8 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
         ResolvedUserAccess actor = requirePermission(userId, "asset:claim");
         requireAgentClaimCommand(command);
         requireAgentOperationKey(operationKey);
-        return resolveAgentClaim(actor, command, operationKey);
+        return resolveAgentTransition(actor, command.assetId(), command.expectedVersion(), command.reason(),
+                operationKey, "CLAIM", "IN_USE", command.employeeId()).map(this::toClaimReceipt);
     }
 
     @Override
@@ -342,42 +319,18 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
         ResolvedUserAccess actor = requirePermission(userId, "asset:return");
         requireAgentReturnCommand(command);
         requireAgentOperationKey(operationKey);
-        Optional<AssetAgentReturnReceipt> replay = resolveAgentReturn(actor, command, operationKey);
+        Optional<AgentAssetTransitionReceipt> replay = resolveAgentTransition(
+                actor, command.assetId(), command.expectedVersion(), command.reason(), operationKey,
+                "RETURN", "IDLE", null);
         if (replay.isPresent()) {
-            return replay.orElseThrow();
+            return toReturnReceipt(replay.orElseThrow());
         }
 
         AssetLedger asset = requireAsset(actor.tenantId(), command.assetId());
-        if (!"IN_USE".equals(asset.getStatus())) {
-            return resolveAgentReturn(actor, command, operationKey)
-                    .orElseThrow(() -> new BusinessException(
-                            ErrorCode.BUSINESS_STATE_INVALID, "oa.asset.return.invalid"));
-        }
-        int updated = assetMapper.update(null, new LambdaUpdateWrapper<AssetLedger>()
-                .eq(AssetLedger::getId, asset.getId())
-                .eq(AssetLedger::getTenantId, actor.tenantId())
-                .eq(AssetLedger::getDeleted, false)
-                .eq(AssetLedger::getVersion, command.expectedVersion())
-                .eq(AssetLedger::getStatus, "IN_USE")
-                .set(AssetLedger::getStatus, "IDLE")
-                .set(AssetLedger::getOwnerUserId, null)
-                .set(AssetLedger::getUpdatedAt, LocalDateTime.now())
-                .setSql("version = version + 1"));
-        if (updated != 1) {
-            return resolveAgentReturn(actor, command, operationKey)
-                    .orElseThrow(() -> new BusinessException(ErrorCode.VERSION_CONFLICT));
-        }
-
-        AssetOperation operation = newAssetOperation(actor, asset, "RETURN", "IDLE",
-                asset.getDepartmentId(), null, command.reason());
-        operation.setAgentOperationKey(operationKey);
-        operation.setSourceVersion(command.expectedVersion());
-        operation.setResultVersion(command.expectedVersion() + 1);
-        assetOperationMapper.insert(operation);
-        auditService.recordTransactional(actor.tenantId(), actor.userId(), "ASSET_LEDGER",
-                asset.getId().toString(), "RETURN", "SUCCESS",
-                "fromStatus=IN_USE,toStatus=IDLE,fromOwnerUserId=" + asset.getOwnerUserId());
-        return new AssetAgentReturnReceipt(asset.getId(), "IDLE", command.expectedVersion() + 1);
+        return toReturnReceipt(applyAgentAssetTransition(
+                actor, asset, command.expectedVersion(), command.reason(), operationKey,
+                "IN_USE", "RETURN", "IDLE", asset.getDepartmentId(), null,
+                "oa.asset.return.invalid"));
     }
 
     @Override
@@ -387,7 +340,40 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
         ResolvedUserAccess actor = requirePermission(userId, "asset:return");
         requireAgentReturnCommand(command);
         requireAgentOperationKey(operationKey);
-        return resolveAgentReturn(actor, command, operationKey);
+        return resolveAgentTransition(actor, command.assetId(), command.expectedVersion(), command.reason(),
+                operationKey, "RETURN", "IDLE", null).map(this::toReturnReceipt);
+    }
+
+    @Override
+    @Transactional
+    public AssetAgentRepairStartReceipt startAssetRepairAgent(
+            Long userId, AssetAgentRepairStartCommand command, String operationKey) {
+        ResolvedUserAccess actor = requirePermission(userId, "asset:repair");
+        requireAgentRepairStartCommand(command);
+        requireAgentOperationKey(operationKey);
+        Optional<AgentAssetTransitionReceipt> replay = resolveAgentTransition(
+                actor, command.assetId(), command.expectedVersion(), command.reason(), operationKey,
+                "REPAIR_START", "REPAIRING", null);
+        if (replay.isPresent()) {
+            return toRepairStartReceipt(replay.orElseThrow());
+        }
+
+        AssetLedger asset = requireAsset(actor.tenantId(), command.assetId());
+        return toRepairStartReceipt(applyAgentAssetTransition(
+                actor, asset, command.expectedVersion(), command.reason(), operationKey,
+                "IDLE", "REPAIR_START", "REPAIRING", asset.getDepartmentId(), null,
+                "oa.asset.repair.start.invalid"));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<AssetAgentRepairStartReceipt> findAgentAssetRepairStart(
+            Long userId, AssetAgentRepairStartCommand command, String operationKey) {
+        ResolvedUserAccess actor = requirePermission(userId, "asset:repair");
+        requireAgentRepairStartCommand(command);
+        requireAgentOperationKey(operationKey);
+        return resolveAgentTransition(actor, command.assetId(), command.expectedVersion(), command.reason(),
+                operationKey, "REPAIR_START", "REPAIRING", null).map(this::toRepairStartReceipt);
     }
 
     @Override
@@ -1358,8 +1344,52 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
         return owner;
     }
 
-    private Optional<AssetAgentClaimReceipt> resolveAgentClaim(
-            ResolvedUserAccess actor, AssetAgentClaimCommand command, String operationKey) {
+    private AgentAssetTransitionReceipt applyAgentAssetTransition(
+            ResolvedUserAccess actor, AssetLedger asset, int expectedVersion, String reason,
+            String operationKey, String expectedStatus, String operationType, String targetStatus,
+            Long targetDepartmentId, Long targetOwnerUserId, String invalidStateMessageKey) {
+        if (!expectedStatus.equals(asset.getStatus())) {
+            return resolveAgentTransition(actor, asset.getId(), expectedVersion, reason, operationKey,
+                    operationType, targetStatus, targetOwnerUserId)
+                    .orElseThrow(() -> new BusinessException(
+                            ErrorCode.BUSINESS_STATE_INVALID, invalidStateMessageKey));
+        }
+        int updated = assetMapper.update(null, new LambdaUpdateWrapper<AssetLedger>()
+                .eq(AssetLedger::getId, asset.getId())
+                .eq(AssetLedger::getTenantId, actor.tenantId())
+                .eq(AssetLedger::getDeleted, false)
+                .eq(AssetLedger::getVersion, expectedVersion)
+                .eq(AssetLedger::getStatus, expectedStatus)
+                .set(AssetLedger::getStatus, targetStatus)
+                .set(AssetLedger::getDepartmentId, targetDepartmentId)
+                .set(AssetLedger::getOwnerUserId, targetOwnerUserId)
+                .set(AssetLedger::getUpdatedAt, LocalDateTime.now())
+                .setSql("version = version + 1"));
+        if (updated != 1) {
+            return resolveAgentTransition(actor, asset.getId(), expectedVersion, reason, operationKey,
+                    operationType, targetStatus, targetOwnerUserId)
+                    .orElseThrow(() -> new BusinessException(ErrorCode.VERSION_CONFLICT));
+        }
+
+        AssetOperation operation = newAssetOperation(actor, asset, operationType, targetStatus,
+                targetDepartmentId, targetOwnerUserId, reason);
+        operation.setAgentOperationKey(operationKey);
+        operation.setSourceVersion(expectedVersion);
+        operation.setResultVersion(expectedVersion + 1);
+        assetOperationMapper.insert(operation);
+        auditService.recordTransactional(actor.tenantId(), actor.userId(), "ASSET_LEDGER",
+                asset.getId().toString(), operationType, "SUCCESS",
+                "fromStatus=" + expectedStatus + ",toStatus=" + targetStatus
+                        + ",fromDepartmentId=" + asset.getDepartmentId()
+                        + ",toDepartmentId=" + targetDepartmentId
+                        + ",fromOwnerUserId=" + asset.getOwnerUserId()
+                        + ",toOwnerUserId=" + targetOwnerUserId);
+        return new AgentAssetTransitionReceipt(asset.getId(), targetStatus, expectedVersion + 1);
+    }
+
+    private Optional<AgentAssetTransitionReceipt> resolveAgentTransition(
+            ResolvedUserAccess actor, long assetId, int expectedVersion, String reason,
+            String operationKey, String operationType, String targetStatus, Long targetOwnerUserId) {
         AssetOperation operation = assetOperationMapper.selectOne(new LambdaQueryWrapper<AssetOperation>()
                 .eq(AssetOperation::getTenantId, actor.tenantId())
                 .eq(AssetOperation::getOperatorUserId, actor.userId())
@@ -1368,37 +1398,29 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
         if (operation == null) {
             return Optional.empty();
         }
-        if (!"CLAIM".equals(operation.getOperationType())
-                || !Long.valueOf(command.assetId()).equals(operation.getAssetId())
-                || !Long.valueOf(command.employeeId()).equals(operation.getToOwnerUserId())
-                || !Integer.valueOf(command.expectedVersion()).equals(operation.getSourceVersion())
-                || !Objects.equals(trim(command.reason()), operation.getReason())
+        if (!operationType.equals(operation.getOperationType())
+                || !Long.valueOf(assetId).equals(operation.getAssetId())
+                || !targetStatus.equals(operation.getToStatus())
+                || !Objects.equals(targetOwnerUserId, operation.getToOwnerUserId())
+                || !Integer.valueOf(expectedVersion).equals(operation.getSourceVersion())
+                || !Objects.equals(trim(reason), operation.getReason())
                 || operation.getResultVersion() == null) {
             throw new BusinessException(ErrorCode.IDEMPOTENCY_CONFLICT);
         }
-        return Optional.of(new AssetAgentClaimReceipt(operation.getAssetId(), operation.getToStatus(),
+        return Optional.of(new AgentAssetTransitionReceipt(operation.getAssetId(), operation.getToStatus(),
                 operation.getResultVersion()));
     }
 
-    private Optional<AssetAgentReturnReceipt> resolveAgentReturn(
-            ResolvedUserAccess actor, AssetAgentReturnCommand command, String operationKey) {
-        AssetOperation operation = assetOperationMapper.selectOne(new LambdaQueryWrapper<AssetOperation>()
-                .eq(AssetOperation::getTenantId, actor.tenantId())
-                .eq(AssetOperation::getOperatorUserId, actor.userId())
-                .eq(AssetOperation::getAgentOperationKey, operationKey)
-                .last("LIMIT 1"));
-        if (operation == null) {
-            return Optional.empty();
-        }
-        if (!"RETURN".equals(operation.getOperationType())
-                || !Long.valueOf(command.assetId()).equals(operation.getAssetId())
-                || !Integer.valueOf(command.expectedVersion()).equals(operation.getSourceVersion())
-                || !Objects.equals(trim(command.reason()), operation.getReason())
-                || operation.getResultVersion() == null) {
-            throw new BusinessException(ErrorCode.IDEMPOTENCY_CONFLICT);
-        }
-        return Optional.of(new AssetAgentReturnReceipt(operation.getAssetId(), operation.getToStatus(),
-                operation.getResultVersion()));
+    private AssetAgentClaimReceipt toClaimReceipt(AgentAssetTransitionReceipt receipt) {
+        return new AssetAgentClaimReceipt(receipt.assetId(), receipt.status(), receipt.version());
+    }
+
+    private AssetAgentReturnReceipt toReturnReceipt(AgentAssetTransitionReceipt receipt) {
+        return new AssetAgentReturnReceipt(receipt.assetId(), receipt.status(), receipt.version());
+    }
+
+    private AssetAgentRepairStartReceipt toRepairStartReceipt(AgentAssetTransitionReceipt receipt) {
+        return new AssetAgentRepairStartReceipt(receipt.assetId(), receipt.status(), receipt.version());
     }
 
     private void requireAgentOperationKey(String operationKey) {
@@ -1421,6 +1443,17 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
                 || (command.reason() != null && command.reason().length() > 500)) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID);
         }
+    }
+
+    private void requireAgentRepairStartCommand(AssetAgentRepairStartCommand command) {
+        if (command == null || command.assetId() < 1 || command.expectedVersion() < 0
+                || command.expectedVersion() == Integer.MAX_VALUE || command.reason() == null
+                || command.reason().isBlank() || command.reason().length() > 500) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+    }
+
+    private record AgentAssetTransitionReceipt(long assetId, String status, int version) {
     }
 
     private MeetingRoom requireMeetingRoom(Long tenantId, Long id) {

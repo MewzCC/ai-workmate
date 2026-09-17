@@ -33,6 +33,7 @@ public enum ToolCode {
     ASSET_QUERY("asset.query"),
     ASSET_CLAIM("asset.claim"),
     ASSET_RETURN("asset.return"),
+    ASSET_REPAIR_START("asset.repair.start"),
     MEETING_QUERY("meeting.query"),
     MEETING_BOOK("meeting.book"),
     MEETING_CANCEL("meeting.cancel"),

@@ -20,6 +20,8 @@ import com.aiworkmate.service.model.AssetAgentClaimCommand;
 import com.aiworkmate.service.model.AssetAgentClaimReceipt;
 import com.aiworkmate.service.model.AssetAgentReturnCommand;
 import com.aiworkmate.service.model.AssetAgentReturnReceipt;
+import com.aiworkmate.service.model.AssetAgentRepairStartCommand;
+import com.aiworkmate.service.model.AssetAgentRepairStartReceipt;
 
 import java.math.BigDecimal;
 import java.util.Optional;
@@ -66,6 +68,12 @@ public interface AdminAssetsService {
 
     Optional<AssetAgentReturnReceipt> findAgentAssetReturn(
             Long userId, AssetAgentReturnCommand command, String operationKey);
+
+    AssetAgentRepairStartReceipt startAssetRepairAgent(
+            Long userId, AssetAgentRepairStartCommand command, String operationKey);
+
+    Optional<AssetAgentRepairStartReceipt> findAgentAssetRepairStart(
+            Long userId, AssetAgentRepairStartCommand command, String operationKey);
 
     AssetLedgerResponse returnAsset(Long userId, Long id, AssetOperationRequest request);
 

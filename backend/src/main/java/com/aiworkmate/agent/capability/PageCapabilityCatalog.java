@@ -129,7 +129,7 @@ public class PageCapabilityCatalog {
 
                 page(OaPage.ASSET_LEDGER, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         context(text("keyword"), text("category"), text("status"), number("page"), number("size")),
-                        read(ASSET_QUERY), write(ASSET_CLAIM), write(ASSET_RETURN)),
+                        read(ASSET_QUERY), write(ASSET_CLAIM), write(ASSET_RETURN), write(ASSET_REPAIR_START)),
                 page(OaPage.MEETING_ROOM, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         context(text("keyword"), text("roomStatus"), text("from"), text("to"),
                                 text("bookingStatus"), number("page"), number("size")),

@@ -6,6 +6,7 @@ import com.aiworkmate.agent.tool.port.ToolOperationKey;
 import com.aiworkmate.agent.tool.port.ToolWriteVerification;
 import com.aiworkmate.service.AdminAssetsService;
 import com.aiworkmate.service.model.AssetAgentClaimCommand;
+import com.aiworkmate.service.model.AssetAgentRepairStartCommand;
 import com.aiworkmate.service.model.AssetAgentReturnCommand;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -66,5 +67,27 @@ public final class AssetAgentDomainToolAdapter implements AssetToolPort {
 
     private AssetAgentReturnCommand toDomain(ReturnCommand command) {
         return new AssetAgentReturnCommand(command.assetId(), command.version(), command.reason());
+    }
+
+    @Override
+    public RepairStartResult startRepair(
+            ToolActorContext context, RepairStartCommand command, ToolOperationKey operationKey) {
+        var result = adminAssetsService.startAssetRepairAgent(
+                context.userId(), toDomain(command), operationKey.value());
+        return new RepairStartResult(result.assetId(), result.status(), result.version());
+    }
+
+    @Override
+    public ToolWriteVerification<RepairStartResult> findRepairStart(
+            ToolActorContext context, RepairStartCommand command, ToolOperationKey operationKey) {
+        return adminAssetsService.findAgentAssetRepairStart(
+                        context.userId(), toDomain(command), operationKey.value())
+                .map(result -> ToolWriteVerification.observed(
+                        new RepairStartResult(result.assetId(), result.status(), result.version())))
+                .orElseGet(ToolWriteVerification::unobserved);
+    }
+
+    private AssetAgentRepairStartCommand toDomain(RepairStartCommand command) {
+        return new AssetAgentRepairStartCommand(command.assetId(), command.version(), command.reason());
     }
 }

@@ -20,6 +20,7 @@ import com.aiworkmate.service.UserAccessService;
 import com.aiworkmate.service.impl.AdminAssetsServiceImpl;
 import com.aiworkmate.service.impl.BusinessAuditServiceImpl;
 import com.aiworkmate.service.model.AssetAgentClaimCommand;
+import com.aiworkmate.service.model.AssetAgentRepairStartCommand;
 import com.aiworkmate.service.model.AssetAgentReturnCommand;
 import com.aiworkmate.service.model.ResolvedUserAccess;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
@@ -144,6 +145,37 @@ final class AssetClaimPostgresVerifier {
         assertThat(returnReplay.isPresent()).isTrue();
         assertThat(returnReplay.orElseThrow().version()).isEqualTo(2);
 
+        var repairCommand = new AssetAgentRepairStartCommand(assetId, 2, "电源故障送修");
+        var repairExecutor = Executors.newFixedThreadPool(2);
+        try {
+            var barrier = new CyclicBarrier(2);
+            Callable<Integer> startRepair = () -> {
+                barrier.await(10, TimeUnit.SECONDS);
+                return tx.execute(status -> service.startAssetRepairAgent(
+                        operator, repairCommand, "asset-repair-operation").version());
+            };
+            var first = repairExecutor.submit(startRepair);
+            var second = repairExecutor.submit(startRepair);
+            assertThat(first.get(20, TimeUnit.SECONDS)).isEqualTo(3);
+            assertThat(second.get(20, TimeUnit.SECONDS)).isEqualTo(3);
+        } finally {
+            repairExecutor.shutdownNow();
+        }
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM asset_operation
+                WHERE agent_operation_key='asset-repair-operation'
+                """, Integer.class)).isOne();
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM business_audit_log
+                WHERE resource_type='ASSET_LEDGER' AND resource_id=? AND action='REPAIR_START'
+                """, Integer.class, Long.toString(assetId))).isOne();
+        assertThat(jdbc.queryForObject(
+                "SELECT status FROM asset_ledger WHERE id=?", String.class, assetId)).isEqualTo("REPAIRING");
+        var repairReplay = tx.execute(status -> service.findAgentAssetRepairStart(
+                operator, repairCommand, "asset-repair-operation"));
+        assertThat(repairReplay).isPresent();
+        assertThat(repairReplay.orElseThrow().version()).isEqualTo(3);
+
         assertThatThrownBy(() -> tx.execute(status -> service.claimAssetAgent(operator,
                 new AssetAgentClaimCommand(assetId, employee, 0, "不同原因"), "asset-claim-operation")))
                 .isInstanceOf(BusinessException.class)
@@ -182,9 +214,22 @@ final class AssetClaimPostgresVerifier {
                 SELECT count(*) FROM asset_operation WHERE agent_operation_key='asset-return-rollback'
                 """, Integer.class)).isZero();
 
+        long repairRollbackAsset = insertAsset(
+                tx, session.getMapper(AssetLedgerMapper.class), tenant, department, "A-REPAIR-ROLLBACK");
+        assertThatThrownBy(() -> tx.execute(status -> failingService.startAssetRepairAgent(operator,
+                new AssetAgentRepairStartCommand(repairRollbackAsset, 0, "故障送修"),
+                "asset-repair-rollback")))
+                .isInstanceOf(IllegalStateException.class);
+        assertThat(jdbc.queryForObject(
+                "SELECT status FROM asset_ledger WHERE id=?", String.class, repairRollbackAsset))
+                .isEqualTo("IDLE");
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM asset_operation WHERE agent_operation_key='asset-repair-rollback'
+                """, Integer.class)).isZero();
+
         when(access.resolveActiveUser(operator)).thenReturn(new ResolvedUserAccess(operator, "operator",
                 tenant + 100000, "SYSTEM_ADMIN", List.of("SYSTEM_ADMIN"),
-                List.of("asset:claim", "asset:return"),
+                List.of("asset:claim", "asset:return", "asset:repair"),
                 List.of("ALL"), 1L));
         var crossTenantReplay = tx.execute(status -> service.findAgentAssetClaim(
                 operator, command, "asset-claim-operation"));
@@ -199,7 +244,8 @@ final class AssetClaimPostgresVerifier {
 
     private static ResolvedUserAccess actor(long userId, long tenantId) {
         return new ResolvedUserAccess(userId, "operator", tenantId, "SYSTEM_ADMIN",
-                List.of("SYSTEM_ADMIN"), List.of("asset:claim", "asset:return"), List.of("ALL"), 1L);
+                List.of("SYSTEM_ADMIN"), List.of("asset:claim", "asset:return", "asset:repair"),
+                List.of("ALL"), 1L);
     }
 
     private static long insertAsset(
