@@ -31,6 +31,7 @@ public enum ToolCode {
     APPROVAL_APPLICATION_WITHDRAW("approval.application.withdraw"),
     APPROVAL_APPLICATION_REOPEN("approval.application.reopen"),
     ASSET_QUERY("asset.query"),
+    ASSET_CLAIM("asset.claim"),
     MEETING_QUERY("meeting.query"),
     MEETING_BOOK("meeting.book"),
     MEETING_CANCEL("meeting.cancel"),

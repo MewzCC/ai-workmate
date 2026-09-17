@@ -47,6 +47,8 @@ import com.aiworkmate.service.AdminAssetsService;
 import com.aiworkmate.service.BusinessAuditService;
 import com.aiworkmate.service.NotificationService;
 import com.aiworkmate.service.UserAccessService;
+import com.aiworkmate.service.model.AssetAgentClaimCommand;
+import com.aiworkmate.service.model.AssetAgentClaimReceipt;
 import com.aiworkmate.service.model.ResolvedUserAccess;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
@@ -62,6 +64,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -270,6 +273,62 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
         applyAssetOperation(actor, asset, request.version(), request.reason(), "CLAIM", "IN_USE",
                 request.targetDepartmentId(), request.targetOwnerUserId());
         return assetDetail(actor, requireAsset(actor.tenantId(), id));
+    }
+
+    @Override
+    @Transactional
+    public AssetAgentClaimReceipt claimAssetAgent(
+            Long userId, AssetAgentClaimCommand command, String operationKey) {
+        ResolvedUserAccess actor = requirePermission(userId, "asset:claim");
+        requireAgentClaimCommand(command);
+        requireAgentOperationKey(operationKey);
+        Optional<AssetAgentClaimReceipt> replay = resolveAgentClaim(actor, command, operationKey);
+        if (replay.isPresent()) {
+            return replay.orElseThrow();
+        }
+
+        AssetLedger asset = requireAsset(actor.tenantId(), command.assetId());
+        User owner = requireClaimOwner(actor.tenantId(), command.employeeId());
+        if (!"IDLE".equals(asset.getStatus())) {
+            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID, "oa.asset.claim.invalid");
+        }
+        int updated = assetMapper.update(null, new LambdaUpdateWrapper<AssetLedger>()
+                .eq(AssetLedger::getId, asset.getId())
+                .eq(AssetLedger::getTenantId, actor.tenantId())
+                .eq(AssetLedger::getDeleted, false)
+                .eq(AssetLedger::getVersion, command.expectedVersion())
+                .eq(AssetLedger::getStatus, "IDLE")
+                .set(AssetLedger::getStatus, "IN_USE")
+                .set(AssetLedger::getDepartmentId, owner.getDepartmentId())
+                .set(AssetLedger::getOwnerUserId, owner.getId())
+                .set(AssetLedger::getUpdatedAt, LocalDateTime.now())
+                .setSql("version = version + 1"));
+        if (updated != 1) {
+            return resolveAgentClaim(actor, command, operationKey)
+                    .orElseThrow(() -> new BusinessException(ErrorCode.VERSION_CONFLICT));
+        }
+
+        AssetOperation operation = newAssetOperation(actor, asset, "CLAIM", "IN_USE",
+                owner.getDepartmentId(), owner.getId(), command.reason());
+        operation.setAgentOperationKey(operationKey);
+        operation.setSourceVersion(command.expectedVersion());
+        operation.setResultVersion(command.expectedVersion() + 1);
+        assetOperationMapper.insert(operation);
+        auditService.recordTransactional(actor.tenantId(), actor.userId(), "ASSET_LEDGER",
+                asset.getId().toString(), "CLAIM", "SUCCESS",
+                "fromStatus=IDLE,toStatus=IN_USE,toDepartmentId=" + owner.getDepartmentId()
+                        + ",toOwnerUserId=" + owner.getId());
+        return new AssetAgentClaimReceipt(asset.getId(), "IN_USE", command.expectedVersion() + 1);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<AssetAgentClaimReceipt> findAgentAssetClaim(
+            Long userId, AssetAgentClaimCommand command, String operationKey) {
+        ResolvedUserAccess actor = requirePermission(userId, "asset:claim");
+        requireAgentClaimCommand(command);
+        requireAgentOperationKey(operationKey);
+        return resolveAgentClaim(actor, command, operationKey);
     }
 
     @Override
@@ -1227,6 +1286,52 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
                 || !Integer.valueOf(1).equals(owner.getStatus())
                 || !departmentId.equals(owner.getDepartmentId())) {
             throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID, "oa.asset.owner.invalid");
+        }
+    }
+
+    private User requireClaimOwner(Long tenantId, Long employeeId) {
+        User owner = userMapper.selectById(employeeId);
+        if (owner == null || !tenantId.equals(owner.getTenantId())
+                || !Integer.valueOf(1).equals(owner.getStatus()) || owner.getDepartmentId() == null) {
+            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID, "oa.asset.owner.invalid");
+        }
+        requireDepartment(tenantId, owner.getDepartmentId());
+        return owner;
+    }
+
+    private Optional<AssetAgentClaimReceipt> resolveAgentClaim(
+            ResolvedUserAccess actor, AssetAgentClaimCommand command, String operationKey) {
+        AssetOperation operation = assetOperationMapper.selectOne(new LambdaQueryWrapper<AssetOperation>()
+                .eq(AssetOperation::getTenantId, actor.tenantId())
+                .eq(AssetOperation::getOperatorUserId, actor.userId())
+                .eq(AssetOperation::getAgentOperationKey, operationKey)
+                .last("LIMIT 1"));
+        if (operation == null) {
+            return Optional.empty();
+        }
+        if (!"CLAIM".equals(operation.getOperationType())
+                || !Long.valueOf(command.assetId()).equals(operation.getAssetId())
+                || !Long.valueOf(command.employeeId()).equals(operation.getToOwnerUserId())
+                || !Integer.valueOf(command.expectedVersion()).equals(operation.getSourceVersion())
+                || !Objects.equals(trim(command.reason()), operation.getReason())
+                || operation.getResultVersion() == null) {
+            throw new BusinessException(ErrorCode.IDEMPOTENCY_CONFLICT);
+        }
+        return Optional.of(new AssetAgentClaimReceipt(operation.getAssetId(), operation.getToStatus(),
+                operation.getResultVersion()));
+    }
+
+    private void requireAgentOperationKey(String operationKey) {
+        if (operationKey == null || operationKey.isBlank() || operationKey.length() > 128) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+    }
+
+    private void requireAgentClaimCommand(AssetAgentClaimCommand command) {
+        if (command == null || command.assetId() < 1 || command.employeeId() < 1
+                || command.expectedVersion() < 0 || command.expectedVersion() == Integer.MAX_VALUE
+                || (command.reason() != null && command.reason().length() > 500)) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
         }
     }
 

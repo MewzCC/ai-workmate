@@ -77,6 +77,15 @@ class PageCapabilityCatalogTest {
     }
 
     @Test
+    void assetPageOffersReadAndOneAtomicClaimWrite() {
+        var page = catalog.find("asset-ledger").orElseThrow();
+        assertThat(page.readTools()).extracting(PageToolReference::code)
+                .containsExactly(ToolCode.ASSET_QUERY);
+        assertThat(page.writeTools()).extracting(PageToolReference::code)
+                .containsExactly(ToolCode.ASSET_CLAIM);
+    }
+
+    @Test
     void genericApprovalEntryPagesShareAtomicDraftLifecycleTools() {
         assertThat(Set.of("approval-start", "approval-form", "my-applications")).allSatisfy(pageId ->
                 assertThat(catalog.find(pageId).orElseThrow().writeTools())

@@ -24,6 +24,8 @@ import com.aiworkmate.service.BusinessAuditService;
 import com.aiworkmate.service.NotificationService;
 import com.aiworkmate.service.UserAccessService;
 import com.aiworkmate.service.model.ResolvedUserAccess;
+import com.aiworkmate.service.model.AssetAgentClaimCommand;
+import com.aiworkmate.service.model.AssetAgentClaimReceipt;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
@@ -43,6 +45,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -107,6 +110,89 @@ class AssetLifecycleServiceTest {
         assertThat(captor.getValue().getOperationType()).isEqualTo("CLAIM");
         assertThat(captor.getValue().getFromStatus()).isEqualTo("IDLE");
         assertThat(captor.getValue().getToOwnerUserId()).isEqualTo(OWNER_ID);
+    }
+
+    @Test
+    void agentClaimUsesTrustedOperatorAndPersistsVersionedOperationKey() {
+        when(userAccessService.resolveActiveUser(ACTOR_ID)).thenReturn(access());
+        when(operationMapper.selectOne(any())).thenReturn(null);
+        when(assetMapper.selectById(ASSET_ID)).thenReturn(asset("IDLE", 10L, null, 2));
+        when(userMapper.selectById(OWNER_ID)).thenReturn(owner(20L));
+        when(accessControlMapper.countDepartment(TENANT_ID, 20L)).thenReturn(1);
+        when(assetMapper.update(any(), any())).thenReturn(1);
+        when(operationMapper.insert(any(AssetOperation.class))).thenReturn(1);
+
+        AssetAgentClaimReceipt receipt = service.claimAssetAgent(ACTOR_ID,
+                new AssetAgentClaimCommand(ASSET_ID, OWNER_ID, 2, "新员工领用"), "agent-operation");
+
+        assertThat(receipt).isEqualTo(new AssetAgentClaimReceipt(ASSET_ID, "IN_USE", 3));
+        ArgumentCaptor<AssetOperation> operation = ArgumentCaptor.forClass(AssetOperation.class);
+        verify(operationMapper).insert(operation.capture());
+        assertThat(operation.getValue().getAgentOperationKey()).isEqualTo("agent-operation");
+        assertThat(operation.getValue().getSourceVersion()).isEqualTo(2);
+        assertThat(operation.getValue().getResultVersion()).isEqualTo(3);
+        assertThat(operation.getValue().getToOwnerUserId()).isEqualTo(OWNER_ID);
+        verify(auditService).recordTransactional(any(), any(), anyString(), anyString(),
+                anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void agentClaimReplayReturnsStoredReceiptWithoutRepeatingTheWrite() {
+        when(userAccessService.resolveActiveUser(ACTOR_ID)).thenReturn(access());
+        AssetOperation stored = new AssetOperation();
+        stored.setAssetId(ASSET_ID);
+        stored.setOperationType("CLAIM");
+        stored.setToStatus("IN_USE");
+        stored.setToOwnerUserId(OWNER_ID);
+        stored.setReason("新员工领用");
+        stored.setSourceVersion(2);
+        stored.setResultVersion(3);
+        when(operationMapper.selectOne(any())).thenReturn(stored);
+
+        assertThat(service.claimAssetAgent(ACTOR_ID,
+                new AssetAgentClaimCommand(ASSET_ID, OWNER_ID, 2, "新员工领用"), "agent-operation"))
+                .isEqualTo(new AssetAgentClaimReceipt(ASSET_ID, "IN_USE", 3));
+        verify(assetMapper, never()).update(any(), any());
+        verify(operationMapper, never()).insert(any(AssetOperation.class));
+        verifyNoInteractions(auditService);
+    }
+
+    @Test
+    void agentClaimRejectsOperationKeyReuseWithDifferentCommand() {
+        when(userAccessService.resolveActiveUser(ACTOR_ID)).thenReturn(access());
+        AssetOperation stored = new AssetOperation();
+        stored.setAssetId(ASSET_ID);
+        stored.setOperationType("CLAIM");
+        stored.setToStatus("IN_USE");
+        stored.setToOwnerUserId(OWNER_ID);
+        stored.setReason("原原因");
+        stored.setSourceVersion(2);
+        stored.setResultVersion(3);
+        when(operationMapper.selectOne(any())).thenReturn(stored);
+
+        assertThatThrownBy(() -> service.claimAssetAgent(ACTOR_ID,
+                new AssetAgentClaimCommand(ASSET_ID, OWNER_ID, 2, "变更原因"), "agent-operation"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("IDEMPOTENCY_CONFLICT");
+        verify(assetMapper, never()).update(any(), any());
+    }
+
+    @Test
+    void agentClaimRejectsEmployeeOutsideTheAuthenticatedTenant() {
+        when(userAccessService.resolveActiveUser(ACTOR_ID)).thenReturn(access());
+        when(operationMapper.selectOne(any())).thenReturn(null);
+        when(assetMapper.selectById(ASSET_ID)).thenReturn(asset("IDLE", 10L, null, 2));
+        User otherTenantEmployee = owner(20L);
+        otherTenantEmployee.setTenantId(TENANT_ID + 1);
+        when(userMapper.selectById(OWNER_ID)).thenReturn(otherTenantEmployee);
+
+        assertThatThrownBy(() -> service.claimAssetAgent(ACTOR_ID,
+                new AssetAgentClaimCommand(ASSET_ID, OWNER_ID, 2, null), "agent-operation"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("BUSINESS_STATE_INVALID");
+        verify(assetMapper, never()).update(any(), any());
+        verify(operationMapper, never()).insert(any(AssetOperation.class));
+        verifyNoInteractions(auditService);
     }
 
     @Test
@@ -292,7 +378,8 @@ class AssetLifecycleServiceTest {
 
     private ResolvedUserAccess access() {
         return new ResolvedUserAccess(ACTOR_ID, "admin@example.com", TENANT_ID, "SYSTEM_ADMIN",
-                List.of("SYSTEM_ADMIN"), List.of("assets:read", "asset:write"), List.of("ALL"), 1L);
+                List.of("SYSTEM_ADMIN"), List.of("assets:read", "asset:write", "asset:claim"),
+                List.of("ALL"), 1L);
     }
 
     private AssetLedger asset(String status, Long departmentId, Long ownerId, int version) {

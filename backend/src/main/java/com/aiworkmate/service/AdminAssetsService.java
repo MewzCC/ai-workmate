@@ -16,8 +16,11 @@ import com.aiworkmate.dto.VisitorBookingRequest;
 import com.aiworkmate.dto.VisitorBookingResponse;
 import com.aiworkmate.dto.VisitorVisitActionRequest;
 import com.aiworkmate.dto.ApprovalDecisionRequest;
+import com.aiworkmate.service.model.AssetAgentClaimCommand;
+import com.aiworkmate.service.model.AssetAgentClaimReceipt;
 
 import java.math.BigDecimal;
+import java.util.Optional;
 
 /**
  * 行政资产领域服务。
@@ -49,6 +52,12 @@ public interface AdminAssetsService {
     void deleteAsset(Long userId, Long id);
 
     AssetLedgerResponse claimAsset(Long userId, Long id, AssetOperationRequest request);
+
+    AssetAgentClaimReceipt claimAssetAgent(
+            Long userId, AssetAgentClaimCommand command, String operationKey);
+
+    Optional<AssetAgentClaimReceipt> findAgentAssetClaim(
+            Long userId, AssetAgentClaimCommand command, String operationKey);
 
     AssetLedgerResponse returnAsset(Long userId, Long id, AssetOperationRequest request);
 

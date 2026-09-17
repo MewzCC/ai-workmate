@@ -69,6 +69,7 @@ class P1PostgresMigrationIT {
         AttendanceReissuePostgresVerifier.verify(databaseUrl, databaseUsername, databasePassword, emptySchema);
         NotificationMarkReadPostgresVerifier.verify(databaseUrl, databaseUsername, databasePassword, emptySchema);
         LeaveWithdrawalPostgresVerifier.verify(databaseUrl, databaseUsername, databasePassword, emptySchema);
+        AssetClaimPostgresVerifier.verify(databaseUrl, databaseUsername, databasePassword, emptySchema);
         Flyway restartedEmpty = flyway(emptySchema, null);
         assertThat(restartedEmpty.migrate().migrationsExecuted).isZero();
         assertThat(restartedEmpty.validateWithResult().validationSuccessful).isTrue();
@@ -150,13 +151,13 @@ class P1PostgresMigrationIT {
                     """)).isEqualTo(23);
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM rbac_permission
-                    WHERE code IN ('approval:manage', 'hr:manage', 'asset:write',
+                    WHERE code IN ('approval:manage', 'hr:manage', 'asset:write', 'asset:claim',
                       'meeting:book', 'visitor:register', 'seal:register', 'dictionary:manage',
                       'tenant:config:manage', 'agent-permission:manage', 'supplier:manage', 'contract:manage',
                       'budget:manage', 'integration:endpoint:manage', 'integration:endpoint:execute',
                       'page-action:manage', 'runtime-log:read', 'integration:replay:read',
                       'integration:replay:execute')
-                    """)).isEqualTo(18);
+                    """)).isEqualTo(19);
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM flyway_schema_history WHERE success
                     """)).isGreaterThan(30);
@@ -290,6 +291,28 @@ class P1PostgresMigrationIT {
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM rbac_permission WHERE code = 'agent:tool:asset.query'
                     """)).as("资产台账 Agent 工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'asset.claim' AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:70e57baaa8ec2003241bf090427125dad1ae0da3537813e62ce88d2615a2f9b5'
+                      AND risk_level = 'L1' AND data_scope_policy = 'TENANT_SCOPED'
+                      AND retry_policy = 'BUSINESS_IDEMPOTENT' AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'EXPLICIT' AND enabled = TRUE
+                    """)).as("资产领用写工具必须以冻结的租户原子写契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code IN ('asset:claim', 'agent:tool:asset.claim')
+                    """)).as("资产领用业务权限与 Agent 工具权限必须同时存在").isEqualTo(2);
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM information_schema.columns
+                    WHERE table_schema = current_schema() AND table_name = 'asset_operation'
+                      AND column_name IN ('agent_operation_key', 'source_version', 'result_version')
+                    """)).as("资产操作记录必须保存 Agent 幂等键及版本收据").isEqualTo(3);
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM pg_indexes
+                    WHERE schemaname = current_schema() AND tablename = 'asset_operation'
+                      AND indexname = 'ux_asset_operation_agent_key'
+                    """)).as("资产 Agent 操作键必须由数据库唯一索引防重").isOne();
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM agent_tool
                     WHERE tenant_id IS NULL AND code = 'meeting.query' AND handler_version = '1.0.0'

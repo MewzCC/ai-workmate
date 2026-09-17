@@ -7,7 +7,12 @@ import java.util.List;
 
 public interface AssetToolPort {
     Page query(ToolActorContext context, Query query);
+    ClaimResult claim(ToolActorContext context, ClaimCommand command, ToolOperationKey operationKey);
+    ToolWriteVerification<ClaimResult> findClaim(
+            ToolActorContext context, ClaimCommand command, ToolOperationKey operationKey);
     record Query(String keyword, String category, String status, int page, int size) {}
+    record ClaimCommand(long assetId, long employeeId, int version, String reason) {}
+    record ClaimResult(long assetId, String status, int version) implements ToolWriteReceipt {}
     record Page(List<Item> items, long total, int page, int size) {
         public Page { items = List.copyOf(items); }
     }
