@@ -72,6 +72,8 @@ class P1PostgresMigrationIT {
         AssetClaimPostgresVerifier.verify(databaseUrl, databaseUsername, databasePassword, emptySchema);
         VisitorApplicationPostgresVerifier.verify(
                 databaseUrl, databaseUsername, databasePassword, emptySchema);
+        VisitorCheckInPostgresVerifier.verify(
+                databaseUrl, databaseUsername, databasePassword, emptySchema);
         Flyway restartedEmpty = flyway(emptySchema, null);
         assertThat(restartedEmpty.migrate().migrationsExecuted).isZero();
         assertThat(restartedEmpty.validateWithResult().validationSuccessful).isTrue();
@@ -351,6 +353,26 @@ class P1PostgresMigrationIT {
                     WHERE schemaname = current_schema() AND tablename = 'visitor_booking'
                       AND indexname = 'ux_visitor_booking_agent_key'
                     """)).as("访客申请稳定操作键必须由本人范围唯一索引防重").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'visitor.checkIn' AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:9c88700b29e31bc4bf30fb868ae13d46a7b17e977a0331b9d0d38e6ad88ae98c'
+                      AND risk_level = 'L1' AND data_scope_policy = 'SELF'
+                      AND retry_policy = 'BUSINESS_IDEMPOTENT' AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'EXPLICIT' AND enabled = TRUE
+                    """)).as("访客签到工具必须以冻结的本人原子写契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission WHERE code = 'agent:tool:visitor.checkIn'
+                    """)).as("访客签到 Agent 工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM information_schema.tables
+                    WHERE table_schema = current_schema() AND table_name = 'visitor_visit_operation'
+                    """)).as("访客生命周期 Agent 操作必须保存独立结果收据").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM pg_indexes
+                    WHERE schemaname = current_schema() AND tablename = 'visitor_visit_operation'
+                      AND indexname = 'ux_visitor_visit_agent_key'
+                    """)).as("访客生命周期稳定操作键必须由操作人范围唯一约束防重").isOne();
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM information_schema.columns
                     WHERE table_schema = current_schema() AND table_name = 'asset_operation'

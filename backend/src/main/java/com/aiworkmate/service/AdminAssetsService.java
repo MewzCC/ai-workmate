@@ -22,6 +22,8 @@ import com.aiworkmate.service.model.AssetAgentReturnCommand;
 import com.aiworkmate.service.model.AssetAgentReturnReceipt;
 import com.aiworkmate.service.model.VisitorAgentApplicationCommand;
 import com.aiworkmate.service.model.VisitorAgentApplicationReceipt;
+import com.aiworkmate.service.model.VisitorAgentVisitCommand;
+import com.aiworkmate.service.model.VisitorAgentVisitReceipt;
 import com.aiworkmate.service.model.AssetAgentRepairStartCommand;
 import com.aiworkmate.service.model.AssetAgentRepairStartReceipt;
 
@@ -111,6 +113,12 @@ public interface AdminAssetsService {
 
     Optional<VisitorAgentApplicationReceipt> findAgentVisitorBooking(
             Long userId, VisitorAgentApplicationCommand command, String operationKey);
+
+    VisitorAgentVisitReceipt checkInVisitorAgent(
+            Long userId, VisitorAgentVisitCommand command, String operationKey);
+
+    Optional<VisitorAgentVisitReceipt> findAgentVisitorCheckIn(
+            Long userId, VisitorAgentVisitCommand command, String operationKey);
 
     VisitorBookingResponse getVisitorBooking(Long userId, Long id);
 

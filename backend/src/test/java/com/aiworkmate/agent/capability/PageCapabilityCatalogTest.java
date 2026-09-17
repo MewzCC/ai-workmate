@@ -136,7 +136,8 @@ class PageCapabilityCatalogTest {
         assertThat(visitor.readTools())
                 .extracting(PageToolReference::code).containsExactly(ToolCode.VISITOR_QUERY);
         assertThat(visitor.writeTools())
-                .extracting(PageToolReference::code).containsExactly(ToolCode.VISITOR_APPLY);
+                .extracting(PageToolReference::code)
+                .containsExactly(ToolCode.VISITOR_APPLY, ToolCode.VISITOR_CHECK_IN);
         assertThat(catalog.find("seal-usage").orElseThrow().readTools())
                 .extracting(PageToolReference::code).containsExactly(ToolCode.SEAL_QUERY);
     }

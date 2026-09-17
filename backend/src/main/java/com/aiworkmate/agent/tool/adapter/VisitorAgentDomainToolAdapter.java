@@ -6,6 +6,7 @@ import com.aiworkmate.agent.tool.port.ToolWriteVerification;
 import com.aiworkmate.agent.tool.port.VisitorToolPort;
 import com.aiworkmate.service.AdminAssetsService;
 import com.aiworkmate.service.model.VisitorAgentApplicationCommand;
+import com.aiworkmate.service.model.VisitorAgentVisitCommand;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -53,6 +54,29 @@ public final class VisitorAgentDomainToolAdapter implements VisitorToolPort {
                 command.visitorName(), command.visitorCompany(), command.visitorPhone(), command.purpose(),
                 command.hostUserId(), command.expectedVisitAt(), command.expectedLeaveAt(),
                 command.plateNumber(), command.partySize());
+    }
+
+    @Override
+    public VisitResult checkIn(
+            ToolActorContext context, VisitCommand command, ToolOperationKey operationKey) {
+        var result = adminAssetsService.checkInVisitorAgent(
+                context.userId(), toDomain(command), operationKey.value());
+        return new VisitResult(
+                result.bookingId(), result.status(), result.version(), result.occurredAt());
+    }
+
+    @Override
+    public ToolWriteVerification<VisitResult> findCheckIn(
+            ToolActorContext context, VisitCommand command, ToolOperationKey operationKey) {
+        return adminAssetsService.findAgentVisitorCheckIn(
+                        context.userId(), toDomain(command), operationKey.value())
+                .map(result -> ToolWriteVerification.observed(new VisitResult(
+                        result.bookingId(), result.status(), result.version(), result.occurredAt())))
+                .orElseGet(ToolWriteVerification::unobserved);
+    }
+
+    private VisitorAgentVisitCommand toDomain(VisitCommand command) {
+        return new VisitorAgentVisitCommand(command.bookingId(), command.version(), command.remark());
     }
 
     private Item toItem(com.aiworkmate.dto.VisitorBookingResponse item) {

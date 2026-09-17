@@ -29,6 +29,7 @@ import com.aiworkmate.entity.MeetingBooking;
 import com.aiworkmate.entity.SealUsage;
 import com.aiworkmate.entity.User;
 import com.aiworkmate.entity.VisitorBooking;
+import com.aiworkmate.entity.VisitorVisitOperation;
 import com.aiworkmate.entity.WorkflowActionLog;
 import com.aiworkmate.entity.WorkflowInstance;
 import com.aiworkmate.entity.WorkflowTask;
@@ -56,6 +57,8 @@ import com.aiworkmate.service.model.AssetAgentReturnReceipt;
 import com.aiworkmate.service.model.ResolvedUserAccess;
 import com.aiworkmate.service.model.VisitorAgentApplicationCommand;
 import com.aiworkmate.service.model.VisitorAgentApplicationReceipt;
+import com.aiworkmate.service.model.VisitorAgentVisitCommand;
+import com.aiworkmate.service.model.VisitorAgentVisitReceipt;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import lombok.RequiredArgsConstructor;
@@ -724,6 +727,42 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
                 : Optional.of(toVisitorApplicationReceipt(requireMatchingVisitorApplication(existing, request)));
     }
 
+    @Override
+    @Transactional
+    public VisitorAgentVisitReceipt checkInVisitorAgent(
+            Long userId, VisitorAgentVisitCommand command, String operationKey) {
+        ResolvedUserAccess actor = requirePermission(userId, "visitor:register");
+        requireAgentOperationKey(operationKey);
+        validateVisitorVisitCommand(command);
+        VisitorBooking visitor = requireVisitor(actor, command.bookingId(), false);
+        requireVisitorRegistrationAccess(actor, visitor, false);
+        VisitorVisitOperation existing = visitorMapper.findVisitAgentOperation(
+                actor.tenantId(), actor.userId(), operationKey);
+        if (existing != null) {
+            return toVisitorVisitReceipt(requireMatchingVisitorVisitOperation(
+                    existing, command, "CHECK_IN", "CHECKED_IN"));
+        }
+        return toVisitorVisitReceipt(transitionVisitorVisit(
+                actor, visitor, new VisitorVisitActionRequest(command.expectedVersion(), command.remark()),
+                "APPROVED", "CHECKED_IN", "CHECK_IN", operationKey));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<VisitorAgentVisitReceipt> findAgentVisitorCheckIn(
+            Long userId, VisitorAgentVisitCommand command, String operationKey) {
+        ResolvedUserAccess actor = requirePermission(userId, "visitor:register");
+        requireAgentOperationKey(operationKey);
+        validateVisitorVisitCommand(command);
+        VisitorBooking visitor = requireVisitor(actor, command.bookingId(), false);
+        requireVisitorRegistrationAccess(actor, visitor, false);
+        VisitorVisitOperation existing = visitorMapper.findVisitAgentOperation(
+                actor.tenantId(), actor.userId(), operationKey);
+        return existing == null ? Optional.empty()
+                : Optional.of(toVisitorVisitReceipt(requireMatchingVisitorVisitOperation(
+                        existing, command, "CHECK_IN", "CHECKED_IN")));
+    }
+
     private VisitorBooking submitVisitorBookingInternal(
             ResolvedUserAccess actor, VisitorBookingRequest request, String operationKey) {
         User applicant = userMapper.lockActiveApplicant(actor.tenantId(), actor.userId());
@@ -1003,12 +1042,15 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
                                                            String expectedStatus, String targetStatus, String action) {
         ResolvedUserAccess actor = requirePermission(userId, "visitor:register");
         VisitorBooking visitor = requireVisitor(actor, id, false);
-        boolean related = actor.userId().equals(visitor.getApplicantUserId())
-                || actor.userId().equals(visitor.getHostUserId());
-        if (!related && !actor.permissions().contains("visitor:register:any")) {
-            throw new BusinessException(ErrorCode.RESOURCE_FORBIDDEN);
-        }
-        LocalDateTime now = LocalDateTime.now();
+        requireVisitorRegistrationAccess(actor, visitor, true);
+        transitionVisitorVisit(actor, visitor, request, expectedStatus, targetStatus, action, null);
+        return toVisitorResponse(actor, visitorMapper.selectById(id), null);
+    }
+
+    private VisitorVisitOperation transitionVisitorVisit(
+            ResolvedUserAccess actor, VisitorBooking visitor, VisitorVisitActionRequest request,
+            String expectedStatus, String targetStatus, String action, String operationKey) {
+        LocalDateTime now = normalizeTimestamp(LocalDateTime.now());
         if (!expectedStatus.equals(visitor.getStatus())) {
             throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID, "oa.visitor.visit.transition.invalid");
         }
@@ -1017,7 +1059,7 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
             throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID, "oa.visitor.visit.noShow.tooEarly");
         }
         LambdaUpdateWrapper<VisitorBooking> update = new LambdaUpdateWrapper<VisitorBooking>()
-                .eq(VisitorBooking::getId, id)
+                .eq(VisitorBooking::getId, visitor.getId())
                 .eq(VisitorBooking::getTenantId, actor.tenantId())
                 .eq(VisitorBooking::getStatus, expectedStatus)
                 .eq(VisitorBooking::getVersion, request.version())
@@ -1033,13 +1075,76 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
             default -> throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID);
         }
         if (visitorMapper.update(null, update) != 1) {
+            if (operationKey != null) {
+                VisitorVisitOperation concurrent = visitorMapper.findVisitAgentOperation(
+                        actor.tenantId(), actor.userId(), operationKey);
+                if (concurrent != null) {
+                    return requireMatchingVisitorVisitOperation(concurrent,
+                            new VisitorAgentVisitCommand(visitor.getId(), request.version(), request.remark()),
+                            action, targetStatus);
+                }
+            }
             throw new BusinessException(ErrorCode.VERSION_CONFLICT);
         }
+        VisitorVisitOperation operation = null;
+        if (operationKey != null) {
+            operation = new VisitorVisitOperation();
+            operation.setTenantId(actor.tenantId());
+            operation.setBookingId(visitor.getId());
+            operation.setOperatorUserId(actor.userId());
+            operation.setOperationType(action);
+            operation.setAgentOperationKey(operationKey);
+            operation.setSourceVersion(request.version());
+            operation.setResultVersion(request.version() + 1);
+            operation.setResultStatus(targetStatus);
+            operation.setRemark(trim(request.remark()));
+            operation.setOccurredAt(now);
+            operation.setCreatedAt(now);
+            if (visitorMapper.insertVisitAgentOperation(operation) != 1) {
+                throw new BusinessException(ErrorCode.IDEMPOTENCY_CONFLICT);
+            }
+        }
         auditService.recordTransactional(actor.tenantId(), actor.userId(), BUSINESS_VISITOR,
-                id.toString(), action, "SUCCESS",
+                visitor.getId().toString(), action, "SUCCESS",
                 "fromStatus=" + expectedStatus + ",toStatus=" + targetStatus
                         + ",remark=" + trim(request.remark()));
-        return toVisitorResponse(actor, visitorMapper.selectById(id), null);
+        return operation;
+    }
+
+    private void requireVisitorRegistrationAccess(
+            ResolvedUserAccess actor, VisitorBooking visitor, boolean allowTenantWide) {
+        boolean related = actor.userId().equals(visitor.getApplicantUserId())
+                || actor.userId().equals(visitor.getHostUserId());
+        if (!related && !(allowTenantWide && actor.permissions().contains("visitor:register:any"))) {
+            throw new BusinessException(ErrorCode.RESOURCE_FORBIDDEN);
+        }
+    }
+
+    private void validateVisitorVisitCommand(VisitorAgentVisitCommand command) {
+        if (command == null || command.bookingId() < 1 || command.expectedVersion() < 0
+                || command.expectedVersion() == Integer.MAX_VALUE
+                || (command.remark() != null && command.remark().length() > 500)) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+    }
+
+    private VisitorVisitOperation requireMatchingVisitorVisitOperation(
+            VisitorVisitOperation operation, VisitorAgentVisitCommand command,
+            String operationType, String resultStatus) {
+        if (!Objects.equals(operation.getBookingId(), command.bookingId())
+                || !Objects.equals(operation.getOperationType(), operationType)
+                || !Objects.equals(operation.getSourceVersion(), command.expectedVersion())
+                || !Objects.equals(operation.getResultStatus(), resultStatus)
+                || !Objects.equals(operation.getRemark(), trim(command.remark()))) {
+            throw new BusinessException(ErrorCode.IDEMPOTENCY_CONFLICT);
+        }
+        return operation;
+    }
+
+    private VisitorAgentVisitReceipt toVisitorVisitReceipt(VisitorVisitOperation operation) {
+        return new VisitorAgentVisitReceipt(
+                operation.getBookingId(), operation.getResultStatus(),
+                operation.getResultVersion(), operation.getOccurredAt());
     }
 
     private VisitorBookingResponse decideVisitor(Long userId, Long taskId,

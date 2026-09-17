@@ -5,6 +5,7 @@ import com.aiworkmate.dto.VisitorBookingResponse;
 import com.aiworkmate.dto.VisitorVisitActionRequest;
 import com.aiworkmate.entity.User;
 import com.aiworkmate.entity.VisitorBooking;
+import com.aiworkmate.entity.VisitorVisitOperation;
 import com.aiworkmate.mapper.AccessControlMapper;
 import com.aiworkmate.mapper.AssetLedgerMapper;
 import com.aiworkmate.mapper.AssetOperationMapper;
@@ -20,6 +21,7 @@ import com.aiworkmate.service.BusinessAuditService;
 import com.aiworkmate.service.NotificationService;
 import com.aiworkmate.service.UserAccessService;
 import com.aiworkmate.service.model.ResolvedUserAccess;
+import com.aiworkmate.service.model.VisitorAgentVisitCommand;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
@@ -27,6 +29,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
@@ -95,6 +98,36 @@ class VisitorVisitLifecycleServiceTest {
     }
 
     @Test
+    void agentCheckInPersistsVersionBoundReceiptAndCanVerifyIt() {
+        stubAccess(access(ACTOR_ID, List.of("visitor:register")));
+        VisitorBooking approved = booking("APPROVED", 2, ACTOR_ID, ACTOR_ID);
+        when(visitorMapper.selectById(VISITOR_ID)).thenReturn(approved, booking("CHECKED_IN", 3, ACTOR_ID, ACTOR_ID));
+        when(visitorMapper.update(any(), any())).thenReturn(1);
+        when(visitorMapper.insertVisitAgentOperation(any())).thenReturn(1);
+        var command = new VisitorAgentVisitCommand(VISITOR_ID, 2, "已核验证件");
+
+        var result = service.checkInVisitorAgent(ACTOR_ID, command, "operation-1");
+
+        assertThat(result.bookingId()).isEqualTo(VISITOR_ID);
+        assertThat(result.status()).isEqualTo("CHECKED_IN");
+        assertThat(result.version()).isEqualTo(3);
+        ArgumentCaptor<VisitorVisitOperation> operation = ArgumentCaptor.forClass(VisitorVisitOperation.class);
+        verify(visitorMapper).insertVisitAgentOperation(operation.capture());
+        assertThat(operation.getValue().getAgentOperationKey()).isEqualTo("operation-1");
+        assertThat(operation.getValue().getSourceVersion()).isEqualTo(2);
+        assertThat(operation.getValue().getResultVersion()).isEqualTo(3);
+        verify(auditService).recordTransactional(TENANT_ID, ACTOR_ID, "VISITOR_BOOKING",
+                Long.toString(VISITOR_ID), "CHECK_IN", "SUCCESS",
+                "fromStatus=APPROVED,toStatus=CHECKED_IN,remark=已核验证件");
+
+        when(visitorMapper.selectById(VISITOR_ID)).thenReturn(booking("CHECKED_IN", 3, ACTOR_ID, ACTOR_ID));
+        when(visitorMapper.findVisitAgentOperation(TENANT_ID, ACTOR_ID, "operation-1"))
+                .thenReturn(operation.getValue());
+        assertThat(service.findAgentVisitorCheckIn(ACTOR_ID, command, "operation-1"))
+                .contains(result);
+    }
+
+    @Test
     void arrivalRequiresCheckedInStatus() {
         stubAccess(access(ACTOR_ID, List.of("visitor:register")));
         when(visitorMapper.selectById(VISITOR_ID)).thenReturn(booking("APPROVED", 2, ACTOR_ID, ACTOR_ID));
@@ -158,6 +191,21 @@ class VisitorVisitLifecycleServiceTest {
                 .extracting("errorCode").isEqualTo("RESOURCE_FORBIDDEN");
 
         verify(visitorMapper, never()).update(any(), any());
+    }
+
+    @Test
+    void agentCheckInDoesNotUseTenantWideRegistrationPrivilege() {
+        long unrelatedUserId = 3003L;
+        stubAccess(access(unrelatedUserId, List.of("visitor:register", "visitor:register:any")));
+        when(visitorMapper.selectById(VISITOR_ID)).thenReturn(booking("APPROVED", 2, ACTOR_ID, ACTOR_ID));
+
+        assertThatThrownBy(() -> service.checkInVisitorAgent(unrelatedUserId,
+                new VisitorAgentVisitCommand(VISITOR_ID, 2, null), "operation-2"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("RESOURCE_FORBIDDEN");
+
+        verify(visitorMapper, never()).update(any(), any());
+        verify(visitorMapper, never()).insertVisitAgentOperation(any());
     }
 
     @Test
