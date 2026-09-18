@@ -2,6 +2,7 @@ package com.aiworkmate.service;
 
 import com.aiworkmate.service.model.ExpenseAgentDraftCommand;
 import com.aiworkmate.service.model.ExpenseAgentDraftReceipt;
+import com.aiworkmate.service.model.ExpenseAgentLifecycleReceipt;
 
 import java.util.Optional;
 
@@ -12,4 +13,6 @@ public interface ExpenseApplicationService {
 
     Optional<ExpenseAgentDraftReceipt> findAgentDraft(
             Long userId, ExpenseAgentDraftCommand command, String operationKey);
+
+    ExpenseAgentLifecycleReceipt submitAgentDraft(Long userId, Long applicationId, int version);
 }

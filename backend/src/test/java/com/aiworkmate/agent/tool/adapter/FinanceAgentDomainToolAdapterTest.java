@@ -11,6 +11,7 @@ import com.aiworkmate.agent.tool.port.ToolOperationKey;
 import com.aiworkmate.agent.tool.port.ToolWriteVerification;
 import com.aiworkmate.service.*;
 import com.aiworkmate.service.model.ExpenseAgentDraftReceipt;
+import com.aiworkmate.service.model.ExpenseAgentLifecycleReceipt;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -64,6 +65,18 @@ class FinanceAgentDomainToolAdapterTest {
         assertThat(adapter.findExpenseDraft(actor, command, key))
                 .isEqualTo(ToolWriteVerification.observed(expected));
         verify(expenseApplications).createAgentDraft(eq(7L), any(), eq("expense-operation"));
+    }
+
+    @Test
+    void submitsExpenseThroughDedicatedTypedBoundary() {
+        when(expenseApplications.submitAgentDraft(7L, 51L, 0))
+                .thenReturn(new ExpenseAgentLifecycleReceipt(
+                        51L, "expense-application", "PENDING", 1));
+
+        assertThat(adapter.submitExpenseDraft(actor, 51L, 0))
+                .isEqualTo(new FinanceToolPort.ExpenseLifecycleResult(
+                        51L, "expense-application", "PENDING", 1));
+        verify(expenseApplications).submitAgentDraft(7L, 51L, 0);
     }
 
     @Test

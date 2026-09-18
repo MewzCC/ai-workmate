@@ -31,4 +31,25 @@ class AgentExpenseWriteToolDefinitionsTest {
                 {"amount":88.50,"formKey":"other-form"}
                 """))).isFalse();
     }
+
+    @Test
+    void submitOnlyAcceptsOneVersionedExpenseDraftAndNeverRetries() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        ToolDefinition definition = new AgentExpenseWriteToolDefinitions()
+                .expenseSubmitDraftToolDefinition(mapper);
+        ToolSchemaValidator validator = new ToolSchemaValidator();
+
+        assertThat(definition.schemaHash()).isEqualTo(
+                "sha256:4a38437ed858eee879c9cadcf868a4f21e3ad0b70b17efa4dff6f1c73d5578d3");
+        assertThat(definition.requiredPermissions()).containsExactly("approval:submit");
+        assertThat(definition.riskLevel()).isEqualTo(RiskLevel.L1);
+        assertThat(definition.sideEffect()).isEqualTo(SideEffect.SINGLE_WRITE);
+        assertThat(definition.retryPolicy()).isEqualTo(RetryPolicy.NEVER);
+        assertThat(definition.confirmationPolicy()).isEqualTo(ConfirmationPolicy.EXPLICIT);
+        assertThat(definition.ownershipPolicy()).isEqualTo(OwnershipPolicy.SELF);
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree(
+                "{\"applicationId\":51,\"version\":0}"))).isTrue();
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree(
+                "{\"applicationId\":51,\"version\":0,\"formKey\":\"other\"}"))).isFalse();
+    }
 }

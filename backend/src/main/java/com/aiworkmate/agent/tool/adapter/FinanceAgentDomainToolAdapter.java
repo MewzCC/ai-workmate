@@ -49,6 +49,15 @@ public class FinanceAgentDomainToolAdapter implements FinanceToolPort {
                 this::draftResult);
     }
 
+    @Override
+    public ExpenseLifecycleResult submitExpenseDraft(
+            ToolActorContext context, long applicationId, int version) {
+        var result = expenseApplicationService.submitAgentDraft(
+                context.userId(), applicationId, version);
+        return new ExpenseLifecycleResult(
+                result.applicationId(), result.formKey(), result.status(), result.version());
+    }
+
     @Override public Page<Budget> budgets(ToolActorContext context, BudgetQuery query) {
         if (query.budgetId() != null) {
             var detail = budgetService.detail(context.userId(), query.budgetId()).budget();

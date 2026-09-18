@@ -12,6 +12,8 @@ public interface FinanceToolPort {
             ToolActorContext context, ExpenseDraft command, ToolOperationKey operationKey);
     ToolWriteVerification<ExpenseDraftResult> findExpenseDraft(
             ToolActorContext context, ExpenseDraft command, ToolOperationKey operationKey);
+    ExpenseLifecycleResult submitExpenseDraft(
+            ToolActorContext context, long applicationId, int version);
     Page<Budget> budgets(ToolActorContext context, BudgetQuery query);
     Page<Contract> contracts(ToolActorContext context, ContractQuery query);
     Page<Supplier> suppliers(ToolActorContext context, SupplierQuery query);
@@ -21,6 +23,8 @@ public interface FinanceToolPort {
                         String invoiceNumber, String reason) { }
     record ExpenseDraftResult(long applicationId, String formKey, String status,
                               int version, LocalDateTime createdAt) implements ToolWriteReceipt { }
+    record ExpenseLifecycleResult(long applicationId, String formKey, String status, int version)
+            implements ToolWriteReceipt { }
     record BudgetQuery(Long budgetId, String keyword, String status, Integer fiscalYear, int page, int size) { }
     record ContractQuery(Long contractId, String keyword, String status, String contractType,
                          String expiryState, int page, int size) { }

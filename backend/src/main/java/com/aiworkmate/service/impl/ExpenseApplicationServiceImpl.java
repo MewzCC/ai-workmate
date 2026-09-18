@@ -4,6 +4,7 @@ import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.common.ErrorCode;
 import com.aiworkmate.dto.ApprovalApplicationResponse;
 import com.aiworkmate.dto.ApprovalDraftRequest;
+import com.aiworkmate.dto.VersionRequest;
 import com.aiworkmate.entity.ApprovalApplication;
 import com.aiworkmate.mapper.ApprovalApplicationMapper;
 import com.aiworkmate.service.ExpenseApplicationService;
@@ -11,6 +12,7 @@ import com.aiworkmate.service.GenericApprovalService;
 import com.aiworkmate.service.UserAccessService;
 import com.aiworkmate.service.model.ExpenseAgentDraftCommand;
 import com.aiworkmate.service.model.ExpenseAgentDraftReceipt;
+import com.aiworkmate.service.model.ExpenseAgentLifecycleReceipt;
 import com.aiworkmate.service.model.ResolvedUserAccess;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -67,6 +69,26 @@ public class ExpenseApplicationServiceImpl implements ExpenseApplicationService 
                 existing.getVersion(), existing.getCreatedAt()));
     }
 
+    @Override
+    @Transactional
+    public ExpenseAgentLifecycleReceipt submitAgentDraft(
+            Long userId, Long applicationId, int version) {
+        ResolvedUserAccess actor = requireSubmitAccess(userId);
+        ApprovalApplication existing = applicationMapper.selectById(applicationId);
+        if (existing == null || !Objects.equals(existing.getTenantId(), actor.tenantId())
+                || !Objects.equals(existing.getApplicantUserId(), actor.userId())
+                || !FORM_KEY.equals(existing.getFormKey())) {
+            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        }
+        ApprovalApplicationResponse submitted = approvalService.submitAgentDraft(
+                userId, applicationId, new VersionRequest(version));
+        if (!FORM_KEY.equals(submitted.formKey())) {
+            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        }
+        return new ExpenseAgentLifecycleReceipt(
+                submitted.id(), submitted.formKey(), submitted.status(), submitted.version());
+    }
+
     private ApprovalDraftRequest request(ExpenseAgentDraftCommand command) {
         if (command == null) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID);
@@ -114,6 +136,16 @@ public class ExpenseApplicationServiceImpl implements ExpenseApplicationService 
         if (actor == null || actor.tenantId() == null
                 || !actor.permissions().contains("route:approval-start")
                 || !actor.permissions().contains("approval:create")) {
+            throw new BusinessException(ErrorCode.PERMISSION_DENIED);
+        }
+        return actor;
+    }
+
+    private ResolvedUserAccess requireSubmitAccess(Long userId) {
+        ResolvedUserAccess actor = userAccessService.resolveActiveUser(userId);
+        if (actor == null || actor.tenantId() == null
+                || !actor.permissions().contains("route:approval-start")
+                || !actor.permissions().contains("approval:submit")) {
             throw new BusinessException(ErrorCode.PERMISSION_DENIED);
         }
         return actor;
