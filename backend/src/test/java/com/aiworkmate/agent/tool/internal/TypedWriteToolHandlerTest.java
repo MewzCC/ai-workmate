@@ -2,6 +2,7 @@ package com.aiworkmate.agent.tool.internal;
 
 import com.aiworkmate.agent.registry.ToolCode;
 import com.aiworkmate.agent.tool.port.ToolOperationKey;
+import com.aiworkmate.agent.tool.port.ToolWriteReceipt;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -80,7 +81,8 @@ class TypedWriteToolHandlerTest {
         }
     }
 
-    private record Result(String value, ToolOperationKey operationKey, String internalValue) { }
+    private record Result(String value, ToolOperationKey operationKey, String internalValue)
+            implements ToolWriteReceipt { }
 
     private static final class SampleVersionedHandler extends TypedVersionedWriteToolHandler<Result> {
         private SampleVersionedHandler(ObjectMapper objectMapper, String idArgument) {

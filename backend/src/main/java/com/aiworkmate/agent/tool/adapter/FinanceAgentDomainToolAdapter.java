@@ -43,10 +43,10 @@ public class FinanceAgentDomainToolAdapter implements FinanceToolPort {
     @Override
     public ToolWriteVerification<ExpenseDraftResult> findExpenseDraft(
             ToolActorContext context, ExpenseDraft command, ToolOperationKey operationKey) {
-        return expenseApplicationService.findAgentDraft(
-                        context.userId(), toDomain(command), operationKey.value())
-                .map(result -> ToolWriteVerification.observed(draftResult(result)))
-                .orElseGet(ToolWriteVerification::unobserved);
+        return ToolWriteVerification.fromOptional(
+                expenseApplicationService.findAgentDraft(
+                        context.userId(), toDomain(command), operationKey.value()),
+                this::draftResult);
     }
 
     @Override public Page<Budget> budgets(ToolActorContext context, BudgetQuery query) {

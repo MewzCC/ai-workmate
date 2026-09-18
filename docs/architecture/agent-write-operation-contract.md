@@ -10,6 +10,8 @@ Agent 写工具继续通过 `ToolGateway` 执行，Handler 调用类型化 Port�
 - `ToolWriteReceipt`：写结果的无字段标记。各领域仍返回自己的封闭 record，避免万能响应和字段泄露；标记本身不会改变工具 JSON 输出。
 - `ToolWriteVerification<R>`：只读核验返回 `OBSERVED + receipt` 或 `UNOBSERVED`。两种状态互斥，禁止用空 Optional 模糊表示“可以重试”。
 
+写 Handler 的泛型结果在编译期强制实现 `ToolWriteReceipt`，避免新增工具退回无约束响应。各本地 Adapter 通过 `ToolWriteVerification.fromOptional` 统一把领域查询映射为明确核验结果；该方法只消除机械转换，不捕获权限、网络或领域异常，异常继续失败关闭。
+
 当前会议创建与取消已接入显式核验结果；底层查询继续重新解析实时用户、权限、租户和本人归属，并按稳定操作键匹配原命令。`UNOBSERVED` 只表示查询时没有观察到已提交结果，不证明在途写入失败，也不允许 Worker 自动重放。
 
 ## Spring Cloud 演进边界

@@ -2,7 +2,7 @@ package com.aiworkmate.agent.tool.port;
 
 import org.junit.jupiter.api.Test;
 
-import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -45,16 +45,30 @@ class ToolWriteContractTest {
     }
 
     @Test
-    void allCurrentWriteOutputsAreTypedReceipts() {
-        assertThat(List.of(
-                ApprovalApplicationToolPort.WriteResult.class,
-                AttendanceToolPort.ReissueWriteResult.class,
-                LeaveToolPort.WriteResult.class,
-                LeaveToolPort.WithdrawalResult.class,
-                MeetingToolPort.WriteResult.class,
-                MeetingToolPort.CancelResult.class,
-                NotificationToolPort.ReadResult.class
-        )).allMatch(ToolWriteReceipt.class::isAssignableFrom);
+    void convertsDomainLookupWithoutDuplicatingUnknownOutcomeRules() {
+        assertThat(ToolWriteVerification.fromOptional(
+                Optional.of(30L), id -> new SampleReceipt(id, "BOOKED")))
+                .satisfies(result -> {
+                    assertThat(result.observed()).isTrue();
+                    assertThat(result.receipt()).isEqualTo(new SampleReceipt(30L, "BOOKED"));
+                });
+        assertThat(ToolWriteVerification.fromOptional(
+                Optional.<Long>empty(), id -> new SampleReceipt(id, "BOOKED")))
+                .satisfies(result -> {
+                    assertThat(result.observed()).isFalse();
+                    assertThat(result.receipt()).isNull();
+                });
+    }
+
+    @Test
+    void rejectsIncompleteDomainLookupConversion() {
+        assertThatThrownBy(() -> ToolWriteVerification.fromOptional(
+                null, id -> new SampleReceipt((long) id, "BOOKED")))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessageContaining("source");
+        assertThatThrownBy(() -> ToolWriteVerification.fromOptional(Optional.of(30L), null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessageContaining("mapper");
     }
 
     private record SampleReceipt(long resourceId, String status) implements ToolWriteReceipt { }

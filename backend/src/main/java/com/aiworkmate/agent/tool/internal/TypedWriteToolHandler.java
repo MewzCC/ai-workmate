@@ -2,6 +2,7 @@ package com.aiworkmate.agent.tool.internal;
 
 import com.aiworkmate.agent.registry.ToolCode;
 import com.aiworkmate.agent.tool.port.ToolOperationKey;
+import com.aiworkmate.agent.tool.port.ToolWriteReceipt;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -11,7 +12,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  * generation. Domain authorization, ownership, state and optimistic locking
  * remain in the typed port and its domain service.
  */
-abstract class TypedWriteToolHandler<C, R> implements ToolHandler {
+abstract class TypedWriteToolHandler<C, R extends ToolWriteReceipt> implements ToolHandler {
     private static final String DEFAULT_HANDLER_VERSION = "1.0.0";
 
     private final ToolCode code;

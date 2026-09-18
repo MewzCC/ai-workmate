@@ -1,6 +1,7 @@
 package com.aiworkmate.agent.tool.internal;
 
 import com.aiworkmate.agent.registry.ToolCode;
+import com.aiworkmate.agent.tool.port.ToolWriteReceipt;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -8,7 +9,7 @@ import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.requiredIn
 import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.requiredLong;
 
 /** Shared command shape for a single optimistic-lock protected resource write. */
-abstract class TypedVersionedWriteToolHandler<R>
+abstract class TypedVersionedWriteToolHandler<R extends ToolWriteReceipt>
         extends TypedWriteToolHandler<TypedVersionedWriteToolHandler.Command, R> {
     private final String idArgument;
 

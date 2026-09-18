@@ -42,11 +42,11 @@ public final class VisitorAgentDomainToolAdapter implements VisitorToolPort {
     @Override
     public ToolWriteVerification<ApplicationResult> findApplication(
             ToolActorContext context, ApplicationCommand command, ToolOperationKey operationKey) {
-        return adminAssetsService.findAgentVisitorBooking(
-                        context.userId(), toDomain(command), operationKey.value())
-                .map(result -> ToolWriteVerification.observed(new ApplicationResult(
-                        result.bookingId(), result.status(), result.version(), result.submittedAt())))
-                .orElseGet(ToolWriteVerification::unobserved);
+        return ToolWriteVerification.fromOptional(
+                adminAssetsService.findAgentVisitorBooking(
+                        context.userId(), toDomain(command), operationKey.value()),
+                result -> new ApplicationResult(
+                        result.bookingId(), result.status(), result.version(), result.submittedAt()));
     }
 
     private VisitorAgentApplicationCommand toDomain(ApplicationCommand command) {
@@ -68,11 +68,11 @@ public final class VisitorAgentDomainToolAdapter implements VisitorToolPort {
     @Override
     public ToolWriteVerification<VisitResult> findCheckIn(
             ToolActorContext context, VisitCommand command, ToolOperationKey operationKey) {
-        return adminAssetsService.findAgentVisitorCheckIn(
-                        context.userId(), toDomain(command), operationKey.value())
-                .map(result -> ToolWriteVerification.observed(new VisitResult(
-                        result.bookingId(), result.status(), result.version(), result.occurredAt())))
-                .orElseGet(ToolWriteVerification::unobserved);
+        return ToolWriteVerification.fromOptional(
+                adminAssetsService.findAgentVisitorCheckIn(
+                        context.userId(), toDomain(command), operationKey.value()),
+                result -> new VisitResult(
+                        result.bookingId(), result.status(), result.version(), result.occurredAt()));
     }
 
     private VisitorAgentVisitCommand toDomain(VisitCommand command) {
@@ -91,11 +91,11 @@ public final class VisitorAgentDomainToolAdapter implements VisitorToolPort {
     @Override
     public ToolWriteVerification<VisitResult> findArrival(
             ToolActorContext context, VisitCommand command, ToolOperationKey operationKey) {
-        return adminAssetsService.findAgentVisitorArrival(
-                        context.userId(), toDomain(command), operationKey.value())
-                .map(result -> ToolWriteVerification.observed(new VisitResult(
-                        result.bookingId(), result.status(), result.version(), result.occurredAt())))
-                .orElseGet(ToolWriteVerification::unobserved);
+        return ToolWriteVerification.fromOptional(
+                adminAssetsService.findAgentVisitorArrival(
+                        context.userId(), toDomain(command), operationKey.value()),
+                result -> new VisitResult(
+                        result.bookingId(), result.status(), result.version(), result.occurredAt()));
     }
 
     @Override
@@ -110,11 +110,11 @@ public final class VisitorAgentDomainToolAdapter implements VisitorToolPort {
     @Override
     public ToolWriteVerification<VisitResult> findLeave(
             ToolActorContext context, VisitCommand command, ToolOperationKey operationKey) {
-        return adminAssetsService.findAgentVisitorLeave(
-                        context.userId(), toDomain(command), operationKey.value())
-                .map(result -> ToolWriteVerification.observed(new VisitResult(
-                        result.bookingId(), result.status(), result.version(), result.occurredAt())))
-                .orElseGet(ToolWriteVerification::unobserved);
+        return ToolWriteVerification.fromOptional(
+                adminAssetsService.findAgentVisitorLeave(
+                        context.userId(), toDomain(command), operationKey.value()),
+                result -> new VisitResult(
+                        result.bookingId(), result.status(), result.version(), result.occurredAt()));
     }
 
     private Item toItem(com.aiworkmate.dto.VisitorBookingResponse item) {

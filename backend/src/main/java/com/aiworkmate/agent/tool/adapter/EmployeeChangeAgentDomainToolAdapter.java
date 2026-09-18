@@ -39,11 +39,11 @@ public final class EmployeeChangeAgentDomainToolAdapter implements EmployeeChang
     @Override
     public ToolWriteVerification<ApplicationResult> findApplication(
             ToolActorContext context, ApplicationCommand command, ToolOperationKey operationKey) {
-        return employeeChangeService.findAgentApplication(
-                        context.userId(), toDomain(command), operationKey.value())
-                .map(result -> ToolWriteVerification.observed(new ApplicationResult(
-                        result.changeId(), result.status(), result.version(), result.submittedAt())))
-                .orElseGet(ToolWriteVerification::unobserved);
+        return ToolWriteVerification.fromOptional(
+                employeeChangeService.findAgentApplication(
+                        context.userId(), toDomain(command), operationKey.value()),
+                result -> new ApplicationResult(
+                        result.changeId(), result.status(), result.version(), result.submittedAt()));
     }
 
     private EmployeeChangeAgentApplicationCommand toDomain(ApplicationCommand command) {

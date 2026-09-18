@@ -37,10 +37,10 @@ public final class AssetAgentDomainToolAdapter implements AssetToolPort {
     @Override
     public ToolWriteVerification<ClaimResult> findClaim(
             ToolActorContext context, ClaimCommand command, ToolOperationKey operationKey) {
-        return adminAssetsService.findAgentAssetClaim(context.userId(), toDomain(command), operationKey.value())
-                .map(result -> ToolWriteVerification.observed(
-                        new ClaimResult(result.assetId(), result.status(), result.version())))
-                .orElseGet(ToolWriteVerification::unobserved);
+        return ToolWriteVerification.fromOptional(
+                adminAssetsService.findAgentAssetClaim(
+                        context.userId(), toDomain(command), operationKey.value()),
+                result -> new ClaimResult(result.assetId(), result.status(), result.version()));
     }
 
     private AssetAgentClaimCommand toDomain(ClaimCommand command) {
@@ -59,10 +59,10 @@ public final class AssetAgentDomainToolAdapter implements AssetToolPort {
     @Override
     public ToolWriteVerification<ReturnResult> findReturn(
             ToolActorContext context, ReturnCommand command, ToolOperationKey operationKey) {
-        return adminAssetsService.findAgentAssetReturn(context.userId(), toDomain(command), operationKey.value())
-                .map(result -> ToolWriteVerification.observed(
-                        new ReturnResult(result.assetId(), result.status(), result.version())))
-                .orElseGet(ToolWriteVerification::unobserved);
+        return ToolWriteVerification.fromOptional(
+                adminAssetsService.findAgentAssetReturn(
+                        context.userId(), toDomain(command), operationKey.value()),
+                result -> new ReturnResult(result.assetId(), result.status(), result.version()));
     }
 
     private AssetAgentReturnCommand toDomain(ReturnCommand command) {
@@ -80,11 +80,10 @@ public final class AssetAgentDomainToolAdapter implements AssetToolPort {
     @Override
     public ToolWriteVerification<RepairStartResult> findRepairStart(
             ToolActorContext context, RepairStartCommand command, ToolOperationKey operationKey) {
-        return adminAssetsService.findAgentAssetRepairStart(
-                        context.userId(), toDomain(command), operationKey.value())
-                .map(result -> ToolWriteVerification.observed(
-                        new RepairStartResult(result.assetId(), result.status(), result.version())))
-                .orElseGet(ToolWriteVerification::unobserved);
+        return ToolWriteVerification.fromOptional(
+                adminAssetsService.findAgentAssetRepairStart(
+                        context.userId(), toDomain(command), operationKey.value()),
+                result -> new RepairStartResult(result.assetId(), result.status(), result.version()));
     }
 
     private AssetAgentRepairStartCommand toDomain(RepairStartCommand command) {

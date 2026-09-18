@@ -56,22 +56,22 @@ public final class MeetingAgentDomainToolAdapter implements MeetingToolPort {
     @Override
     public ToolWriteVerification<MeetingToolPort.WriteResult> findCreation(
             ToolActorContext context, MeetingToolPort.BookCommand command, ToolOperationKey operationKey) {
-        return meetingBookingService.findAgentCreation(context.userId(), new MeetingBookingRequest(
-                command.roomId(), command.title(), command.agenda(), command.startAt(), command.endAt(),
-                command.attendeeCount()), operationKey.value())
-                .map(item -> ToolWriteVerification.observed(new MeetingToolPort.WriteResult(
-                        item.id(), item.roomId(), item.status(), item.version(), item.startAt(), item.endAt())))
-                .orElseGet(ToolWriteVerification::unobserved);
+        return ToolWriteVerification.fromOptional(
+                meetingBookingService.findAgentCreation(context.userId(), new MeetingBookingRequest(
+                        command.roomId(), command.title(), command.agenda(), command.startAt(), command.endAt(),
+                        command.attendeeCount()), operationKey.value()),
+                item -> new MeetingToolPort.WriteResult(
+                        item.id(), item.roomId(), item.status(), item.version(), item.startAt(), item.endAt()));
     }
 
     @Override
     public ToolWriteVerification<MeetingToolPort.CancelResult> findCancellation(
             ToolActorContext context, MeetingToolPort.CancelCommand command, ToolOperationKey operationKey) {
-        return meetingBookingService.findAgentCancellation(context.userId(), command.bookingId(),
-                new MeetingBookingCancelRequest(command.version(), command.reason()), operationKey.value())
-                .map(item -> ToolWriteVerification.observed(new MeetingToolPort.CancelResult(
-                        item.id(), item.roomId(), item.status(), item.version(), item.cancelledAt())))
-                .orElseGet(ToolWriteVerification::unobserved);
+        return ToolWriteVerification.fromOptional(
+                meetingBookingService.findAgentCancellation(context.userId(), command.bookingId(),
+                        new MeetingBookingCancelRequest(command.version(), command.reason()), operationKey.value()),
+                item -> new MeetingToolPort.CancelResult(
+                        item.id(), item.roomId(), item.status(), item.version(), item.cancelledAt()));
     }
 
 }
