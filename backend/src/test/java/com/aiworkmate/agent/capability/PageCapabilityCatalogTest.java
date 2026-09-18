@@ -153,8 +153,9 @@ class PageCapabilityCatalogTest {
                 .extracting(PageToolReference::code).containsExactly(ToolCode.EXPENSE_QUERY);
         assertThat(expense.writeTools())
                 .extracting(PageToolReference::code).containsExactly(
-                        ToolCode.EXPENSE_CREATE_DRAFT, ToolCode.EXPENSE_SUBMIT_DRAFT,
-                        ToolCode.EXPENSE_WITHDRAW, ToolCode.EXPENSE_REOPEN);
+                        ToolCode.EXPENSE_CREATE_DRAFT, ToolCode.EXPENSE_UPDATE_DRAFT,
+                        ToolCode.EXPENSE_SUBMIT_DRAFT, ToolCode.EXPENSE_WITHDRAW,
+                        ToolCode.EXPENSE_REOPEN);
         assertThat(catalog.find("budget").orElseThrow().readTools())
                 .extracting(PageToolReference::code).containsExactly(ToolCode.BUDGET_QUERY);
         assertThat(catalog.find("contracts").orElseThrow().readTools())

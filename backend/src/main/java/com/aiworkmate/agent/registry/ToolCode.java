@@ -48,6 +48,7 @@ public enum ToolCode {
     SEAL_REGISTER_USE("seal.registerUse", SideEffect.SINGLE_WRITE),
     EXPENSE_QUERY("expense.query"),
     EXPENSE_CREATE_DRAFT("expense.createDraft", SideEffect.SINGLE_WRITE),
+    EXPENSE_UPDATE_DRAFT("expense.updateDraft", SideEffect.SINGLE_WRITE),
     EXPENSE_SUBMIT_DRAFT("expense.submitDraft", SideEffect.SINGLE_WRITE),
     EXPENSE_WITHDRAW("expense.withdraw", SideEffect.SINGLE_WRITE),
     EXPENSE_REOPEN("expense.reopen", SideEffect.SINGLE_WRITE),

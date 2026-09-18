@@ -54,6 +54,28 @@ class AgentExpenseWriteToolDefinitionsTest {
     }
 
     @Test
+    void updateRequiresOnePatchFieldAndNeverSubmitsTheDraft() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        ToolDefinition definition = new AgentExpenseWriteToolDefinitions()
+                .expenseUpdateDraftToolDefinition(mapper);
+        ToolSchemaValidator validator = new ToolSchemaValidator();
+
+        assertThat(definition.schemaHash()).isEqualTo(
+                "sha256:e08fd6a543d60ed628123a93a209bd1c2d330d940530531e095dd9bc0ca99fcc");
+        assertThat(definition.requiredPermissions()).containsExactly("approval:create");
+        assertThat(definition.riskLevel()).isEqualTo(RiskLevel.L1);
+        assertThat(definition.retryPolicy()).isEqualTo(RetryPolicy.NEVER);
+        assertThat(definition.confirmationPolicy()).isEqualTo(ConfirmationPolicy.EXPLICIT);
+        assertThat(definition.ownershipPolicy()).isEqualTo(OwnershipPolicy.SELF);
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree(
+                "{\"applicationId\":51,\"version\":0,\"amount\":99.50}"))).isTrue();
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree(
+                "{\"applicationId\":51,\"version\":0}"))).isFalse();
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree(
+                "{\"applicationId\":51,\"version\":0,\"submit\":true}"))).isFalse();
+    }
+
+    @Test
     void withdrawOnlyAcceptsOneVersionedExpenseApplicationAndNeverRetries() throws Exception {
         ObjectMapper mapper = new ObjectMapper();
         ToolDefinition definition = new AgentExpenseWriteToolDefinitions()

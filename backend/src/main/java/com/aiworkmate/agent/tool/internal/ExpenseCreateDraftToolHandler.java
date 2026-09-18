@@ -7,17 +7,9 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Component;
 
-import java.math.BigDecimal;
-
-import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.optionalDate;
-import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.optionalDecimal;
-import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.optionalText;
-
 @Component
 public final class ExpenseCreateDraftToolHandler extends TypedOperationKeyWriteToolHandler<
         FinanceToolPort.ExpenseDraft, FinanceToolPort.ExpenseDraftResult> {
-    private static final BigDecimal MIN_AMOUNT = new BigDecimal("0.01");
-    private static final BigDecimal MAX_AMOUNT = new BigDecimal("999999999.99");
     private final FinanceToolPort port;
 
     public ExpenseCreateDraftToolHandler(FinanceToolPort port, ObjectMapper objectMapper) {
@@ -27,12 +19,7 @@ public final class ExpenseCreateDraftToolHandler extends TypedOperationKeyWriteT
 
     @Override
     protected FinanceToolPort.ExpenseDraft parseArguments(JsonNode arguments) {
-        return new FinanceToolPort.ExpenseDraft(
-                optionalDecimal(arguments, "amount", MIN_AMOUNT, MAX_AMOUNT, 2),
-                optionalText(arguments, "category"),
-                optionalDate(arguments, "expenseDate"),
-                optionalText(arguments, "invoiceNumber"),
-                optionalText(arguments, "reason"));
+        return ExpenseDraftArguments.parse(arguments);
     }
 
     @Override

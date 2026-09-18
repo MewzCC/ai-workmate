@@ -187,6 +187,22 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
                                                    Long id,
                                                    ApprovalDraftUpdateRequest request) {
         ResolvedUserAccess actor = requirePermission(userId, "route:approval-start");
+        return updateDraftInternal(actor, id, request);
+    }
+
+    @Override
+    @Transactional
+    public ApprovalApplicationResponse updateAgentDraft(
+            Long userId, Long id, ApprovalDraftUpdateRequest request) {
+        ResolvedUserAccess actor = requirePermission(userId, "route:approval-start");
+        if (!actor.permissions().contains("approval:create")) {
+            throw new BusinessException(ErrorCode.PERMISSION_DENIED);
+        }
+        return updateDraftInternal(actor, id, request);
+    }
+
+    private ApprovalApplicationResponse updateDraftInternal(
+            ResolvedUserAccess actor, Long id, ApprovalDraftUpdateRequest request) {
         ApprovalApplication application = requireOwnedApplication(actor, id);
         requireDraft(application);
         ApprovalForm form = requireEnabledForm(actor, application.getFormKey(), "DRAFT_UPDATE");
@@ -212,7 +228,7 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
         if (updated != 1) {
             throw new BusinessException(ErrorCode.VERSION_CONFLICT);
         }
-        auditService.record(actor.tenantId(), actor.userId(), BUSINESS_TYPE,
+        auditService.recordTransactional(actor.tenantId(), actor.userId(), BUSINESS_TYPE,
                 id.toString(), "DRAFT_UPDATE", "SUCCESS", "更新通用表单草稿");
         return response(actor, requireView(actor.tenantId(), id), null);
     }

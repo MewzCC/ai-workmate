@@ -18,6 +18,12 @@ public class AgentExpenseWriteToolDefinitions {
     public static final String SUBMIT_DRAFT_INPUT_SCHEMA = """
             {"type":"object","additionalProperties":false,"required":["applicationId","version"],"properties":{"applicationId":{"type":"integer","minimum":1},"version":{"type":"integer","minimum":0,"maximum":2147483646}}}
             """.strip();
+    public static final String UPDATE_DRAFT_INPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["applicationId","version"],"minProperties":3,"properties":{"applicationId":{"type":"integer","minimum":1},"version":{"type":"integer","minimum":0,"maximum":2147483646},"amount":{"type":"number","minimum":0.01,"maximum":999999999.99,"multipleOf":0.01},"category":{"type":"string","enum":["TRAVEL","MEAL","TRANSPORT","OFFICE","OTHER"]},"expenseDate":{"type":"string","format":"date"},"invoiceNumber":{"type":"string","minLength":1,"maxLength":100},"reason":{"type":"string","minLength":1,"maxLength":1000}}}
+            """.strip();
+    public static final String UPDATE_DRAFT_OUTPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["applicationId","formKey","status","version"],"properties":{"applicationId":{"type":"integer","minimum":1},"formKey":{"type":"string","const":"expense-application"},"status":{"type":"string","const":"DRAFT"},"version":{"type":"integer","minimum":1}}}
+            """.strip();
     public static final String SUBMIT_DRAFT_OUTPUT_SCHEMA = """
             {"type":"object","additionalProperties":false,"required":["applicationId","formKey","status","version"],"properties":{"applicationId":{"type":"integer","minimum":1},"formKey":{"type":"string","const":"expense-application"},"status":{"type":"string","const":"PENDING"},"version":{"type":"integer","minimum":1}}}
             """.strip();
@@ -54,6 +60,20 @@ public class AgentExpenseWriteToolDefinitions {
                 objectMapper.readTree(SUBMIT_DRAFT_INPUT_SCHEMA),
                 objectMapper.readTree(SUBMIT_DRAFT_OUTPUT_SCHEMA),
                 RiskLevel.L1, Set.of("approval:submit"), OwnershipPolicy.SELF,
+                RetryPolicy.NEVER, ConfirmationPolicy.EXPLICIT,
+                1, 4096, 15000);
+    }
+
+    @Bean
+    ToolDefinition expenseUpdateDraftToolDefinition(ObjectMapper objectMapper)
+            throws JsonProcessingException {
+        return ToolDefinitionFactory.singleWrite(
+                ToolCode.EXPENSE_UPDATE_DRAFT, "Update my expense draft",
+                "Updates selected fields on one self-owned expense draft without submitting it.",
+                "Patch only a verified expense draft and preserve every field not explicitly provided.",
+                objectMapper.readTree(UPDATE_DRAFT_INPUT_SCHEMA),
+                objectMapper.readTree(UPDATE_DRAFT_OUTPUT_SCHEMA),
+                RiskLevel.L1, Set.of("approval:create"), OwnershipPolicy.SELF,
                 RetryPolicy.NEVER, ConfirmationPolicy.EXPLICIT,
                 1, 4096, 15000);
     }

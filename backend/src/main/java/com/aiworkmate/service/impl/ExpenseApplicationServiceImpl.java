@@ -4,6 +4,7 @@ import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.common.ErrorCode;
 import com.aiworkmate.dto.ApprovalApplicationResponse;
 import com.aiworkmate.dto.ApprovalDraftRequest;
+import com.aiworkmate.dto.ApprovalDraftUpdateRequest;
 import com.aiworkmate.dto.VersionRequest;
 import com.aiworkmate.entity.ApprovalApplication;
 import com.aiworkmate.mapper.ApprovalApplicationMapper;
@@ -67,6 +68,19 @@ public class ExpenseApplicationServiceImpl implements ExpenseApplicationService 
         return Optional.of(new ExpenseAgentDraftReceipt(
                 existing.getId(), existing.getFormKey(), existing.getStatus(),
                 existing.getVersion(), existing.getCreatedAt()));
+    }
+
+    @Override
+    @Transactional
+    public ExpenseAgentLifecycleReceipt updateAgentDraft(
+            Long userId, Long applicationId, int version, ExpenseAgentDraftCommand patch) {
+        ResolvedUserAccess actor = requireLifecycleAccess(userId, "approval:create");
+        ApprovalApplication existing = requireOwnedExpense(actor, applicationId);
+        Map<String, Object> merged = readFields(existing.getDataJson());
+        merged.putAll(request(patch).formData());
+        ApprovalApplicationResponse updated = approvalService.updateAgentDraft(
+                userId, applicationId, new ApprovalDraftUpdateRequest(null, merged, version));
+        return lifecycleReceipt(updated);
     }
 
     @Override
@@ -164,12 +178,28 @@ public class ExpenseApplicationServiceImpl implements ExpenseApplicationService 
         return actor;
     }
 
-    private void requireOwnedExpense(ResolvedUserAccess actor, Long applicationId) {
+    private ApprovalApplication requireOwnedExpense(ResolvedUserAccess actor, Long applicationId) {
         ApprovalApplication existing = applicationMapper.selectById(applicationId);
         if (existing == null || !Objects.equals(existing.getTenantId(), actor.tenantId())
                 || !Objects.equals(existing.getApplicantUserId(), actor.userId())
                 || !FORM_KEY.equals(existing.getFormKey())) {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        }
+        return existing;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> readFields(String dataJson) {
+        try {
+            JsonNode value = objectMapper.readTree(dataJson);
+            if (value == null || !value.isObject()) {
+                throw new BusinessException(ErrorCode.REQUEST_INVALID);
+            }
+            return new LinkedHashMap<>(objectMapper.convertValue(value, Map.class));
+        } catch (BusinessException exception) {
+            throw exception;
+        } catch (Exception exception) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
         }
     }
 

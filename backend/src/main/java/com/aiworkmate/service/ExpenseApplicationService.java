@@ -14,6 +14,9 @@ public interface ExpenseApplicationService {
     Optional<ExpenseAgentDraftReceipt> findAgentDraft(
             Long userId, ExpenseAgentDraftCommand command, String operationKey);
 
+    ExpenseAgentLifecycleReceipt updateAgentDraft(
+            Long userId, Long applicationId, int version, ExpenseAgentDraftCommand patch);
+
     ExpenseAgentLifecycleReceipt submitAgentDraft(Long userId, Long applicationId, int version);
 
     ExpenseAgentLifecycleReceipt withdrawAgentApplication(Long userId, Long applicationId, int version);

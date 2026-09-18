@@ -12,6 +12,8 @@ public interface FinanceToolPort {
             ToolActorContext context, ExpenseDraft command, ToolOperationKey operationKey);
     ToolWriteVerification<ExpenseDraftResult> findExpenseDraft(
             ToolActorContext context, ExpenseDraft command, ToolOperationKey operationKey);
+    ExpenseLifecycleResult updateExpenseDraft(
+            ToolActorContext context, long applicationId, int version, ExpenseDraft patch);
     ExpenseLifecycleResult submitExpenseDraft(
             ToolActorContext context, long applicationId, int version);
     ExpenseLifecycleResult withdrawExpense(

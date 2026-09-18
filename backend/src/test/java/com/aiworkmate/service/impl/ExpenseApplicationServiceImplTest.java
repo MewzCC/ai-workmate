@@ -3,6 +3,7 @@ package com.aiworkmate.service.impl;
 import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.dto.ApprovalApplicationResponse;
 import com.aiworkmate.dto.ApprovalDraftRequest;
+import com.aiworkmate.dto.ApprovalDraftUpdateRequest;
 import com.aiworkmate.dto.VersionRequest;
 import com.aiworkmate.entity.ApprovalApplication;
 import com.aiworkmate.mapper.ApprovalApplicationMapper;
@@ -121,6 +122,40 @@ class ExpenseApplicationServiceImplTest {
         assertThat(receipt.status()).isEqualTo("PENDING");
         assertThat(receipt.formKey()).isEqualTo("expense-application");
         verify(approvalService).submitAgentDraft(7L, 51L, new VersionRequest(0));
+    }
+
+    @Test
+    void patchesSelectedExpenseFieldsWithoutDroppingExistingDraftData() {
+        when(userAccessService.resolveActiveUser(7L)).thenReturn(access());
+        ApprovalApplication expense = existing("""
+                {"amount":88.50,"category":"TRAVEL","expenseDate":"2026-09-17",
+                 "invoiceNumber":"INV-1","reason":"客户拜访"}
+                """);
+        when(applicationMapper.selectById(51L)).thenReturn(expense);
+        ApprovalApplicationResponse response = org.mockito.Mockito.mock(ApprovalApplicationResponse.class);
+        when(response.id()).thenReturn(51L);
+        when(response.formKey()).thenReturn("expense-application");
+        when(response.status()).thenReturn("DRAFT");
+        when(response.version()).thenReturn(1);
+        when(approvalService.updateAgentDraft(
+                org.mockito.ArgumentMatchers.eq(7L), org.mockito.ArgumentMatchers.eq(51L),
+                org.mockito.ArgumentMatchers.any())).thenReturn(response);
+
+        var receipt = service.updateAgentDraft(7L, 51L, 0,
+                new ExpenseAgentDraftCommand(new BigDecimal("99.50"), null, null, null, null));
+
+        ArgumentCaptor<ApprovalDraftUpdateRequest> captor =
+                ArgumentCaptor.forClass(ApprovalDraftUpdateRequest.class);
+        verify(approvalService).updateAgentDraft(
+                org.mockito.ArgumentMatchers.eq(7L), org.mockito.ArgumentMatchers.eq(51L),
+                captor.capture());
+        assertThat(captor.getValue().version()).isZero();
+        assertThat(captor.getValue().formData())
+                .containsEntry("amount", new BigDecimal("99.50"))
+                .containsEntry("category", "TRAVEL")
+                .containsEntry("invoiceNumber", "INV-1")
+                .containsEntry("reason", "客户拜访");
+        assertThat(receipt.status()).isEqualTo("DRAFT");
     }
 
     @Test

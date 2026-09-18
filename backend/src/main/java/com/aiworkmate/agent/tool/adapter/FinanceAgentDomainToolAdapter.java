@@ -50,6 +50,15 @@ public class FinanceAgentDomainToolAdapter implements FinanceToolPort {
     }
 
     @Override
+    public ExpenseLifecycleResult updateExpenseDraft(
+            ToolActorContext context, long applicationId, int version, ExpenseDraft patch) {
+        var result = expenseApplicationService.updateAgentDraft(
+                context.userId(), applicationId, version, toDomain(patch));
+        return new ExpenseLifecycleResult(
+                result.applicationId(), result.formKey(), result.status(), result.version());
+    }
+
+    @Override
     public ExpenseLifecycleResult submitExpenseDraft(
             ToolActorContext context, long applicationId, int version) {
         var result = expenseApplicationService.submitAgentDraft(

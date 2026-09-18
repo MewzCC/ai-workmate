@@ -80,6 +80,20 @@ class FinanceAgentDomainToolAdapterTest {
     }
 
     @Test
+    void updatesExpenseDraftThroughDedicatedTypedBoundary() {
+        var patch = new FinanceToolPort.ExpenseDraft(
+                new BigDecimal("99.50"), null, null, null, "调整差旅金额");
+        when(expenseApplications.updateAgentDraft(eq(7L), eq(51L), eq(0), any()))
+                .thenReturn(new ExpenseAgentLifecycleReceipt(
+                        51L, "expense-application", "DRAFT", 1));
+
+        assertThat(adapter.updateExpenseDraft(actor, 51L, 0, patch))
+                .isEqualTo(new FinanceToolPort.ExpenseLifecycleResult(
+                        51L, "expense-application", "DRAFT", 1));
+        verify(expenseApplications).updateAgentDraft(eq(7L), eq(51L), eq(0), any());
+    }
+
+    @Test
     void withdrawsExpenseThroughDedicatedTypedBoundary() {
         when(expenseApplications.withdrawAgentApplication(7L, 51L, 1))
                 .thenReturn(new ExpenseAgentLifecycleReceipt(

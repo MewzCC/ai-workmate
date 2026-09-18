@@ -123,6 +123,43 @@ final class ExpenseDraftPostgresVerifier {
                 applicant, command, "expense-draft-operation"));
         assertThat(observed).isPresent();
 
+        var updatePatch = new ExpenseAgentDraftCommand(
+                new BigDecimal("99.50"), null, null, null, null);
+        var updateExecutor = Executors.newFixedThreadPool(2);
+        try {
+            var barrier = new CyclicBarrier(2);
+            Callable<Boolean> update = () -> {
+                barrier.await(10, TimeUnit.SECONDS);
+                try {
+                    tx.execute(status -> service.updateAgentDraft(
+                            applicant, applicationId, 0, updatePatch));
+                    return true;
+                } catch (BusinessException error) {
+                    assertThat(error.getErrorCode()).isEqualTo("VERSION_CONFLICT");
+                    return false;
+                }
+            };
+            var first = updateExecutor.submit(update);
+            var second = updateExecutor.submit(update);
+            assertThat(List.of(first.get(20, TimeUnit.SECONDS), second.get(20, TimeUnit.SECONDS)))
+                    .containsExactlyInAnyOrder(true, false);
+        } finally {
+            updateExecutor.shutdownNow();
+        }
+        assertThat(jdbc.queryForObject(
+                "SELECT version FROM approval_application WHERE id=?",
+                Integer.class, applicationId)).isOne();
+        assertThat(jdbc.queryForObject(
+                "SELECT data_json::jsonb ->> 'amount' FROM approval_application WHERE id=?",
+                String.class, applicationId)).isEqualTo("99.50");
+        assertThat(jdbc.queryForObject(
+                "SELECT data_json::jsonb ->> 'reason' FROM approval_application WHERE id=?",
+                String.class, applicationId)).isEqualTo("客户拜访");
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM business_audit_log
+                WHERE resource_type='GENERIC_APPROVAL' AND resource_id=? AND action='DRAFT_UPDATE'
+                """, Integer.class, applicationId.toString())).isOne();
+
         Long withdrawId = pendingExpense(jdbc, tenant, applicant, "expense-withdraw-concurrent");
         var withdrawExecutor = Executors.newFixedThreadPool(2);
         try {
@@ -203,6 +240,20 @@ final class ExpenseDraftPostgresVerifier {
                 SELECT count(*) FROM approval_application
                 WHERE agent_operation_key='expense-draft-rollback'
                 """, Integer.class)).isZero();
+
+        Long updateRollbackId = tx.execute(status -> service.createAgentDraft(
+                applicant, rollbackCommand, "expense-update-rollback").applicationId());
+        assertThatThrownBy(() -> tx.execute(status -> failingService.updateAgentDraft(
+                applicant, updateRollbackId, 0,
+                new ExpenseAgentDraftCommand(
+                        new BigDecimal("30.00"), null, null, null, null))))
+                .isInstanceOf(IllegalStateException.class);
+        assertThat(jdbc.queryForObject(
+                "SELECT version FROM approval_application WHERE id=?",
+                Integer.class, updateRollbackId)).isZero();
+        assertThat(jdbc.queryForObject(
+                "SELECT data_json::jsonb ->> 'amount' FROM approval_application WHERE id=?",
+                String.class, updateRollbackId)).isEqualTo("20.00");
 
         Long withdrawRollbackId = pendingExpense(
                 jdbc, tenant, applicant, "expense-withdraw-rollback");
