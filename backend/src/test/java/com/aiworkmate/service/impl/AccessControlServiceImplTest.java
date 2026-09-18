@@ -272,6 +272,31 @@ class AccessControlServiceImplTest {
                 .hasMessageContaining("error.route.dashboard_reserved");
     }
 
+    @Test
+    void shouldRejectComponentThatIsNotBoundToTheExactEnabledRoute() {
+        when(accessControlMapper.selectUserTenantId(7L)).thenReturn(3L);
+        SaveRouteRequest request = new SaveRouteRequest(
+                "unsafe-page", null, "错误资产页", "/oa/unsafe-page", null,
+                "PAGE", "ASSET_LEDGER", 10, true);
+
+        assertThatThrownBy(() -> accessControlService.saveRoute(7L, request))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("validation.componentKey.invalid");
+
+        verify(accessControlMapper, never()).insertRouteForTenant(
+                org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyInt(),
+                org.mockito.ArgumentMatchers.anyBoolean());
+    }
+
     private AccessUserRow userRow(Long id, Integer status) {
         return new AccessUserRow(
                 id, "用户" + id, "user" + id + "@example.com", "EMPLOYEE",

@@ -17,6 +17,7 @@ public class EmployeeChange {
     private Long employeeUserId;
     private Long applicantUserId;
     private Long reviewApproverUserId;
+    private String agentOperationKey;
     private String changeType;
     private LocalDate effectiveDate;
     private Long currentDepartmentId;

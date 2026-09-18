@@ -7,12 +7,35 @@ import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.math.BigDecimal;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class BoundedToolArgumentsTest {
     private final ObjectMapper mapper = new ObjectMapper();
+
+    @Test
+    void sharesPaginationDefaultsAndPreservesLegacyPageLimits() throws Exception {
+        var empty = mapper.readTree("{}");
+        assertThat(BoundedToolArguments.pageNumber(empty)).isEqualTo(1);
+        assertThat(BoundedToolArguments.pageSize(empty)).isEqualTo(20);
+        var large = mapper.readTree("{\"page\":10001,\"size\":500}");
+        assertThat(BoundedToolArguments.pageNumber(large)).isEqualTo(10000);
+        assertThat(BoundedToolArguments.pageNumber(large, Integer.MAX_VALUE)).isEqualTo(10001);
+        assertThat(BoundedToolArguments.pageSize(large)).isEqualTo(50);
+    }
+
+    @Test
+    void rejectsInvalidPaginationWithoutNumericCoercion() throws Exception {
+        for (String value : new String[]{"0", "-1", "1.5", "\"1\"", "true", "2147483648"}) {
+            var arguments = mapper.readTree("{\"page\":" + value + ",\"size\":" + value + "}");
+            assertThatThrownBy(() -> BoundedToolArguments.pageNumber(arguments))
+                    .isInstanceOf(BusinessException.class);
+            assertThatThrownBy(() -> BoundedToolArguments.pageSize(arguments))
+                    .isInstanceOf(BusinessException.class);
+        }
+    }
 
     @Test
     void parsesOnlyFixedScalarTypesAndAppliesDefensiveBounds() throws Exception {
@@ -31,6 +54,10 @@ class BoundedToolArgumentsTest {
         assertThat(BoundedToolArguments.requiredEnum(arguments, "resource",
                 ApprovalConfigurationToolPort.Resource.class))
                 .isEqualTo(ApprovalConfigurationToolPort.Resource.FORM);
+        assertThat(BoundedToolArguments.optionalDecimal(
+                mapper.readTree("{\"amount\":88.50}"), "amount",
+                new BigDecimal("0.01"), new BigDecimal("999.99"), 2))
+                .isEqualByComparingTo("88.50");
     }
 
     @Test
@@ -44,5 +71,9 @@ class BoundedToolArgumentsTest {
         assertThatThrownBy(() -> BoundedToolArguments.requiredEnum(
                 mapper.readTree("{\"resource\":\"UNKNOWN\"}"), "resource",
                 ApprovalConfigurationToolPort.Resource.class)).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> BoundedToolArguments.optionalDecimal(
+                mapper.readTree("{\"amount\":1.001}"), "amount",
+                new BigDecimal("0.01"), new BigDecimal("999.99"), 2))
+                .isInstanceOf(BusinessException.class);
     }
 }

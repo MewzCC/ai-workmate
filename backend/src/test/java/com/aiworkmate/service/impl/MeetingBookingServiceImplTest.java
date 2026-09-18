@@ -77,6 +77,127 @@ class MeetingBookingServiceImplTest {
     }
 
     @Test
+    void missingCancellationOutcomeDoesNotReplayAWrite() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(access(false));
+        assertThat(service.findAgentCancellation(USER_ID, BOOKING_ID,
+                new MeetingBookingCancelRequest(0, null), "operation")).isEmpty();
+        verify(bookingMapper).findAgentCancelOperation(TENANT_ID, USER_ID, "operation");
+        org.mockito.Mockito.verifyNoMoreInteractions(bookingMapper);
+        org.mockito.Mockito.verifyNoInteractions(roomMapper, userMapper, auditService);
+    }
+
+    @Test
+    void cancellationOutcomeRejectsInactiveActorBeforeReadingResources() {
+        assertThatThrownBy(() -> service.findAgentCancellation(USER_ID, BOOKING_ID,
+                new MeetingBookingCancelRequest(0, null), "operation"))
+                .isInstanceOf(BusinessException.class);
+        org.mockito.Mockito.verifyNoInteractions(bookingMapper, roomMapper, userMapper, auditService);
+    }
+
+    @Test
+    void missingCreationOutcomeRemainsUnobservedWithoutAnyWrite() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(access(false));
+        assertThat(service.findAgentCreation(USER_ID, request(6), "agent:10:20:meeting.book:v1"))
+                .isEmpty();
+        verify(bookingMapper).findAgentOperation(TENANT_ID, USER_ID, "agent:10:20:meeting.book:v1");
+        org.mockito.Mockito.verifyNoInteractions(roomMapper, userMapper, auditService);
+        verify(bookingMapper, never()).insert(any(MeetingBooking.class));
+    }
+
+    @Test
+    void creationOutcomeLookupStillRequiresAnActiveActor() {
+        assertThatThrownBy(() -> service.findAgentCreation(
+                USER_ID, request(6), "agent:10:20:meeting.book:v1"))
+                .isInstanceOf(BusinessException.class);
+        org.mockito.Mockito.verifyNoInteractions(bookingMapper, roomMapper, userMapper, auditService);
+    }
+
+    @Test
+    void creationOutcomeLookupRejectsADifferentFrozenCommand() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(access(false));
+        when(bookingMapper.findAgentOperation(TENANT_ID, USER_ID, "agent:10:20:meeting.book:v1"))
+                .thenReturn(booking(TENANT_ID, "BOOKED", 0));
+        assertThatThrownBy(() -> service.findAgentCreation(
+                USER_ID, request(6), "agent:10:20:meeting.book:v1"))
+                .isInstanceOf(BusinessException.class);
+        org.mockito.Mockito.verifyNoInteractions(roomMapper, userMapper, auditService);
+    }
+
+    @Test
+    void agentBookingReturnsExistingOwnedOperationWithoutSecondWrite() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(access(false));
+        MeetingBooking existing = booking(TENANT_ID, "BOOKED", 0);
+        MeetingBookingRequest command = request(6);
+        existing.setTitle(command.title());
+        existing.setAgenda(command.agenda());
+        existing.setStartAt(command.startAt());
+        existing.setEndAt(command.endAt());
+        existing.setAttendeeCount(command.attendeeCount());
+        existing.setAgentOperationKey("agent:10:20:meeting.book:v1");
+        when(bookingMapper.findAgentOperation(TENANT_ID, USER_ID, "agent:10:20:meeting.book:v1"))
+                .thenReturn(existing);
+        when(roomMapper.selectById(ROOM_ID)).thenReturn(room("OPEN", 10));
+        when(userMapper.selectById(USER_ID)).thenReturn(user());
+
+        MeetingBookingResponse response = service.createAgent(
+                USER_ID, command, "agent:10:20:meeting.book:v1");
+
+        assertThat(response.id()).isEqualTo(BOOKING_ID);
+        verify(roomMapper, never()).lockForBooking(any(), any());
+        verify(bookingMapper, never()).insert(any(MeetingBooking.class));
+        verify(auditService, never()).recordTransactional(any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void agentBookingRejectsInvalidOperationKeyBeforeWriting() {
+        assertThatThrownBy(() -> service.createAgent(USER_ID, request(6), " "))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("REQUEST_INVALID");
+        verify(userAccessService, never()).resolveActiveUser(any());
+        verify(bookingMapper, never()).insert(any(MeetingBooking.class));
+    }
+
+    @Test
+    void agentBookingRejectsDifferentContentForSameOperationKey() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(access(false));
+        when(bookingMapper.findAgentOperation(TENANT_ID, USER_ID, "agent:10:20:meeting.book:v1"))
+                .thenReturn(booking(TENANT_ID, "BOOKED", 0));
+        assertThatThrownBy(() -> service.createAgent(USER_ID, request(6), "agent:10:20:meeting.book:v1"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("IDEMPOTENCY_CONFLICT");
+        verify(bookingMapper, never()).insert(any(MeetingBooking.class));
+    }
+
+    @Test
+    void agentBookingFailsClosedWhenUserIsInactive() {
+        assertThatThrownBy(() -> service.createAgent(USER_ID, request(6), "agent:10:20:meeting.book:v1"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("AUTH_REQUIRED");
+        verify(bookingMapper, never()).selectOne(any());
+    }
+
+    @Test
+    void agentBookingRejectsRevokedPermissionBeforeReadingResources() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(new ResolvedUserAccess(
+                USER_ID, "test", TENANT_ID, "EMPLOYEE", List.of("EMPLOYEE"), List.of(), List.of("SELF"), 2L));
+        assertThatThrownBy(() -> service.createAgent(USER_ID, request(6), "agent:10:20:meeting.book:v1"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("PERMISSION_DENIED");
+        verify(bookingMapper, never()).selectOne(any());
+        verify(roomMapper, never()).lockForBooking(any(), any());
+    }
+
+    @Test
+    void agentBookingCannotUseRoomFromAnotherTenant() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(access(false));
+        assertThatThrownBy(() -> service.createAgent(USER_ID, request(6), "agent:10:20:meeting.book:v1"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("RESOURCE_NOT_FOUND");
+        verify(roomMapper).lockForBooking(TENANT_ID, ROOM_ID);
+        verify(bookingMapper, never()).insert(any(MeetingBooking.class));
+    }
+
+    @Test
     void rejectsOverlappingBooking() {
         when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(access(false));
         when(roomMapper.lockForBooking(TENANT_ID, ROOM_ID)).thenReturn(room("OPEN", 10));
@@ -143,6 +264,50 @@ class MeetingBookingServiceImplTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode").isEqualTo("VERSION_CONFLICT");
         verify(auditService, never()).recordTransactional(any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void agentCancellationRejectsRevokedPermissionBeforeIdempotencyLookup() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(new ResolvedUserAccess(
+                USER_ID, "test", TENANT_ID, "EMPLOYEE", List.of("EMPLOYEE"),
+                List.of("meeting:write"), List.of("SELF"), 2L));
+        assertThatThrownBy(() -> service.cancelAgent(USER_ID, BOOKING_ID,
+                new MeetingBookingCancelRequest(2, null), "operation"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("PERMISSION_DENIED");
+        verify(bookingMapper, never()).findAgentCancelOperation(any(), any(), any());
+        verify(bookingMapper, never()).selectById(BOOKING_ID);
+    }
+
+    @Test
+    void agentCancellationCannotUseAdministratorPermissionToCancelAnotherOwner() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(access(true));
+        var other = booking(TENANT_ID, "BOOKED", 2);
+        other.setOrganizerUserId(2002L);
+        when(bookingMapper.selectById(BOOKING_ID)).thenReturn(other);
+        assertThatThrownBy(() -> service.cancelAgent(USER_ID, BOOKING_ID,
+                new MeetingBookingCancelRequest(2, null), "operation"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("PERMISSION_DENIED");
+        verify(bookingMapper, never()).update(any(), any());
+    }
+
+    @Test
+    void agentCancellationReplaysOnlyMatchingOwnedCancellationWithoutAudit() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(access(false));
+        var cancelled = booking(TENANT_ID, "CANCELLED", 3);
+        cancelled.setCancelledByUserId(USER_ID);
+        cancelled.setCancelledAt(LocalDateTime.now());
+        when(bookingMapper.findAgentCancelOperation(TENANT_ID, USER_ID, "operation"))
+                .thenReturn(cancelled);
+        assertThat(service.cancelAgent(USER_ID, BOOKING_ID,
+                new MeetingBookingCancelRequest(2, null), "operation").status()).isEqualTo("CANCELLED");
+        verify(bookingMapper, never()).update(any(), any());
+        verify(auditService, never()).recordTransactional(any(), any(), any(), any(), any(), any(), any());
+        assertThatThrownBy(() -> service.cancelAgent(USER_ID, BOOKING_ID,
+                new MeetingBookingCancelRequest(2, "different"), "operation"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("IDEMPOTENCY_CONFLICT");
     }
 
     private ResolvedUserAccess access(boolean admin) {

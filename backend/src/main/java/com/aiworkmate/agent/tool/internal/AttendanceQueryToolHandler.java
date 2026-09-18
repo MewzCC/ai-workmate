@@ -10,7 +10,8 @@ import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.optionalDa
 import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.optionalInt;
 import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.optionalPositiveLong;
 import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.optionalText;
-import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.positiveInt;
+import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.pageNumber;
+import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.pageSize;
 import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.requiredEnum;
 
 @Component
@@ -30,7 +31,7 @@ public final class AttendanceQueryToolHandler
                 optionalDate(arguments, "from"), optionalDate(arguments, "to"),
                 optionalPositiveLong(arguments, "employeeId"), optionalText(arguments, "status"),
                 optionalInt(arguments, "year", 2000, 2100), optionalInt(arguments, "month", 1, 12),
-                positiveInt(arguments, "page", 1, 10000), positiveInt(arguments, "size", 20, 50));
+                pageNumber(arguments), pageSize(arguments));
     }
 
     @Override

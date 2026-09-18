@@ -8,7 +8,8 @@ import org.springframework.stereotype.Component;
 
 import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.optionalPositiveLong;
 import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.optionalText;
-import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.positiveInt;
+import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.pageNumber;
+import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.pageSize;
 
 @Component
 public final class VisitorQueryToolHandler
@@ -25,8 +26,8 @@ public final class VisitorQueryToolHandler
         String queue = optionalText(arguments, "queue");
         return new VisitorToolPort.Query(id,
                 queue == null ? VisitorToolPort.Queue.MINE : VisitorToolPort.Queue.valueOf(queue),
-                optionalText(arguments, "status"), positiveInt(arguments, "page", 1, 10000),
-                positiveInt(arguments, "size", 20, 50));
+                optionalText(arguments, "status"), pageNumber(arguments),
+                pageSize(arguments));
     }
 
     @Override protected VisitorToolPort.Page invoke(TrustedToolContext context, VisitorToolPort.Query query) {

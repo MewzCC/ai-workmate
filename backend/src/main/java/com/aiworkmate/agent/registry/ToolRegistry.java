@@ -12,6 +12,11 @@ public interface ToolRegistry {
 
     Optional<ToolDefinition> resolveExecutableTool(Long tenantId, String toolCode);
 
+    default ToolAvailability resolveAvailability(Long tenantId, String toolCode) {
+        return resolveExecutableTool(tenantId, toolCode).map(ToolAvailability::available)
+                .orElseGet(() -> ToolAvailability.unavailable(ToolAvailability.Status.UNAVAILABLE));
+    }
+
     default String permissionCode(String toolCode) {
         return TOOL_PERMISSION_PREFIX + toolCode;
     }

@@ -10,6 +10,9 @@ import org.apache.ibatis.annotations.Param;
 @Mapper
 public interface UserMapper extends BaseMapper<User> {
 
+    @Select("SELECT * FROM app_user WHERE id=#{userId} AND tenant_id=#{tenantId} AND status=1 FOR UPDATE")
+    User lockActiveApplicant(@Param("tenantId") Long tenantId, @Param("userId") Long userId);
+
     @Select("SELECT id FROM tenant WHERE code = 'DEFAULT' AND status = 1")
     Long selectDefaultTenantId();
 

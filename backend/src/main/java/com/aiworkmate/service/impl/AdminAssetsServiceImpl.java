@@ -27,8 +27,10 @@ import com.aiworkmate.entity.AssetOperation;
 import com.aiworkmate.entity.MeetingRoom;
 import com.aiworkmate.entity.MeetingBooking;
 import com.aiworkmate.entity.SealUsage;
+import com.aiworkmate.entity.SealUsageOperation;
 import com.aiworkmate.entity.User;
 import com.aiworkmate.entity.VisitorBooking;
+import com.aiworkmate.entity.VisitorVisitOperation;
 import com.aiworkmate.entity.WorkflowActionLog;
 import com.aiworkmate.entity.WorkflowInstance;
 import com.aiworkmate.entity.WorkflowTask;
@@ -47,7 +49,21 @@ import com.aiworkmate.service.AdminAssetsService;
 import com.aiworkmate.service.BusinessAuditService;
 import com.aiworkmate.service.NotificationService;
 import com.aiworkmate.service.UserAccessService;
+import com.aiworkmate.service.model.AssetAgentClaimCommand;
+import com.aiworkmate.service.model.AssetAgentClaimReceipt;
+import com.aiworkmate.service.model.AssetAgentRepairStartCommand;
+import com.aiworkmate.service.model.AssetAgentRepairStartReceipt;
+import com.aiworkmate.service.model.AssetAgentReturnCommand;
+import com.aiworkmate.service.model.AssetAgentReturnReceipt;
 import com.aiworkmate.service.model.ResolvedUserAccess;
+import com.aiworkmate.service.model.SealAgentApplicationCommand;
+import com.aiworkmate.service.model.SealAgentApplicationReceipt;
+import com.aiworkmate.service.model.SealAgentUseCommand;
+import com.aiworkmate.service.model.SealAgentUseReceipt;
+import com.aiworkmate.service.model.VisitorAgentApplicationCommand;
+import com.aiworkmate.service.model.VisitorAgentApplicationReceipt;
+import com.aiworkmate.service.model.VisitorAgentVisitCommand;
+import com.aiworkmate.service.model.VisitorAgentVisitReceipt;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import lombok.RequiredArgsConstructor;
@@ -57,11 +73,14 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -270,6 +289,103 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
         applyAssetOperation(actor, asset, request.version(), request.reason(), "CLAIM", "IN_USE",
                 request.targetDepartmentId(), request.targetOwnerUserId());
         return assetDetail(actor, requireAsset(actor.tenantId(), id));
+    }
+
+    @Override
+    @Transactional
+    public AssetAgentClaimReceipt claimAssetAgent(
+            Long userId, AssetAgentClaimCommand command, String operationKey) {
+        ResolvedUserAccess actor = requirePermission(userId, "asset:claim");
+        requireAgentClaimCommand(command);
+        requireAgentOperationKey(operationKey);
+        Optional<AgentAssetTransitionReceipt> replay = resolveAgentTransition(
+                actor, command.assetId(), command.expectedVersion(), command.reason(), operationKey,
+                "CLAIM", "IN_USE", command.employeeId());
+        if (replay.isPresent()) {
+            return toClaimReceipt(replay.orElseThrow());
+        }
+
+        AssetLedger asset = requireAsset(actor.tenantId(), command.assetId());
+        User owner = requireClaimOwner(actor.tenantId(), command.employeeId());
+        return toClaimReceipt(applyAgentAssetTransition(
+                actor, asset, command.expectedVersion(), command.reason(), operationKey,
+                "IDLE", "CLAIM", "IN_USE", owner.getDepartmentId(), owner.getId(),
+                "oa.asset.claim.invalid"));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<AssetAgentClaimReceipt> findAgentAssetClaim(
+            Long userId, AssetAgentClaimCommand command, String operationKey) {
+        ResolvedUserAccess actor = requirePermission(userId, "asset:claim");
+        requireAgentClaimCommand(command);
+        requireAgentOperationKey(operationKey);
+        return resolveAgentTransition(actor, command.assetId(), command.expectedVersion(), command.reason(),
+                operationKey, "CLAIM", "IN_USE", command.employeeId()).map(this::toClaimReceipt);
+    }
+
+    @Override
+    @Transactional
+    public AssetAgentReturnReceipt returnAssetAgent(
+            Long userId, AssetAgentReturnCommand command, String operationKey) {
+        ResolvedUserAccess actor = requirePermission(userId, "asset:return");
+        requireAgentReturnCommand(command);
+        requireAgentOperationKey(operationKey);
+        Optional<AgentAssetTransitionReceipt> replay = resolveAgentTransition(
+                actor, command.assetId(), command.expectedVersion(), command.reason(), operationKey,
+                "RETURN", "IDLE", null);
+        if (replay.isPresent()) {
+            return toReturnReceipt(replay.orElseThrow());
+        }
+
+        AssetLedger asset = requireAsset(actor.tenantId(), command.assetId());
+        return toReturnReceipt(applyAgentAssetTransition(
+                actor, asset, command.expectedVersion(), command.reason(), operationKey,
+                "IN_USE", "RETURN", "IDLE", asset.getDepartmentId(), null,
+                "oa.asset.return.invalid"));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<AssetAgentReturnReceipt> findAgentAssetReturn(
+            Long userId, AssetAgentReturnCommand command, String operationKey) {
+        ResolvedUserAccess actor = requirePermission(userId, "asset:return");
+        requireAgentReturnCommand(command);
+        requireAgentOperationKey(operationKey);
+        return resolveAgentTransition(actor, command.assetId(), command.expectedVersion(), command.reason(),
+                operationKey, "RETURN", "IDLE", null).map(this::toReturnReceipt);
+    }
+
+    @Override
+    @Transactional
+    public AssetAgentRepairStartReceipt startAssetRepairAgent(
+            Long userId, AssetAgentRepairStartCommand command, String operationKey) {
+        ResolvedUserAccess actor = requirePermission(userId, "asset:repair");
+        requireAgentRepairStartCommand(command);
+        requireAgentOperationKey(operationKey);
+        Optional<AgentAssetTransitionReceipt> replay = resolveAgentTransition(
+                actor, command.assetId(), command.expectedVersion(), command.reason(), operationKey,
+                "REPAIR_START", "REPAIRING", null);
+        if (replay.isPresent()) {
+            return toRepairStartReceipt(replay.orElseThrow());
+        }
+
+        AssetLedger asset = requireAsset(actor.tenantId(), command.assetId());
+        return toRepairStartReceipt(applyAgentAssetTransition(
+                actor, asset, command.expectedVersion(), command.reason(), operationKey,
+                "IDLE", "REPAIR_START", "REPAIRING", asset.getDepartmentId(), null,
+                "oa.asset.repair.start.invalid"));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<AssetAgentRepairStartReceipt> findAgentAssetRepairStart(
+            Long userId, AssetAgentRepairStartCommand command, String operationKey) {
+        ResolvedUserAccess actor = requirePermission(userId, "asset:repair");
+        requireAgentRepairStartCommand(command);
+        requireAgentOperationKey(operationKey);
+        return resolveAgentTransition(actor, command.assetId(), command.expectedVersion(), command.reason(),
+                operationKey, "REPAIR_START", "REPAIRING", null).map(this::toRepairStartReceipt);
     }
 
     @Override
@@ -585,11 +701,129 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
     @Transactional
     public VisitorBookingResponse submitVisitorBooking(Long userId, VisitorBookingRequest request) {
         ResolvedUserAccess actor = requirePermission(userId, "visitor:create");
-        if (request.expectedLeaveAt() != null
-                && request.expectedLeaveAt().isBefore(request.expectedVisitAt())) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID,
-                    "validation.visitor.leaveBeforeVisit");
+        validateVisitorBookingRequest(request);
+        VisitorBooking booking = submitVisitorBookingInternal(actor, request, null);
+        return toVisitorResponse(actor, booking,
+                activeTask(actor.tenantId(), BUSINESS_VISITOR, booking.getId()));
+    }
+
+    @Override
+    @Transactional
+    public VisitorAgentApplicationReceipt submitVisitorBookingAgent(
+            Long userId, VisitorAgentApplicationCommand command, String operationKey) {
+        ResolvedUserAccess actor = requirePermission(userId, "visitor:create");
+        requireAgentOperationKey(operationKey);
+        VisitorBookingRequest request = toVisitorBookingRequest(command);
+        validateVisitorBookingRequest(request);
+        VisitorBooking booking = submitVisitorBookingInternal(actor, request, operationKey);
+        return toVisitorApplicationReceipt(booking);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<VisitorAgentApplicationReceipt> findAgentVisitorBooking(
+            Long userId, VisitorAgentApplicationCommand command, String operationKey) {
+        ResolvedUserAccess actor = requirePermission(userId, "visitor:create");
+        requireAgentOperationKey(operationKey);
+        VisitorBookingRequest request = toVisitorBookingRequest(command);
+        validateVisitorBookingRequest(request);
+        VisitorBooking existing = visitorMapper.findAgentOperation(
+                actor.tenantId(), actor.userId(), operationKey);
+        return existing == null ? Optional.empty()
+                : Optional.of(toVisitorApplicationReceipt(requireMatchingVisitorApplication(existing, request)));
+    }
+
+    @Override
+    @Transactional
+    public VisitorAgentVisitReceipt checkInVisitorAgent(
+            Long userId, VisitorAgentVisitCommand command, String operationKey) {
+        return transitionVisitorVisitAgent(userId, command, operationKey,
+                "APPROVED", "CHECKED_IN", "CHECK_IN");
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<VisitorAgentVisitReceipt> findAgentVisitorCheckIn(
+            Long userId, VisitorAgentVisitCommand command, String operationKey) {
+        return findAgentVisitorTransition(userId, command, operationKey, "CHECK_IN", "CHECKED_IN");
+    }
+
+    @Override
+    @Transactional
+    public VisitorAgentVisitReceipt markVisitorArrivedAgent(
+            Long userId, VisitorAgentVisitCommand command, String operationKey) {
+        return transitionVisitorVisitAgent(userId, command, operationKey,
+                "CHECKED_IN", "VISITED", "ARRIVE");
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<VisitorAgentVisitReceipt> findAgentVisitorArrival(
+            Long userId, VisitorAgentVisitCommand command, String operationKey) {
+        return findAgentVisitorTransition(userId, command, operationKey, "ARRIVE", "VISITED");
+    }
+
+    @Override
+    @Transactional
+    public VisitorAgentVisitReceipt leaveVisitorAgent(
+            Long userId, VisitorAgentVisitCommand command, String operationKey) {
+        return transitionVisitorVisitAgent(userId, command, operationKey,
+                "VISITED", "LEFT", "LEAVE");
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<VisitorAgentVisitReceipt> findAgentVisitorLeave(
+            Long userId, VisitorAgentVisitCommand command, String operationKey) {
+        return findAgentVisitorTransition(userId, command, operationKey, "LEAVE", "LEFT");
+    }
+
+    private VisitorAgentVisitReceipt transitionVisitorVisitAgent(
+            Long userId, VisitorAgentVisitCommand command, String operationKey,
+            String expectedStatus, String targetStatus, String action) {
+        ResolvedUserAccess actor = requirePermission(userId, "visitor:register");
+        requireAgentOperationKey(operationKey);
+        validateVisitorVisitCommand(command);
+        VisitorBooking visitor = requireVisitor(actor, command.bookingId(), false);
+        requireVisitorRegistrationAccess(actor, visitor, false);
+        VisitorVisitOperation existing = visitorMapper.findVisitAgentOperation(
+                actor.tenantId(), actor.userId(), operationKey);
+        if (existing != null) {
+            return toVisitorVisitReceipt(requireMatchingVisitorVisitOperation(
+                    existing, command, action, targetStatus));
         }
+        return toVisitorVisitReceipt(transitionVisitorVisit(
+                actor, visitor, new VisitorVisitActionRequest(command.expectedVersion(), command.remark()),
+                expectedStatus, targetStatus, action, operationKey));
+    }
+
+    private Optional<VisitorAgentVisitReceipt> findAgentVisitorTransition(
+            Long userId, VisitorAgentVisitCommand command, String operationKey,
+            String action, String targetStatus) {
+        ResolvedUserAccess actor = requirePermission(userId, "visitor:register");
+        requireAgentOperationKey(operationKey);
+        validateVisitorVisitCommand(command);
+        VisitorBooking visitor = requireVisitor(actor, command.bookingId(), false);
+        requireVisitorRegistrationAccess(actor, visitor, false);
+        VisitorVisitOperation existing = visitorMapper.findVisitAgentOperation(
+                actor.tenantId(), actor.userId(), operationKey);
+        return existing == null ? Optional.empty()
+                : Optional.of(toVisitorVisitReceipt(requireMatchingVisitorVisitOperation(
+                        existing, command, action, targetStatus)));
+    }
+
+    private VisitorBooking submitVisitorBookingInternal(
+            ResolvedUserAccess actor, VisitorBookingRequest request, String operationKey) {
+        User applicant = userMapper.lockActiveApplicant(actor.tenantId(), actor.userId());
+        if (applicant == null) {
+            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        }
+        VisitorBooking existing = operationKey == null ? null
+                : visitorMapper.findAgentOperation(actor.tenantId(), actor.userId(), operationKey);
+        if (existing != null) {
+            return requireMatchingVisitorApplication(existing, request);
+        }
+        requireActiveTenantUser(actor.tenantId(), request.hostUserId());
         Long approverId = resolveApprover(actor);
         if (approverId == null) {
             auditService.record(actor.tenantId(), actor.userId(), BUSINESS_VISITOR,
@@ -606,13 +840,14 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
         v.setTenantId(actor.tenantId());
         v.setApplicantUserId(actor.userId());
         v.setApproverUserId(approverId);
+        v.setAgentOperationKey(operationKey);
         v.setVisitorName(request.visitorName().trim());
         v.setVisitorCompany(trim(request.visitorCompany()));
         v.setVisitorPhone(trim(request.visitorPhone()));
         v.setPurpose(request.purpose().trim());
         v.setHostUserId(request.hostUserId());
-        v.setExpectedVisitAt(request.expectedVisitAt());
-        v.setExpectedLeaveAt(request.expectedLeaveAt());
+        v.setExpectedVisitAt(normalizeTimestamp(request.expectedVisitAt()));
+        v.setExpectedLeaveAt(normalizeTimestamp(request.expectedLeaveAt()));
         v.setPlateNumber(trim(request.plateNumber()));
         v.setPartySize(request.partySize() == null ? 1 : request.partySize());
         v.setStatus("PENDING");
@@ -630,13 +865,81 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
                 .set(VisitorBooking::getWorkflowInstanceId, instance.getId()));
         v.setWorkflowInstanceId(instance.getId());
         insertAction(actor, instance.getId(), task.getId(), "SUBMIT", null, "PENDING", null);
-        auditService.record(actor.tenantId(), actor.userId(), BUSINESS_VISITOR,
-                v.getId().toString(), "SUBMIT", "SUCCESS", "提交访客预约");
+        if (operationKey == null) {
+            auditService.record(actor.tenantId(), actor.userId(), BUSINESS_VISITOR,
+                    v.getId().toString(), "SUBMIT", "SUCCESS", "提交访客预约");
+        } else {
+            auditService.recordTransactional(actor.tenantId(), actor.userId(), BUSINESS_VISITOR,
+                    v.getId().toString(), "SUBMIT", "SUCCESS", "Agent 提交访客预约");
+        }
         notificationService.publish(actor.tenantId(), approverId,
                 NotificationService.TYPE_APPROVAL,
                 "新的访客预约待审批", "员工提交了访客来访预约，请及时处理",
                 "visitor", v.getId());
-        return toVisitorResponse(actor, v, task);
+        return v;
+    }
+
+    private VisitorBookingRequest toVisitorBookingRequest(VisitorAgentApplicationCommand command) {
+        if (command == null) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        return new VisitorBookingRequest(
+                command.visitorName(), command.visitorCompany(), command.visitorPhone(), command.purpose(),
+                command.hostUserId(), command.expectedVisitAt(), command.expectedLeaveAt(),
+                command.plateNumber(), command.partySize());
+    }
+
+    private void validateVisitorBookingRequest(VisitorBookingRequest request) {
+        if (request == null || request.visitorName() == null || request.visitorName().isBlank()
+                || request.visitorName().length() > 60
+                || (request.visitorCompany() != null && request.visitorCompany().length() > 120)
+                || (request.visitorPhone() != null && request.visitorPhone().length() > 40)
+                || request.purpose() == null || request.purpose().isBlank() || request.purpose().length() > 200
+                || request.hostUserId() == null || request.hostUserId() < 1
+                || request.expectedVisitAt() == null
+                || (request.plateNumber() != null && request.plateNumber().length() > 40)
+                || (request.partySize() != null
+                    && (request.partySize() < 1 || request.partySize() > 1000))) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        if (request.expectedLeaveAt() != null
+                && request.expectedLeaveAt().isBefore(request.expectedVisitAt())) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID,
+                    "validation.visitor.leaveBeforeVisit");
+        }
+    }
+
+    private VisitorBooking requireMatchingVisitorApplication(
+            VisitorBooking existing, VisitorBookingRequest request) {
+        if (!Objects.equals(existing.getVisitorName(), request.visitorName().trim())
+                || !Objects.equals(existing.getVisitorCompany(), trim(request.visitorCompany()))
+                || !Objects.equals(existing.getVisitorPhone(), trim(request.visitorPhone()))
+                || !Objects.equals(existing.getPurpose(), request.purpose().trim())
+                || !Objects.equals(existing.getHostUserId(), request.hostUserId())
+                || !Objects.equals(existing.getExpectedVisitAt(), normalizeTimestamp(request.expectedVisitAt()))
+                || !Objects.equals(existing.getExpectedLeaveAt(), normalizeTimestamp(request.expectedLeaveAt()))
+                || !Objects.equals(existing.getPlateNumber(), trim(request.plateNumber()))
+                || !Objects.equals(existing.getPartySize(), request.partySize())) {
+            throw new BusinessException(ErrorCode.IDEMPOTENCY_CONFLICT);
+        }
+        return existing;
+    }
+
+    private VisitorAgentApplicationReceipt toVisitorApplicationReceipt(VisitorBooking booking) {
+        return new VisitorAgentApplicationReceipt(
+                booking.getId(), booking.getStatus(), booking.getVersion(), booking.getSubmittedAt());
+    }
+
+    private void requireActiveTenantUser(Long tenantId, Long userId) {
+        User user = userMapper.selectById(userId);
+        if (user == null || !tenantId.equals(user.getTenantId())
+                || !Integer.valueOf(1).equals(user.getStatus())) {
+            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        }
+    }
+
+    private LocalDateTime normalizeTimestamp(LocalDateTime value) {
+        return value == null ? null : value.truncatedTo(ChronoUnit.MICROS);
     }
 
     @Override
@@ -788,12 +1091,15 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
                                                            String expectedStatus, String targetStatus, String action) {
         ResolvedUserAccess actor = requirePermission(userId, "visitor:register");
         VisitorBooking visitor = requireVisitor(actor, id, false);
-        boolean related = actor.userId().equals(visitor.getApplicantUserId())
-                || actor.userId().equals(visitor.getHostUserId());
-        if (!related && !actor.permissions().contains("visitor:register:any")) {
-            throw new BusinessException(ErrorCode.RESOURCE_FORBIDDEN);
-        }
-        LocalDateTime now = LocalDateTime.now();
+        requireVisitorRegistrationAccess(actor, visitor, true);
+        transitionVisitorVisit(actor, visitor, request, expectedStatus, targetStatus, action, null);
+        return toVisitorResponse(actor, visitorMapper.selectById(id), null);
+    }
+
+    private VisitorVisitOperation transitionVisitorVisit(
+            ResolvedUserAccess actor, VisitorBooking visitor, VisitorVisitActionRequest request,
+            String expectedStatus, String targetStatus, String action, String operationKey) {
+        LocalDateTime now = normalizeTimestamp(LocalDateTime.now());
         if (!expectedStatus.equals(visitor.getStatus())) {
             throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID, "oa.visitor.visit.transition.invalid");
         }
@@ -802,7 +1108,7 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
             throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID, "oa.visitor.visit.noShow.tooEarly");
         }
         LambdaUpdateWrapper<VisitorBooking> update = new LambdaUpdateWrapper<VisitorBooking>()
-                .eq(VisitorBooking::getId, id)
+                .eq(VisitorBooking::getId, visitor.getId())
                 .eq(VisitorBooking::getTenantId, actor.tenantId())
                 .eq(VisitorBooking::getStatus, expectedStatus)
                 .eq(VisitorBooking::getVersion, request.version())
@@ -818,13 +1124,76 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
             default -> throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID);
         }
         if (visitorMapper.update(null, update) != 1) {
+            if (operationKey != null) {
+                VisitorVisitOperation concurrent = visitorMapper.findVisitAgentOperation(
+                        actor.tenantId(), actor.userId(), operationKey);
+                if (concurrent != null) {
+                    return requireMatchingVisitorVisitOperation(concurrent,
+                            new VisitorAgentVisitCommand(visitor.getId(), request.version(), request.remark()),
+                            action, targetStatus);
+                }
+            }
             throw new BusinessException(ErrorCode.VERSION_CONFLICT);
         }
+        VisitorVisitOperation operation = null;
+        if (operationKey != null) {
+            operation = new VisitorVisitOperation();
+            operation.setTenantId(actor.tenantId());
+            operation.setBookingId(visitor.getId());
+            operation.setOperatorUserId(actor.userId());
+            operation.setOperationType(action);
+            operation.setAgentOperationKey(operationKey);
+            operation.setSourceVersion(request.version());
+            operation.setResultVersion(request.version() + 1);
+            operation.setResultStatus(targetStatus);
+            operation.setRemark(trim(request.remark()));
+            operation.setOccurredAt(now);
+            operation.setCreatedAt(now);
+            if (visitorMapper.insertVisitAgentOperation(operation) != 1) {
+                throw new BusinessException(ErrorCode.IDEMPOTENCY_CONFLICT);
+            }
+        }
         auditService.recordTransactional(actor.tenantId(), actor.userId(), BUSINESS_VISITOR,
-                id.toString(), action, "SUCCESS",
+                visitor.getId().toString(), action, "SUCCESS",
                 "fromStatus=" + expectedStatus + ",toStatus=" + targetStatus
                         + ",remark=" + trim(request.remark()));
-        return toVisitorResponse(actor, visitorMapper.selectById(id), null);
+        return operation;
+    }
+
+    private void requireVisitorRegistrationAccess(
+            ResolvedUserAccess actor, VisitorBooking visitor, boolean allowTenantWide) {
+        boolean related = actor.userId().equals(visitor.getApplicantUserId())
+                || actor.userId().equals(visitor.getHostUserId());
+        if (!related && !(allowTenantWide && actor.permissions().contains("visitor:register:any"))) {
+            throw new BusinessException(ErrorCode.RESOURCE_FORBIDDEN);
+        }
+    }
+
+    private void validateVisitorVisitCommand(VisitorAgentVisitCommand command) {
+        if (command == null || command.bookingId() < 1 || command.expectedVersion() < 0
+                || command.expectedVersion() == Integer.MAX_VALUE
+                || (command.remark() != null && command.remark().length() > 500)) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+    }
+
+    private VisitorVisitOperation requireMatchingVisitorVisitOperation(
+            VisitorVisitOperation operation, VisitorAgentVisitCommand command,
+            String operationType, String resultStatus) {
+        if (!Objects.equals(operation.getBookingId(), command.bookingId())
+                || !Objects.equals(operation.getOperationType(), operationType)
+                || !Objects.equals(operation.getSourceVersion(), command.expectedVersion())
+                || !Objects.equals(operation.getResultStatus(), resultStatus)
+                || !Objects.equals(operation.getRemark(), trim(command.remark()))) {
+            throw new BusinessException(ErrorCode.IDEMPOTENCY_CONFLICT);
+        }
+        return operation;
+    }
+
+    private VisitorAgentVisitReceipt toVisitorVisitReceipt(VisitorVisitOperation operation) {
+        return new VisitorAgentVisitReceipt(
+                operation.getBookingId(), operation.getResultStatus(),
+                operation.getResultVersion(), operation.getOccurredAt());
     }
 
     private VisitorBookingResponse decideVisitor(Long userId, Long taskId,
@@ -888,6 +1257,48 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
     @Transactional
     public SealUsageResponse submitSealUsage(Long userId, SealUsageRequest request) {
         ResolvedUserAccess actor = requirePermission(userId, "seal:create");
+        validateSealUsageRequest(request);
+        SealUsage usage = submitSealUsageInternal(actor, request, null);
+        return toSealResponse(actor, usage,
+                activeTask(actor.tenantId(), BUSINESS_SEAL, usage.getId()));
+    }
+
+    @Override
+    @Transactional
+    public SealAgentApplicationReceipt submitSealUsageAgent(
+            Long userId, SealAgentApplicationCommand command, String operationKey) {
+        ResolvedUserAccess actor = requirePermission(userId, "seal:create");
+        requireAgentOperationKey(operationKey);
+        SealUsageRequest request = toSealUsageRequest(command);
+        validateSealUsageRequest(request);
+        return toSealApplicationReceipt(submitSealUsageInternal(actor, request, operationKey));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<SealAgentApplicationReceipt> findAgentSealUsage(
+            Long userId, SealAgentApplicationCommand command, String operationKey) {
+        ResolvedUserAccess actor = requirePermission(userId, "seal:create");
+        requireAgentOperationKey(operationKey);
+        SealUsageRequest request = toSealUsageRequest(command);
+        validateSealUsageRequest(request);
+        SealUsage existing = sealMapper.findAgentOperation(
+                actor.tenantId(), actor.userId(), operationKey);
+        return existing == null ? Optional.empty()
+                : Optional.of(toSealApplicationReceipt(requireMatchingSealApplication(existing, request)));
+    }
+
+    private SealUsage submitSealUsageInternal(
+            ResolvedUserAccess actor, SealUsageRequest request, String operationKey) {
+        User applicant = userMapper.lockActiveApplicant(actor.tenantId(), actor.userId());
+        if (applicant == null) {
+            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        }
+        SealUsage existing = operationKey == null ? null
+                : sealMapper.findAgentOperation(actor.tenantId(), actor.userId(), operationKey);
+        if (existing != null) {
+            return requireMatchingSealApplication(existing, request);
+        }
         Long approverId = resolveApprover(actor);
         if (approverId == null) {
             auditService.record(actor.tenantId(), actor.userId(), BUSINESS_SEAL,
@@ -904,6 +1315,7 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
         s.setTenantId(actor.tenantId());
         s.setApplicantUserId(actor.userId());
         s.setApproverUserId(approverId);
+        s.setAgentOperationKey(operationKey);
         s.setSealType(request.sealType() == null ? "OTHER" : request.sealType());
         s.setDocumentTitle(request.documentTitle().trim());
         s.setUsageReason(request.usageReason().trim());
@@ -923,13 +1335,53 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
                 .set(SealUsage::getWorkflowInstanceId, instance.getId()));
         s.setWorkflowInstanceId(instance.getId());
         insertAction(actor, instance.getId(), task.getId(), "SUBMIT", null, "PENDING", null);
-        auditService.record(actor.tenantId(), actor.userId(), BUSINESS_SEAL,
-                s.getId().toString(), "SUBMIT", "SUCCESS", "提交用印申请");
+        if (operationKey == null) {
+            auditService.record(actor.tenantId(), actor.userId(), BUSINESS_SEAL,
+                    s.getId().toString(), "SUBMIT", "SUCCESS", "提交用印申请");
+        } else {
+            auditService.recordTransactional(actor.tenantId(), actor.userId(), BUSINESS_SEAL,
+                    s.getId().toString(), "SUBMIT", "SUCCESS", "Agent 提交用印申请");
+        }
         notificationService.publish(actor.tenantId(), approverId,
                 NotificationService.TYPE_APPROVAL,
                 "新的用印申请待审批", "员工提交了印章使用申请，请及时处理",
                 "seal", s.getId());
-        return toSealResponse(actor, s, task);
+        return s;
+    }
+
+    private SealUsageRequest toSealUsageRequest(SealAgentApplicationCommand command) {
+        if (command == null) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        return new SealUsageRequest(
+                command.sealType(), command.documentTitle(), command.usageReason(), command.copies());
+    }
+
+    private void validateSealUsageRequest(SealUsageRequest request) {
+        if (request == null || (request.sealType() != null
+                && !Set.of("OFFICIAL", "CONTRACT", "LEGAL", "FINANCE", "OTHER").contains(request.sealType()))
+                || request.documentTitle() == null || request.documentTitle().isBlank()
+                || request.documentTitle().length() > 200
+                || request.usageReason() == null || request.usageReason().isBlank()
+                || request.usageReason().length() > 500
+                || (request.copies() != null && (request.copies() < 1 || request.copies() > 1000))) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+    }
+
+    private SealUsage requireMatchingSealApplication(SealUsage existing, SealUsageRequest request) {
+        if (!Objects.equals(existing.getSealType(), request.sealType() == null ? "OTHER" : request.sealType())
+                || !Objects.equals(existing.getDocumentTitle(), request.documentTitle().trim())
+                || !Objects.equals(existing.getUsageReason(), request.usageReason().trim())
+                || !Objects.equals(existing.getCopies(), request.copies() == null ? 1 : request.copies())) {
+            throw new BusinessException(ErrorCode.IDEMPOTENCY_CONFLICT);
+        }
+        return existing;
+    }
+
+    private SealAgentApplicationReceipt toSealApplicationReceipt(SealUsage usage) {
+        return new SealAgentApplicationReceipt(
+                usage.getId(), usage.getStatus(), usage.getVersion(), usage.getSubmittedAt());
     }
 
     @Override
@@ -1061,16 +1513,61 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
     public SealUsageResponse registerSealUse(Long userId, Long id, SealUseRequest request) {
         ResolvedUserAccess actor = requirePermission(userId, "seal:register");
         SealUsage usage = requireSealExecutionAccess(actor, id);
+        registerSealUse(actor, usage, request, null);
+        return toSealResponse(actor, sealMapper.selectById(id), null);
+    }
+
+    @Override
+    @Transactional
+    public SealAgentUseReceipt registerSealUseAgent(
+            Long userId, SealAgentUseCommand command, String operationKey) {
+        ResolvedUserAccess actor = requirePermission(userId, "seal:register");
+        requireAgentOperationKey(operationKey);
+        validateSealAgentUseCommand(command);
+        SealUsage usage = sealMapper.findAgentOwnedUsage(
+                actor.tenantId(), actor.userId(), command.usageId());
+        if (usage == null) {
+            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        }
+        SealUsageOperation existing = sealMapper.findUsageAgentOperation(
+                actor.tenantId(), actor.userId(), operationKey);
+        if (existing != null) {
+            return toSealAgentUseReceipt(requireMatchingSealUseOperation(existing, command));
+        }
+        return toSealAgentUseReceipt(registerSealUse(actor, usage,
+                new SealUseRequest(command.expectedVersion(), command.actualCopies(), command.remark()),
+                operationKey));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<SealAgentUseReceipt> findAgentRegisteredSealUse(
+            Long userId, SealAgentUseCommand command, String operationKey) {
+        ResolvedUserAccess actor = requirePermission(userId, "seal:register");
+        requireAgentOperationKey(operationKey);
+        validateSealAgentUseCommand(command);
+        if (sealMapper.findAgentOwnedUsage(actor.tenantId(), actor.userId(), command.usageId()) == null) {
+            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        }
+        SealUsageOperation existing = sealMapper.findUsageAgentOperation(
+                actor.tenantId(), actor.userId(), operationKey);
+        return existing == null ? Optional.empty()
+                : Optional.of(toSealAgentUseReceipt(requireMatchingSealUseOperation(existing, command)));
+    }
+
+    private SealUsageOperation registerSealUse(
+            ResolvedUserAccess actor, SealUsage usage, SealUseRequest request, String operationKey) {
         if (!"APPROVED".equals(usage.getStatus())) {
             throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID, "oa.seal.use.transition.invalid");
         }
         if (usage.getCopies() != null && request.actualCopies() > usage.getCopies()) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID, "oa.seal.use.copies.exceeded");
         }
-        LocalDateTime now = LocalDateTime.now();
-        int updated = sealMapper.update(null, new LambdaUpdateWrapper<SealUsage>()
-                .eq(SealUsage::getId, id)
+        LocalDateTime now = normalizeTimestamp(LocalDateTime.now());
+        LambdaUpdateWrapper<SealUsage> update = new LambdaUpdateWrapper<SealUsage>()
+                .eq(SealUsage::getId, usage.getId())
                 .eq(SealUsage::getTenantId, actor.tenantId())
+                .eq(operationKey != null, SealUsage::getApplicantUserId, actor.userId())
                 .eq(SealUsage::getStatus, "APPROVED")
                 .eq(SealUsage::getVersion, request.version())
                 .set(SealUsage::getStatus, "USED")
@@ -1078,15 +1575,71 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
                 .set(SealUsage::getHandlerUserId, actor.userId())
                 .set(SealUsage::getUsedAt, now)
                 .set(SealUsage::getUpdatedAt, now)
-                .setSql("version = version + 1"));
-        if (updated != 1) {
+                .setSql("version = version + 1");
+        if (sealMapper.update(null, update) != 1) {
+            if (operationKey != null) {
+                SealUsageOperation concurrent = sealMapper.findUsageAgentOperation(
+                        actor.tenantId(), actor.userId(), operationKey);
+                if (concurrent != null) {
+                    return requireMatchingSealUseOperation(concurrent,
+                            new SealAgentUseCommand(usage.getId(), request.version(),
+                                    request.actualCopies(), request.remark()));
+                }
+            }
             throw new BusinessException(ErrorCode.VERSION_CONFLICT);
         }
+        SealUsageOperation operation = null;
+        if (operationKey != null) {
+            operation = new SealUsageOperation();
+            operation.setTenantId(actor.tenantId());
+            operation.setUsageId(usage.getId());
+            operation.setOperatorUserId(actor.userId());
+            operation.setOperationType("USE");
+            operation.setAgentOperationKey(operationKey);
+            operation.setSourceVersion(request.version());
+            operation.setResultVersion(request.version() + 1);
+            operation.setResultStatus("USED");
+            operation.setActualCopies(request.actualCopies());
+            operation.setRemark(trim(request.remark()));
+            operation.setOccurredAt(now);
+            operation.setCreatedAt(now);
+            if (sealMapper.insertUsageAgentOperation(operation) != 1) {
+                throw new BusinessException(ErrorCode.IDEMPOTENCY_CONFLICT);
+            }
+        }
         auditService.recordTransactional(actor.tenantId(), actor.userId(), BUSINESS_SEAL,
-                id.toString(), "USE", "SUCCESS",
+                usage.getId().toString(), "USE", "SUCCESS",
                 "approvedCopies=" + usage.getCopies() + ",actualCopies=" + request.actualCopies()
                         + ",handlerUserId=" + actor.userId() + ",remark=" + trim(request.remark()));
-        return toSealResponse(actor, sealMapper.selectById(id), null);
+        return operation;
+    }
+
+    private void validateSealAgentUseCommand(SealAgentUseCommand command) {
+        if (command == null || command.usageId() < 1 || command.expectedVersion() < 0
+                || command.expectedVersion() == Integer.MAX_VALUE
+                || command.actualCopies() < 1 || command.actualCopies() > 1000
+                || (command.remark() != null && command.remark().length() > 500)) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+    }
+
+    private SealUsageOperation requireMatchingSealUseOperation(
+            SealUsageOperation operation, SealAgentUseCommand command) {
+        if (!Objects.equals(operation.getUsageId(), command.usageId())
+                || !Objects.equals(operation.getOperationType(), "USE")
+                || !Objects.equals(operation.getSourceVersion(), command.expectedVersion())
+                || !Objects.equals(operation.getResultStatus(), "USED")
+                || !Objects.equals(operation.getActualCopies(), command.actualCopies())
+                || !Objects.equals(operation.getRemark(), trim(command.remark()))) {
+            throw new BusinessException(ErrorCode.IDEMPOTENCY_CONFLICT);
+        }
+        return operation;
+    }
+
+    private SealAgentUseReceipt toSealAgentUseReceipt(SealUsageOperation operation) {
+        return new SealAgentUseReceipt(
+                operation.getUsageId(), operation.getResultStatus(), operation.getResultVersion(),
+                operation.getActualCopies(), operation.getOccurredAt());
     }
 
     @Override
@@ -1230,6 +1783,125 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
         }
     }
 
+    private User requireClaimOwner(Long tenantId, Long employeeId) {
+        User owner = userMapper.selectById(employeeId);
+        if (owner == null || !tenantId.equals(owner.getTenantId())
+                || !Integer.valueOf(1).equals(owner.getStatus()) || owner.getDepartmentId() == null) {
+            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID, "oa.asset.owner.invalid");
+        }
+        requireDepartment(tenantId, owner.getDepartmentId());
+        return owner;
+    }
+
+    private AgentAssetTransitionReceipt applyAgentAssetTransition(
+            ResolvedUserAccess actor, AssetLedger asset, int expectedVersion, String reason,
+            String operationKey, String expectedStatus, String operationType, String targetStatus,
+            Long targetDepartmentId, Long targetOwnerUserId, String invalidStateMessageKey) {
+        if (!expectedStatus.equals(asset.getStatus())) {
+            return resolveAgentTransition(actor, asset.getId(), expectedVersion, reason, operationKey,
+                    operationType, targetStatus, targetOwnerUserId)
+                    .orElseThrow(() -> new BusinessException(
+                            ErrorCode.BUSINESS_STATE_INVALID, invalidStateMessageKey));
+        }
+        int updated = assetMapper.update(null, new LambdaUpdateWrapper<AssetLedger>()
+                .eq(AssetLedger::getId, asset.getId())
+                .eq(AssetLedger::getTenantId, actor.tenantId())
+                .eq(AssetLedger::getDeleted, false)
+                .eq(AssetLedger::getVersion, expectedVersion)
+                .eq(AssetLedger::getStatus, expectedStatus)
+                .set(AssetLedger::getStatus, targetStatus)
+                .set(AssetLedger::getDepartmentId, targetDepartmentId)
+                .set(AssetLedger::getOwnerUserId, targetOwnerUserId)
+                .set(AssetLedger::getUpdatedAt, LocalDateTime.now())
+                .setSql("version = version + 1"));
+        if (updated != 1) {
+            return resolveAgentTransition(actor, asset.getId(), expectedVersion, reason, operationKey,
+                    operationType, targetStatus, targetOwnerUserId)
+                    .orElseThrow(() -> new BusinessException(ErrorCode.VERSION_CONFLICT));
+        }
+
+        AssetOperation operation = newAssetOperation(actor, asset, operationType, targetStatus,
+                targetDepartmentId, targetOwnerUserId, reason);
+        operation.setAgentOperationKey(operationKey);
+        operation.setSourceVersion(expectedVersion);
+        operation.setResultVersion(expectedVersion + 1);
+        assetOperationMapper.insert(operation);
+        auditService.recordTransactional(actor.tenantId(), actor.userId(), "ASSET_LEDGER",
+                asset.getId().toString(), operationType, "SUCCESS",
+                "fromStatus=" + expectedStatus + ",toStatus=" + targetStatus
+                        + ",fromDepartmentId=" + asset.getDepartmentId()
+                        + ",toDepartmentId=" + targetDepartmentId
+                        + ",fromOwnerUserId=" + asset.getOwnerUserId()
+                        + ",toOwnerUserId=" + targetOwnerUserId);
+        return new AgentAssetTransitionReceipt(asset.getId(), targetStatus, expectedVersion + 1);
+    }
+
+    private Optional<AgentAssetTransitionReceipt> resolveAgentTransition(
+            ResolvedUserAccess actor, long assetId, int expectedVersion, String reason,
+            String operationKey, String operationType, String targetStatus, Long targetOwnerUserId) {
+        AssetOperation operation = assetOperationMapper.findAgentOperation(
+                actor.tenantId(), actor.userId(), operationKey);
+        if (operation == null) {
+            return Optional.empty();
+        }
+        if (!operationType.equals(operation.getOperationType())
+                || !Long.valueOf(assetId).equals(operation.getAssetId())
+                || !targetStatus.equals(operation.getToStatus())
+                || !Objects.equals(targetOwnerUserId, operation.getToOwnerUserId())
+                || !Integer.valueOf(expectedVersion).equals(operation.getSourceVersion())
+                || !Objects.equals(trim(reason), operation.getReason())
+                || operation.getResultVersion() == null) {
+            throw new BusinessException(ErrorCode.IDEMPOTENCY_CONFLICT);
+        }
+        return Optional.of(new AgentAssetTransitionReceipt(operation.getAssetId(), operation.getToStatus(),
+                operation.getResultVersion()));
+    }
+
+    private AssetAgentClaimReceipt toClaimReceipt(AgentAssetTransitionReceipt receipt) {
+        return new AssetAgentClaimReceipt(receipt.assetId(), receipt.status(), receipt.version());
+    }
+
+    private AssetAgentReturnReceipt toReturnReceipt(AgentAssetTransitionReceipt receipt) {
+        return new AssetAgentReturnReceipt(receipt.assetId(), receipt.status(), receipt.version());
+    }
+
+    private AssetAgentRepairStartReceipt toRepairStartReceipt(AgentAssetTransitionReceipt receipt) {
+        return new AssetAgentRepairStartReceipt(receipt.assetId(), receipt.status(), receipt.version());
+    }
+
+    private void requireAgentOperationKey(String operationKey) {
+        if (operationKey == null || operationKey.isBlank() || operationKey.length() > 128) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+    }
+
+    private void requireAgentClaimCommand(AssetAgentClaimCommand command) {
+        if (command == null || command.assetId() < 1 || command.employeeId() < 1
+                || command.expectedVersion() < 0 || command.expectedVersion() == Integer.MAX_VALUE
+                || (command.reason() != null && command.reason().length() > 500)) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+    }
+
+    private void requireAgentReturnCommand(AssetAgentReturnCommand command) {
+        if (command == null || command.assetId() < 1 || command.expectedVersion() < 0
+                || command.expectedVersion() == Integer.MAX_VALUE
+                || (command.reason() != null && command.reason().length() > 500)) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+    }
+
+    private void requireAgentRepairStartCommand(AssetAgentRepairStartCommand command) {
+        if (command == null || command.assetId() < 1 || command.expectedVersion() < 0
+                || command.expectedVersion() == Integer.MAX_VALUE || command.reason() == null
+                || command.reason().isBlank() || command.reason().length() > 500) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+    }
+
+    private record AgentAssetTransitionReceipt(long assetId, String status, int version) {
+    }
+
     private MeetingRoom requireMeetingRoom(Long tenantId, Long id) {
         MeetingRoom m = meetingRoomMapper.selectById(id);
         if (m == null || !tenantId.equals(m.getTenantId()) || Boolean.TRUE.equals(m.getDeleted())) {
@@ -1351,11 +2023,14 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
 
     private Long resolveApprover(ResolvedUserAccess actor) {
         User applicant = userMapper.selectById(actor.userId());
-        if (applicant == null || applicant.getApproverUserId() == null) {
+        if (applicant == null || !actor.tenantId().equals(applicant.getTenantId())
+                || applicant.getApproverUserId() == null) {
             return null;
         }
         User approver = userMapper.selectById(applicant.getApproverUserId());
-        if (approver == null || approver.getStatus() == null || approver.getStatus() != 1) {
+        if (approver == null || !actor.tenantId().equals(approver.getTenantId())
+                || approver.getStatus() == null || approver.getStatus() != 1
+                || actor.userId().equals(approver.getId())) {
             return null;
         }
         return approver.getId();

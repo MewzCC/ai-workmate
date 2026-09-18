@@ -4,6 +4,7 @@ import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.common.ErrorCode;
 import com.fasterxml.jackson.databind.JsonNode;
 
+import java.math.BigDecimal;
 import java.time.DateTimeException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -11,6 +12,19 @@ import java.time.LocalDateTime;
 /** Shared fail-closed parser for the fixed, schema-validated Agent argument surface. */
 final class BoundedToolArguments {
     private BoundedToolArguments() { }
+
+    static int pageNumber(JsonNode arguments) {
+        return pageNumber(arguments, 10000);
+    }
+
+    /** Legacy contracts without a page maximum retain their frozen schema semantics. */
+    static int pageNumber(JsonNode arguments, int maximum) {
+        return positiveInt(arguments, "page", 1, maximum);
+    }
+
+    static int pageSize(JsonNode arguments) {
+        return positiveInt(arguments, "size", 20, 50);
+    }
 
     static String optionalText(JsonNode arguments, String field) {
         JsonNode value = arguments.get(field);
@@ -31,6 +45,13 @@ final class BoundedToolArguments {
         if (value == null || value.isNull()) return fallback;
         if (!value.isIntegralNumber() || !value.canConvertToInt() || value.asInt() < 1) throw invalid();
         return Math.min(maximum, value.asInt());
+    }
+
+    static int requiredInt(JsonNode arguments, String field, int minimum, int maximum) {
+        JsonNode value = arguments.get(field);
+        if (value == null || !value.isIntegralNumber() || !value.canConvertToInt()
+                || value.asInt() < minimum || value.asInt() > maximum) throw invalid();
+        return value.asInt();
     }
 
     static Long optionalPositiveLong(JsonNode arguments, String field) {
@@ -73,6 +94,13 @@ final class BoundedToolArguments {
         return value.asInt();
     }
 
+    static Boolean optionalBoolean(JsonNode arguments, String field) {
+        JsonNode value = arguments.get(field);
+        if (value == null || value.isNull()) return null;
+        if (!value.isBoolean()) throw invalid();
+        return value.booleanValue();
+    }
+
     static LocalDateTime optionalDateTime(JsonNode arguments, String field) {
         String value = optionalText(arguments, field);
         if (value == null) return null;
@@ -81,6 +109,26 @@ final class BoundedToolArguments {
         } catch (DateTimeException exception) {
             throw invalid();
         }
+    }
+
+    static BigDecimal optionalDecimal(
+            JsonNode arguments, String field, BigDecimal minimum,
+            BigDecimal maximum, int maximumScale) {
+        JsonNode value = arguments.get(field);
+        if (value == null || value.isNull()) return null;
+        if (!value.isNumber()) throw invalid();
+        BigDecimal decimal = value.decimalValue();
+        if (decimal.stripTrailingZeros().scale() > maximumScale
+                || decimal.compareTo(minimum) < 0 || decimal.compareTo(maximum) > 0) {
+            throw invalid();
+        }
+        return decimal;
+    }
+
+    static LocalDateTime requiredDateTime(JsonNode arguments, String field) {
+        LocalDateTime value = optionalDateTime(arguments, field);
+        if (value == null) throw invalid();
+        return value;
     }
 
     static <E extends Enum<E>> E requiredEnum(JsonNode arguments, String field, Class<E> type) {

@@ -27,5 +27,8 @@ public class AssetOperation {
     private String actualStatus;
     private Long actualDepartmentId;
     private Long actualOwnerUserId;
+    private String agentOperationKey;
+    private Integer sourceVersion;
+    private Integer resultVersion;
     private LocalDateTime createdAt;
 }

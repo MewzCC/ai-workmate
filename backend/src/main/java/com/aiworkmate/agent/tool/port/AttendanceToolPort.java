@@ -8,11 +8,17 @@ import java.util.List;
 /** Transport-neutral attendance read contract; a remote adapter can replace the local implementation. */
 public interface AttendanceToolPort {
     Result query(ToolActorContext context, Query query);
+    ReissueWriteResult submitReissue(
+            ToolActorContext context, ReissueCommand command, ToolOperationKey operationKey);
 
     enum Resource { TODAY, RECORDS, EXCEPTIONS, MY_REISSUES, PENDING_REISSUES, STATISTICS, SETTINGS }
 
     record Query(Resource resource, LocalDate from, LocalDate to, Long employeeId, String status,
                  Integer year, Integer month, int page, int size) { }
+    record ReissueCommand(LocalDate clockDate, String clockType, String reason) { }
+    record ReissueWriteResult(long reissueId, String status, LocalDate clockDate,
+                              String clockType, LocalDateTime submittedAt)
+            implements ToolWriteReceipt { }
 
     record Result(Resource resource, Today today, List<Record> records, List<Reissue> reissues,
                   Statistics statistics, Settings settings, long total, int page, int size) {

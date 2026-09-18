@@ -40,6 +40,9 @@ public interface AttendanceService {
     /** 提交补卡申请。审批人取申请人直属上级 {@code approver_user_id}。 */
     AttendanceReissueResponse submitReissue(Long userId, AttendanceReissueRequest request);
 
+    AttendanceReissueResponse submitAgentReissue(
+            Long userId, AttendanceReissueRequest request, String operationKey);
+
     /** 我的补卡申请列表。 */
     PageResponse<AttendanceReissueResponse> listMyReissues(Long userId, String status, int page, int size);
 

@@ -5,37 +5,29 @@ import com.aiworkmate.agent.registry.ToolCode;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
-import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.requiredLong;
-
 @Component
-@RequiredArgsConstructor
-public final class LeaveSubmitToolHandler implements ToolHandler {
+public final class LeaveSubmitToolHandler extends TypedVersionedWriteToolHandler<LeaveToolPort.WriteResult> {
     private final LeaveToolPort leaveToolPort;
-    private final ObjectMapper objectMapper;
 
-    @Override
-    public String toolCode() {
-        return ToolCode.LEAVE_SUBMIT.code();
+    public LeaveSubmitToolHandler(LeaveToolPort leaveToolPort, ObjectMapper objectMapper) {
+        super(ToolCode.LEAVE_SUBMIT, objectMapper, "applicationId");
+        this.leaveToolPort = leaveToolPort;
     }
 
     @Override
-    public String handlerVersion() {
-        return "1.0.0";
+    protected LeaveToolPort.WriteResult invokeVersioned(
+            TrustedToolContext context, long applicationId, int version) {
+        return leaveToolPort.submit(context.actor(), applicationId, version);
     }
 
     @Override
-    public JsonNode execute(TrustedToolContext context, JsonNode arguments) {
-        long applicationId = requiredLong(arguments, "applicationId", 1);
-        int version = Math.toIntExact(requiredLong(arguments, "version", 0));
-        LeaveToolPort.WriteResult submitted = leaveToolPort.submit(context.actor(), applicationId, version);
-        ObjectNode output = objectMapper.createObjectNode();
+    protected JsonNode serializeResult(LeaveToolPort.WriteResult submitted) {
+        ObjectNode output = objectMapper().createObjectNode();
         output.put("applicationId", submitted.applicationId());
         output.put("status", submitted.status());
         output.put("version", submitted.version());
         return output;
     }
-
 }

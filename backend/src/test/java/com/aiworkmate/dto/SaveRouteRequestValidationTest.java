@@ -28,10 +28,10 @@ class SaveRouteRequestValidationTest {
     }
 
     @Test
-    void rejectsUnregisteredComponent() {
+    void rejectsMalformedComponentKeyBeforeCatalogValidation() {
         SaveRouteRequest request = new SaveRouteRequest(
                 "unsafe-page", "workspace", "Unsafe", "/oa/unsafe-page", null,
-                "PAGE", "ARBITRARY_COMPONENT", 99, true);
+                "PAGE", "arbitrary-component", 99, true);
 
         assertThat(validator.validate(request))
                 .anySatisfy(violation -> assertThat(violation.getPropertyPath().toString()).isEqualTo("componentKey"));

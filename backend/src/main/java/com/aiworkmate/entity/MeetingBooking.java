@@ -15,6 +15,8 @@ public class MeetingBooking {
     private Long tenantId;
     private Long roomId;
     private Long organizerUserId;
+    private String agentOperationKey;
+    private String agentCancelOperationKey;
     private String title;
     private String agenda;
     private LocalDateTime startAt;

@@ -16,8 +16,23 @@ import com.aiworkmate.dto.VisitorBookingRequest;
 import com.aiworkmate.dto.VisitorBookingResponse;
 import com.aiworkmate.dto.VisitorVisitActionRequest;
 import com.aiworkmate.dto.ApprovalDecisionRequest;
+import com.aiworkmate.service.model.AssetAgentClaimCommand;
+import com.aiworkmate.service.model.AssetAgentClaimReceipt;
+import com.aiworkmate.service.model.AssetAgentReturnCommand;
+import com.aiworkmate.service.model.AssetAgentReturnReceipt;
+import com.aiworkmate.service.model.VisitorAgentApplicationCommand;
+import com.aiworkmate.service.model.VisitorAgentApplicationReceipt;
+import com.aiworkmate.service.model.VisitorAgentVisitCommand;
+import com.aiworkmate.service.model.VisitorAgentVisitReceipt;
+import com.aiworkmate.service.model.SealAgentApplicationCommand;
+import com.aiworkmate.service.model.SealAgentApplicationReceipt;
+import com.aiworkmate.service.model.SealAgentUseCommand;
+import com.aiworkmate.service.model.SealAgentUseReceipt;
+import com.aiworkmate.service.model.AssetAgentRepairStartCommand;
+import com.aiworkmate.service.model.AssetAgentRepairStartReceipt;
 
 import java.math.BigDecimal;
+import java.util.Optional;
 
 /**
  * 行政资产领域服务。
@@ -50,6 +65,24 @@ public interface AdminAssetsService {
 
     AssetLedgerResponse claimAsset(Long userId, Long id, AssetOperationRequest request);
 
+    AssetAgentClaimReceipt claimAssetAgent(
+            Long userId, AssetAgentClaimCommand command, String operationKey);
+
+    Optional<AssetAgentClaimReceipt> findAgentAssetClaim(
+            Long userId, AssetAgentClaimCommand command, String operationKey);
+
+    AssetAgentReturnReceipt returnAssetAgent(
+            Long userId, AssetAgentReturnCommand command, String operationKey);
+
+    Optional<AssetAgentReturnReceipt> findAgentAssetReturn(
+            Long userId, AssetAgentReturnCommand command, String operationKey);
+
+    AssetAgentRepairStartReceipt startAssetRepairAgent(
+            Long userId, AssetAgentRepairStartCommand command, String operationKey);
+
+    Optional<AssetAgentRepairStartReceipt> findAgentAssetRepairStart(
+            Long userId, AssetAgentRepairStartCommand command, String operationKey);
+
     AssetLedgerResponse returnAsset(Long userId, Long id, AssetOperationRequest request);
 
     AssetLedgerResponse transferAsset(Long userId, Long id, AssetOperationRequest request);
@@ -79,6 +112,30 @@ public interface AdminAssetsService {
 
     VisitorBookingResponse submitVisitorBooking(Long userId, VisitorBookingRequest request);
 
+    VisitorAgentApplicationReceipt submitVisitorBookingAgent(
+            Long userId, VisitorAgentApplicationCommand command, String operationKey);
+
+    Optional<VisitorAgentApplicationReceipt> findAgentVisitorBooking(
+            Long userId, VisitorAgentApplicationCommand command, String operationKey);
+
+    VisitorAgentVisitReceipt checkInVisitorAgent(
+            Long userId, VisitorAgentVisitCommand command, String operationKey);
+
+    Optional<VisitorAgentVisitReceipt> findAgentVisitorCheckIn(
+            Long userId, VisitorAgentVisitCommand command, String operationKey);
+
+    VisitorAgentVisitReceipt markVisitorArrivedAgent(
+            Long userId, VisitorAgentVisitCommand command, String operationKey);
+
+    Optional<VisitorAgentVisitReceipt> findAgentVisitorArrival(
+            Long userId, VisitorAgentVisitCommand command, String operationKey);
+
+    VisitorAgentVisitReceipt leaveVisitorAgent(
+            Long userId, VisitorAgentVisitCommand command, String operationKey);
+
+    Optional<VisitorAgentVisitReceipt> findAgentVisitorLeave(
+            Long userId, VisitorAgentVisitCommand command, String operationKey);
+
     VisitorBookingResponse getVisitorBooking(Long userId, Long id);
 
     PageResponse<VisitorBookingResponse> listMyVisitorBookings(Long userId, String status,
@@ -103,6 +160,14 @@ public interface AdminAssetsService {
     // ---------- 印章用印 ----------
 
     SealUsageResponse submitSealUsage(Long userId, SealUsageRequest request);
+    SealAgentApplicationReceipt submitSealUsageAgent(
+            Long userId, SealAgentApplicationCommand command, String operationKey);
+    Optional<SealAgentApplicationReceipt> findAgentSealUsage(
+            Long userId, SealAgentApplicationCommand command, String operationKey);
+    SealAgentUseReceipt registerSealUseAgent(
+            Long userId, SealAgentUseCommand command, String operationKey);
+    Optional<SealAgentUseReceipt> findAgentRegisteredSealUse(
+            Long userId, SealAgentUseCommand command, String operationKey);
     SealUsageResponse getSealUsage(Long userId, Long id);
     PageResponse<SealUsageResponse> listMySealUsages(Long userId, String status, int page, int size);
     PageResponse<SealUsageResponse> listPendingSealUsages(Long userId, int page, int size);

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Alert, App as AntdApp, Button, Card, Descriptions, Drawer, Empty, Input, Space, Spin, Steps, Tag, Timeline, Typography } from 'antd';
 import type { AgentTaskStatus, AiTaskEvent, AiTaskExecuteResponse, AiTaskPlanResponse, OaRole, PageCapability } from '@/types/oa';
+import { PageToolAvailabilityNotice } from './PageToolAvailabilityNotice';
 import { executeAiTask, formatOaApiError, getPageCapabilities, issueAiTaskConfirmation, OaApiError, planAiTask, subscribeAiTaskEvents } from '@/lib/oaApi';
 import { OaIcon } from '@/components/OaIcon';
 
@@ -232,8 +233,8 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, initi
                 {t(`aiPermission.tools.${tool.code.replaceAll('.', '_')}.name`, { defaultValue: tool.name })}
               </Tag>
             ))}
-            {!capabilityLoading && capability && capability.tools.length === 0 && <Tag>{t('oa.ai.noActions')}</Tag>}
           </Space>
+          {!capabilityLoading && capability && <PageToolAvailabilityNotice capability={capability} />}
         </Card>
 
         {capabilityError && <Alert type="error" showIcon title={t('oa.ai.capabilityLoadFailed')} description={capabilityError}

@@ -8,9 +8,12 @@ import java.util.List;
 public interface LeaveToolPort {
     Page mine(ToolActorContext context, Query query);
     Item getMine(ToolActorContext context, long applicationId);
-    WriteResult createDraft(ToolActorContext context, Draft command, String operationKey);
+    WriteResult createDraft(ToolActorContext context, Draft command, ToolOperationKey operationKey);
     WriteResult submit(ToolActorContext context, long applicationId, int version);
-    WriteResult apply(ToolActorContext context, Draft command, String operationKey);
+    WriteResult apply(ToolActorContext context, Draft command, ToolOperationKey operationKey);
+    WithdrawalResult withdraw(ToolActorContext context, long applicationId, int version);
+    record WithdrawalResult(long applicationId, String status, int version)
+            implements ToolWriteReceipt { }
 
     record Query(String status, int page, int size) { }
     record Page(List<Item> items, long total, int page, int size) {
@@ -22,5 +25,6 @@ public interface LeaveToolPort {
                 LocalDate endDate, String endPeriod, int durationHalfDays, double durationDays,
                 String reason, String status, int version, LocalDateTime submittedAt,
                 LocalDateTime completedAt, LocalDateTime createdAt, LocalDateTime updatedAt) { }
-    record WriteResult(long applicationId, String status, int version, Long approvalTaskId) { }
+    record WriteResult(long applicationId, String status, int version, Long approvalTaskId)
+            implements ToolWriteReceipt { }
 }

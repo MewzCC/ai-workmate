@@ -5,7 +5,6 @@ import com.aiworkmate.agent.registry.ToolCode;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.optionalPositiveLong;
@@ -13,38 +12,35 @@ import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.requiredDa
 import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.requiredText;
 
 @Component
-@RequiredArgsConstructor
-public final class LeaveApplyToolHandler implements ToolHandler {
+public final class LeaveApplyToolHandler extends TypedWriteToolHandler<LeaveToolPort.Draft, LeaveToolPort.WriteResult> {
     private final LeaveToolPort leaveToolPort;
-    private final ObjectMapper objectMapper;
 
-    @Override
-    public String toolCode() {
-        return ToolCode.LEAVE_APPLY.code();
+    public LeaveApplyToolHandler(LeaveToolPort leaveToolPort, ObjectMapper objectMapper) {
+        super(ToolCode.LEAVE_APPLY, objectMapper);
+        this.leaveToolPort = leaveToolPort;
     }
 
     @Override
-    public String handlerVersion() {
-        return "1.0.0";
-    }
-
-    @Override
-    public JsonNode execute(TrustedToolContext context, JsonNode arguments) {
-        LeaveToolPort.Draft request = new LeaveToolPort.Draft(
+    protected LeaveToolPort.Draft parseArguments(JsonNode arguments) {
+        return new LeaveToolPort.Draft(
                 requiredText(arguments, "leaveType"), optionalPositiveLong(arguments, "approverUserId"),
                 requiredDate(arguments, "startDate"), requiredText(arguments, "startPeriod"),
                 requiredDate(arguments, "endDate"), requiredText(arguments, "endPeriod"),
                 requiredText(arguments, "reason"));
-        String operationKey = "agent:" + context.taskId() + ":" + context.stepId() + ":"
-                + ToolCode.LEAVE_APPLY.code() + ":v1";
-        LeaveToolPort.WriteResult application = leaveToolPort.apply(
-                context.actor(), request, operationKey);
-        ObjectNode output = objectMapper.createObjectNode();
+    }
+
+    @Override
+    protected LeaveToolPort.WriteResult invoke(TrustedToolContext context, LeaveToolPort.Draft command) {
+        return leaveToolPort.apply(context.actor(), command, stableOperationKey(context));
+    }
+
+    @Override
+    protected JsonNode serializeResult(LeaveToolPort.WriteResult application) {
+        ObjectNode output = objectMapper().createObjectNode();
         output.put("applicationId", application.applicationId());
         output.put("status", application.status());
         output.put("version", application.version());
         output.put("approvalTaskId", application.approvalTaskId());
         return output;
     }
-
 }

@@ -7,13 +7,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Component;
 
 import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.optionalText;
-import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.positiveInt;
+import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.pageNumber;
+import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.pageSize;
 import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.requiredEnum;
 
 @Component
 public final class ApprovalConfigurationQueryToolHandler
         extends TypedReadToolHandler<ApprovalConfigurationToolPort.Query, ApprovalConfigurationToolPort.Page> {
-    private static final int MAX_SIZE = 50;
 
     private final ApprovalConfigurationToolPort approvalConfigurationToolPort;
 
@@ -26,8 +26,8 @@ public final class ApprovalConfigurationQueryToolHandler
     @Override protected ApprovalConfigurationToolPort.Query parseArguments(JsonNode arguments) {
         ApprovalConfigurationToolPort.Resource resource = requiredEnum(
                 arguments, "resource", ApprovalConfigurationToolPort.Resource.class);
-        int page = positiveInt(arguments, "page", 1, Integer.MAX_VALUE);
-        int size = positiveInt(arguments, "size", 20, MAX_SIZE);
+        int page = pageNumber(arguments, Integer.MAX_VALUE);
+        int size = pageSize(arguments);
         return new ApprovalConfigurationToolPort.Query(resource, optionalText(arguments, "keyword"),
                 optionalText(arguments, "status"), page, size);
     }

@@ -17,6 +17,8 @@ import com.aiworkmate.service.BusinessAuditService;
 import com.aiworkmate.service.EmployeeChangeService;
 import com.aiworkmate.service.NotificationService;
 import com.aiworkmate.service.UserAccessService;
+import com.aiworkmate.service.model.EmployeeChangeAgentApplicationCommand;
+import com.aiworkmate.service.model.EmployeeChangeAgentApplicationReceipt;
 import com.aiworkmate.service.model.ResolvedUserAccess;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
@@ -28,6 +30,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 
 @Service
@@ -75,6 +79,46 @@ public class EmployeeChangeServiceImpl implements EmployeeChangeService {
     @Transactional
     public EmployeeChangeResponse create(Long userId, EmployeeChangeRequest request) {
         ResolvedUserAccess actor = requirePermission(userId, "hr:manage");
+        EmployeeChange change = createInternal(actor, request, null);
+        return response(actor, requireView(actor.tenantId(), change.getId()));
+    }
+
+    @Override
+    @Transactional
+    public EmployeeChangeAgentApplicationReceipt createAgent(
+            Long userId, EmployeeChangeAgentApplicationCommand command, String operationKey) {
+        ResolvedUserAccess actor = requirePermission(userId, "hr:manage");
+        requireAgentOperationKey(operationKey);
+        EmployeeChangeRequest request = toRequest(command);
+        return toAgentReceipt(createInternal(actor, request, operationKey));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<EmployeeChangeAgentApplicationReceipt> findAgentApplication(
+            Long userId, EmployeeChangeAgentApplicationCommand command, String operationKey) {
+        ResolvedUserAccess actor = requirePermission(userId, "hr:manage");
+        requireAgentOperationKey(operationKey);
+        EmployeeChangeRequest request = toRequest(command);
+        validateCreateRequest(request, false);
+        EmployeeChange existing = changeMapper.findAgentOperation(
+                actor.tenantId(), actor.userId(), operationKey);
+        return existing == null ? Optional.empty()
+                : Optional.of(toAgentReceipt(requireMatchingAgentApplication(existing, request)));
+    }
+
+    private EmployeeChange createInternal(
+            ResolvedUserAccess actor, EmployeeChangeRequest request, String operationKey) {
+        validateCreateRequest(request, true);
+        if (operationKey != null && userMapper.lockActiveApplicant(
+                actor.tenantId(), actor.userId()) == null) {
+            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        }
+        EmployeeChange existing = operationKey == null ? null
+                : changeMapper.findAgentOperation(actor.tenantId(), actor.userId(), operationKey);
+        if (existing != null) {
+            return requireMatchingAgentApplication(existing, request);
+        }
         User employee = requireTenantUser(actor.tenantId(), request.employeeUserId(), false);
         ResolvedUserAccess reviewer = requirePermission(request.reviewApproverUserId(), "hr:manage");
         if (!actor.tenantId().equals(reviewer.tenantId()) || actor.userId().equals(reviewer.userId())) {
@@ -98,6 +142,7 @@ public class EmployeeChangeServiceImpl implements EmployeeChangeService {
         change.setEmployeeUserId(employee.getId());
         change.setApplicantUserId(actor.userId());
         change.setReviewApproverUserId(reviewer.userId());
+        change.setAgentOperationKey(operationKey);
         change.setChangeType(type);
         change.setEffectiveDate(request.effectiveDate());
         change.setCurrentDepartmentId(employee.getDepartmentId());
@@ -115,11 +160,12 @@ public class EmployeeChangeServiceImpl implements EmployeeChangeService {
         changeMapper.insert(change);
 
         auditService.recordTransactional(actor.tenantId(), actor.userId(), RESOURCE_TYPE,
-                change.getId().toString(), "SUBMIT", "SUCCESS", "提交员工变动申请：" + type);
+                change.getId().toString(), "SUBMIT", "SUCCESS",
+                operationKey == null ? "提交员工变动申请：" + type : "Agent 提交员工变动申请：" + type);
         notificationService.publish(actor.tenantId(), reviewer.userId(),
                 NotificationService.TYPE_APPROVAL, "新的员工变动申请",
                 "有一笔入转调离申请等待处理", "employee-change", change.getId());
-        return response(actor, requireView(actor.tenantId(), change.getId()));
+        return change;
     }
 
     @Override
@@ -186,6 +232,62 @@ public class EmployeeChangeServiceImpl implements EmployeeChangeService {
         auditService.recordTransactional(actor.tenantId(), actor.userId(), RESOURCE_TYPE,
                 id.toString(), "WITHDRAW", "SUCCESS", "撤回员工变动申请");
         return response(actor, requireView(actor.tenantId(), id));
+    }
+
+    private EmployeeChangeRequest toRequest(EmployeeChangeAgentApplicationCommand command) {
+        if (command == null) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        return new EmployeeChangeRequest(
+                command.employeeUserId(), command.changeType(), command.effectiveDate(),
+                command.targetDepartmentId(), command.targetPositionId(), command.targetSupervisorUserId(),
+                command.reviewApproverUserId(), command.reason());
+    }
+
+    private void validateCreateRequest(EmployeeChangeRequest request, boolean requireCurrentEffectiveDate) {
+        if (request == null || request.employeeUserId() == null || request.employeeUserId() < 1
+                || request.changeType() == null || request.changeType().isBlank()
+                || !TYPES.contains(request.changeType().trim())
+                || request.effectiveDate() == null
+                || requireCurrentEffectiveDate && request.effectiveDate().isBefore(LocalDate.now())
+                || request.reviewApproverUserId() == null || request.reviewApproverUserId() < 1
+                || request.reason() == null || request.reason().isBlank()
+                || request.reason().length() > 1000
+                || invalidOptionalId(request.targetDepartmentId())
+                || invalidOptionalId(request.targetPositionId())
+                || invalidOptionalId(request.targetSupervisorUserId())) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+    }
+
+    private boolean invalidOptionalId(Long value) {
+        return value != null && value < 1;
+    }
+
+    private EmployeeChange requireMatchingAgentApplication(
+            EmployeeChange existing, EmployeeChangeRequest request) {
+        if (!Objects.equals(existing.getEmployeeUserId(), request.employeeUserId())
+                || !Objects.equals(existing.getChangeType(), request.changeType().trim())
+                || !Objects.equals(existing.getEffectiveDate(), request.effectiveDate())
+                || !Objects.equals(existing.getTargetDepartmentId(), request.targetDepartmentId())
+                || !Objects.equals(existing.getTargetPositionId(), request.targetPositionId())
+                || !Objects.equals(existing.getTargetSupervisorUserId(), request.targetSupervisorUserId())
+                || !Objects.equals(existing.getReviewApproverUserId(), request.reviewApproverUserId())
+                || !Objects.equals(existing.getReason(), request.reason().trim())) {
+            throw new BusinessException(ErrorCode.IDEMPOTENCY_CONFLICT);
+        }
+        return existing;
+    }
+
+    private EmployeeChangeAgentApplicationReceipt toAgentReceipt(EmployeeChange change) {
+        return new EmployeeChangeAgentApplicationReceipt(
+                change.getId(), change.getStatus(), change.getVersion(), change.getSubmittedAt());
+    }
+
+    private void requireAgentOperationKey(String operationKey) {
+        if (operationKey == null || operationKey.isBlank() || operationKey.length() > 128) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
     }
 
     private void validateTarget(Long tenantId, Long employeeId, String type,

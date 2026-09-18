@@ -8,11 +8,19 @@ import java.util.List;
 /** Typed boundary for a future finance service adapter. */
 public interface FinanceToolPort {
     Page<Expense> expenses(ToolActorContext context, ExpenseQuery query);
+    ExpenseDraftResult createExpenseDraft(
+            ToolActorContext context, ExpenseDraft command, ToolOperationKey operationKey);
+    ToolWriteVerification<ExpenseDraftResult> findExpenseDraft(
+            ToolActorContext context, ExpenseDraft command, ToolOperationKey operationKey);
     Page<Budget> budgets(ToolActorContext context, BudgetQuery query);
     Page<Contract> contracts(ToolActorContext context, ContractQuery query);
     Page<Supplier> suppliers(ToolActorContext context, SupplierQuery query);
 
     record ExpenseQuery(Long applicationId, String status, int page, int size) { }
+    record ExpenseDraft(BigDecimal amount, String category, LocalDate expenseDate,
+                        String invoiceNumber, String reason) { }
+    record ExpenseDraftResult(long applicationId, String formKey, String status,
+                              int version, LocalDateTime createdAt) implements ToolWriteReceipt { }
     record BudgetQuery(Long budgetId, String keyword, String status, Integer fiscalYear, int page, int size) { }
     record ContractQuery(Long contractId, String keyword, String status, String contractType,
                          String expiryState, int page, int size) { }

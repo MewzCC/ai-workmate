@@ -1,5 +1,6 @@
 package com.aiworkmate.integration;
 
+import com.aiworkmate.oa.page.OaPage;
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.MigrationVersion;
 import org.junit.jupiter.api.AfterAll;
@@ -10,8 +11,12 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.Statement;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -60,6 +65,23 @@ class P1PostgresMigrationIT {
         assertThat(emptyResult.migrationsExecuted).isGreaterThan(0);
         assertThat(empty.validateWithResult().validationSuccessful).isTrue();
         assertP1Schema(emptySchema);
+        MeetingBookingPostgresVerifier.verify(databaseUrl, databaseUsername, databasePassword, emptySchema);
+        AttendanceReissuePostgresVerifier.verify(databaseUrl, databaseUsername, databasePassword, emptySchema);
+        NotificationMarkReadPostgresVerifier.verify(databaseUrl, databaseUsername, databasePassword, emptySchema);
+        LeaveWithdrawalPostgresVerifier.verify(databaseUrl, databaseUsername, databasePassword, emptySchema);
+        AssetClaimPostgresVerifier.verify(databaseUrl, databaseUsername, databasePassword, emptySchema);
+        VisitorApplicationPostgresVerifier.verify(
+                databaseUrl, databaseUsername, databasePassword, emptySchema);
+        VisitorCheckInPostgresVerifier.verify(
+                databaseUrl, databaseUsername, databasePassword, emptySchema);
+        SealApplicationPostgresVerifier.verify(
+                databaseUrl, databaseUsername, databasePassword, emptySchema);
+        SealRegisterUsePostgresVerifier.verify(
+                databaseUrl, databaseUsername, databasePassword, emptySchema);
+        EmployeeChangeApplicationPostgresVerifier.verify(
+                databaseUrl, databaseUsername, databasePassword, emptySchema);
+        ExpenseDraftPostgresVerifier.verify(
+                databaseUrl, databaseUsername, databasePassword, emptySchema);
         Flyway restartedEmpty = flyway(emptySchema, null);
         assertThat(restartedEmpty.migrate().migrationsExecuted).isZero();
         assertThat(restartedEmpty.validateWithResult().validationSuccessful).isTrue();
@@ -141,13 +163,14 @@ class P1PostgresMigrationIT {
                     """)).isEqualTo(23);
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM rbac_permission
-                    WHERE code IN ('approval:manage', 'hr:manage', 'asset:write',
+                    WHERE code IN ('approval:manage', 'hr:manage', 'asset:write', 'asset:claim', 'asset:return',
+                      'asset:repair',
                       'meeting:book', 'visitor:register', 'seal:register', 'dictionary:manage',
                       'tenant:config:manage', 'agent-permission:manage', 'supplier:manage', 'contract:manage',
                       'budget:manage', 'integration:endpoint:manage', 'integration:endpoint:execute',
                       'page-action:manage', 'runtime-log:read', 'integration:replay:read',
                       'integration:replay:execute')
-                    """)).isEqualTo(18);
+                    """)).isEqualTo(21);
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM flyway_schema_history WHERE success
                     """)).isGreaterThan(30);
@@ -207,6 +230,7 @@ class P1PostgresMigrationIT {
                     SELECT COUNT(*) FROM rbac_route
                     WHERE route_type = 'PAGE' AND enabled = TRUE
                     """)).as("R4 浏览器回归清单必须覆盖全部已启用页面").isEqualTo(41);
+            assertEnabledPageManifest(statement);
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM agent_page_action_policy
                     WHERE page_id IN ('todo-list', 'message-center')
@@ -273,6 +297,27 @@ class P1PostgresMigrationIT {
                     """)).as("入转调离 Agent 工具必须具备独立实时权限").isOne();
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'hr.change.apply' AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:958d37b7a487f4ac1f736907a017678b20fc27afa341205a5f7b7ab93ef82303'
+                      AND risk_level = 'L1' AND data_scope_policy = 'TENANT_SCOPED'
+                      AND retry_policy = 'BUSINESS_IDEMPOTENT' AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'EXPLICIT' AND enabled = TRUE
+                    """)).as("员工变动申请工具必须以冻结的租户原子写契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission WHERE code = 'agent:tool:hr.change.apply'
+                    """)).as("员工变动申请 Agent 工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM information_schema.columns
+                    WHERE table_schema = current_schema() AND table_name = 'employee_change'
+                      AND column_name = 'agent_operation_key'
+                    """)).as("员工变动申请必须持久化 Agent 领域幂等键").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM pg_indexes
+                    WHERE schemaname = current_schema() AND tablename = 'employee_change'
+                      AND indexname = 'ux_employee_change_agent_key'
+                    """)).as("员工变动申请稳定操作键必须由申请人范围唯一约束防重").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
                     WHERE tenant_id IS NULL AND code = 'asset.query' AND handler_version = '1.0.0'
                       AND risk_level = 'L0' AND data_scope_policy = 'TENANT_SCOPED'
                       AND side_effect = 'NONE' AND enabled = TRUE
@@ -280,6 +325,115 @@ class P1PostgresMigrationIT {
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM rbac_permission WHERE code = 'agent:tool:asset.query'
                     """)).as("资产台账 Agent 工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'asset.claim' AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:70e57baaa8ec2003241bf090427125dad1ae0da3537813e62ce88d2615a2f9b5'
+                      AND risk_level = 'L1' AND data_scope_policy = 'TENANT_SCOPED'
+                      AND retry_policy = 'BUSINESS_IDEMPOTENT' AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'EXPLICIT' AND enabled = TRUE
+                    """)).as("资产领用写工具必须以冻结的租户原子写契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code IN ('asset:claim', 'agent:tool:asset.claim')
+                    """)).as("资产领用业务权限与 Agent 工具权限必须同时存在").isEqualTo(2);
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'asset.return' AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:2370eb1e5d8a544c52f331ccd8deaff7865ee1db276844e2237f63496ee95f3e'
+                      AND risk_level = 'L1' AND data_scope_policy = 'TENANT_SCOPED'
+                      AND retry_policy = 'BUSINESS_IDEMPOTENT' AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'EXPLICIT' AND enabled = TRUE
+                    """)).as("资产归还写工具必须以冻结的租户原子写契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code IN ('asset:return', 'agent:tool:asset.return')
+                    """)).as("资产归还业务权限与 Agent 工具权限必须同时存在").isEqualTo(2);
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'asset.repair.start' AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:e890d896f8792d1e24271ab93b2cde6ce4585fdd262c20204660fddd2d95368f'
+                      AND risk_level = 'L1' AND data_scope_policy = 'TENANT_SCOPED'
+                      AND retry_policy = 'BUSINESS_IDEMPOTENT' AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'EXPLICIT' AND enabled = TRUE
+                    """)).as("资产维修登记工具必须以冻结的租户原子写契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code IN ('asset:repair', 'agent:tool:asset.repair.start')
+                    """)).as("资产维修业务权限与 Agent 工具权限必须同时存在").isEqualTo(2);
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'visitor.apply' AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:c4bc3759bc77b4289d9391e14f018f6680234c4d1becbc0099bb207a434a877b'
+                      AND risk_level = 'L1' AND data_scope_policy = 'SELF'
+                      AND retry_policy = 'BUSINESS_IDEMPOTENT' AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'EXPLICIT' AND enabled = TRUE
+                    """)).as("访客申请工具必须以冻结的本人原子写契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission WHERE code = 'agent:tool:visitor.apply'
+                    """)).as("访客申请 Agent 工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM information_schema.columns
+                    WHERE table_schema = current_schema() AND table_name = 'visitor_booking'
+                      AND column_name = 'agent_operation_key'
+                    """)).as("访客申请必须保存 Agent 稳定操作键").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM pg_indexes
+                    WHERE schemaname = current_schema() AND tablename = 'visitor_booking'
+                      AND indexname = 'ux_visitor_booking_agent_key'
+                    """)).as("访客申请稳定操作键必须由本人范围唯一索引防重").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'visitor.checkIn' AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:9c88700b29e31bc4bf30fb868ae13d46a7b17e977a0331b9d0d38e6ad88ae98c'
+                      AND risk_level = 'L1' AND data_scope_policy = 'SELF'
+                      AND retry_policy = 'BUSINESS_IDEMPOTENT' AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'EXPLICIT' AND enabled = TRUE
+                    """)).as("访客签到工具必须以冻结的本人原子写契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission WHERE code = 'agent:tool:visitor.checkIn'
+                    """)).as("访客签到 Agent 工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM information_schema.tables
+                    WHERE table_schema = current_schema() AND table_name = 'visitor_visit_operation'
+                    """)).as("访客生命周期 Agent 操作必须保存独立结果收据").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM pg_indexes
+                    WHERE schemaname = current_schema() AND tablename = 'visitor_visit_operation'
+                      AND indexname = 'ux_visitor_visit_agent_key'
+                    """)).as("访客生命周期稳定操作键必须由操作人范围唯一约束防重").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'visitor.markArrived' AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:d42a274c0b07852fbef93d734436875a289a0565c45c2beb92d547d27375a4e3'
+                      AND risk_level = 'L1' AND data_scope_policy = 'SELF'
+                      AND retry_policy = 'BUSINESS_IDEMPOTENT' AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'EXPLICIT' AND enabled = TRUE
+                    """)).as("访客到访工具必须以冻结的本人原子写契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission WHERE code = 'agent:tool:visitor.markArrived'
+                    """)).as("访客到访 Agent 工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'visitor.leave' AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:1c372b6905396188d7f748da1ef6fae69168fc635a69c44e2f3e5e87003fe0c7'
+                      AND risk_level = 'L1' AND data_scope_policy = 'SELF'
+                      AND retry_policy = 'BUSINESS_IDEMPOTENT' AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'EXPLICIT' AND enabled = TRUE
+                    """)).as("访客离场工具必须以冻结的本人原子写契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission WHERE code = 'agent:tool:visitor.leave'
+                    """)).as("访客离场 Agent 工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM information_schema.columns
+                    WHERE table_schema = current_schema() AND table_name = 'asset_operation'
+                      AND column_name IN ('agent_operation_key', 'source_version', 'result_version')
+                    """)).as("资产操作记录必须保存 Agent 幂等键及版本收据").isEqualTo(3);
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM pg_indexes
+                    WHERE schemaname = current_schema() AND tablename = 'asset_operation'
+                      AND indexname = 'ux_asset_operation_agent_key'
+                    """)).as("资产 Agent 操作键必须由数据库唯一索引防重").isOne();
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM agent_tool
                     WHERE tenant_id IS NULL AND code = 'meeting.query' AND handler_version = '1.0.0'
@@ -291,6 +445,52 @@ class P1PostgresMigrationIT {
                     """)).as("会议室 Agent 工具必须具备独立实时权限").isOne();
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'meeting.book' AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:08abfb0571d3c4b1576423f7aae0849039062dccca5025efef23e9cb0e88f276'
+                      AND risk_level = 'L1' AND data_scope_policy = 'SELF'
+                      AND retry_policy = 'BUSINESS_IDEMPOTENT' AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'EXPLICIT' AND enabled = TRUE
+                    """)).as("会议室预约写工具必须以冻结的本人原子写契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code IN ('meeting:book', 'agent:tool:meeting.book')
+                    """)).as("会议室预约写工具必须具备业务与工具两层实时权限").isEqualTo(2);
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'notification.markRead' AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:b46cdf75d92a2dbf816572096b8b1eb184ce2040ed702150a6e371d08ba1b487'
+                      AND risk_level = 'L1' AND data_scope_policy = 'SELF'
+                      AND retry_policy = 'BUSINESS_IDEMPOTENT' AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'EXPLICIT' AND enabled = TRUE
+                    """)).as("消息已读写工具必须以冻结的本人单条写契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'leave.withdraw' AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:8d093edc7124a4cd99ba92352223c2934524fe4a022d63916dc33513844571a9'
+                      AND risk_level = 'L1' AND data_scope_policy = 'SELF'
+                      AND retry_policy = 'NEVER' AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'EXPLICIT' AND enabled = TRUE
+                    """)).as("请假撤回工具必须以本人单写且禁止自动重试契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code IN ('leave:withdraw', 'agent:tool:leave.withdraw')
+                    """)).as("请假撤回必须具备业务与工具两层权限").isEqualTo(2);
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code IN ('notification:read:self', 'agent:tool:notification.markRead')
+                    """)).as("消息已读写工具必须具备业务与工具两层实时权限").isEqualTo(2);
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM information_schema.columns
+                    WHERE table_schema = current_schema() AND table_name = 'meeting_booking'
+                      AND column_name = 'agent_operation_key'
+                    """)).as("会议预约必须持久化 Agent 领域幂等键").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM pg_indexes
+                    WHERE schemaname = current_schema() AND tablename = 'meeting_booking'
+                      AND indexname = 'ux_meeting_booking_agent_operation'
+                    """)).as("会议预约 Agent 幂等键必须具备唯一索引").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
                     WHERE tenant_id IS NULL AND code = 'attendance.query' AND handler_version = '1.0.0'
                       AND schema_hash = 'sha256:4ff357d3836da753f0c32d3774ea04ba3cf83d1c6b8708de548e8ff711348d60'
                       AND risk_level = 'L0' AND data_scope_policy = 'TENANT_SCOPED'
@@ -300,6 +500,90 @@ class P1PostgresMigrationIT {
                     SELECT COUNT(*) FROM rbac_permission
                     WHERE code IN ('attendance:read', 'agent:tool:attendance.query')
                     """)).as("考勤 Agent 工具必须具备业务与工具两层实时权限").isEqualTo(2);
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'attendance.reissue.apply' AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:bb3f7af3920e01290f14107d053425e8d986f988069eaa20031455ce49cce760'
+                      AND risk_level = 'L1' AND data_scope_policy = 'SELF'
+                      AND retry_policy = 'BUSINESS_IDEMPOTENT' AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'EXPLICIT' AND enabled = TRUE
+                    """)).as("补卡申请工具必须以冻结的本人原子写契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code IN ('attendance:reissue:apply', 'agent:tool:attendance.reissue.apply')
+                    """)).as("补卡申请工具必须具备业务与工具两层实时权限").isEqualTo(2);
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM information_schema.columns
+                    WHERE table_schema = current_schema() AND table_name = 'attendance_reissue'
+                      AND column_name = 'agent_operation_key'
+                    """)).as("补卡申请必须持久化 Agent 领域幂等键").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM pg_indexes
+                    WHERE schemaname = current_schema() AND tablename = 'attendance_reissue'
+                      AND indexname = 'ux_attendance_reissue_agent_operation'
+                    """)).as("补卡申请 Agent 幂等键必须具备唯一索引").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'approval.application.createDraft'
+                      AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:0b91ec92030a3bdb99baac22dce2b1e7c3a239829740fe9ad174b24ecf340424'
+                      AND risk_level = 'L1' AND data_scope_policy = 'SELF'
+                      AND retry_policy = 'BUSINESS_IDEMPOTENT' AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'EXPLICIT' AND enabled = TRUE
+                    """)).as("通用审批草稿工具必须以冻结的本人原子写契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code IN ('approval:create', 'agent:tool:approval.application.createDraft')
+                    """)).as("通用审批草稿工具必须具备业务与工具两层实时权限").isEqualTo(2);
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'approval.application.submitDraft'
+                      AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:edbe7ad52b50a98e339f5e7cf83b572c26d3b71ddccb1f50aa11496fbed80426'
+                      AND risk_level = 'L1' AND data_scope_policy = 'SELF'
+                      AND retry_policy = 'NEVER' AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'EXPLICIT' AND enabled = TRUE
+                    """)).as("通用审批草稿提交工具必须以本人单写且禁止自动重试契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code IN ('approval:submit', 'agent:tool:approval.application.submitDraft')
+                    """)).as("通用审批草稿提交工具必须具备业务与工具两层实时权限").isEqualTo(2);
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'approval.application.withdraw'
+                      AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:35ce035131933d4068d30efa845969773cacbfbe9d329ef8bc4aa17f291ac6fd'
+                      AND risk_level = 'L1' AND data_scope_policy = 'SELF'
+                      AND retry_policy = 'NEVER' AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'EXPLICIT' AND enabled = TRUE
+                    """)).as("通用审批撤回工具必须以本人单写且禁止自动重试契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code IN ('approval:withdraw', 'agent:tool:approval.application.withdraw')
+                    """)).as("通用审批撤回工具必须具备业务与工具两层实时权限").isEqualTo(2);
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'approval.application.reopen'
+                      AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:3c896994338b1fea1ecd2afcdfb96f200a4ff0ad3f9f74856cd0e3acda290241'
+                      AND risk_level = 'L1' AND data_scope_policy = 'SELF'
+                      AND retry_policy = 'NEVER' AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'EXPLICIT' AND enabled = TRUE
+                    """)).as("通用审批恢复草稿工具必须以本人单写且禁止自动重试契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code IN ('approval:reopen', 'agent:tool:approval.application.reopen')
+                    """)).as("通用审批恢复草稿工具必须具备业务与工具两层实时权限").isEqualTo(2);
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM information_schema.columns
+                    WHERE table_schema = current_schema() AND table_name = 'approval_application'
+                      AND column_name = 'agent_operation_key'
+                    """)).as("通用审批草稿必须持久化 Agent 领域幂等键").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM pg_indexes
+                    WHERE schemaname = current_schema() AND tablename = 'approval_application'
+                      AND indexname = 'ux_approval_application_agent_operation'
+                    """)).as("通用审批草稿 Agent 幂等键必须具备唯一索引").isOne();
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM agent_tool
                     WHERE tenant_id IS NULL AND code = 'visitor.query' AND handler_version = '1.0.0'
@@ -316,6 +600,42 @@ class P1PostgresMigrationIT {
                       AND required_permissions = '["seal:read:self"]'::jsonb
                       AND side_effect = 'NONE' AND enabled = TRUE
                     """)).as("印章用印 Agent 工具必须以冻结契约的本人范围种子存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'seal.apply' AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:7c88a6102e7a8048fcef44592c6ecf28c21bb21e1e4bd3f11c81a91ce4d80632'
+                      AND risk_level = 'L1' AND data_scope_policy = 'SELF'
+                      AND retry_policy = 'BUSINESS_IDEMPOTENT' AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'EXPLICIT' AND enabled = TRUE
+                    """)).as("用印申请工具必须以冻结的本人原子写契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission WHERE code = 'agent:tool:seal.apply'
+                    """)).as("用印申请 Agent 工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM pg_indexes
+                    WHERE schemaname = current_schema()
+                      AND indexname = 'ux_seal_usage_agent_key'
+                    """)).as("用印申请稳定操作键必须由申请人范围唯一约束防重").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'seal.registerUse' AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:36cb2a0464946f14877a70e591e8643fba0a01d40e5b0348dc337f787e60b8e0'
+                      AND risk_level = 'L2' AND data_scope_policy = 'SELF'
+                      AND retry_policy = 'NEVER' AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'SECONDARY' AND enabled = TRUE
+                    """)).as("实际用印登记必须以本人二次确认且禁止自动重试契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission WHERE code = 'agent:tool:seal.registerUse'
+                    """)).as("实际用印登记 Agent 工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM information_schema.tables
+                    WHERE table_schema = current_schema() AND table_name = 'seal_usage_operation'
+                    """)).as("实际用印登记必须持久化类型化操作收据").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM pg_indexes
+                    WHERE schemaname = current_schema()
+                      AND indexname = 'ux_seal_usage_agent_operation_key'
+                    """)).as("实际用印稳定操作键必须具备租户与操作人唯一约束").isOne();
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM rbac_permission
                     WHERE code IN ('agent:tool:visitor.query', 'agent:tool:seal.query')
@@ -334,6 +654,73 @@ class P1PostgresMigrationIT {
                     WHERE code IN ('expense:read:self','agent:tool:expense.query','agent:tool:budget.query',
                                    'agent:tool:contract.query','agent:tool:supplier.query')
                     """)).as("财务 Agent 工具必须具备业务与工具两层实时权限").isEqualTo(5);
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'expense.createDraft'
+                      AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:9de3b32d7f7a3bc4910ca7f531886a9322d5e3e983a6c140beea948d77e22d4e'
+                      AND risk_level = 'L1' AND data_scope_policy = 'SELF'
+                      AND required_permissions = '["approval:create"]'::jsonb
+                      AND retry_policy = 'BUSINESS_IDEMPOTENT'
+                      AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'EXPLICIT' AND enabled = TRUE
+                    """)).as("费用报销草稿工具必须以冻结的本人原子写契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code = 'agent:tool:expense.createDraft'
+                    """)).as("费用报销草稿 Agent 工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND enabled = TRUE AND side_effect = 'NONE'
+                      AND (code, schema_hash, data_scope_policy) IN (
+                        ('integration.endpoint.query','sha256:77b6949a8aca42cdd8c7776e51e64e2fa4bf52c64bb4d950e5d61e2c19eadd22','TENANT_SCOPED'),
+                        ('pageAction.query','sha256:7f6c91f43b7a3416e8824b064421ec1be233c0a952fed1b068dc255c8e9cdd96','TENANT_SCOPED'),
+                        ('runtimeLog.query','sha256:d79d49ccc330312907ff310bb96264640e938dbedd5df7c5054fe93357cadcac','TENANT_SCOPED'),
+                        ('sandboxReplay.query','sha256:733b65aba2e3dc720f2d17d6af7be1ea434b93fc7f219c9a551fd4f08e551978','TENANT_SCOPED'))
+                    """)).as("四个平台运维页面 Agent 工具必须以冻结契约存在").isEqualTo(4);
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code IN ('integration:endpoint:read','page-action:read',
+                        'agent:tool:integration.endpoint.query','agent:tool:pageAction.query',
+                        'agent:tool:runtimeLog.query','agent:tool:sandboxReplay.query')
+                    """)).as("平台运维 Agent 工具必须具备业务与工具两层实时权限").isEqualTo(6);
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='NONE'
+                      AND (code,schema_hash,data_scope_policy) IN (
+                        ('accessGovernance.query','sha256:d622f57307336098c25b779333ff842a874adcbf1880ae687c08276d3c6bbc61','TENANT_SCOPED'),
+                        ('dataPermission.query','sha256:858c22c5e8947762eda39892caf2fbf962282c21d94945491daf34ebde3f6c21','TENANT_SCOPED'),
+                        ('aiPermission.query','sha256:270d6da876eea0376fddf296219842f25f2bdc594ec61023ac365006cfc7ae87','TENANT_SCOPED'))
+                    """)).as("三个安全治理 Agent 工具必须以冻结契约存在").isEqualTo(3);
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code IN ('agent:tool:accessGovernance.query','agent:tool:dataPermission.query','agent:tool:aiPermission.query')
+                    """)).as("安全治理 Agent 工具必须具备独立实时权限").isEqualTo(3);
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='NONE'
+                      AND (code,schema_hash,data_scope_policy) IN (
+                        ('audit.query','sha256:c20374b208d69def5365f321daa3c9d80c8c7a54ed7ab0a1b0cd10ade022ab04','TENANT_SCOPED'),
+                        ('tenantConfiguration.query','sha256:884afa367781930d66fdafc2b64205710c17b546099610be43be6e960531cba6','TENANT_SCOPED'),
+                        ('dictionary.query','sha256:d4cc084b963a3e48f1a63c8ab6b988c1f4a8ce361db6b4a74d28867cb821ff92','TENANT_SCOPED'),
+                        ('systemCapability.query','sha256:4e80069fa10fe0a961e030bd54c85a87f69238ed9ddab94675085576bcefae88','TENANT_SCOPED'))
+                    """)).as("四个运行治理 Agent 工具必须以冻结契约存在").isEqualTo(4);
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code IN ('agent:tool:audit.query','agent:tool:tenantConfiguration.query',
+                        'agent:tool:dictionary.query','agent:tool:systemCapability.query')
+                    """)).as("运行治理 Agent 工具必须具备独立实时权限").isEqualTo(4);
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='NONE'
+                      AND code='agentTask.mine.query'
+                      AND schema_hash='sha256:1d4697a6ea535d206068ea1b0e6d8605c2c8f7d80686f90602131dde3df87658'
+                      AND data_scope_policy='SELF'
+                    """)).as("AI 任务中心本人查询工具必须以冻结契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code IN ('agent:task:read','agent:tool:agentTask.mine.query')
+                    """)).as("AI 任务中心工具必须具备业务与工具两层实时权限").isEqualTo(2);
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM information_schema.views
                     WHERE table_schema = current_schema() AND table_name = 'runtime_log_view'
@@ -363,6 +750,35 @@ class P1PostgresMigrationIT {
             assertThat(result.next()).isTrue();
             return result.getLong(1);
         }
+    }
+
+    private static void assertEnabledPageManifest(Statement statement) throws Exception {
+        Map<String, String> expected = Arrays.stream(OaPage.values())
+                .collect(Collectors.toMap(
+                        OaPage::routeKey,
+                        OaPage::componentKey,
+                        (left, right) -> {
+                            throw new IllegalStateException("Duplicate OA page route key");
+                        },
+                        LinkedHashMap::new
+                ));
+        Map<String, String> actual = new LinkedHashMap<>();
+        try (ResultSet result = statement.executeQuery("""
+                SELECT route_key, component_key
+                FROM rbac_route
+                WHERE route_type = 'PAGE' AND enabled = TRUE
+                ORDER BY route_key
+                """)) {
+            while (result.next()) {
+                String routeKey = result.getString("route_key");
+                assertThat(actual.put(routeKey, result.getString("component_key")))
+                        .as("启用页面路由键不得重复: %s", routeKey)
+                        .isNull();
+            }
+        }
+        assertThat(actual)
+                .as("数据库启用页面必须与代码拥有的 OA 页面清单逐项一致")
+                .containsExactlyInAnyOrderEntriesOf(expected);
     }
 
     private static void insertLegacySupplierRecord(String schema) throws Exception {

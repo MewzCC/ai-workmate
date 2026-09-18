@@ -22,6 +22,7 @@ import com.aiworkmate.mapper.AttendanceReissueMapper;
 import com.aiworkmate.mapper.AttendanceSettingMapper;
 import com.aiworkmate.mapper.UserMapper;
 import com.aiworkmate.service.AttendanceService;
+import com.aiworkmate.service.BusinessAuditService;
 import com.aiworkmate.service.UserAccessService;
 import com.aiworkmate.service.model.ResolvedUserAccess;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -71,6 +72,7 @@ public class AttendanceServiceImpl implements AttendanceService {
     private final AttendanceSettingMapper attendanceSettingMapper;
     private final UserMapper userMapper;
     private final UserAccessService userAccessService;
+    private final BusinessAuditService auditService;
 
     // ==================== 打卡 ====================
 
@@ -183,16 +185,48 @@ public class AttendanceServiceImpl implements AttendanceService {
     @Override
     @Transactional
     public AttendanceReissueResponse submitReissue(Long userId, AttendanceReissueRequest request) {
+        return submitReissueInternal(userId, request, null);
+    }
+
+    @Override
+    @Transactional
+    public AttendanceReissueResponse submitAgentReissue(
+            Long userId, AttendanceReissueRequest request, String operationKey) {
+        if (operationKey == null || operationKey.isBlank() || operationKey.length() > 128) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        return submitReissueInternal(userId, request, operationKey);
+    }
+
+    private AttendanceReissueResponse submitReissueInternal(
+            Long userId, AttendanceReissueRequest request, String operationKey) {
         ResolvedUserAccess actor = requireActiveUser(userId);
+        if (!actor.permissions().contains("attendance:reissue:apply")) {
+            throw new BusinessException(ErrorCode.PERMISSION_DENIED);
+        }
+        if (request == null || request.clockDate() == null
+                || !Set.of("CLOCK_IN", "CLOCK_OUT").contains(request.clockType() == null ? "" : request.clockType())
+                || request.reason() == null || request.reason().isBlank() || request.reason().length() > 500) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
         if (request.clockDate().isAfter(LocalDate.now())) {
             throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID);
         }
-        User applicant = userMapper.selectById(actor.userId());
-        if (applicant == null || applicant.getStatus() == null || applicant.getStatus() != 1) {
+        // Serialize submissions by applicant; the duplicate check and insert share this transaction.
+        User applicant = userMapper.lockActiveApplicant(actor.tenantId(), actor.userId());
+        if (applicant == null || !actor.tenantId().equals(applicant.getTenantId())
+                || applicant.getStatus() == null || applicant.getStatus() != 1) {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
         }
+        AttendanceReissue existing = findAgentReissue(actor, operationKey);
+        if (existing != null) return replayAgentReissue(existing, request);
         Long approverId = applicant.getApproverUserId();
         if (approverId == null) {
+            throw new BusinessException(ErrorCode.ATTENDANCE_APPROVER_MISSING);
+        }
+        ResolvedUserAccess approver = userAccessService.resolveActiveUser(approverId);
+        if (actor.userId().equals(approverId) || approver == null
+                || !actor.tenantId().equals(approver.tenantId())) {
             throw new BusinessException(ErrorCode.ATTENDANCE_APPROVER_MISSING);
         }
         // 同一日期同一类型不可重复提交待审批申请
@@ -210,6 +244,7 @@ public class AttendanceServiceImpl implements AttendanceService {
         reissue.setTenantId(actor.tenantId());
         reissue.setApplicantUserId(actor.userId());
         reissue.setApproverUserId(approverId);
+        reissue.setAgentOperationKey(operationKey);
         reissue.setClockDate(request.clockDate());
         reissue.setClockType(request.clockType());
         reissue.setReason(request.reason());
@@ -219,7 +254,26 @@ public class AttendanceServiceImpl implements AttendanceService {
         reissue.setCreatedAt(now);
         reissue.setUpdatedAt(now);
         reissueMapper.insert(reissue);
+        auditService.recordTransactional(actor.tenantId(), actor.userId(), "ATTENDANCE_REISSUE",
+                reissue.getId().toString(), "SUBMIT", "SUCCESS",
+                "clockDate=" + reissue.getClockDate() + ",clockType=" + reissue.getClockType());
         return toReissueResponse(reissue, actor.userId());
+    }
+
+    private AttendanceReissue findAgentReissue(ResolvedUserAccess actor, String operationKey) {
+        return operationKey == null ? null
+                : reissueMapper.findAgentOperation(actor.tenantId(), actor.userId(), operationKey);
+    }
+
+    private AttendanceReissueResponse replayAgentReissue(
+            AttendanceReissue existing, AttendanceReissueRequest request) {
+        if (!java.util.Objects.equals(existing.getClockDate(), request.clockDate())
+                || !java.util.Objects.equals(existing.getClockType(), request.clockType())
+                || !java.util.Objects.equals(existing.getReason(), request.reason())
+                || !"PENDING".equals(existing.getStatus())) {
+            throw new BusinessException(ErrorCode.IDEMPOTENCY_CONFLICT);
+        }
+        return toReissueResponse(existing, existing.getApplicantUserId());
     }
 
     @Override

@@ -26,6 +26,7 @@ import {
   type AttendanceReissueStatus,
 } from '@/lib/attendanceApi';
 import { formatOaApiError } from '@/lib/oaApi';
+import { usePermission } from '@/hooks/usePermission';
 import AttendancePageShell from './AttendancePageShell';
 import ResponsiveTable from './ResponsiveTable';
 
@@ -44,6 +45,7 @@ interface ReissueFormValues {
 
 export default function AttendanceReissuePage() {
   const { t } = useTranslation();
+  const { allowed: canApply } = usePermission('attendance:reissue:apply');
   const [activeTab, setActiveTab] = useState('mine');
   const [mine, setMine] = useState<AttendanceReissue[]>([]);
   const [pending, setPending] = useState<AttendanceReissue[]>([]);
@@ -101,6 +103,7 @@ export default function AttendanceReissuePage() {
   };
 
   const handleCreate = async () => {
+    if (!canApply || submitting) return;
     try {
       const values = await form.validateFields();
       setSubmitting(true);
@@ -244,9 +247,9 @@ export default function AttendanceReissuePage() {
       title={t('attendance.reissue.title')}
       description={t('attendance.reissue.description')}
       actions={(
-        <Button type="primary" onClick={() => setCreateOpen(true)}>
+        canApply ? <Button type="primary" onClick={() => setCreateOpen(true)}>
           {t('attendance.reissue.create')}
-        </Button>
+        </Button> : null
       )}
     >
       <Spin spinning={loading}>
@@ -301,12 +304,13 @@ export default function AttendanceReissuePage() {
 
       <Modal
         title={t('attendance.reissue.create')}
-        open={createOpen}
+        open={createOpen && canApply}
         onCancel={() => setCreateOpen(false)}
         onOk={handleCreate}
         confirmLoading={submitting}
+        okButtonProps={{ disabled: !canApply }}
         okText={t('attendance.reissue.submit')}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={form} layout="vertical" initialValues={{ clockType: 'CLOCK_IN' }}>
           <Form.Item
@@ -366,7 +370,7 @@ export default function AttendanceReissuePage() {
             {t('attendance.reissue.approve')}
           </Button>,
         ]}
-        destroyOnClose
+        destroyOnHidden
       >
         {decideTarget && (
           <div style={{ marginBottom: 16 }}>

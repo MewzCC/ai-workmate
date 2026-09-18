@@ -26,6 +26,7 @@ public class VisitorBooking {
     private Long applicantUserId;
     private Long approverUserId;
     private Long workflowInstanceId;
+    private String agentOperationKey;
     private String visitorName;
     private String visitorCompany;
     private String visitorPhone;

@@ -32,6 +32,7 @@ public class AttendanceReissue {
     private String reason;
     private String status;
     private String approverComment;
+    private String agentOperationKey;
     private LocalDateTime submittedAt;
     private LocalDateTime decidedAt;
 

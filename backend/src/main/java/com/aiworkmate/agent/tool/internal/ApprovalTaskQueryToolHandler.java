@@ -12,7 +12,8 @@ import java.time.LocalDateTime;
 
 import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.optionalDateTime;
 import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.optionalText;
-import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.positiveInt;
+import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.pageNumber;
+import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.pageSize;
 
 @Component
 public final class ApprovalTaskQueryToolHandler
@@ -33,8 +34,8 @@ public final class ApprovalTaskQueryToolHandler
         return new ApprovalTaskToolPort.Query(
                 optionalText(arguments, "status"), from, to,
                 optionalText(arguments, "keyword"), optionalText(arguments, "leaveType"),
-                positiveInt(arguments, "page", 1, 10000),
-                positiveInt(arguments, "size", 20, 50));
+                pageNumber(arguments),
+                pageSize(arguments));
     }
 
     @Override protected ApprovalTaskToolPort.Page invoke(

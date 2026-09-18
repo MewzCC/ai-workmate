@@ -11,6 +11,11 @@ import java.util.List;
 @Mapper
 public interface ApprovalApplicationMapper extends BaseMapper<ApprovalApplication> {
 
+    ApprovalApplication findAgentOperation(
+            @Param("tenantId") Long tenantId,
+            @Param("applicantUserId") Long applicantUserId,
+            @Param("operationKey") String operationKey);
+
     ApprovalApplicationView selectView(
             @Param("tenantId") Long tenantId,
             @Param("id") Long id);

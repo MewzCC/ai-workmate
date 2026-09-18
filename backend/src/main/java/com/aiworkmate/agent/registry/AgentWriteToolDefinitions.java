@@ -34,40 +34,40 @@ public class AgentWriteToolDefinitions {
 
     @Bean
     public ToolDefinition leaveCreateDraftToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {
-        return ToolDefinition.create(
+        return ToolDefinitionFactory.singleWrite(
                 ToolCode.LEAVE_CREATE_DRAFT, "Create my leave draft",
                 "Creates exactly one draft owned by the authenticated user in the authenticated tenant.",
                 "Create an idempotent leave draft only after explicit confirmation.",
-                "1.0.0", objectMapper.readTree(LEAVE_CREATE_DRAFT_INPUT_SCHEMA),
+                objectMapper.readTree(LEAVE_CREATE_DRAFT_INPUT_SCHEMA),
                 objectMapper.readTree(LEAVE_CREATE_DRAFT_OUTPUT_SCHEMA), RiskLevel.L1,
-                Set.of("leave:create"), PermissionMode.ALL, OwnershipPolicy.SELF,
-                RetryPolicy.BUSINESS_IDEMPOTENT, SideEffect.SINGLE_WRITE, ConfirmationPolicy.EXPLICIT,
-                1, 16384, 15000, "FULL_WRITE_AUDIT");
+                Set.of("leave:create"), OwnershipPolicy.SELF,
+                RetryPolicy.BUSINESS_IDEMPOTENT, ConfirmationPolicy.EXPLICIT,
+                1, 16384, 15000);
     }
 
     @Bean
     public ToolDefinition leaveSubmitToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {
-        return ToolDefinition.create(
+        return ToolDefinitionFactory.singleWrite(
                 ToolCode.LEAVE_SUBMIT, "Submit my existing leave draft",
                 "Submits one pre-existing draft owned by the authenticated user in the authenticated tenant.",
                 "Submit one version-bound pre-existing leave draft only after secondary confirmation.",
-                "1.0.0", objectMapper.readTree(LEAVE_SUBMIT_INPUT_SCHEMA),
+                objectMapper.readTree(LEAVE_SUBMIT_INPUT_SCHEMA),
                 objectMapper.readTree(LEAVE_SUBMIT_OUTPUT_SCHEMA), RiskLevel.L2,
-                Set.of("leave:create"), PermissionMode.ALL, OwnershipPolicy.SELF,
-                RetryPolicy.NEVER, SideEffect.SINGLE_WRITE, ConfirmationPolicy.SECONDARY,
-                1, 16384, 15000, "FULL_WRITE_AUDIT");
+                Set.of("leave:create"), OwnershipPolicy.SELF,
+                RetryPolicy.NEVER, ConfirmationPolicy.SECONDARY,
+                1, 16384, 15000);
     }
 
     @Bean
     public ToolDefinition leaveApplyToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {
-        return ToolDefinition.create(
+        return ToolDefinitionFactory.singleWrite(
                 ToolCode.LEAVE_APPLY, "Apply for leave",
                 "Atomically creates and submits exactly one leave application owned by the authenticated user.",
                 "Use when the user asks to apply for leave in one request. Create the application and start its approval workflow as one transactional operation after secondary confirmation.",
-                "1.0.0", objectMapper.readTree(LEAVE_APPLY_INPUT_SCHEMA),
+                objectMapper.readTree(LEAVE_APPLY_INPUT_SCHEMA),
                 objectMapper.readTree(LEAVE_APPLY_OUTPUT_SCHEMA), RiskLevel.L2,
-                Set.of("leave:create"), PermissionMode.ALL, OwnershipPolicy.SELF,
-                RetryPolicy.NEVER, SideEffect.SINGLE_WRITE, ConfirmationPolicy.SECONDARY,
-                1, 16384, 15000, "FULL_WRITE_AUDIT");
+                Set.of("leave:create"), OwnershipPolicy.SELF,
+                RetryPolicy.NEVER, ConfirmationPolicy.SECONDARY,
+                1, 16384, 15000);
     }
 }

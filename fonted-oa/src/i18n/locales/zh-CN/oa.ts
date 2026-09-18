@@ -233,6 +233,7 @@ export default {
     securityBoundary: '执行边界',
     gatewayEnforced: '仅允许通过 Tool Gateway 执行已注册工具',
     noActions: '暂无可执行动作',
+    noAvailableToolsReason: '当前账号在本页没有可用工具，请联系管理员核对业务权限和能力配置。此提示不代表可以跳过授权或确认。',
     capabilityLoadFailed: '页面能力加载失败',
     quickCommands: '快捷指令',
     toolCommands: {

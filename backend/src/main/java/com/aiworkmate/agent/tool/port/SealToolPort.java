@@ -5,8 +5,21 @@ import java.util.List;
 
 public interface SealToolPort {
     Page query(ToolActorContext context, Query query);
+    ApplicationResult apply(
+            ToolActorContext context, ApplicationCommand command, ToolOperationKey operationKey);
+    ToolWriteVerification<ApplicationResult> findApplication(
+            ToolActorContext context, ApplicationCommand command, ToolOperationKey operationKey);
+    UseResult registerUse(ToolActorContext context, UseCommand command, ToolOperationKey operationKey);
+    ToolWriteVerification<UseResult> findRegisteredUse(
+            ToolActorContext context, UseCommand command, ToolOperationKey operationKey);
     enum Queue { MINE, PENDING }
     record Query(Long usageId, Queue queue, String status, int page, int size) { }
+    record ApplicationCommand(String sealType, String documentTitle, String usageReason, int copies) { }
+    record ApplicationResult(long usageId, String status, int version, LocalDateTime submittedAt)
+            implements ToolWriteReceipt { }
+    record UseCommand(long usageId, int version, int actualCopies, String remark) { }
+    record UseResult(long usageId, String status, int version, int actualCopies, LocalDateTime usedAt)
+            implements ToolWriteReceipt { }
     record Page(List<Item> items, long total, int page, int size) {
         public Page { items = List.copyOf(items); }
     }

@@ -18,11 +18,18 @@ public interface GenericApprovalService {
     /** 保存一份未提交草稿；必填字段可暂缺，不创建工作流或待办。 */
     ApprovalApplicationResponse createDraft(Long userId, ApprovalDraftRequest request);
 
+    /** Agent 专用的本人草稿入口；稳定操作键只用于幂等核验，不代替实时授权。 */
+    ApprovalApplicationResponse createAgentDraft(
+            Long userId, ApprovalDraftRequest request, String operationKey);
+
     /** 更新本人处于 DRAFT 状态的草稿，使用乐观锁防止覆盖。 */
     ApprovalApplicationResponse updateDraft(Long userId, Long id, ApprovalDraftUpdateRequest request);
 
     /** 提交本人草稿并原子创建工作流实例与首个待办。 */
     ApprovalApplicationResponse submitDraft(Long userId, Long id, VersionRequest request);
+
+    /** Agent 专用的本人草稿提交入口；实时写权限与页面权限必须同时满足。 */
+    ApprovalApplicationResponse submitAgentDraft(Long userId, Long id, VersionRequest request);
 
     /** 取消本人草稿；取消后只保留审计记录，不允许继续编辑。 */
     ApprovalApplicationResponse cancelDraft(Long userId, Long id, VersionRequest request);
@@ -30,11 +37,17 @@ public interface GenericApprovalService {
     /** 撤回本人审批中的申请，同时取消当前流程实例和唯一有效待办。 */
     ApprovalApplicationResponse withdraw(Long userId, Long id, VersionRequest request);
 
+    /** Agent 专用的本人申请撤回入口；实时写权限与页面权限必须同时满足。 */
+    ApprovalApplicationResponse withdrawAgentApplication(Long userId, Long id, VersionRequest request);
+
     /** 催办当前有效待办，按服务端频率窗口限流并写入审计与消息中心。 */
     ApprovalApplicationResponse remind(Long userId, Long id, VersionRequest request);
 
     /** 将本人被拒绝或已撤回的申请恢复为草稿，保留原流程历史供重新提交。 */
     ApprovalApplicationResponse reopen(Long userId, Long id, VersionRequest request);
+
+    /** Agent 专用的本人申请恢复入口；只恢复为草稿，不在同一任务中再次提交。 */
+    ApprovalApplicationResponse reopenAgentApplication(Long userId, Long id, VersionRequest request);
 
     /** 按表单 Key 提交一份申请，返回创建后的申请单（含首个待办信息）。 */
     ApprovalApplicationResponse submit(Long userId, ApprovalSubmitRequest request);

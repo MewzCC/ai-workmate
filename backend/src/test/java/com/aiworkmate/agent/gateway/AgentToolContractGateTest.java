@@ -1,6 +1,7 @@
 package com.aiworkmate.agent.gateway;
 
 import com.aiworkmate.agent.capability.PageCapabilityCatalog;
+import com.aiworkmate.agent.capability.PageCapabilityDefinition;
 import com.aiworkmate.agent.registry.ConfirmationPolicy;
 import com.aiworkmate.agent.registry.OwnershipPolicy;
 import com.aiworkmate.agent.registry.PermissionMode;
@@ -16,6 +17,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 
@@ -24,7 +26,15 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class AgentToolContractGateTest {
     private static final Set<ToolCode> WRITE_TOOLS = Set.of(
-            ToolCode.LEAVE_CREATE_DRAFT, ToolCode.LEAVE_SUBMIT, ToolCode.LEAVE_APPLY);
+            ToolCode.LEAVE_CREATE_DRAFT, ToolCode.LEAVE_SUBMIT, ToolCode.LEAVE_APPLY, ToolCode.LEAVE_WITHDRAW,
+            ToolCode.MEETING_BOOK, ToolCode.MEETING_CANCEL, ToolCode.NOTIFICATION_MARK_READ,
+            ToolCode.ASSET_CLAIM, ToolCode.ASSET_RETURN, ToolCode.ASSET_REPAIR_START,
+            ToolCode.VISITOR_APPLY, ToolCode.VISITOR_CHECK_IN, ToolCode.VISITOR_MARK_ARRIVED,
+            ToolCode.VISITOR_LEAVE, ToolCode.SEAL_APPLY, ToolCode.SEAL_REGISTER_USE,
+            ToolCode.HR_CHANGE_APPLY, ToolCode.EXPENSE_CREATE_DRAFT,
+            ToolCode.ATTENDANCE_REISSUE_APPLY, ToolCode.APPROVAL_APPLICATION_CREATE_DRAFT,
+            ToolCode.APPROVAL_APPLICATION_SUBMIT_DRAFT, ToolCode.APPROVAL_APPLICATION_WITHDRAW,
+            ToolCode.APPROVAL_APPLICATION_REOPEN);
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final PageCapabilityCatalog pages = new PageCapabilityCatalog();
 
@@ -60,6 +70,22 @@ class AgentToolContractGateTest {
         assertThatThrownBy(() -> new AgentToolContractGate(incomplete, handlers(incomplete), pages))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("definitions");
+    }
+
+    @Test
+    void rejectsPageCapabilityMissingFromTheCodeOwnedManifest() {
+        List<ToolDefinition> definitions = definitions();
+        PageCapabilityCatalog incompletePages = new PageCapabilityCatalog() {
+            @Override
+            public Collection<PageCapabilityDefinition> all() {
+                return pages.all().stream().skip(1).toList();
+            }
+        };
+
+        assertThatThrownBy(() -> new AgentToolContractGate(
+                definitions, handlers(definitions), incompletePages))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("page capabilities");
     }
 
     private List<ToolDefinition> definitions() {

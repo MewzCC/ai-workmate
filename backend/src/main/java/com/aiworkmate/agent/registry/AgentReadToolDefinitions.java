@@ -124,205 +124,167 @@ public class AgentReadToolDefinitions {
 
     @Bean
     ToolDefinition visitorQueryToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {
-        return ToolDefinition.create(
+        return ToolDefinitionFactory.read(
                 ToolCode.VISITOR_QUERY, "Query my visitor bookings",
                 "Returns a bounded owned, assigned or explicitly visible visitor booking summary.",
                 "Display visitor workflow and arrival status without phone, plate or internal identity fields.",
-                "1.0.0", objectMapper.readTree(VISITOR_QUERY_INPUT_SCHEMA),
-                objectMapper.readTree(VISITOR_QUERY_OUTPUT_SCHEMA), RiskLevel.L0,
-                Set.of("visitor:read:self"), PermissionMode.ALL, OwnershipPolicy.SELF,
-                RetryPolicy.READ_ONLY_SAFE, SideEffect.NONE, ConfirmationPolicy.NONE,
-                50, 131072, 15000, "HASHED_ARGS_RESULT");
+                objectMapper.readTree(VISITOR_QUERY_INPUT_SCHEMA),
+                objectMapper.readTree(VISITOR_QUERY_OUTPUT_SCHEMA),
+                Set.of("visitor:read:self"), OwnershipPolicy.SELF, 50, 131072, 15000);
     }
 
     @Bean
     ToolDefinition sealQueryToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {
-        return ToolDefinition.create(
+        return ToolDefinitionFactory.read(
                 ToolCode.SEAL_QUERY, "Query my seal usages",
                 "Returns a bounded owned, assigned or explicitly visible seal usage summary.",
                 "Display approval and execution status without workflow identities or archive storage paths.",
-                "1.0.0", objectMapper.readTree(SEAL_QUERY_INPUT_SCHEMA),
-                objectMapper.readTree(SEAL_QUERY_OUTPUT_SCHEMA), RiskLevel.L0,
-                Set.of("seal:read:self"), PermissionMode.ALL, OwnershipPolicy.SELF,
-                RetryPolicy.READ_ONLY_SAFE, SideEffect.NONE, ConfirmationPolicy.NONE,
-                50, 131072, 15000, "HASHED_ARGS_RESULT");
+                objectMapper.readTree(SEAL_QUERY_INPUT_SCHEMA),
+                objectMapper.readTree(SEAL_QUERY_OUTPUT_SCHEMA),
+                Set.of("seal:read:self"), OwnershipPolicy.SELF, 50, 131072, 15000);
     }
 
     @Bean
     ToolDefinition attendanceQueryToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {
-        return ToolDefinition.create(
+        return ToolDefinitionFactory.read(
                 ToolCode.ATTENDANCE_QUERY, "Query attendance views",
                 "Returns one bounded attendance view selected from the authenticated page context.",
                 "Display current, record, exception, reissue, statistics or settings data after live scope checks.",
-                "1.0.0", objectMapper.readTree(ATTENDANCE_QUERY_INPUT_SCHEMA),
-                objectMapper.readTree(ATTENDANCE_QUERY_OUTPUT_SCHEMA), RiskLevel.L0,
-                Set.of("attendance:read"), PermissionMode.ALL, OwnershipPolicy.TENANT_SCOPED,
-                RetryPolicy.READ_ONLY_SAFE, SideEffect.NONE, ConfirmationPolicy.NONE,
-                50, 196608, 15000, "HASHED_ARGS_RESULT");
+                objectMapper.readTree(ATTENDANCE_QUERY_INPUT_SCHEMA),
+                objectMapper.readTree(ATTENDANCE_QUERY_OUTPUT_SCHEMA),
+                Set.of("attendance:read"), OwnershipPolicy.TENANT_SCOPED, 50, 196608, 15000);
     }
 
     @Bean
     ToolDefinition approvalConfigurationQueryToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {
-        return ToolDefinition.create(
+        return ToolDefinitionFactory.read(
                 ToolCode.APPROVAL_CONFIGURATION_QUERY, "Query approval configuration",
                 "Returns bounded approval forms, processes or rules from the authenticated tenant.",
                 "Display tenant-scoped approval configuration summaries without executable schema or rule payloads.",
-                "1.0.0", objectMapper.readTree(APPROVAL_CONFIGURATION_QUERY_INPUT_SCHEMA),
-                objectMapper.readTree(APPROVAL_CONFIGURATION_QUERY_OUTPUT_SCHEMA), RiskLevel.L0,
-                Set.of("approval:read"), PermissionMode.ALL, OwnershipPolicy.TENANT_SCOPED,
-                RetryPolicy.READ_ONLY_SAFE, SideEffect.NONE, ConfirmationPolicy.NONE,
-                50, 65536, 15000, "HASHED_ARGS_RESULT");
+                objectMapper.readTree(APPROVAL_CONFIGURATION_QUERY_INPUT_SCHEMA),
+                objectMapper.readTree(APPROVAL_CONFIGURATION_QUERY_OUTPUT_SCHEMA),
+                Set.of("approval:read"), OwnershipPolicy.TENANT_SCOPED, 50, 65536, 15000);
     }
 
     @Bean
     ToolDefinition approvalTaskQueryToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {
-        return ToolDefinition.create(
+        return ToolDefinitionFactory.read(
                 ToolCode.APPROVAL_TASK_QUERY, "Query tenant approval tasks",
                 "Returns bounded approval tasks visible to the authenticated actor's live tenant data scope.",
                 "Display approval-center task summaries without internal identities or workflow payloads.",
-                "1.0.0", objectMapper.readTree(APPROVAL_TASK_QUERY_INPUT_SCHEMA),
-                objectMapper.readTree(APPROVAL_TASK_QUERY_OUTPUT_SCHEMA), RiskLevel.L0,
-                Set.of("approval:read"), PermissionMode.ALL, OwnershipPolicy.TENANT_SCOPED,
-                RetryPolicy.READ_ONLY_SAFE, SideEffect.NONE, ConfirmationPolicy.NONE,
-                50, 65536, 15000, "HASHED_ARGS_RESULT");
+                objectMapper.readTree(APPROVAL_TASK_QUERY_INPUT_SCHEMA),
+                objectMapper.readTree(APPROVAL_TASK_QUERY_OUTPUT_SCHEMA),
+                Set.of("approval:read"), OwnershipPolicy.TENANT_SCOPED, 50, 65536, 15000);
     }
 
     @Bean
     ToolDefinition hrOrganizationQueryToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {
-        return ToolDefinition.create(
+        return ToolDefinitionFactory.read(
                 ToolCode.HR_ORGANIZATION_QUERY, "Query visible organization",
                 "Returns bounded departments, positions and employees visible in the authenticated actor's data scope.",
                 "Display an organization overview without emails, avatars or internal permission data.",
-                "1.0.0", objectMapper.readTree(HR_ORGANIZATION_QUERY_INPUT_SCHEMA),
-                objectMapper.readTree(HR_ORGANIZATION_QUERY_OUTPUT_SCHEMA), RiskLevel.L0,
-                Set.of("hr:read"), PermissionMode.ALL, OwnershipPolicy.TENANT_SCOPED,
-                RetryPolicy.READ_ONLY_SAFE, SideEffect.NONE, ConfirmationPolicy.NONE,
-                50, 131072, 15000, "HASHED_ARGS_RESULT");
+                objectMapper.readTree(HR_ORGANIZATION_QUERY_INPUT_SCHEMA),
+                objectMapper.readTree(HR_ORGANIZATION_QUERY_OUTPUT_SCHEMA),
+                Set.of("hr:read"), OwnershipPolicy.TENANT_SCOPED, 50, 131072, 15000);
     }
 
     @Bean
     ToolDefinition hrEmployeeQueryToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {
-        return ToolDefinition.create(
+        return ToolDefinitionFactory.read(
                 ToolCode.HR_EMPLOYEE_QUERY, "Query visible employee profile",
                 "Returns one employee profile only when visible in the authenticated actor's live data scope.",
                 "Display employment, attendance summary and recent activity without contact or attachment data.",
-                "1.0.0", objectMapper.readTree(HR_EMPLOYEE_QUERY_INPUT_SCHEMA),
-                objectMapper.readTree(HR_EMPLOYEE_QUERY_OUTPUT_SCHEMA), RiskLevel.L0,
-                Set.of("hr:read"), PermissionMode.ALL, OwnershipPolicy.TENANT_SCOPED,
-                RetryPolicy.READ_ONLY_SAFE, SideEffect.NONE, ConfirmationPolicy.NONE,
-                50, 131072, 15000, "HASHED_ARGS_RESULT");
+                objectMapper.readTree(HR_EMPLOYEE_QUERY_INPUT_SCHEMA),
+                objectMapper.readTree(HR_EMPLOYEE_QUERY_OUTPUT_SCHEMA),
+                Set.of("hr:read"), OwnershipPolicy.TENANT_SCOPED, 50, 131072, 15000);
     }
 
     @Bean
     ToolDefinition employeeChangeQueryToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {
-        return ToolDefinition.create(
+        return ToolDefinitionFactory.read(
                 ToolCode.HR_CHANGE_QUERY, "Query employee changes",
                 "Returns bounded employee changes visible to the authenticated tenant actor.",
                 "Display employee-change summaries without internal user identities or decision payloads.",
-                "1.0.0", objectMapper.readTree(EMPLOYEE_CHANGE_QUERY_INPUT_SCHEMA),
-                objectMapper.readTree(EMPLOYEE_CHANGE_QUERY_OUTPUT_SCHEMA), RiskLevel.L0,
-                Set.of("hr:read"), PermissionMode.ALL, OwnershipPolicy.TENANT_SCOPED,
-                RetryPolicy.READ_ONLY_SAFE, SideEffect.NONE, ConfirmationPolicy.NONE,
-                50, 131072, 15000, "HASHED_ARGS_RESULT");
+                objectMapper.readTree(EMPLOYEE_CHANGE_QUERY_INPUT_SCHEMA),
+                objectMapper.readTree(EMPLOYEE_CHANGE_QUERY_OUTPUT_SCHEMA),
+                Set.of("hr:read"), OwnershipPolicy.TENANT_SCOPED, 50, 131072, 15000);
     }
 
     @Bean
     ToolDefinition assetQueryToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {
-        return ToolDefinition.create(
+        return ToolDefinitionFactory.read(
                 ToolCode.ASSET_QUERY, "Query tenant assets",
                 "Returns bounded asset ledger records visible to the authenticated tenant actor.",
                 "Display asset summaries without internal owner, department or operation identities.",
-                "1.0.0", objectMapper.readTree(ASSET_QUERY_INPUT_SCHEMA),
-                objectMapper.readTree(ASSET_QUERY_OUTPUT_SCHEMA), RiskLevel.L0,
-                Set.of("assets:read"), PermissionMode.ALL, OwnershipPolicy.TENANT_SCOPED,
-                RetryPolicy.READ_ONLY_SAFE, SideEffect.NONE, ConfirmationPolicy.NONE,
-                50, 131072, 15000, "HASHED_ARGS_RESULT");
+                objectMapper.readTree(ASSET_QUERY_INPUT_SCHEMA),
+                objectMapper.readTree(ASSET_QUERY_OUTPUT_SCHEMA),
+                Set.of("assets:read"), OwnershipPolicy.TENANT_SCOPED, 50, 131072, 15000);
     }
 
     @Bean
     ToolDefinition meetingQueryToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {
-        return ToolDefinition.create(
+        return ToolDefinitionFactory.read(
                 ToolCode.MEETING_QUERY, "Query meeting rooms and my bookings",
                 "Returns bounded tenant meeting rooms and bookings owned by the authenticated actor.",
                 "Display room availability and the actor's booking summaries without internal user identities.",
-                "1.0.0", objectMapper.readTree(MEETING_QUERY_INPUT_SCHEMA),
-                objectMapper.readTree(MEETING_QUERY_OUTPUT_SCHEMA), RiskLevel.L0,
-                Set.of("meeting:read:self"), PermissionMode.ALL, OwnershipPolicy.TENANT_SCOPED,
-                RetryPolicy.READ_ONLY_SAFE, SideEffect.NONE, ConfirmationPolicy.NONE,
-                50, 196608, 15000, "HASHED_ARGS_RESULT");
+                objectMapper.readTree(MEETING_QUERY_INPUT_SCHEMA),
+                objectMapper.readTree(MEETING_QUERY_OUTPUT_SCHEMA),
+                Set.of("meeting:read:self"), OwnershipPolicy.TENANT_SCOPED, 50, 196608, 15000);
     }
 
     @Bean
     ToolDefinition todoQueryToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {
-        return ToolDefinition.create(
+        return ToolDefinitionFactory.read(
                 ToolCode.TODO_QUERY,
                 "Query my approval tasks",
                 "Returns approval tasks assigned to the authenticated user in the authenticated tenant.",
                 "Display a bounded, read-only list of the current user's approval tasks.",
-                "1.0.0",
                 objectMapper.readTree(TODO_QUERY_INPUT_SCHEMA),
                 objectMapper.readTree(TODO_QUERY_OUTPUT_SCHEMA),
-                RiskLevel.L0,
                 Set.of("todo:read"),
-                PermissionMode.ALL,
                 OwnershipPolicy.ASSIGNED_TO_SELF,
-                RetryPolicy.READ_ONLY_SAFE,
-                SideEffect.NONE,
-                ConfirmationPolicy.NONE,
                 50,
                 65536,
-                15000,
-                "HASHED_ARGS_RESULT"
+                15000
         );
     }
 
     @Bean
     ToolDefinition leaveMineToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {
-        return ToolDefinition.create(
+        return ToolDefinitionFactory.read(
                 ToolCode.LEAVE_MINE,
                 "Query my leave applications",
                 "Returns leave applications owned by the authenticated user in the authenticated tenant.",
                 "Display a bounded list or one owned leave application without exposing internal identities.",
-                "1.0.0",
                 objectMapper.readTree(LEAVE_MINE_INPUT_SCHEMA),
                 objectMapper.readTree(LEAVE_MINE_OUTPUT_SCHEMA),
-                RiskLevel.L0,
                 Set.of("leave:read:self"),
-                PermissionMode.ALL,
                 OwnershipPolicy.SELF,
-                RetryPolicy.READ_ONLY_SAFE,
-                SideEffect.NONE,
-                ConfirmationPolicy.NONE,
                 50,
                 65536,
-                15000,
-                "HASHED_ARGS_RESULT"
+                15000
         );
     }
 
     @Bean
     ToolDefinition knowledgeSearchToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {
-        return ToolDefinition.create(
+        return ToolDefinitionFactory.read(
                 ToolCode.KNOWLEDGE_SEARCH, "Search authorized knowledge",
                 "Searches only ready knowledge chunks owned by the authenticated user and tenant.",
                 "Return cited untrusted knowledge data for display or a non-recursive summary.",
-                "1.0.0", objectMapper.readTree(KNOWLEDGE_SEARCH_INPUT_SCHEMA),
-                objectMapper.readTree(KNOWLEDGE_SEARCH_OUTPUT_SCHEMA), RiskLevel.L0,
-                Set.of("knowledge:search"), PermissionMode.ALL, OwnershipPolicy.SELF,
-                RetryPolicy.READ_ONLY_SAFE, SideEffect.NONE, ConfirmationPolicy.NONE,
-                10, 131072, 15000, "HASHED_ARGS_RESULT");
+                objectMapper.readTree(KNOWLEDGE_SEARCH_INPUT_SCHEMA),
+                objectMapper.readTree(KNOWLEDGE_SEARCH_OUTPUT_SCHEMA),
+                Set.of("knowledge:search"), OwnershipPolicy.SELF, 10, 131072, 15000);
     }
 
     @Bean
     ToolDefinition notificationMineToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {
-        return ToolDefinition.create(
+        return ToolDefinitionFactory.read(
                 ToolCode.NOTIFICATION_MINE, "Query my notifications",
                 "Returns notifications owned by the authenticated user in the authenticated tenant.",
                 "Display a bounded read-only notification list without internal business identifiers.",
-                "1.0.0", objectMapper.readTree(NOTIFICATION_MINE_INPUT_SCHEMA),
-                objectMapper.readTree(NOTIFICATION_MINE_OUTPUT_SCHEMA), RiskLevel.L0,
-                Set.of("notification:read:self"), PermissionMode.ALL, OwnershipPolicy.SELF,
-                RetryPolicy.READ_ONLY_SAFE, SideEffect.NONE, ConfirmationPolicy.NONE,
-                50, 65536, 15000, "HASHED_ARGS_RESULT");
+                objectMapper.readTree(NOTIFICATION_MINE_INPUT_SCHEMA),
+                objectMapper.readTree(NOTIFICATION_MINE_OUTPUT_SCHEMA),
+                Set.of("notification:read:self"), OwnershipPolicy.SELF, 50, 65536, 15000);
     }
 }

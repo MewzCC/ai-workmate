@@ -2,10 +2,14 @@ package com.aiworkmate.agent.tool.adapter;
 
 import com.aiworkmate.agent.tool.port.FinanceToolPort;
 import com.aiworkmate.agent.tool.port.ToolActorContext;
+import com.aiworkmate.agent.tool.port.ToolOperationKey;
+import com.aiworkmate.agent.tool.port.ToolWriteVerification;
 import com.aiworkmate.service.BudgetService;
 import com.aiworkmate.service.ContractService;
+import com.aiworkmate.service.ExpenseApplicationService;
 import com.aiworkmate.service.ExpenseQueryService;
 import com.aiworkmate.service.SupplierService;
+import com.aiworkmate.service.model.ExpenseAgentDraftCommand;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -15,6 +19,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class FinanceAgentDomainToolAdapter implements FinanceToolPort {
     private final ExpenseQueryService expenseQueryService;
+    private final ExpenseApplicationService expenseApplicationService;
     private final BudgetService budgetService;
     private final ContractService contractService;
     private final SupplierService supplierService;
@@ -25,6 +30,23 @@ public class FinanceAgentDomainToolAdapter implements FinanceToolPort {
         }
         var result = expenseQueryService.mine(context.userId(), query.status(), query.page(), query.size());
         return new Page<>(result.records().stream().map(this::expense).toList(), result.total(), result.page(), result.size());
+    }
+
+    @Override
+    public ExpenseDraftResult createExpenseDraft(
+            ToolActorContext context, ExpenseDraft command, ToolOperationKey operationKey) {
+        var result = expenseApplicationService.createAgentDraft(
+                context.userId(), toDomain(command), operationKey.value());
+        return draftResult(result);
+    }
+
+    @Override
+    public ToolWriteVerification<ExpenseDraftResult> findExpenseDraft(
+            ToolActorContext context, ExpenseDraft command, ToolOperationKey operationKey) {
+        return expenseApplicationService.findAgentDraft(
+                        context.userId(), toDomain(command), operationKey.value())
+                .map(result -> ToolWriteVerification.observed(draftResult(result)))
+                .orElseGet(ToolWriteVerification::unobserved);
     }
 
     @Override public Page<Budget> budgets(ToolActorContext context, BudgetQuery query) {
@@ -59,6 +81,19 @@ public class FinanceAgentDomainToolAdapter implements FinanceToolPort {
         return new Expense(item.id(), item.title(), item.amount(), item.category(), item.expenseDate(),
                 item.invoiceNumber(), item.reason(), item.status(), item.version(), item.approverName(), item.dueAt(), item.submittedAt(), item.overdue(),
                 item.canRemind(), item.canWithdraw(), item.canEditDraft(), item.canCancel());
+    }
+
+    private ExpenseAgentDraftCommand toDomain(ExpenseDraft command) {
+        return new ExpenseAgentDraftCommand(
+                command.amount(), command.category(), command.expenseDate(),
+                command.invoiceNumber(), command.reason());
+    }
+
+    private ExpenseDraftResult draftResult(
+            com.aiworkmate.service.model.ExpenseAgentDraftReceipt value) {
+        return new ExpenseDraftResult(
+                value.applicationId(), value.formKey(), value.status(),
+                value.version(), value.createdAt());
     }
     private Budget budget(com.aiworkmate.dto.BudgetResponse item) {
         return new Budget(item.id(), item.code(), item.name(), item.fiscalYear(), item.ownerLabel(), item.totalAmount(),

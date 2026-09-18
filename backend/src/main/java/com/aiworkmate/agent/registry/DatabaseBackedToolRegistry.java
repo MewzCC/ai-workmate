@@ -42,34 +42,43 @@ public class DatabaseBackedToolRegistry implements ToolRegistry {
     @Override
     @Transactional(readOnly = true)
     public Optional<ToolDefinition> resolveExecutableTool(Long tenantId, String toolCode) {
-        AgentTenantPolicy policy = tenantId == null ? null : tenantPolicyMapper.selectById(tenantId);
-        if (tenantId == null || toolCode == null || !properties.isEnabled()
+        return resolveAvailability(tenantId, toolCode).definition();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ToolAvailability resolveAvailability(Long tenantId, String toolCode) {
+        if (tenantId == null || toolCode == null) {
+            return ToolAvailability.unavailable(ToolAvailability.Status.UNAVAILABLE);
+        }
+        AgentTenantPolicy policy = tenantPolicyMapper.selectById(tenantId);
+        if (!properties.isEnabled()
                 || policy == null || !Boolean.TRUE.equals(policy.getEnabled())) {
-            return Optional.empty();
+            return ToolAvailability.unavailable(ToolAvailability.Status.DISABLED);
         }
         ToolDefinition definition = catalog.find(toolCode).orElse(null);
         if (definition == null) {
-            return Optional.empty();
+            return ToolAvailability.unavailable(ToolAvailability.Status.UNAVAILABLE);
         }
         if (definition.sideEffect() != SideEffect.NONE
                 && (!properties.isWriteToolsEnabled() || !Boolean.TRUE.equals(policy.getWriteToolsEnabled()))) {
-            return Optional.empty();
+            return ToolAvailability.unavailable(ToolAvailability.Status.DISABLED);
         }
         AgentTool platform = toolMapper.selectPlatformTool(toolCode);
         ToolDefinition effective = platform != null && platform.getTenantId() == null ? narrow(definition, platform) : null;
         if (effective == null) {
-            return Optional.empty();
+            return ToolAvailability.unavailable(ToolAvailability.Status.UNAVAILABLE);
         }
         AgentTool tenant = toolMapper.selectTenantTool(tenantId, toolCode);
         if (tenant == null) {
-            return Optional.of(effective);
+            return ToolAvailability.available(effective);
         }
         try {
-            return tenantId.equals(tenant.getTenantId())
-                    ? Optional.ofNullable(narrow(effective, tenant))
-                    : Optional.empty();
+            ToolDefinition narrowed = tenantId.equals(tenant.getTenantId()) ? narrow(effective, tenant) : null;
+            return narrowed == null ? ToolAvailability.unavailable(ToolAvailability.Status.UNAVAILABLE)
+                    : ToolAvailability.available(narrowed);
         } catch (RuntimeException exception) {
-            return Optional.empty();
+            return ToolAvailability.unavailable(ToolAvailability.Status.UNAVAILABLE);
         }
     }
 

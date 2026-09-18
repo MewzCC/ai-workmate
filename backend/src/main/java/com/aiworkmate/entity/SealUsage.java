@@ -25,6 +25,7 @@ public class SealUsage {
     private Long applicantUserId;
     private Long approverUserId;
     private Long workflowInstanceId;
+    private String agentOperationKey;
     private String sealType;
     private String documentTitle;
     private String usageReason;

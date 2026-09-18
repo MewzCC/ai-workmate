@@ -11,6 +11,8 @@ import com.aiworkmate.agent.registry.ToolDefinition;
 import com.aiworkmate.agent.registry.ToolRegistry;
 import com.aiworkmate.agent.task.AgentHashing;
 import com.aiworkmate.agent.tool.internal.ToolHandler;
+import com.aiworkmate.common.BusinessException;
+import com.aiworkmate.common.ErrorCode;
 import com.aiworkmate.service.UserAccessService;
 import com.aiworkmate.service.model.ResolvedUserAccess;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -299,8 +301,48 @@ class DefaultToolGatewayPolicyTest {
                 eq("TOOL_TIMEOUT"), anyLong());
     }
 
+    @Test
+    void deterministicDomainRejectionUsesStablePublicCategoryWithoutBecomingUnknown() throws Exception {
+        configureWriteDefinition();
+        when(handler.execute(any(), any())).thenThrow(
+                new BusinessException(ErrorCode.VERSION_CONFLICT, "internal row version 17"));
+
+        ToolGatewayResult result = execute();
+
+        assertThat(result.decision()).isEqualTo(GatewayDecision.DENY);
+        assertThat(result.code()).isEqualTo(GatewayDecisionCode.TOOL_STATE_CONFLICT);
+        assertThat(result.outcomeUncertain()).isFalse();
+        assertThat(result.output()).isNull();
+        verify(auditWriter).complete(eq("decision-1"), eq(true), eq("FAILED"), isNull(),
+                eq("DOMAIN_STATE_CONFLICT"), anyLong());
+    }
+
+    @Test
+    void unexpectedWriteFailureNeverLeaksMessageAndRemainsUnknown() throws Exception {
+        configureWriteDefinition();
+        when(handler.execute(any(), any())).thenThrow(
+                new IllegalStateException("jdbc:postgresql://secret-host/private_table"));
+
+        ToolGatewayResult result = execute();
+
+        assertThat(result.code()).isEqualTo(GatewayDecisionCode.TOOL_RESULT_UNKNOWN);
+        assertThat(result.outcomeUncertain()).isTrue();
+        assertThat(result.toString()).doesNotContain("secret-host", "private_table");
+        verify(auditWriter).complete(eq("decision-1"), eq(true), eq("FAILED"), isNull(),
+                eq("DOMAIN_OUTCOME_UNKNOWN"), anyLong());
+    }
+
     private ToolGatewayResult execute() {
         return gateway.execute(10L, new WorkerLease("worker-1", 0, LEASE_TOKEN));
+    }
+
+    private void configureWriteDefinition() throws Exception {
+        properties.setWriteToolsEnabled(true);
+        definition = writeDefinition();
+        snapshot = snapshot();
+        snapshot.setConfirmationConsumedAt(LocalDateTime.now());
+        when(snapshotMapper.selectSnapshot(10L)).thenReturn(snapshot);
+        when(toolRegistry.resolveExecutableTool(1L, "todo.query")).thenReturn(Optional.of(definition));
     }
 
     private ToolDefinition definition() throws Exception {

@@ -64,6 +64,43 @@ class DatabaseBackedToolRegistryTest {
     }
 
     @Test
+    void availabilityUsesSameContractResolutionAsExecution() {
+        when(toolMapper.selectPlatformTool("todo.query")).thenReturn(row("L0", true));
+        var result = registry.resolveAvailability(1L, "todo.query");
+        assertThat(result.status()).isEqualTo(ToolAvailability.Status.AVAILABLE);
+        assertThat(result.definition()).isEqualTo(registry.resolveExecutableTool(1L, "todo.query"));
+    }
+
+    @Test
+    void availabilityReturnsNoDefinitionWhenDisabledOrContractInvalid() {
+        properties.setEnabled(false);
+        assertThat(registry.resolveAvailability(1L, "todo.query").status())
+                .isEqualTo(ToolAvailability.Status.DISABLED);
+        assertThat(registry.resolveExecutableTool(1L, "todo.query")).isEmpty();
+        properties.setEnabled(true);
+        when(toolMapper.selectPlatformTool("todo.query")).thenReturn(row("L1", true));
+        var result = registry.resolveAvailability(1L, "todo.query");
+        assertThat(result.status()).isEqualTo(ToolAvailability.Status.UNAVAILABLE);
+        assertThat(result.definition()).isEmpty();
+    }
+
+    @Test
+    void rejectsAvailabilityThatWouldExposeDisabledDefinition() {
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> new ToolAvailability(
+                ToolAvailability.Status.DISABLED, java.util.Optional.of(definition)))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void policyDependencyFailureNeverReturnsAnAvailableFallback() {
+        when(tenantPolicyMapper.selectById(1L)).thenThrow(new IllegalStateException("dependency unavailable"));
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> registry.resolveAvailability(1L, "todo.query"))
+                .isInstanceOf(IllegalStateException.class);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> registry.resolveExecutableTool(1L, "todo.query"))
+                .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
     void pagePolicyCanOnlyRemoveCodeRegisteredTool() {
         when(toolMapper.selectPlatformTool("todo.query")).thenReturn(row("L0", true));
         when(pageActionPolicyResolver.enabledToolCodes(1L, "todo-list")).thenReturn(Set.of());

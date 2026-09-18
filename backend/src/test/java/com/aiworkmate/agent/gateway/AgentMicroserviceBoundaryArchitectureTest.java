@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class AgentMicroserviceBoundaryArchitectureTest {
     private final JavaClasses classes = new ClassFileImporter()
@@ -35,6 +36,35 @@ class AgentMicroserviceBoundaryArchitectureTest {
                 .should().onlyDependOnClassesThat().resideInAnyPackage(
                         "java..", "..agent.tool.port..")
                 .check(classes);
+    }
+
+    @Test
+    void sharedOaPageContractRemainsFrameworkNeutral() {
+        classes().that().resideInAPackage("..oa.page..")
+                .should().onlyDependOnClassesThat().resideInAnyPackage(
+                        "java..", "..oa.page..")
+                .check(classes);
+    }
+
+    @Test
+    void portsDoNotReplaceTypedDomainContractsWithGenericMaps() {
+        noClasses().that().resideInAPackage("..agent.tool.port..")
+                .should().dependOnClassesThat().areAssignableTo(java.util.Map.class)
+                .because("domain commands and results must remain typed when adapters become remote")
+                .check(classes);
+    }
+
+    @Test
+    void genericMapBoundaryRuleRejectsAnUntypedContract() {
+        JavaClasses fixture = new ClassFileImporter().importClasses(UntypedContract.class);
+        assertThrows(AssertionError.class, () -> noClasses()
+                .that().haveSimpleName("UntypedContract")
+                .should().dependOnClassesThat().areAssignableTo(java.util.Map.class)
+                .check(fixture));
+    }
+
+    private interface UntypedContract {
+        java.util.Map<String, String> query(java.util.Map<String, String> arguments);
     }
 
     @Test

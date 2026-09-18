@@ -5,6 +5,7 @@ import com.aiworkmate.agent.tool.port.ApprovalTaskToolPort;
 import com.aiworkmate.agent.tool.port.LeaveToolPort;
 import com.aiworkmate.agent.tool.port.TodoToolPort;
 import com.aiworkmate.agent.tool.port.ToolActorContext;
+import com.aiworkmate.agent.tool.port.ToolOperationKey;
 import com.aiworkmate.agent.tool.port.AttendanceToolPort;
 import com.aiworkmate.common.PageResponse;
 import com.aiworkmate.dto.KnowledgeSearchItemResponse;
@@ -24,9 +25,7 @@ import com.aiworkmate.service.LeaveWorkflowService;
 import com.aiworkmate.service.NotificationService;
 import com.aiworkmate.service.ApprovalEngineService;
 import com.aiworkmate.service.HrService;
-import com.aiworkmate.service.EmployeeChangeService;
 import com.aiworkmate.service.AdminAssetsService;
-import com.aiworkmate.service.MeetingBookingService;
 import com.aiworkmate.service.AttendanceService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -51,24 +50,31 @@ class AgentDomainToolAdaptersTest {
     @Mock private NotificationService notificationService;
     @Mock private ApprovalEngineService approvalEngineService;
     @Mock private HrService hrService;
-    @Mock private EmployeeChangeService employeeChangeService;
     @Mock private AdminAssetsService adminAssetsService;
-    @Mock private MeetingBookingService meetingBookingService;
     @Mock private AttendanceService attendanceService;
 
-    private ApprovalAgentDomainToolAdapter approvalAdapter;
-    private HrAgentDomainToolAdapter hrAdapter;
-    private AdministrativeAssetsAgentDomainToolAdapter administrativeAssetsAdapter;
+    private TodoAgentDomainToolAdapter todoAdapter;
+    private LeaveAgentDomainToolAdapter leaveAdapter;
+    private ApprovalConfigurationAgentDomainToolAdapter approvalConfigurationAdapter;
+    private ApprovalTaskAgentDomainToolAdapter approvalTaskAdapter;
+    private HrOrganizationAgentDomainToolAdapter organizationAdapter;
+    private AttendanceAgentDomainToolAdapter attendanceAdapter;
+    private VisitorAgentDomainToolAdapter visitorAdapter;
+    private SealAgentDomainToolAdapter sealAdapter;
     private KnowledgeAgentDomainToolAdapter knowledgeAdapter;
     private NotificationAgentDomainToolAdapter notificationAdapter;
     private final ToolActorContext context = new ToolActorContext(91L, 7L, 10L, 20L, 1, "trace");
 
     @BeforeEach
     void setUp() {
-        approvalAdapter = new ApprovalAgentDomainToolAdapter(leaveWorkflowService, approvalEngineService);
-        hrAdapter = new HrAgentDomainToolAdapter(hrService, employeeChangeService, attendanceService);
-        administrativeAssetsAdapter = new AdministrativeAssetsAgentDomainToolAdapter(
-                adminAssetsService, meetingBookingService);
+        todoAdapter = new TodoAgentDomainToolAdapter(leaveWorkflowService);
+        leaveAdapter = new LeaveAgentDomainToolAdapter(leaveWorkflowService);
+        approvalConfigurationAdapter = new ApprovalConfigurationAgentDomainToolAdapter(approvalEngineService);
+        approvalTaskAdapter = new ApprovalTaskAgentDomainToolAdapter(leaveWorkflowService);
+        organizationAdapter = new HrOrganizationAgentDomainToolAdapter(hrService);
+        attendanceAdapter = new AttendanceAgentDomainToolAdapter(attendanceService);
+        visitorAdapter = new VisitorAgentDomainToolAdapter(adminAssetsService);
+        sealAdapter = new SealAgentDomainToolAdapter(adminAssetsService);
         knowledgeAdapter = new KnowledgeAgentDomainToolAdapter(knowledgeService);
         notificationAdapter = new NotificationAgentDomainToolAdapter(notificationService);
     }
@@ -82,7 +88,7 @@ class AgentDomainToolAdaptersTest {
                         now, now.plusDays(1), false, "internal-avatar", now, "/private/avatar")),
                         1, 2, 30));
 
-        TodoToolPort.Page result = approvalAdapter.query(context,
+        TodoToolPort.Page result = todoAdapter.query(context,
                 new TodoToolPort.Query("PENDING", now, now.plusDays(1), 2, 30));
 
         assertThat(result.items()).containsExactly(new TodoToolPort.Item(
@@ -98,7 +104,7 @@ class AgentDomainToolAdaptersTest {
                         12L, "expense", "费用报销", "报销表单", "{sensitive-schema}",
                         "ENABLED", 3, "管理员", now.minusDays(1), now, true, true)), 1, 1, 20));
 
-        var result = approvalAdapter.query(context, new ApprovalConfigurationToolPort.Query(
+        var result = approvalConfigurationAdapter.query(context, new ApprovalConfigurationToolPort.Query(
                 ApprovalConfigurationToolPort.Resource.FORM, "报销", "ENABLED", 1, 20));
 
         assertThat(result.items()).containsExactly(new ApprovalConfigurationToolPort.Item(
@@ -114,7 +120,7 @@ class AgentDomainToolAdaptersTest {
         when(leaveWorkflowService.adminList(7L, "PENDING", from, to, "张三", "ANNUAL", 2, 30))
                 .thenReturn(PageResponse.of(List.of(leaveApplication()), 1, 2, 30));
 
-        var result = approvalAdapter.query(context, new ApprovalTaskToolPort.Query(
+        var result = approvalTaskAdapter.query(context, new ApprovalTaskToolPort.Query(
                 "PENDING", from, to, "张三", "ANNUAL", 2, 30));
 
         assertThat(result.items()).containsExactly(new ApprovalTaskToolPort.Item(
@@ -133,7 +139,8 @@ class AgentDomainToolAdaptersTest {
                         3L, "张三", "secret@example.com", "EMPLOYEE", 1,
                         1L, 2L, 9L, "李经理", "/avatar/private", "/avatar/manager"))));
 
-        var result = hrAdapter.query(context, new com.aiworkmate.agent.tool.port.HrOrganizationToolPort.Query("研发", 20));
+        var result = organizationAdapter.query(context,
+                new com.aiworkmate.agent.tool.port.HrOrganizationToolPort.Query("研发", 20));
 
         assertThat(result.departments()).hasSize(1);
         assertThat(result.positions()).isEmpty();
@@ -150,13 +157,35 @@ class AgentDomainToolAdaptersTest {
                         8L, day, day.atTime(9, 0), null, "NORMAL", 0, 0,
                         "10.0.0.1", null, false, true));
 
-        var result = hrAdapter.query(context, new AttendanceToolPort.Query(
+        var result = attendanceAdapter.query(context, new AttendanceToolPort.Query(
                 AttendanceToolPort.Resource.TODAY, null, null, null,
                 null, null, null, 1, 20));
 
         assertThat(result.today().status()).isEqualTo("NORMAL");
         assertThat(result.toString()).doesNotContain("10.0.0.1", "tenantId", "userId");
         verify(attendanceService).getTodayStatus(7L);
+    }
+
+    @Test
+    void mapsAttendanceReissueCommandToIdempotentDomainWrite() {
+        LocalDate date = LocalDate.of(2026, 9, 14);
+        LocalDateTime submittedAt = LocalDateTime.of(2026, 9, 15, 9, 0);
+        when(attendanceService.submitAgentReissue(eq(7L), org.mockito.ArgumentMatchers.any(),
+                eq("operation-1"))).thenReturn(new com.aiworkmate.dto.AttendanceReissueResponse(
+                31L, 7L, "当前用户", 8L, "直属主管", date, "CLOCK_IN", "忘记打卡",
+                "PENDING", null, submittedAt, null, submittedAt, submittedAt,
+                false, true));
+
+        var result = attendanceAdapter.submitReissue(context,
+                new AttendanceToolPort.ReissueCommand(date, "CLOCK_IN", "忘记打卡"),
+                new ToolOperationKey("operation-1"));
+
+        assertThat(result).isEqualTo(new AttendanceToolPort.ReissueWriteResult(
+                31L, "PENDING", date, "CLOCK_IN", submittedAt));
+        var request = ArgumentCaptor.forClass(com.aiworkmate.dto.AttendanceReissueRequest.class);
+        verify(attendanceService).submitAgentReissue(eq(7L), request.capture(), eq("operation-1"));
+        assertThat(request.getValue()).isEqualTo(
+                new com.aiworkmate.dto.AttendanceReissueRequest(date, "CLOCK_IN", "忘记打卡"));
     }
 
     @Test
@@ -171,7 +200,7 @@ class AgentDomainToolAdaptersTest {
                         "登记人", null, null, null, null, now.minusDays(1), now,
                         false, false, true, false, false, false)), 1, 1, 20));
 
-        var result = administrativeAssetsAdapter.query(context,
+        var result = visitorAdapter.query(context,
                 new com.aiworkmate.agent.tool.port.VisitorToolPort.Query(
                         null, com.aiworkmate.agent.tool.port.VisitorToolPort.Queue.MINE,
                         "APPROVED", 1, 20));
@@ -184,6 +213,105 @@ class AgentDomainToolAdaptersTest {
     }
 
     @Test
+    void mapsVisitorApplicationAndReadOnlyVerificationToTypedDomainContracts() {
+        LocalDateTime visitAt = LocalDateTime.of(2026, 9, 20, 9, 0);
+        LocalDateTime submittedAt = LocalDateTime.of(2026, 9, 17, 16, 0);
+        var command = new com.aiworkmate.agent.tool.port.VisitorToolPort.ApplicationCommand(
+                "访客甲", "合作公司", "13800000000", "项目交流", 9,
+                visitAt, visitAt.plusHours(2), "粤A00000", 2);
+        var domain = new com.aiworkmate.service.model.VisitorAgentApplicationCommand(
+                "访客甲", "合作公司", "13800000000", "项目交流", 9,
+                visitAt, visitAt.plusHours(2), "粤A00000", 2);
+        var receipt = new com.aiworkmate.service.model.VisitorAgentApplicationReceipt(
+                31, "PENDING", 0, submittedAt);
+        when(adminAssetsService.submitVisitorBookingAgent(7L, domain, "operation-1"))
+                .thenReturn(receipt);
+        when(adminAssetsService.findAgentVisitorBooking(7L, domain, "operation-1"))
+                .thenReturn(java.util.Optional.of(receipt));
+
+        var expected = new com.aiworkmate.agent.tool.port.VisitorToolPort.ApplicationResult(
+                31, "PENDING", 0, submittedAt);
+        assertThat(visitorAdapter.apply(context, command, new ToolOperationKey("operation-1")))
+                .isEqualTo(expected);
+        assertThat(visitorAdapter.findApplication(context, command, new ToolOperationKey("operation-1")))
+                .isEqualTo(com.aiworkmate.agent.tool.port.ToolWriteVerification.observed(expected));
+        verify(adminAssetsService).submitVisitorBookingAgent(7L, domain, "operation-1");
+        verify(adminAssetsService).findAgentVisitorBooking(7L, domain, "operation-1");
+    }
+
+    @Test
+    void mapsVisitorCheckInAndReadOnlyVerificationToTypedDomainContracts() {
+        LocalDateTime occurredAt = LocalDateTime.of(2026, 9, 20, 8, 55);
+        var command = new com.aiworkmate.agent.tool.port.VisitorToolPort.VisitCommand(
+                31, 2, "已核验证件");
+        var domain = new com.aiworkmate.service.model.VisitorAgentVisitCommand(
+                31, 2, "已核验证件");
+        var receipt = new com.aiworkmate.service.model.VisitorAgentVisitReceipt(
+                31, "CHECKED_IN", 3, occurredAt);
+        when(adminAssetsService.checkInVisitorAgent(7L, domain, "operation-2"))
+                .thenReturn(receipt);
+        when(adminAssetsService.findAgentVisitorCheckIn(7L, domain, "operation-2"))
+                .thenReturn(java.util.Optional.of(receipt));
+
+        var expected = new com.aiworkmate.agent.tool.port.VisitorToolPort.VisitResult(
+                31, "CHECKED_IN", 3, occurredAt);
+        assertThat(visitorAdapter.checkIn(context, command, new ToolOperationKey("operation-2")))
+                .isEqualTo(expected);
+        assertThat(visitorAdapter.findCheckIn(context, command, new ToolOperationKey("operation-2")))
+                .isEqualTo(com.aiworkmate.agent.tool.port.ToolWriteVerification.observed(expected));
+        verify(adminAssetsService).checkInVisitorAgent(7L, domain, "operation-2");
+        verify(adminAssetsService).findAgentVisitorCheckIn(7L, domain, "operation-2");
+    }
+
+    @Test
+    void mapsVisitorArrivalAndReadOnlyVerificationToTheSharedVisitContract() {
+        LocalDateTime occurredAt = LocalDateTime.of(2026, 9, 20, 9, 0);
+        var command = new com.aiworkmate.agent.tool.port.VisitorToolPort.VisitCommand(
+                31, 3, "前台确认到访");
+        var domain = new com.aiworkmate.service.model.VisitorAgentVisitCommand(
+                31, 3, "前台确认到访");
+        var receipt = new com.aiworkmate.service.model.VisitorAgentVisitReceipt(
+                31, "VISITED", 4, occurredAt);
+        when(adminAssetsService.markVisitorArrivedAgent(7L, domain, "operation-3"))
+                .thenReturn(receipt);
+        when(adminAssetsService.findAgentVisitorArrival(7L, domain, "operation-3"))
+                .thenReturn(java.util.Optional.of(receipt));
+
+        var expected = new com.aiworkmate.agent.tool.port.VisitorToolPort.VisitResult(
+                31, "VISITED", 4, occurredAt);
+        assertThat(visitorAdapter.markArrived(context, command, new ToolOperationKey("operation-3")))
+                .isEqualTo(expected);
+        assertThat(visitorAdapter.findArrival(context, command, new ToolOperationKey("operation-3")))
+                .isEqualTo(com.aiworkmate.agent.tool.port.ToolWriteVerification.observed(expected));
+        verify(adminAssetsService).markVisitorArrivedAgent(7L, domain, "operation-3");
+        verify(adminAssetsService).findAgentVisitorArrival(7L, domain, "operation-3");
+    }
+
+    @Test
+    void mapsVisitorLeaveAndReadOnlyVerificationToTheSharedVisitContract() {
+        LocalDateTime occurredAt = LocalDateTime.of(2026, 9, 20, 11, 0);
+        var command = new com.aiworkmate.agent.tool.port.VisitorToolPort.VisitCommand(
+                31, 4, "前台确认离场");
+        var domain = new com.aiworkmate.service.model.VisitorAgentVisitCommand(
+                31, 4, "前台确认离场");
+        var receipt = new com.aiworkmate.service.model.VisitorAgentVisitReceipt(
+                31, "LEFT", 5, occurredAt);
+        when(adminAssetsService.leaveVisitorAgent(7L, domain, "operation-4"))
+                .thenReturn(receipt);
+        when(adminAssetsService.findAgentVisitorLeave(7L, domain, "operation-4"))
+                .thenReturn(java.util.Optional.of(receipt));
+
+        var expected = new com.aiworkmate.agent.tool.port.VisitorToolPort.VisitResult(
+                31, "LEFT", 5, occurredAt);
+        assertThat(visitorAdapter.leave(context, command, new ToolOperationKey("operation-4")))
+                .isEqualTo(expected);
+        assertThat(visitorAdapter.findLeave(context, command, new ToolOperationKey("operation-4")))
+                .isEqualTo(com.aiworkmate.agent.tool.port.ToolWriteVerification.observed(expected));
+        verify(adminAssetsService).leaveVisitorAgent(7L, domain, "operation-4");
+        verify(adminAssetsService).findAgentVisitorLeave(7L, domain, "operation-4");
+    }
+
+    @Test
     void mapsSealSummaryWithoutWorkflowOrStorageMetadata() {
         LocalDateTime now = LocalDateTime.of(2026, 9, 14, 10, 0);
         when(adminAssetsService.getSealUsage(7L, 41L)).thenReturn(new SealUsageResponse(
@@ -192,7 +320,7 @@ class AgentDomainToolAdaptersTest {
                 null, null, null, null, null, now.minusDays(1), now,
                 false, false, true, false, false));
 
-        var result = administrativeAssetsAdapter.query(context,
+        var result = sealAdapter.query(context,
                 new com.aiworkmate.agent.tool.port.SealToolPort.Query(
                         41L, com.aiworkmate.agent.tool.port.SealToolPort.Queue.MINE, null, 1, 20));
 
@@ -203,6 +331,55 @@ class AgentDomainToolAdaptersTest {
     }
 
     @Test
+    void mapsSealApplicationAndReadOnlyVerificationToTypedDomainContracts() {
+        LocalDateTime submittedAt = LocalDateTime.of(2026, 9, 20, 9, 0);
+        var command = new com.aiworkmate.agent.tool.port.SealToolPort.ApplicationCommand(
+                "OFFICIAL", "采购合同", "签约", 2);
+        var domain = new com.aiworkmate.service.model.SealAgentApplicationCommand(
+                "OFFICIAL", "采购合同", "签约", 2);
+        var receipt = new com.aiworkmate.service.model.SealAgentApplicationReceipt(
+                41, "PENDING", 0, submittedAt);
+        when(adminAssetsService.submitSealUsageAgent(7L, domain, "seal-operation"))
+                .thenReturn(receipt);
+        when(adminAssetsService.findAgentSealUsage(7L, domain, "seal-operation"))
+                .thenReturn(java.util.Optional.of(receipt));
+
+        var expected = new com.aiworkmate.agent.tool.port.SealToolPort.ApplicationResult(
+                41, "PENDING", 0, submittedAt);
+        assertThat(sealAdapter.apply(context, command, new ToolOperationKey("seal-operation")))
+                .isEqualTo(expected);
+        assertThat(sealAdapter.findApplication(context, command, new ToolOperationKey("seal-operation")))
+                .isEqualTo(com.aiworkmate.agent.tool.port.ToolWriteVerification.observed(expected));
+        verify(adminAssetsService).submitSealUsageAgent(7L, domain, "seal-operation");
+        verify(adminAssetsService).findAgentSealUsage(7L, domain, "seal-operation");
+    }
+
+    @Test
+    void mapsSealUseRegistrationAndReadOnlyVerificationToTypedDomainContracts() {
+        LocalDateTime usedAt = LocalDateTime.of(2026, 9, 20, 10, 0);
+        var command = new com.aiworkmate.agent.tool.port.SealToolPort.UseCommand(
+                41, 2, 2, "现场核对");
+        var domain = new com.aiworkmate.service.model.SealAgentUseCommand(
+                41, 2, 2, "现场核对");
+        var receipt = new com.aiworkmate.service.model.SealAgentUseReceipt(
+                41, "USED", 3, 2, usedAt);
+        when(adminAssetsService.registerSealUseAgent(7L, domain, "seal-use-operation"))
+                .thenReturn(receipt);
+        when(adminAssetsService.findAgentRegisteredSealUse(7L, domain, "seal-use-operation"))
+                .thenReturn(java.util.Optional.of(receipt));
+
+        var expected = new com.aiworkmate.agent.tool.port.SealToolPort.UseResult(
+                41, "USED", 3, 2, usedAt);
+        assertThat(sealAdapter.registerUse(
+                context, command, new ToolOperationKey("seal-use-operation"))).isEqualTo(expected);
+        assertThat(sealAdapter.findRegisteredUse(
+                context, command, new ToolOperationKey("seal-use-operation")))
+                .isEqualTo(com.aiworkmate.agent.tool.port.ToolWriteVerification.observed(expected));
+        verify(adminAssetsService).registerSealUseAgent(7L, domain, "seal-use-operation");
+        verify(adminAssetsService).findAgentRegisteredSealUse(7L, domain, "seal-use-operation");
+    }
+
+    @Test
     void keepsLeaveOperationKeyAndMapsWriteResult() {
         when(leaveWorkflowService.createAgentDraft(eq(7L), org.mockito.ArgumentMatchers.any(), eq("operation-1")))
                 .thenReturn(leaveApplication());
@@ -210,7 +387,8 @@ class AgentDomainToolAdaptersTest {
                 "PERSONAL", 8L, LocalDate.of(2026, 9, 15), "AM",
                 LocalDate.of(2026, 9, 15), "PM", "家庭事务");
 
-        LeaveToolPort.WriteResult result = approvalAdapter.createDraft(context, command, "operation-1");
+        LeaveToolPort.WriteResult result = leaveAdapter.createDraft(
+                context, command, new ToolOperationKey("operation-1"));
 
         assertThat(result).isEqualTo(new LeaveToolPort.WriteResult(30L, "DRAFT", 0, null));
         var request = ArgumentCaptor.forClass(com.aiworkmate.dto.LeaveApplicationRequest.class);
@@ -246,6 +424,14 @@ class AgentDomainToolAdaptersTest {
 
         assertThat(result.items()).containsExactly(new com.aiworkmate.agent.tool.port.NotificationToolPort.Item(
                 9L, "approval", "审批提醒", "请处理", "leave", false, now));
+    }
+
+    @Test
+    void marksOnlyTheTrustedUsersNotificationAsRead() {
+        var result = notificationAdapter.markRead(context, 9L);
+
+        assertThat(result).isEqualTo(new com.aiworkmate.agent.tool.port.NotificationToolPort.ReadResult(9L, true));
+        verify(notificationService).markRead(7L, 9L);
     }
 
     private LeaveApplicationResponse leaveApplication() {

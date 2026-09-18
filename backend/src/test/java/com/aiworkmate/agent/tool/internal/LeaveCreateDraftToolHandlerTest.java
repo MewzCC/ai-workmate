@@ -1,6 +1,7 @@
 package com.aiworkmate.agent.tool.internal;
 
 import com.aiworkmate.agent.tool.port.LeaveToolPort;
+import com.aiworkmate.agent.tool.port.ToolOperationKey;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -27,7 +28,8 @@ class LeaveCreateDraftToolHandlerTest {
         TrustedToolContext context = new TrustedToolContext(91L, 7L, 10L, 20L, 1, "trace");
         when(leaveToolPort.createDraft(
                 org.mockito.ArgumentMatchers.eq(context.actor()), org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.eq("agent:10:20:leave.createDraft:v1")))
+                org.mockito.ArgumentMatchers.eq(
+                        new ToolOperationKey("agent:10:20:leave.createDraft:v1"))))
                 .thenReturn(application());
 
         var output = handler.execute(context, objectMapper.readTree("""
@@ -40,7 +42,8 @@ class LeaveCreateDraftToolHandlerTest {
                 ArgumentCaptor.forClass(LeaveToolPort.Draft.class);
         verify(leaveToolPort).createDraft(
                 org.mockito.ArgumentMatchers.eq(context.actor()), request.capture(),
-                org.mockito.ArgumentMatchers.eq("agent:10:20:leave.createDraft:v1"));
+                org.mockito.ArgumentMatchers.eq(
+                        new ToolOperationKey("agent:10:20:leave.createDraft:v1")));
         assertThat(request.getValue().reason()).isEqualTo("家庭事务");
     }
 

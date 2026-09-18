@@ -8,7 +8,8 @@ import org.springframework.stereotype.Component;
 
 import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.optionalDateTime;
 import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.optionalText;
-import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.positiveInt;
+import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.pageNumber;
+import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.pageSize;
 
 @Component
 public final class MeetingQueryToolHandler extends TypedReadToolHandler<MeetingToolPort.Query, MeetingToolPort.Result> {
@@ -23,8 +24,8 @@ public final class MeetingQueryToolHandler extends TypedReadToolHandler<MeetingT
         return new MeetingToolPort.Query(
                 optionalText(arguments, "keyword"), optionalText(arguments, "roomStatus"),
                 optionalDateTime(arguments, "from"), optionalDateTime(arguments, "to"),
-                optionalText(arguments, "bookingStatus"), positiveInt(arguments, "page", 1, 10000),
-                positiveInt(arguments, "size", 20, 50));
+                optionalText(arguments, "bookingStatus"), pageNumber(arguments),
+                pageSize(arguments));
     }
 
     @Override protected MeetingToolPort.Result invoke(TrustedToolContext context, MeetingToolPort.Query query) {

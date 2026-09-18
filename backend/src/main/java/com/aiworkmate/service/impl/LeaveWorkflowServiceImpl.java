@@ -429,6 +429,10 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
     @Transactional
     public LeaveApplicationResponse withdraw(Long userId, Long id, VersionRequest request) {
         ResolvedUserAccess actor = requirePermission(userId, "leave:withdraw");
+        if (id == null || id < 1 || request == null || request.version() == null
+                || request.version() < 0 || request.version() == Integer.MAX_VALUE) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
         LeaveApplication current = requireOwnedLeave(actor, id);
         requireState(current, "PENDING");
         LocalDateTime now = LocalDateTime.now();
@@ -457,7 +461,7 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
         completeInstance(current.getWorkflowInstanceId(), actor.tenantId(), "CANCELLED", now);
         insertAction(actor, current.getWorkflowInstanceId(), task.getId(),
                 "WITHDRAW", "PENDING", "WITHDRAWN", null);
-        auditService.record(actor.tenantId(), actor.userId(), BUSINESS_TYPE,
+        auditService.recordTransactional(actor.tenantId(), actor.userId(), BUSINESS_TYPE,
                 id.toString(), "WITHDRAW", "SUCCESS", "撤回请假申请");
         return response(actor, requireView(actor.tenantId(), id));
     }

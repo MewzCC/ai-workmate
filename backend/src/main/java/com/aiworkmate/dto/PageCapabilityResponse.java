@@ -9,8 +9,11 @@ public record PageCapabilityResponse(
         List<String> uiCommands,
         String dataScopePolicy,
         List<String> effectiveDataScopes,
-        List<Tool> tools
+        List<Tool> tools,
+        UnavailableReason unavailableReason
 ) {
+    public enum UnavailableReason { NO_AVAILABLE_TOOLS }
+
     public record Tool(
             String code,
             String name,

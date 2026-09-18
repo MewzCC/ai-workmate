@@ -11,6 +11,7 @@ import com.aiworkmate.entity.ApprovalApplication;
 import com.aiworkmate.entity.ApprovalForm;
 import com.aiworkmate.entity.ApprovalProcess;
 import com.aiworkmate.entity.ApprovalRule;
+import com.aiworkmate.entity.User;
 import com.aiworkmate.entity.WorkflowInstance;
 import com.aiworkmate.entity.WorkflowActionLog;
 import com.aiworkmate.entity.WorkflowTask;
@@ -129,6 +130,69 @@ class GenericApprovalServiceImplTest {
     }
 
     @Test
+    void createAgentDraftUsesTrustedApplicantStableKeyAndTransactionalAudit() {
+        when(formMapper.selectOne(any())).thenReturn(form());
+        when(userMapper.lockActiveApplicant(TENANT_ID, USER_ID)).thenReturn(applicant());
+        when(applicationMapper.insert(any(ApprovalApplication.class))).thenAnswer(invocation -> {
+            ApprovalApplication value = invocation.getArgument(0);
+            value.setId(10L);
+            return 1;
+        });
+        when(applicationMapper.selectView(TENANT_ID, 10L)).thenReturn(view("DRAFT", 0));
+
+        ApprovalApplicationResponse response = service.createAgentDraft(USER_ID,
+                new ApprovalDraftRequest("expense", null, Map.of("reason", "客户拜访")),
+                "agent:10:20:approval.application.createDraft:v1");
+
+        assertThat(response.status()).isEqualTo("DRAFT");
+        ArgumentCaptor<ApprovalApplication> saved = ArgumentCaptor.forClass(ApprovalApplication.class);
+        verify(applicationMapper).insert(saved.capture());
+        assertThat(saved.getValue().getApplicantUserId()).isEqualTo(USER_ID);
+        assertThat(saved.getValue().getAgentOperationKey())
+                .isEqualTo("agent:10:20:approval.application.createDraft:v1");
+        verify(auditService).recordTransactional(TENANT_ID, USER_ID, "GENERIC_APPROVAL", "10",
+                "DRAFT_CREATE", "SUCCESS", "保存通用表单草稿：费用报销");
+        verify(instanceMapper, never()).insert(any(WorkflowInstance.class));
+        verify(taskMapper, never()).insert(any(WorkflowTask.class));
+    }
+
+    @Test
+    void createAgentDraftReplaysMatchingDraftWithoutSecondWrite() {
+        ApprovalApplication existing = application("DRAFT", 0);
+        existing.setProcessId(null);
+        existing.setAgentOperationKey("agent:10:20:approval.application.createDraft:v1");
+        when(formMapper.selectOne(any())).thenReturn(form());
+        when(userMapper.lockActiveApplicant(TENANT_ID, USER_ID)).thenReturn(applicant());
+        when(applicationMapper.findAgentOperation(TENANT_ID, USER_ID,
+                "agent:10:20:approval.application.createDraft:v1")).thenReturn(existing);
+        when(applicationMapper.selectView(TENANT_ID, 10L)).thenReturn(view("DRAFT", 0));
+
+        ApprovalApplicationResponse response = service.createAgentDraft(USER_ID,
+                new ApprovalDraftRequest("expense", null, Map.of("reason", "客户拜访")),
+                "agent:10:20:approval.application.createDraft:v1");
+
+        assertThat(response.id()).isEqualTo(10L);
+        verify(applicationMapper, never()).insert(any(ApprovalApplication.class));
+        verify(auditService, never()).recordTransactional(any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void createAgentDraftRejectsReusedKeyWithChangedFields() {
+        ApprovalApplication existing = application("DRAFT", 0);
+        existing.setProcessId(null);
+        when(formMapper.selectOne(any())).thenReturn(form());
+        when(userMapper.lockActiveApplicant(TENANT_ID, USER_ID)).thenReturn(applicant());
+        when(applicationMapper.findAgentOperation(TENANT_ID, USER_ID, "stable"))
+                .thenReturn(existing);
+
+        assertThatThrownBy(() -> service.createAgentDraft(USER_ID,
+                new ApprovalDraftRequest("expense", null, Map.of("reason", "不同原因")), "stable"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("IDEMPOTENCY_CONFLICT");
+        verify(applicationMapper, never()).insert(any(ApprovalApplication.class));
+    }
+
+    @Test
     void updateDraftRejectsAnApplicationThatWasAlreadySubmitted() {
         ApprovalApplication submitted = application("PENDING", 1);
         when(applicationMapper.selectOne(any())).thenReturn(submitted);
@@ -181,6 +245,54 @@ class GenericApprovalServiceImplTest {
         verify(notificationService).publish(TENANT_ID, 2002L,
                 NotificationService.TYPE_APPROVAL, "新的「费用报销」待审批",
                 "员工通过发起审批模板提交了申请，请及时处理", "generic-approval", 10L);
+        verify(auditService).recordTransactional(TENANT_ID, USER_ID, "GENERIC_APPROVAL", "10",
+                "SUBMIT", "SUCCESS", "提交通用表单草稿：费用报销");
+    }
+
+    @Test
+    void submitAgentDraftUsesRealtimeBusinessPermissionAndSharedTransaction() {
+        when(applicationMapper.selectOne(any())).thenReturn(application("DRAFT", 2));
+        when(formMapper.selectOne(any())).thenReturn(form());
+        when(processMapper.selectOne(any())).thenReturn(process());
+        when(leaveMapper.resolveApprover(TENANT_ID, USER_ID)).thenReturn(2002L);
+        when(applicationMapper.selectGenericDefinitionId(TENANT_ID)).thenReturn(3L);
+        when(instanceMapper.insert(any(WorkflowInstance.class))).thenAnswer(invocation -> {
+            WorkflowInstance value = invocation.getArgument(0);
+            value.setId(4L);
+            return 1;
+        });
+        when(taskMapper.insert(any(WorkflowTask.class))).thenAnswer(invocation -> {
+            WorkflowTask value = invocation.getArgument(0);
+            value.setId(5L);
+            return 1;
+        });
+        when(applicationMapper.update(any(), any())).thenReturn(1);
+        when(applicationMapper.selectView(TENANT_ID, 10L)).thenReturn(view("PENDING", 3));
+
+        ApprovalApplicationResponse response = service.submitAgentDraft(
+                USER_ID, 10L, new VersionRequest(2));
+
+        assertThat(response.status()).isEqualTo("PENDING");
+        verify(instanceMapper).insert(any(WorkflowInstance.class));
+        verify(taskMapper).insert(any(WorkflowTask.class));
+        verify(auditService).recordTransactional(TENANT_ID, USER_ID, "GENERIC_APPROVAL", "10",
+                "SUBMIT", "SUCCESS", "提交通用表单草稿：费用报销");
+    }
+
+    @Test
+    void submitAgentDraftFailsClosedWhenBusinessPermissionWasRevoked() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(new ResolvedUserAccess(
+                USER_ID, "applicant", TENANT_ID, "EMPLOYEE", List.of("EMPLOYEE"),
+                List.of("route:approval-start", "approval:create"), List.of("SELF"), 2L));
+
+        assertThatThrownBy(() -> service.submitAgentDraft(USER_ID, 10L, new VersionRequest(2)))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo("PERMISSION_DENIED");
+
+        verify(applicationMapper, never()).selectOne(any());
+        verify(instanceMapper, never()).insert(any(WorkflowInstance.class));
+        verify(taskMapper, never()).insert(any(WorkflowTask.class));
     }
 
     @Test
@@ -266,6 +378,49 @@ class GenericApprovalServiceImplTest {
         verify(notificationService).publish(TENANT_ID, 2002L,
                 NotificationService.TYPE_APPROVAL, "审批申请已撤回",
                 "申请人已撤回「费用报销」，原待办已取消", "generic-approval", 10L);
+        verify(auditService).recordTransactional(TENANT_ID, USER_ID, "GENERIC_APPROVAL", "10",
+                "WITHDRAW", "SUCCESS", "撤回通用审批申请");
+    }
+
+    @Test
+    void withdrawAgentApplicationUsesSharedWorkflowTransaction() {
+        ApprovalApplication pending = application("PENDING", 2);
+        when(applicationMapper.selectOne(any())).thenReturn(pending);
+        when(instanceMapper.selectOne(any())).thenReturn(instance("RUNNING", 0));
+        when(taskMapper.selectOne(any())).thenReturn(task("PENDING", 1));
+        when(applicationMapper.update(any(), any())).thenReturn(1);
+        when(taskMapper.update(any(), any())).thenReturn(1);
+        when(instanceMapper.update(any(), any())).thenReturn(1);
+        when(applicationMapper.selectView(TENANT_ID, 10L)).thenReturn(view("WITHDRAWN", 3));
+        when(actionLogMapper.selectBusinessTimeline(TENANT_ID, "GENERIC_APPROVAL", 10L))
+                .thenReturn(List.of());
+
+        ApprovalApplicationResponse response = service.withdrawAgentApplication(
+                USER_ID, 10L, new VersionRequest(2));
+
+        assertThat(response.status()).isEqualTo("WITHDRAWN");
+        verify(taskMapper).update(any(), any());
+        verify(instanceMapper).update(any(), any());
+        verify(auditService).recordTransactional(TENANT_ID, USER_ID, "GENERIC_APPROVAL", "10",
+                "WITHDRAW", "SUCCESS", "撤回通用审批申请");
+    }
+
+    @Test
+    void withdrawAgentApplicationFailsClosedWhenBusinessPermissionWasRevoked() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(new ResolvedUserAccess(
+                USER_ID, "applicant", TENANT_ID, "EMPLOYEE", List.of("EMPLOYEE"),
+                List.of("route:approval-start", "approval:create", "approval:submit"),
+                List.of("SELF"), 2L));
+
+        assertThatThrownBy(() -> service.withdrawAgentApplication(
+                USER_ID, 10L, new VersionRequest(2)))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo("PERMISSION_DENIED");
+
+        verify(applicationMapper, never()).selectOne(any());
+        verify(taskMapper, never()).update(any(), any());
+        verify(instanceMapper, never()).update(any(), any());
     }
 
     @Test
@@ -282,6 +437,44 @@ class GenericApprovalServiceImplTest {
         assertThat(response.canEditDraft()).isTrue();
         verify(actionLogMapper).insert(any(WorkflowActionLog.class));
         verify(instanceMapper, never()).insert(any(WorkflowInstance.class));
+        verify(auditService).recordTransactional(TENANT_ID, USER_ID, "GENERIC_APPROVAL", "10",
+                "REOPEN", "SUCCESS", "恢复通用审批申请为草稿");
+    }
+
+    @Test
+    void reopenAgentApplicationUsesSharedHistoryPreservingTransaction() {
+        when(applicationMapper.selectOne(any())).thenReturn(application("WITHDRAWN", 4));
+        when(applicationMapper.update(any(), any())).thenReturn(1);
+        when(applicationMapper.selectView(TENANT_ID, 10L)).thenReturn(view("DRAFT", 5));
+        when(actionLogMapper.selectBusinessTimeline(TENANT_ID, "GENERIC_APPROVAL", 10L))
+                .thenReturn(List.of());
+
+        ApprovalApplicationResponse response = service.reopenAgentApplication(
+                USER_ID, 10L, new VersionRequest(4));
+
+        assertThat(response.status()).isEqualTo("DRAFT");
+        assertThat(response.canEditDraft()).isTrue();
+        verify(actionLogMapper).insert(any(WorkflowActionLog.class));
+        verify(instanceMapper, never()).insert(any(WorkflowInstance.class));
+        verify(auditService).recordTransactional(TENANT_ID, USER_ID, "GENERIC_APPROVAL", "10",
+                "REOPEN", "SUCCESS", "恢复通用审批申请为草稿");
+    }
+
+    @Test
+    void reopenAgentApplicationFailsClosedWhenBusinessPermissionWasRevoked() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(new ResolvedUserAccess(
+                USER_ID, "applicant", TENANT_ID, "EMPLOYEE", List.of("EMPLOYEE"),
+                List.of("route:approval-start", "approval:create", "approval:submit", "approval:withdraw"),
+                List.of("SELF"), 2L));
+
+        assertThatThrownBy(() -> service.reopenAgentApplication(
+                USER_ID, 10L, new VersionRequest(4)))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo("PERMISSION_DENIED");
+
+        verify(applicationMapper, never()).selectOne(any());
+        verify(applicationMapper, never()).update(any(), any());
     }
 
     @Test
@@ -352,7 +545,18 @@ class GenericApprovalServiceImplTest {
 
     private ResolvedUserAccess access() {
         return new ResolvedUserAccess(USER_ID, "applicant", TENANT_ID, "EMPLOYEE",
-                List.of("EMPLOYEE"), List.of("route:approval-start"), List.of("SELF"), 1L);
+                List.of("EMPLOYEE"),
+                List.of("route:approval-start", "approval:create", "approval:submit", "approval:withdraw",
+                        "approval:reopen"),
+                List.of("SELF"), 1L);
+    }
+
+    private User applicant() {
+        User user = new User();
+        user.setId(USER_ID);
+        user.setTenantId(TENANT_ID);
+        user.setStatus(1);
+        return user;
     }
 
     private ApprovalForm form() {
