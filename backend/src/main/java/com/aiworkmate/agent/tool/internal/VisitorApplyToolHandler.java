@@ -2,6 +2,7 @@ package com.aiworkmate.agent.tool.internal;
 
 import com.aiworkmate.agent.registry.ToolCode;
 import com.aiworkmate.agent.tool.port.VisitorToolPort;
+import com.aiworkmate.agent.tool.port.ToolOperationKey;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Component;
@@ -15,7 +16,7 @@ import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.requiredTe
 
 @Component
 public final class VisitorApplyToolHandler
-        extends TypedWriteToolHandler<VisitorToolPort.ApplicationCommand, VisitorToolPort.ApplicationResult> {
+        extends TypedOperationKeyWriteToolHandler<VisitorToolPort.ApplicationCommand, VisitorToolPort.ApplicationResult> {
     private final VisitorToolPort port;
 
     public VisitorApplyToolHandler(VisitorToolPort port, ObjectMapper objectMapper) {
@@ -34,8 +35,9 @@ public final class VisitorApplyToolHandler
     }
 
     @Override
-    protected VisitorToolPort.ApplicationResult invoke(
-            TrustedToolContext context, VisitorToolPort.ApplicationCommand command) {
-        return port.apply(context.actor(), command, stableOperationKey(context));
+    protected VisitorToolPort.ApplicationResult invokeWithOperationKey(
+            TrustedToolContext context, VisitorToolPort.ApplicationCommand command,
+            ToolOperationKey operationKey) {
+        return port.apply(context.actor(), command, operationKey);
     }
 }

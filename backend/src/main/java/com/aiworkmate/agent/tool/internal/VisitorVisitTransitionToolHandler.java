@@ -12,7 +12,7 @@ import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.requiredLo
 
 /** Shared closed command parser for one version-bound visitor lifecycle transition. */
 abstract class VisitorVisitTransitionToolHandler
-        extends TypedWriteToolHandler<VisitorToolPort.VisitCommand, VisitorToolPort.VisitResult> {
+        extends TypedOperationKeyWriteToolHandler<VisitorToolPort.VisitCommand, VisitorToolPort.VisitResult> {
     protected VisitorVisitTransitionToolHandler(ToolCode code, ObjectMapper objectMapper) {
         super(code, objectMapper);
     }
@@ -26,9 +26,10 @@ abstract class VisitorVisitTransitionToolHandler
     }
 
     @Override
-    protected final VisitorToolPort.VisitResult invoke(
-            TrustedToolContext context, VisitorToolPort.VisitCommand command) {
-        return invokeVisit(context, command, stableOperationKey(context));
+    protected final VisitorToolPort.VisitResult invokeWithOperationKey(
+            TrustedToolContext context, VisitorToolPort.VisitCommand command,
+            ToolOperationKey operationKey) {
+        return invokeVisit(context, command, operationKey);
     }
 
     protected abstract VisitorToolPort.VisitResult invokeVisit(

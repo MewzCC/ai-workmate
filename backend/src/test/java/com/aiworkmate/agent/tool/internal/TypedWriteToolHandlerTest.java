@@ -53,7 +53,7 @@ class TypedWriteToolHandlerTest {
         assertThat(output.path("value").asText()).isEqualTo("19:2:7");
     }
 
-    private static final class SampleHandler extends TypedWriteToolHandler<String, Result> {
+    private static final class SampleHandler extends TypedOperationKeyWriteToolHandler<String, Result> {
         private final List<String> calls;
 
         private SampleHandler(ObjectMapper objectMapper, List<String> calls) {
@@ -68,9 +68,10 @@ class TypedWriteToolHandlerTest {
         }
 
         @Override
-        protected Result invoke(TrustedToolContext context, String command) {
+        protected Result invokeWithOperationKey(
+                TrustedToolContext context, String command, ToolOperationKey operationKey) {
             calls.add("invoke:" + context.userId() + ":" + command);
-            return new Result(command, stableOperationKey(context), "hidden");
+            return new Result(command, operationKey, "hidden");
         }
 
         @Override

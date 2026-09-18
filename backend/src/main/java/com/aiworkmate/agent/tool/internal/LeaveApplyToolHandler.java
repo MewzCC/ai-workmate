@@ -1,6 +1,7 @@
 package com.aiworkmate.agent.tool.internal;
 
 import com.aiworkmate.agent.tool.port.LeaveToolPort;
+import com.aiworkmate.agent.tool.port.ToolOperationKey;
 import com.aiworkmate.agent.registry.ToolCode;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -12,7 +13,7 @@ import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.requiredDa
 import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.requiredText;
 
 @Component
-public final class LeaveApplyToolHandler extends TypedWriteToolHandler<LeaveToolPort.Draft, LeaveToolPort.WriteResult> {
+public final class LeaveApplyToolHandler extends TypedOperationKeyWriteToolHandler<LeaveToolPort.Draft, LeaveToolPort.WriteResult> {
     private final LeaveToolPort leaveToolPort;
 
     public LeaveApplyToolHandler(LeaveToolPort leaveToolPort, ObjectMapper objectMapper) {
@@ -30,8 +31,9 @@ public final class LeaveApplyToolHandler extends TypedWriteToolHandler<LeaveTool
     }
 
     @Override
-    protected LeaveToolPort.WriteResult invoke(TrustedToolContext context, LeaveToolPort.Draft command) {
-        return leaveToolPort.apply(context.actor(), command, stableOperationKey(context));
+    protected LeaveToolPort.WriteResult invokeWithOperationKey(
+            TrustedToolContext context, LeaveToolPort.Draft command, ToolOperationKey operationKey) {
+        return leaveToolPort.apply(context.actor(), command, operationKey);
     }
 
     @Override

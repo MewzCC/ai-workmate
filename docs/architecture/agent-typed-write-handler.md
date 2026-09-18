@@ -10,6 +10,8 @@
 
 Handler 只依赖传输中立的业务 Port。当前 Port 由本地 Adapter 实现；未来拆分 Spring Cloud 时可以替换为固定目标的远程 Adapter，而不改变 Planner、ToolGateway、工具契约和具体 Handler。稳定操作键继续由服务端可信任务与步骤上下文生成，不允许模型或客户端提供。
 
+需要领域幂等键的写入统一继承 `TypedOperationKeyWriteToolHandler`。模板在参数解析完成后根据可信任务坐标生成 `ToolOperationKey`，具体 Handler 只能接收生成后的键并调用类型化 Port。架构测试禁止具体 Handler 直接依赖稳定键生成器，避免后续复制算法、误用 Worker attempt 或从模型参数取键。
+
 ## 门禁
 
 - 具体 Handler 只能继承类型化读或写模板，不再直接实现 `ToolHandler`。

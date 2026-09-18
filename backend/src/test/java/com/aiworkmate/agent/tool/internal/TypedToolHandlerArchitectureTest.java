@@ -5,6 +5,7 @@ import com.tngtech.archunit.junit.ArchTest;
 import com.tngtech.archunit.lang.ArchRule;
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
 @AnalyzeClasses(packages = "com.aiworkmate.agent.tool.internal")
 class TypedToolHandlerArchitectureTest {
@@ -15,4 +16,10 @@ class TypedToolHandlerArchitectureTest {
             .and().areNotInterfaces()
             .and().areNotAssignableTo(TypedReadToolHandler.class)
             .should().beAssignableTo(TypedWriteToolHandler.class);
+
+    @ArchTest
+    static final ArchRule concrete_handlers_cannot_generate_operation_keys_directly = noClasses()
+            .that().haveSimpleNameEndingWith("ToolHandler")
+            .and().doNotHaveSimpleName("TypedOperationKeyWriteToolHandler")
+            .should().dependOnClassesThat().areAssignableTo(StableToolOperationKey.class);
 }

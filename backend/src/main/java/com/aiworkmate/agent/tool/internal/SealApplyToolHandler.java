@@ -2,6 +2,7 @@ package com.aiworkmate.agent.tool.internal;
 
 import com.aiworkmate.agent.registry.ToolCode;
 import com.aiworkmate.agent.tool.port.SealToolPort;
+import com.aiworkmate.agent.tool.port.ToolOperationKey;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Component;
@@ -11,7 +12,7 @@ import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.requiredTe
 
 @Component
 public final class SealApplyToolHandler
-        extends TypedWriteToolHandler<SealToolPort.ApplicationCommand, SealToolPort.ApplicationResult> {
+        extends TypedOperationKeyWriteToolHandler<SealToolPort.ApplicationCommand, SealToolPort.ApplicationResult> {
     private final SealToolPort port;
 
     public SealApplyToolHandler(SealToolPort port, ObjectMapper objectMapper) {
@@ -27,8 +28,9 @@ public final class SealApplyToolHandler
     }
 
     @Override
-    protected SealToolPort.ApplicationResult invoke(
-            TrustedToolContext context, SealToolPort.ApplicationCommand command) {
-        return port.apply(context.actor(), command, stableOperationKey(context));
+    protected SealToolPort.ApplicationResult invokeWithOperationKey(
+            TrustedToolContext context, SealToolPort.ApplicationCommand command,
+            ToolOperationKey operationKey) {
+        return port.apply(context.actor(), command, operationKey);
     }
 }

@@ -2,6 +2,7 @@ package com.aiworkmate.agent.tool.internal;
 
 import com.aiworkmate.agent.registry.ToolCode;
 import com.aiworkmate.agent.tool.port.FinanceToolPort;
+import com.aiworkmate.agent.tool.port.ToolOperationKey;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Component;
@@ -13,7 +14,7 @@ import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.optionalDe
 import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.optionalText;
 
 @Component
-public final class ExpenseCreateDraftToolHandler extends TypedWriteToolHandler<
+public final class ExpenseCreateDraftToolHandler extends TypedOperationKeyWriteToolHandler<
         FinanceToolPort.ExpenseDraft, FinanceToolPort.ExpenseDraftResult> {
     private static final BigDecimal MIN_AMOUNT = new BigDecimal("0.01");
     private static final BigDecimal MAX_AMOUNT = new BigDecimal("999999999.99");
@@ -35,8 +36,9 @@ public final class ExpenseCreateDraftToolHandler extends TypedWriteToolHandler<
     }
 
     @Override
-    protected FinanceToolPort.ExpenseDraftResult invoke(
-            TrustedToolContext context, FinanceToolPort.ExpenseDraft command) {
-        return port.createExpenseDraft(context.actor(), command, stableOperationKey(context));
+    protected FinanceToolPort.ExpenseDraftResult invokeWithOperationKey(
+            TrustedToolContext context, FinanceToolPort.ExpenseDraft command,
+            ToolOperationKey operationKey) {
+        return port.createExpenseDraft(context.actor(), command, operationKey);
     }
 }
