@@ -7,23 +7,29 @@ import com.aiworkmate.dto.SupplierResponse;
 import com.aiworkmate.dto.SupplierStatsResponse;
 import com.aiworkmate.agent.tool.port.FinanceToolPort;
 import com.aiworkmate.agent.tool.port.ToolActorContext;
+import com.aiworkmate.agent.tool.port.ToolOperationKey;
+import com.aiworkmate.agent.tool.port.ToolWriteVerification;
 import com.aiworkmate.service.*;
+import com.aiworkmate.service.model.ExpenseAgentDraftReceipt;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
 
 class FinanceAgentDomainToolAdapterTest {
     private final ExpenseQueryService expenses = mock(ExpenseQueryService.class);
+    private final ExpenseApplicationService expenseApplications = mock(ExpenseApplicationService.class);
     private final BudgetService budgets = mock(BudgetService.class);
     private final ContractService contracts = mock(ContractService.class);
     private final SupplierService suppliers = mock(SupplierService.class);
-    private final FinanceAgentDomainToolAdapter adapter = new FinanceAgentDomainToolAdapter(expenses, budgets, contracts, suppliers);
+    private final FinanceAgentDomainToolAdapter adapter = new FinanceAgentDomainToolAdapter(
+            expenses, expenseApplications, budgets, contracts, suppliers);
     private final ToolActorContext actor = new ToolActorContext(1L, 7L, 3L, 4L, 1, "trace");
 
     @Test
@@ -36,6 +42,28 @@ class FinanceAgentDomainToolAdapterTest {
         var result = adapter.expenses(actor, new FinanceToolPort.ExpenseQuery(null, "PENDING", 1, 20));
         assertThat(result.items().get(0).amount()).isEqualByComparingTo("88.50");
         assertThat(result.toString()).doesNotContain("dataJson", "taskId", "applicantUserId");
+    }
+
+    @Test
+    void mapsExpenseDraftThroughTypedServiceBoundary() {
+        var command = new FinanceToolPort.ExpenseDraft(
+                new BigDecimal("88.50"), "TRAVEL", LocalDate.of(2026, 9, 17),
+                "INV-1", "客户拜访");
+        var key = new ToolOperationKey("expense-operation");
+        var createdAt = LocalDateTime.of(2026, 9, 18, 12, 0);
+        when(expenseApplications.createAgentDraft(eq(7L), any(), eq("expense-operation")))
+                .thenReturn(new ExpenseAgentDraftReceipt(
+                        51L, "expense-application", "DRAFT", 0, createdAt));
+        when(expenseApplications.findAgentDraft(eq(7L), any(), eq("expense-operation")))
+                .thenReturn(Optional.of(new ExpenseAgentDraftReceipt(
+                        51L, "expense-application", "DRAFT", 0, createdAt)));
+
+        var expected = new FinanceToolPort.ExpenseDraftResult(
+                51L, "expense-application", "DRAFT", 0, createdAt);
+        assertThat(adapter.createExpenseDraft(actor, command, key)).isEqualTo(expected);
+        assertThat(adapter.findExpenseDraft(actor, command, key))
+                .isEqualTo(ToolWriteVerification.observed(expected));
+        verify(expenseApplications).createAgentDraft(eq(7L), any(), eq("expense-operation"));
     }
 
     @Test

@@ -47,6 +47,7 @@ public enum ToolCode {
     SEAL_APPLY("seal.apply"),
     SEAL_REGISTER_USE("seal.registerUse"),
     EXPENSE_QUERY("expense.query"),
+    EXPENSE_CREATE_DRAFT("expense.createDraft"),
     BUDGET_QUERY("budget.query"),
     CONTRACT_QUERY("contract.query"),
     SUPPLIER_QUERY("supplier.query"),

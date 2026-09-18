@@ -80,6 +80,8 @@ class P1PostgresMigrationIT {
                 databaseUrl, databaseUsername, databasePassword, emptySchema);
         EmployeeChangeApplicationPostgresVerifier.verify(
                 databaseUrl, databaseUsername, databasePassword, emptySchema);
+        ExpenseDraftPostgresVerifier.verify(
+                databaseUrl, databaseUsername, databasePassword, emptySchema);
         Flyway restartedEmpty = flyway(emptySchema, null);
         assertThat(restartedEmpty.migrate().migrationsExecuted).isZero();
         assertThat(restartedEmpty.validateWithResult().validationSuccessful).isTrue();
@@ -652,6 +654,21 @@ class P1PostgresMigrationIT {
                     WHERE code IN ('expense:read:self','agent:tool:expense.query','agent:tool:budget.query',
                                    'agent:tool:contract.query','agent:tool:supplier.query')
                     """)).as("财务 Agent 工具必须具备业务与工具两层实时权限").isEqualTo(5);
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'expense.createDraft'
+                      AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:9de3b32d7f7a3bc4910ca7f531886a9322d5e3e983a6c140beea948d77e22d4e'
+                      AND risk_level = 'L1' AND data_scope_policy = 'SELF'
+                      AND required_permissions = '["approval:create"]'::jsonb
+                      AND retry_policy = 'BUSINESS_IDEMPOTENT'
+                      AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'EXPLICIT' AND enabled = TRUE
+                    """)).as("费用报销草稿工具必须以冻结的本人原子写契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code = 'agent:tool:expense.createDraft'
+                    """)).as("费用报销草稿 Agent 工具必须具备独立实时权限").isOne();
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM agent_tool
                     WHERE tenant_id IS NULL AND enabled = TRUE AND side_effect = 'NONE'

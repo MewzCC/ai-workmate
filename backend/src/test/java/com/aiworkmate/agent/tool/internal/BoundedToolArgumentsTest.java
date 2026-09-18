@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.math.BigDecimal;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -53,6 +54,10 @@ class BoundedToolArgumentsTest {
         assertThat(BoundedToolArguments.requiredEnum(arguments, "resource",
                 ApprovalConfigurationToolPort.Resource.class))
                 .isEqualTo(ApprovalConfigurationToolPort.Resource.FORM);
+        assertThat(BoundedToolArguments.optionalDecimal(
+                mapper.readTree("{\"amount\":88.50}"), "amount",
+                new BigDecimal("0.01"), new BigDecimal("999.99"), 2))
+                .isEqualByComparingTo("88.50");
     }
 
     @Test
@@ -66,5 +71,9 @@ class BoundedToolArgumentsTest {
         assertThatThrownBy(() -> BoundedToolArguments.requiredEnum(
                 mapper.readTree("{\"resource\":\"UNKNOWN\"}"), "resource",
                 ApprovalConfigurationToolPort.Resource.class)).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> BoundedToolArguments.optionalDecimal(
+                mapper.readTree("{\"amount\":1.001}"), "amount",
+                new BigDecimal("0.01"), new BigDecimal("999.99"), 2))
+                .isInstanceOf(BusinessException.class);
     }
 }

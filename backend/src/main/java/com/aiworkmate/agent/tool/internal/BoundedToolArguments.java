@@ -4,6 +4,7 @@ import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.common.ErrorCode;
 import com.fasterxml.jackson.databind.JsonNode;
 
+import java.math.BigDecimal;
 import java.time.DateTimeException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -108,6 +109,20 @@ final class BoundedToolArguments {
         } catch (DateTimeException exception) {
             throw invalid();
         }
+    }
+
+    static BigDecimal optionalDecimal(
+            JsonNode arguments, String field, BigDecimal minimum,
+            BigDecimal maximum, int maximumScale) {
+        JsonNode value = arguments.get(field);
+        if (value == null || value.isNull()) return null;
+        if (!value.isNumber()) throw invalid();
+        BigDecimal decimal = value.decimalValue();
+        if (decimal.stripTrailingZeros().scale() > maximumScale
+                || decimal.compareTo(minimum) < 0 || decimal.compareTo(maximum) > 0) {
+            throw invalid();
+        }
+        return decimal;
     }
 
     static LocalDateTime requiredDateTime(JsonNode arguments, String field) {

@@ -13,7 +13,14 @@
         LIMIT 1
     </select>
 
-    <sql id="approvalApplicationViewColumns">
+    <!--
+        ApprovalApplicationView is a Java record. MyBatis maps record constructor
+        arguments by column order, so keep identity, snapshot and state columns in
+        the same order as the record declaration. Splitting these groups also lets
+        list queries deliberately omit the large snapshots without shifting every
+        following constructor argument.
+    -->
+    <sql id="approvalApplicationIdentityColumns">
         a.id,
         a.applicant_user_id AS applicantUserId,
         COALESCE(NULLIF(applicant.display_name, ''), applicant.username) AS applicantName,
@@ -21,7 +28,10 @@
         a.form_key AS formKey,
         a.form_name AS formName,
         a.title,
-        a.data_json AS dataJson,
+        a.data_json AS dataJson
+    </sql>
+
+    <sql id="approvalApplicationStateColumns">
         a.status,
         a.version,
         task.id AS taskId,
@@ -68,8 +78,9 @@
 
     <select id="selectView"
             resultType="com.aiworkmate.dto.ApprovalApplicationView">
-        SELECT <include refid="approvalApplicationViewColumns"/>,
-               <include refid="approvalApplicationSnapshotColumns"/>
+        SELECT <include refid="approvalApplicationIdentityColumns"/>,
+               <include refid="approvalApplicationSnapshotColumns"/>,
+               <include refid="approvalApplicationStateColumns"/>
         FROM approval_application a
         <include refid="approvalApplicationViewJoins"/>
         WHERE a.tenant_id = #{tenantId}
@@ -79,7 +90,13 @@
     <!-- 我的通用申请：按创建时间倒序 -->
     <select id="selectMine"
             resultType="com.aiworkmate.dto.ApprovalApplicationView">
-        SELECT <include refid="approvalApplicationViewColumns"/>
+        SELECT <include refid="approvalApplicationIdentityColumns"/>,
+               NULL::text AS formSchemaSnapshot,
+               NULL::integer AS formVersionSnapshot,
+               NULL::text AS processNodeSnapshot,
+               NULL::integer AS processVersionSnapshot,
+               NULL::text AS ruleSnapshot,
+               <include refid="approvalApplicationStateColumns"/>
         FROM approval_application a
         <include refid="approvalApplicationViewJoins"/>
         WHERE a.tenant_id = #{tenantId}

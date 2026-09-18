@@ -147,9 +147,12 @@ class PageCapabilityCatalogTest {
     }
 
     @Test
-    void bindsEachFinancePageToItsLeastPrivilegeReadTool() {
-        assertThat(catalog.find("expense").orElseThrow().readTools())
+    void bindsEachFinancePageToItsLeastPrivilegeTools() {
+        var expense = catalog.find("expense").orElseThrow();
+        assertThat(expense.readTools())
                 .extracting(PageToolReference::code).containsExactly(ToolCode.EXPENSE_QUERY);
+        assertThat(expense.writeTools())
+                .extracting(PageToolReference::code).containsExactly(ToolCode.EXPENSE_CREATE_DRAFT);
         assertThat(catalog.find("budget").orElseThrow().readTools())
                 .extracting(PageToolReference::code).containsExactly(ToolCode.BUDGET_QUERY);
         assertThat(catalog.find("contracts").orElseThrow().readTools())
