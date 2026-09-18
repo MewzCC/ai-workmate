@@ -74,7 +74,9 @@ final class ExpenseDraftPostgresVerifier {
         var factory = new MybatisSqlSessionFactoryBean();
         factory.setDataSource(datasource);
         factory.setConfiguration(configuration);
-        factory.setMapperLocations(new ClassPathResource("mapper/ApprovalApplicationMapper.xml"));
+        factory.setMapperLocations(
+                new ClassPathResource("mapper/ApprovalApplicationMapper.xml"),
+                new ClassPathResource("mapper/WorkflowActionLogMapper.xml"));
         var session = new SqlSessionTemplate(factory.getObject());
         var access = mock(UserAccessService.class);
         when(access.resolveActiveUser(applicant)).thenReturn(actor(applicant, tenant, 1L));
@@ -121,6 +123,40 @@ final class ExpenseDraftPostgresVerifier {
                 applicant, command, "expense-draft-operation"));
         assertThat(observed).isPresent();
 
+        Long withdrawId = pendingExpense(jdbc, tenant, applicant, "expense-withdraw-concurrent");
+        var withdrawExecutor = Executors.newFixedThreadPool(2);
+        try {
+            var barrier = new CyclicBarrier(2);
+            Callable<Boolean> withdraw = () -> {
+                barrier.await(10, TimeUnit.SECONDS);
+                try {
+                    tx.execute(status -> service.withdrawAgentApplication(applicant, withdrawId, 0));
+                    return true;
+                } catch (BusinessException error) {
+                    assertThat(error.getErrorCode()).isIn(
+                            "VERSION_CONFLICT", "BUSINESS_STATE_INVALID");
+                    return false;
+                }
+            };
+            var first = withdrawExecutor.submit(withdraw);
+            var second = withdrawExecutor.submit(withdraw);
+            assertThat(List.of(first.get(20, TimeUnit.SECONDS), second.get(20, TimeUnit.SECONDS)))
+                    .containsExactlyInAnyOrder(true, false);
+        } finally {
+            withdrawExecutor.shutdownNow();
+        }
+        assertThat(jdbc.queryForObject(
+                "SELECT status FROM approval_application WHERE id=?", String.class, withdrawId))
+                .isEqualTo("WITHDRAWN");
+        assertThat(jdbc.queryForObject("""
+                SELECT status FROM workflow_task
+                WHERE business_type='GENERIC_APPROVAL' AND business_id=?
+                """, String.class, withdrawId)).isEqualTo("CANCELLED");
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM business_audit_log
+                WHERE resource_type='GENERIC_APPROVAL' AND resource_id=? AND action='WITHDRAW'
+                """, Integer.class, withdrawId.toString())).isOne();
+
         BusinessAuditService failingAudit = mock(BusinessAuditService.class);
         doThrow(new IllegalStateException("audit unavailable")).when(failingAudit)
                 .recordTransactional(any(), any(), any(), any(), any(), any(), any());
@@ -135,6 +171,19 @@ final class ExpenseDraftPostgresVerifier {
                 SELECT count(*) FROM approval_application
                 WHERE agent_operation_key='expense-draft-rollback'
                 """, Integer.class)).isZero();
+
+        Long withdrawRollbackId = pendingExpense(
+                jdbc, tenant, applicant, "expense-withdraw-rollback");
+        assertThatThrownBy(() -> tx.execute(status -> failingService.withdrawAgentApplication(
+                applicant, withdrawRollbackId, 0)))
+                .isInstanceOf(IllegalStateException.class);
+        assertThat(jdbc.queryForObject(
+                "SELECT status FROM approval_application WHERE id=?",
+                String.class, withdrawRollbackId)).isEqualTo("PENDING");
+        assertThat(jdbc.queryForObject("""
+                SELECT status FROM workflow_task
+                WHERE business_type='GENERIC_APPROVAL' AND business_id=?
+                """, String.class, withdrawRollbackId)).isEqualTo("PENDING");
 
         when(access.resolveActiveUser(applicant)).thenReturn(actor(applicant, tenant + 100000, 2L));
         Optional<?> crossTenant = tx.execute(status -> service.findAgentDraft(
@@ -170,6 +219,46 @@ final class ExpenseDraftPostgresVerifier {
     private static ResolvedUserAccess actor(long userId, long tenantId, long version) {
         return new ResolvedUserAccess(
                 userId, "expense-user", tenantId, "EMPLOYEE", List.of("EMPLOYEE"),
-                List.of("route:approval-start", "approval:create"), List.of("SELF"), version);
+                List.of("route:approval-start", "approval:create", "approval:withdraw"),
+                List.of("SELF"), version);
+    }
+
+    private static Long pendingExpense(
+            JdbcTemplate jdbc, long tenantId, long applicantId, String operationKey) {
+        Long formId = jdbc.queryForObject("""
+                SELECT id FROM approval_form
+                WHERE tenant_id=? AND form_key='expense-application' AND deleted=FALSE
+                """, Long.class, tenantId);
+        Long processId = jdbc.queryForObject("""
+                SELECT id FROM approval_process
+                WHERE tenant_id=? AND process_key='expense-single-approval' AND deleted=FALSE
+                """, Long.class, tenantId);
+        Long definitionId = jdbc.queryForObject("""
+                SELECT id FROM workflow_definition
+                WHERE tenant_id=? AND business_type='GENERIC_APPROVAL' AND enabled=TRUE
+                ORDER BY version DESC LIMIT 1
+                """, Long.class, tenantId);
+        Long applicationId = jdbc.queryForObject("""
+                INSERT INTO approval_application(
+                    tenant_id,applicant_user_id,form_id,process_id,form_key,form_name,title,
+                    data_json,agent_operation_key,status,version,submitted_at)
+                VALUES (?, ?, ?, ?, 'expense-application', '费用报销单', '费用报销',
+                    '{}', ?, 'PENDING', 0, CURRENT_TIMESTAMP)
+                RETURNING id
+                """, Long.class, tenantId, applicantId, formId, processId, operationKey);
+        Long instanceId = jdbc.queryForObject("""
+                INSERT INTO workflow_instance(
+                    tenant_id,definition_id,business_type,business_id,applicant_id,status)
+                VALUES (?, ?, 'GENERIC_APPROVAL', ?, ?, 'RUNNING')
+                RETURNING id
+                """, Long.class, tenantId, definitionId, applicationId, applicantId);
+        jdbc.update("UPDATE approval_application SET workflow_instance_id=? WHERE id=?",
+                instanceId, applicationId);
+        jdbc.update("""
+                INSERT INTO workflow_task(
+                    tenant_id,instance_id,business_type,business_id,assignee_user_id,status)
+                VALUES (?, ?, 'GENERIC_APPROVAL', ?, ?, 'PENDING')
+                """, tenantId, instanceId, applicationId, applicantId);
+        return applicationId;
     }
 }

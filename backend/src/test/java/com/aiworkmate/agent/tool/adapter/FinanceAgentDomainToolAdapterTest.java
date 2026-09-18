@@ -80,6 +80,18 @@ class FinanceAgentDomainToolAdapterTest {
     }
 
     @Test
+    void withdrawsExpenseThroughDedicatedTypedBoundary() {
+        when(expenseApplications.withdrawAgentApplication(7L, 51L, 1))
+                .thenReturn(new ExpenseAgentLifecycleReceipt(
+                        51L, "expense-application", "WITHDRAWN", 2));
+
+        assertThat(adapter.withdrawExpense(actor, 51L, 1))
+                .isEqualTo(new FinanceToolPort.ExpenseLifecycleResult(
+                        51L, "expense-application", "WITHDRAWN", 2));
+        verify(expenseApplications).withdrawAgentApplication(7L, 51L, 1);
+    }
+
+    @Test
     void supplierSummaryDropsContactCreditAddressAndRiskFields() {
         var now = LocalDateTime.of(2026, 9, 14, 10, 0);
         when(suppliers.list(7L, null, null, null, 1, 20)).thenReturn(new SupplierPageResponse(List.of(

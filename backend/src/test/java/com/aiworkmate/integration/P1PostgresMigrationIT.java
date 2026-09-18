@@ -686,6 +686,21 @@ class P1PostgresMigrationIT {
                     """)).as("费用报销草稿提交 Agent 工具必须具备独立实时权限").isOne();
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'expense.withdraw'
+                      AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:c8e2e2a9d93a8ee8031186fb657a094d19abe0a78cb5c9dbaa0c51ceb62377e4'
+                      AND risk_level = 'L1' AND data_scope_policy = 'SELF'
+                      AND required_permissions = '["approval:withdraw"]'::jsonb
+                      AND retry_policy = 'NEVER'
+                      AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'EXPLICIT' AND enabled = TRUE
+                    """)).as("费用报销撤回工具必须以冻结的本人原子写契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code = 'agent:tool:expense.withdraw'
+                    """)).as("费用报销撤回 Agent 工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
                     WHERE tenant_id IS NULL AND enabled = TRUE AND side_effect = 'NONE'
                       AND (code, schema_hash, data_scope_policy) IN (
                         ('integration.endpoint.query','sha256:77b6949a8aca42cdd8c7776e51e64e2fa4bf52c64bb4d950e5d61e2c19eadd22','TENANT_SCOPED'),

@@ -21,6 +21,10 @@ public class AgentExpenseWriteToolDefinitions {
     public static final String SUBMIT_DRAFT_OUTPUT_SCHEMA = """
             {"type":"object","additionalProperties":false,"required":["applicationId","formKey","status","version"],"properties":{"applicationId":{"type":"integer","minimum":1},"formKey":{"type":"string","const":"expense-application"},"status":{"type":"string","const":"PENDING"},"version":{"type":"integer","minimum":1}}}
             """.strip();
+    public static final String WITHDRAW_INPUT_SCHEMA = SUBMIT_DRAFT_INPUT_SCHEMA;
+    public static final String WITHDRAW_OUTPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["applicationId","formKey","status","version"],"properties":{"applicationId":{"type":"integer","minimum":1},"formKey":{"type":"string","const":"expense-application"},"status":{"type":"string","const":"WITHDRAWN"},"version":{"type":"integer","minimum":1}}}
+            """.strip();
 
     @Bean
     ToolDefinition expenseCreateDraftToolDefinition(ObjectMapper objectMapper)
@@ -46,6 +50,20 @@ public class AgentExpenseWriteToolDefinitions {
                 objectMapper.readTree(SUBMIT_DRAFT_INPUT_SCHEMA),
                 objectMapper.readTree(SUBMIT_DRAFT_OUTPUT_SCHEMA),
                 RiskLevel.L1, Set.of("approval:submit"), OwnershipPolicy.SELF,
+                RetryPolicy.NEVER, ConfirmationPolicy.EXPLICIT,
+                1, 4096, 15000);
+    }
+
+    @Bean
+    ToolDefinition expenseWithdrawToolDefinition(ObjectMapper objectMapper)
+            throws JsonProcessingException {
+        return ToolDefinitionFactory.singleWrite(
+                ToolCode.EXPENSE_WITHDRAW, "Withdraw my expense application",
+                "Withdraws one self-owned pending expense application.",
+                "Cancel the active approval task and workflow only for a verified expense application.",
+                objectMapper.readTree(WITHDRAW_INPUT_SCHEMA),
+                objectMapper.readTree(WITHDRAW_OUTPUT_SCHEMA),
+                RiskLevel.L1, Set.of("approval:withdraw"), OwnershipPolicy.SELF,
                 RetryPolicy.NEVER, ConfirmationPolicy.EXPLICIT,
                 1, 4096, 15000);
     }

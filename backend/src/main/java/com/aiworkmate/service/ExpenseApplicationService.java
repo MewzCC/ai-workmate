@@ -15,4 +15,6 @@ public interface ExpenseApplicationService {
             Long userId, ExpenseAgentDraftCommand command, String operationKey);
 
     ExpenseAgentLifecycleReceipt submitAgentDraft(Long userId, Long applicationId, int version);
+
+    ExpenseAgentLifecycleReceipt withdrawAgentApplication(Long userId, Long applicationId, int version);
 }

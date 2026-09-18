@@ -142,7 +142,8 @@ public class PageCapabilityCatalog {
 
                 page(OaPage.EXPENSE, OwnershipPolicy.SELF, FORM_COMMANDS,
                         context(number("applicationId"), text("status"), number("page"), number("size")),
-                        tool(EXPENSE_QUERY), tool(EXPENSE_CREATE_DRAFT), tool(EXPENSE_SUBMIT_DRAFT)),
+                        tool(EXPENSE_QUERY), tool(EXPENSE_CREATE_DRAFT), tool(EXPENSE_SUBMIT_DRAFT),
+                        tool(EXPENSE_WITHDRAW)),
                 page(OaPage.BUDGET, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         context(number("budgetId"), text("keyword"), text("status"), number("fiscalYear"),
                                 number("page"), number("size")), tool(BUDGET_QUERY)),

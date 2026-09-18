@@ -52,4 +52,25 @@ class AgentExpenseWriteToolDefinitionsTest {
         assertThat(validator.valid(definition.inputSchema(), mapper.readTree(
                 "{\"applicationId\":51,\"version\":0,\"formKey\":\"other\"}"))).isFalse();
     }
+
+    @Test
+    void withdrawOnlyAcceptsOneVersionedExpenseApplicationAndNeverRetries() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        ToolDefinition definition = new AgentExpenseWriteToolDefinitions()
+                .expenseWithdrawToolDefinition(mapper);
+        ToolSchemaValidator validator = new ToolSchemaValidator();
+
+        assertThat(definition.schemaHash()).isEqualTo(
+                "sha256:c8e2e2a9d93a8ee8031186fb657a094d19abe0a78cb5c9dbaa0c51ceb62377e4");
+        assertThat(definition.requiredPermissions()).containsExactly("approval:withdraw");
+        assertThat(definition.riskLevel()).isEqualTo(RiskLevel.L1);
+        assertThat(definition.sideEffect()).isEqualTo(SideEffect.SINGLE_WRITE);
+        assertThat(definition.retryPolicy()).isEqualTo(RetryPolicy.NEVER);
+        assertThat(definition.confirmationPolicy()).isEqualTo(ConfirmationPolicy.EXPLICIT);
+        assertThat(definition.ownershipPolicy()).isEqualTo(OwnershipPolicy.SELF);
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree(
+                "{\"applicationId\":51,\"version\":1}"))).isTrue();
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree(
+                "{\"applicationId\":51,\"version\":1,\"reason\":\"skip\"}"))).isFalse();
+    }
 }

@@ -14,6 +14,8 @@ public interface FinanceToolPort {
             ToolActorContext context, ExpenseDraft command, ToolOperationKey operationKey);
     ExpenseLifecycleResult submitExpenseDraft(
             ToolActorContext context, long applicationId, int version);
+    ExpenseLifecycleResult withdrawExpense(
+            ToolActorContext context, long applicationId, int version);
     Page<Budget> budgets(ToolActorContext context, BudgetQuery query);
     Page<Contract> contracts(ToolActorContext context, ContractQuery query);
     Page<Supplier> suppliers(ToolActorContext context, SupplierQuery query);
