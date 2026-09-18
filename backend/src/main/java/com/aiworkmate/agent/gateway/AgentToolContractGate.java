@@ -1,8 +1,6 @@
 package com.aiworkmate.agent.gateway;
 
 import com.aiworkmate.agent.capability.PageCapabilityCatalog;
-import com.aiworkmate.agent.capability.PageToolAccess;
-import com.aiworkmate.agent.registry.SideEffect;
 import com.aiworkmate.agent.registry.ToolCode;
 import com.aiworkmate.agent.registry.ToolDefinition;
 import com.aiworkmate.agent.tool.internal.ToolHandler;
@@ -50,9 +48,7 @@ public class AgentToolContractGate {
                 .map(reference -> {
                     ToolDefinition definition = definitionsByCode.get(reference.toolCode());
                     require(definition != null, "Page references a tool without a definition");
-                    SideEffect expected = reference.access() == PageToolAccess.READ
-                            ? SideEffect.NONE : SideEffect.SINGLE_WRITE;
-                    require(definition.sideEffect() == expected,
+                    require(definition.sideEffect() == reference.code().sideEffect(),
                             "Page tool access does not match the tool side effect");
                     return reference.toolCode();
                 })

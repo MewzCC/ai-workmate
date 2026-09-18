@@ -8,6 +8,7 @@ import com.aiworkmate.agent.registry.RetryPolicy;
 import com.aiworkmate.agent.registry.RiskLevel;
 import com.aiworkmate.agent.registry.SideEffect;
 import com.aiworkmate.agent.registry.ToolDefinition;
+import com.aiworkmate.agent.registry.ToolCode;
 import com.aiworkmate.agent.registry.ToolRegistry;
 import com.aiworkmate.agent.task.AgentHashing;
 import com.aiworkmate.agent.tool.internal.ToolHandler;
@@ -81,11 +82,7 @@ class DefaultToolGatewayPolicyTest {
         when(auditWriter.record(any(), any(), anyString(), anyBoolean())).thenReturn("decision-1");
         when(handler.execute(any(), any())).thenReturn(objectMapper.readTree("{\"items\":[]}"));
 
-        gateway = new DefaultToolGateway(
-                properties, snapshotMapper, toolRegistry, userAccessService, hashing,
-                new ToolSchemaValidator(), new ToolOutputGuard(), new HandlerResolver(List.of(handler)),
-                auditWriter, objectMapper, TOOL_EXECUTOR
-        );
+        rebuildGateway();
     }
 
     @AfterAll
@@ -281,13 +278,8 @@ class DefaultToolGatewayPolicyTest {
 
     @Test
     void timedOutWriteIsReportedUnknownAndNeverAsSafeFailure() throws Exception {
-        properties.setWriteToolsEnabled(true);
-        definition = writeDefinition();
-        snapshot = snapshot();
-        snapshot.setConfirmationConsumedAt(LocalDateTime.now());
+        configureWriteDefinition();
         snapshot.setStepTimeoutAt(LocalDateTime.now().plusNanos(150_000_000));
-        when(snapshotMapper.selectSnapshot(10L)).thenReturn(snapshot);
-        when(toolRegistry.resolveExecutableTool(1L, "todo.query")).thenReturn(Optional.of(definition));
         when(handler.execute(any(), any())).thenAnswer(ignored -> {
             Thread.sleep(5_000);
             return objectMapper.readTree("{\"items\":[]}");
@@ -341,8 +333,14 @@ class DefaultToolGatewayPolicyTest {
         definition = writeDefinition();
         snapshot = snapshot();
         snapshot.setConfirmationConsumedAt(LocalDateTime.now());
+        when(handler.toolCode()).thenReturn(definition.code());
         when(snapshotMapper.selectSnapshot(10L)).thenReturn(snapshot);
-        when(toolRegistry.resolveExecutableTool(1L, "todo.query")).thenReturn(Optional.of(definition));
+        when(toolRegistry.resolveExecutableTool(1L, definition.code())).thenReturn(Optional.of(definition));
+        when(userAccessService.resolveActiveUser(7L)).thenReturn(new ResolvedUserAccess(
+                7L, "user", 1L, "EMPLOYEE", List.of("EMPLOYEE"),
+                List.of("todo:read", "agent:tool:" + definition.code()), List.of("SELF"), 1L
+        ));
+        rebuildGateway();
     }
 
     private ToolDefinition definition() throws Exception {
@@ -368,7 +366,7 @@ class DefaultToolGatewayPolicyTest {
                 {"type":"object","additionalProperties":false,"properties":{"items":{"type":"array","maxItems":1}},"required":["items"]}
                 """);
         return ToolDefinition.create(
-                "todo.query", "Controlled write test", "Test post-invocation uncertainty",
+                ToolCode.LEAVE_CREATE_DRAFT, "Controlled write test", "Test post-invocation uncertainty",
                 "Test write uncertainty", "1.0.0", input, output, RiskLevel.L1,
                 Set.of("todo:read"), PermissionMode.ALL, OwnershipPolicy.SELF,
                 RetryPolicy.BUSINESS_IDEMPOTENT, SideEffect.SINGLE_WRITE,
@@ -382,7 +380,7 @@ class DefaultToolGatewayPolicyTest {
         planNode.put("planVersion", 1);
         var plannedStep = planNode.putArray("steps").addObject();
         plannedStep.put("sequence", 1);
-        plannedStep.put("toolCode", "todo.query");
+        plannedStep.put("toolCode", definition.code());
         plannedStep.put("toolVersion", "1.0.0");
         plannedStep.put("schemaHash", definition.schemaHash());
         plannedStep.put("argsHash", argsHash);
@@ -410,7 +408,7 @@ class DefaultToolGatewayPolicyTest {
         value.setPlanVersion(1);
         value.setTaskRiskLevel(definition.riskLevel().name());
         value.setToolCallCount(0);
-        value.setToolCode("todo.query");
+        value.setToolCode(definition.code());
         value.setToolVersion("1.0.0");
         value.setSchemaHash(definition.schemaHash());
         value.setArguments(arguments);
@@ -418,5 +416,13 @@ class DefaultToolGatewayPolicyTest {
         value.setStepRiskLevel(definition.riskLevel().name());
         value.setTraceId("trace-1");
         return value;
+    }
+
+    private void rebuildGateway() {
+        gateway = new DefaultToolGateway(
+                properties, snapshotMapper, toolRegistry, userAccessService, hashing,
+                new ToolSchemaValidator(), new ToolOutputGuard(), new HandlerResolver(List.of(handler)),
+                auditWriter, objectMapper, TOOL_EXECUTOR
+        );
     }
 }

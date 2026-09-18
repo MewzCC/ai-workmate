@@ -1,6 +1,5 @@
 package com.aiworkmate.agent.capability;
 
-import com.aiworkmate.agent.registry.SideEffect;
 import com.aiworkmate.agent.registry.ToolCatalog;
 import org.springframework.stereotype.Component;
 
@@ -18,8 +17,7 @@ public final class PageToolContractValidator {
                 var definition = tools.find(reference.toolCode()).orElseThrow(() ->
                         new IllegalStateException("Page references unregistered tool: "
                                 + page.pageId() + "/" + reference.toolCode()));
-                boolean write = reference.access() == PageToolAccess.SINGLE_WRITE;
-                if (write != (definition.sideEffect() == SideEffect.SINGLE_WRITE)) {
+                if (definition.sideEffect() != reference.code().sideEffect()) {
                     throw new IllegalStateException("Page/tool side effect mismatch: "
                             + page.pageId() + "/" + reference.toolCode());
                 }

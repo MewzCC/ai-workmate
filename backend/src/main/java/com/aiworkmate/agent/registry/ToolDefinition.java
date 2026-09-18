@@ -109,6 +109,8 @@ public record ToolDefinition(
         validatePropertyNames(inputSchema);
         require(riskLevel != null && permissionMode != null && ownershipPolicy != null, "Risk and ownership metadata is required");
         require(retryPolicy != null && sideEffect != null && confirmationPolicy != null, "Execution metadata is required");
+        require(ToolCode.fromCode(code).sideEffect() == sideEffect,
+                "Tool side effect must match the code-owned capability manifest");
         require(maxResultItems >= 1 && maxResultItems <= 50, "maxResultItems exceeds platform limit");
         require(maxResultBytes >= 1024 && maxResultBytes <= 262144, "maxResultBytes exceeds platform limit");
         require(timeoutMs >= 1000 && timeoutMs <= 30000, "timeoutMs exceeds platform limit");

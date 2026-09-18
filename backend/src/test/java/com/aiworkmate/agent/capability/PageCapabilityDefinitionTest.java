@@ -17,8 +17,8 @@ class PageCapabilityDefinitionTest {
     void createsImmutableManifestAndSeparatesReadFromWriteTools() {
         Set<PageUiCommand> commands = new LinkedHashSet<>(Set.of(PageUiCommand.APPLY_FILTER));
         List<PageToolReference> tools = new ArrayList<>(List.of(
-                new PageToolReference("leave.mine", PageToolAccess.READ),
-                new PageToolReference("leave.apply", PageToolAccess.SINGLE_WRITE)
+                new PageToolReference("leave.mine"),
+                new PageToolReference("leave.apply")
         ));
         PageCapabilityDefinition definition = definition(commands, tools, context("status"));
 
@@ -34,17 +34,23 @@ class PageCapabilityDefinitionTest {
     @Test
     void rejectsDuplicateToolsWhileAllowingMultipleAtomicChoices() {
         assertThatThrownBy(() -> definition(Set.of(), List.of(
-                new PageToolReference("leave.mine", PageToolAccess.READ),
-                new PageToolReference("leave.mine", PageToolAccess.READ)
+                new PageToolReference("leave.mine"),
+                new PageToolReference("leave.mine")
         ), PageContextSchema.empty()))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Duplicate");
 
         PageCapabilityDefinition definition = definition(Set.of(), List.of(
-                new PageToolReference("leave.apply", PageToolAccess.SINGLE_WRITE),
-                new PageToolReference("leave.submit", PageToolAccess.SINGLE_WRITE)
+                new PageToolReference("leave.apply"),
+                new PageToolReference("leave.submit")
         ), PageContextSchema.empty());
         assertThat(definition.writeTools()).hasSize(2);
+    }
+
+    @Test
+    void derivesPageAccessFromTheCodeOwnedToolManifest() {
+        assertThat(new PageToolReference("todo.query").access()).isEqualTo(PageToolAccess.READ);
+        assertThat(new PageToolReference("leave.apply").access()).isEqualTo(PageToolAccess.SINGLE_WRITE);
     }
 
     @Test

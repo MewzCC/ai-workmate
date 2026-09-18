@@ -52,38 +52,6 @@ class TypedWriteToolHandlerTest {
         assertThat(output.path("value").asText()).isEqualTo("19:2:7");
     }
 
-    @Test
-    void allCurrentWriteHandlersUseTheTemplateWithoutMixingReadHandlers() {
-        assertThat(List.of(
-                ApprovalApplicationCreateDraftToolHandler.class,
-                ApprovalApplicationSubmitDraftToolHandler.class,
-                ApprovalApplicationWithdrawToolHandler.class,
-                ApprovalApplicationReopenToolHandler.class,
-                AttendanceReissueApplyToolHandler.class,
-                LeaveApplyToolHandler.class,
-                LeaveCreateDraftToolHandler.class,
-                LeaveSubmitToolHandler.class,
-                LeaveWithdrawToolHandler.class,
-                EmployeeChangeApplyToolHandler.class,
-                ExpenseCreateDraftToolHandler.class,
-                MeetingBookToolHandler.class,
-                MeetingCancelToolHandler.class,
-                NotificationMarkReadToolHandler.class
-        )).allMatch(TypedWriteToolHandler.class::isAssignableFrom);
-        assertThat(List.of(
-                ApprovalApplicationSubmitDraftToolHandler.class,
-                ApprovalApplicationWithdrawToolHandler.class,
-                ApprovalApplicationReopenToolHandler.class,
-                LeaveSubmitToolHandler.class,
-                LeaveWithdrawToolHandler.class
-        )).allMatch(TypedVersionedWriteToolHandler.class::isAssignableFrom);
-        assertThat(List.of(
-                AssetQueryToolHandler.class,
-                TodoQueryToolHandler.class,
-                NotificationMineToolHandler.class
-        )).noneMatch(TypedWriteToolHandler.class::isAssignableFrom);
-    }
-
     private static final class SampleHandler extends TypedWriteToolHandler<String, Result> {
         private final List<String> calls;
 

@@ -14,40 +14,40 @@ public enum ToolCode {
     LEAVE_MINE("leave.mine"),
     KNOWLEDGE_SEARCH("knowledge.search"),
     NOTIFICATION_MINE("notification.mine"),
-    NOTIFICATION_MARK_READ("notification.markRead"),
-    LEAVE_CREATE_DRAFT("leave.createDraft"),
-    LEAVE_SUBMIT("leave.submit"),
-    LEAVE_APPLY("leave.apply"),
-    LEAVE_WITHDRAW("leave.withdraw"),
+    NOTIFICATION_MARK_READ("notification.markRead", SideEffect.SINGLE_WRITE),
+    LEAVE_CREATE_DRAFT("leave.createDraft", SideEffect.SINGLE_WRITE),
+    LEAVE_SUBMIT("leave.submit", SideEffect.SINGLE_WRITE),
+    LEAVE_APPLY("leave.apply", SideEffect.SINGLE_WRITE),
+    LEAVE_WITHDRAW("leave.withdraw", SideEffect.SINGLE_WRITE),
     APPROVAL_CONFIGURATION_QUERY("approval.configuration.query"),
     APPROVAL_TASK_QUERY("approval.task.query"),
     HR_ORGANIZATION_QUERY("hr.organization.query"),
     HR_EMPLOYEE_QUERY("hr.employee.query"),
     HR_CHANGE_QUERY("hr.change.query"),
-    HR_CHANGE_APPLY("hr.change.apply"),
+    HR_CHANGE_APPLY("hr.change.apply", SideEffect.SINGLE_WRITE),
     ATTENDANCE_QUERY("attendance.query"),
-    ATTENDANCE_REISSUE_APPLY("attendance.reissue.apply"),
-    APPROVAL_APPLICATION_CREATE_DRAFT("approval.application.createDraft"),
-    APPROVAL_APPLICATION_SUBMIT_DRAFT("approval.application.submitDraft"),
-    APPROVAL_APPLICATION_WITHDRAW("approval.application.withdraw"),
-    APPROVAL_APPLICATION_REOPEN("approval.application.reopen"),
+    ATTENDANCE_REISSUE_APPLY("attendance.reissue.apply", SideEffect.SINGLE_WRITE),
+    APPROVAL_APPLICATION_CREATE_DRAFT("approval.application.createDraft", SideEffect.SINGLE_WRITE),
+    APPROVAL_APPLICATION_SUBMIT_DRAFT("approval.application.submitDraft", SideEffect.SINGLE_WRITE),
+    APPROVAL_APPLICATION_WITHDRAW("approval.application.withdraw", SideEffect.SINGLE_WRITE),
+    APPROVAL_APPLICATION_REOPEN("approval.application.reopen", SideEffect.SINGLE_WRITE),
     ASSET_QUERY("asset.query"),
-    ASSET_CLAIM("asset.claim"),
-    ASSET_RETURN("asset.return"),
-    ASSET_REPAIR_START("asset.repair.start"),
+    ASSET_CLAIM("asset.claim", SideEffect.SINGLE_WRITE),
+    ASSET_RETURN("asset.return", SideEffect.SINGLE_WRITE),
+    ASSET_REPAIR_START("asset.repair.start", SideEffect.SINGLE_WRITE),
     MEETING_QUERY("meeting.query"),
-    MEETING_BOOK("meeting.book"),
-    MEETING_CANCEL("meeting.cancel"),
+    MEETING_BOOK("meeting.book", SideEffect.SINGLE_WRITE),
+    MEETING_CANCEL("meeting.cancel", SideEffect.SINGLE_WRITE),
     VISITOR_QUERY("visitor.query"),
-    VISITOR_APPLY("visitor.apply"),
-    VISITOR_CHECK_IN("visitor.checkIn"),
-    VISITOR_MARK_ARRIVED("visitor.markArrived"),
-    VISITOR_LEAVE("visitor.leave"),
+    VISITOR_APPLY("visitor.apply", SideEffect.SINGLE_WRITE),
+    VISITOR_CHECK_IN("visitor.checkIn", SideEffect.SINGLE_WRITE),
+    VISITOR_MARK_ARRIVED("visitor.markArrived", SideEffect.SINGLE_WRITE),
+    VISITOR_LEAVE("visitor.leave", SideEffect.SINGLE_WRITE),
     SEAL_QUERY("seal.query"),
-    SEAL_APPLY("seal.apply"),
-    SEAL_REGISTER_USE("seal.registerUse"),
+    SEAL_APPLY("seal.apply", SideEffect.SINGLE_WRITE),
+    SEAL_REGISTER_USE("seal.registerUse", SideEffect.SINGLE_WRITE),
     EXPENSE_QUERY("expense.query"),
-    EXPENSE_CREATE_DRAFT("expense.createDraft"),
+    EXPENSE_CREATE_DRAFT("expense.createDraft", SideEffect.SINGLE_WRITE),
     BUDGET_QUERY("budget.query"),
     CONTRACT_QUERY("contract.query"),
     SUPPLIER_QUERY("supplier.query"),
@@ -79,13 +79,27 @@ public enum ToolCode {
     }
 
     private final String code;
+    private final SideEffect sideEffect;
 
     ToolCode(String code) {
+        this(code, SideEffect.NONE);
+    }
+
+    ToolCode(String code, SideEffect sideEffect) {
         this.code = code;
+        this.sideEffect = sideEffect;
     }
 
     public String code() {
         return code;
+    }
+
+    public SideEffect sideEffect() {
+        return sideEffect;
+    }
+
+    public boolean isWrite() {
+        return sideEffect == SideEffect.SINGLE_WRITE;
     }
 
     public static ToolCode fromCode(String code) {
