@@ -64,6 +64,7 @@ class TypedWriteToolHandlerTest {
                 LeaveCreateDraftToolHandler.class,
                 LeaveSubmitToolHandler.class,
                 LeaveWithdrawToolHandler.class,
+                EmployeeChangeApplyToolHandler.class,
                 MeetingBookToolHandler.class,
                 MeetingCancelToolHandler.class,
                 NotificationMarkReadToolHandler.class

@@ -78,6 +78,8 @@ class P1PostgresMigrationIT {
                 databaseUrl, databaseUsername, databasePassword, emptySchema);
         SealRegisterUsePostgresVerifier.verify(
                 databaseUrl, databaseUsername, databasePassword, emptySchema);
+        EmployeeChangeApplicationPostgresVerifier.verify(
+                databaseUrl, databaseUsername, databasePassword, emptySchema);
         Flyway restartedEmpty = flyway(emptySchema, null);
         assertThat(restartedEmpty.migrate().migrationsExecuted).isZero();
         assertThat(restartedEmpty.validateWithResult().validationSuccessful).isTrue();
@@ -291,6 +293,27 @@ class P1PostgresMigrationIT {
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM rbac_permission WHERE code = 'agent:tool:hr.change.query'
                     """)).as("入转调离 Agent 工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'hr.change.apply' AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:958d37b7a487f4ac1f736907a017678b20fc27afa341205a5f7b7ab93ef82303'
+                      AND risk_level = 'L1' AND data_scope_policy = 'TENANT_SCOPED'
+                      AND retry_policy = 'BUSINESS_IDEMPOTENT' AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'EXPLICIT' AND enabled = TRUE
+                    """)).as("员工变动申请工具必须以冻结的租户原子写契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission WHERE code = 'agent:tool:hr.change.apply'
+                    """)).as("员工变动申请 Agent 工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM information_schema.columns
+                    WHERE table_schema = current_schema() AND table_name = 'employee_change'
+                      AND column_name = 'agent_operation_key'
+                    """)).as("员工变动申请必须持久化 Agent 领域幂等键").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM pg_indexes
+                    WHERE schemaname = current_schema() AND tablename = 'employee_change'
+                      AND indexname = 'ux_employee_change_agent_key'
+                    """)).as("员工变动申请稳定操作键必须由申请人范围唯一约束防重").isOne();
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM agent_tool
                     WHERE tenant_id IS NULL AND code = 'asset.query' AND handler_version = '1.0.0'

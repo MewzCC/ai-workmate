@@ -159,6 +159,15 @@ class PageCapabilityCatalogTest {
     }
 
     @Test
+    void employeeChangePageOffersReadAndApplicationOnlyWrite() {
+        var page = catalog.find("employee-change").orElseThrow();
+        assertThat(page.readTools()).extracting(PageToolReference::code)
+                .containsExactly(ToolCode.HR_CHANGE_QUERY);
+        assertThat(page.writeTools()).extracting(PageToolReference::code)
+                .containsExactly(ToolCode.HR_CHANGE_APPLY);
+    }
+
+    @Test
     void bindsEachPlatformOperationsPageToItsLeastPrivilegeReadTool() {
         assertThat(catalog.find("api-center").orElseThrow().readTools()).extracting(PageToolReference::code).containsExactly(ToolCode.INTEGRATION_ENDPOINT_QUERY);
         assertThat(catalog.find("page-actions").orElseThrow().readTools()).extracting(PageToolReference::code).containsExactly(ToolCode.PAGE_ACTION_QUERY);

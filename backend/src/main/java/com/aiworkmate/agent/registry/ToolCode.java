@@ -24,6 +24,7 @@ public enum ToolCode {
     HR_ORGANIZATION_QUERY("hr.organization.query"),
     HR_EMPLOYEE_QUERY("hr.employee.query"),
     HR_CHANGE_QUERY("hr.change.query"),
+    HR_CHANGE_APPLY("hr.change.apply"),
     ATTENDANCE_QUERY("attendance.query"),
     ATTENDANCE_REISSUE_APPLY("attendance.reissue.apply"),
     APPROVAL_APPLICATION_CREATE_DRAFT("approval.application.createDraft"),

@@ -125,7 +125,7 @@ public class PageCapabilityCatalog {
                         context(number("employeeId")), read(HR_ORGANIZATION_QUERY), read(HR_EMPLOYEE_QUERY)),
                 page(OaPage.EMPLOYEE_CHANGE, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         context(text("status"), text("changeType"), text("keyword"), number("page"), number("size")),
-                        read(HR_CHANGE_QUERY)),
+                        read(HR_CHANGE_QUERY), write(HR_CHANGE_APPLY)),
 
                 page(OaPage.ASSET_LEDGER, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         context(text("keyword"), text("category"), text("status"), number("page"), number("size")),

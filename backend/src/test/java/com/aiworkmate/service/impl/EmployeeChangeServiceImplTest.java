@@ -14,6 +14,7 @@ import com.aiworkmate.mapper.UserMapper;
 import com.aiworkmate.service.BusinessAuditService;
 import com.aiworkmate.service.NotificationService;
 import com.aiworkmate.service.UserAccessService;
+import com.aiworkmate.service.model.EmployeeChangeAgentApplicationCommand;
 import com.aiworkmate.service.model.ResolvedUserAccess;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
@@ -105,6 +106,86 @@ class EmployeeChangeServiceImplTest {
                 .extracting("errorCode").isEqualTo("BUSINESS_STATE_INVALID");
 
         verify(changeMapper, never()).insert(any(EmployeeChange.class));
+    }
+
+    @Test
+    void agentApplicationUsesTrustedApplicantAndReturnsPendingReceipt() {
+        when(userAccessService.resolveActiveUser(APPLICANT_ID)).thenReturn(access(APPLICANT_ID));
+        when(userAccessService.resolveActiveUser(REVIEWER_ID)).thenReturn(access(REVIEWER_ID));
+        when(userMapper.lockActiveApplicant(TENANT_ID, APPLICANT_ID)).thenReturn(actorUser());
+        when(userMapper.selectById(EMPLOYEE_ID)).thenReturn(employee());
+        when(accessControlMapper.countDepartment(TENANT_ID, 20L)).thenReturn(1);
+        when(accessControlMapper.countPosition(TENANT_ID, 30L)).thenReturn(1);
+        when(changeMapper.insert(any(EmployeeChange.class))).thenAnswer(invocation -> {
+            EmployeeChange value = invocation.getArgument(0);
+            value.setId(9L);
+            return 1;
+        });
+
+        var receipt = service.createAgent(APPLICANT_ID, agentCommand(), "employee-change-operation");
+
+        ArgumentCaptor<EmployeeChange> captor = ArgumentCaptor.forClass(EmployeeChange.class);
+        verify(changeMapper).insert(captor.capture());
+        assertThat(captor.getValue().getApplicantUserId()).isEqualTo(APPLICANT_ID);
+        assertThat(captor.getValue().getAgentOperationKey()).isEqualTo("employee-change-operation");
+        assertThat(receipt.changeId()).isEqualTo(9L);
+        assertThat(receipt.status()).isEqualTo("PENDING");
+        assertThat(receipt.version()).isZero();
+        verify(auditService).recordTransactional(TENANT_ID, APPLICANT_ID,
+                "EMPLOYEE_CHANGE", "9", "SUBMIT", "SUCCESS", "Agent 提交员工变动申请：TRANSFER");
+    }
+
+    @Test
+    void agentApplicationReplayReturnsReceiptAndRejectsChangedPayload() {
+        when(userAccessService.resolveActiveUser(APPLICANT_ID)).thenReturn(access(APPLICANT_ID));
+        when(userMapper.lockActiveApplicant(TENANT_ID, APPLICANT_ID)).thenReturn(actorUser());
+        EmployeeChange existing = change("TRANSFER", "PENDING", 0);
+        existing.setAgentOperationKey("employee-change-operation");
+        existing.setReviewApproverUserId(REVIEWER_ID);
+        existing.setEffectiveDate(LocalDate.now().plusDays(1));
+        existing.setTargetDepartmentId(20L);
+        existing.setTargetPositionId(30L);
+        existing.setTargetSupervisorUserId(null);
+        existing.setReason("业务团队调整");
+        existing.setSubmittedAt(LocalDateTime.now());
+        when(changeMapper.findAgentOperation(TENANT_ID, APPLICANT_ID,
+                "employee-change-operation")).thenReturn(existing);
+
+        assertThat(service.createAgent(
+                APPLICANT_ID, agentCommand(), "employee-change-operation").changeId()).isEqualTo(9L);
+        assertThatThrownBy(() -> service.createAgent(APPLICANT_ID,
+                new EmployeeChangeAgentApplicationCommand(
+                        EMPLOYEE_ID, "TRANSFER", LocalDate.now().plusDays(1),
+                        20L, 30L, null, REVIEWER_ID, "不同原因"),
+                "employee-change-operation"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("IDEMPOTENCY_CONFLICT");
+        verify(changeMapper, never()).insert(any(EmployeeChange.class));
+    }
+
+    @Test
+    void agentApplicationVerificationAcceptsHistoricalEffectiveDate() {
+        when(userAccessService.resolveActiveUser(APPLICANT_ID)).thenReturn(access(APPLICANT_ID));
+        LocalDate historicalDate = LocalDate.now().minusDays(1);
+        EmployeeChange existing = change("TRANSFER", "APPROVED", 1);
+        existing.setAgentOperationKey("employee-change-operation");
+        existing.setReviewApproverUserId(REVIEWER_ID);
+        existing.setEffectiveDate(historicalDate);
+        existing.setTargetDepartmentId(20L);
+        existing.setTargetPositionId(30L);
+        existing.setReason("业务团队调整");
+        existing.setSubmittedAt(LocalDateTime.now().minusDays(2));
+        when(changeMapper.findAgentOperation(TENANT_ID, APPLICANT_ID,
+                "employee-change-operation")).thenReturn(existing);
+
+        var receipt = service.findAgentApplication(APPLICANT_ID,
+                new EmployeeChangeAgentApplicationCommand(
+                        EMPLOYEE_ID, "TRANSFER", historicalDate,
+                        20L, 30L, null, REVIEWER_ID, "业务团队调整"),
+                "employee-change-operation");
+
+        assertThat(receipt).isPresent();
+        assertThat(receipt.orElseThrow().status()).isEqualTo("APPROVED");
     }
 
     @Test
@@ -241,6 +322,20 @@ class EmployeeChangeServiceImplTest {
         user.setApproverUserId(12L);
         user.setEmploymentStatus("ACTIVE");
         return user;
+    }
+
+    private User actorUser() {
+        User user = new User();
+        user.setId(APPLICANT_ID);
+        user.setTenantId(TENANT_ID);
+        user.setStatus(1);
+        return user;
+    }
+
+    private EmployeeChangeAgentApplicationCommand agentCommand() {
+        return new EmployeeChangeAgentApplicationCommand(
+                EMPLOYEE_ID, "TRANSFER", LocalDate.now().plusDays(1),
+                20L, 30L, null, REVIEWER_ID, "业务团队调整");
     }
 
     private EmployeeChange change(String type, String status, int version) {
