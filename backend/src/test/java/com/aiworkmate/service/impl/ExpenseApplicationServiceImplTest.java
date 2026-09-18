@@ -185,6 +185,48 @@ class ExpenseApplicationServiceImplTest {
                 .extracting("errorCode").isEqualTo("PERMISSION_DENIED");
     }
 
+    @Test
+    void reopensOnlyOwnedExpenseApplicationThroughGenericApprovalTransaction() {
+        when(userAccessService.resolveActiveUser(7L)).thenReturn(reopenAccess());
+        ApprovalApplication expense = existing("{\"amount\":88.50}");
+        expense.setStatus("WITHDRAWN");
+        expense.setVersion(2);
+        when(applicationMapper.selectById(51L)).thenReturn(expense);
+        ApprovalApplicationResponse response = org.mockito.Mockito.mock(ApprovalApplicationResponse.class);
+        when(response.id()).thenReturn(51L);
+        when(response.formKey()).thenReturn("expense-application");
+        when(response.status()).thenReturn("DRAFT");
+        when(response.version()).thenReturn(3);
+        when(approvalService.reopenAgentApplication(7L, 51L, new VersionRequest(2)))
+                .thenReturn(response);
+
+        var receipt = service.reopenAgentApplication(7L, 51L, 2);
+
+        assertThat(receipt.status()).isEqualTo("DRAFT");
+        assertThat(receipt.formKey()).isEqualTo("expense-application");
+        verify(approvalService).reopenAgentApplication(7L, 51L, new VersionRequest(2));
+    }
+
+    @Test
+    void rejectsOtherFormsAndRevokedReopenPermissionBeforeWriting() {
+        when(userAccessService.resolveActiveUser(7L)).thenReturn(reopenAccess());
+        ApprovalApplication other = existing("{}");
+        other.setFormKey("leave-application");
+        when(applicationMapper.selectById(51L)).thenReturn(other);
+
+        assertThatThrownBy(() -> service.reopenAgentApplication(7L, 51L, 2))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("RESOURCE_NOT_FOUND");
+        verify(approvalService, never()).reopenAgentApplication(
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any());
+
+        when(userAccessService.resolveActiveUser(8L)).thenReturn(access());
+        assertThatThrownBy(() -> service.reopenAgentApplication(8L, 51L, 2))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("PERMISSION_DENIED");
+    }
+
     private ExpenseAgentDraftCommand command() {
         return new ExpenseAgentDraftCommand(
                 new BigDecimal("88.50"), "TRAVEL", LocalDate.of(2026, 9, 17),
@@ -207,6 +249,12 @@ class ExpenseApplicationServiceImplTest {
         return new ResolvedUserAccess(
                 7L, "user", 1L, "EMPLOYEE", List.of("EMPLOYEE"),
                 List.of("route:approval-start", "approval:withdraw"), List.of("SELF"), 1L);
+    }
+
+    private ResolvedUserAccess reopenAccess() {
+        return new ResolvedUserAccess(
+                7L, "user", 1L, "EMPLOYEE", List.of("EMPLOYEE"),
+                List.of("route:approval-start", "approval:reopen"), List.of("SELF"), 1L);
     }
 
     private ApprovalApplication existing(String dataJson) {

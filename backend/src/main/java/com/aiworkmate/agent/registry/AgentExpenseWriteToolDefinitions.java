@@ -25,6 +25,10 @@ public class AgentExpenseWriteToolDefinitions {
     public static final String WITHDRAW_OUTPUT_SCHEMA = """
             {"type":"object","additionalProperties":false,"required":["applicationId","formKey","status","version"],"properties":{"applicationId":{"type":"integer","minimum":1},"formKey":{"type":"string","const":"expense-application"},"status":{"type":"string","const":"WITHDRAWN"},"version":{"type":"integer","minimum":1}}}
             """.strip();
+    public static final String REOPEN_INPUT_SCHEMA = SUBMIT_DRAFT_INPUT_SCHEMA;
+    public static final String REOPEN_OUTPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["applicationId","formKey","status","version"],"properties":{"applicationId":{"type":"integer","minimum":1},"formKey":{"type":"string","const":"expense-application"},"status":{"type":"string","const":"DRAFT"},"version":{"type":"integer","minimum":1}}}
+            """.strip();
 
     @Bean
     ToolDefinition expenseCreateDraftToolDefinition(ObjectMapper objectMapper)
@@ -64,6 +68,20 @@ public class AgentExpenseWriteToolDefinitions {
                 objectMapper.readTree(WITHDRAW_INPUT_SCHEMA),
                 objectMapper.readTree(WITHDRAW_OUTPUT_SCHEMA),
                 RiskLevel.L1, Set.of("approval:withdraw"), OwnershipPolicy.SELF,
+                RetryPolicy.NEVER, ConfirmationPolicy.EXPLICIT,
+                1, 4096, 15000);
+    }
+
+    @Bean
+    ToolDefinition expenseReopenToolDefinition(ObjectMapper objectMapper)
+            throws JsonProcessingException {
+        return ToolDefinitionFactory.singleWrite(
+                ToolCode.EXPENSE_REOPEN, "Reopen my expense application as draft",
+                "Reopens one self-owned rejected or withdrawn expense application as an editable draft.",
+                "Restore only a verified expense application to draft without editing or resubmitting it.",
+                objectMapper.readTree(REOPEN_INPUT_SCHEMA),
+                objectMapper.readTree(REOPEN_OUTPUT_SCHEMA),
+                RiskLevel.L1, Set.of("approval:reopen"), OwnershipPolicy.SELF,
                 RetryPolicy.NEVER, ConfirmationPolicy.EXPLICIT,
                 1, 4096, 15000);
     }

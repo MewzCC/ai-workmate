@@ -91,6 +91,17 @@ public class ExpenseApplicationServiceImpl implements ExpenseApplicationService 
         return lifecycleReceipt(withdrawn);
     }
 
+    @Override
+    @Transactional
+    public ExpenseAgentLifecycleReceipt reopenAgentApplication(
+            Long userId, Long applicationId, int version) {
+        ResolvedUserAccess actor = requireLifecycleAccess(userId, "approval:reopen");
+        requireOwnedExpense(actor, applicationId);
+        ApprovalApplicationResponse reopened = approvalService.reopenAgentApplication(
+                userId, applicationId, new VersionRequest(version));
+        return lifecycleReceipt(reopened);
+    }
+
     private ApprovalDraftRequest request(ExpenseAgentDraftCommand command) {
         if (command == null) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID);

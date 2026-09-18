@@ -73,4 +73,25 @@ class AgentExpenseWriteToolDefinitionsTest {
         assertThat(validator.valid(definition.inputSchema(), mapper.readTree(
                 "{\"applicationId\":51,\"version\":1,\"reason\":\"skip\"}"))).isFalse();
     }
+
+    @Test
+    void reopenOnlyRestoresOneVersionedExpenseApplicationToDraft() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        ToolDefinition definition = new AgentExpenseWriteToolDefinitions()
+                .expenseReopenToolDefinition(mapper);
+        ToolSchemaValidator validator = new ToolSchemaValidator();
+
+        assertThat(definition.schemaHash()).isEqualTo(
+                "sha256:ccf55e1542cb739160c2bcab1ac0b8181b70d0ad0a9ef4598d0003b48e093428");
+        assertThat(definition.requiredPermissions()).containsExactly("approval:reopen");
+        assertThat(definition.riskLevel()).isEqualTo(RiskLevel.L1);
+        assertThat(definition.sideEffect()).isEqualTo(SideEffect.SINGLE_WRITE);
+        assertThat(definition.retryPolicy()).isEqualTo(RetryPolicy.NEVER);
+        assertThat(definition.confirmationPolicy()).isEqualTo(ConfirmationPolicy.EXPLICIT);
+        assertThat(definition.ownershipPolicy()).isEqualTo(OwnershipPolicy.SELF);
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree(
+                "{\"applicationId\":51,\"version\":2}"))).isTrue();
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree(
+                "{\"applicationId\":51,\"version\":2,\"submit\":true}"))).isFalse();
+    }
 }

@@ -157,6 +157,38 @@ final class ExpenseDraftPostgresVerifier {
                 WHERE resource_type='GENERIC_APPROVAL' AND resource_id=? AND action='WITHDRAW'
                 """, Integer.class, withdrawId.toString())).isOne();
 
+        var reopenExecutor = Executors.newFixedThreadPool(2);
+        try {
+            var barrier = new CyclicBarrier(2);
+            Callable<Boolean> reopen = () -> {
+                barrier.await(10, TimeUnit.SECONDS);
+                try {
+                    tx.execute(status -> service.reopenAgentApplication(applicant, withdrawId, 1));
+                    return true;
+                } catch (BusinessException error) {
+                    assertThat(error.getErrorCode()).isIn(
+                            "VERSION_CONFLICT", "BUSINESS_STATE_INVALID");
+                    return false;
+                }
+            };
+            var first = reopenExecutor.submit(reopen);
+            var second = reopenExecutor.submit(reopen);
+            assertThat(List.of(first.get(20, TimeUnit.SECONDS), second.get(20, TimeUnit.SECONDS)))
+                    .containsExactlyInAnyOrder(true, false);
+        } finally {
+            reopenExecutor.shutdownNow();
+        }
+        assertThat(jdbc.queryForObject(
+                "SELECT status FROM approval_application WHERE id=?", String.class, withdrawId))
+                .isEqualTo("DRAFT");
+        assertThat(jdbc.queryForObject(
+                "SELECT version FROM approval_application WHERE id=?", Integer.class, withdrawId))
+                .isEqualTo(2);
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM business_audit_log
+                WHERE resource_type='GENERIC_APPROVAL' AND resource_id=? AND action='REOPEN'
+                """, Integer.class, withdrawId.toString())).isOne();
+
         BusinessAuditService failingAudit = mock(BusinessAuditService.class);
         doThrow(new IllegalStateException("audit unavailable")).when(failingAudit)
                 .recordTransactional(any(), any(), any(), any(), any(), any(), any());
@@ -184,6 +216,20 @@ final class ExpenseDraftPostgresVerifier {
                 SELECT status FROM workflow_task
                 WHERE business_type='GENERIC_APPROVAL' AND business_id=?
                 """, String.class, withdrawRollbackId)).isEqualTo("PENDING");
+
+        Long reopenRollbackId = pendingExpense(
+                jdbc, tenant, applicant, "expense-reopen-rollback");
+        tx.executeWithoutResult(status -> service.withdrawAgentApplication(
+                applicant, reopenRollbackId, 0));
+        assertThatThrownBy(() -> tx.execute(status -> failingService.reopenAgentApplication(
+                applicant, reopenRollbackId, 1)))
+                .isInstanceOf(IllegalStateException.class);
+        assertThat(jdbc.queryForObject(
+                "SELECT status FROM approval_application WHERE id=?",
+                String.class, reopenRollbackId)).isEqualTo("WITHDRAWN");
+        assertThat(jdbc.queryForObject(
+                "SELECT version FROM approval_application WHERE id=?",
+                Integer.class, reopenRollbackId)).isOne();
 
         when(access.resolveActiveUser(applicant)).thenReturn(actor(applicant, tenant + 100000, 2L));
         Optional<?> crossTenant = tx.execute(status -> service.findAgentDraft(
@@ -219,7 +265,7 @@ final class ExpenseDraftPostgresVerifier {
     private static ResolvedUserAccess actor(long userId, long tenantId, long version) {
         return new ResolvedUserAccess(
                 userId, "expense-user", tenantId, "EMPLOYEE", List.of("EMPLOYEE"),
-                List.of("route:approval-start", "approval:create", "approval:withdraw"),
+                List.of("route:approval-start", "approval:create", "approval:withdraw", "approval:reopen"),
                 List.of("SELF"), version);
     }
 

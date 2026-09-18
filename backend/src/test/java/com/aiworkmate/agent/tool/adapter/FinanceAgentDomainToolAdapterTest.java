@@ -92,6 +92,18 @@ class FinanceAgentDomainToolAdapterTest {
     }
 
     @Test
+    void reopensExpenseThroughDedicatedTypedBoundary() {
+        when(expenseApplications.reopenAgentApplication(7L, 51L, 2))
+                .thenReturn(new ExpenseAgentLifecycleReceipt(
+                        51L, "expense-application", "DRAFT", 3));
+
+        assertThat(adapter.reopenExpense(actor, 51L, 2))
+                .isEqualTo(new FinanceToolPort.ExpenseLifecycleResult(
+                        51L, "expense-application", "DRAFT", 3));
+        verify(expenseApplications).reopenAgentApplication(7L, 51L, 2);
+    }
+
+    @Test
     void supplierSummaryDropsContactCreditAddressAndRiskFields() {
         var now = LocalDateTime.of(2026, 9, 14, 10, 0);
         when(suppliers.list(7L, null, null, null, 1, 20)).thenReturn(new SupplierPageResponse(List.of(

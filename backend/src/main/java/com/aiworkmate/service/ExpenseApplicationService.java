@@ -17,4 +17,6 @@ public interface ExpenseApplicationService {
     ExpenseAgentLifecycleReceipt submitAgentDraft(Long userId, Long applicationId, int version);
 
     ExpenseAgentLifecycleReceipt withdrawAgentApplication(Long userId, Long applicationId, int version);
+
+    ExpenseAgentLifecycleReceipt reopenAgentApplication(Long userId, Long applicationId, int version);
 }
