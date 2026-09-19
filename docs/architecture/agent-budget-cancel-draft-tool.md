@@ -12,6 +12,6 @@
 
 ## 迁移到 Spring Cloud
 
-Handler 仅依赖传输中立的 `FinanceToolPort`。当前本地 Adapter 调用预算领域服务；拆分服务时可替换为带服务身份、可信用户上下文、租户、超时和固定方法契约的 RPC Adapter，无需改变 ToolGateway、工具 Schema 或页面能力目录。远程调用不得暴露任意 URL，也不得把领域鉴权迁移到模型参数。
+Handler 仅依赖传输中立的 `BudgetToolPort`。当前本地 Adapter 调用预算领域服务；拆分服务时可替换为带服务身份、可信用户上下文、租户、超时和固定方法契约的 RPC Adapter，无需改变 ToolGateway、工具 Schema 或页面能力目录。远程调用不得暴露任意 URL，也不得把领域鉴权迁移到模型参数。
 
 由于本工具禁止自动重试，远程超时应返回“写入结果未知”并失败关闭；只有后续增加类型化只读结果核验协议后，才可由人工判断是否需要新任务。

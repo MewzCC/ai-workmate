@@ -1,27 +1,27 @@
 package com.aiworkmate.agent.tool.internal;
 
 import com.aiworkmate.agent.registry.ToolCode;
-import com.aiworkmate.agent.tool.port.FinanceToolPort;
+import com.aiworkmate.agent.tool.port.SupplierToolPort;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Component;
 
 @Component
 public final class SupplierCreateDraftToolHandler extends TypedWriteToolHandler<
-        FinanceToolPort.SupplierDraft, FinanceToolPort.SupplierDraftResult> {
-    private final FinanceToolPort port;
+        SupplierToolPort.SupplierDraft, SupplierToolPort.SupplierDraftResult> {
+    private final SupplierToolPort port;
 
-    public SupplierCreateDraftToolHandler(FinanceToolPort port, ObjectMapper mapper) {
+    public SupplierCreateDraftToolHandler(SupplierToolPort port, ObjectMapper mapper) {
         super(ToolCode.SUPPLIER_CREATE_DRAFT, mapper);
         this.port = port;
     }
 
-    @Override protected FinanceToolPort.SupplierDraft parseArguments(JsonNode arguments) {
+    @Override protected SupplierToolPort.SupplierDraft parseArguments(JsonNode arguments) {
         return SupplierDraftArguments.parse(arguments);
     }
 
-    @Override protected FinanceToolPort.SupplierDraftResult invoke(
-            TrustedToolContext context, FinanceToolPort.SupplierDraft command) {
+    @Override protected SupplierToolPort.SupplierDraftResult invoke(
+            TrustedToolContext context, SupplierToolPort.SupplierDraft command) {
         return port.createSupplierDraft(context.actor(), command);
     }
 }

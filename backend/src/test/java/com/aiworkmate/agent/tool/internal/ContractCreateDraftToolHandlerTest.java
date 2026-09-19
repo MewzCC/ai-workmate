@@ -1,6 +1,6 @@
 package com.aiworkmate.agent.tool.internal;
 
-import com.aiworkmate.agent.tool.port.FinanceToolPort;
+import com.aiworkmate.agent.tool.port.ContractToolPort;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
@@ -17,16 +17,16 @@ import static org.mockito.Mockito.*;
 class ContractCreateDraftToolHandlerTest {
     @Test
     void mapsOnlyBoundedDraftFields() throws Exception {
-        FinanceToolPort port = mock(FinanceToolPort.class);
+        ContractToolPort port = mock(ContractToolPort.class);
         ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
         TrustedToolContext context = new TrustedToolContext(1L, 7L, 10L, 30L, 1, "trace");
-        var command = new FinanceToolPort.ContractDraft(
+        var command = new ContractToolPort.ContractDraft(
                 "HT-2027", "年度采购合同", "PURCHASE", "示例公司", null, 7L,
                 new BigDecimal("100000.00"), "CNY", LocalDate.of(2026, 9, 1),
                 LocalDate.of(2026, 9, 1), LocalDate.of(2027, 8, 31), "年度采购");
         var updatedAt = LocalDateTime.of(2026, 9, 19, 4, 0);
         when(port.createContractDraft(eq(context.actor()), any())).thenReturn(
-                new FinanceToolPort.ContractDraftResult(91L, "HT-2027", "DRAFT", 0, updatedAt));
+                new ContractToolPort.ContractDraftResult(91L, "HT-2027", "DRAFT", 0, updatedAt));
 
         var output = new ContractCreateDraftToolHandler(port, mapper).execute(context, mapper.readTree("""
                 {"code":"HT-2027","name":"年度采购合同","contractType":"PURCHASE",
@@ -45,7 +45,7 @@ class ContractCreateDraftToolHandlerTest {
 
     @Test
     void rejectsInvalidDateRangeBeforeCallingPort() throws Exception {
-        FinanceToolPort port = mock(FinanceToolPort.class);
+        ContractToolPort port = mock(ContractToolPort.class);
         ObjectMapper mapper = new ObjectMapper();
         var handler = new ContractCreateDraftToolHandler(port, mapper);
         TrustedToolContext context = new TrustedToolContext(1L, 7L, 10L, 30L, 1, "trace");

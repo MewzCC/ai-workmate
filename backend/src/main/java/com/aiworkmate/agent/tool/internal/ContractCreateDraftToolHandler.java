@@ -1,29 +1,29 @@
 package com.aiworkmate.agent.tool.internal;
 
 import com.aiworkmate.agent.registry.ToolCode;
-import com.aiworkmate.agent.tool.port.FinanceToolPort;
+import com.aiworkmate.agent.tool.port.ContractToolPort;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Component;
 
 @Component
 public final class ContractCreateDraftToolHandler extends TypedWriteToolHandler<
-        FinanceToolPort.ContractDraft, FinanceToolPort.ContractDraftResult> {
-    private final FinanceToolPort port;
+        ContractToolPort.ContractDraft, ContractToolPort.ContractDraftResult> {
+    private final ContractToolPort port;
 
-    public ContractCreateDraftToolHandler(FinanceToolPort port, ObjectMapper objectMapper) {
+    public ContractCreateDraftToolHandler(ContractToolPort port, ObjectMapper objectMapper) {
         super(ToolCode.CONTRACT_CREATE_DRAFT, objectMapper);
         this.port = port;
     }
 
     @Override
-    protected FinanceToolPort.ContractDraft parseArguments(JsonNode arguments) {
+    protected ContractToolPort.ContractDraft parseArguments(JsonNode arguments) {
         return ContractDraftArguments.parse(arguments);
     }
 
     @Override
-    protected FinanceToolPort.ContractDraftResult invoke(
-            TrustedToolContext context, FinanceToolPort.ContractDraft command) {
+    protected ContractToolPort.ContractDraftResult invoke(
+            TrustedToolContext context, ContractToolPort.ContractDraft command) {
         return port.createContractDraft(context.actor(), command);
     }
 }

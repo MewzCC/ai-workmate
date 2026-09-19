@@ -12,7 +12,7 @@
 
 ## 分层与迁移边界
 
-Handler 复用统一版本化单写模板，只将 `budgetId` 与 `version` 交给类型化 `FinanceToolPort`。本地适配器把固定目标状态
+Handler 复用统一版本化单写模板，只将 `budgetId` 与 `version` 交给类型化 `BudgetToolPort`。本地适配器把固定目标状态
 `ACTIVE` 写入领域请求，并调用预算领域服务。未来拆分 Spring Cloud 时，可以使用固定服务发现、服务身份、mTLS 和超时策略
 保护的 RPC 适配器替换本地适配器；ToolGateway、Planner、Handler、工具 Schema 和确认流程不需要改变。
 

@@ -1,6 +1,6 @@
 package com.aiworkmate.agent.tool.internal;
 
-import com.aiworkmate.agent.tool.port.FinanceToolPort;
+import com.aiworkmate.agent.tool.port.ExpenseToolPort;
 import com.aiworkmate.agent.tool.port.ToolActorContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -13,9 +13,9 @@ import static org.mockito.Mockito.when;
 class ExpenseWithdrawToolHandlerTest {
     @Test
     void forwardsTrustedActorAndVersionedExpenseIdentity() throws Exception {
-        FinanceToolPort port = mock(FinanceToolPort.class);
+        ExpenseToolPort port = mock(ExpenseToolPort.class);
         var actor = new ToolActorContext(1, 7, 10, 20, 1, "trace");
-        var result = new FinanceToolPort.ExpenseLifecycleResult(
+        var result = new ExpenseToolPort.ExpenseLifecycleResult(
                 51L, "expense-application", "WITHDRAWN", 2);
         when(port.withdrawExpense(actor, 51L, 1)).thenReturn(result);
         var handler = new ExpenseWithdrawToolHandler(port, new ObjectMapper());

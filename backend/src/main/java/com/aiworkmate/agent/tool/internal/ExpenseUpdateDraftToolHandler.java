@@ -1,7 +1,7 @@
 package com.aiworkmate.agent.tool.internal;
 
 import com.aiworkmate.agent.registry.ToolCode;
-import com.aiworkmate.agent.tool.port.FinanceToolPort;
+import com.aiworkmate.agent.tool.port.ExpenseToolPort;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Component;
@@ -11,10 +11,10 @@ import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.requiredLo
 
 @Component
 public final class ExpenseUpdateDraftToolHandler extends TypedWriteToolHandler<
-        ExpenseUpdateDraftToolHandler.Command, FinanceToolPort.ExpenseLifecycleResult> {
-    private final FinanceToolPort port;
+        ExpenseUpdateDraftToolHandler.Command, ExpenseToolPort.ExpenseLifecycleResult> {
+    private final ExpenseToolPort port;
 
-    public ExpenseUpdateDraftToolHandler(FinanceToolPort port, ObjectMapper objectMapper) {
+    public ExpenseUpdateDraftToolHandler(ExpenseToolPort port, ObjectMapper objectMapper) {
         super(ToolCode.EXPENSE_UPDATE_DRAFT, objectMapper);
         this.port = port;
     }
@@ -28,11 +28,11 @@ public final class ExpenseUpdateDraftToolHandler extends TypedWriteToolHandler<
     }
 
     @Override
-    protected FinanceToolPort.ExpenseLifecycleResult invoke(
+    protected ExpenseToolPort.ExpenseLifecycleResult invoke(
             TrustedToolContext context, Command command) {
         return port.updateExpenseDraft(
                 context.actor(), command.applicationId(), command.version(), command.patch());
     }
 
-    record Command(long applicationId, int version, FinanceToolPort.ExpenseDraft patch) { }
+    record Command(long applicationId, int version, ExpenseToolPort.ExpenseDraft patch) { }
 }

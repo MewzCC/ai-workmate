@@ -1,6 +1,6 @@
 package com.aiworkmate.agent.tool.internal;
 
-import com.aiworkmate.agent.tool.port.FinanceToolPort;
+import com.aiworkmate.agent.tool.port.ExpenseToolPort;
 import com.fasterxml.jackson.databind.JsonNode;
 
 import java.math.BigDecimal;
@@ -16,8 +16,8 @@ final class ExpenseDraftArguments {
 
     private ExpenseDraftArguments() { }
 
-    static FinanceToolPort.ExpenseDraft parse(JsonNode arguments) {
-        return new FinanceToolPort.ExpenseDraft(
+    static ExpenseToolPort.ExpenseDraft parse(JsonNode arguments) {
+        return new ExpenseToolPort.ExpenseDraft(
                 optionalDecimal(arguments, "amount", MIN_AMOUNT, MAX_AMOUNT, 2),
                 optionalText(arguments, "category"),
                 optionalDate(arguments, "expenseDate"),

@@ -14,7 +14,7 @@
 
 ## 分层与服务化
 
-Handler 只把封闭参数转换为 `FinanceToolPort.ContractDraft` 或 `ContractDraftUpdate`，不依赖 Spring、HTTP、Mapper 或数据库实体。本地 Adapter 调用现有 `ContractService`。Agent 专用更新入口与普通页面共享字段校验和事务核心，但将状态收紧为草稿；领域服务重新校验租户、用户、实时权限、资源状态和版本，并在同一事务内写入合同、事件和业务审计，任一步失败都整体回滚。
+Handler 只把封闭参数转换为 `ContractToolPort.ContractDraft` 或 `ContractDraftUpdate`，不依赖 Spring、HTTP、Mapper 或数据库实体。本地 Adapter 调用现有 `ContractService`。Agent 专用更新入口与普通页面共享字段校验和事务核心，但将状态收紧为草稿；领域服务重新校验租户、用户、实时权限、资源状态和版本，并在同一事务内写入合同、事件和业务审计，任一步失败都整体回滚。
 
 未来拆分 Spring Cloud 时，只替换 Adapter 为受认证、固定服务目标和固定方法的 RPC 实现。ToolGateway、工具契约、Planner 与 Handler 不感知传输方式，远端领域服务仍必须根据可信服务身份重新解析租户与用户并再次鉴权，不能信任请求中的身份字段。
 

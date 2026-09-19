@@ -4,9 +4,9 @@
 
 ## 复用边界
 
-`ExpenseSubmitDraftToolHandler` 只解析 `applicationId` 与乐观锁 `version`，再调用类型化 `FinanceToolPort`。本地 Adapter 将命令映射到 `ExpenseApplicationService.submitAgentDraft`；费用领域门面先固定校验表单类型、租户和本人归属，再复用 `GenericApprovalService.submitAgentDraft` 完成表单校验、流程选择、快照冻结、实例和首待办创建。审批状态机与事务不会复制到 Handler 或 Adapter。
+`ExpenseSubmitDraftToolHandler` 只解析 `applicationId` 与乐观锁 `version`，再调用类型化 `ExpenseToolPort`。本地 Adapter 将命令映射到 `ExpenseApplicationService.submitAgentDraft`；费用领域门面先固定校验表单类型、租户和本人归属，再复用 `GenericApprovalService.submitAgentDraft` 完成表单校验、流程选择、快照冻结、实例和首待办创建。审批状态机与事务不会复制到 Handler 或 Adapter。
 
-未来迁移到 Spring Cloud 时只替换 `FinanceToolPort` 的固定目标远程 Adapter。远端仍必须从可信服务身份恢复用户与租户、重新鉴权，并按申请 ID 与版本执行原子状态迁移；不得把 ToolGateway 策略、任意服务地址或通用表单选择权下放给模型。
+未来迁移到 Spring Cloud 时只替换 `ExpenseToolPort` 的固定目标远程 Adapter。远端仍必须从可信服务身份恢复用户与租户、重新鉴权，并按申请 ID 与版本执行原子状态迁移；不得把 ToolGateway 策略、任意服务地址或通用表单选择权下放给模型。
 
 ## 安全与一致性
 

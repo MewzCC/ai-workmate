@@ -1,6 +1,6 @@
 package com.aiworkmate.agent.tool.internal;
 
-import com.aiworkmate.agent.tool.port.FinanceToolPort;
+import com.aiworkmate.agent.tool.port.BudgetToolPort;
 import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.common.ErrorCode;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -18,20 +18,20 @@ final class BudgetDraftArguments {
 
     private BudgetDraftArguments() { }
 
-    static FinanceToolPort.BudgetDraft parse(JsonNode arguments) {
+    static BudgetToolPort.BudgetDraft parse(JsonNode arguments) {
         String code = requiredText(arguments, "code");
         Fields fields = parseFields(arguments);
         if (!CODE.matcher(code).matches()) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID);
         }
-        return new FinanceToolPort.BudgetDraft(
+        return new BudgetToolPort.BudgetDraft(
                 code, fields.name(), fields.fiscalYear(), fields.ownerUserId(), fields.totalAmount(),
                 fields.currency(), fields.warningThreshold(), fields.summary());
     }
 
-    static FinanceToolPort.BudgetDraftUpdate parseUpdate(JsonNode arguments) {
+    static BudgetToolPort.BudgetDraftUpdate parseUpdate(JsonNode arguments) {
         Fields fields = parseFields(arguments);
-        return new FinanceToolPort.BudgetDraftUpdate(
+        return new BudgetToolPort.BudgetDraftUpdate(
                 requiredLong(arguments, "budgetId", 1),
                 requiredInt(arguments, "version", 0, Integer.MAX_VALUE - 1),
                 fields.name(), fields.fiscalYear(), fields.ownerUserId(), fields.totalAmount(),

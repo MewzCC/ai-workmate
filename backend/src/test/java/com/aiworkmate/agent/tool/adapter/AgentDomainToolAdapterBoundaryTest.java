@@ -31,6 +31,17 @@ class AgentDomainToolAdapterBoundaryTest {
                 .hasSize(1));
     }
 
+    @Test
+    void financeDomainsUseIndependentPortsAndAdapters() {
+        assertThat(PORTS).extracting(Class::getSimpleName)
+                .contains("ExpenseToolPort", "BudgetToolPort", "ContractToolPort", "SupplierToolPort")
+                .doesNotContain("FinanceToolPort");
+        assertThat(ADAPTERS).extracting(Class::getSimpleName)
+                .contains("ExpenseAgentDomainToolAdapter", "BudgetAgentDomainToolAdapter",
+                        "ContractAgentDomainToolAdapter", "SupplierAgentDomainToolAdapter")
+                .doesNotContain("FinanceAgentDomainToolAdapter");
+    }
+
     private static Set<Class<?>> discover(String packageName, String suffix, boolean interfacesOnly) {
         return new ClassFileImporter().importPackages(packageName).stream()
                 .filter(javaClass -> javaClass.getSimpleName().endsWith(suffix))

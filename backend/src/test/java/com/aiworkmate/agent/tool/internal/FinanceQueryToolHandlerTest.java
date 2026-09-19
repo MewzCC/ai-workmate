@@ -1,8 +1,12 @@
 package com.aiworkmate.agent.tool.internal;
 
 import com.aiworkmate.agent.registry.ToolCode;
-import com.aiworkmate.agent.tool.port.FinanceToolPort;
+import com.aiworkmate.agent.tool.port.BudgetToolPort;
+import com.aiworkmate.agent.tool.port.ContractToolPort;
+import com.aiworkmate.agent.tool.port.ExpenseToolPort;
+import com.aiworkmate.agent.tool.port.SupplierToolPort;
 import com.aiworkmate.agent.tool.port.ToolActorContext;
+import com.aiworkmate.agent.tool.port.ToolPage;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
@@ -17,24 +21,27 @@ class FinanceQueryToolHandlerTest {
 
     @Test
     void dispatchesFourNarrowToolsWithGatewayDerivedActor() throws Exception {
-        FinanceToolPort port = mock(FinanceToolPort.class);
-        when(port.expenses(any(), any())).thenReturn(new FinanceToolPort.Page<>(List.of(), 0, 1, 20));
-        when(port.budgets(any(), any())).thenReturn(new FinanceToolPort.Page<>(List.of(), 0, 1, 20));
-        when(port.contracts(any(), any())).thenReturn(new FinanceToolPort.Page<>(List.of(), 0, 1, 20));
-        when(port.suppliers(any(), any())).thenReturn(new FinanceToolPort.Page<>(List.of(), 0, 1, 20));
+        ExpenseToolPort expensePort = mock(ExpenseToolPort.class);
+        BudgetToolPort budgetPort = mock(BudgetToolPort.class);
+        ContractToolPort contractPort = mock(ContractToolPort.class);
+        SupplierToolPort supplierPort = mock(SupplierToolPort.class);
+        when(expensePort.expenses(any(), any())).thenReturn(new ToolPage<>(List.of(), 0, 1, 20));
+        when(budgetPort.budgets(any(), any())).thenReturn(new ToolPage<>(List.of(), 0, 1, 20));
+        when(contractPort.contracts(any(), any())).thenReturn(new ToolPage<>(List.of(), 0, 1, 20));
+        when(supplierPort.suppliers(any(), any())).thenReturn(new ToolPage<>(List.of(), 0, 1, 20));
 
         var handlers = List.of(
-                new ExpenseQueryToolHandler(port, mapper), new BudgetQueryToolHandler(port, mapper),
-                new ContractQueryToolHandler(port, mapper), new SupplierQueryToolHandler(port, mapper));
+                new ExpenseQueryToolHandler(expensePort, mapper), new BudgetQueryToolHandler(budgetPort, mapper),
+                new ContractQueryToolHandler(contractPort, mapper), new SupplierQueryToolHandler(supplierPort, mapper));
         assertThat(handlers).extracting(ToolHandler::toolCode).containsExactly(
                 ToolCode.EXPENSE_QUERY.code(), ToolCode.BUDGET_QUERY.code(),
                 ToolCode.CONTRACT_QUERY.code(), ToolCode.SUPPLIER_QUERY.code());
         handlers.forEach(handler -> handler.execute(context, mapper.createObjectNode()));
 
         ToolActorContext actor = new ToolActorContext(1L, 2L, 3L, 4L, 5, "trace");
-        verify(port).expenses(eq(actor), eq(new FinanceToolPort.ExpenseQuery(null, null, 1, 20)));
-        verify(port).budgets(eq(actor), eq(new FinanceToolPort.BudgetQuery(null, null, null, null, 1, 20)));
-        verify(port).contracts(eq(actor), eq(new FinanceToolPort.ContractQuery(null, null, null, null, null, 1, 20)));
-        verify(port).suppliers(eq(actor), eq(new FinanceToolPort.SupplierQuery(null, null, null, null, 1, 20)));
+        verify(expensePort).expenses(eq(actor), eq(new ExpenseToolPort.ExpenseQuery(null, null, 1, 20)));
+        verify(budgetPort).budgets(eq(actor), eq(new BudgetToolPort.BudgetQuery(null, null, null, null, 1, 20)));
+        verify(contractPort).contracts(eq(actor), eq(new ContractToolPort.ContractQuery(null, null, null, null, null, 1, 20)));
+        verify(supplierPort).suppliers(eq(actor), eq(new SupplierToolPort.SupplierQuery(null, null, null, null, 1, 20)));
     }
 }

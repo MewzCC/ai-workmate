@@ -12,7 +12,7 @@
 
 ## 分层
 
-Handler 仅将封闭参数解析为 `FinanceToolPort.BudgetDraft`。当前适配器调用本地
+Handler 仅将封闭参数解析为 `BudgetToolPort.BudgetDraft`。当前适配器调用本地
 `BudgetService`；未来拆分 Spring Cloud 时可替换为固定服务发现和服务身份保护的
 RPC 适配器，工具契约、ToolGateway 和 Planner 不需要感知传输方式。
 

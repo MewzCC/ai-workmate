@@ -1,6 +1,6 @@
 package com.aiworkmate.agent.tool.internal;
 
-import com.aiworkmate.agent.tool.port.FinanceToolPort;
+import com.aiworkmate.agent.tool.port.SupplierToolPort;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
@@ -13,12 +13,12 @@ import static org.mockito.Mockito.*;
 class SupplierUpdateDraftToolHandlerTest {
     @Test
     void mapsVersionedNonSensitiveFieldsOnly() throws Exception {
-        FinanceToolPort port = mock(FinanceToolPort.class);
+        SupplierToolPort port = mock(SupplierToolPort.class);
         ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
         var context = new TrustedToolContext(1L, 7L, 10L, 30L, 1, "trace");
         var updatedAt = LocalDateTime.of(2026, 9, 19, 7, 0);
         when(port.updateSupplierDraft(eq(context.actor()), any())).thenReturn(
-                new FinanceToolPort.SupplierDraftResult(92L, "SUP-2027", "DRAFT", 1, updatedAt));
+                new SupplierToolPort.SupplierDraftResult(92L, "SUP-2027", "DRAFT", 1, updatedAt));
         var output = new SupplierUpdateDraftToolHandler(port, mapper).execute(context, mapper.readTree("""
                 {"supplierId":92,"version":0,"name":"更新供应商","shortName":"更新简称",
                  "category":"SERVICE","supplierLevel":"PREFERRED","paymentTerms":"月结45天"}

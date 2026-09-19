@@ -1,6 +1,6 @@
 package com.aiworkmate.agent.tool.internal;
 
-import com.aiworkmate.agent.tool.port.FinanceToolPort;
+import com.aiworkmate.agent.tool.port.ExpenseToolPort;
 import com.aiworkmate.agent.tool.port.ToolActorContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -13,8 +13,8 @@ import static org.mockito.Mockito.when;
 class ExpenseSubmitDraftToolHandlerTest {
     @Test
     void forwardsTrustedActorAndVersionedExpenseIdentity() throws Exception {
-        FinanceToolPort port = mock(FinanceToolPort.class);
-        var result = new FinanceToolPort.ExpenseLifecycleResult(
+        ExpenseToolPort port = mock(ExpenseToolPort.class);
+        var result = new ExpenseToolPort.ExpenseLifecycleResult(
                 51L, "expense-application", "PENDING", 1);
         when(port.submitExpenseDraft(
                 new ToolActorContext(1, 7, 10, 20, 1, "trace"), 51L, 0))

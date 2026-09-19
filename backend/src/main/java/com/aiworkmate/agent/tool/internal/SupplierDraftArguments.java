@@ -1,6 +1,6 @@
 package com.aiworkmate.agent.tool.internal;
 
-import com.aiworkmate.agent.tool.port.FinanceToolPort;
+import com.aiworkmate.agent.tool.port.SupplierToolPort;
 import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.common.ErrorCode;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -17,21 +17,21 @@ final class SupplierDraftArguments {
 
     private SupplierDraftArguments() { }
 
-    static FinanceToolPort.SupplierDraft parse(JsonNode arguments) {
+    static SupplierToolPort.SupplierDraft parse(JsonNode arguments) {
         String code = requiredText(arguments, "code");
         Fields fields = parseFields(arguments);
         if (!CODE.matcher(code).matches()) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID);
         }
-        return new FinanceToolPort.SupplierDraft(code, fields.name(), fields.shortName(), fields.category(),
+        return new SupplierToolPort.SupplierDraft(code, fields.name(), fields.shortName(), fields.category(),
                 fields.level(), fields.paymentTerms());
     }
 
-    static FinanceToolPort.SupplierDraftUpdate parseUpdate(JsonNode arguments) {
+    static SupplierToolPort.SupplierDraftUpdate parseUpdate(JsonNode arguments) {
         long supplierId = requiredLong(arguments, "supplierId", 1);
         int version = requiredInt(arguments, "version", 0, Integer.MAX_VALUE - 1);
         Fields fields = parseFields(arguments);
-        return new FinanceToolPort.SupplierDraftUpdate(supplierId, version, fields.name(), fields.shortName(),
+        return new SupplierToolPort.SupplierDraftUpdate(supplierId, version, fields.name(), fields.shortName(),
                 fields.category(), fields.level(), fields.paymentTerms());
     }
 

@@ -12,7 +12,7 @@
 
 ## 分层与迁移边界
 
-Handler 只把冻结 Schema 转换成 `FinanceToolPort.BudgetDraftUpdate`。本地适配器再转换成与传输无关的
+Handler 只把冻结 Schema 转换成 `BudgetToolPort.BudgetDraftUpdate`。本地适配器再转换成与传输无关的
 `BudgetAgentDraftCommand` 并调用预算领域服务。未来拆分 Spring Cloud 时，可以用固定服务发现、服务身份
 和 mTLS 保护的 RPC 适配器替换本地适配器；ToolGateway、Planner、Handler 与工具 Schema 不需要改变。
 

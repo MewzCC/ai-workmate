@@ -1,6 +1,6 @@
 package com.aiworkmate.agent.tool.internal;
 
-import com.aiworkmate.agent.tool.port.FinanceToolPort;
+import com.aiworkmate.agent.tool.port.ContractToolPort;
 import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.common.ErrorCode;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -20,21 +20,21 @@ final class ContractDraftArguments {
 
     private ContractDraftArguments() { }
 
-    static FinanceToolPort.ContractDraft parse(JsonNode arguments) {
+    static ContractToolPort.ContractDraft parse(JsonNode arguments) {
         String code = requiredText(arguments, "code");
         Fields fields = parseFields(arguments);
         if (!CODE.matcher(code).matches()) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID);
         }
-        return new FinanceToolPort.ContractDraft(
+        return new ContractToolPort.ContractDraft(
                 code, fields.name(), fields.type(), fields.counterparty(), fields.supplierId(),
                 fields.ownerUserId(), fields.amount(), fields.currency(), fields.signedDate(),
                 fields.startDate(), fields.endDate(), fields.summary());
     }
 
-    static FinanceToolPort.ContractDraftUpdate parseUpdate(JsonNode arguments) {
+    static ContractToolPort.ContractDraftUpdate parseUpdate(JsonNode arguments) {
         Fields fields = parseFields(arguments);
-        return new FinanceToolPort.ContractDraftUpdate(
+        return new ContractToolPort.ContractDraftUpdate(
                 requiredLong(arguments, "contractId", 1),
                 requiredInt(arguments, "version", 0, Integer.MAX_VALUE - 1),
                 fields.name(), fields.type(), fields.counterparty(), fields.supplierId(),

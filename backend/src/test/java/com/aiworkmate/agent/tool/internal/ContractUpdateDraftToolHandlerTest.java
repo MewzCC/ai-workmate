@@ -1,6 +1,6 @@
 package com.aiworkmate.agent.tool.internal;
 
-import com.aiworkmate.agent.tool.port.FinanceToolPort;
+import com.aiworkmate.agent.tool.port.ContractToolPort;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
@@ -13,12 +13,12 @@ import static org.mockito.Mockito.*;
 class ContractUpdateDraftToolHandlerTest {
     @Test
     void mapsVersionedEditableFieldsOnly() throws Exception {
-        FinanceToolPort port = mock(FinanceToolPort.class);
+        ContractToolPort port = mock(ContractToolPort.class);
         ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
         var context = new TrustedToolContext(1L, 7L, 10L, 30L, 1, "trace");
         var updatedAt = LocalDateTime.of(2026, 9, 19, 6, 0);
         when(port.updateContractDraft(eq(context.actor()), any())).thenReturn(
-                new FinanceToolPort.ContractDraftResult(81L, "HT-001", "DRAFT", 1, updatedAt));
+                new ContractToolPort.ContractDraftResult(81L, "HT-001", "DRAFT", 1, updatedAt));
         var output = new ContractUpdateDraftToolHandler(port, mapper).execute(context, mapper.readTree("""
                 {"contractId":81,"version":0,"name":"更新合同","contractType":"SERVICE",
                  "counterpartyName":"示例公司","ownerUserId":7,"amount":1200.00,"currency":"CNY",

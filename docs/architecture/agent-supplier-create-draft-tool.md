@@ -13,6 +13,6 @@
 
 ## 分层与服务化
 
-Handler 只解析共用的封闭字段并调用类型化 `FinanceToolPort.SupplierDraft` 或 `SupplierDraftUpdate`。本地 Adapter 将非敏感字段映射到既有 `SupplierService`；供应商、初始状态历史和业务审计由领域事务统一写入，异常时整体回滚。
+Handler 只解析共用的封闭字段并调用类型化 `SupplierToolPort.SupplierDraft` 或 `SupplierDraftUpdate`。本地 Adapter 将非敏感字段映射到既有 `SupplierService`；供应商、初始状态历史和业务审计由领域事务统一写入，异常时整体回滚。
 
 未来迁移 Spring Cloud 时只替换 Adapter 为受认证的固定目标 RPC。远端服务仍从可信服务身份重新解析租户、用户和实时权限，不接受模型提供的身份字段。当前尚无可靠稳定操作键，远程结果不确定时必须失败关闭；补齐幂等和只读结果核验前不得自动重试。
