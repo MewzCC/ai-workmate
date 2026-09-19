@@ -27,6 +27,7 @@ import com.aiworkmate.service.ContractService;
 import com.aiworkmate.service.NotificationService;
 import com.aiworkmate.service.UserAccessService;
 import com.aiworkmate.service.model.ResolvedUserAccess;
+import com.aiworkmate.service.model.ContractAgentDraftCommand;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -188,6 +189,29 @@ public class ContractServiceImpl implements ContractService {
         if (!existing.getContractCode().equals(normalizeCode(request.code()))) {
             throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID, "validation.contract.code.immutable");
         }
+        return updateContract(actor, existing, request, false);
+    }
+
+    @Override
+    @Transactional
+    public ContractResponse updateAgentDraft(
+            Long userId, Long id, int version, ContractAgentDraftCommand command) {
+        if (command == null) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        ResolvedUserAccess actor = requireManage(userId);
+        BusinessContract existing = requireContract(actor, id);
+        requireVersion(version, existing.getVersion());
+        if (!"DRAFT".equals(existing.getStatus())) {
+            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID, "validation.contract.edit.draftOnly");
+        }
+        ContractRequest request = new ContractRequest(
+                existing.getContractCode(), command.name(), command.contractType(), command.counterpartyName(),
+                command.supplierId(), command.ownerUserId(), command.amount(), command.currency(),
+                command.signedDate(), command.startDate(), command.endDate(), command.summary(), version);
+        return updateContract(actor, existing, request, true);
+    }
+
+    private ContractResponse updateContract(
+            ResolvedUserAccess actor, BusinessContract existing, ContractRequest request, boolean draftOnly) {
         validateRequest(request);
         if (request.amount().compareTo(existing.getPaidAmount()) < 0) {
             throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID, "validation.contract.amount.belowPaid");
@@ -201,14 +225,16 @@ public class ContractServiceImpl implements ContractService {
         changed.setVersion(existing.getVersion() + 1);
         int updated;
         try {
-            updated = contractMapper.update(changed, versionUpdate(actor, existing));
+            LambdaUpdateWrapper<BusinessContract> conditions = versionUpdate(actor, existing);
+            if (draftOnly) conditions.eq(BusinessContract::getStatus, "DRAFT");
+            updated = contractMapper.update(changed, conditions);
         } catch (DuplicateKeyException exception) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.contract.duplicate");
         }
         if (updated != 1) throw new BusinessException(ErrorCode.VERSION_CONFLICT);
-        event(actor, id, "UPDATED", null, null, null, null);
-        audit(actor, id, "UPDATE", existing.getContractCode());
-        return response(requireContract(actor, id), true);
+        event(actor, existing.getId(), "UPDATED", null, null, null, null);
+        audit(actor, existing.getId(), "UPDATE", existing.getContractCode());
+        return response(requireContract(actor, existing.getId()), true);
     }
 
     @Override

@@ -36,4 +36,22 @@ class AgentContractWriteToolDefinitionsTest {
         assertThat(definition.inputSchema().path("properties").has("paymentAmount")).isFalse();
         assertThat(definition.inputSchema().path("properties").has("sendTo")).isFalse();
     }
+
+    @Test
+    void updateDraftUsesVersionAndCannotChangeCodeOrStatus() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        ToolDefinition definition = new AgentContractWriteToolDefinitions()
+                .contractUpdateDraftToolDefinition(mapper);
+        ToolSchemaValidator validator = new ToolSchemaValidator();
+        assertThat(definition.schemaHash()).isEqualTo(
+                "sha256:c5b10829bb43ebcfd88fd91a1cd9b167d6c62f9fc1e359fb5788b03f33b10b95");
+        assertThat(definition.retryPolicy()).isEqualTo(RetryPolicy.NEVER);
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree("""
+                {"contractId":81,"version":0,"name":"年度采购合同","contractType":"PURCHASE",
+                 "counterpartyName":"示例公司","ownerUserId":7,"amount":100000.00,"currency":"CNY",
+                 "startDate":"2026-09-01","endDate":"2027-08-31"}
+                """))).isTrue();
+        assertThat(definition.inputSchema().path("properties").fieldNames()).toIterable()
+                .doesNotContain("code", "status", "paidAmount", "fulfillmentStatus", "sendTo");
+    }
 }

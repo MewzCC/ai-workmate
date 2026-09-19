@@ -166,7 +166,8 @@ class PageCapabilityCatalogTest {
         assertThat(catalog.find("contracts").orElseThrow().readTools())
                 .extracting(PageToolReference::code).containsExactly(ToolCode.CONTRACT_QUERY);
         assertThat(catalog.find("contracts").orElseThrow().writeTools())
-                .extracting(PageToolReference::code).containsExactly(ToolCode.CONTRACT_CREATE_DRAFT);
+                .extracting(PageToolReference::code).containsExactly(
+                        ToolCode.CONTRACT_CREATE_DRAFT, ToolCode.CONTRACT_UPDATE_DRAFT);
         assertThat(catalog.find("suppliers").orElseThrow().readTools())
                 .extracting(PageToolReference::code).containsExactly(ToolCode.SUPPLIER_QUERY);
         assertThat(catalog.find("suppliers").orElseThrow().writeTools())

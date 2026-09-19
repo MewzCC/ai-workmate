@@ -158,6 +158,25 @@ class FinanceAgentDomainToolAdapterTest {
     }
 
     @Test
+    void updatesContractDraftThroughDedicatedTypedBoundary() {
+        var command = new FinanceToolPort.ContractDraftUpdate(
+                81L, 0, "更新合同", "SERVICE", "示例公司", null, 7L,
+                new BigDecimal("1200.00"), "CNY", null, LocalDate.of(2026, 9, 1),
+                LocalDate.of(2027, 8, 31), "更新摘要");
+        var updatedAt = LocalDateTime.of(2026, 9, 19, 6, 0);
+        when(contracts.updateAgentDraft(eq(7L), eq(81L), eq(0), any())).thenReturn(new ContractResponse(
+                81L, "HT-001", "更新合同", "SERVICE", "示例公司", null, null, 7L, "员工",
+                new BigDecimal("1200.00"), BigDecimal.ZERO, "CNY", null,
+                LocalDate.of(2026, 9, 1), LocalDate.of(2027, 8, 31), "DRAFT", "NOT_STARTED",
+                "NORMAL", 346, "更新摘要", 0, null, 1, updatedAt, updatedAt, true,
+                List.of("ACTIVE", "TERMINATED"), List.of("IN_PROGRESS"), false, false));
+        assertThat(adapter.updateContractDraft(actor, command)).isEqualTo(
+                new FinanceToolPort.ContractDraftResult(81L, "HT-001", "DRAFT", 1, updatedAt));
+        verify(contracts).updateAgentDraft(eq(7L), eq(81L), eq(0), argThat(update ->
+                update.name().equals("更新合同") && update.amount().compareTo(new BigDecimal("1200.00")) == 0));
+    }
+
+    @Test
     void submitsExpenseThroughDedicatedTypedBoundary() {
         when(expenseApplications.submitAgentDraft(7L, 51L, 0))
                 .thenReturn(new ExpenseAgentLifecycleReceipt(

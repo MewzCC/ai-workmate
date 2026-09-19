@@ -16,6 +16,7 @@ import com.aiworkmate.service.BusinessAuditService;
 import com.aiworkmate.service.NotificationService;
 import com.aiworkmate.service.UserAccessService;
 import com.aiworkmate.service.model.ResolvedUserAccess;
+import com.aiworkmate.service.model.ContractAgentDraftCommand;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
@@ -164,6 +165,31 @@ class ContractServiceImplTest {
     }
 
     @Test
+    void agentUpdateRejectsActiveContract() {
+        when(userAccessService.resolveActiveUser(10L)).thenReturn(manageAccess());
+        when(contractMapper.selectOne(any())).thenReturn(contract("ACTIVE", "NOT_STARTED", 0));
+        assertThatThrownBy(() -> service.updateAgentDraft(10L, 81L, 0, agentUpdate()))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("BUSINESS_STATE_INVALID");
+        verify(contractMapper, never()).update(any(), any());
+    }
+
+    @Test
+    void agentUpdateKeepsCodeAndWritesEventAndAudit() {
+        when(userAccessService.resolveActiveUser(10L)).thenReturn(manageAccess());
+        BusinessContract before = contract("DRAFT", "NOT_STARTED", 0);
+        BusinessContract after = contract("DRAFT", "NOT_STARTED", 1);
+        after.setName("更新合同");
+        when(contractMapper.selectOne(any())).thenReturn(before, after);
+        when(userMapper.selectOne(any())).thenReturn(owner());
+        when(contractMapper.update(any(), any())).thenReturn(1);
+        var response = service.updateAgentDraft(10L, 81L, 0, agentUpdate());
+        assertThat(response.code()).isEqualTo("HT-001");
+        assertThat(response.version()).isOne();
+        verify(auditService).recordTransactional(9L, 10L, "CONTRACT", "81", "UPDATE", "SUCCESS", "HT-001");
+    }
+
+    @Test
     void expiryReminderUsesCooldownAndNotifiesTenantOwner() {
         when(userAccessService.resolveActiveUser(10L)).thenReturn(manageAccess());
         BusinessContract before = contract("ACTIVE", "IN_PROGRESS", 2);
@@ -203,6 +229,12 @@ class ContractServiceImplTest {
         return new ContractRequest("ht-001", "采购合同", "PURCHASE", "示例公司", null, 20L,
                 new BigDecimal("1000.00"), "CNY", LocalDate.of(2026, 9, 1),
                 LocalDate.of(2026, 9, 1), LocalDate.of(2027, 8, 31), "年度采购", version);
+    }
+
+    private ContractAgentDraftCommand agentUpdate() {
+        return new ContractAgentDraftCommand("更新合同", "SERVICE", "示例公司", null, 20L,
+                new BigDecimal("1200.00"), "CNY", null, LocalDate.of(2026, 9, 1),
+                LocalDate.of(2027, 8, 31), "更新摘要");
     }
 
     private BusinessContract contract(String status, String fulfillment, int version) {

@@ -22,6 +22,27 @@ final class ContractDraftArguments {
 
     static FinanceToolPort.ContractDraft parse(JsonNode arguments) {
         String code = requiredText(arguments, "code");
+        Fields fields = parseFields(arguments);
+        if (!CODE.matcher(code).matches()) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        return new FinanceToolPort.ContractDraft(
+                code, fields.name(), fields.type(), fields.counterparty(), fields.supplierId(),
+                fields.ownerUserId(), fields.amount(), fields.currency(), fields.signedDate(),
+                fields.startDate(), fields.endDate(), fields.summary());
+    }
+
+    static FinanceToolPort.ContractDraftUpdate parseUpdate(JsonNode arguments) {
+        Fields fields = parseFields(arguments);
+        return new FinanceToolPort.ContractDraftUpdate(
+                requiredLong(arguments, "contractId", 1),
+                requiredInt(arguments, "version", 0, Integer.MAX_VALUE - 1),
+                fields.name(), fields.type(), fields.counterparty(), fields.supplierId(),
+                fields.ownerUserId(), fields.amount(), fields.currency(), fields.signedDate(),
+                fields.startDate(), fields.endDate(), fields.summary());
+    }
+
+    private static Fields parseFields(JsonNode arguments) {
         String name = requiredText(arguments, "name");
         String type = requiredText(arguments, "contractType");
         String counterparty = requiredText(arguments, "counterpartyName");
@@ -31,15 +52,18 @@ final class ContractDraftArguments {
         LocalDate signedDate = optionalDate(arguments, "signedDate");
         LocalDate startDate = requiredDate(arguments, "startDate");
         LocalDate endDate = requiredDate(arguments, "endDate");
-        if (!CODE.matcher(code).matches() || name.length() > 160 || counterparty.length() > 160
+        if (name.length() > 160 || counterparty.length() > 160
                 || !TYPES.contains(type) || !CURRENCIES.contains(currency) || amount == null
                 || summary != null && summary.length() > 2000 || endDate.isBefore(startDate)
                 || signedDate != null && signedDate.isAfter(startDate)) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID);
         }
-        return new FinanceToolPort.ContractDraft(
-                code, name, type, counterparty, optionalPositiveLong(arguments, "supplierId"),
+        return new Fields(name, type, counterparty, optionalPositiveLong(arguments, "supplierId"),
                 requiredLong(arguments, "ownerUserId", 1), amount, currency,
                 signedDate, startDate, endDate, summary);
     }
+
+    private record Fields(String name, String type, String counterparty, Long supplierId,
+                          long ownerUserId, BigDecimal amount, String currency, LocalDate signedDate,
+                          LocalDate startDate, LocalDate endDate, String summary) { }
 }

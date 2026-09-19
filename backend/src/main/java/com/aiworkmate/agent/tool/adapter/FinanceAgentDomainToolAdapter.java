@@ -14,6 +14,7 @@ import com.aiworkmate.service.ExpenseApplicationService;
 import com.aiworkmate.service.ExpenseQueryService;
 import com.aiworkmate.service.SupplierService;
 import com.aiworkmate.service.model.BudgetAgentDraftCommand;
+import com.aiworkmate.service.model.ContractAgentDraftCommand;
 import com.aiworkmate.service.model.ExpenseAgentDraftCommand;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -150,6 +151,17 @@ public class FinanceAgentDomainToolAdapter implements FinanceToolPort {
                 command.code(), command.name(), command.contractType(), command.counterpartyName(),
                 command.supplierId(), command.ownerUserId(), command.amount(), command.currency(),
                 command.signedDate(), command.startDate(), command.endDate(), command.summary(), null));
+        return new ContractDraftResult(
+                result.id(), result.code(), result.status(), result.version(), result.updatedAt());
+    }
+
+    @Override
+    public ContractDraftResult updateContractDraft(ToolActorContext context, ContractDraftUpdate command) {
+        var result = contractService.updateAgentDraft(context.userId(), command.contractId(), command.version(),
+                new ContractAgentDraftCommand(
+                        command.name(), command.contractType(), command.counterpartyName(), command.supplierId(),
+                        command.ownerUserId(), command.amount(), command.currency(), command.signedDate(),
+                        command.startDate(), command.endDate(), command.summary()));
         return new ContractDraftResult(
                 result.id(), result.code(), result.status(), result.version(), result.updatedAt());
     }

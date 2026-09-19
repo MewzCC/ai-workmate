@@ -1,6 +1,7 @@
 # 合同草稿创建原子工具
 
-`contract.createDraft` 只负责在当前租户内创建一条 `DRAFT` 合同，是合同页面首个 Agent 写工具。
+`contract.createDraft` 只负责在当前租户内创建一条 `DRAFT` 合同；`contract.updateDraft`
+只按资源 ID 与乐观锁版本替换既有草稿的可编辑字段。
 
 ## 封闭边界
 
@@ -8,11 +9,12 @@
 - 租户、操作人、实时角色、权限和数据范围只来自 ToolGateway 的可信上下文，模型不能传入或覆盖。
 - 工具要求 `contract:manage`，采用 `TENANT_SCOPED`、L1 显式确认、`SINGLE_WRITE` 和禁止自动重试。
 - 工具只能创建草稿，不能激活、签署、付款、履约、上传附件或向外部系统发送合同。
+- 更新工具不接收合同编号、状态、已付款额或履约状态，并在数据库更新条件中再次限定 `DRAFT`。
 - 全局、租户和单工具写开关仍默认关闭；登记工具不等于通过人工发布门。
 
 ## 分层与服务化
 
-Handler 只把封闭参数转换为 `FinanceToolPort.ContractDraft`，不依赖 Spring、HTTP、Mapper 或数据库实体。本地 Adapter 调用现有 `ContractService`，由领域服务重新校验租户、用户、实时权限、合同字段和业务状态，并在同一事务内写入合同、`CREATED` 事件和业务审计；任一步失败都整体回滚。
+Handler 只把封闭参数转换为 `FinanceToolPort.ContractDraft` 或 `ContractDraftUpdate`，不依赖 Spring、HTTP、Mapper 或数据库实体。本地 Adapter 调用现有 `ContractService`。Agent 专用更新入口与普通页面共享字段校验和事务核心，但将状态收紧为草稿；领域服务重新校验租户、用户、实时权限、资源状态和版本，并在同一事务内写入合同、事件和业务审计，任一步失败都整体回滚。
 
 未来拆分 Spring Cloud 时，只替换 Adapter 为受认证、固定服务目标和固定方法的 RPC 实现。ToolGateway、工具契约、Planner 与 Handler 不感知传输方式，远端领域服务仍必须根据可信服务身份重新解析租户与用户并再次鉴权，不能信任请求中的身份字段。
 

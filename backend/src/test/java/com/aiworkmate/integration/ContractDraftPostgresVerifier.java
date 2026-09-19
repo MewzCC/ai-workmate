@@ -12,6 +12,7 @@ import com.aiworkmate.service.UserAccessService;
 import com.aiworkmate.service.impl.BusinessAuditServiceImpl;
 import com.aiworkmate.service.impl.ContractServiceImpl;
 import com.aiworkmate.service.model.ResolvedUserAccess;
+import com.aiworkmate.service.model.ContractAgentDraftCommand;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.extension.spring.MybatisSqlSessionFactoryBean;
 import org.mybatis.spring.SqlSessionTemplate;
@@ -85,10 +86,28 @@ final class ContractDraftPostgresVerifier {
                 WHERE tenant_id=? AND resource_type='CONTRACT' AND resource_id=? AND action='CREATE'
                 """, Integer.class, tenant, created.id().toString())).isOne();
 
+        var updated = tx.execute(status -> service.updateAgentDraft(
+                owner, created.id(), 0, updateCommand(owner, "Agent 合同草稿更新", new BigDecimal("120000.00"))));
+        assertThat(updated).isNotNull();
+        assertThat(updated.status()).isEqualTo("DRAFT");
+        assertThat(updated.version()).isOne();
+        assertThat(updated.code()).isEqualTo("AGENT-CONTRACT-1");
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM contract_event
+                WHERE tenant_id=? AND contract_id=? AND event_type='UPDATED'
+                """, Integer.class, tenant, created.id())).isOne();
+
         BusinessAuditService failingAudit = mock(BusinessAuditService.class);
         doThrow(new IllegalStateException("audit unavailable")).when(failingAudit)
                 .recordTransactional(any(), any(), any(), any(), any(), any(), any());
         var failing = service(session, access, failingAudit);
+        assertThatThrownBy(() -> tx.execute(status -> failing.updateAgentDraft(
+                owner, created.id(), 1, updateCommand(owner, "不应落库", new BigDecimal("130000.00")))))
+                .isInstanceOf(IllegalStateException.class);
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM business_contract
+                WHERE tenant_id=? AND id=? AND name='Agent 合同草稿更新' AND amount=120000 AND version=1
+                """, Integer.class, tenant, created.id())).isOne();
         assertThatThrownBy(() -> tx.execute(status ->
                 failing.create(owner, request("AGENT-CONTRACT-ROLLBACK", owner))))
                 .isInstanceOf(IllegalStateException.class);
@@ -101,6 +120,18 @@ final class ContractDraftPostgresVerifier {
                 JOIN business_contract contract ON contract.id=event.contract_id
                 WHERE event.tenant_id=? AND contract.contract_code='AGENT-CONTRACT-ROLLBACK'
                 """, Integer.class, tenant)).isZero();
+
+        assertThat(jdbc.update("""
+                UPDATE business_contract SET status='ACTIVE', version=2
+                WHERE tenant_id=? AND id=? AND status='DRAFT' AND version=1
+                """, tenant, created.id())).isOne();
+        assertThatThrownBy(() -> tx.execute(status -> service.updateAgentDraft(
+                owner, created.id(), 2, updateCommand(owner, "活动合同不可改", new BigDecimal("140000.00")))))
+                .isInstanceOf(com.aiworkmate.common.BusinessException.class);
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM business_contract
+                WHERE tenant_id=? AND id=? AND status='ACTIVE' AND name='Agent 合同草稿更新' AND version=2
+                """, Integer.class, tenant, created.id())).isOne();
     }
 
     private static ContractServiceImpl service(
@@ -115,5 +146,11 @@ final class ContractDraftPostgresVerifier {
         return new ContractRequest(code, "Agent 合同草稿", "PURCHASE", "示例公司", null, owner,
                 new BigDecimal("100000.00"), "CNY", null,
                 LocalDate.of(2026, 10, 1), LocalDate.of(2027, 9, 30), "受控创建", null);
+    }
+
+    private static ContractAgentDraftCommand updateCommand(Long owner, String name, BigDecimal amount) {
+        return new ContractAgentDraftCommand(name, "SERVICE", "示例公司", null, owner,
+                amount, "CNY", null, LocalDate.of(2026, 10, 1),
+                LocalDate.of(2027, 9, 30), "受控更新");
     }
 }
