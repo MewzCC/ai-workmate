@@ -35,7 +35,7 @@
 | expense | EXPENSE_QUERY | EXPENSE_CREATE_DRAFT；固定费用表单的本人草稿，写开关默认关闭；原子提交待开发，不付款 |
 | budget | BUDGET_QUERY | 保持受控只读；预算生效不自动开放 |
 | contracts | CONTRACT_QUERY | CONTRACT_CREATE_DRAFT；仅创建租户内单条合同草稿，写开关默认关闭；不激活、签署、付款、履约或对外发送 |
-| suppliers | SUPPLIER_QUERY | 候选：单条资料草稿；需明确敏感字段与业务权限 |
+| suppliers | SUPPLIER_QUERY | SUPPLIER_CREATE_DRAFT；只创建不含信用代码、联系人、电话、邮箱、地址和风险备注的租户内草稿，写开关默认关闭 |
 | api-center | INTEGRATION_ENDPOINT_QUERY | 安全元数据只读；不得任意 URL 调用 |
 | page-actions | PAGE_ACTION_QUERY | 配置只读；不得修改自己的执行能力 |
 | runtime-logs | RUNTIME_LOG_QUERY | 脱敏只读；不返回密钥、堆栈或完整参数 |
@@ -194,6 +194,8 @@ T4 预算草稿启用原子工具切片：新增 `budget.activateDraft` 封闭�
 T5 预算草稿取消原子工具切片：新增 `budget.cancelDraft` 封闭契约，只接收 `budgetId + version`，并由服务端固定执行 `DRAFT → CANCELLED`；模型不能选择任意目标状态。Handler 复用统一版本化单写模板，类型化 `FinanceToolPort` 与本地适配器保持传输中立，未来拆分预算服务时只需替换为受认证、固定方法的 Spring Cloud RPC Adapter。工具不修改预算字段，不取消活动预算、不关闭预算，也不执行占用、释放或核销额度；它要求实时 `budget:manage`，采用 L2、租户范围、二次确认、禁止自动重试和单写步骤，写开关保持默认关闭。领域服务以 `tenant_id + id + version + DRAFT` 条件完成乐观锁更新，并将 `STATUS_CANCELLED` 流水和业务审计置于同一事务。真实 PostgreSQL 已验证成功取消、活动预算拒绝及审计失败时状态与流水整笔回滚；空库应用 93 个迁移、旧库升级、94 个迁移 validate 与重复迁移零变更通过。开发库已升级至 V202609190303，连续两次启动均健康，第二次明确无待执行迁移并核对冻结 Schema Hash；OA lint 零错误（3 条既有警告）、93 项测试和生产构建通过，后端 934 项零失败、9 项既有环境测试跳过。
 
 T6 合同草稿创建原子工具切片：新增 `contract.createDraft` 封闭契约，只创建一条租户内 `DRAFT` 合同；工具不能激活、签署、付款、履约、上传附件或对外发送。Handler 使用类型化 `FinanceToolPort.ContractDraft`，本地 Adapter 复用合同领域服务，未来拆分合同服务时只需替换为受认证、固定目标和固定方法的 Spring Cloud RPC Adapter。领域层重新校验实时 `contract:manage`、租户与用户、日期关系、金额、币种和文本边界，并将合同、`CREATED` 事件及业务审计保持在同一事务。工具为 L1、租户范围、显式确认、禁止自动重试和单写步骤，写开关保持默认关闭；当前没有可靠稳定操作键，未知远程结果必须失败关闭，补齐幂等及只读核验前不得盲目重试。真实 PostgreSQL 已验证草稿、创建事件和审计落库以及审计失败整笔回滚；空库应用 94 个迁移、旧库升级、95 个迁移 validate 与重复迁移零变更通过。开发库已升级至 V202609190304，连续两次启动均健康，第二次明确无待执行迁移并核对冻结 Schema Hash；OA lint 零错误（3 条既有警告）、93 项测试和生产构建通过，后端 938 项零失败、9 项既有环境测试跳过。
+
+T7 供应商草稿创建原子工具切片：新增 `supplier.createDraft` 封闭契约，只接收编码、名称、简称、类别、等级和可选付款条款；统一社会信用代码、联系人、电话、邮箱、地址、风险备注和状态均不进入 Agent Schema。Handler 使用类型化 `FinanceToolPort.SupplierDraft`，本地 Adapter 复用供应商领域服务，未来拆分服务时只替换受认证、固定目标和固定方法的 Spring Cloud RPC Adapter。领域层重新校验实时 `supplier:manage` 与租户边界，并将供应商、初始 `DRAFT` 状态历史和业务审计保持在同一事务。工具为 L1、租户范围、显式确认、禁止自动重试和单写步骤，写开关保持默认关闭；它不能激活、暂停、拉黑、付款或外发资料。真实 PostgreSQL 已验证非敏感草稿、状态历史和审计落库及审计失败整笔回滚；空库应用 95 个迁移、旧库升级、96 个迁移 validate 与重复迁移零变更通过。开发库已升级至 V202609190305，连续两次启动均健康，第二次明确无待执行迁移并核对冻结 Schema Hash；OA lint 零错误（3 条既有警告）、93 项测试和生产构建通过，后端 942 项零失败、9 项既有环境测试跳过。
 
 M1 页面与工具能力清单收口切片：`ToolCode` 现在同时声明每个允许工具的固定代码与只读/单写副作用，页面目录只绑定工具代码，并从该上界派生 `PageToolAccess`，不再为每个页面重复维护 `read(...)`、`write(...)` 分类。`ToolDefinition`、页面契约门禁和 Gateway 契约门禁共同拒绝副作用漂移；原测试中单独维护的写工具集合已删除，异常路径夹具改用真实写工具代码，避免测试构造生产中不可能存在的契约。冻结 Schema、Handler 版本、数据库工具配置、权限、确认策略和 ToolGateway 执行流程均未改变，也没有修改历史迁移。OA lint 无错误（3 条既有警告）、93 项测试和生产构建通过，后端 891 项零失败、9 项既有环境测试跳过。
 

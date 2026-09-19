@@ -7,6 +7,7 @@ import com.aiworkmate.agent.tool.port.ToolWriteVerification;
 import com.aiworkmate.dto.BudgetPlanRequest;
 import com.aiworkmate.dto.BudgetStatusRequest;
 import com.aiworkmate.dto.ContractRequest;
+import com.aiworkmate.dto.SupplierRequest;
 import com.aiworkmate.service.BudgetService;
 import com.aiworkmate.service.ContractService;
 import com.aiworkmate.service.ExpenseApplicationService;
@@ -160,6 +161,15 @@ public class FinanceAgentDomainToolAdapter implements FinanceToolPort {
         }
         var result = supplierService.list(context.userId(), query.keyword(), query.status(), query.category(), query.page(), query.size());
         return new Page<>(result.records().stream().map(this::supplier).toList(), result.total(), result.page(), result.size());
+    }
+
+    @Override
+    public SupplierDraftResult createSupplierDraft(ToolActorContext context, SupplierDraft command) {
+        var result = supplierService.create(context.userId(), new SupplierRequest(
+                command.code(), command.name(), command.shortName(), null, command.category(),
+                command.supplierLevel(), null, null, null, null, command.paymentTerms(), null, null));
+        return new SupplierDraftResult(
+                result.id(), result.code(), result.status(), result.version(), result.updatedAt());
     }
 
     private Expense expense(com.aiworkmate.dto.ExpenseSummaryResponse item) {

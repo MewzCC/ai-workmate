@@ -219,4 +219,21 @@ class FinanceAgentDomainToolAdapterTest {
         assertThat(result.items().get(0).name()).isEqualTo("供应商");
         assertThat(result.toString()).doesNotContain("secret-credit", "13800000000", "secret@example.com", "内部地址", "高风险");
     }
+
+    @Test
+    void createsSupplierDraftWithoutSensitiveFields() {
+        var command = new FinanceToolPort.SupplierDraft(
+                "SUP-2027", "示例供应商", "示例", "SERVICE", "STANDARD", "月结30天");
+        var updatedAt = LocalDateTime.of(2026, 9, 19, 5, 0);
+        when(suppliers.create(eq(7L), any())).thenReturn(new SupplierResponse(
+                92L, "SUP-2027", "示例供应商", "示例", null, "SERVICE", "STANDARD", "DRAFT",
+                null, null, null, null, "月结30天", null, 0, updatedAt, updatedAt, true, List.of()));
+
+        assertThat(adapter.createSupplierDraft(actor, command)).isEqualTo(
+                new FinanceToolPort.SupplierDraftResult(92L, "SUP-2027", "DRAFT", 0, updatedAt));
+        verify(suppliers).create(eq(7L), argThat(request -> request.version() == null
+                && request.unifiedSocialCreditCode() == null && request.contactName() == null
+                && request.contactPhone() == null && request.contactEmail() == null
+                && request.address() == null && request.riskNote() == null));
+    }
 }
