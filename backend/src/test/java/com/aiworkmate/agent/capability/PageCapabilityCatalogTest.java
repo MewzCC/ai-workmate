@@ -165,6 +165,8 @@ class PageCapabilityCatalogTest {
                         ToolCode.BUDGET_ACTIVATE_DRAFT, ToolCode.BUDGET_CANCEL_DRAFT);
         assertThat(catalog.find("contracts").orElseThrow().readTools())
                 .extracting(PageToolReference::code).containsExactly(ToolCode.CONTRACT_QUERY);
+        assertThat(catalog.find("contracts").orElseThrow().writeTools())
+                .extracting(PageToolReference::code).containsExactly(ToolCode.CONTRACT_CREATE_DRAFT);
         assertThat(catalog.find("suppliers").orElseThrow().readTools())
                 .extracting(PageToolReference::code).containsExactly(ToolCode.SUPPLIER_QUERY);
     }

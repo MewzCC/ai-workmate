@@ -3,6 +3,7 @@ package com.aiworkmate.agent.tool.adapter;
 import com.aiworkmate.common.PageResponse;
 import com.aiworkmate.dto.ExpenseSummaryResponse;
 import com.aiworkmate.dto.BudgetResponse;
+import com.aiworkmate.dto.ContractResponse;
 import com.aiworkmate.dto.SupplierPageResponse;
 import com.aiworkmate.dto.SupplierResponse;
 import com.aiworkmate.dto.SupplierStatsResponse;
@@ -132,6 +133,28 @@ class FinanceAgentDomainToolAdapterTest {
                 new FinanceToolPort.BudgetDraftResult(82L, "OPS-2027", "CANCELLED", 1, updatedAt));
         verify(budgets).cancelAgentDraft(7L, 82L, 0);
         verify(budgets, never()).updateStatus(anyLong(), anyLong(), any());
+    }
+
+    @Test
+    void createsContractDraftThroughTypedServiceBoundary() {
+        var command = new FinanceToolPort.ContractDraft(
+                "HT-2027", "年度采购合同", "PURCHASE", "示例公司", null, 7L,
+                new BigDecimal("100000.00"), "CNY", LocalDate.of(2026, 9, 1),
+                LocalDate.of(2026, 9, 1), LocalDate.of(2027, 8, 31), "年度采购");
+        var updatedAt = LocalDateTime.of(2026, 9, 19, 4, 0);
+        when(contracts.create(eq(7L), any())).thenReturn(new ContractResponse(
+                91L, "HT-2027", "年度采购合同", "PURCHASE", "示例公司",
+                null, null, 7L, "员工", new BigDecimal("100000.00"), BigDecimal.ZERO,
+                "CNY", LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 1),
+                LocalDate.of(2027, 8, 31), "DRAFT", "NOT_STARTED", "NORMAL", 346,
+                "年度采购", 0, null, 0, updatedAt, updatedAt, true,
+                List.of("ACTIVE", "TERMINATED"), List.of("IN_PROGRESS"), false, false));
+
+        assertThat(adapter.createContractDraft(actor, command)).isEqualTo(
+                new FinanceToolPort.ContractDraftResult(91L, "HT-2027", "DRAFT", 0, updatedAt));
+        verify(contracts).create(eq(7L), argThat(request ->
+                request.code().equals("HT-2027") && request.version() == null
+                        && request.amount().compareTo(new BigDecimal("100000.00")) == 0));
     }
 
     @Test

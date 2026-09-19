@@ -58,6 +58,7 @@ public enum ToolCode {
     BUDGET_ACTIVATE_DRAFT("budget.activateDraft", SideEffect.SINGLE_WRITE),
     BUDGET_CANCEL_DRAFT("budget.cancelDraft", SideEffect.SINGLE_WRITE),
     CONTRACT_QUERY("contract.query"),
+    CONTRACT_CREATE_DRAFT("contract.createDraft", SideEffect.SINGLE_WRITE),
     SUPPLIER_QUERY("supplier.query"),
     INTEGRATION_ENDPOINT_QUERY("integration.endpoint.query"),
     PAGE_ACTION_QUERY("pageAction.query"),

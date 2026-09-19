@@ -26,6 +26,7 @@ public interface FinanceToolPort {
     BudgetDraftResult activateBudgetDraft(ToolActorContext context, long budgetId, int version);
     BudgetDraftResult cancelBudgetDraft(ToolActorContext context, long budgetId, int version);
     Page<Contract> contracts(ToolActorContext context, ContractQuery query);
+    ContractDraftResult createContractDraft(ToolActorContext context, ContractDraft command);
     Page<Supplier> suppliers(ToolActorContext context, SupplierQuery query);
 
     record ExpenseQuery(Long applicationId, String status, int page, int size) { }
@@ -45,6 +46,11 @@ public interface FinanceToolPort {
                              LocalDateTime updatedAt) implements ToolWriteReceipt { }
     record ContractQuery(Long contractId, String keyword, String status, String contractType,
                          String expiryState, int page, int size) { }
+    record ContractDraft(String code, String name, String contractType, String counterpartyName,
+                         Long supplierId, long ownerUserId, BigDecimal amount, String currency,
+                         LocalDate signedDate, LocalDate startDate, LocalDate endDate, String summary) { }
+    record ContractDraftResult(long contractId, String code, String status, int version,
+                               LocalDateTime updatedAt) implements ToolWriteReceipt { }
     record SupplierQuery(Long supplierId, String keyword, String status, String category, int page, int size) { }
     record Page<T>(List<T> items, long total, int page, int size) {
         public Page { items = List.copyOf(items); }

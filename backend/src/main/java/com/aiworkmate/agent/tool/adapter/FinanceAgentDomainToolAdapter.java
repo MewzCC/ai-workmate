@@ -6,6 +6,7 @@ import com.aiworkmate.agent.tool.port.ToolOperationKey;
 import com.aiworkmate.agent.tool.port.ToolWriteVerification;
 import com.aiworkmate.dto.BudgetPlanRequest;
 import com.aiworkmate.dto.BudgetStatusRequest;
+import com.aiworkmate.dto.ContractRequest;
 import com.aiworkmate.service.BudgetService;
 import com.aiworkmate.service.ContractService;
 import com.aiworkmate.service.ExpenseApplicationService;
@@ -140,6 +141,16 @@ public class FinanceAgentDomainToolAdapter implements FinanceToolPort {
         var result = contractService.list(context.userId(), query.keyword(), query.status(), query.contractType(),
                 query.expiryState(), query.page(), query.size());
         return new Page<>(result.records().stream().map(this::contract).toList(), result.total(), result.page(), result.size());
+    }
+
+    @Override
+    public ContractDraftResult createContractDraft(ToolActorContext context, ContractDraft command) {
+        var result = contractService.create(context.userId(), new ContractRequest(
+                command.code(), command.name(), command.contractType(), command.counterpartyName(),
+                command.supplierId(), command.ownerUserId(), command.amount(), command.currency(),
+                command.signedDate(), command.startDate(), command.endDate(), command.summary(), null));
+        return new ContractDraftResult(
+                result.id(), result.code(), result.status(), result.version(), result.updatedAt());
     }
 
     @Override public Page<Supplier> suppliers(ToolActorContext context, SupplierQuery query) {
