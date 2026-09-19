@@ -5,6 +5,7 @@ import com.aiworkmate.agent.tool.port.ToolActorContext;
 import com.aiworkmate.agent.tool.port.ToolOperationKey;
 import com.aiworkmate.agent.tool.port.ToolWriteVerification;
 import com.aiworkmate.dto.BudgetPlanRequest;
+import com.aiworkmate.dto.BudgetStatusRequest;
 import com.aiworkmate.service.BudgetService;
 import com.aiworkmate.service.ContractService;
 import com.aiworkmate.service.ExpenseApplicationService;
@@ -112,6 +113,14 @@ public class FinanceAgentDomainToolAdapter implements FinanceToolPort {
                 new BudgetAgentDraftCommand(
                         command.name(), command.fiscalYear(), command.ownerUserId(), command.totalAmount(),
                         command.currency(), command.warningThreshold(), command.summary()));
+        return new BudgetDraftResult(
+                result.id(), result.code(), result.status(), result.version(), result.updatedAt());
+    }
+
+    @Override
+    public BudgetDraftResult activateBudgetDraft(ToolActorContext context, long budgetId, int version) {
+        var result = budgetService.updateStatus(
+                context.userId(), budgetId, new BudgetStatusRequest("ACTIVE", null, version));
         return new BudgetDraftResult(
                 result.id(), result.code(), result.status(), result.version(), result.updatedAt());
     }

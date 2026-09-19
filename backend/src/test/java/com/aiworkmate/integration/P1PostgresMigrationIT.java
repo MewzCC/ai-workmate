@@ -763,6 +763,21 @@ class P1PostgresMigrationIT {
                     """)).as("预算草稿更新 Agent 工具必须具备独立实时权限").isOne();
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'budget.activateDraft'
+                      AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:51d4be688b529ca56eebc2cc04adcb6b67b0e929d15f68ea7f3a935d9c0e7611'
+                      AND risk_level = 'L2' AND data_scope_policy = 'TENANT_SCOPED'
+                      AND required_permissions = '["budget:manage"]'::jsonb
+                      AND retry_policy = 'NEVER'
+                      AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'SECONDARY' AND enabled = TRUE
+                    """)).as("预算草稿启用工具必须以冻结的高风险状态迁移契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code = 'agent:tool:budget.activateDraft'
+                    """)).as("预算草稿启用 Agent 工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
                     WHERE tenant_id IS NULL AND enabled = TRUE AND side_effect = 'NONE'
                       AND (code, schema_hash, data_scope_policy) IN (
                         ('integration.endpoint.query','sha256:77b6949a8aca42cdd8c7776e51e64e2fa4bf52c64bb4d950e5d61e2c19eadd22','TENANT_SCOPED'),

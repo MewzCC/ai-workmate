@@ -1,6 +1,7 @@
 package com.aiworkmate.integration;
 
 import com.aiworkmate.dto.BudgetPlanRequest;
+import com.aiworkmate.dto.BudgetStatusRequest;
 import com.aiworkmate.mapper.BudgetPlanMapper;
 import com.aiworkmate.mapper.BudgetTransactionMapper;
 import com.aiworkmate.mapper.BusinessAuditLogMapper;
@@ -93,6 +94,7 @@ final class BudgetDraftPostgresVerifier {
                 SELECT count(*) FROM budget_transaction
                 WHERE tenant_id=? AND budget_id=? AND transaction_type='UPDATED'
                 """, Integer.class, tenant, created.id())).isOne();
+
         assertThat(jdbc.queryForObject("""
                 SELECT count(*) FROM business_audit_log
                 WHERE tenant_id=? AND resource_type='BUDGET' AND resource_id=? AND action='UPDATE'
@@ -118,6 +120,36 @@ final class BudgetDraftPostgresVerifier {
                 SELECT count(*) FROM budget_transaction
                 WHERE tenant_id=? AND budget_id=? AND transaction_type='UPDATED'
                 """, Integer.class, tenant, created.id())).isOne();
+        assertThatThrownBy(() -> tx.execute(status -> failing.updateStatus(
+                owner, created.id(), new BudgetStatusRequest("ACTIVE", "不应启用", updated.version()))))
+                .isInstanceOf(IllegalStateException.class);
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM budget_plan
+                WHERE tenant_id=? AND id=? AND status='DRAFT' AND version=1
+                """, Integer.class, tenant, created.id())).isOne();
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM budget_transaction
+                WHERE tenant_id=? AND budget_id=? AND transaction_type='STATUS_ACTIVE'
+                """, Integer.class, tenant, created.id())).isZero();
+
+        var activated = tx.execute(status -> service.updateStatus(
+                owner, created.id(), new BudgetStatusRequest("ACTIVE", "Agent 受控启用", updated.version())));
+        assertThat(activated).isNotNull();
+        assertThat(activated.status()).isEqualTo("ACTIVE");
+        assertThat(activated.version()).isEqualTo(2);
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM budget_plan
+                WHERE tenant_id=? AND id=? AND status='ACTIVE' AND version=2
+                  AND occupied_amount=0 AND spent_amount=0
+                """, Integer.class, tenant, created.id())).isOne();
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM budget_transaction
+                WHERE tenant_id=? AND budget_id=? AND transaction_type='STATUS_ACTIVE'
+                """, Integer.class, tenant, created.id())).isOne();
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM business_audit_log
+                WHERE tenant_id=? AND resource_type='BUDGET' AND resource_id=? AND action='STATUS_ACTIVE'
+                """, Integer.class, tenant, created.id().toString())).isOne();
     }
 
     private static BudgetServiceImpl service(

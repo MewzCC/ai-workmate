@@ -58,4 +58,23 @@ class AgentBudgetWriteToolDefinitionsTest {
                  "status":"ACTIVE"}
                 """))).isFalse();
     }
+
+    @Test
+    void activateDraftIsSecondaryConfirmedAndHasNoTargetStatusArgument() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        ToolDefinition definition = new AgentBudgetWriteToolDefinitions()
+                .budgetActivateDraftToolDefinition(mapper);
+        ToolSchemaValidator validator = new ToolSchemaValidator();
+
+        assertThat(definition.schemaHash()).isEqualTo(
+                "sha256:51d4be688b529ca56eebc2cc04adcb6b67b0e929d15f68ea7f3a935d9c0e7611");
+        assertThat(definition.riskLevel()).isEqualTo(RiskLevel.L2);
+        assertThat(definition.confirmationPolicy()).isEqualTo(ConfirmationPolicy.SECONDARY);
+        assertThat(definition.retryPolicy()).isEqualTo(RetryPolicy.NEVER);
+        assertThat(definition.requiredPermissions()).containsExactly("budget:manage");
+        assertThat(validator.valid(definition.inputSchema(),
+                mapper.readTree("{\"budgetId\":81,\"version\":1}"))).isTrue();
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree(
+                "{\"budgetId\":81,\"version\":1,\"status\":\"ACTIVE\"}"))).isFalse();
+    }
 }

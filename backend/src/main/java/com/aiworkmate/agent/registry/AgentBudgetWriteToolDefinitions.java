@@ -21,6 +21,11 @@ public class AgentBudgetWriteToolDefinitions {
     public static final String UPDATE_DRAFT_OUTPUT_SCHEMA = """
             {"type":"object","additionalProperties":false,"required":["budgetId","code","status","version","updatedAt"],"properties":{"budgetId":{"type":"integer","minimum":1},"code":{"type":"string"},"status":{"type":"string","const":"DRAFT"},"version":{"type":"integer","minimum":1},"updatedAt":{"type":"string","format":"date-time"}}}
             """.strip();
+    public static final String ACTIVATE_DRAFT_INPUT_SCHEMA =
+            ClosedToolSchemas.versionedResourceInput("budgetId");
+    public static final String ACTIVATE_DRAFT_OUTPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["budgetId","code","status","version","updatedAt"],"properties":{"budgetId":{"type":"integer","minimum":1},"code":{"type":"string"},"status":{"type":"string","const":"ACTIVE"},"version":{"type":"integer","minimum":1},"updatedAt":{"type":"string","format":"date-time"}}}
+            """.strip();
 
     @Bean
     ToolDefinition budgetCreateDraftToolDefinition(ObjectMapper objectMapper)
@@ -47,6 +52,20 @@ public class AgentBudgetWriteToolDefinitions {
                 objectMapper.readTree(UPDATE_DRAFT_OUTPUT_SCHEMA),
                 RiskLevel.L1, Set.of("budget:manage"), OwnershipPolicy.TENANT_SCOPED,
                 RetryPolicy.NEVER, ConfirmationPolicy.EXPLICIT,
+                1, 4096, 15000);
+    }
+
+    @Bean
+    ToolDefinition budgetActivateDraftToolDefinition(ObjectMapper objectMapper)
+            throws JsonProcessingException {
+        return ToolDefinitionFactory.singleWrite(
+                ToolCode.BUDGET_ACTIVATE_DRAFT, "Activate a budget draft",
+                "Activates one tenant-scoped draft budget using optimistic locking.",
+                "Perform only the DRAFT to ACTIVE transition; never operate, close or cancel the budget.",
+                objectMapper.readTree(ACTIVATE_DRAFT_INPUT_SCHEMA),
+                objectMapper.readTree(ACTIVATE_DRAFT_OUTPUT_SCHEMA),
+                RiskLevel.L2, Set.of("budget:manage"), OwnershipPolicy.TENANT_SCOPED,
+                RetryPolicy.NEVER, ConfirmationPolicy.SECONDARY,
                 1, 4096, 15000);
     }
 }

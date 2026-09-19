@@ -23,6 +23,7 @@ public interface FinanceToolPort {
     Page<Budget> budgets(ToolActorContext context, BudgetQuery query);
     BudgetDraftResult createBudgetDraft(ToolActorContext context, BudgetDraft command);
     BudgetDraftResult updateBudgetDraft(ToolActorContext context, BudgetDraftUpdate command);
+    BudgetDraftResult activateBudgetDraft(ToolActorContext context, long budgetId, int version);
     Page<Contract> contracts(ToolActorContext context, ContractQuery query);
     Page<Supplier> suppliers(ToolActorContext context, SupplierQuery query);
 
