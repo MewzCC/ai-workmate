@@ -82,6 +82,8 @@ class P1PostgresMigrationIT {
                 databaseUrl, databaseUsername, databasePassword, emptySchema);
         ExpenseDraftPostgresVerifier.verify(
                 databaseUrl, databaseUsername, databasePassword, emptySchema);
+        BudgetDraftPostgresVerifier.verify(
+                databaseUrl, databaseUsername, databasePassword, emptySchema);
         Flyway restartedEmpty = flyway(emptySchema, null);
         assertThat(restartedEmpty.migrate().migrationsExecuted).isZero();
         assertThat(restartedEmpty.validateWithResult().validationSuccessful).isTrue();
@@ -729,6 +731,21 @@ class P1PostgresMigrationIT {
                     SELECT COUNT(*) FROM rbac_permission
                     WHERE code = 'agent:tool:expense.reopen'
                     """)).as("费用申请恢复草稿 Agent 工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'budget.createDraft'
+                      AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:30d568a5b7743a291b88653c2548d4a40c39561e8647f26f155abc26a0f1cbca'
+                      AND risk_level = 'L1' AND data_scope_policy = 'TENANT_SCOPED'
+                      AND required_permissions = '["budget:manage"]'::jsonb
+                      AND retry_policy = 'NEVER'
+                      AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'EXPLICIT' AND enabled = TRUE
+                    """)).as("预算草稿创建工具必须以冻结的租户原子写契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code = 'agent:tool:budget.createDraft'
+                    """)).as("预算草稿创建 Agent 工具必须具备独立实时权限").isOne();
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM agent_tool
                     WHERE tenant_id IS NULL AND enabled = TRUE AND side_effect = 'NONE'

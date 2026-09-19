@@ -53,6 +53,7 @@ public enum ToolCode {
     EXPENSE_WITHDRAW("expense.withdraw", SideEffect.SINGLE_WRITE),
     EXPENSE_REOPEN("expense.reopen", SideEffect.SINGLE_WRITE),
     BUDGET_QUERY("budget.query"),
+    BUDGET_CREATE_DRAFT("budget.createDraft", SideEffect.SINGLE_WRITE),
     CONTRACT_QUERY("contract.query"),
     SUPPLIER_QUERY("supplier.query"),
     INTEGRATION_ENDPOINT_QUERY("integration.endpoint.query"),

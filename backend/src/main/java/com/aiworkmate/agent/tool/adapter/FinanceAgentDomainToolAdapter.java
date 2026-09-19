@@ -10,6 +10,7 @@ import com.aiworkmate.service.ExpenseApplicationService;
 import com.aiworkmate.service.ExpenseQueryService;
 import com.aiworkmate.service.SupplierService;
 import com.aiworkmate.service.model.ExpenseAgentDraftCommand;
+import com.aiworkmate.dto.BudgetPlanRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -92,6 +93,15 @@ public class FinanceAgentDomainToolAdapter implements FinanceToolPort {
         }
         var result = budgetService.list(context.userId(), query.keyword(), query.status(), query.fiscalYear(), query.page(), query.size());
         return new Page<>(result.records().stream().map(this::budget).toList(), result.total(), result.page(), result.size());
+    }
+
+    @Override
+    public BudgetDraftResult createBudgetDraft(ToolActorContext context, BudgetDraft command) {
+        var result = budgetService.create(context.userId(), new BudgetPlanRequest(
+                command.code(), command.name(), command.fiscalYear(), command.ownerUserId(),
+                command.totalAmount(), command.currency(), command.warningThreshold(), command.summary(), null));
+        return new BudgetDraftResult(
+                result.id(), result.code(), result.status(), result.version(), result.updatedAt());
     }
 
     @Override public Page<Contract> contracts(ToolActorContext context, ContractQuery query) {

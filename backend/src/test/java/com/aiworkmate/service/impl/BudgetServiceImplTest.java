@@ -47,6 +47,12 @@ class BudgetServiceImplTest {
         var result=service.create(10L,request(null)); ArgumentCaptor<BudgetPlan> saved=ArgumentCaptor.forClass(BudgetPlan.class);verify(planMapper).insert(saved.capture());
         assertThat(saved.getValue().getTenantId()).isEqualTo(9L);assertThat(saved.getValue().getBudgetCode()).isEqualTo("BUD-001");assertThat(result.status()).isEqualTo("DRAFT");verify(transactionMapper).insert(any(BudgetTransaction.class));}
 
+    @Test void rejectsInvalidRequestAtDomainBoundary(){
+        var invalid=new BudgetPlanRequest("bud-001","研发预算",2026,10L,new BigDecimal("0.001"),"CNY",80,"说明",null);
+        assertThatThrownBy(()->service.create(10L,invalid)).isInstanceOf(BusinessException.class);
+        verifyNoInteractions(accessService,planMapper,transactionMapper,userMapper,auditService);
+    }
+
     @Test void rejectsCrossTenantMissingBudget(){when(accessService.resolveActiveUser(10L)).thenReturn(access(List.of("route:budget","budget:manage")));when(planMapper.selectOne(any())).thenReturn(null);
         assertThatThrownBy(()->service.operate(10L,99L,new BudgetOperationRequest("OCCUPY",BigDecimal.TEN,null,null,0))).isInstanceOf(BusinessException.class);}
 

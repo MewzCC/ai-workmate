@@ -2,6 +2,7 @@ package com.aiworkmate.agent.tool.adapter;
 
 import com.aiworkmate.common.PageResponse;
 import com.aiworkmate.dto.ExpenseSummaryResponse;
+import com.aiworkmate.dto.BudgetResponse;
 import com.aiworkmate.dto.SupplierPageResponse;
 import com.aiworkmate.dto.SupplierResponse;
 import com.aiworkmate.dto.SupplierStatsResponse;
@@ -65,6 +66,24 @@ class FinanceAgentDomainToolAdapterTest {
         assertThat(adapter.findExpenseDraft(actor, command, key))
                 .isEqualTo(ToolWriteVerification.observed(expected));
         verify(expenseApplications).createAgentDraft(eq(7L), any(), eq("expense-operation"));
+    }
+
+    @Test
+    void createsBudgetDraftThroughTypedServiceBoundary() {
+        var command = new FinanceToolPort.BudgetDraft(
+                "RD-2027", "研发预算", 2027, 7L, new BigDecimal("100000.00"),
+                "CNY", 80, "年度研发");
+        var updatedAt = LocalDateTime.of(2026, 9, 19, 3, 0);
+        when(budgets.create(eq(7L), any())).thenReturn(new BudgetResponse(
+                81L, "RD-2027", "研发预算", 2027, 7L, "员工",
+                new BigDecimal("100000.00"), BigDecimal.ZERO, BigDecimal.ZERO,
+                new BigDecimal("100000.00"), "CNY", 80, 0, "NORMAL",
+                "DRAFT", "年度研发", 0, updatedAt, true, List.of("ACTIVE", "CANCELLED")));
+
+        assertThat(adapter.createBudgetDraft(actor, command)).isEqualTo(
+                new FinanceToolPort.BudgetDraftResult(81L, "RD-2027", "DRAFT", 0, updatedAt));
+        verify(budgets).create(eq(7L), argThat(request ->
+                request.code().equals("RD-2027") && request.version() == null));
     }
 
     @Test

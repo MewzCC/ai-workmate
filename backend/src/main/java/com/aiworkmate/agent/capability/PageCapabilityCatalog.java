@@ -146,7 +146,7 @@ public class PageCapabilityCatalog {
                         tool(EXPENSE_SUBMIT_DRAFT), tool(EXPENSE_WITHDRAW), tool(EXPENSE_REOPEN)),
                 page(OaPage.BUDGET, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         context(number("budgetId"), text("keyword"), text("status"), number("fiscalYear"),
-                                number("page"), number("size")), tool(BUDGET_QUERY)),
+                                number("page"), number("size")), tool(BUDGET_QUERY), tool(BUDGET_CREATE_DRAFT)),
                 page(OaPage.CONTRACTS, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         context(number("contractId"), text("keyword"), text("status"), text("contractType"),
                                 text("expiryState"), number("page"), number("size")), tool(CONTRACT_QUERY)),
