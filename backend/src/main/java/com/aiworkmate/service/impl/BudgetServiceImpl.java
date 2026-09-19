@@ -145,10 +145,25 @@ public class BudgetServiceImpl implements BudgetService {
         if(target==null || !TRANSITIONS.getOrDefault(old.getStatus(),List.of()).contains(target)) state("validation.budget.transition.invalid");
         if("CLOSED".equals(target)&&old.getOccupiedAmount().signum()>0) state("validation.budget.close.occupied");
         if("CANCELLED".equals(target)&&(old.getOccupiedAmount().signum()>0||old.getSpentAmount().signum()>0)) state("validation.budget.cancel.used");
-        int count=planMapper.update(null,update(actor,old).set(BudgetPlan::getStatus,target).set(BudgetPlan::getUpdatedBy,actor.userId())
+        return transition(actor,old,target,request.reason(),null);
+    }
+
+    @Override @Transactional
+    public BudgetResponse cancelAgentDraft(Long userId, Long id, int expectedVersion) {
+        ResolvedUserAccess actor=requireManage(userId); BudgetPlan old=requirePlan(actor,id); version(expectedVersion,old.getVersion());
+        if(!"DRAFT".equals(old.getStatus())) state("validation.budget.transition.invalid");
+        if(old.getOccupiedAmount().signum()>0||old.getSpentAmount().signum()>0) state("validation.budget.cancel.used");
+        return transition(actor,old,"CANCELLED",null,"DRAFT");
+    }
+
+    private BudgetResponse transition(ResolvedUserAccess actor, BudgetPlan old, String target,
+                                      String reason, String requiredSource) {
+        LambdaUpdateWrapper<BudgetPlan> conditions=update(actor,old);
+        if(requiredSource!=null) conditions.eq(BudgetPlan::getStatus,requiredSource);
+        int count=planMapper.update(null,conditions.set(BudgetPlan::getStatus,target).set(BudgetPlan::getUpdatedBy,actor.userId())
                 .set(BudgetPlan::getUpdatedAt,LocalDateTime.now()).set(BudgetPlan::getVersion,old.getVersion()+1)); if(count!=1) conflict();
-        event(actor,old,"STATUS_"+target,old.getOccupiedAmount(),old.getSpentAmount(),null,null,request.reason()); audit(actor,old,"STATUS_"+target);
-        return response(requirePlan(actor,id),true);
+        event(actor,old,"STATUS_"+target,old.getOccupiedAmount(),old.getSpentAmount(),null,null,reason); audit(actor,old,"STATUS_"+target);
+        return response(requirePlan(actor,old.getId()),true);
     }
 
     @Override @Transactional

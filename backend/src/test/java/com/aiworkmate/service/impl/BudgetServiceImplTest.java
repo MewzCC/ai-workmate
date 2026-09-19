@@ -15,6 +15,9 @@ import com.aiworkmate.service.NotificationService;
 import com.aiworkmate.service.UserAccessService;
 import com.aiworkmate.service.model.BudgetAgentDraftCommand;
 import com.aiworkmate.service.model.ResolvedUserAccess;
+import com.baomidou.mybatisplus.core.MybatisConfiguration;
+import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
+import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -38,7 +41,14 @@ class BudgetServiceImplTest {
     @Mock MessageSource messageSource;
     BudgetServiceImpl service;
 
-    @BeforeEach void setUp(){service=new BudgetServiceImpl(planMapper,transactionMapper,userMapper,accessService,auditService,notificationService,messageSource);}
+    @BeforeEach void setUp(){
+        if(TableInfoHelper.getTableInfo(BudgetPlan.class)==null){
+            MapperBuilderAssistant assistant=new MapperBuilderAssistant(new MybatisConfiguration(),"test");
+            assistant.setCurrentNamespace(BudgetPlanMapper.class.getName());
+            TableInfoHelper.initTableInfo(assistant,BudgetPlan.class);
+        }
+        service=new BudgetServiceImpl(planMapper,transactionMapper,userMapper,accessService,auditService,notificationService,messageSource);
+    }
 
     @Test void rejectsCreateWithoutManagePermission(){when(accessService.resolveActiveUser(10L)).thenReturn(access(List.of("route:budget")));
         assertThatThrownBy(()->service.create(10L,request(null))).isInstanceOf(BusinessException.class); verifyNoInteractions(planMapper);}
@@ -87,6 +97,16 @@ class BudgetServiceImplTest {
 
     @Test void closesOnlyAfterOccupationIsCleared(){stubManage();when(planMapper.selectOne(any())).thenReturn(plan("ACTIVE",3,new BigDecimal("1"),BigDecimal.ZERO));
         assertThatThrownBy(()->service.updateStatus(10L,91L,new BudgetStatusRequest("CLOSED",null,3))).isInstanceOf(BusinessException.class);verify(planMapper,never()).update(any(),any());}
+
+    @Test void cancelsOnlyDraftThroughAgentBoundary(){stubManage();BudgetPlan old=plan("DRAFT",0,BigDecimal.ZERO,BigDecimal.ZERO);BudgetPlan cancelled=plan("CANCELLED",1,BigDecimal.ZERO,BigDecimal.ZERO);
+        when(planMapper.selectOne(any())).thenReturn(old,cancelled);when(planMapper.update(isNull(),any())).thenReturn(1);
+        var result=service.cancelAgentDraft(10L,91L,0);assertThat(result.status()).isEqualTo("CANCELLED");assertThat(result.version()).isOne();
+        verify(transactionMapper).insert(argThat((BudgetTransaction event)->"STATUS_CANCELLED".equals(event.getTransactionType())));
+        verify(auditService).recordTransactional(9L,10L,"BUDGET","91","STATUS_CANCELLED","SUCCESS","BUD-001");}
+
+    @Test void rejectsAgentCancellationOfActiveBudget(){stubManage();when(planMapper.selectOne(any())).thenReturn(plan("ACTIVE",0,BigDecimal.ZERO,BigDecimal.ZERO));
+        assertThatThrownBy(()->service.cancelAgentDraft(10L,91L,0)).isInstanceOf(BusinessException.class);
+        verify(planMapper,never()).update(any(),any());verifyNoInteractions(transactionMapper,auditService);}
 
     private void stubManage(){when(accessService.resolveActiveUser(10L)).thenReturn(access(List.of("route:budget","budget:manage")));}
     private BudgetAgentDraftCommand agentUpdate(){return new BudgetAgentDraftCommand("研发预算二期",2027,10L,new BigDecimal("120"),"CNY",85,"更新范围");}

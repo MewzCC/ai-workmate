@@ -125,6 +125,13 @@ public class FinanceAgentDomainToolAdapter implements FinanceToolPort {
                 result.id(), result.code(), result.status(), result.version(), result.updatedAt());
     }
 
+    @Override
+    public BudgetDraftResult cancelBudgetDraft(ToolActorContext context, long budgetId, int version) {
+        var result = budgetService.cancelAgentDraft(context.userId(), budgetId, version);
+        return new BudgetDraftResult(
+                result.id(), result.code(), result.status(), result.version(), result.updatedAt());
+    }
+
     @Override public Page<Contract> contracts(ToolActorContext context, ContractQuery query) {
         if (query.contractId() != null) {
             var detail = contractService.detail(context.userId(), query.contractId()).contract();

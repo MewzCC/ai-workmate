@@ -26,6 +26,11 @@ public class AgentBudgetWriteToolDefinitions {
     public static final String ACTIVATE_DRAFT_OUTPUT_SCHEMA = """
             {"type":"object","additionalProperties":false,"required":["budgetId","code","status","version","updatedAt"],"properties":{"budgetId":{"type":"integer","minimum":1},"code":{"type":"string"},"status":{"type":"string","const":"ACTIVE"},"version":{"type":"integer","minimum":1},"updatedAt":{"type":"string","format":"date-time"}}}
             """.strip();
+    public static final String CANCEL_DRAFT_INPUT_SCHEMA =
+            ClosedToolSchemas.versionedResourceInput("budgetId");
+    public static final String CANCEL_DRAFT_OUTPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["budgetId","code","status","version","updatedAt"],"properties":{"budgetId":{"type":"integer","minimum":1},"code":{"type":"string"},"status":{"type":"string","const":"CANCELLED"},"version":{"type":"integer","minimum":1},"updatedAt":{"type":"string","format":"date-time"}}}
+            """.strip();
 
     @Bean
     ToolDefinition budgetCreateDraftToolDefinition(ObjectMapper objectMapper)
@@ -64,6 +69,20 @@ public class AgentBudgetWriteToolDefinitions {
                 "Perform only the DRAFT to ACTIVE transition; never operate, close or cancel the budget.",
                 objectMapper.readTree(ACTIVATE_DRAFT_INPUT_SCHEMA),
                 objectMapper.readTree(ACTIVATE_DRAFT_OUTPUT_SCHEMA),
+                RiskLevel.L2, Set.of("budget:manage"), OwnershipPolicy.TENANT_SCOPED,
+                RetryPolicy.NEVER, ConfirmationPolicy.SECONDARY,
+                1, 4096, 15000);
+    }
+
+    @Bean
+    ToolDefinition budgetCancelDraftToolDefinition(ObjectMapper objectMapper)
+            throws JsonProcessingException {
+        return ToolDefinitionFactory.singleWrite(
+                ToolCode.BUDGET_CANCEL_DRAFT, "Cancel a budget draft",
+                "Cancels one tenant-scoped draft budget using optimistic locking.",
+                "Perform only the DRAFT to CANCELLED transition; never activate, close or operate the budget.",
+                objectMapper.readTree(CANCEL_DRAFT_INPUT_SCHEMA),
+                objectMapper.readTree(CANCEL_DRAFT_OUTPUT_SCHEMA),
                 RiskLevel.L2, Set.of("budget:manage"), OwnershipPolicy.TENANT_SCOPED,
                 RetryPolicy.NEVER, ConfirmationPolicy.SECONDARY,
                 1, 4096, 15000);

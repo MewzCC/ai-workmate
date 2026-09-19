@@ -10,6 +10,7 @@ public interface BudgetService {
     BudgetResponse create(Long userId, BudgetPlanRequest request);
     BudgetResponse update(Long userId, Long id, BudgetPlanRequest request);
     BudgetResponse updateAgentDraft(Long userId, Long id, int version, BudgetAgentDraftCommand command);
+    BudgetResponse cancelAgentDraft(Long userId, Long id, int version);
     BudgetResponse updateStatus(Long userId, Long id, BudgetStatusRequest request);
     BudgetResponse operate(Long userId, Long id, BudgetOperationRequest request);
 }

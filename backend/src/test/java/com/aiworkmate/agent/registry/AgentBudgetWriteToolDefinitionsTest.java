@@ -77,4 +77,23 @@ class AgentBudgetWriteToolDefinitionsTest {
         assertThat(validator.valid(definition.inputSchema(), mapper.readTree(
                 "{\"budgetId\":81,\"version\":1,\"status\":\"ACTIVE\"}"))).isFalse();
     }
+
+    @Test
+    void cancelDraftIsSecondaryConfirmedAndHasNoTargetStatusArgument() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        ToolDefinition definition = new AgentBudgetWriteToolDefinitions()
+                .budgetCancelDraftToolDefinition(mapper);
+        ToolSchemaValidator validator = new ToolSchemaValidator();
+
+        assertThat(definition.schemaHash()).isEqualTo(
+                "sha256:ad145cbe546f3e631e10eec19e05a791915da61397ab1edd0a8599c41e32e440");
+        assertThat(definition.riskLevel()).isEqualTo(RiskLevel.L2);
+        assertThat(definition.confirmationPolicy()).isEqualTo(ConfirmationPolicy.SECONDARY);
+        assertThat(definition.retryPolicy()).isEqualTo(RetryPolicy.NEVER);
+        assertThat(definition.requiredPermissions()).containsExactly("budget:manage");
+        assertThat(validator.valid(definition.inputSchema(),
+                mapper.readTree("{\"budgetId\":82,\"version\":0}"))).isTrue();
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree(
+                "{\"budgetId\":82,\"version\":0,\"status\":\"CANCELLED\"}"))).isFalse();
+    }
 }

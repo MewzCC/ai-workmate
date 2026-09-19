@@ -1,5 +1,6 @@
 package com.aiworkmate.integration;
 
+import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.dto.BudgetPlanRequest;
 import com.aiworkmate.dto.BudgetStatusRequest;
 import com.aiworkmate.mapper.BudgetPlanMapper;
@@ -131,6 +132,39 @@ final class BudgetDraftPostgresVerifier {
                 SELECT count(*) FROM budget_transaction
                 WHERE tenant_id=? AND budget_id=? AND transaction_type='STATUS_ACTIVE'
                 """, Integer.class, tenant, created.id())).isZero();
+        assertThatThrownBy(() -> tx.execute(status -> failing.cancelAgentDraft(
+                owner, created.id(), updated.version())))
+                .isInstanceOf(IllegalStateException.class);
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM budget_plan
+                WHERE tenant_id=? AND id=? AND status='DRAFT' AND version=1
+                """, Integer.class, tenant, created.id())).isOne();
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM budget_transaction
+                WHERE tenant_id=? AND budget_id=? AND transaction_type='STATUS_CANCELLED'
+                """, Integer.class, tenant, created.id())).isZero();
+
+        var cancelDraft = tx.execute(status -> service.create(
+                owner, request("AGENT-BUDGET-CANCEL", owner)));
+        assertThat(cancelDraft).isNotNull();
+        var cancelled = tx.execute(status -> service.cancelAgentDraft(
+                owner, cancelDraft.id(), cancelDraft.version()));
+        assertThat(cancelled).isNotNull();
+        assertThat(cancelled.status()).isEqualTo("CANCELLED");
+        assertThat(cancelled.version()).isOne();
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM budget_plan
+                WHERE tenant_id=? AND id=? AND status='CANCELLED' AND version=1
+                  AND occupied_amount=0 AND spent_amount=0
+                """, Integer.class, tenant, cancelDraft.id())).isOne();
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM budget_transaction
+                WHERE tenant_id=? AND budget_id=? AND transaction_type='STATUS_CANCELLED'
+                """, Integer.class, tenant, cancelDraft.id())).isOne();
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM business_audit_log
+                WHERE tenant_id=? AND resource_type='BUDGET' AND resource_id=? AND action='STATUS_CANCELLED'
+                """, Integer.class, tenant, cancelDraft.id().toString())).isOne();
 
         var activated = tx.execute(status -> service.updateStatus(
                 owner, created.id(), new BudgetStatusRequest("ACTIVE", "Agent 受控启用", updated.version())));
@@ -150,6 +184,17 @@ final class BudgetDraftPostgresVerifier {
                 SELECT count(*) FROM business_audit_log
                 WHERE tenant_id=? AND resource_type='BUDGET' AND resource_id=? AND action='STATUS_ACTIVE'
                 """, Integer.class, tenant, created.id().toString())).isOne();
+        assertThatThrownBy(() -> tx.execute(status -> service.cancelAgentDraft(
+                owner, created.id(), activated.version())))
+                .isInstanceOf(BusinessException.class);
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM budget_plan
+                WHERE tenant_id=? AND id=? AND status='ACTIVE' AND version=2
+                """, Integer.class, tenant, created.id())).isOne();
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM budget_transaction
+                WHERE tenant_id=? AND budget_id=? AND transaction_type='STATUS_CANCELLED'
+                """, Integer.class, tenant, created.id())).isZero();
     }
 
     private static BudgetServiceImpl service(
