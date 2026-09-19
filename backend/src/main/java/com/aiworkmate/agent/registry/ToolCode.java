@@ -62,6 +62,7 @@ public enum ToolCode {
     CONTRACT_UPDATE_DRAFT("contract.updateDraft", SideEffect.SINGLE_WRITE),
     SUPPLIER_QUERY("supplier.query"),
     SUPPLIER_CREATE_DRAFT("supplier.createDraft", SideEffect.SINGLE_WRITE),
+    SUPPLIER_UPDATE_DRAFT("supplier.updateDraft", SideEffect.SINGLE_WRITE),
     INTEGRATION_ENDPOINT_QUERY("integration.endpoint.query"),
     PAGE_ACTION_QUERY("pageAction.query"),
     RUNTIME_LOG_QUERY("runtimeLog.query"),

@@ -19,17 +19,36 @@ final class SupplierDraftArguments {
 
     static FinanceToolPort.SupplierDraft parse(JsonNode arguments) {
         String code = requiredText(arguments, "code");
+        Fields fields = parseFields(arguments);
+        if (!CODE.matcher(code).matches()) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        return new FinanceToolPort.SupplierDraft(code, fields.name(), fields.shortName(), fields.category(),
+                fields.level(), fields.paymentTerms());
+    }
+
+    static FinanceToolPort.SupplierDraftUpdate parseUpdate(JsonNode arguments) {
+        long supplierId = requiredLong(arguments, "supplierId", 1);
+        int version = requiredInt(arguments, "version", 0, Integer.MAX_VALUE - 1);
+        Fields fields = parseFields(arguments);
+        return new FinanceToolPort.SupplierDraftUpdate(supplierId, version, fields.name(), fields.shortName(),
+                fields.category(), fields.level(), fields.paymentTerms());
+    }
+
+    private static Fields parseFields(JsonNode arguments) {
         String name = requiredText(arguments, "name");
         String shortName = optionalText(arguments, "shortName");
         String category = requiredText(arguments, "category");
         String level = requiredText(arguments, "supplierLevel");
         String paymentTerms = optionalText(arguments, "paymentTerms");
-        if (!CODE.matcher(code).matches() || name.length() > 160
+        if (name.length() > 160
                 || shortName != null && shortName.length() > 80
                 || !CATEGORIES.contains(category) || !LEVELS.contains(level)
                 || paymentTerms != null && paymentTerms.length() > 120) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID);
         }
-        return new FinanceToolPort.SupplierDraft(code, name, shortName, category, level, paymentTerms);
+        return new Fields(name, shortName, category, level, paymentTerms);
     }
+
+    private record Fields(String name, String shortName, String category, String level, String paymentTerms) { }
 }

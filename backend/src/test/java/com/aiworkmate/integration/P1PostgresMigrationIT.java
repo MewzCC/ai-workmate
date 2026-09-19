@@ -840,6 +840,20 @@ class P1PostgresMigrationIT {
                     """)).as("供应商草稿创建 Agent 工具必须具备独立实时权限").isOne();
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'supplier.updateDraft'
+                      AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:3c9db3701c11f5089f1e6b3415b479c72c6d2d2da3d3ce8b174e115e6716dae3'
+                      AND risk_level = 'L1' AND data_scope_policy = 'TENANT_SCOPED'
+                      AND required_permissions = '["supplier:manage"]'::jsonb
+                      AND retry_policy = 'NEVER' AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'EXPLICIT' AND enabled = TRUE
+                    """)).as("供应商草稿更新工具必须以冻结的乐观锁非敏感契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code = 'agent:tool:supplier.updateDraft'
+                    """)).as("供应商草稿更新 Agent 工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
                     WHERE tenant_id IS NULL AND enabled = TRUE AND side_effect = 'NONE'
                       AND (code, schema_hash, data_scope_policy) IN (
                         ('integration.endpoint.query','sha256:77b6949a8aca42cdd8c7776e51e64e2fa4bf52c64bb4d950e5d61e2c19eadd22','TENANT_SCOPED'),

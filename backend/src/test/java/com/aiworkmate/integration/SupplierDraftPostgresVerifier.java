@@ -9,6 +9,7 @@ import com.aiworkmate.service.UserAccessService;
 import com.aiworkmate.service.impl.BusinessAuditServiceImpl;
 import com.aiworkmate.service.impl.SupplierServiceImpl;
 import com.aiworkmate.service.model.ResolvedUserAccess;
+import com.aiworkmate.service.model.SupplierAgentDraftCommand;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.extension.spring.MybatisSqlSessionFactoryBean;
 import org.mybatis.spring.SqlSessionTemplate;
@@ -77,15 +78,61 @@ final class SupplierDraftPostgresVerifier {
                 WHERE tenant_id=? AND resource_type='SUPPLIER' AND resource_id=? AND action='CREATE'
                 """, Integer.class, tenant, created.id().toString())).isOne();
 
+        assertThat(jdbc.update("""
+                UPDATE supplier SET contact_name='仅服务端保留', contact_phone='13800000000',
+                  contact_email='private@example.invalid', address='内部地址', risk_note='内部风险'
+                WHERE tenant_id=? AND id=? AND status='DRAFT' AND version=0
+                """, tenant, created.id())).isOne();
+
+        var updated = tx.execute(status -> service.updateAgentDraft(
+                user, created.id(), 0, updateCommand("Agent 供应商草稿更新", "PREFERRED")));
+        assertThat(updated).isNotNull();
+        assertThat(updated.status()).isEqualTo("DRAFT");
+        assertThat(updated.version()).isOne();
+        assertThat(updated.code()).isEqualTo("AGENT-SUP-1");
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM supplier
+                WHERE tenant_id=? AND id=? AND supplier_code='AGENT-SUP-1'
+                  AND name='Agent 供应商草稿更新' AND supplier_level='PREFERRED'
+                  AND status='DRAFT' AND version=1 AND contact_name='仅服务端保留'
+                  AND contact_phone='13800000000' AND contact_email='private@example.invalid'
+                  AND address='内部地址' AND risk_note='内部风险'
+                """, Integer.class, tenant, created.id())).isOne();
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM business_audit_log
+                WHERE tenant_id=? AND resource_type='SUPPLIER' AND resource_id=? AND action='UPDATE'
+                """, Integer.class, tenant, created.id().toString())).isOne();
+
         BusinessAuditService failingAudit = mock(BusinessAuditService.class);
         doThrow(new IllegalStateException("audit unavailable")).when(failingAudit)
                 .recordTransactional(any(), any(), any(), any(), any(), any(), any());
         var failing = service(session, access, failingAudit);
+        assertThatThrownBy(() -> tx.execute(status -> failing.updateAgentDraft(
+                user, created.id(), 1, updateCommand("不应落库", "RESTRICTED"))))
+                .isInstanceOf(IllegalStateException.class);
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM supplier
+                WHERE tenant_id=? AND id=? AND name='Agent 供应商草稿更新'
+                  AND supplier_level='PREFERRED' AND version=1
+                """, Integer.class, tenant, created.id())).isOne();
         assertThatThrownBy(() -> tx.execute(status -> failing.create(user, request("AGENT-SUP-ROLLBACK"))))
                 .isInstanceOf(IllegalStateException.class);
         assertThat(jdbc.queryForObject(
                 "SELECT count(*) FROM supplier WHERE tenant_id=? AND supplier_code='AGENT-SUP-ROLLBACK'",
                 Integer.class, tenant)).isZero();
+
+        assertThat(jdbc.update("""
+                UPDATE supplier SET status='ACTIVE', version=2
+                WHERE tenant_id=? AND id=? AND status='DRAFT' AND version=1
+                """, tenant, created.id())).isOne();
+        assertThatThrownBy(() -> tx.execute(status -> service.updateAgentDraft(
+                user, created.id(), 2, updateCommand("活动供应商不可改", "STANDARD"))))
+                .isInstanceOf(com.aiworkmate.common.BusinessException.class);
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM supplier
+                WHERE tenant_id=? AND id=? AND status='ACTIVE'
+                  AND name='Agent 供应商草稿更新' AND version=2
+                """, Integer.class, tenant, created.id())).isOne();
     }
 
     private static SupplierServiceImpl service(
@@ -97,5 +144,9 @@ final class SupplierDraftPostgresVerifier {
     private static SupplierRequest request(String code) {
         return new SupplierRequest(code, "Agent 供应商草稿", "Agent供应商", null,
                 "SERVICE", "STANDARD", null, null, null, null, "月结30天", null, null);
+    }
+
+    private static SupplierAgentDraftCommand updateCommand(String name, String level) {
+        return new SupplierAgentDraftCommand(name, "Agent供应商", "SERVICE", level, "月结45天");
     }
 }

@@ -30,6 +30,7 @@ public interface FinanceToolPort {
     ContractDraftResult updateContractDraft(ToolActorContext context, ContractDraftUpdate command);
     Page<Supplier> suppliers(ToolActorContext context, SupplierQuery query);
     SupplierDraftResult createSupplierDraft(ToolActorContext context, SupplierDraft command);
+    SupplierDraftResult updateSupplierDraft(ToolActorContext context, SupplierDraftUpdate command);
 
     record ExpenseQuery(Long applicationId, String status, int page, int size) { }
     record ExpenseDraft(BigDecimal amount, String category, LocalDate expenseDate,
@@ -60,6 +61,8 @@ public interface FinanceToolPort {
     record SupplierQuery(Long supplierId, String keyword, String status, String category, int page, int size) { }
     record SupplierDraft(String code, String name, String shortName, String category,
                          String supplierLevel, String paymentTerms) { }
+    record SupplierDraftUpdate(long supplierId, int version, String name, String shortName,
+                               String category, String supplierLevel, String paymentTerms) { }
     record SupplierDraftResult(long supplierId, String code, String status, int version,
                                LocalDateTime updatedAt) implements ToolWriteReceipt { }
     record Page<T>(List<T> items, long total, int page, int size) {

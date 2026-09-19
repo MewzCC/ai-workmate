@@ -255,4 +255,18 @@ class FinanceAgentDomainToolAdapterTest {
                 && request.contactPhone() == null && request.contactEmail() == null
                 && request.address() == null && request.riskNote() == null));
     }
+
+    @Test
+    void updatesSupplierDraftThroughDedicatedTypedBoundary() {
+        var command = new FinanceToolPort.SupplierDraftUpdate(
+                92L, 0, "更新供应商", "更新简称", "SERVICE", "PREFERRED", "月结45天");
+        var updatedAt = LocalDateTime.of(2026, 9, 19, 7, 0);
+        when(suppliers.updateAgentDraft(eq(7L), eq(92L), eq(0), any())).thenReturn(new SupplierResponse(
+                92L, "SUP-2027", "更新供应商", "更新简称", null, "SERVICE", "PREFERRED", "DRAFT",
+                null, null, null, null, "月结45天", null, 1, updatedAt, updatedAt, true, List.of()));
+        assertThat(adapter.updateSupplierDraft(actor, command)).isEqualTo(
+                new FinanceToolPort.SupplierDraftResult(92L, "SUP-2027", "DRAFT", 1, updatedAt));
+        verify(suppliers).updateAgentDraft(eq(7L), eq(92L), eq(0), argThat(update ->
+                update.name().equals("更新供应商") && update.supplierLevel().equals("PREFERRED")));
+    }
 }

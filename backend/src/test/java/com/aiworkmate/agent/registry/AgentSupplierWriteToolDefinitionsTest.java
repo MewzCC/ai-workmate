@@ -30,4 +30,23 @@ class AgentSupplierWriteToolDefinitionsTest {
                 .doesNotContain("unifiedSocialCreditCode", "contactName", "contactPhone",
                         "contactEmail", "address", "riskNote", "status");
     }
+
+    @Test
+    void updateDraftUsesVersionAndExcludesCodeSensitiveAndStatusFields() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        ToolDefinition definition = new AgentSupplierWriteToolDefinitions()
+                .supplierUpdateDraftToolDefinition(mapper);
+        assertThat(definition.schemaHash()).isEqualTo(
+                "sha256:3c9db3701c11f5089f1e6b3415b479c72c6d2d2da3d3ce8b174e115e6716dae3");
+        assertThat(definition.requiredPermissions()).containsExactly("supplier:manage");
+        assertThat(definition.retryPolicy()).isEqualTo(RetryPolicy.NEVER);
+        assertThat(definition.confirmationPolicy()).isEqualTo(ConfirmationPolicy.EXPLICIT);
+        assertThat(new ToolSchemaValidator().valid(definition.inputSchema(), mapper.readTree("""
+                {"supplierId":92,"version":0,"name":"更新供应商","shortName":"更新简称",
+                 "category":"SERVICE","supplierLevel":"PREFERRED","paymentTerms":"月结45天"}
+                """))).isTrue();
+        assertThat(definition.inputSchema().path("properties").fieldNames()).toIterable()
+                .doesNotContain("code", "unifiedSocialCreditCode", "contactName", "contactPhone",
+                        "contactEmail", "address", "riskNote", "status");
+    }
 }

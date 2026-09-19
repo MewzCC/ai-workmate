@@ -16,6 +16,7 @@ import com.aiworkmate.service.SupplierService;
 import com.aiworkmate.service.model.BudgetAgentDraftCommand;
 import com.aiworkmate.service.model.ContractAgentDraftCommand;
 import com.aiworkmate.service.model.ExpenseAgentDraftCommand;
+import com.aiworkmate.service.model.SupplierAgentDraftCommand;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -180,6 +181,16 @@ public class FinanceAgentDomainToolAdapter implements FinanceToolPort {
         var result = supplierService.create(context.userId(), new SupplierRequest(
                 command.code(), command.name(), command.shortName(), null, command.category(),
                 command.supplierLevel(), null, null, null, null, command.paymentTerms(), null, null));
+        return new SupplierDraftResult(
+                result.id(), result.code(), result.status(), result.version(), result.updatedAt());
+    }
+
+    @Override
+    public SupplierDraftResult updateSupplierDraft(ToolActorContext context, SupplierDraftUpdate command) {
+        var result = supplierService.updateAgentDraft(
+                context.userId(), command.supplierId(), command.version(),
+                new SupplierAgentDraftCommand(command.name(), command.shortName(), command.category(),
+                        command.supplierLevel(), command.paymentTerms()));
         return new SupplierDraftResult(
                 result.id(), result.code(), result.status(), result.version(), result.updatedAt());
     }
