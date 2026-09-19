@@ -32,4 +32,30 @@ class AgentBudgetWriteToolDefinitionsTest {
                 """))).isFalse();
         assertThat(validator.valid(definition.inputSchema(), mapper.readTree("{}"))).isFalse();
     }
+
+    @Test
+    void updateDraftCannotChangeCodeStatusOrBalances() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        ToolDefinition definition = new AgentBudgetWriteToolDefinitions()
+                .budgetUpdateDraftToolDefinition(mapper);
+        ToolSchemaValidator validator = new ToolSchemaValidator();
+
+        assertThat(definition.schemaHash()).isEqualTo(
+                "sha256:9fc377f5ffee46d9b770a4d7a588519e7b85884b2b077e18aa85b5aae4d79e5f");
+        assertThat(definition.requiredPermissions()).containsExactly("budget:manage");
+        assertThat(definition.riskLevel()).isEqualTo(RiskLevel.L1);
+        assertThat(definition.sideEffect()).isEqualTo(SideEffect.SINGLE_WRITE);
+        assertThat(definition.retryPolicy()).isEqualTo(RetryPolicy.NEVER);
+        assertThat(definition.confirmationPolicy()).isEqualTo(ConfirmationPolicy.EXPLICIT);
+        assertThat(definition.ownershipPolicy()).isEqualTo(OwnershipPolicy.TENANT_SCOPED);
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree("""
+                {"budgetId":81,"version":0,"name":"研发预算","fiscalYear":2027,
+                 "ownerUserId":7,"totalAmount":120000.00,"currency":"CNY","warningThreshold":85}
+                """))).isTrue();
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree("""
+                {"budgetId":81,"version":0,"name":"研发预算","fiscalYear":2027,
+                 "ownerUserId":7,"totalAmount":120000.00,"currency":"CNY","warningThreshold":85,
+                 "status":"ACTIVE"}
+                """))).isFalse();
+    }
 }

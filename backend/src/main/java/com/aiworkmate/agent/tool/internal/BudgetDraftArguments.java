@@ -20,18 +20,40 @@ final class BudgetDraftArguments {
 
     static FinanceToolPort.BudgetDraft parse(JsonNode arguments) {
         String code = requiredText(arguments, "code");
+        Fields fields = parseFields(arguments);
+        if (!CODE.matcher(code).matches()) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        return new FinanceToolPort.BudgetDraft(
+                code, fields.name(), fields.fiscalYear(), fields.ownerUserId(), fields.totalAmount(),
+                fields.currency(), fields.warningThreshold(), fields.summary());
+    }
+
+    static FinanceToolPort.BudgetDraftUpdate parseUpdate(JsonNode arguments) {
+        Fields fields = parseFields(arguments);
+        return new FinanceToolPort.BudgetDraftUpdate(
+                requiredLong(arguments, "budgetId", 1),
+                requiredInt(arguments, "version", 0, Integer.MAX_VALUE - 1),
+                fields.name(), fields.fiscalYear(), fields.ownerUserId(), fields.totalAmount(),
+                fields.currency(), fields.warningThreshold(), fields.summary());
+    }
+
+    private static Fields parseFields(JsonNode arguments) {
         String name = requiredText(arguments, "name");
         String currency = requiredText(arguments, "currency");
         String summary = optionalText(arguments, "summary");
         BigDecimal amount = optionalDecimal(
                 arguments, "totalAmount", new BigDecimal("0.01"), MAX_AMOUNT, 2);
-        if (!CODE.matcher(code).matches() || name.length() > 160 || amount == null
+        if (name.length() > 160 || amount == null
                 || !CURRENCIES.contains(currency) || summary != null && summary.length() > 2000) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID);
         }
-        return new FinanceToolPort.BudgetDraft(
-                code, name, requiredInt(arguments, "fiscalYear", 2000, 2200),
+        return new Fields(
+                name, requiredInt(arguments, "fiscalYear", 2000, 2200),
                 requiredLong(arguments, "ownerUserId", 1), amount, currency,
                 requiredInt(arguments, "warningThreshold", 1, 100), summary);
     }
+
+    private record Fields(String name, int fiscalYear, long ownerUserId, BigDecimal totalAmount,
+                          String currency, int warningThreshold, String summary) { }
 }

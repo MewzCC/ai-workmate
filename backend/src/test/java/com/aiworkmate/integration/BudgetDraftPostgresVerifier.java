@@ -10,6 +10,7 @@ import com.aiworkmate.service.NotificationService;
 import com.aiworkmate.service.UserAccessService;
 import com.aiworkmate.service.impl.BudgetServiceImpl;
 import com.aiworkmate.service.impl.BusinessAuditServiceImpl;
+import com.aiworkmate.service.model.BudgetAgentDraftCommand;
 import com.aiworkmate.service.model.ResolvedUserAccess;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.extension.spring.MybatisSqlSessionFactoryBean;
@@ -78,6 +79,25 @@ final class BudgetDraftPostgresVerifier {
                 WHERE tenant_id=? AND resource_type='BUDGET' AND resource_id=? AND action='CREATE'
                 """, Integer.class, tenant, created.id().toString())).isOne();
 
+        var updated = tx.execute(status -> service.updateAgentDraft(
+                owner, created.id(), created.version(), update("Agent 预算草稿二期", owner)));
+        assertThat(updated).isNotNull();
+        assertThat(updated.status()).isEqualTo("DRAFT");
+        assertThat(updated.version()).isOne();
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM budget_plan
+                WHERE tenant_id=? AND id=? AND name='Agent 预算草稿二期'
+                  AND status='DRAFT' AND version=1
+                """, Integer.class, tenant, created.id())).isOne();
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM budget_transaction
+                WHERE tenant_id=? AND budget_id=? AND transaction_type='UPDATED'
+                """, Integer.class, tenant, created.id())).isOne();
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM business_audit_log
+                WHERE tenant_id=? AND resource_type='BUDGET' AND resource_id=? AND action='UPDATE'
+                """, Integer.class, tenant, created.id().toString())).isOne();
+
         BusinessAuditService failingAudit = mock(BusinessAuditService.class);
         doThrow(new IllegalStateException("audit unavailable")).when(failingAudit)
                 .recordTransactional(any(), any(), any(), any(), any(), any(), any());
@@ -88,6 +108,16 @@ final class BudgetDraftPostgresVerifier {
         assertThat(jdbc.queryForObject(
                 "SELECT count(*) FROM budget_plan WHERE tenant_id=? AND budget_code='AGENT-BUDGET-ROLLBACK'",
                 Integer.class, tenant)).isZero();
+        assertThatThrownBy(() -> tx.execute(status -> failing.updateAgentDraft(
+                owner, created.id(), updated.version(), update("不应保存", owner))))
+                .isInstanceOf(IllegalStateException.class);
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM budget_plan WHERE tenant_id=? AND id=? AND name='Agent 预算草稿二期' AND version=1",
+                Integer.class, tenant, created.id())).isOne();
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM budget_transaction
+                WHERE tenant_id=? AND budget_id=? AND transaction_type='UPDATED'
+                """, Integer.class, tenant, created.id())).isOne();
     }
 
     private static BudgetServiceImpl service(
@@ -101,5 +131,10 @@ final class BudgetDraftPostgresVerifier {
     private static BudgetPlanRequest request(String code, Long owner) {
         return new BudgetPlanRequest(code, "Agent 预算草稿", 2027, owner,
                 new BigDecimal("100000.00"), "CNY", 80, "受控创建", null);
+    }
+
+    private static BudgetAgentDraftCommand update(String name, Long owner) {
+        return new BudgetAgentDraftCommand(name, 2027, owner,
+                new BigDecimal("120000.00"), "CNY", 85, "受控更新");
     }
 }

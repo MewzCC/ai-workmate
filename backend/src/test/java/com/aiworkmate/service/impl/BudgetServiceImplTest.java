@@ -13,6 +13,7 @@ import com.aiworkmate.mapper.UserMapper;
 import com.aiworkmate.service.BusinessAuditService;
 import com.aiworkmate.service.NotificationService;
 import com.aiworkmate.service.UserAccessService;
+import com.aiworkmate.service.model.BudgetAgentDraftCommand;
 import com.aiworkmate.service.model.ResolvedUserAccess;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -56,6 +57,28 @@ class BudgetServiceImplTest {
     @Test void rejectsCrossTenantMissingBudget(){when(accessService.resolveActiveUser(10L)).thenReturn(access(List.of("route:budget","budget:manage")));when(planMapper.selectOne(any())).thenReturn(null);
         assertThatThrownBy(()->service.operate(10L,99L,new BudgetOperationRequest("OCCUPY",BigDecimal.TEN,null,null,0))).isInstanceOf(BusinessException.class);}
 
+    @Test void updatesOnlyDraftThroughAgentBoundary(){
+        stubManage(); BudgetPlan old=plan("DRAFT",0,BigDecimal.ZERO,BigDecimal.ZERO); BudgetPlan updated=plan("DRAFT",1,BigDecimal.ZERO,BigDecimal.ZERO);
+        updated.setName("研发预算二期");updated.setTotalAmount(new BigDecimal("120"));
+        when(planMapper.selectOne(any())).thenReturn(old,updated);when(userMapper.selectOne(any())).thenReturn(owner());when(planMapper.update(any(),any())).thenReturn(1);
+        var result=service.updateAgentDraft(10L,91L,0,agentUpdate());
+        assertThat(result.name()).isEqualTo("研发预算二期");assertThat(result.version()).isOne();
+        verify(planMapper).update(any(BudgetPlan.class),any());verify(transactionMapper).insert(any(BudgetTransaction.class));
+        verify(auditService).recordTransactional(9L,10L,"BUDGET","91","UPDATE","SUCCESS","BUD-001");
+    }
+
+    @Test void rejectsAgentUpdateOfActiveBudget(){
+        stubManage();when(planMapper.selectOne(any())).thenReturn(plan("ACTIVE",0,BigDecimal.ZERO,BigDecimal.ZERO));
+        assertThatThrownBy(()->service.updateAgentDraft(10L,91L,0,agentUpdate())).isInstanceOf(BusinessException.class);
+        verify(planMapper,never()).update(any(),any());verifyNoInteractions(userMapper,transactionMapper,auditService);
+    }
+
+    @Test void rejectsStaleAgentDraftVersion(){
+        stubManage();when(planMapper.selectOne(any())).thenReturn(plan("DRAFT",2,BigDecimal.ZERO,BigDecimal.ZERO));
+        assertThatThrownBy(()->service.updateAgentDraft(10L,91L,1,agentUpdate())).isInstanceOf(BusinessException.class);
+        verify(planMapper,never()).update(any(),any());verifyNoInteractions(userMapper,transactionMapper,auditService);
+    }
+
     @Test void rejectsOccupationBeyondAvailable(){stubManage();when(planMapper.selectOne(any())).thenReturn(plan("ACTIVE",0,new BigDecimal("80"),new BigDecimal("10")));
         assertThatThrownBy(()->service.operate(10L,91L,new BudgetOperationRequest("OCCUPY",new BigDecimal("11"),null,null,0))).isInstanceOf(BusinessException.class);verify(planMapper,never()).update(any(),any());}
 
@@ -66,6 +89,7 @@ class BudgetServiceImplTest {
         assertThatThrownBy(()->service.updateStatus(10L,91L,new BudgetStatusRequest("CLOSED",null,3))).isInstanceOf(BusinessException.class);verify(planMapper,never()).update(any(),any());}
 
     private void stubManage(){when(accessService.resolveActiveUser(10L)).thenReturn(access(List.of("route:budget","budget:manage")));}
+    private BudgetAgentDraftCommand agentUpdate(){return new BudgetAgentDraftCommand("研发预算二期",2027,10L,new BigDecimal("120"),"CNY",85,"更新范围");}
     private BudgetPlanRequest request(Integer version){return new BudgetPlanRequest("bud-001","研发预算",2026,10L,new BigDecimal("100"),"CNY",80,"说明",version);}
     private BudgetPlan plan(String status,int version,BigDecimal occupied,BigDecimal spent){BudgetPlan p=new BudgetPlan();p.setId(91L);p.setTenantId(9L);p.setBudgetCode("BUD-001");p.setName("研发预算");p.setFiscalYear(2026);p.setOwnerUserId(10L);p.setOwnerLabel("员工");p.setTotalAmount(new BigDecimal("100"));p.setOccupiedAmount(occupied);p.setSpentAmount(spent);p.setCurrency("CNY");p.setWarningThreshold(80);p.setStatus(status);p.setVersion(version);p.setDeleted(false);p.setUpdatedAt(LocalDateTime.now());return p;}
     private User owner(){User u=new User();u.setId(10L);u.setTenantId(9L);u.setUsername("employee");u.setDisplayName("员工");u.setEmail("employee@example.invalid");u.setStatus(1);return u;}

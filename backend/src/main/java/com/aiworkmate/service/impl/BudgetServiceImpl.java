@@ -13,6 +13,7 @@ import com.aiworkmate.service.BusinessAuditService;
 import com.aiworkmate.service.BudgetService;
 import com.aiworkmate.service.NotificationService;
 import com.aiworkmate.service.UserAccessService;
+import com.aiworkmate.service.model.BudgetAgentDraftCommand;
 import com.aiworkmate.service.model.ResolvedUserAccess;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
@@ -110,12 +111,31 @@ public class BudgetServiceImpl implements BudgetService {
         ResolvedUserAccess actor=requireManage(userId); BudgetPlan old=requirePlan(actor,id); version(request.version(),old.getVersion());
         if (!("DRAFT".equals(old.getStatus())||"ACTIVE".equals(old.getStatus()))) state("validation.budget.edit.closed");
         if (!old.getBudgetCode().equals(code(request.code()))) state("validation.budget.code.immutable");
+        return updatePlan(actor,old,request,false);
+    }
+
+    @Override @Transactional
+    public BudgetResponse updateAgentDraft(Long userId, Long id, int version, BudgetAgentDraftCommand command) {
+        if (command == null) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        ResolvedUserAccess actor=requireManage(userId); BudgetPlan old=requirePlan(actor,id);
+        BudgetPlanRequest request=new BudgetPlanRequest(
+                old.getBudgetCode(), command.name(), command.fiscalYear(), command.ownerUserId(),
+                command.totalAmount(), command.currency(), command.warningThreshold(), command.summary(), version);
+        validateRequest(request); version(request.version(),old.getVersion());
+        if (!"DRAFT".equals(old.getStatus())) state("validation.budget.edit.draftOnly");
+        return updatePlan(actor,old,request,true);
+    }
+
+    private BudgetResponse updatePlan(ResolvedUserAccess actor, BudgetPlan old,
+                                      BudgetPlanRequest request, boolean draftOnly) {
         if (request.totalAmount().compareTo(old.getOccupiedAmount().add(old.getSpentAmount()))<0) state("validation.budget.amount.belowUsed");
         User owner=requireOwner(actor,request.ownerUserId()); BudgetPlan changed=new BudgetPlan(); apply(changed,request,owner);
         changed.setUpdatedBy(actor.userId()); changed.setUpdatedAt(LocalDateTime.now()); changed.setVersion(old.getVersion()+1);
-        int count=planMapper.update(changed,update(actor,old)); if(count!=1) conflict();
+        LambdaUpdateWrapper<BudgetPlan> conditions=update(actor,old);
+        if(draftOnly) conditions.eq(BudgetPlan::getStatus,"DRAFT");
+        int count=planMapper.update(changed,conditions); if(count!=1) conflict();
         event(actor,old,"UPDATED",old.getOccupiedAmount(),old.getSpentAmount(),null,null,null); audit(actor,old,"UPDATE");
-        return response(requirePlan(actor,id),true);
+        return response(requirePlan(actor,old.getId()),true);
     }
 
     @Override @Transactional

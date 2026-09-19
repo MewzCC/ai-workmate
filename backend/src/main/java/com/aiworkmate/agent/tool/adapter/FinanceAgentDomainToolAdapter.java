@@ -4,13 +4,14 @@ import com.aiworkmate.agent.tool.port.FinanceToolPort;
 import com.aiworkmate.agent.tool.port.ToolActorContext;
 import com.aiworkmate.agent.tool.port.ToolOperationKey;
 import com.aiworkmate.agent.tool.port.ToolWriteVerification;
+import com.aiworkmate.dto.BudgetPlanRequest;
 import com.aiworkmate.service.BudgetService;
 import com.aiworkmate.service.ContractService;
 import com.aiworkmate.service.ExpenseApplicationService;
 import com.aiworkmate.service.ExpenseQueryService;
 import com.aiworkmate.service.SupplierService;
+import com.aiworkmate.service.model.BudgetAgentDraftCommand;
 import com.aiworkmate.service.model.ExpenseAgentDraftCommand;
-import com.aiworkmate.dto.BudgetPlanRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -100,6 +101,17 @@ public class FinanceAgentDomainToolAdapter implements FinanceToolPort {
         var result = budgetService.create(context.userId(), new BudgetPlanRequest(
                 command.code(), command.name(), command.fiscalYear(), command.ownerUserId(),
                 command.totalAmount(), command.currency(), command.warningThreshold(), command.summary(), null));
+        return new BudgetDraftResult(
+                result.id(), result.code(), result.status(), result.version(), result.updatedAt());
+    }
+
+    @Override
+    public BudgetDraftResult updateBudgetDraft(ToolActorContext context, BudgetDraftUpdate command) {
+        var result = budgetService.updateAgentDraft(
+                context.userId(), command.budgetId(), command.version(),
+                new BudgetAgentDraftCommand(
+                        command.name(), command.fiscalYear(), command.ownerUserId(), command.totalAmount(),
+                        command.currency(), command.warningThreshold(), command.summary()));
         return new BudgetDraftResult(
                 result.id(), result.code(), result.status(), result.version(), result.updatedAt());
     }

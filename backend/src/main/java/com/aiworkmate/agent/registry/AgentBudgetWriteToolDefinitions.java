@@ -15,6 +15,12 @@ public class AgentBudgetWriteToolDefinitions {
     public static final String CREATE_DRAFT_OUTPUT_SCHEMA = """
             {"type":"object","additionalProperties":false,"required":["budgetId","code","status","version","updatedAt"],"properties":{"budgetId":{"type":"integer","minimum":1},"code":{"type":"string"},"status":{"type":"string","const":"DRAFT"},"version":{"type":"integer","const":0},"updatedAt":{"type":"string","format":"date-time"}}}
             """.strip();
+    public static final String UPDATE_DRAFT_INPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["budgetId","version","name","fiscalYear","ownerUserId","totalAmount","currency","warningThreshold"],"properties":{"budgetId":{"type":"integer","minimum":1},"version":{"type":"integer","minimum":0,"maximum":2147483646},"name":{"type":"string","minLength":1,"maxLength":160},"fiscalYear":{"type":"integer","minimum":2000,"maximum":2200},"ownerUserId":{"type":"integer","minimum":1},"totalAmount":{"type":"number","minimum":0.01,"maximum":9999999999999999.99,"multipleOf":0.01},"currency":{"type":"string","enum":["CNY","USD","EUR","HKD"]},"warningThreshold":{"type":"integer","minimum":1,"maximum":100},"summary":{"type":"string","maxLength":2000}}}
+            """.strip();
+    public static final String UPDATE_DRAFT_OUTPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["budgetId","code","status","version","updatedAt"],"properties":{"budgetId":{"type":"integer","minimum":1},"code":{"type":"string"},"status":{"type":"string","const":"DRAFT"},"version":{"type":"integer","minimum":1},"updatedAt":{"type":"string","format":"date-time"}}}
+            """.strip();
 
     @Bean
     ToolDefinition budgetCreateDraftToolDefinition(ObjectMapper objectMapper)
@@ -25,6 +31,20 @@ public class AgentBudgetWriteToolDefinitions {
                 "Create exactly one bounded budget draft after explicit confirmation; never activate or operate it.",
                 objectMapper.readTree(CREATE_DRAFT_INPUT_SCHEMA),
                 objectMapper.readTree(CREATE_DRAFT_OUTPUT_SCHEMA),
+                RiskLevel.L1, Set.of("budget:manage"), OwnershipPolicy.TENANT_SCOPED,
+                RetryPolicy.NEVER, ConfirmationPolicy.EXPLICIT,
+                1, 4096, 15000);
+    }
+
+    @Bean
+    ToolDefinition budgetUpdateDraftToolDefinition(ObjectMapper objectMapper)
+            throws JsonProcessingException {
+        return ToolDefinitionFactory.singleWrite(
+                ToolCode.BUDGET_UPDATE_DRAFT, "Update a budget draft",
+                "Updates one tenant-scoped draft budget using optimistic locking.",
+                "Replace only the editable fields of one draft budget; never change its code, status or balances.",
+                objectMapper.readTree(UPDATE_DRAFT_INPUT_SCHEMA),
+                objectMapper.readTree(UPDATE_DRAFT_OUTPUT_SCHEMA),
                 RiskLevel.L1, Set.of("budget:manage"), OwnershipPolicy.TENANT_SCOPED,
                 RetryPolicy.NEVER, ConfirmationPolicy.EXPLICIT,
                 1, 4096, 15000);

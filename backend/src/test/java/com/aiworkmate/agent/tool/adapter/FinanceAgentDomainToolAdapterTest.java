@@ -87,6 +87,24 @@ class FinanceAgentDomainToolAdapterTest {
     }
 
     @Test
+    void updatesBudgetDraftThroughDedicatedDomainCommand() {
+        var command = new FinanceToolPort.BudgetDraftUpdate(
+                81L, 0, "研发预算二期", 2027, 7L, new BigDecimal("120000.00"),
+                "CNY", 85, "更新范围");
+        var updatedAt = LocalDateTime.of(2026, 9, 19, 3, 1);
+        when(budgets.updateAgentDraft(eq(7L), eq(81L), eq(0), any())).thenReturn(new BudgetResponse(
+                81L, "RD-2027", "研发预算二期", 2027, 7L, "员工",
+                new BigDecimal("120000.00"), BigDecimal.ZERO, BigDecimal.ZERO,
+                new BigDecimal("120000.00"), "CNY", 85, 0, "NORMAL",
+                "DRAFT", "更新范围", 1, updatedAt, true, List.of("ACTIVE", "CANCELLED")));
+
+        assertThat(adapter.updateBudgetDraft(actor, command)).isEqualTo(
+                new FinanceToolPort.BudgetDraftResult(81L, "RD-2027", "DRAFT", 1, updatedAt));
+        verify(budgets).updateAgentDraft(eq(7L), eq(81L), eq(0), argThat(update ->
+                update.name().equals("研发预算二期") && update.warningThreshold() == 85));
+    }
+
+    @Test
     void submitsExpenseThroughDedicatedTypedBoundary() {
         when(expenseApplications.submitAgentDraft(7L, 51L, 0))
                 .thenReturn(new ExpenseAgentLifecycleReceipt(
