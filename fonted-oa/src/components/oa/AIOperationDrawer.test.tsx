@@ -76,7 +76,7 @@ describe('AIOperationDrawer', () => {
     expect((input as HTMLTextAreaElement).maxLength).toBe(4096);
     expect(footer?.contains(screen.getByRole('button', { name: /发送 \/ 生成计划/ }))).toBe(true);
     expect(footer?.contains(screen.getByRole('button', { name: /取消计划/ }))).toBe(true);
-    expect(document.body.contains(await screen.findByText('查询本人待办'))).toBe(true);
+    expect(document.body.contains(await screen.findByText('查询本人待办 · 只读 · L0'))).toBe(true);
     expect(api.getPageCapabilities).toHaveBeenCalledWith('todo-list');
   });
 

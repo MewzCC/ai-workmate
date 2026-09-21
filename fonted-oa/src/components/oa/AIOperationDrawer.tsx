@@ -2,9 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Alert, App as AntdApp, Button, Card, Descriptions, Drawer, Empty, Input, Space, Spin, Steps, Tag, Timeline, Typography } from 'antd';
+import { Alert, App as AntdApp, Button, Card, Drawer, Empty, Input, Space, Steps, Tag, Timeline, Typography } from 'antd';
 import type { AgentTaskStatus, AiTaskEvent, AiTaskExecuteResponse, AiTaskPlanResponse, OaRole, PageCapability } from '@/types/oa';
-import { PageToolAvailabilityNotice } from './PageToolAvailabilityNotice';
+import PageAgentCapabilityPanel from './PageAgentCapabilityPanel';
 import { executeAiTask, formatOaApiError, getPageCapabilities, issueAiTaskConfirmation, OaApiError, planAiTask, subscribeAiTaskEvents } from '@/lib/oaApi';
 import { OaIcon } from '@/components/OaIcon';
 
@@ -219,33 +219,17 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, initi
       </Space>}
     >
       <Space orientation="vertical" size={16} className="oa-drawer-stack">
-        <Card size="small" className="oa-ai-context-card" title={t('oa.ai.contextTitle')}>
-          <Descriptions size="small" column={1} items={[
-            { key: 'page', label: t('oa.ai.currentPage'), children: pageTitle },
-            { key: 'role', label: t('oa.ai.currentRole'), children: role },
-            { key: 'scope', label: t('oa.ai.dataScope'), children: capability?.effectiveDataScopes.join('、') || t('oa.ai.serverVerifiedScope') },
-            { key: 'boundary', label: t('oa.ai.securityBoundary'), children: t('oa.ai.gatewayEnforced') },
-          ]} />
-          <Space wrap className="oa-ai-tags">
-            {capabilityLoading && <Spin size="small" />}
-            {!capabilityLoading && capability?.tools.map((tool) => (
-              <Tag color={tool.sideEffect === 'SINGLE_WRITE' ? 'gold' : 'blue'} key={tool.code}>
-                {t(`aiPermission.tools.${tool.code.replaceAll('.', '_')}.name`, { defaultValue: tool.name })}
-              </Tag>
-            ))}
-          </Space>
-          {!capabilityLoading && capability && <PageToolAvailabilityNotice capability={capability} />}
-        </Card>
+        <PageAgentCapabilityPanel
+          pageTitle={pageTitle}
+          role={role}
+          capability={capability}
+          loading={capabilityLoading}
+          commandDisabled={loading || executing}
+          onSelectTool={(prompt) => submitPlan(prompt)}
+        />
 
         {capabilityError && <Alert type="error" showIcon title={t('oa.ai.capabilityLoadFailed')} description={capabilityError}
           action={<Button size="small" onClick={() => setCapabilityReload((value) => value + 1)}>{t('common.retry')}</Button>} />}
-
-        {Boolean(capability?.tools.length) && <Card size="small" title={t('oa.ai.quickCommands')}>
-          <Space wrap>{capability?.tools.map((tool) => {
-            const command = t(`oa.ai.toolCommands.${tool.code.replaceAll('.', '_')}`);
-            return <Button key={tool.code} icon={<OaIcon name="ai" />} disabled={loading || executing} onClick={() => submitPlan(command)}>{command}</Button>;
-          })}</Space>
-        </Card>}
 
         {operationError && <Alert type="error" showIcon title={t('oa.ai.callFailed')} description={operationError.message} action={operationError.retryable ? <Button size="small" onClick={() => submitPlan()}>{t('common.retry')}</Button> : undefined} />}
 
