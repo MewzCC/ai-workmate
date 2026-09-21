@@ -181,7 +181,9 @@ describe('AIOperationDrawer', () => {
     renderDrawer();
     fireEvent.change(screen.getByRole('textbox'), { target: { value: '提交刚才选择的请假草稿' } });
     fireEvent.click(screen.getByRole('button', { name: /发送 \/ 生成计划/ }));
-    await waitFor(() => expect(screen.getByText('提交本人请假草稿')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('提交已有请假草稿')).toBeTruthy());
+    expect(screen.getByText('applicationId')).toBeTruthy();
+    expect(screen.getByText('42')).toBeTruthy();
 
     fireEvent.click(screen.getByRole('button', { name: '确认并执行' }));
     const confirmButton = await screen.findByRole('button', { name: '确认执行' });

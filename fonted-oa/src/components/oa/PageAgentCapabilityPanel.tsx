@@ -2,6 +2,7 @@ import { Button, Card, Descriptions, Space, Spin, Tag, Tooltip } from 'antd';
 import { useTranslation } from 'react-i18next';
 import { OaIcon } from '@/components/OaIcon';
 import type { OaRole, PageCapability, PageCapabilityTool } from '@/types/oa';
+import { agentToolTranslationKey } from '@/lib/agentToolPresentation';
 import { PageToolAvailabilityNotice } from './PageToolAvailabilityNotice';
 
 interface PageAgentCapabilityPanelProps {
@@ -11,10 +12,6 @@ interface PageAgentCapabilityPanelProps {
   loading: boolean;
   commandDisabled: boolean;
   onSelectTool: (prompt: string) => void;
-}
-
-function toolI18nKey(code: string): string {
-  return code.replaceAll('.', '_');
 }
 
 export default function PageAgentCapabilityPanel({
@@ -28,7 +25,7 @@ export default function PageAgentCapabilityPanel({
   const { t } = useTranslation();
 
   const localizedTool = (tool: PageCapabilityTool) => {
-    const key = toolI18nKey(tool.code);
+    const key = agentToolTranslationKey(tool.code);
     return {
       name: t(`aiPermission.tools.${key}.name`, { defaultValue: tool.name }),
       description: t(`aiPermission.tools.${key}.description`, { defaultValue: tool.description }),

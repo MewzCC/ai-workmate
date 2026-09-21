@@ -5358,6 +5358,15 @@ html.oa-wallpaper-active .ant-menu-submenu-popup .ant-menu-dark {
   margin-bottom: 10px;
 }
 
+.oa-ai-plan-preview .ant-steps-item-content,
+.oa-ai-plan-preview .ant-descriptions-item-content {
+  min-width: 0;
+}
+
+.oa-ai-plan-preview .ant-descriptions-item-content {
+  overflow-wrap: anywhere;
+}
+
 .oa-ai-status-strip {
   display: flex;
   align-items: flex-start;

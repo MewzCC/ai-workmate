@@ -2,11 +2,12 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Alert, App as AntdApp, Button, Card, Drawer, Empty, Input, Space, Steps, Tag, Timeline, Typography } from 'antd';
+import { Alert, App as AntdApp, Button, Card, Drawer, Empty, Input, Space, Tag, Timeline, Typography } from 'antd';
 import type { AgentTaskStatus, AiTaskEvent, AiTaskExecuteResponse, AiTaskPlanResponse, OaRole, PageCapability } from '@/types/oa';
 import PageAgentCapabilityPanel from './PageAgentCapabilityPanel';
 import { executeAiTask, formatOaApiError, getPageCapabilities, issueAiTaskConfirmation, OaApiError, planAiTask, subscribeAiTaskEvents } from '@/lib/oaApi';
 import { OaIcon } from '@/components/OaIcon';
+import AgentPlanPreview from './AgentPlanPreview';
 
 interface AIOperationDrawerProps {
   open: boolean;
@@ -201,7 +202,10 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, initi
     }
     modal.confirm({
       title: t('oa.ai.confirmTitle'),
-      content: t('oa.ai.confirmContent', { taskId: plan.taskId, riskLevel: plan.riskLevel }),
+      content: <Space orientation="vertical" size={12}>
+        <Typography.Text>{t('oa.ai.confirmContent', { taskId: plan.taskId, riskLevel: plan.riskLevel })}</Typography.Text>
+        <AgentPlanPreview plan={plan} status={taskStatus ?? plan.status} />
+      </Space>,
       okText: t('oa.ai.confirmOk'),
       cancelText: t('common.cancel'),
       okButtonProps: { danger: plan.riskLevel === 'L2' },
@@ -250,13 +254,11 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, initi
         </Card>
 
         {plan && <Card size="small" className="oa-ai-plan-card" title={t('oa.ai.planTitle')}>
-          <div className="oa-ai-plan-heading"><Typography.Paragraph>{plan.summary}</Typography.Paragraph><Space wrap>
-            <Tag color={plan.riskLevel === 'L2' ? 'red' : plan.riskLevel === 'L1' ? 'gold' : 'green'}>{plan.riskLevel}</Tag>
-            <Tag color={statusColor(taskStatus ?? plan.status)}>{t(`oa.ai.status.${taskStatus ?? plan.status}`)}</Tag>
-            {plan.confirmationRequired && <Tag color="warning">{t('oa.ai.requireConfirmTag')}</Tag>}
-          </Space></div>
-          <Steps orientation="vertical" size="small" current={taskStatus === 'RUNNING' ? Math.max(0, events.filter((event) => event.type === 'step-completed').length) : -1}
-            items={plan.steps.map((step) => ({ title: step.title, content: t('oa.ai.planStepDescription', { sequence: step.sequence }) }))} />
+          <AgentPlanPreview
+            plan={plan}
+            status={taskStatus ?? plan.status}
+            completedSteps={events.filter((event) => event.type === 'step-completed').length}
+          />
           <Button type="primary" icon={<OaIcon name="ai" />} loading={executing} disabled={Boolean(execution)} onClick={requestExecution}>{plan.confirmationRequired ? t('oa.ai.confirmExecute') : t('oa.ai.executePlan')}</Button>
         </Card>}
 
