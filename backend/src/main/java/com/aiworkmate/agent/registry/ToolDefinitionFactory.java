@@ -24,13 +24,15 @@ public final class ToolDefinitionFactory {
 
     public static ToolDefinition singleWrite(
             ToolCode code, String name, String description, String purpose,
-            JsonNode inputSchema, JsonNode outputSchema, RiskLevel riskLevel,
+            JsonNode inputSchema, JsonNode outputSchema, ToolWriteProfile profile,
             Set<String> requiredPermissions, OwnershipPolicy ownershipPolicy,
-            RetryPolicy retryPolicy, ConfirmationPolicy confirmationPolicy,
             int maxResultItems, int maxResultBytes, int timeoutMs) {
+        if (profile == null) {
+            throw new IllegalArgumentException("Write profile is required");
+        }
         return ToolDefinition.create(code, name, description, purpose, HANDLER_VERSION,
-                inputSchema, outputSchema, riskLevel, requiredPermissions, PermissionMode.ALL,
-                ownershipPolicy, retryPolicy, SideEffect.SINGLE_WRITE, confirmationPolicy,
+                inputSchema, outputSchema, profile.riskLevel(), requiredPermissions, PermissionMode.ALL,
+                ownershipPolicy, profile.retryPolicy(), SideEffect.SINGLE_WRITE, profile.confirmationPolicy(),
                 maxResultItems, maxResultBytes, timeoutMs, WRITE_AUDIT);
     }
 }

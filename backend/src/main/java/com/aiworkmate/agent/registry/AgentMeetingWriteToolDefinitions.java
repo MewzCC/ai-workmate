@@ -29,8 +29,7 @@ public class AgentMeetingWriteToolDefinitions {
                 "Creates exactly one meeting-room booking owned by the authenticated user.",
                 "Book one available room for one bounded future time range after explicit confirmation.",
                 objectMapper.readTree(INPUT_SCHEMA), objectMapper.readTree(OUTPUT_SCHEMA),
-                RiskLevel.L1, Set.of("meeting:book"), OwnershipPolicy.SELF,
-                RetryPolicy.BUSINESS_IDEMPOTENT, ConfirmationPolicy.EXPLICIT,
+                ToolWriteProfile.IDEMPOTENT_L1, Set.of("meeting:book"), OwnershipPolicy.SELF,
                 1, 16384, 15000);
     }
 
@@ -41,8 +40,7 @@ public class AgentMeetingWriteToolDefinitions {
                 "Cancels exactly one active meeting-room booking owned by the authenticated user.",
                 "Cancel one owned future booking at its expected version after explicit confirmation.",
                 objectMapper.readTree(CANCEL_INPUT_SCHEMA), objectMapper.readTree(CANCEL_OUTPUT_SCHEMA),
-                RiskLevel.L1, Set.of("meeting:cancel"), OwnershipPolicy.SELF,
-                RetryPolicy.BUSINESS_IDEMPOTENT, ConfirmationPolicy.EXPLICIT,
+                ToolWriteProfile.IDEMPOTENT_L1, Set.of("meeting:cancel"), OwnershipPolicy.SELF,
                 1, 8192, 10000);
     }
 }

@@ -31,8 +31,7 @@ public class AgentContractWriteToolDefinitions {
                 "Create exactly one bounded contract draft after explicit confirmation; never activate or fulfill it.",
                 objectMapper.readTree(CREATE_DRAFT_INPUT_SCHEMA),
                 objectMapper.readTree(CREATE_DRAFT_OUTPUT_SCHEMA),
-                RiskLevel.L1, Set.of("contract:manage"), OwnershipPolicy.TENANT_SCOPED,
-                RetryPolicy.NEVER, ConfirmationPolicy.EXPLICIT,
+                ToolWriteProfile.NON_RETRYABLE_L1, Set.of("contract:manage"), OwnershipPolicy.TENANT_SCOPED,
                 1, 4096, 15000);
     }
 
@@ -45,7 +44,6 @@ public class AgentContractWriteToolDefinitions {
                 "Replace only editable fields of one draft contract; never change its code or status.",
                 objectMapper.readTree(UPDATE_DRAFT_INPUT_SCHEMA),
                 objectMapper.readTree(UPDATE_DRAFT_OUTPUT_SCHEMA),
-                RiskLevel.L1, Set.of("contract:manage"), OwnershipPolicy.TENANT_SCOPED,
-                RetryPolicy.NEVER, ConfirmationPolicy.EXPLICIT, 1, 4096, 15000);
+                ToolWriteProfile.NON_RETRYABLE_L1, Set.of("contract:manage"), OwnershipPolicy.TENANT_SCOPED, 1, 4096, 15000);
     }
 }

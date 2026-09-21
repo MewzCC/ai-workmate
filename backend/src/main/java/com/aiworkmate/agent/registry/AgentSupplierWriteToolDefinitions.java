@@ -29,8 +29,7 @@ public class AgentSupplierWriteToolDefinitions {
                 "Creates one tenant-scoped supplier draft without contact, credit or risk data.",
                 "Create exactly one bounded supplier draft after explicit confirmation; never activate it.",
                 mapper.readTree(CREATE_DRAFT_INPUT_SCHEMA), mapper.readTree(CREATE_DRAFT_OUTPUT_SCHEMA),
-                RiskLevel.L1, Set.of("supplier:manage"), OwnershipPolicy.TENANT_SCOPED,
-                RetryPolicy.NEVER, ConfirmationPolicy.EXPLICIT, 1, 4096, 15000);
+                ToolWriteProfile.NON_RETRYABLE_L1, Set.of("supplier:manage"), OwnershipPolicy.TENANT_SCOPED, 1, 4096, 15000);
     }
 
     @Bean
@@ -40,7 +39,6 @@ public class AgentSupplierWriteToolDefinitions {
                 "Updates one tenant-scoped supplier draft using optimistic locking.",
                 "Update exactly one bounded supplier draft after explicit confirmation; never activate it.",
                 mapper.readTree(UPDATE_DRAFT_INPUT_SCHEMA), mapper.readTree(UPDATE_DRAFT_OUTPUT_SCHEMA),
-                RiskLevel.L1, Set.of("supplier:manage"), OwnershipPolicy.TENANT_SCOPED,
-                RetryPolicy.NEVER, ConfirmationPolicy.EXPLICIT, 1, 4096, 15000);
+                ToolWriteProfile.NON_RETRYABLE_L1, Set.of("supplier:manage"), OwnershipPolicy.TENANT_SCOPED, 1, 4096, 15000);
     }
 }

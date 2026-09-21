@@ -41,8 +41,7 @@ public class AgentBudgetWriteToolDefinitions {
                 "Create exactly one bounded budget draft after explicit confirmation; never activate or operate it.",
                 objectMapper.readTree(CREATE_DRAFT_INPUT_SCHEMA),
                 objectMapper.readTree(CREATE_DRAFT_OUTPUT_SCHEMA),
-                RiskLevel.L1, Set.of("budget:manage"), OwnershipPolicy.TENANT_SCOPED,
-                RetryPolicy.NEVER, ConfirmationPolicy.EXPLICIT,
+                ToolWriteProfile.NON_RETRYABLE_L1, Set.of("budget:manage"), OwnershipPolicy.TENANT_SCOPED,
                 1, 4096, 15000);
     }
 
@@ -55,8 +54,7 @@ public class AgentBudgetWriteToolDefinitions {
                 "Replace only the editable fields of one draft budget; never change its code, status or balances.",
                 objectMapper.readTree(UPDATE_DRAFT_INPUT_SCHEMA),
                 objectMapper.readTree(UPDATE_DRAFT_OUTPUT_SCHEMA),
-                RiskLevel.L1, Set.of("budget:manage"), OwnershipPolicy.TENANT_SCOPED,
-                RetryPolicy.NEVER, ConfirmationPolicy.EXPLICIT,
+                ToolWriteProfile.NON_RETRYABLE_L1, Set.of("budget:manage"), OwnershipPolicy.TENANT_SCOPED,
                 1, 4096, 15000);
     }
 
@@ -69,8 +67,7 @@ public class AgentBudgetWriteToolDefinitions {
                 "Perform only the DRAFT to ACTIVE transition; never operate, close or cancel the budget.",
                 objectMapper.readTree(ACTIVATE_DRAFT_INPUT_SCHEMA),
                 objectMapper.readTree(ACTIVATE_DRAFT_OUTPUT_SCHEMA),
-                RiskLevel.L2, Set.of("budget:manage"), OwnershipPolicy.TENANT_SCOPED,
-                RetryPolicy.NEVER, ConfirmationPolicy.SECONDARY,
+                ToolWriteProfile.SECONDARY_L2, Set.of("budget:manage"), OwnershipPolicy.TENANT_SCOPED,
                 1, 4096, 15000);
     }
 
@@ -83,8 +80,7 @@ public class AgentBudgetWriteToolDefinitions {
                 "Perform only the DRAFT to CANCELLED transition; never activate, close or operate the budget.",
                 objectMapper.readTree(CANCEL_DRAFT_INPUT_SCHEMA),
                 objectMapper.readTree(CANCEL_DRAFT_OUTPUT_SCHEMA),
-                RiskLevel.L2, Set.of("budget:manage"), OwnershipPolicy.TENANT_SCOPED,
-                RetryPolicy.NEVER, ConfirmationPolicy.SECONDARY,
+                ToolWriteProfile.SECONDARY_L2, Set.of("budget:manage"), OwnershipPolicy.TENANT_SCOPED,
                 1, 4096, 15000);
     }
 }

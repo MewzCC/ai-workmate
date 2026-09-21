@@ -24,9 +24,8 @@ public class AgentAttendanceWriteToolDefinitions {
                 "Creates exactly one attendance correction request for the authenticated user.",
                 "Submit one personal correction request for approval without modifying attendance records directly.",
                 objectMapper.readTree(REISSUE_INPUT_SCHEMA),
-                objectMapper.readTree(REISSUE_OUTPUT_SCHEMA), RiskLevel.L1,
+                objectMapper.readTree(REISSUE_OUTPUT_SCHEMA), ToolWriteProfile.IDEMPOTENT_L1,
                 Set.of("attendance:reissue:apply"), OwnershipPolicy.SELF,
-                RetryPolicy.BUSINESS_IDEMPOTENT, ConfirmationPolicy.EXPLICIT,
                 1, 8192, 10000);
     }
 }

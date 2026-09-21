@@ -22,8 +22,7 @@ public class AgentNotificationWriteToolDefinitions {
                 "Marks exactly one notification owned by the authenticated user as read.",
                 "Mark one self-owned notification as read after explicit confirmation without exposing business IDs.",
                 objectMapper.readTree(INPUT_SCHEMA), objectMapper.readTree(OUTPUT_SCHEMA),
-                RiskLevel.L1, Set.of("notification:read:self"), OwnershipPolicy.SELF,
-                RetryPolicy.BUSINESS_IDEMPOTENT, ConfirmationPolicy.EXPLICIT,
+                ToolWriteProfile.IDEMPOTENT_L1, Set.of("notification:read:self"), OwnershipPolicy.SELF,
                 1, 4096, 5000);
     }
 }

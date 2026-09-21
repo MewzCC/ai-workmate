@@ -29,8 +29,7 @@ public class AgentSealWriteToolDefinitions {
                 "Creates one approval-bound seal usage application owned by the authenticated applicant.",
                 "Submit one bounded seal usage application only after the applicant explicitly confirms it.",
                 objectMapper.readTree(APPLY_INPUT_SCHEMA), objectMapper.readTree(APPLY_OUTPUT_SCHEMA),
-                RiskLevel.L1, Set.of("seal:create"), OwnershipPolicy.SELF,
-                RetryPolicy.BUSINESS_IDEMPOTENT, ConfirmationPolicy.EXPLICIT,
+                ToolWriteProfile.IDEMPOTENT_L1, Set.of("seal:create"), OwnershipPolicy.SELF,
                 1, 8192, 15000);
     }
 
@@ -42,8 +41,7 @@ public class AgentSealWriteToolDefinitions {
                 "Register one version-bound actual seal use only after secondary confirmation.",
                 objectMapper.readTree(REGISTER_USE_INPUT_SCHEMA),
                 objectMapper.readTree(REGISTER_USE_OUTPUT_SCHEMA),
-                RiskLevel.L2, Set.of("seal:register"), OwnershipPolicy.SELF,
-                RetryPolicy.NEVER, ConfirmationPolicy.SECONDARY,
+                ToolWriteProfile.SECONDARY_L2, Set.of("seal:register"), OwnershipPolicy.SELF,
                 1, 8192, 10000);
     }
 }

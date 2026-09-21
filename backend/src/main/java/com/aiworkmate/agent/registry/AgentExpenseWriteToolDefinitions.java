@@ -45,8 +45,7 @@ public class AgentExpenseWriteToolDefinitions {
                 "Create one bounded expense draft only after explicit confirmation; never submit or approve it.",
                 objectMapper.readTree(CREATE_DRAFT_INPUT_SCHEMA),
                 objectMapper.readTree(CREATE_DRAFT_OUTPUT_SCHEMA),
-                RiskLevel.L1, Set.of("approval:create"), OwnershipPolicy.SELF,
-                RetryPolicy.BUSINESS_IDEMPOTENT, ConfirmationPolicy.EXPLICIT,
+                ToolWriteProfile.IDEMPOTENT_L1, Set.of("approval:create"), OwnershipPolicy.SELF,
                 1, 8192, 15000);
     }
 
@@ -59,8 +58,7 @@ public class AgentExpenseWriteToolDefinitions {
                 "Submit only a verified expense-application draft after explicit confirmation.",
                 objectMapper.readTree(SUBMIT_DRAFT_INPUT_SCHEMA),
                 objectMapper.readTree(SUBMIT_DRAFT_OUTPUT_SCHEMA),
-                RiskLevel.L1, Set.of("approval:submit"), OwnershipPolicy.SELF,
-                RetryPolicy.NEVER, ConfirmationPolicy.EXPLICIT,
+                ToolWriteProfile.NON_RETRYABLE_L1, Set.of("approval:submit"), OwnershipPolicy.SELF,
                 1, 4096, 15000);
     }
 
@@ -73,8 +71,7 @@ public class AgentExpenseWriteToolDefinitions {
                 "Patch only a verified expense draft and preserve every field not explicitly provided.",
                 objectMapper.readTree(UPDATE_DRAFT_INPUT_SCHEMA),
                 objectMapper.readTree(UPDATE_DRAFT_OUTPUT_SCHEMA),
-                RiskLevel.L1, Set.of("approval:create"), OwnershipPolicy.SELF,
-                RetryPolicy.NEVER, ConfirmationPolicy.EXPLICIT,
+                ToolWriteProfile.NON_RETRYABLE_L1, Set.of("approval:create"), OwnershipPolicy.SELF,
                 1, 4096, 15000);
     }
 
@@ -87,8 +84,7 @@ public class AgentExpenseWriteToolDefinitions {
                 "Cancel the active approval task and workflow only for a verified expense application.",
                 objectMapper.readTree(WITHDRAW_INPUT_SCHEMA),
                 objectMapper.readTree(WITHDRAW_OUTPUT_SCHEMA),
-                RiskLevel.L1, Set.of("approval:withdraw"), OwnershipPolicy.SELF,
-                RetryPolicy.NEVER, ConfirmationPolicy.EXPLICIT,
+                ToolWriteProfile.NON_RETRYABLE_L1, Set.of("approval:withdraw"), OwnershipPolicy.SELF,
                 1, 4096, 15000);
     }
 
@@ -101,8 +97,7 @@ public class AgentExpenseWriteToolDefinitions {
                 "Restore only a verified expense application to draft without editing or resubmitting it.",
                 objectMapper.readTree(REOPEN_INPUT_SCHEMA),
                 objectMapper.readTree(REOPEN_OUTPUT_SCHEMA),
-                RiskLevel.L1, Set.of("approval:reopen"), OwnershipPolicy.SELF,
-                RetryPolicy.NEVER, ConfirmationPolicy.EXPLICIT,
+                ToolWriteProfile.NON_RETRYABLE_L1, Set.of("approval:reopen"), OwnershipPolicy.SELF,
                 1, 4096, 15000);
     }
 }
