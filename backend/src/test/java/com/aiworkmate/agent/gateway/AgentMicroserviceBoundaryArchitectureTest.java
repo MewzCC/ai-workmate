@@ -88,7 +88,8 @@ class AgentMicroserviceBoundaryArchitectureTest {
 
     @Test
     void localAdaptersDependOnlyOnPortsAndCurrentDomainFacades() {
-        classes().that().resideInAPackage("..agent.tool.adapter..")
+        classes().that().areAnnotatedWith(
+                        com.aiworkmate.agent.tool.adapter.LocalAgentDomainAdapter.class)
                 .should().onlyDependOnClassesThat().resideInAnyPackage(
                         "java..",
                         "..agent.tool.adapter..",
@@ -99,6 +100,20 @@ class AgentMicroserviceBoundaryArchitectureTest {
                         "lombok..",
                         "org.springframework.stereotype..",
                         "org.springframework.boot.autoconfigure.condition..")
+                .check(classes);
+    }
+
+    @Test
+    void onlyDedicatedRemoteAdaptersMayUseRemoteClientInfrastructure() {
+        noClasses().that().resideInAPackage("..agent..")
+                .and().resideOutsideOfPackage("..agent.tool.adapter.remote..")
+                .should().dependOnClassesThat().resideInAnyPackage(
+                        "org.springframework.cloud..",
+                        "org.springframework.web.client..",
+                        "org.springframework.web.reactive.function.client..",
+                        "feign..",
+                        "java.net.http..")
+                .because("service targets and transport clients belong only to fixed remote adapters")
                 .check(classes);
     }
 

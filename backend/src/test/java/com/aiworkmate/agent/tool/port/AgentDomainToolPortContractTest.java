@@ -7,6 +7,7 @@ import com.tngtech.archunit.core.importer.ClassFileImporter;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.RecordComponent;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -47,6 +48,25 @@ class AgentDomainToolPortContractTest {
                     }
                 }
             }
+        });
+    }
+
+    @Test
+    void trustedRemoteActorContextCannotCarryClientAssertedAuthorizationOrTargets() {
+        assertEquals(
+                List.of("tenantId", "userId", "taskId", "stepId", "attempt", "traceId"),
+                List.of(ToolActorContext.class.getRecordComponents()).stream()
+                        .map(RecordComponent::getName)
+                        .toList());
+        PORTS.forEach(port -> {
+            String contract = port.toGenericString();
+            for (Method method : port.getDeclaredMethods()) {
+                contract += method.toGenericString();
+            }
+            assertFalse(contract.contains("java.net.URL"));
+            assertFalse(contract.contains("java.net.URI"));
+            assertFalse(contract.contains("permissions"));
+            assertFalse(contract.contains("roles"));
         });
     }
 }

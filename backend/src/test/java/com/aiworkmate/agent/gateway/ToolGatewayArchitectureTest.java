@@ -63,7 +63,7 @@ class ToolGatewayArchitectureTest {
     }
 
     @Test
-    void localAdaptersMustNotBypassGatewayOrDependOnWebAndPersistenceLayers() {
+    void allAdaptersMustNotBypassGatewayOrDependOnPersistenceLayers() {
         noClasses().that().resideInAPackage("..agent.tool.adapter..")
                 .should().dependOnClassesThat().resideInAnyPackage(
                         "..agent.gateway..",
@@ -71,9 +71,20 @@ class ToolGatewayArchitectureTest {
                         "..controller..",
                         "..mapper..",
                         "com.baomidou.mybatisplus..",
-                        "org.springframework.jdbc..",
+                        "org.springframework.jdbc.."
+                ).check(classes);
+    }
+
+    @Test
+    void localAdaptersMustNotUseRemoteTransports() {
+        noClasses().that().resideInAPackage("..agent.tool.adapter..")
+                .and().resideOutsideOfPackage("..agent.tool.adapter.remote..")
+                .should().dependOnClassesThat().resideInAnyPackage(
                         "org.springframework.web.client..",
-                        "org.springframework.web.reactive.function.client.."
+                        "org.springframework.web.reactive.function.client..",
+                        "org.springframework.cloud..",
+                        "feign..",
+                        "java.net.http.."
                 ).check(classes);
     }
 }
