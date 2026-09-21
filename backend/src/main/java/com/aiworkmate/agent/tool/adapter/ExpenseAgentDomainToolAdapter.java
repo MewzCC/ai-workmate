@@ -9,11 +9,10 @@ import com.aiworkmate.service.ExpenseApplicationService;
 import com.aiworkmate.service.ExpenseQueryService;
 import com.aiworkmate.service.model.ExpenseAgentDraftCommand;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
 
 import java.util.List;
 
-@Component
+@LocalAgentDomainAdapter
 @RequiredArgsConstructor
 public class ExpenseAgentDomainToolAdapter implements ExpenseToolPort {
     private final ExpenseQueryService expenseQueryService;

@@ -8,11 +8,10 @@ import com.aiworkmate.service.PageActionPolicyService;
 import com.aiworkmate.service.RuntimeLogService;
 import com.aiworkmate.service.SandboxReplayService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
 
 import java.util.List;
 
-@Component
+@LocalAgentDomainAdapter
 @RequiredArgsConstructor
 public class PlatformOperationsAgentDomainToolAdapter implements PlatformOperationsToolPort {
     private final IntegrationEndpointService endpointService;

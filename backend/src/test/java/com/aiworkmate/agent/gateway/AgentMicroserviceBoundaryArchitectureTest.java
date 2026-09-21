@@ -97,7 +97,17 @@ class AgentMicroserviceBoundaryArchitectureTest {
                         "..dto..",
                         "..common..",
                         "lombok..",
-                        "org.springframework.stereotype..")
+                        "org.springframework.stereotype..",
+                        "org.springframework.boot.autoconfigure.condition..")
+                .check(classes);
+    }
+
+    @Test
+    void localAdaptersAreReplaceableAsOneDeploymentMode() {
+        classes().that().haveSimpleNameEndingWith("AgentDomainToolAdapter")
+                .should().beAnnotatedWith(
+                        com.aiworkmate.agent.tool.adapter.LocalAgentDomainAdapter.class)
+                .because("Spring Cloud adapters must replace the complete local boundary without bean conflicts")
                 .check(classes);
     }
 }

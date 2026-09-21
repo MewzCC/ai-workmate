@@ -8,11 +8,10 @@ import com.aiworkmate.dto.BudgetStatusRequest;
 import com.aiworkmate.service.BudgetService;
 import com.aiworkmate.service.model.BudgetAgentDraftCommand;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
 
 import java.util.List;
 
-@Component
+@LocalAgentDomainAdapter
 @RequiredArgsConstructor
 public class BudgetAgentDomainToolAdapter implements BudgetToolPort {
     private final BudgetService budgetService;

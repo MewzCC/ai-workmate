@@ -3,7 +3,6 @@ package com.aiworkmate.agent.tool.adapter;
 import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import org.junit.jupiter.api.Test;
-import org.springframework.stereotype.Component;
 
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -19,7 +18,7 @@ class AgentDomainToolAdapterBoundaryTest {
     @Test
     void eachPortHasOneLocalAdapterAndEachAdapterHasOneBusinessBoundary() {
         ADAPTERS.forEach(adapter -> {
-            assertThat(adapter).hasAnnotation(Component.class);
+            assertThat(adapter).hasAnnotation(LocalAgentDomainAdapter.class);
             assertThat(adapter.getSimpleName()).endsWith("AgentDomainToolAdapter");
             assertThat(adapter.getInterfaces())
                     .as(adapter.getSimpleName())

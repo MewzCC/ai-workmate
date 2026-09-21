@@ -10,12 +10,11 @@ import com.aiworkmate.dto.ApprovalDraftRequest;
 import com.aiworkmate.dto.VersionRequest;
 import com.aiworkmate.service.GenericApprovalService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-@Component
+@LocalAgentDomainAdapter
 @RequiredArgsConstructor
 public final class ApprovalApplicationAgentDomainToolAdapter implements ApprovalApplicationToolPort {
     private final GenericApprovalService approvalService;

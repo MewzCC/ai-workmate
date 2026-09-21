@@ -8,9 +8,8 @@ import com.aiworkmate.dto.LeaveApplicationResponse;
 import com.aiworkmate.dto.VersionRequest;
 import com.aiworkmate.service.LeaveWorkflowService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
 
-@Component
+@LocalAgentDomainAdapter
 @RequiredArgsConstructor
 public final class LeaveAgentDomainToolAdapter implements LeaveToolPort {
     private final LeaveWorkflowService leaveWorkflowService;

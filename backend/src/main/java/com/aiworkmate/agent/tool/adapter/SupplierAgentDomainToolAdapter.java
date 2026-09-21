@@ -7,11 +7,10 @@ import com.aiworkmate.dto.SupplierRequest;
 import com.aiworkmate.service.SupplierService;
 import com.aiworkmate.service.model.SupplierAgentDraftCommand;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
 
 import java.util.List;
 
-@Component
+@LocalAgentDomainAdapter
 @RequiredArgsConstructor
 public class SupplierAgentDomainToolAdapter implements SupplierToolPort {
     private final SupplierService supplierService;

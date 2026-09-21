@@ -4,9 +4,8 @@ import com.aiworkmate.agent.tool.port.AgentTaskCenterToolPort;
 import com.aiworkmate.agent.tool.port.ToolActorContext;
 import com.aiworkmate.service.AgentTaskQueryService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
 
-@Component
+@LocalAgentDomainAdapter
 @RequiredArgsConstructor
 public class AgentTaskCenterAgentDomainToolAdapter implements AgentTaskCenterToolPort {
     private final AgentTaskQueryService service;

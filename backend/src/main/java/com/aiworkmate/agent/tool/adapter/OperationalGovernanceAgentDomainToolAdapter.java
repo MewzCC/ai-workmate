@@ -8,11 +8,10 @@ import com.aiworkmate.service.DataDictionaryService;
 import com.aiworkmate.service.SystemCapabilityQueryService;
 import com.aiworkmate.service.TenantConfigurationService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
 
 import java.util.List;
 
-@Component
+@LocalAgentDomainAdapter
 @RequiredArgsConstructor
 public class OperationalGovernanceAgentDomainToolAdapter implements OperationalGovernanceToolPort {
     private final AuditQueryService auditService;

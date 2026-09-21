@@ -8,11 +8,10 @@ import com.aiworkmate.service.AdminAssetsService;
 import com.aiworkmate.service.model.VisitorAgentApplicationCommand;
 import com.aiworkmate.service.model.VisitorAgentVisitCommand;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
 
 import java.util.List;
 
-@Component
+@LocalAgentDomainAdapter
 @RequiredArgsConstructor
 public final class VisitorAgentDomainToolAdapter implements VisitorToolPort {
     private final AdminAssetsService adminAssetsService;

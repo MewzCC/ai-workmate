@@ -9,10 +9,9 @@ import com.aiworkmate.dto.MeetingBookingCancelRequest;
 import com.aiworkmate.service.AdminAssetsService;
 import com.aiworkmate.service.MeetingBookingService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
 
 /** Local meeting boundary; future remote adapters implement the same typed port. */
-@Component
+@LocalAgentDomainAdapter
 @RequiredArgsConstructor
 public final class MeetingAgentDomainToolAdapter implements MeetingToolPort {
     private final AdminAssetsService adminAssetsService;

@@ -9,9 +9,8 @@ import com.aiworkmate.service.model.AssetAgentClaimCommand;
 import com.aiworkmate.service.model.AssetAgentRepairStartCommand;
 import com.aiworkmate.service.model.AssetAgentReturnCommand;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
 
-@Component
+@LocalAgentDomainAdapter
 @RequiredArgsConstructor
 public final class AssetAgentDomainToolAdapter implements AssetToolPort {
     private final AdminAssetsService adminAssetsService;

@@ -4,9 +4,8 @@ import com.aiworkmate.agent.tool.port.ApprovalTaskToolPort;
 import com.aiworkmate.agent.tool.port.ToolActorContext;
 import com.aiworkmate.service.LeaveWorkflowService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
 
-@Component
+@LocalAgentDomainAdapter
 @RequiredArgsConstructor
 public final class ApprovalTaskAgentDomainToolAdapter implements ApprovalTaskToolPort {
     private final LeaveWorkflowService leaveWorkflowService;

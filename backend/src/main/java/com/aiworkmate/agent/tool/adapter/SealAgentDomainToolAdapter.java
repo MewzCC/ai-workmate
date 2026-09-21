@@ -8,11 +8,10 @@ import com.aiworkmate.service.AdminAssetsService;
 import com.aiworkmate.service.model.SealAgentApplicationCommand;
 import com.aiworkmate.service.model.SealAgentUseCommand;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
 
 import java.util.List;
 
-@Component
+@LocalAgentDomainAdapter
 @RequiredArgsConstructor
 public final class SealAgentDomainToolAdapter implements SealToolPort {
     private final AdminAssetsService adminAssetsService;

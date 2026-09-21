@@ -7,9 +7,8 @@ import com.aiworkmate.agent.tool.port.ToolWriteVerification;
 import com.aiworkmate.service.EmployeeChangeService;
 import com.aiworkmate.service.model.EmployeeChangeAgentApplicationCommand;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
 
-@Component
+@LocalAgentDomainAdapter
 @RequiredArgsConstructor
 public final class EmployeeChangeAgentDomainToolAdapter implements EmployeeChangeToolPort {
     private final EmployeeChangeService employeeChangeService;

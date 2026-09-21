@@ -7,11 +7,10 @@ import com.aiworkmate.dto.ContractRequest;
 import com.aiworkmate.service.ContractService;
 import com.aiworkmate.service.model.ContractAgentDraftCommand;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
 
 import java.util.List;
 
-@Component
+@LocalAgentDomainAdapter
 @RequiredArgsConstructor
 public class ContractAgentDomainToolAdapter implements ContractToolPort {
     private final ContractService contractService;

@@ -6,11 +6,10 @@ import com.aiworkmate.agent.tool.port.ToolOperationKey;
 import com.aiworkmate.dto.AttendanceReissueRequest;
 import com.aiworkmate.service.AttendanceService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
 
 import java.util.List;
 
-@Component
+@LocalAgentDomainAdapter
 @RequiredArgsConstructor
 public final class AttendanceAgentDomainToolAdapter implements AttendanceToolPort {
     private final AttendanceService attendanceService;

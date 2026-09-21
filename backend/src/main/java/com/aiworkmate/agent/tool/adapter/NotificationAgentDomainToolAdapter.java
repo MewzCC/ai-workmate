@@ -4,9 +4,8 @@ import com.aiworkmate.agent.tool.port.NotificationToolPort;
 import com.aiworkmate.agent.tool.port.ToolActorContext;
 import com.aiworkmate.service.NotificationService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
 
-@Component
+@LocalAgentDomainAdapter
 @RequiredArgsConstructor
 public class NotificationAgentDomainToolAdapter implements NotificationToolPort {
     private final NotificationService notificationService;

@@ -4,9 +4,8 @@ import com.aiworkmate.agent.tool.port.ApprovalConfigurationToolPort;
 import com.aiworkmate.agent.tool.port.ToolActorContext;
 import com.aiworkmate.service.ApprovalEngineService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
 
-@Component
+@LocalAgentDomainAdapter
 @RequiredArgsConstructor
 public final class ApprovalConfigurationAgentDomainToolAdapter implements ApprovalConfigurationToolPort {
     private final ApprovalEngineService approvalEngineService;

@@ -4,12 +4,11 @@ import com.aiworkmate.agent.tool.port.HrOrganizationToolPort;
 import com.aiworkmate.agent.tool.port.ToolActorContext;
 import com.aiworkmate.service.HrService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
 
 import java.util.Locale;
 import java.util.function.Predicate;
 
-@Component
+@LocalAgentDomainAdapter
 @RequiredArgsConstructor
 public final class HrOrganizationAgentDomainToolAdapter implements HrOrganizationToolPort {
     private final HrService hrService;
