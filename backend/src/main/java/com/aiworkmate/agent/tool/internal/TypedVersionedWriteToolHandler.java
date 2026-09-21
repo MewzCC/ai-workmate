@@ -15,7 +15,7 @@ abstract class TypedVersionedWriteToolHandler<R extends ToolWriteReceipt>
 
     protected TypedVersionedWriteToolHandler(
             ToolCode code, ObjectMapper objectMapper, String idArgument) {
-        super(code, objectMapper);
+        super(code, objectMapper, ToolExecutionTemplate.VERSIONED_WRITE);
         if (idArgument == null || idArgument.isBlank()) {
             throw new IllegalArgumentException("Resource id argument is required");
         }

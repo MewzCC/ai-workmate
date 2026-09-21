@@ -12,17 +12,25 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  * remain in the typed port and its domain service.
  */
 abstract class TypedWriteToolHandler<C, R extends ToolWriteReceipt> implements ToolHandler {
-    private static final String DEFAULT_HANDLER_VERSION = "1.0.0";
-
     private final ToolCode code;
     private final ObjectMapper objectMapper;
+    private final ToolExecutionTemplate executionTemplate;
 
     protected TypedWriteToolHandler(ToolCode code, ObjectMapper objectMapper) {
+        this(code, objectMapper, ToolExecutionTemplate.DIRECT_WRITE);
+    }
+
+    protected TypedWriteToolHandler(
+            ToolCode code, ObjectMapper objectMapper, ToolExecutionTemplate executionTemplate) {
         if (code == null || objectMapper == null) {
             throw new IllegalArgumentException("Write tool code and object mapper are required");
         }
+        if (executionTemplate == null || !executionTemplate.isWrite()) {
+            throw new IllegalArgumentException("Write execution template is required");
+        }
         this.code = code;
         this.objectMapper = objectMapper;
+        this.executionTemplate = executionTemplate;
     }
 
     @Override
@@ -32,7 +40,12 @@ abstract class TypedWriteToolHandler<C, R extends ToolWriteReceipt> implements T
 
     @Override
     public String handlerVersion() {
-        return DEFAULT_HANDLER_VERSION;
+        return ToolHandlerContract.VERSION;
+    }
+
+    @Override
+    public final ToolExecutionTemplate executionTemplate() {
+        return executionTemplate;
     }
 
     @Override

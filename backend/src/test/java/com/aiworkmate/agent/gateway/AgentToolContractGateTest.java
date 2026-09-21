@@ -10,6 +10,7 @@ import com.aiworkmate.agent.registry.RiskLevel;
 import com.aiworkmate.agent.registry.SideEffect;
 import com.aiworkmate.agent.registry.ToolCode;
 import com.aiworkmate.agent.registry.ToolDefinition;
+import com.aiworkmate.agent.tool.internal.ToolExecutionTemplate;
 import com.aiworkmate.agent.tool.internal.ToolHandler;
 import com.aiworkmate.agent.tool.internal.TrustedToolContext;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -46,7 +47,7 @@ class AgentToolContractGateTest {
 
         List<ToolHandler> drifted = definitions.stream()
                 .map(definition -> handler(definition.code(), ToolCode.TODO_QUERY.code().equals(definition.code())
-                        ? "2.0.0" : definition.handlerVersion()))
+                        ? "2.0.0" : definition.handlerVersion(), templateFor(definition)))
                 .toList();
         assertThatThrownBy(() -> new AgentToolContractGate(definitions, drifted, pages))
                 .isInstanceOf(IllegalStateException.class)
@@ -78,6 +79,21 @@ class AgentToolContractGateTest {
                 .hasMessageContaining("page capabilities");
     }
 
+    @Test
+    void rejectsHandlerTemplateThatWeakensDefinitionExecutionPolicy() {
+        List<ToolDefinition> definitions = definitions();
+        List<ToolHandler> unsafe = definitions.stream()
+                .map(definition -> handler(definition.code(), definition.handlerVersion(),
+                        ToolCode.NOTIFICATION_MARK_READ.code().equals(definition.code())
+                                ? ToolExecutionTemplate.DIRECT_WRITE
+                                : templateFor(definition)))
+                .toList();
+
+        assertThatThrownBy(() -> new AgentToolContractGate(definitions, unsafe, pages))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("idempotent execution template");
+    }
+
     private List<ToolDefinition> definitions() {
         return Arrays.stream(ToolCode.values()).map(this::definition).toList();
     }
@@ -88,10 +104,12 @@ class AgentToolContractGateTest {
                 .put("type", "object")
                 .put("additionalProperties", false)
                 .set("properties", objectMapper.createObjectNode());
+        boolean idempotent = code == ToolCode.NOTIFICATION_MARK_READ;
         return ToolDefinition.create(code, code.code(), "Contract test definition", "Contract test purpose",
                 "1.0.0", schema, schema, write ? RiskLevel.L1 : RiskLevel.L0, Set.of("tool:test"),
                 PermissionMode.ALL, OwnershipPolicy.SELF,
-                write ? RetryPolicy.NEVER : RetryPolicy.READ_ONLY_SAFE,
+                write ? (idempotent ? RetryPolicy.BUSINESS_IDEMPOTENT : RetryPolicy.NEVER)
+                        : RetryPolicy.READ_ONLY_SAFE,
                 write ? SideEffect.SINGLE_WRITE : SideEffect.NONE,
                 write ? ConfirmationPolicy.EXPLICIT : ConfirmationPolicy.NONE,
                 1, 1024, 1000, "TEST_AUDIT");
@@ -99,13 +117,22 @@ class AgentToolContractGateTest {
 
     private List<ToolHandler> handlers(List<ToolDefinition> definitions) {
         return definitions.stream().map(definition ->
-                handler(definition.code(), definition.handlerVersion())).toList();
+                handler(definition.code(), definition.handlerVersion(), templateFor(definition))).toList();
     }
 
-    private ToolHandler handler(String code, String version) {
+    private ToolExecutionTemplate templateFor(ToolDefinition definition) {
+        return definition.sideEffect() == SideEffect.NONE
+                ? ToolExecutionTemplate.READ_ONLY
+                : (definition.retryPolicy() == RetryPolicy.BUSINESS_IDEMPOTENT
+                    ? ToolExecutionTemplate.NATURALLY_IDEMPOTENT_WRITE
+                    : ToolExecutionTemplate.DIRECT_WRITE);
+    }
+
+    private ToolHandler handler(String code, String version, ToolExecutionTemplate template) {
         return new ToolHandler() {
             @Override public String toolCode() { return code; }
             @Override public String handlerVersion() { return version; }
+            @Override public ToolExecutionTemplate executionTemplate() { return template; }
             @Override public JsonNode execute(TrustedToolContext context, JsonNode arguments) { return arguments; }
         };
     }

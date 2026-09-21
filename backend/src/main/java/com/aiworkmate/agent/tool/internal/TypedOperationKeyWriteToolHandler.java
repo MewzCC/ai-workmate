@@ -12,7 +12,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 abstract class TypedOperationKeyWriteToolHandler<C, R extends ToolWriteReceipt>
         extends TypedWriteToolHandler<C, R> {
     protected TypedOperationKeyWriteToolHandler(ToolCode code, ObjectMapper objectMapper) {
-        super(code, objectMapper);
+        super(code, objectMapper, ToolExecutionTemplate.OPERATION_KEY_WRITE);
     }
 
     @Override

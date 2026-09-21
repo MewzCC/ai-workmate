@@ -21,6 +21,8 @@ class NotificationMarkReadToolHandlerTest {
 
         var output = handler.execute(context, mapper.readTree("{\"notificationId\":9}"));
 
+        assertThat(handler.executionTemplate())
+                .isEqualTo(ToolExecutionTemplate.NATURALLY_IDEMPOTENT_WRITE);
         assertThat(output.path("notificationId").asLong()).isEqualTo(9L);
         assertThat(output.path("read").asBoolean()).isTrue();
         assertThat(output.has("userId")).isFalse();

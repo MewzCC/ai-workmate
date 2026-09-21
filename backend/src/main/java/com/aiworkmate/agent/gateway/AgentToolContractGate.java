@@ -1,8 +1,11 @@
 package com.aiworkmate.agent.gateway;
 
 import com.aiworkmate.agent.capability.PageCapabilityCatalog;
+import com.aiworkmate.agent.registry.RetryPolicy;
+import com.aiworkmate.agent.registry.SideEffect;
 import com.aiworkmate.agent.registry.ToolCode;
 import com.aiworkmate.agent.registry.ToolDefinition;
+import com.aiworkmate.agent.tool.internal.ToolExecutionTemplate;
 import com.aiworkmate.agent.tool.internal.ToolHandler;
 import com.aiworkmate.oa.page.OaPage;
 import org.springframework.stereotype.Component;
@@ -32,6 +35,8 @@ public class AgentToolContractGate {
                 .collect(Collectors.toUnmodifiableSet());
         require(handlersByKey.keySet().equals(expectedHandlers),
                 "Tool handlers must exactly match definition codes and versions");
+        definitions.forEach(definition -> requireExecutionTemplate(
+                definition, handlersByKey.get(new HandlerKey(definition.code(), definition.handlerVersion()))));
 
         Map<String, String> expectedPages = Arrays.stream(OaPage.values())
                 .collect(Collectors.toUnmodifiableMap(OaPage::routeKey, OaPage::componentKey));
@@ -78,6 +83,16 @@ public class AgentToolContractGate {
                     "Duplicate tool handler in contract gate");
         }
         return Map.copyOf(indexed);
+    }
+
+    private void requireExecutionTemplate(ToolDefinition definition, ToolHandler handler) {
+        ToolExecutionTemplate template = handler.executionTemplate();
+        require(template != null, "Tool handler execution template is required");
+        require((definition.sideEffect() == SideEffect.SINGLE_WRITE) == template.isWrite(),
+                "Tool handler execution template must match definition side effect");
+        require(definition.retryPolicy() != RetryPolicy.BUSINESS_IDEMPOTENT
+                        || template.isBusinessRetrySafe(),
+                "Business-idempotent tools require an idempotent execution template");
     }
 
     private void require(boolean condition, String message) {

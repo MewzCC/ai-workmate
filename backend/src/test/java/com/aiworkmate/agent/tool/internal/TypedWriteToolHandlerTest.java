@@ -26,6 +26,7 @@ class TypedWriteToolHandlerTest {
 
         assertThat(handler.toolCode()).isEqualTo("notification.markRead");
         assertThat(handler.handlerVersion()).isEqualTo("1.0.0");
+        assertThat(handler.executionTemplate()).isEqualTo(ToolExecutionTemplate.OPERATION_KEY_WRITE);
         assertThat(calls).containsExactly("parse", "invoke:7:draft");
         assertThat(output.path("value").asText()).isEqualTo("draft");
         assertThat(output.path("operationKey").asText())
@@ -51,6 +52,7 @@ class TypedWriteToolHandlerTest {
                 objectMapper.readTree("{\"applicationId\":19,\"version\":2}"));
 
         assertThat(output.path("value").asText()).isEqualTo("19:2:7");
+        assertThat(handler.executionTemplate()).isEqualTo(ToolExecutionTemplate.VERSIONED_WRITE);
     }
 
     private static final class SampleHandler extends TypedOperationKeyWriteToolHandler<String, Result> {
