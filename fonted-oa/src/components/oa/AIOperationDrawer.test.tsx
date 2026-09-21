@@ -35,7 +35,10 @@ const basePlan = {
   steps: [{ sequence: 1, toolCode: 'todo.query', title: '查询本人待办', arguments: { limit: 10 } }],
 };
 
-function renderDrawer(onExecutionCompleted = vi.fn()) {
+function renderDrawer(
+  onExecutionCompleted = vi.fn(),
+  pageContext?: Readonly<Record<string, string | number | boolean>>,
+) {
   render(
     <App>
       <AIOperationDrawer
@@ -43,6 +46,7 @@ function renderDrawer(onExecutionCompleted = vi.fn()) {
         role="system_admin"
         pageId="todo-list"
         pageTitle="待办中心"
+        pageContext={pageContext}
         onClose={vi.fn()}
         onExecutionCompleted={onExecutionCompleted}
       />
@@ -108,6 +112,19 @@ describe('AIOperationDrawer', () => {
     }));
     expect(api.issueAiTaskConfirmation).not.toHaveBeenCalled();
     expect(api.subscribeAiTaskEvents).toHaveBeenCalledWith(basePlan.taskId, expect.any(Object));
+  });
+
+  it('sends the current bounded page context with the planning request', async () => {
+    api.planAiTask.mockResolvedValue(basePlan);
+    renderDrawer(vi.fn(), { status: 'PENDING', page: 2, size: 20 });
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: '查询当前筛选下的待办' } });
+    fireEvent.click(screen.getByRole('button', { name: /发送 \/ 生成计划/ }));
+
+    await waitFor(() => expect(api.planAiTask).toHaveBeenCalledWith({
+      input: '查询当前筛选下的待办',
+      pageId: 'todo-list',
+      pageContext: { status: 'PENDING', page: 2, size: 20 },
+    }));
   });
 
   it('refreshes the current business page once after a successful terminal event', async () => {

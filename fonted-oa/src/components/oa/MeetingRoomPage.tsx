@@ -28,6 +28,7 @@ import { formatOaApiError } from '@/lib/oaApi';
 import AdminAssetsPageShell from './AdminAssetsPageShell';
 import MeetingBookingPanel from './MeetingBookingPanel';
 import ResponsiveTable from './ResponsiveTable';
+import { usePublishPageAgentContext } from './PageAgentContext';
 
 const STATUS_TAG_COLOR: Record<MeetingRoomStatus, string> = {
   OPEN: 'success',
@@ -43,6 +44,13 @@ export default function MeetingRoomPage() {
   const [size, setSize] = useState(10);
   const [keyword, setKeyword] = useState('');
   const [status, setStatus] = useState<string | undefined>(undefined);
+
+  usePublishPageAgentContext({
+    keyword: keyword || undefined,
+    roomStatus: status,
+    page,
+    size,
+  });
 
   const [editOpen, setEditOpen] = useState(false);
   const [editing, setEditing] = useState<MeetingRoom | null>(null);

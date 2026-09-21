@@ -12,6 +12,7 @@ import { OaIcon } from '@/components/OaIcon';
 import type { OaRole } from '@/types/oa';
 import AIOperationDrawer from './AIOperationDrawer';
 import AiMiniPanel from './AiMiniPanel';
+import { usePageAgentContextSnapshot } from './PageAgentContext';
 
 const AGENT_WORKSPACE_PAGE_ID = 'ai-workspace';
 
@@ -37,6 +38,7 @@ const PageAgentLauncher = forwardRef<PageAgentLauncherHandle, PageAgentLauncherP
     const [open, setOpen] = useState(false);
     const [drawerPresent, setDrawerPresent] = useState(false);
     const [prompt, setPrompt] = useState('');
+    const pageContext = usePageAgentContextSnapshot();
     const enabled = pageId !== AGENT_WORKSPACE_PAGE_ID;
 
     useImperativeHandle(ref, () => ({
@@ -80,6 +82,7 @@ const PageAgentLauncher = forwardRef<PageAgentLauncherHandle, PageAgentLauncherP
           role={role}
           pageId={pageId}
           pageTitle={pageTitle}
+          pageContext={pageContext}
           initialPrompt={prompt}
           onClose={() => setOpen(false)}
           onOpenChangeComplete={setDrawerPresent}

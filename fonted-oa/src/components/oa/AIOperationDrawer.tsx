@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Alert, App as AntdApp, Button, Card, Drawer, Empty, Input, Space, Tag, Timeline, Typography } from 'antd';
 import type { AgentTaskStatus, AiTaskEvent, AiTaskExecuteResponse, AiTaskPlanResponse, OaRole, PageCapability } from '@/types/oa';
+import type { PageAgentContextSnapshot } from './PageAgentContext';
 import PageAgentCapabilityPanel from './PageAgentCapabilityPanel';
 import { executeAiTask, formatOaApiError, getPageCapabilities, issueAiTaskConfirmation, OaApiError, planAiTask, subscribeAiTaskEvents } from '@/lib/oaApi';
 import { OaIcon } from '@/components/OaIcon';
@@ -14,6 +15,7 @@ interface AIOperationDrawerProps {
   role: OaRole;
   pageId: string;
   pageTitle: string;
+  pageContext?: PageAgentContextSnapshot;
   initialPrompt?: string;
   onClose: () => void;
   onOpenChangeComplete?: (open: boolean) => void;
@@ -45,7 +47,7 @@ function eventStatus(event: AiTaskEvent): AgentTaskStatus | null {
     : null;
 }
 
-export default function AIOperationDrawer({ open, role, pageId, pageTitle, initialPrompt, onClose, onOpenChangeComplete, onExecutionCompleted }: AIOperationDrawerProps) {
+export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageContext, initialPrompt, onClose, onOpenChangeComplete, onExecutionCompleted }: AIOperationDrawerProps) {
   const { t } = useTranslation();
   const { message, modal } = AntdApp.useApp();
   const [input, setInput] = useState('');
@@ -117,7 +119,11 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, initi
     setOperationError(null);
     setMessages((previous) => [...previous, { role: 'user', content: value }]);
     try {
-      const nextPlan = await planAiTask({ input: value, pageId });
+      const nextPlan = await planAiTask({
+        input: value,
+        pageId,
+        ...(pageContext && Object.keys(pageContext).length > 0 ? { pageContext } : {}),
+      });
       setPlan(nextPlan);
       setTaskStatus(nextPlan.status);
       setMessages((previous) => [...previous, { role: 'assistant', content: nextPlan.summary }]);

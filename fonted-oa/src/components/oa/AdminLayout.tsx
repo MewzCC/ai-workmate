@@ -19,6 +19,7 @@ import ApprovalDetailPage from './ApprovalDetailPage';
 import { useAiChatStore } from '@/store/aiChatStore';
 import { OaPageRenderer } from './OaPageRenderer';
 import PageAgentLauncher, { type PageAgentLauncherHandle } from './PageAgentLauncher';
+import { PageAgentContextProvider } from './PageAgentContext';
 const KnowledgeBasePage = lazy(() => import('./KnowledgeBasePage'));
 
 const { Content } = Layout;
@@ -452,7 +453,7 @@ export default function AdminLayout() {
         },
       }}
     >
-      <>
+      <PageAgentContextProvider key={selectedMenu.id} pageId={selectedMenu.id}>
         <div className={`oa-shell ${collapsed ? 'oa-shell-collapsed' : ''} ${wallpaper ? 'oa-has-wallpaper' : ''} ${selectedMenu.id === 'ai-workspace' ? 'oa-chat-page' : ''}`}>
           <div
             className={`oa-sider-mask ${collapsed ? '' : 'is-visible'}`}
@@ -568,7 +569,7 @@ export default function AdminLayout() {
           />
 
         </div>
-      </>
+      </PageAgentContextProvider>
     </ConfigProvider>
   );
 }

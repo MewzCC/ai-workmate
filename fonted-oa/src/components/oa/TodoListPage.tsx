@@ -21,6 +21,7 @@ import { leaveTypeLabel } from './MyApplicationsPage';
 import ResponsiveTable from './ResponsiveTable';
 import { OaIcon } from '@/components/OaIcon';
 import { useTranslation } from 'react-i18next';
+import { usePublishPageAgentContext } from './PageAgentContext';
 
 const { RangePicker } = DatePicker;
 
@@ -33,6 +34,14 @@ export default function TodoListPage() {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
+
+  usePublishPageAgentContext({
+    status,
+    from: range?.[0],
+    to: range?.[1],
+    page,
+    size: 20,
+  });
 
   const load = useCallback(async () => {
     setLoading(true);
