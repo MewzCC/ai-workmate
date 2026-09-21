@@ -16,6 +16,7 @@ interface AIOperationDrawerProps {
   initialPrompt?: string;
   onClose: () => void;
   onOpenChangeComplete?: (open: boolean) => void;
+  onExecutionCompleted?: () => void;
 }
 
 interface ChatLine { role: 'user' | 'assistant'; content: string }
@@ -43,7 +44,7 @@ function eventStatus(event: AiTaskEvent): AgentTaskStatus | null {
     : null;
 }
 
-export default function AIOperationDrawer({ open, role, pageId, pageTitle, initialPrompt, onClose, onOpenChangeComplete }: AIOperationDrawerProps) {
+export default function AIOperationDrawer({ open, role, pageId, pageTitle, initialPrompt, onClose, onOpenChangeComplete, onExecutionCompleted }: AIOperationDrawerProps) {
   const { t } = useTranslation();
   const { message, modal } = AntdApp.useApp();
   const [input, setInput] = useState('');
@@ -61,6 +62,7 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, initi
   const [capabilityReload, setCapabilityReload] = useState(0);
   const confirmationTokenRef = useRef<string | null>(null);
   const unsubscribeRef = useRef<(() => void) | null>(null);
+  const refreshedTaskRef = useRef<string | null>(null);
 
   const stopEventStream = () => {
     unsubscribeRef.current?.();
@@ -143,6 +145,10 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, initi
           confirmationTokenRef.current = null;
           if (status === 'SUCCEEDED' || status === 'PARTIALLY_SUCCEEDED') {
             message.success(t('oa.ai.executionCompletedMessage'));
+            if (refreshedTaskRef.current !== taskId) {
+              refreshedTaskRef.current = taskId;
+              onExecutionCompleted?.();
+            }
           }
         }
       },
@@ -169,6 +175,7 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, initi
         ...(confirmationTokenRef.current ? { confirmationToken: confirmationTokenRef.current } : {}),
       });
       confirmationTokenRef.current = null;
+      refreshedTaskRef.current = null;
       setExecution(data);
       setTaskStatus(data.status);
       beginEventStream(data.taskId);
@@ -255,7 +262,7 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, initi
 
         {execution && <Card size="small" className="oa-ai-progress-card" title={t('oa.ai.progressTitle')}>
           <div className="oa-ai-status-strip"><span><Typography.Text type="secondary">{t('oa.ai.taskId')}</Typography.Text><Typography.Text copyable={{ text: execution.taskId }}>{execution.taskId}</Typography.Text></span>{taskStatus && <Tag color={statusColor(taskStatus)}>{t(`oa.ai.status.${taskStatus}`)}</Tag>}</div>
-          {events.length === 0 ? <Alert type="info" showIcon title={t('oa.ai.waitingForEvents')} /> : <Timeline className="oa-ai-event-feed" items={events.map((event) => ({ color: event.type === 'task-failed' ? 'red' : event.type === 'task-completed' ? 'green' : 'blue', children: t(`oa.ai.events.${event.type}`, { defaultValue: t('oa.ai.events.update') }) }))} />}
+          {events.length === 0 ? <Alert type="info" showIcon title={t('oa.ai.waitingForEvents')} /> : <Timeline className="oa-ai-event-feed" items={events.map((event) => ({ color: event.type === 'task-failed' ? 'red' : event.type === 'task-completed' ? 'green' : 'blue', content: t(`oa.ai.events.${event.type}`, { defaultValue: t('oa.ai.events.update') }) }))} />}
         </Card>}
       </Space>
     </Drawer>

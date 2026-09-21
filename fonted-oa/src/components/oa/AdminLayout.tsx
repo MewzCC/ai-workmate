@@ -172,6 +172,7 @@ export default function AdminLayout() {
   const [wallpaperBlur, setWallpaperBlur] = useState(() => Number(readStorage('workmeta-oa-wallpaper-blur', '4')));
   const [openTabs, setOpenTabs] = useState<OaPageTab[]>([]);
   const [openTabsReady, setOpenTabsReady] = useState(false);
+  const [pageRevision, setPageRevision] = useState(0);
 
   const currentTheme = useMemo(() => themes.find((theme) => theme.name === themeName) || themes[0], [themeName]);
   const pinnedMenu = useMemo(
@@ -519,7 +520,7 @@ export default function AdminLayout() {
               </div>
               <Content className={`oa-content ${selectedMenu.id === 'ai-workspace' ? 'oa-chat-content' : ''}`}>
                 <Suspense fallback={<div className="oa-route-loading"><Spin size="large" /></div>}>
-                  <div key={selectedMenu.id} className="oa-page-transition">
+                  <div key={`${selectedMenu.id}:${pageRevision}`} className="oa-page-transition">
                     {approvalTaskId ? (
                       <ApprovalDetailPage taskId={approvalTaskId} />
                     ) : kbId ? (
@@ -547,6 +548,7 @@ export default function AdminLayout() {
             pageId={selectedMenu.id}
             pageTitle={t(`oa.menu.${selectedMenu.id}`, { defaultValue: selectedMenu.name })}
             miniEnabled={aiMiniEnabled}
+            onPageRefresh={() => setPageRevision((revision) => revision + 1)}
           />
 
           <AppearanceDrawer

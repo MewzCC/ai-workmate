@@ -24,6 +24,7 @@ interface PageAgentLauncherProps {
   pageId: string;
   pageTitle: string;
   miniEnabled: boolean;
+  onPageRefresh?: () => void;
 }
 
 /**
@@ -31,7 +32,7 @@ interface PageAgentLauncherProps {
  * 抽屉、迷你面板和提示词生命周期统一在这里管理。
  */
 const PageAgentLauncher = forwardRef<PageAgentLauncherHandle, PageAgentLauncherProps>(
-  function PageAgentLauncher({ role, pageId, pageTitle, miniEnabled }, ref) {
+  function PageAgentLauncher({ role, pageId, pageTitle, miniEnabled, onPageRefresh }, ref) {
     const { t } = useTranslation();
     const [open, setOpen] = useState(false);
     const [drawerPresent, setDrawerPresent] = useState(false);
@@ -82,6 +83,7 @@ const PageAgentLauncher = forwardRef<PageAgentLauncherHandle, PageAgentLauncherP
           initialPrompt={prompt}
           onClose={() => setOpen(false)}
           onOpenChangeComplete={setDrawerPresent}
+          onExecutionCompleted={onPageRefresh}
         />
       </>
     );

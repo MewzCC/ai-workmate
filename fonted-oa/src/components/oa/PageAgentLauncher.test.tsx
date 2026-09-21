@@ -24,6 +24,7 @@ vi.mock('./AIOperationDrawer', () => ({
     initialPrompt,
     onClose,
     onOpenChangeComplete,
+    onExecutionCompleted,
   }: {
     open: boolean;
     pageId: string;
@@ -31,6 +32,7 @@ vi.mock('./AIOperationDrawer', () => ({
     initialPrompt?: string;
     onClose: () => void;
     onOpenChangeComplete?: (present: boolean) => void;
+    onExecutionCompleted?: () => void;
   }) => (
     <section
       data-testid="agent-drawer"
@@ -41,6 +43,7 @@ vi.mock('./AIOperationDrawer', () => ({
     >
       <button type="button" onClick={onClose}>close-agent</button>
       <button type="button" onClick={() => onOpenChangeComplete?.(true)}>drawer-present</button>
+      <button type="button" onClick={onExecutionCompleted}>execution-completed</button>
     </section>
   ),
 }));
@@ -51,6 +54,7 @@ interface HarnessProps {
   miniEnabled?: boolean;
   role?: OaRole;
   launcherRef: RefObject<PageAgentLauncherHandle | null>;
+  onPageRefresh?: () => void;
 }
 
 function Harness({
@@ -59,6 +63,7 @@ function Harness({
   miniEnabled = true,
   role = 'system_admin',
   launcherRef,
+  onPageRefresh,
 }: HarnessProps) {
   return (
     <>
@@ -71,6 +76,7 @@ function Harness({
         pageId={pageId}
         pageTitle={pageTitle}
         miniEnabled={miniEnabled}
+        onPageRefresh={onPageRefresh}
       />
     </>
   );
@@ -140,5 +146,21 @@ describe('PageAgentLauncher', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'page-agent' }));
     expect(screen.queryByTestId('agent-drawer')).toBeNull();
+  });
+
+  it('forwards a successful execution to the single page refresh boundary', () => {
+    const launcherRef = createRef<PageAgentLauncherHandle>();
+    const onPageRefresh = vi.fn();
+    render(
+      <Harness
+        launcherRef={launcherRef}
+        pageId="asset-ledger"
+        pageTitle="资产台账"
+        onPageRefresh={onPageRefresh}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'execution-completed' }));
+    expect(onPageRefresh).toHaveBeenCalledTimes(1);
   });
 });

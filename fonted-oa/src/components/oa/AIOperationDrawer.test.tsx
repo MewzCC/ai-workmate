@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { App } from 'antd';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -6,7 +6,13 @@ const api = vi.hoisted(() => ({
   planAiTask: vi.fn(),
   issueAiTaskConfirmation: vi.fn(),
   executeAiTask: vi.fn(),
-  subscribeAiTaskEvents: vi.fn(() => vi.fn()),
+  subscribeAiTaskEvents: vi.fn((
+    _taskId: string,
+    _subscription: {
+      onEvent: (event: { id: string; type: string; data: Record<string, unknown> }) => void;
+      onError?: (error: unknown) => void;
+    },
+  ) => vi.fn()),
   getPageCapabilities: vi.fn(),
 }));
 
@@ -29,7 +35,7 @@ const basePlan = {
   steps: [{ sequence: 1, toolCode: 'todo.query', title: '查询本人待办', arguments: { limit: 10 } }],
 };
 
-function renderDrawer() {
+function renderDrawer(onExecutionCompleted = vi.fn()) {
   render(
     <App>
       <AIOperationDrawer
@@ -38,6 +44,7 @@ function renderDrawer() {
         pageId="todo-list"
         pageTitle="待办中心"
         onClose={vi.fn()}
+        onExecutionCompleted={onExecutionCompleted}
       />
     </App>,
   );
@@ -101,6 +108,33 @@ describe('AIOperationDrawer', () => {
     }));
     expect(api.issueAiTaskConfirmation).not.toHaveBeenCalled();
     expect(api.subscribeAiTaskEvents).toHaveBeenCalledWith(basePlan.taskId, expect.any(Object));
+  });
+
+  it('refreshes the current business page once after a successful terminal event', async () => {
+    api.planAiTask.mockResolvedValue(basePlan);
+    api.executeAiTask.mockResolvedValue({
+      taskId: basePlan.taskId,
+      status: 'QUEUED',
+      statusUrl: `/api/ai/tasks/${basePlan.taskId}`,
+      eventsUrl: `/api/ai/tasks/${basePlan.taskId}/events`,
+    });
+    const onExecutionCompleted = vi.fn();
+    renderDrawer(onExecutionCompleted);
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: '查询我的待办' } });
+    fireEvent.click(screen.getByRole('button', { name: /发送 \/ 生成计划/ }));
+    await waitFor(() => expect(screen.getAllByText(basePlan.summary)).toHaveLength(2));
+    fireEvent.click(screen.getByRole('button', { name: '执行计划' }));
+    await waitFor(() => expect(api.subscribeAiTaskEvents).toHaveBeenCalledTimes(1));
+
+    const subscription = api.subscribeAiTaskEvents.mock.calls[0][1] as {
+      onEvent: (event: { id: string; type: string; data: Record<string, unknown> }) => void;
+    };
+    act(() => {
+      subscription.onEvent({ id: 'evt-1', type: 'task-completed', data: { status: 'SUCCEEDED' } });
+      subscription.onEvent({ id: 'evt-1', type: 'task-completed', data: { status: 'SUCCEEDED' } });
+    });
+
+    expect(onExecutionCompleted).toHaveBeenCalledTimes(1);
   });
 
   it('issues a memory-only confirmation credential immediately before L1 execution', async () => {
