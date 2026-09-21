@@ -7,6 +7,8 @@ import org.junit.jupiter.api.Test;
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
+import static com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAPackage;
+import static com.tngtech.archunit.core.domain.properties.HasName.Predicates.nameEndingWith;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class AgentMicroserviceBoundaryArchitectureTest {
@@ -43,6 +45,23 @@ class AgentMicroserviceBoundaryArchitectureTest {
         classes().that().resideInAPackage("..oa.page..")
                 .should().onlyDependOnClassesThat().resideInAnyPackage(
                         "java..", "..oa.page..")
+                .check(classes);
+    }
+
+    @Test
+    void toolRegistryDependsOnThePolicyPortInsteadOfPersistenceMappers() {
+        noClasses().that().haveSimpleName("DatabaseBackedToolRegistry")
+                .should().dependOnClassesThat(
+                        resideInAPackage("..agent.registry..").and(nameEndingWith("Mapper")))
+                .because("tool policy reads must remain replaceable by a remote Spring Cloud adapter")
+                .check(classes);
+    }
+
+    @Test
+    void toolPolicyPortRemainsTransportNeutral() {
+        classes().that().haveSimpleName("ToolPolicySource")
+                .should().onlyDependOnClassesThat().resideInAnyPackage(
+                        "java..", "..agent.registry..")
                 .check(classes);
     }
 

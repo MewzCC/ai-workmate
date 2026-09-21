@@ -40,7 +40,8 @@ class DatabaseBackedToolRegistryTest {
                 ConfirmationPolicy.NONE, 50, 262144, 15000, "HASHED_ARGS"
         );
         registry = new DatabaseBackedToolRegistry(
-                properties, toolMapper, tenantPolicyMapper, new ToolCatalog(List.of(definition)),
+                properties, new MybatisToolPolicySource(toolMapper, tenantPolicyMapper),
+                new ToolCatalog(List.of(definition)),
                 pageActionPolicyResolver, objectMapper
         );
         AgentTenantPolicy policy = new AgentTenantPolicy();
@@ -187,7 +188,8 @@ class DatabaseBackedToolRegistryTest {
                 OwnershipPolicy.SELF, RetryPolicy.BUSINESS_IDEMPOTENT, SideEffect.SINGLE_WRITE,
                 ConfirmationPolicy.EXPLICIT, 1, 16384, 15000, "FULL_WRITE_AUDIT");
         registry = new DatabaseBackedToolRegistry(
-                properties, toolMapper, tenantPolicyMapper, new ToolCatalog(List.of(definition)),
+                properties, new MybatisToolPolicySource(toolMapper, tenantPolicyMapper),
+                new ToolCatalog(List.of(definition)),
                 pageActionPolicyResolver, objectMapper);
         AgentTenantPolicy policy = new AgentTenantPolicy();
         policy.setTenantId(1L);
