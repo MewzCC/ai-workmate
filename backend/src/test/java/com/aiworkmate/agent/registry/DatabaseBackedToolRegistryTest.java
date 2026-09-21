@@ -12,6 +12,8 @@ import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class DatabaseBackedToolRegistryTest {
@@ -51,7 +53,8 @@ class DatabaseBackedToolRegistryTest {
 
     @Test
     void shouldResolveOnlyCodeAndDatabaseApprovedPageTool() {
-        when(toolMapper.selectPlatformTool("todo.query")).thenReturn(row("L0", true));
+        when(toolMapper.selectPlatformTools()).thenReturn(List.of(row("L0", true)));
+        when(toolMapper.selectTenantTools(1L)).thenReturn(List.of());
         ResolvedUserAccess access = new ResolvedUserAccess(
                 7L, "employee", 1L, "EMPLOYEE", List.of("EMPLOYEE"),
                 List.of("todo:read", "agent:tool:todo.query"), List.of("SELF"), 2L
@@ -61,6 +64,10 @@ class DatabaseBackedToolRegistryTest {
                 .extracting(ToolDefinition::code)
                 .containsExactly("todo.query");
         assertThat(registry.resolveAllowedTools(access, "knowledge-base")).isEmpty();
+        verify(toolMapper).selectPlatformTools();
+        verify(toolMapper).selectTenantTools(1L);
+        verify(toolMapper, never()).selectPlatformTool("todo.query");
+        verify(toolMapper, never()).selectTenantTool(1L, "todo.query");
     }
 
     @Test

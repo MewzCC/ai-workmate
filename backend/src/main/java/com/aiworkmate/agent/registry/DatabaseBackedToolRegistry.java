@@ -10,8 +10,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -27,13 +30,20 @@ public class DatabaseBackedToolRegistry implements ToolRegistry {
     @Override
     @Transactional(readOnly = true)
     public List<ToolDefinition> resolveAllowedTools(ResolvedUserAccess access, String pageId) {
-        if (access == null || !properties.isEnabled() || !properties.isPlanningEnabled() || !tenantEnabled(access.tenantId())) {
+        if (access == null || !properties.isEnabled() || !properties.isPlanningEnabled()) {
             return List.of();
         }
+        AgentTenantPolicy policy = tenantPolicyMapper.selectById(access.tenantId());
+        if (!tenantEnabled(policy)) return List.of();
         Set<String> pageTools = pageActionPolicyResolver.enabledToolCodes(access.tenantId(), pageId);
+        if (pageTools.isEmpty()) return List.of();
+
+        Map<String, AgentTool> platformRows = index(toolMapper.selectPlatformTools(), null);
+        Map<String, AgentTool> tenantRows = index(toolMapper.selectTenantTools(access.tenantId()), access.tenantId());
         return catalog.all().stream()
                 .filter(definition -> pageTools.contains(definition.code()))
-                .map(definition -> resolveExecutableTool(access.tenantId(), definition.code()).orElse(null))
+                .map(definition -> resolveDefinition(policy, definition,
+                        platformRows.get(definition.code()), tenantRows.get(definition.code())).orElse(null))
                 .filter(java.util.Objects::nonNull)
                 .filter(definition -> hasPermissions(access.permissions(), definition))
                 .toList();
@@ -52,39 +62,53 @@ public class DatabaseBackedToolRegistry implements ToolRegistry {
             return ToolAvailability.unavailable(ToolAvailability.Status.UNAVAILABLE);
         }
         AgentTenantPolicy policy = tenantPolicyMapper.selectById(tenantId);
-        if (!properties.isEnabled()
-                || policy == null || !Boolean.TRUE.equals(policy.getEnabled())) {
+        if (!properties.isEnabled() || !tenantEnabled(policy)) {
             return ToolAvailability.unavailable(ToolAvailability.Status.DISABLED);
         }
         ToolDefinition definition = catalog.find(toolCode).orElse(null);
         if (definition == null) {
             return ToolAvailability.unavailable(ToolAvailability.Status.UNAVAILABLE);
         }
-        if (definition.sideEffect() != SideEffect.NONE
-                && (!properties.isWriteToolsEnabled() || !Boolean.TRUE.equals(policy.getWriteToolsEnabled()))) {
+        if (!writeEnabled(policy, definition)) {
             return ToolAvailability.unavailable(ToolAvailability.Status.DISABLED);
         }
         AgentTool platform = toolMapper.selectPlatformTool(toolCode);
-        ToolDefinition effective = platform != null && platform.getTenantId() == null ? narrow(definition, platform) : null;
-        if (effective == null) {
-            return ToolAvailability.unavailable(ToolAvailability.Status.UNAVAILABLE);
-        }
         AgentTool tenant = toolMapper.selectTenantTool(tenantId, toolCode);
-        if (tenant == null) {
-            return ToolAvailability.available(effective);
+        return resolveDefinition(policy, definition, platform, tenant)
+                .map(ToolAvailability::available)
+                .orElseGet(() -> ToolAvailability.unavailable(ToolAvailability.Status.UNAVAILABLE));
+    }
+
+    private Optional<ToolDefinition> resolveDefinition(AgentTenantPolicy policy, ToolDefinition definition,
+                                                       AgentTool platform, AgentTool tenant) {
+        if (!writeEnabled(policy, definition) || platform == null || platform.getTenantId() != null) {
+            return Optional.empty();
         }
         try {
-            ToolDefinition narrowed = tenantId.equals(tenant.getTenantId()) ? narrow(effective, tenant) : null;
-            return narrowed == null ? ToolAvailability.unavailable(ToolAvailability.Status.UNAVAILABLE)
-                    : ToolAvailability.available(narrowed);
+            ToolDefinition effective = narrow(definition, platform);
+            if (effective == null) return Optional.empty();
+            if (tenant == null) return Optional.of(effective);
+            if (!policy.getTenantId().equals(tenant.getTenantId())) return Optional.empty();
+            return Optional.ofNullable(narrow(effective, tenant));
         } catch (RuntimeException exception) {
-            return ToolAvailability.unavailable(ToolAvailability.Status.UNAVAILABLE);
+            return Optional.empty();
         }
     }
 
-    private boolean tenantEnabled(Long tenantId) {
-        AgentTenantPolicy policy = tenantPolicyMapper.selectById(tenantId);
-        return policy != null && Boolean.TRUE.equals(policy.getEnabled());
+    private Map<String, AgentTool> index(List<AgentTool> rows, Long expectedTenantId) {
+        if (rows == null) return Map.of();
+        return rows.stream()
+                .filter(row -> row != null && java.util.Objects.equals(expectedTenantId, row.getTenantId()))
+                .collect(Collectors.toUnmodifiableMap(AgentTool::getCode, Function.identity(), (left, right) -> left));
+    }
+
+    private boolean tenantEnabled(AgentTenantPolicy policy) {
+        return policy != null && policy.getTenantId() != null && Boolean.TRUE.equals(policy.getEnabled());
+    }
+
+    private boolean writeEnabled(AgentTenantPolicy policy, ToolDefinition definition) {
+        return definition.sideEffect() == SideEffect.NONE
+                || (properties.isWriteToolsEnabled() && Boolean.TRUE.equals(policy.getWriteToolsEnabled()));
     }
 
     private boolean hasPermissions(List<String> permissions, ToolDefinition definition) {
