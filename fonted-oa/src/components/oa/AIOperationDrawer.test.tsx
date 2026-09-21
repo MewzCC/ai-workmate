@@ -63,6 +63,17 @@ describe('AIOperationDrawer', () => {
       uiCommands: ['ui.navigate', 'ui.applyFilter', 'ui.openDetail', 'ui.refreshPage'],
       dataScopePolicy: 'ASSIGNED_TO_SELF',
       effectiveDataScopes: ['SELF'],
+      contextSchema: {
+        maxBytes: 4096,
+        maxDepth: 1,
+        fields: [
+          { name: 'status', valueType: 'STRING', maxLength: 200 },
+          { name: 'from', valueType: 'STRING', maxLength: 200 },
+          { name: 'to', valueType: 'STRING', maxLength: 200 },
+          { name: 'page', valueType: 'NUMBER', maxLength: 32 },
+          { name: 'size', valueType: 'NUMBER', maxLength: 32 },
+        ],
+      },
       tools: [{
         code: 'todo.query',
         name: 'Query my approval tasks',
@@ -116,7 +127,8 @@ describe('AIOperationDrawer', () => {
 
   it('sends the current bounded page context with the planning request', async () => {
     api.planAiTask.mockResolvedValue(basePlan);
-    renderDrawer(vi.fn(), { status: 'PENDING', page: 2, size: 20 });
+    renderDrawer(vi.fn(), { status: 'PENDING', page: 2, size: 20, keyword: 'must-drop' });
+    await screen.findByText('查询本人待办 · 只读 · L0');
     fireEvent.change(screen.getByRole('textbox'), { target: { value: '查询当前筛选下的待办' } });
     fireEvent.click(screen.getByRole('button', { name: /发送 \/ 生成计划/ }));
 

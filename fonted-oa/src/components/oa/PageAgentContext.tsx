@@ -11,6 +11,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import type { PageContextSchema } from '@/types/oa';
 
 export type PageAgentContextValue = string | number | boolean;
 export type PageAgentContextSnapshot = Readonly<Record<string, PageAgentContextValue>>;
@@ -45,21 +46,38 @@ function byteLength(value: unknown): number {
  * Browser-side guardrail for untrusted page state. The backend remains the
  * authoritative filter and applies the exact per-page schema again.
  */
-export function sanitizePageAgentContext(context: Record<string, unknown>): PageAgentContextSnapshot {
+export function sanitizePageAgentContext(
+  context: Record<string, unknown>,
+  schema?: PageContextSchema,
+): PageAgentContextSnapshot {
   const safe: Record<string, PageAgentContextValue> = {};
   const entries = Object.entries(context).sort(([left], [right]) => left.localeCompare(right));
+  const allowedFields = schema
+    ? new Map(schema.fields.map((field) => [field.name, field] as const))
+    : null;
+  const maxBytes = schema ? Math.min(schema.maxBytes, MAX_CONTEXT_BYTES) : MAX_CONTEXT_BYTES;
 
   for (const [name, value] of entries) {
     if (Object.keys(safe).length >= MAX_FIELDS || !FIELD_NAME_PATTERN.test(name)) continue;
     const normalizedName = name.toLowerCase();
     if (FORBIDDEN_FIELD_PARTS.some((part) => normalizedName.includes(part))) continue;
 
-    const validString = typeof value === 'string' && value.length <= MAX_STRING_LENGTH;
-    const validNumber = typeof value === 'number' && Number.isFinite(value);
-    if (!validString && !validNumber && typeof value !== 'boolean') continue;
+    const field = allowedFields?.get(name);
+    if (allowedFields && !field) continue;
+
+    const stringLimit = Math.min(field?.maxLength ?? MAX_STRING_LENGTH, MAX_STRING_LENGTH);
+    const validString = typeof value === 'string'
+      && value.length <= stringLimit
+      && (!field || field.valueType === 'STRING');
+    const validNumber = typeof value === 'number'
+      && Number.isFinite(value)
+      && (!field || field.valueType === 'NUMBER');
+    const validBoolean = typeof value === 'boolean'
+      && (!field || field.valueType === 'BOOLEAN');
+    if (!validString && !validNumber && !validBoolean) continue;
 
     const candidate = { ...safe, [name]: value as PageAgentContextValue };
-    if (byteLength(candidate) > MAX_CONTEXT_BYTES) continue;
+    if (byteLength(candidate) > maxBytes) continue;
     safe[name] = value as PageAgentContextValue;
   }
 

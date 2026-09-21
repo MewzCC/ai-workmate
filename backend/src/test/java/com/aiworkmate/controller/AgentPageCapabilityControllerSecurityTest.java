@@ -55,13 +55,17 @@ class AgentPageCapabilityControllerSecurityTest {
     void passesOnlyAuthenticatedIdentityAndPathPage() throws Exception {
         when(pageCapabilityService.resolve(42L, "todo")).thenReturn(new PageCapabilityResponse(
                 "todo", "TODO_LIST", 1, List.of("ui.navigate"), "ASSIGNED_TO_SELF",
-                List.of("SELF"), List.of(), PageCapabilityResponse.UnavailableReason.NO_AVAILABLE_TOOLS));
+                List.of("SELF"), new PageCapabilityResponse.ContextSchema(4096, 1, List.of(
+                        new PageCapabilityResponse.ContextField("status", "STRING", 200))),
+                List.of(), PageCapabilityResponse.UnavailableReason.NO_AVAILABLE_TOOLS));
 
         mvc.perform(get("/api/ai/pages/todo/capabilities")
                         .header("Authorization", "Bearer valid"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.pageId").value("todo"))
                 .andExpect(jsonPath("$.data.componentKey").value("TODO_LIST"))
+                .andExpect(jsonPath("$.data.contextSchema.fields[0].name").value("status"))
+                .andExpect(jsonPath("$.data.contextSchema.fields[0].valueType").value("STRING"))
                 .andExpect(jsonPath("$.data.unavailableReason").value("NO_AVAILABLE_TOOLS"));
 
         verify(pageCapabilityService).resolve(42L, "todo");

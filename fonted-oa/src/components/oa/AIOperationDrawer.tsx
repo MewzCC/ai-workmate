@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Alert, App as AntdApp, Button, Card, Drawer, Empty, Input, Space, Tag, Timeline, Typography } from 'antd';
 import type { AgentTaskStatus, AiTaskEvent, AiTaskExecuteResponse, AiTaskPlanResponse, OaRole, PageCapability } from '@/types/oa';
-import type { PageAgentContextSnapshot } from './PageAgentContext';
+import { sanitizePageAgentContext, type PageAgentContextSnapshot } from './PageAgentContext';
 import PageAgentCapabilityPanel from './PageAgentCapabilityPanel';
 import { executeAiTask, formatOaApiError, getPageCapabilities, issueAiTaskConfirmation, OaApiError, planAiTask, subscribeAiTaskEvents } from '@/lib/oaApi';
 import { OaIcon } from '@/components/OaIcon';
@@ -119,10 +119,15 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageC
     setOperationError(null);
     setMessages((previous) => [...previous, { role: 'user', content: value }]);
     try {
+      const safePageContext = pageContext && capability
+        ? sanitizePageAgentContext(pageContext, capability.contextSchema)
+        : undefined;
       const nextPlan = await planAiTask({
         input: value,
         pageId,
-        ...(pageContext && Object.keys(pageContext).length > 0 ? { pageContext } : {}),
+        ...(safePageContext && Object.keys(safePageContext).length > 0
+          ? { pageContext: safePageContext }
+          : {}),
       });
       setPlan(nextPlan);
       setTaskStatus(nextPlan.status);

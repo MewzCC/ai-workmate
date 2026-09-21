@@ -152,6 +152,20 @@ export interface PageCapabilityTool {
   ownershipPolicy: 'SELF' | 'ASSIGNED_TO_SELF' | 'TENANT_SCOPED' | 'FIXED_RESOURCE';
 }
 
+export type PageContextValueType = 'STRING' | 'NUMBER' | 'BOOLEAN';
+
+export interface PageContextFieldDefinition {
+  name: string;
+  valueType: PageContextValueType;
+  maxLength: number;
+}
+
+export interface PageContextSchema {
+  maxBytes: number;
+  maxDepth: number;
+  fields: PageContextFieldDefinition[];
+}
+
 export interface PageCapability {
   pageId: string;
   componentKey: ComponentKey;
@@ -159,6 +173,7 @@ export interface PageCapability {
   uiCommands: PageUiCommandCode[];
   dataScopePolicy: PageCapabilityTool['ownershipPolicy'];
   effectiveDataScopes: string[];
+  contextSchema: PageContextSchema;
   tools: PageCapabilityTool[];
   unavailableReason?: 'NO_AVAILABLE_TOOLS' | null;
 }

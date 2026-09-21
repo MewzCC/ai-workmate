@@ -35,6 +35,23 @@ describe('PageAgentContext', () => {
     })).toEqual({ overdue: false, page: 2, status: 'PENDING' });
   });
 
+  it('applies the exact server-owned field names, types and lengths', () => {
+    expect(sanitizePageAgentContext({
+      status: 'PENDING',
+      page: 2,
+      size: '20',
+      keyword: 'not allowed on this page',
+    }, {
+      maxBytes: 4096,
+      maxDepth: 1,
+      fields: [
+        { name: 'status', valueType: 'STRING', maxLength: 20 },
+        { name: 'page', valueType: 'NUMBER', maxLength: 32 },
+        { name: 'size', valueType: 'NUMBER', maxLength: 32 },
+      ],
+    })).toEqual({ page: 2, status: 'PENDING' });
+  });
+
   it('merges independent page fragments and removes an unmounted fragment', async () => {
     const view = render(
       <PageAgentContextProvider pageId="meeting-room">

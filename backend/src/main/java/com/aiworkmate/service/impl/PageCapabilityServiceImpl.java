@@ -49,6 +49,14 @@ public class PageCapabilityServiceImpl implements PageCapabilityService {
                 commands,
                 page.dataScopePolicy().name(),
                 scopes,
+                new PageCapabilityResponse.ContextSchema(
+                        page.contextSchema().maxBytes(),
+                        page.contextSchema().maxDepth(),
+                        page.contextSchema().fields().stream()
+                                .map(field -> new PageCapabilityResponse.ContextField(
+                                        field.name(), field.valueType().name(), field.maxLength()))
+                                .toList()
+                ),
                 tools,
                 tools.isEmpty() ? PageCapabilityResponse.UnavailableReason.NO_AVAILABLE_TOOLS : null
         );

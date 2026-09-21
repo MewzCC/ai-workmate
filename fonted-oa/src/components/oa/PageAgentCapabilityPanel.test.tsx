@@ -11,6 +11,7 @@ const capability: PageCapability = {
   uiCommands: ['ui.navigate', 'ui.refreshPage'],
   dataScopePolicy: 'ASSIGNED_TO_SELF',
   effectiveDataScopes: ['SELF'],
+  contextSchema: { maxBytes: 1024, maxDepth: 1, fields: [] },
   tools: [{
     code: 'todo.query',
     name: 'Query my approval tasks',
