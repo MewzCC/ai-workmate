@@ -16,6 +16,22 @@ Tool Gateway 是 Phase 2 所有 Agent 工具执行的唯一入口，用于防止
 - LLM 只能生成候选计划，不能持有 Tool Gateway 引用。
 - Worker 只能调用 `ToolGateway.execute(stepId, workerLease)`。
 
+### 2.1 领域调用与服务化替换边界
+
+`ToolHandler` 只能调用类型化 `*ToolPort`。当前模块化单体由标注
+`@LocalAgentDomainAdapter` 的本地 Adapter 复用领域 Service；未来拆分服务时，使用标注
+`@RemoteAgentDomainAdapter` 的固定目标远程 Adapter 替换同一 Port，Planner、任务快照、
+Tool Gateway、冻结 Schema、确认策略和领域命令不随传输方式改变。
+
+- `agent.domain.adapter-mode=local` 是默认值，只注册本地 Adapter。
+- `agent.domain.adapter-mode=remote` 只注册远程 Adapter；任何 Port 缺少远程实现都使应用启动失败，禁止回退本地直调。
+- 只有 `agent.tool.adapter.remote` 包允许依赖 Spring Cloud、HTTP Client、Feign 或 JDK HTTP Client；Port、本地 Adapter、Handler 和 Gateway 均不得依赖远程传输类型。
+- Port 的可信上下文固定为 `tenantId、userId、taskId、stepId、attempt、traceId`，不转发角色、权限列表、数据范围、任意 URL 或服务地址。
+- 远程 Adapter 的服务名、方法和超时由服务端固定配置；远端领域服务必须根据服务身份与可信用户坐标重新鉴权，并再次校验租户、资源归属、状态和版本。
+- 写调用结果不确定时，只有具备稳定操作键和只读结果核验的工具才能按既定策略恢复；其余写工具失败关闭，禁止自动切换目标或盲目重放。
+
+该开关只是替换依赖实现，不是灰度授权或安全降级开关。全局、租户、工具、角色、业务权限、确认、预算和 Kill Switch 仍由 Tool Gateway 独立复核。
+
 ## 3. 建议包结构
 
 ```text
