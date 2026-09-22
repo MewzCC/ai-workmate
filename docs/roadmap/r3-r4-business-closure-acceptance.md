@@ -60,7 +60,7 @@ R3 已将动态路由、后端组件白名单和前端组件注册表收口；�
 | 供应商 `suppliers` | `SUPPLIER` | `GET /api/suppliers`、详情 | 创建、更新、状态调整 | `supplier:manage`；租户和版本校验 |
 | 接口联调中心 `api-center` | `API_CENTER` | `GET /api/integration/endpoints`、详情与选项 | 创建、更新、启停、受控执行 | 管理与执行权限分离；仅服务端白名单上游，禁止任意 URL |
 | 页面操作配置 `page-actions` | `PAGE_ACTIONS` | `GET /api/admin/page-actions` | `PUT /api/admin/page-actions/{pageId}/{toolCode}` | `route:page-actions` + 管理校验；只能收紧代码能力 |
-| 运行日志 `runtime-logs` | `RUNTIME_LOGS` | `GET /api/admin/runtime-logs`、详情 | — | `runtime-log:read`；安全摘要，不返回异常堆栈或密钥 |
+| 平台操作日志 `runtime-logs` | `RUNTIME_LOGS` | `GET /api/admin/runtime-logs`、详情 | — | `runtime-log:read`；区分人为操作、AI 自助调用与系统集成，只返回安全摘要，不返回请求体、凭据、异常堆栈或密钥 |
 | 沙箱回放 `sandbox-replay` | `SANDBOX_REPLAY` | 回放列表、基线、详情 | `POST /api/integration/replays` | 读取 `integration:replay:read`，执行另需 `integration:replay:execute`；不调用任意外域 |
 | 打卡 `attendance-clock` | `ATTENDANCE_CLOCK` | 今日状态、记录 | `POST /api/attendance/clock` | 本人身份与租户校验 |
 | 异常考勤 `attendance-exception` | `ATTENDANCE_EXCEPTION` | 异常记录 | — | 数据范围过滤 |
@@ -133,7 +133,7 @@ mvn test
 
 - 浏览器门禁以受控网络响应验证全部路由、错误恢复和布局；真实多账号跨角色业务 E2E 仍需提供测试环境账号后运行 `e2e/leave-approval.spec.ts`。
 - OA 主入口仍超过 Vite 500 kB 建议阈值；大型 AI Workspace 和组织图已独立分包，后续可继续拆分 Ant Design/ECharts 公共依赖。
-- 运行日志和能力状态只提供安全摘要，不替代基础设施监控。
+- 平台操作日志区分人为操作、AI 自助调用与系统集成，只提供安全摘要，不替代合规审计或基础设施监控；详细采集与回滚边界见 `docs/architecture/platform-operation-observability.md`。
 - 外部 AI、OCR、Embedding、MinIO 或 Redis 故障时，对应业务会失败关闭；本阶段不引入离线伪成功。
 - Agent 写能力仍是单任务最多一个写步骤、默认关闭、人工发布；权限修改、删除、批量操作、敏感导出、任意 URL/SQL/文件系统等永久禁止能力未开放。
 
