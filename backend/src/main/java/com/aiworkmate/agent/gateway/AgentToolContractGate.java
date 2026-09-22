@@ -58,6 +58,8 @@ public class AgentToolContractGate {
                     return reference.toolCode();
                 })
                 .collect(Collectors.toUnmodifiableSet());
+        pageCapabilities.all().forEach(page -> require(!page.tools().isEmpty(),
+                "Every code-owned OA page must bind at least one Agent tool: " + page.pageId()));
         require(pageToolCodes.equals(ToolCode.codes()),
                 "Every code-owned tool must be bound to at least one page");
     }

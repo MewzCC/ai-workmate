@@ -8,6 +8,7 @@ import { OaIcon } from '@/components/OaIcon';
 import { message } from '@/lib/antdMessage';
 import { formatOaApiError } from '@/lib/oaApi';
 import { pageActionApi, type PageActionItem, type PageActionOverview } from '@/lib/pageActionApi';
+import { agentToolTranslationKey } from '@/lib/agentToolPresentation';
 import ResponsiveTable from './ResponsiveTable';
 
 interface PolicyForm { reason: string }
@@ -119,9 +120,9 @@ export default function PageActionsPage() {
 }
 
 function toolName(action: PageActionItem, t: ReturnType<typeof useTranslation>['t']) {
-  return t(`aiPermission.tools.${action.toolCode.replaceAll('.', '_')}.name`, { defaultValue: action.name });
+  return t(`aiPermission.tools.${agentToolTranslationKey(action.toolCode)}.name`, { defaultValue: action.name });
 }
 
 function toolDescription(action: PageActionItem, t: ReturnType<typeof useTranslation>['t']) {
-  return t(`aiPermission.tools.${action.toolCode.replaceAll('.', '_')}.description`, { defaultValue: action.description });
+  return t(`aiPermission.tools.${agentToolTranslationKey(action.toolCode)}.description`, { defaultValue: action.description });
 }

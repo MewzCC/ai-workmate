@@ -11,6 +11,7 @@ import {
 } from '@/lib/aiOperationPermissionApi';
 import { formatOaApiError } from '@/lib/oaApi';
 import { message } from '@/lib/antdMessage';
+import { agentToolTranslationKey } from '@/lib/agentToolPresentation';
 
 type Role = AiOperationPermissionOverview['roles'][number];
 type Tool = AiOperationPermissionOverview['tools'][number];
@@ -188,9 +189,9 @@ function RoleEditor({ role, tools, values, onChange, t }: { role: Role; tools: T
 }
 
 function toolName(tool: Tool, t: TFunction) {
-  return t(`aiPermission.tools.${tool.code.replaceAll('.', '_')}.name`, { defaultValue: tool.name });
+  return t(`aiPermission.tools.${agentToolTranslationKey(tool.code)}.name`, { defaultValue: tool.name });
 }
 
 function toolDescription(tool: Tool, t: TFunction) {
-  return t(`aiPermission.tools.${tool.code.replaceAll('.', '_')}.description`, { defaultValue: tool.description });
+  return t(`aiPermission.tools.${agentToolTranslationKey(tool.code)}.description`, { defaultValue: tool.description });
 }

@@ -80,6 +80,26 @@ class AgentToolContractGateTest {
     }
 
     @Test
+    void rejectsPageWithoutAnExplicitToolBinding() {
+        List<ToolDefinition> definitions = definitions();
+        PageCapabilityCatalog pageWithNoTools = new PageCapabilityCatalog() {
+            @Override
+            public Collection<PageCapabilityDefinition> all() {
+                return pages.all().stream().map(page -> page.pageId().equals("dashboard")
+                        ? new PageCapabilityDefinition(page.pageId(), page.componentKey(), page.version(),
+                        page.uiCommands(), List.of(), page.requiredPermissions(), page.dataScopePolicy(),
+                        page.contextSchema())
+                        : page).toList();
+            }
+        };
+
+        assertThatThrownBy(() -> new AgentToolContractGate(
+                definitions, handlers(definitions), pageWithNoTools))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("must bind at least one Agent tool: dashboard");
+    }
+
+    @Test
     void rejectsHandlerTemplateThatWeakensDefinitionExecutionPolicy() {
         List<ToolDefinition> definitions = definitions();
         List<ToolHandler> unsafe = definitions.stream()
