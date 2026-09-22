@@ -25,6 +25,7 @@ import { message } from '@/lib/antdMessage';
 import { formatOaApiError } from '@/lib/oaApi';
 import {
   runtimeLogApi,
+  type RuntimeLogActorType,
   type RuntimeLogDetail,
   type RuntimeLogOutcome,
   type RuntimeLogRecord,
@@ -33,7 +34,7 @@ import {
 import ResponsiveTable from './ResponsiveTable';
 
 const { RangePicker } = DatePicker;
-const SOURCES: RuntimeLogSource[] = ['INTEGRATION', 'AGENT'];
+const SOURCES: RuntimeLogSource[] = ['HUMAN', 'AGENT', 'INTEGRATION'];
 const OUTCOMES: RuntimeLogOutcome[] = ['RUNNING', 'SUCCEEDED', 'REJECTED', 'FAILED', 'TIMED_OUT', 'RESULT_INVALID'];
 const OUTCOME_COLORS: Record<RuntimeLogOutcome, string> = {
   RUNNING: 'processing',
@@ -42,6 +43,16 @@ const OUTCOME_COLORS: Record<RuntimeLogOutcome, string> = {
   FAILED: 'error',
   TIMED_OUT: 'volcano',
   RESULT_INVALID: 'magenta',
+};
+const ACTOR_COLORS: Record<RuntimeLogActorType, string> = {
+  HUMAN: 'blue',
+  AI_AGENT: 'purple',
+  SYSTEM: 'cyan',
+};
+const SOURCE_COLORS: Record<RuntimeLogSource, string> = {
+  HUMAN: 'blue',
+  AGENT: 'purple',
+  INTEGRATION: 'cyan',
 };
 
 const formatRuntimeTime = (value: string | undefined, locale: string) => value
@@ -116,7 +127,15 @@ export default function RuntimeLogsPage() {
       dataIndex: 'source',
       width: 126,
       render: (value: RuntimeLogSource) => (
-        <Tag color={value === 'AGENT' ? 'geekblue' : 'cyan'}>{t(`runtimeLogs.source.${value}`)}</Tag>
+        <Tag color={SOURCE_COLORS[value]}>{t(`runtimeLogs.source.${value}`)}</Tag>
+      ),
+    },
+    {
+      title: t('runtimeLogs.columns.actorType'),
+      dataIndex: 'actorType',
+      width: 132,
+      render: (value: RuntimeLogActorType) => (
+        <Tag color={ACTOR_COLORS[value]}>{t(`runtimeLogs.actorType.${value}`)}</Tag>
       ),
     },
     {
@@ -126,7 +145,10 @@ export default function RuntimeLogsPage() {
       render: (_, record) => (
         <div className="oa-runtime-operation">
           <Typography.Text strong>{record.operation}</Typography.Text>
-          <Typography.Text type="secondary" copyable>{record.referenceCode}</Typography.Text>
+          <Space size={6} wrap>
+            <Tag variant="filled">{t(`runtimeLogs.eventType.${record.eventType}`)}</Tag>
+            <Typography.Text type="secondary" copyable>{record.referenceCode}</Typography.Text>
+          </Space>
         </div>
       ),
     },
@@ -162,7 +184,9 @@ export default function RuntimeLogsPage() {
   ], [i18n.language, t]);
 
   const detailItems = detail ? [
-    { key: 'source', label: t('runtimeLogs.detail.source'), children: <Tag>{t(`runtimeLogs.source.${detail.source}`)}</Tag> },
+    { key: 'source', label: t('runtimeLogs.detail.source'), children: <Tag color={SOURCE_COLORS[detail.source]}>{t(`runtimeLogs.source.${detail.source}`)}</Tag> },
+    { key: 'actorType', label: t('runtimeLogs.detail.actorType'), children: <Tag color={ACTOR_COLORS[detail.actorType]}>{t(`runtimeLogs.actorType.${detail.actorType}`)}</Tag> },
+    { key: 'eventType', label: t('runtimeLogs.detail.eventType'), children: t(`runtimeLogs.eventType.${detail.eventType}`) },
     { key: 'outcome', label: t('runtimeLogs.detail.outcome'), children: <Tag color={OUTCOME_COLORS[detail.outcome]}>{t(`runtimeLogs.outcome.${detail.outcome}`)}</Tag> },
     { key: 'reference', label: t('runtimeLogs.detail.reference'), children: <Typography.Text copyable>{detail.referenceCode}</Typography.Text> },
     { key: 'operation', label: t('runtimeLogs.detail.operation'), children: detail.operation },
@@ -178,6 +202,8 @@ export default function RuntimeLogsPage() {
     { key: 'attempt', label: t('runtimeLogs.detail.attempt'), children: detail.attempt ?? '-' },
     { key: 'resultBytes', label: t('runtimeLogs.detail.resultBytes'), children: detail.resultBytes ?? '-' },
     { key: 'errorCode', label: t('runtimeLogs.detail.errorCode'), children: detail.errorCode || '-' },
+    { key: 'clientIp', label: t('runtimeLogs.detail.clientIp'), children: detail.clientIp || '-' },
+    { key: 'userAgent', label: t('runtimeLogs.detail.userAgent'), children: detail.userAgent || '-' },
   ] : [];
 
   return (
@@ -250,7 +276,7 @@ export default function RuntimeLogsPage() {
           columns={columns}
           dataSource={records}
           loading={loading}
-          scroll={{ x: 1250 }}
+          scroll={{ x: 1420 }}
           locale={{ emptyText: <Empty description={t('runtimeLogs.empty')} /> }}
           pagination={{
             current: page,

@@ -28,4 +28,10 @@ describe('运行日志 API', () => {
     await runtimeLogApi.detail('INTEGRATION', 8);
     expect(fetchMock.mock.calls[0][0]).toBe('/api/admin/runtime-logs/INTEGRATION/8');
   });
+
+  it('支持按人为操作来源查询登录与页面操作', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(result({ records: [] }));
+    await runtimeLogApi.list({ source: 'HUMAN', page: 1, size: 20 });
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/admin/runtime-logs?source=HUMAN&page=1&size=20');
+  });
 });

@@ -1,6 +1,8 @@
 import { queryString, request } from '@/lib/oaApi';
 
-export type RuntimeLogSource = 'INTEGRATION' | 'AGENT';
+export type RuntimeLogSource = 'HUMAN' | 'INTEGRATION' | 'AGENT';
+export type RuntimeLogActorType = 'HUMAN' | 'SYSTEM' | 'AI_AGENT';
+export type RuntimeLogEventType = 'LOGIN' | 'HTTP_READ' | 'HTTP_WRITE' | 'LOGOUT' | 'INTEGRATION_CALL' | 'TOOL_CALL';
 export type RuntimeLogOutcome = 'RUNNING' | 'SUCCEEDED' | 'REJECTED' | 'FAILED' | 'TIMED_OUT' | 'RESULT_INVALID';
 
 export interface RuntimeLogRecord {
@@ -15,6 +17,8 @@ export interface RuntimeLogRecord {
   operatorLabel: string;
   traceId?: string;
   errorCode?: string;
+  actorType: RuntimeLogActorType;
+  eventType: RuntimeLogEventType;
   startedAt: string;
   completedAt?: string;
 }
@@ -26,6 +30,8 @@ export interface RuntimeLogDetail extends RuntimeLogRecord {
   handlerInvoked?: boolean;
   resultBytes?: number;
   attempt?: number;
+  clientIp?: string;
+  userAgent?: string;
 }
 
 export interface RuntimeLogPage {
