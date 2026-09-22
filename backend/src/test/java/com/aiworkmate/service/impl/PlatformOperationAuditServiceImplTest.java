@@ -18,6 +18,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -84,6 +85,40 @@ class PlatformOperationAuditServiceImplTest {
             assertThat(record.getEventType()).isEqualTo("LOGIN");
             assertThat(record.getOutcome()).isEqualTo("SUCCEEDED");
         });
+    }
+
+    @Test
+    void classifiesReadsWritesLogoutAndRejectedOrFailedResults() {
+        PlatformOperationAuditServiceImpl service = new PlatformOperationAuditServiceImpl(mapper);
+        AuthenticatedUser actor = new AuthenticatedUser(7L, "operator", 9L,
+                "EMPLOYEE", List.of("EMPLOYEE"), List.of(), List.of("SELF"), 1L);
+
+        service.recordRequest(actor, "GET", "/api/todos", 403, 2,
+                "127.0.0.1", "Browser", null);
+        service.recordRequest(actor, "POST", "/api/auth/logout", 204, 3,
+                "127.0.0.1", "Browser", null);
+        service.recordRequest(actor, "DELETE", "/api/assets/42", 500, 4,
+                "127.0.0.1", "Browser", new IllegalStateException("failure"));
+
+        ArgumentCaptor<PlatformOperationLog> captor = ArgumentCaptor.forClass(PlatformOperationLog.class);
+        verify(mapper, times(3)).insert(captor.capture());
+        assertThat(captor.getAllValues()).satisfiesExactly(
+                record -> {
+                    assertThat(record.getEventType()).isEqualTo("HTTP_READ");
+                    assertThat(record.getOutcome()).isEqualTo("REJECTED");
+                    assertThat(record.getStatusCode()).isEqualTo(403);
+                },
+                record -> {
+                    assertThat(record.getEventType()).isEqualTo("LOGOUT");
+                    assertThat(record.getOutcome()).isEqualTo("SUCCEEDED");
+                    assertThat(record.getStatusCode()).isEqualTo(204);
+                },
+                record -> {
+                    assertThat(record.getEventType()).isEqualTo("HTTP_WRITE");
+                    assertThat(record.getOutcome()).isEqualTo("FAILED");
+                    assertThat(record.getStatusCode()).isEqualTo(500);
+                    assertThat(record.getErrorCode()).isEqualTo("IllegalStateException");
+                });
     }
 
     @Test
