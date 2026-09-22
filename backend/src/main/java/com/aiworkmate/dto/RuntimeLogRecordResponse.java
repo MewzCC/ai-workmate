@@ -14,6 +14,8 @@ public record RuntimeLogRecordResponse(
         String operatorLabel,
         String traceId,
         String errorCode,
+        String actorType,
+        String eventType,
         LocalDateTime startedAt,
         LocalDateTime completedAt
 ) {

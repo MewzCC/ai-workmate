@@ -24,7 +24,7 @@ import java.util.Set;
 public class RuntimeLogServiceImpl implements RuntimeLogService {
     private static final String ROUTE_PERMISSION = "route:runtime-logs";
     private static final String READ_PERMISSION = "runtime-log:read";
-    private static final Set<String> SOURCES = Set.of("INTEGRATION", "AGENT");
+    private static final Set<String> SOURCES = Set.of("HUMAN", "INTEGRATION", "AGENT");
     private static final Set<String> OUTCOMES = Set.of(
             "RUNNING", "SUCCEEDED", "REJECTED", "FAILED", "TIMED_OUT", "RESULT_INVALID");
     private static final Duration DEFAULT_WINDOW = Duration.ofDays(7);

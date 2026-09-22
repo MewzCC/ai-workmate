@@ -88,6 +88,8 @@ class P1PostgresMigrationIT {
                 databaseUrl, databaseUsername, databasePassword, emptySchema);
         SupplierDraftPostgresVerifier.verify(
                 databaseUrl, databaseUsername, databasePassword, emptySchema);
+        PlatformOperationLogPostgresVerifier.verify(
+                databaseUrl, databaseUsername, databasePassword, emptySchema);
         Flyway restartedEmpty = flyway(emptySchema, null);
         assertThat(restartedEmpty.migrate().migrationsExecuted).isZero();
         assertThat(restartedEmpty.validateWithResult().validationSuccessful).isTrue();
@@ -109,6 +111,8 @@ class P1PostgresMigrationIT {
         assertThat(upgraded.migrate().migrationsExecuted).isGreaterThan(0);
         assertThat(upgraded.validateWithResult().validationSuccessful).isTrue();
         assertP1Schema(upgradeSchema);
+        PlatformOperationLogPostgresVerifier.verify(
+                databaseUrl, databaseUsername, databasePassword, upgradeSchema);
         assertThat(queryCount(upgradeSchema, """
                 SELECT COUNT(*) FROM supplier
                 WHERE supplier_code = 'LEGACY-SUP-001' AND status = 'ACTIVE'
@@ -165,8 +169,8 @@ class P1PostgresMigrationIT {
                         'tenant_configuration', 'tenant_configuration_history',
                         'supplier', 'supplier_status_history', 'business_contract', 'contract_event',
                         'budget_plan', 'budget_transaction', 'integration_endpoint', 'integration_invocation',
-                        'agent_page_action_policy', 'integration_replay_job')
-                    """)).isEqualTo(23);
+                        'agent_page_action_policy', 'integration_replay_job', 'platform_operation_log')
+                    """)).isEqualTo(24);
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM rbac_permission
                     WHERE code IN ('approval:manage', 'hr:manage', 'asset:write', 'asset:claim', 'asset:return',
@@ -908,6 +912,11 @@ class P1PostgresMigrationIT {
                     SELECT COUNT(*) FROM information_schema.views
                     WHERE table_schema = current_schema() AND table_name = 'runtime_log_view'
                     """)).isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM information_schema.columns
+                    WHERE table_schema = current_schema() AND table_name = 'runtime_log_view'
+                      AND column_name IN ('actor_type', 'event_type', 'client_ip', 'user_agent')
+                    """)).as("统一运行日志必须暴露调用主体与客户端元数据").isEqualTo(4);
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM information_schema.columns
                     WHERE table_schema = current_schema() AND table_name = 'integration_invocation'

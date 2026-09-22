@@ -48,7 +48,7 @@ class RuntimeLogServiceImplTest {
                 any(), any(), eq(100), eq(100)))
                 .thenReturn(List.of(new RuntimeLogRecordResponse(
                         "AGENT", 4L, "TASK-1", "todo.query", "FAILED", "ALLOW",
-                        null, 42L, "operator", "trace-1", "TIMEOUT",
+                        null, 42L, "operator", "trace-1", "TIMEOUT", "AI_AGENT", "TOOL_CALL",
                         LocalDateTime.now(), LocalDateTime.now())));
 
         var result = service.query(7L, "agent", "failed", " trace-1 ",
@@ -92,6 +92,18 @@ class RuntimeLogServiceImplTest {
                 .isInstanceOf(BusinessException.class);
 
         verify(mapper).selectDetail(9L, "INTEGRATION", 88L);
+    }
+
+    @Test
+    void acceptsHumanOperationSource() {
+        when(accessService.resolveActiveUser(7L)).thenReturn(access(
+                List.of("route:runtime-logs", "runtime-log:read")));
+        when(mapper.selectStats(eq(9L), eq("HUMAN"), any(), any(), any(), any()))
+                .thenReturn(new RuntimeLogStatsResponse(0L, 0L, 0L, 0L, 0L));
+
+        service.query(7L, "human", null, null, null, null, 1, 20);
+
+        verify(mapper).selectPage(eq(9L), eq("HUMAN"), any(), any(), any(), any(), eq(20), eq(0));
     }
 
     private ResolvedUserAccess access(List<String> permissions) {

@@ -20,6 +20,10 @@ public record RuntimeLogDetailResponse(
         Boolean handlerInvoked,
         Integer resultBytes,
         Integer attempt,
+        String actorType,
+        String eventType,
+        String clientIp,
+        String userAgent,
         LocalDateTime startedAt,
         LocalDateTime completedAt
 ) {

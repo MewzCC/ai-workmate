@@ -17,7 +17,8 @@ public interface RuntimeLogMapper {
             "<script>",
             "SELECT source, log_id AS id, reference_code AS referenceCode, operation, outcome, decision,",
             "status_code AS statusCode, duration_ms AS durationMs, operator_label AS operatorLabel,",
-            "trace_id AS traceId, error_code AS errorCode, started_at AS startedAt, completed_at AS completedAt",
+            "trace_id AS traceId, error_code AS errorCode, actor_type AS actorType, event_type AS eventType,",
+            "started_at AS startedAt, completed_at AS completedAt",
             "FROM runtime_log_view",
             "WHERE tenant_id = #{tenantId}",
             "<if test='source != null'> AND source = #{source}</if>",
@@ -75,7 +76,9 @@ public interface RuntimeLogMapper {
                    duration_ms AS durationMs, operator_label AS operatorLabel, trace_id AS traceId,
                    request_fingerprint AS requestFingerprint, detail_preview AS detailPreview,
                    error_code AS errorCode, handler_invoked AS handlerInvoked,
-                   result_bytes AS resultBytes, attempt, started_at AS startedAt,
+                   result_bytes AS resultBytes, attempt, actor_type AS actorType,
+                   event_type AS eventType, client_ip AS clientIp, user_agent AS userAgent,
+                   started_at AS startedAt,
                    completed_at AS completedAt
             FROM runtime_log_view
             WHERE tenant_id = #{tenantId} AND source = #{source} AND log_id = #{id}
