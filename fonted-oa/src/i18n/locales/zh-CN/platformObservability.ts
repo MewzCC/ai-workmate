@@ -11,5 +11,7 @@ export default {
   sourceTitle: '来源构成', sourceSubtitle: '人为 · Agent · 系统集成',
   errorTitle: '高频错误码', errorSubtitle: '仅展示脱敏的错误分类',
   noChartData: '当前时段暂无可展示的数据',
+  chartType: '{{title}}图表类型', chartContent: '显示内容', chartContentFor: '{{title}}显示内容',
+  chartModes: { line: '折线', area: '面积', bar: '柱状', mixed: '组合', donut: '环形' },
   footnote: '数据来自当前租户的脱敏运行日志；图表不代表基础设施 CPU、内存或可用性监控。',
 };

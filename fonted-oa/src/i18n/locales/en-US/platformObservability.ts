@@ -11,5 +11,7 @@ export default {
   sourceTitle: 'Source composition', sourceSubtitle: 'Human · Agent · Integration',
   errorTitle: 'Top error codes', errorSubtitle: 'Redacted error categories only',
   noChartData: 'No data is available for this period',
+  chartType: '{{title}} chart type', chartContent: 'Show data', chartContentFor: '{{title}} visible data',
+  chartModes: { line: 'Line', area: 'Area', bar: 'Bar', mixed: 'Mixed', donut: 'Donut' },
   footnote: 'Data comes from redacted runtime logs for the current tenant. This is not infrastructure CPU, memory, or uptime monitoring.',
 };
