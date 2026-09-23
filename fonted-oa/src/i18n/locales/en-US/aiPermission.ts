@@ -31,6 +31,7 @@ const aiPermission = {
     leave_mine: { name: 'Query my leave', description: 'Reads leave applications owned by the current user.' },
     knowledge_search: { name: 'Search authorized knowledge', description: 'Searches only accessible knowledge chunks and preserves citations.' },
     notification_mine: { name: 'Query my notifications', description: 'Reads only notifications owned by the current user.' },
+    userPermission_mine_query: { name: 'Query my permissions', description: 'Reads only the current user’s live roles, data scopes, and permission codes without accepting another identity.' },
     notification_markRead: { name: 'Mark my notification as read', description: 'Marks only one notification owned by the current user as read.' },
     leave_createDraft: { name: 'Create leave draft', description: 'Creates one leave draft owned by the current user after confirmation.' },
     leave_submit: { name: 'Submit existing leave draft', description: 'Submits one existing, version-matched draft after secondary confirmation.' },

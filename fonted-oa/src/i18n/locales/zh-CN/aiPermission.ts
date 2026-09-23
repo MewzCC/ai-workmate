@@ -31,6 +31,7 @@ const aiPermission = {
     leave_mine: { name: '查询本人请假', description: '读取当前用户自己的请假申请与状态。' },
     knowledge_search: { name: '检索授权知识', description: '仅检索当前用户有权访问的知识片段并保留引用。' },
     notification_mine: { name: '查询本人通知', description: '只读取当前用户自己的站内消息。' },
+    userPermission_mine_query: { name: '查询本人权限', description: '实时读取当前用户自己的角色、数据范围和权限码，不接受其他用户身份。' },
     notification_markRead: { name: '标记本人通知已读', description: '仅将当前用户的一条通知标记为已读。' },
     leave_createDraft: { name: '创建请假草稿', description: '经确认后创建一份属于当前用户的请假草稿。' },
     leave_submit: { name: '提交已有请假草稿', description: '经二次确认后提交一份已存在且版本匹配的本人草稿。' },

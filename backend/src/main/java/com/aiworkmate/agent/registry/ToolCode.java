@@ -14,6 +14,7 @@ public enum ToolCode {
     LEAVE_MINE("leave.mine"),
     KNOWLEDGE_SEARCH("knowledge.search"),
     NOTIFICATION_MINE("notification.mine"),
+    USER_PERMISSION_MINE_QUERY("userPermission.mine.query"),
     NOTIFICATION_MARK_READ("notification.markRead", SideEffect.SINGLE_WRITE),
     LEAVE_CREATE_DRAFT("leave.createDraft", SideEffect.SINGLE_WRITE),
     LEAVE_SUBMIT("leave.submit", SideEffect.SINGLE_WRITE),

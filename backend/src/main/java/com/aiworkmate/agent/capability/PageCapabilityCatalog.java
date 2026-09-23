@@ -76,9 +76,10 @@ public class PageCapabilityCatalog {
         return List.of(
                 page(OaPage.DASHBOARD, OwnershipPolicy.SELF, LIST_COMMANDS,
                         context(text("status"), number("page"), number("size")),
-                        tool(TODO_QUERY), tool(NOTIFICATION_MINE)),
+                        tool(TODO_QUERY), tool(NOTIFICATION_MINE), tool(USER_PERMISSION_MINE_QUERY)),
                 page(OaPage.AI_WORKSPACE, OwnershipPolicy.SELF, READ_COMMANDS, PageContextSchema.empty(),
                         tool(TODO_QUERY), tool(LEAVE_MINE), tool(KNOWLEDGE_SEARCH), tool(NOTIFICATION_MINE),
+                        tool(USER_PERMISSION_MINE_QUERY),
                         tool(NOTIFICATION_MARK_READ), tool(LEAVE_CREATE_DRAFT), tool(LEAVE_SUBMIT),
                         tool(LEAVE_APPLY), tool(LEAVE_WITHDRAW), tool(ATTENDANCE_REISSUE_APPLY),
                         tool(APPROVAL_APPLICATION_CREATE_DRAFT), tool(APPROVAL_APPLICATION_SUBMIT_DRAFT),
