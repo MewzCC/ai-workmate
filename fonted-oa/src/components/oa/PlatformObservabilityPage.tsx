@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Button, Card, Checkbox, Empty, Modal, Popover, Segmented, Select, Skeleton, Space, Statistic, Switch, Tag, Typography } from 'antd';
+import { Alert, Button, Card, Checkbox, Empty, Input, Modal, Popover, Segmented, Select, Skeleton, Space, Statistic, Switch, Tag, Typography } from 'antd';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import * as echarts from 'echarts/core';
@@ -14,22 +14,53 @@ import { formatOaApiError } from '@/lib/oaApi';
 import {
   platformObservabilityApi,
   type ObservabilityRange,
-  type ObservabilityChartId,
+  type ObservabilityChartKind,
   type ObservabilityChartPreference,
   type PlatformObservabilityOverview,
+  type PlatformObservabilityTimeline,
+  type ObservabilityTimelinePoint,
 } from '@/lib/platformObservabilityApi';
 
 echarts.use([BarChart, LineChart, PieChart, GridComponent, LegendComponent, TooltipComponent, CanvasRenderer]);
 
 type ChartColors = { text: string; muted: string; border: string; primary: string; cyan: string; green: string; amber: string; red: string };
-type ChartOptionFactory = (colors: ChartColors, mode: string, selected: string[]) => EChartsCoreOption;
+type ChartSeries = { buckets: string[]; labels: string[]; bySource: Record<string, number[]>; failed: number[]; blocked: number[] };
+type ChartOptionFactory = (colors: ChartColors, mode: string, selected: string[], data: ChartSeries) => EChartsCoreOption;
 type ChartChoice = { value: string; label: string };
 const DEFAULT_CHARTS: ObservabilityChartPreference[] = [
-  { id: 'volume', mode: 'line', content: ['HUMAN', 'AGENT', 'INTEGRATION'], size: 'normal' },
-  { id: 'risk', mode: 'mixed', content: ['failed', 'blocked'], size: 'normal' },
-  { id: 'source', mode: 'donut', content: ['HUMAN', 'AGENT', 'INTEGRATION'], size: 'normal' },
-  { id: 'error', mode: 'bar', content: [], size: 'normal' },
+  { id: 'volume', kind: 'volume', title: '', mode: 'line', content: ['HUMAN', 'AGENT', 'INTEGRATION'], size: 'normal', granularity: 'auto' },
+  { id: 'risk', kind: 'risk', title: '', mode: 'mixed', content: ['failed', 'blocked'], size: 'normal', granularity: 'auto' },
+  { id: 'source', kind: 'source', title: '', mode: 'donut', content: ['HUMAN', 'AGENT', 'INTEGRATION'], size: 'normal', granularity: 'auto' },
+  { id: 'error', kind: 'error', title: '', mode: 'bar', content: [], size: 'normal', granularity: 'auto' },
 ];
+const chartKind = (chart: ObservabilityChartPreference): ObservabilityChartKind =>
+  (chart.kind ?? chart.id) as ObservabilityChartKind;
+
+function buildSeries(from: string, to: string, interval: 'hour' | 'day',
+                     timeline: ObservabilityTimelinePoint[], locale: string): ChartSeries {
+  const last = dayjs(to).startOf(interval);
+  const buckets: string[] = [];
+  for (let cursor = dayjs(from).startOf(interval); !cursor.isAfter(last) && buckets.length < 745; cursor = cursor.add(1, interval)) {
+    buckets.push(cursor.format('YYYY-MM-DDTHH:mm:ss'));
+  }
+  const points = new Map(timeline.map((point) => [`${dayjs(point.bucket).valueOf()}:${point.source}`, point]));
+  const formatter = new Intl.DateTimeFormat(locale, interval === 'hour'
+    ? { month: 'numeric', day: 'numeric', hour: '2-digit' } : { month: 'numeric', day: 'numeric' });
+  const labels = buckets.map((bucket) => formatter.format(new Date(bucket)));
+  const bySource: Record<string, number[]> = {};
+  for (const source of ['HUMAN', 'AGENT', 'INTEGRATION']) {
+    bySource[source] = buckets.map((bucket) => points.get(`${dayjs(bucket).valueOf()}:${source}`)?.total ?? 0);
+  }
+  return {
+    buckets, labels, bySource,
+    failed: buckets.map((bucket) => ['HUMAN', 'AGENT', 'INTEGRATION'].reduce((sum, source) =>
+      sum + (points.get(`${dayjs(bucket).valueOf()}:${source}`)?.failed ?? 0), 0)),
+    blocked: buckets.map((bucket) => ['HUMAN', 'AGENT', 'INTEGRATION'].reduce((sum, source) =>
+      sum + (points.get(`${dayjs(bucket).valueOf()}:${source}`)?.blocked ?? 0), 0)),
+  };
+}
+
+const EMPTY_SERIES: ChartSeries = { buckets: [], labels: [], bySource: {}, failed: [], blocked: [] };
 
 function readColors(element: HTMLElement): ChartColors {
   const styles = getComputedStyle(element);
@@ -41,11 +72,12 @@ function readColors(element: HTMLElement): ChartColors {
   };
 }
 
-function ChartPanel({ title, subtitle, dataCount, option, modes, content, preference, onChange, disabled }: {
+function ChartPanel({ title, subtitle, dataCount, option, modes, content, preference, onChange, disabled, seriesData }: {
   title: string; subtitle: string; dataCount: number; option: ChartOptionFactory;
   modes: ChartChoice[]; content: ChartChoice[]; preference: ObservabilityChartPreference;
   onChange: (next: ObservabilityChartPreference) => void;
   disabled: boolean;
+  seriesData: ChartSeries;
 }) {
   const { t } = useTranslation();
   const host = useRef<HTMLDivElement>(null);
@@ -53,7 +85,7 @@ function ChartPanel({ title, subtitle, dataCount, option, modes, content, prefer
   const hasData = dataCount > 0;
   const { mode } = preference;
   const selectedValues = content.map((item) => item.value).filter((value) => preference.content.includes(value));
-  const activeValues = selectedValues.length ? selectedValues : content.map((item) => item.value);
+  const activeValues = preference.content.length ? selectedValues : content.map((item) => item.value);
   const renderChart = useRef<() => void>(() => undefined);
   const previousMode = useRef<string | undefined>(undefined);
 
@@ -62,7 +94,7 @@ function ChartPanel({ title, subtitle, dataCount, option, modes, content, prefer
     const instance = chart.current;
     if (!element || !instance) return;
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    instance.setOption({ ...option(readColors(element), mode, activeValues), animationDuration: reducedMotion ? 0 : 320,
+    instance.setOption({ ...option(readColors(element), mode, activeValues, seriesData), animationDuration: reducedMotion ? 0 : 320,
       animationDurationUpdate: reducedMotion ? 0 : 240 }, { notMerge: previousMode.current !== mode, replaceMerge: ['series'] });
     previousMode.current = mode;
   };
@@ -79,7 +111,7 @@ function ChartPanel({ title, subtitle, dataCount, option, modes, content, prefer
     themeObserver.observe(document.body, { attributes: true, attributeFilter: ['class', 'style', 'data-theme'] });
     return () => { resize.disconnect(); themeObserver.disconnect(); instance.dispose(); chart.current = null; previousMode.current = undefined; };
   }, [hasData]);
-  useEffect(() => { renderChart.current(); }, [dataCount, option, mode, preference.content]);
+  useEffect(() => { renderChart.current(); }, [dataCount, option, mode, preference.content, seriesData]);
 
   return (
     <Card className="oa-observability-chart" title={<span>{title}<small>{subtitle}</small></span>}
@@ -111,6 +143,10 @@ export default function PlatformObservabilityPage() {
   const [range, setRange] = useState<ObservabilityRange>('7d');
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [overview, setOverview] = useState<PlatformObservabilityOverview>();
+  const [alternateTimeline, setAlternateTimeline] = useState<PlatformObservabilityTimeline>();
+  const [alternateLoading, setAlternateLoading] = useState(false);
+  const [alternateError, setAlternateError] = useState<string>();
+  const [alternateRetry, setAlternateRetry] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
   const [charts, setCharts] = useState<ObservabilityChartPreference[]>(DEFAULT_CHARTS);
@@ -119,6 +155,7 @@ export default function PlatformObservabilityPage() {
   const [preferencesDirty, setPreferencesDirty] = useState(false);
   const [preferencesSaving, setPreferencesSaving] = useState(false);
   const [layoutOpen, setLayoutOpen] = useState(false);
+  const [newKind, setNewKind] = useState<ObservabilityChartKind>('volume');
   const requestSequence = useRef(0);
   const loadPreferences = useCallback(async () => {
     setPreferencesLoading(true);
@@ -138,7 +175,7 @@ export default function PlatformObservabilityPage() {
     setCharts((current) => current.map((chart) => chart.id === next.id ? next : chart));
     setPreferencesDirty(true);
   }, []);
-  const moveChart = useCallback((id: ObservabilityChartId, direction: -1 | 1) => {
+  const moveChart = useCallback((id: string, direction: -1 | 1) => {
     setCharts((current) => {
       const index = current.findIndex((chart) => chart.id === id);
       const target = index + direction;
@@ -147,6 +184,36 @@ export default function PlatformObservabilityPage() {
       [next[index], next[target]] = [next[target], next[index]];
       return next;
     });
+    setPreferencesDirty(true);
+  }, []);
+  const nextChartId = useCallback((kind: ObservabilityChartKind, current: ObservabilityChartPreference[]) => {
+    let index = 1;
+    while (current.some((chart) => chart.id === `${kind}-${index}`)) index += 1;
+    return `${kind}-${index}`;
+  }, []);
+  const addChart = useCallback((kind: ObservabilityChartKind) => {
+    setCharts((current) => {
+      if (current.length >= 12) return current;
+      const template = DEFAULT_CHARTS.find((chart) => chart.kind === kind)!;
+      return [...current, { ...template, id: nextChartId(kind, current), content: [...template.content] }];
+    });
+    setPreferencesDirty(true);
+  }, [nextChartId]);
+  const duplicateChart = useCallback((id: string) => {
+    setCharts((current) => {
+      if (current.length >= 12) return current;
+      const original = current.find((chart) => chart.id === id);
+      if (!original) return current;
+      const kind = chartKind(original);
+      const index = current.findIndex((chart) => chart.id === id);
+      const next = [...current];
+      next.splice(index + 1, 0, { ...original, id: nextChartId(kind, current), content: [...original.content] });
+      return next;
+    });
+    setPreferencesDirty(true);
+  }, [nextChartId]);
+  const removeChart = useCallback((id: string) => {
+    setCharts((current) => current.length > 1 ? current.filter((chart) => chart.id !== id) : current);
     setPreferencesDirty(true);
   }, []);
   const savePreferences = useCallback(async () => {
@@ -185,28 +252,32 @@ export default function PlatformObservabilityPage() {
   }, [autoRefresh, load]);
 
   const number = useMemo(() => new Intl.NumberFormat(i18n.language), [i18n.language]);
-  const series = useMemo(() => {
-    if (!overview) return { buckets: [] as string[], labels: [] as string[], bySource: {} as Record<string, number[]>, failed: [] as number[], blocked: [] as number[] };
-    const unit = overview.interval === 'hour' ? 'hour' : 'day';
-    const last = dayjs(overview.to).startOf(unit);
-    const buckets: string[] = [];
-    for (let cursor = dayjs(overview.from).startOf(unit); !cursor.isAfter(last) && buckets.length < 32; cursor = cursor.add(1, unit)) {
-      buckets.push(cursor.format('YYYY-MM-DDTHH:mm:ss'));
-    }
-    const points = new Map(overview.timeline.map((point) => [`${dayjs(point.bucket).valueOf()}:${point.source}`, point]));
-    const labels = buckets.map((bucket) => new Intl.DateTimeFormat(i18n.language, overview.interval === 'hour'
-      ? { month: 'numeric', day: 'numeric', hour: '2-digit' }
-      : { month: 'numeric', day: 'numeric' }).format(new Date(bucket)));
-    const bySource: Record<string, number[]> = {};
-    for (const source of ['HUMAN', 'AGENT', 'INTEGRATION']) {
-      bySource[source] = buckets.map((bucket) => points.get(`${dayjs(bucket).valueOf()}:${source}`)?.total ?? 0);
-    }
-    return {
-      buckets, labels, bySource,
-      failed: buckets.map((bucket) => ['HUMAN', 'AGENT', 'INTEGRATION'].reduce((sum, source) => sum + (points.get(`${dayjs(bucket).valueOf()}:${source}`)?.failed ?? 0), 0)),
-      blocked: buckets.map((bucket) => ['HUMAN', 'AGENT', 'INTEGRATION'].reduce((sum, source) => sum + (points.get(`${dayjs(bucket).valueOf()}:${source}`)?.blocked ?? 0), 0)),
-    };
-  }, [i18n.language, overview]);
+  const needsAlternate = !!overview && charts.some((chart) =>
+    (chartKind(chart) === 'volume' || chartKind(chart) === 'risk')
+      && chart.granularity !== 'auto' && chart.granularity !== undefined
+      && chart.granularity !== overview.interval);
+  const alternateInterval: 'hour' | 'day' = overview?.interval === 'hour' ? 'day' : 'hour';
+  useEffect(() => {
+    if (!overview || !needsAlternate) { setAlternateTimeline(undefined); setAlternateError(undefined); return; }
+    let active = true;
+    setAlternateTimeline(undefined);
+    setAlternateError(undefined);
+    setAlternateLoading(true);
+    void platformObservabilityApi.timeline(overview.from, overview.to, alternateInterval)
+      .then((result) => { if (active) setAlternateTimeline(result); })
+      .catch((cause) => { if (active) setAlternateError(formatOaApiError(cause)); })
+      .finally(() => { if (active) setAlternateLoading(false); });
+    return () => { active = false; };
+  }, [alternateInterval, alternateRetry, needsAlternate, overview]);
+  const series = useMemo(() => overview
+    ? buildSeries(overview.from, overview.to, overview.interval, overview.timeline, i18n.language)
+    : EMPTY_SERIES, [i18n.language, overview]);
+  const alternateSeries = useMemo(() => alternateTimeline
+    ? buildSeries(alternateTimeline.from, alternateTimeline.to, alternateTimeline.interval,
+      alternateTimeline.timeline, i18n.language)
+    : EMPTY_SERIES, [alternateTimeline, i18n.language]);
+  const alternateReady = !!overview && !!alternateTimeline
+    && alternateTimeline.from === overview.from && alternateTimeline.to === overview.to;
 
   const sourceChoices = useMemo(() => (['HUMAN', 'AGENT', 'INTEGRATION'] as const).map((source) => ({
     value: source, label: t(`runtimeLogs.source.${source}`),
@@ -234,35 +305,35 @@ export default function PlatformObservabilityPage() {
     { value: 'bar', label: t('platformObservability.chartModes.bar') },
     { value: 'donut', label: t('platformObservability.chartModes.donut') },
   ]), [t]);
-  const chartTitles: Record<ObservabilityChartId, string> = {
+  const chartTitles: Record<ObservabilityChartKind, string> = {
     volume: t('platformObservability.volumeTitle'), risk: t('platformObservability.riskTitle'),
     source: t('platformObservability.sourceTitle'), error: t('platformObservability.errorTitle'),
   };
-  const volumeOption = useCallback<ChartOptionFactory>((colors, mode, selected) => ({
+  const volumeOption = useCallback<ChartOptionFactory>((colors, mode, selected, data) => ({
     color: [colors.primary, colors.cyan, colors.amber],
     tooltip: { trigger: 'axis', renderMode: 'richText' }, legend: { bottom: 0, textStyle: { color: colors.muted } },
     grid: { left: 42, right: 16, top: 20, bottom: 56 },
-    xAxis: { type: 'category', data: series.labels, axisLabel: { color: colors.muted }, axisLine: { lineStyle: { color: colors.border } } },
+    xAxis: { type: 'category', data: data.labels, axisLabel: { color: colors.muted, hideOverlap: true }, axisLine: { lineStyle: { color: colors.border } } },
     yAxis: { type: 'value', minInterval: 1, axisLabel: { color: colors.muted }, splitLine: { lineStyle: { color: colors.border, opacity: 0.45 } } },
     series: (['HUMAN', 'AGENT', 'INTEGRATION'] as const).filter((source) => selected.includes(source)).map((source) => ({
       name: t(`runtimeLogs.source.${source}`), type: mode === 'bar' ? 'bar' : 'line', smooth: 0.28,
       symbol: 'circle', symbolSize: 5, barMaxWidth: 22,
-      data: series.bySource[source], ...(mode === 'area' ? { areaStyle: { opacity: 0.12 } } : {}),
+      data: data.bySource[source], ...(mode === 'area' ? { areaStyle: { opacity: 0.12 } } : {}),
       lineStyle: { width: 2.5 },
     })),
-  }), [series, t]);
-  const riskOption = useCallback<ChartOptionFactory>((colors, mode, selected) => ({
+  }), [t]);
+  const riskOption = useCallback<ChartOptionFactory>((colors, mode, selected, data) => ({
     color: [colors.red, colors.amber], tooltip: { trigger: 'axis', renderMode: 'richText' },
     legend: { bottom: 0, textStyle: { color: colors.muted } },
     grid: { left: 42, right: 16, top: 20, bottom: 56 },
-    xAxis: { type: 'category', data: series.labels, axisLabel: { color: colors.muted }, axisLine: { lineStyle: { color: colors.border } } },
+    xAxis: { type: 'category', data: data.labels, axisLabel: { color: colors.muted, hideOverlap: true }, axisLine: { lineStyle: { color: colors.border } } },
     yAxis: { type: 'value', minInterval: 1, axisLabel: { color: colors.muted }, splitLine: { lineStyle: { color: colors.border, opacity: 0.45 } } },
     series: riskChoices.filter((item) => selected.includes(item.value)).map((item) => ({
       name: item.label, type: mode === 'mixed' ? (item.value === 'failed' ? 'bar' : 'line') : mode,
-      data: item.value === 'failed' ? series.failed : series.blocked,
+      data: item.value === 'failed' ? data.failed : data.blocked,
       smooth: true, barMaxWidth: 22, itemStyle: { borderRadius: [4, 4, 0, 0] }, lineStyle: { width: 2.5 },
     })),
-  }), [riskChoices, series]);
+  }), [riskChoices]);
   const sourceOption = useCallback<ChartOptionFactory>((colors, mode, selected) => ({
     color: [colors.primary, colors.cyan, colors.amber],
     tooltip: { trigger: mode === 'donut' ? 'item' : 'axis', renderMode: 'richText' },
@@ -339,33 +410,67 @@ export default function PlatformObservabilityPage() {
         </div>
         <div className="oa-observability-grid">
           {charts.map((chart) => {
-            const settings = chart.id === 'volume'
-              ? { subtitle: t('platformObservability.volumeSubtitle'), dataCount: overview.stats.total ? series.buckets.length : 0, option: volumeOption, modes: volumeModes, content: sourceChoices }
-              : chart.id === 'risk'
-                ? { subtitle: t('platformObservability.riskSubtitle'), dataCount: overview.stats.total ? series.buckets.length : 0, option: riskOption, modes: riskModes, content: riskChoices }
-                : chart.id === 'source'
+            const kind = chartKind(chart);
+            const requiresAlternate = (kind === 'volume' || kind === 'risk')
+              && chart.granularity !== 'auto' && chart.granularity !== undefined
+              && chart.granularity !== overview.interval;
+            const chartSeries = requiresAlternate && alternateReady ? alternateSeries : series;
+            const settings = kind === 'volume'
+              ? { subtitle: t('platformObservability.volumeSubtitle'), dataCount: overview.stats.total ? chartSeries.buckets.length : 0, option: volumeOption, modes: volumeModes, content: sourceChoices }
+              : kind === 'risk'
+                ? { subtitle: t('platformObservability.riskSubtitle'), dataCount: overview.stats.total ? chartSeries.buckets.length : 0, option: riskOption, modes: riskModes, content: riskChoices }
+                : kind === 'source'
                   ? { subtitle: t('platformObservability.sourceSubtitle'), dataCount: overview.sources.length, option: sourceOption, modes: distributionModes, content: sourceChoices }
-                  : { subtitle: t('platformObservability.errorSubtitle'), dataCount: overview.errorCodes.length, option: errorOption, modes: rankingModes, content: errorChoices };
+                  : { subtitle: t('platformObservability.errorSubtitle'),
+                    dataCount: overview.errorCodes.filter((item) => !chart.content.length || chart.content.includes(item.code)).length,
+                    option: errorOption, modes: rankingModes, content: errorChoices };
             return <div key={chart.id} className={`oa-observability-slot${chart.size === 'wide' ? ' oa-observability-slot-wide' : ''}`}>
-              <ChartPanel title={chartTitles[chart.id]} preference={chart} onChange={updateChart}
-                disabled={preferencesSaving || !!preferencesError} {...settings} />
+              {requiresAlternate && !alternateReady
+                ? <Card className="oa-observability-chart" title={chart.title?.trim() || chartTitles[kind]}>
+                  {alternateError ? <Alert type="error" showIcon title={alternateError}
+                    action={<Button onClick={() => setAlternateRetry((value) => value + 1)}>{t('common.retry')}</Button>} />
+                    : <Skeleton active loading={alternateLoading || !alternateReady} paragraph={{ rows: 5 }} />}
+                </Card>
+                : <ChartPanel title={chart.title?.trim() || chartTitles[kind]} preference={chart} onChange={updateChart}
+                    disabled={preferencesSaving || !!preferencesError} seriesData={chartSeries} {...settings} />}
             </div>;
           })}
         </div>
         <Typography.Text type="secondary" className="oa-observability-footnote">{t('platformObservability.footnote')}</Typography.Text>
       </>}
       <Modal title={t('platformObservability.layout')} open={layoutOpen} onCancel={() => setLayoutOpen(false)}
-        footer={<Button type="primary" onClick={() => setLayoutOpen(false)}>{t('common.confirm')}</Button>}>
+        width={800} footer={<Button type="primary" onClick={() => setLayoutOpen(false)}>{t('common.confirm')}</Button>}>
         <Typography.Paragraph type="secondary">{t('platformObservability.layoutHelp')}</Typography.Paragraph>
+        <Space wrap className="oa-observability-add-chart">
+          <Select<ObservabilityChartKind> aria-label={t('platformObservability.newChartKind')} value={newKind}
+            onChange={setNewKind} style={{ width: 180 }} options={(Object.keys(chartTitles) as ObservabilityChartKind[])
+              .map((value) => ({ value, label: chartTitles[value] }))} />
+          <Button disabled={charts.length >= 12} onClick={() => addChart(newKind)}>{t('platformObservability.addChart')}</Button>
+          <Typography.Text type="secondary">{t('platformObservability.chartLimit', { count: charts.length })}</Typography.Text>
+        </Space>
         <div className="oa-observability-layout-list">
           {charts.map((chart, index) => <div key={chart.id} className="oa-observability-layout-row">
-            <Typography.Text strong>{chartTitles[chart.id]}</Typography.Text>
+            <div className="oa-observability-layout-name">
+              <Typography.Text strong>{chartTitles[chartKind(chart)]}</Typography.Text>
+              <Input aria-label={t('platformObservability.customTitleFor', { title: chartTitles[chartKind(chart)] })}
+                value={chart.title ?? ''} maxLength={40} placeholder={t('platformObservability.customTitle')}
+                onChange={(event) => updateChart({ ...chart, title: event.target.value })} />
+            </div>
             <Space wrap>
-              <Select aria-label={t('platformObservability.chartSizeFor', { title: chartTitles[chart.id] })}
+              {(chartKind(chart) === 'volume' || chartKind(chart) === 'risk') &&
+                <Select aria-label={t('platformObservability.granularityFor', { title: chart.title || chartTitles[chartKind(chart)] })}
+                  value={chart.granularity ?? 'auto'} style={{ width: 112 }}
+                  onChange={(granularity) => updateChart({ ...chart, granularity })}
+                  options={[{ value: 'auto', label: t('platformObservability.granularity.auto') },
+                    { value: 'hour', label: t('platformObservability.granularity.hour') },
+                    { value: 'day', label: t('platformObservability.granularity.day') }]} />}
+              <Select aria-label={t('platformObservability.chartSizeFor', { title: chart.title || chartTitles[chartKind(chart)] })}
                 value={chart.size} style={{ width: 112 }} onChange={(size) => updateChart({ ...chart, size })}
                 options={[{ value: 'normal', label: t('platformObservability.normal') }, { value: 'wide', label: t('platformObservability.wide') }]} />
               <Button disabled={index === 0} onClick={() => moveChart(chart.id, -1)}>{t('platformObservability.moveUp')}</Button>
               <Button disabled={index === charts.length - 1} onClick={() => moveChart(chart.id, 1)}>{t('platformObservability.moveDown')}</Button>
+              <Button disabled={charts.length >= 12} onClick={() => duplicateChart(chart.id)}>{t('platformObservability.duplicate')}</Button>
+              <Button danger disabled={charts.length === 1} onClick={() => removeChart(chart.id)}>{t('common.delete')}</Button>
             </Space>
           </div>)}
         </div>

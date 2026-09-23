@@ -13,8 +13,11 @@ export default {
   noChartData: 'No data is available for this period',
   chartType: '{{title}} chart type', chartContent: 'Show data', chartContentFor: '{{title}} visible data',
   chartModes: { line: 'Line', area: 'Area', bar: 'Bar', mixed: 'Mixed', donut: 'Donut' },
-  layout: 'Arrange charts', layoutHelp: 'Set chart order and width, then select Save configuration at the top of the page.',
+  layout: 'Arrange charts', layoutHelp: 'Add, duplicate or remove controlled charts and set titles, time granularity, order and width; then select Save configuration at the top of the page.',
   savePreferences: 'Save configuration', preferencesError: 'Chart settings could not be loaded or saved',
   chartSizeFor: '{{title}} chart width', normal: 'Standard', wide: 'Full width', moveUp: 'Move up', moveDown: 'Move down',
+  addChart: 'Add chart', newChartKind: 'Choose chart data', chartLimit: '{{count}} / 12 charts',
+  duplicate: 'Duplicate', customTitle: 'Custom title', customTitleFor: '{{title}} custom title',
+  granularityFor: '{{title}} time granularity', granularity: { auto: 'Auto', hour: 'Hourly', day: 'Daily' },
   footnote: 'Data comes from redacted runtime logs for the current tenant. This is not infrastructure CPU, memory, or uptime monitoring.',
 };

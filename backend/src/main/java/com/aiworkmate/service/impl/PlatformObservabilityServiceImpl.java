@@ -3,6 +3,7 @@ package com.aiworkmate.service.impl;
 import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.common.ErrorCode;
 import com.aiworkmate.dto.PlatformObservabilityResponse;
+import com.aiworkmate.dto.PlatformObservabilityTimelineResponse;
 import com.aiworkmate.dto.RuntimeLogStatsResponse;
 import com.aiworkmate.mapper.RuntimeLogMapper;
 import com.aiworkmate.service.PlatformObservabilityService;
@@ -13,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.Duration;
 import java.util.Set;
 
 @Service
@@ -25,12 +27,7 @@ public class PlatformObservabilityServiceImpl implements PlatformObservabilitySe
     @Override
     @Transactional(readOnly = true)
     public PlatformObservabilityResponse overview(Long userId, String range) {
-        ResolvedUserAccess actor = accessService.resolveActiveUser(userId);
-        if (actor == null) throw new BusinessException(ErrorCode.AUTH_REQUIRED);
-        if (!actor.permissions().contains("route:platform-observability")
-                || !actor.permissions().contains("runtime-log:read")) {
-            throw new BusinessException(ErrorCode.PERMISSION_DENIED);
-        }
+        ResolvedUserAccess actor = requireAccess(userId);
         String selectedRange = range == null ? "7d" : range;
         if (!ALLOWED_RANGES.contains(selectedRange)) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.observability.range.invalid");
@@ -50,5 +47,30 @@ public class PlatformObservabilityServiceImpl implements PlatformObservabilitySe
                 mapper.selectTimeline(tenantId, from, to, interval),
                 mapper.selectSourceCounts(tenantId, from, to),
                 mapper.selectTopErrorCodes(tenantId, from, to));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PlatformObservabilityTimelineResponse timeline(Long userId, LocalDateTime from,
+                                                          LocalDateTime to, String interval) {
+        ResolvedUserAccess actor = requireAccess(userId);
+        if (from == null || to == null || from.isAfter(to)
+                || Duration.between(from, to).compareTo(Duration.ofDays(31)) > 0
+                || to.isAfter(LocalDateTime.now().plusMinutes(1))
+                || interval == null || !Set.of("hour", "day").contains(interval)) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.observability.range.invalid");
+        }
+        return new PlatformObservabilityTimelineResponse(from, to, interval,
+                mapper.selectTimeline(actor.tenantId(), from, to, interval));
+    }
+
+    private ResolvedUserAccess requireAccess(Long userId) {
+        ResolvedUserAccess actor = accessService.resolveActiveUser(userId);
+        if (actor == null) throw new BusinessException(ErrorCode.AUTH_REQUIRED);
+        if (!actor.permissions().contains("route:platform-observability")
+                || !actor.permissions().contains("runtime-log:read")) {
+            throw new BusinessException(ErrorCode.PERMISSION_DENIED);
+        }
+        return actor;
     }
 }

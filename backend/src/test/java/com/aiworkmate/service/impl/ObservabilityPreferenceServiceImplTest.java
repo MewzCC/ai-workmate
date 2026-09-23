@@ -41,11 +41,46 @@ class ObservabilityPreferenceServiceImplTest {
                 chart("risk", "bar", List.of("failed"), "normal"),
                 chart("source", "bar", List.of("HUMAN", "AGENT"), "wide"));
         var saved = service.update(7L, new ObservabilityPreferenceRequest(charts));
-        assertThat(saved.charts()).containsExactlyElementsOf(charts);
+        assertThat(saved.charts()).extracting(ObservabilityChartPreference::id)
+                .containsExactly("error", "volume", "risk", "source");
+        assertThat(saved.charts()).extracting(ObservabilityChartPreference::kind)
+                .containsExactly("error", "volume", "risk", "source");
         org.mockito.ArgumentCaptor<String> value = org.mockito.ArgumentCaptor.forClass(String.class);
         verify(settingsService).setObservabilityChartConfig(eq(7L), value.capture());
         when(settingsService.getObservabilityChartConfig(7L)).thenReturn(value.getValue());
-        assertThat(service.preferences(7L).charts()).containsExactlyElementsOf(charts);
+        assertThat(service.preferences(7L).charts()).containsExactlyElementsOf(saved.charts());
+    }
+
+    @Test void allowsBoundedCustomCopiesAndTitles() {
+        allow();
+        var charts = List.of(new ObservabilityChartPreference("volume-copy-1", "volume", "核心流量",
+                "bar", List.of("AGENT"), "wide", "hour"));
+        var response = service.update(7L, new ObservabilityPreferenceRequest(charts));
+        assertThat(response.charts()).containsExactlyElementsOf(charts);
+    }
+
+    @Test void readsPreviouslySavedFourFieldChartConfiguration() {
+        allow();
+        when(settingsService.getObservabilityChartConfig(7L)).thenReturn("""
+                [{"id":"volume","mode":"area","content":["HUMAN"],"size":"wide"}]
+                """);
+        assertThat(service.preferences(7L).charts()).containsExactly(
+                new ObservabilityChartPreference("volume", "volume", "", "area", List.of("HUMAN"), "wide", "auto"));
+    }
+
+    @Test void rejectsUnknownMetricKindAndExcessiveCards() {
+        allow();
+        var invalid = List.of(new ObservabilityChartPreference("custom", "sql", "任意查询",
+                "line", List.of("HUMAN"), "normal", "auto"));
+        assertThatThrownBy(() -> service.update(7L, new ObservabilityPreferenceRequest(invalid)))
+                .isInstanceOf(BusinessException.class);
+        var many = java.util.stream.IntStream.range(0, 13)
+                .mapToObj(index -> new ObservabilityChartPreference("volume-" + index, "volume", "",
+                        "line", List.of("HUMAN"), "normal", "auto"))
+                .toList();
+        assertThatThrownBy(() -> service.update(7L, new ObservabilityPreferenceRequest(many)))
+                .isInstanceOf(BusinessException.class);
+        verify(settingsService, never()).setObservabilityChartConfig(eq(7L), anyString());
     }
 
     @Test void rejectsUnlistedModeAndDuplicateChart() {

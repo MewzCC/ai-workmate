@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import PlatformObservabilityPage from './PlatformObservabilityPage';
 
 const overview = vi.fn();
+const timeline = vi.fn();
 const preferences = vi.fn();
 const updatePreferences = vi.fn();
 const defaultCharts = [
@@ -16,6 +17,7 @@ const chartSetOption = vi.hoisted(() => vi.fn());
 vi.mock('echarts/core', () => ({ use: vi.fn(), init: () => ({ setOption: chartSetOption, resize: vi.fn(), dispose: vi.fn() }) }));
 vi.mock('@/lib/platformObservabilityApi', () => ({ platformObservabilityApi: {
   overview: (...args: unknown[]) => overview(...args),
+  timeline: (...args: unknown[]) => timeline(...args),
   preferences: (...args: unknown[]) => preferences(...args),
   updatePreferences: (...args: unknown[]) => updatePreferences(...args),
 } }));
@@ -30,6 +32,7 @@ const emptyOverview = {
 describe('PlatformObservabilityPage', () => {
   beforeEach(() => {
     overview.mockReset();
+    timeline.mockReset();
     preferences.mockReset().mockResolvedValue({ charts: defaultCharts });
     updatePreferences.mockReset().mockImplementation(async (charts) => ({ charts }));
     chartSetOption.mockReset();
@@ -105,5 +108,35 @@ describe('PlatformObservabilityPage', () => {
     await screen.findByText('异常脉冲');
     await waitFor(() => expect(restored.container.querySelector('.oa-observability-slot')?.textContent).toContain('异常脉冲'));
     expect(restored.container.querySelectorAll('.oa-observability-slot')[1].className).toContain('oa-observability-slot-wide');
+  });
+
+  it('adds, duplicates, renames and removes controlled chart cards before saving', async () => {
+    overview.mockResolvedValue(emptyOverview);
+    render(<MemoryRouter><PlatformObservabilityPage /></MemoryRouter>);
+    await screen.findByText('调用流量');
+    fireEvent.click(screen.getByRole('button', { name: '调整布局' }));
+    fireEvent.click(screen.getByRole('button', { name: '添加图表' }));
+    expect(screen.getByText('5 / 12 张图表')).toBeTruthy();
+    fireEvent.change(screen.getAllByRole('textbox', { name: '调用流量自定义标题' })[1],
+      { target: { value: '重点流量' } });
+    fireEvent.click(screen.getAllByRole('button', { name: /复\s*制/ })[4]);
+    expect(screen.getByText('6 / 12 张图表')).toBeTruthy();
+    fireEvent.click(screen.getAllByRole('button', { name: /删\s*除/ })[5]);
+    fireEvent.click(screen.getByRole('button', { name: /确\s*认/ }));
+    fireEvent.click(screen.getByRole('button', { name: '保存配置' }));
+    await waitFor(() => expect(updatePreferences).toHaveBeenCalled());
+    expect(updatePreferences.mock.calls[0][0]).toHaveLength(5);
+    expect(updatePreferences.mock.calls[0][0][4]).toMatchObject({
+      id: 'volume-1', kind: 'volume', title: '重点流量', mode: 'line',
+    });
+  });
+
+  it('loads an alternate hourly timeline for a custom time granularity', async () => {
+    overview.mockResolvedValue({ ...emptyOverview, stats: { ...emptyOverview.stats, total: 1 } });
+    timeline.mockResolvedValue({ from: emptyOverview.from, to: emptyOverview.to, interval: 'hour', timeline: [] });
+    preferences.mockResolvedValue({ charts: [{ ...defaultCharts[0], kind: 'volume', granularity: 'hour' }] });
+    render(<MemoryRouter><PlatformObservabilityPage /></MemoryRouter>);
+    await waitFor(() => expect(timeline).toHaveBeenCalledWith(emptyOverview.from, emptyOverview.to, 'hour'));
+    expect(await screen.findByRole('img', { name: '调用流量' })).toBeTruthy();
   });
 });

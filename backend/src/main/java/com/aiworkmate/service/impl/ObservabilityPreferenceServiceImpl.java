@@ -34,10 +34,10 @@ public class ObservabilityPreferenceServiceImpl implements ObservabilityPreferen
             "risk", Set.of("failed", "blocked"),
             "source", Set.of("HUMAN", "AGENT", "INTEGRATION"));
     private static final List<ObservabilityChartPreference> DEFAULTS = List.of(
-            new ObservabilityChartPreference("volume", "line", List.of("HUMAN", "AGENT", "INTEGRATION"), "normal"),
-            new ObservabilityChartPreference("risk", "mixed", List.of("failed", "blocked"), "normal"),
-            new ObservabilityChartPreference("source", "donut", List.of("HUMAN", "AGENT", "INTEGRATION"), "normal"),
-            new ObservabilityChartPreference("error", "bar", List.of(), "normal"));
+            new ObservabilityChartPreference("volume", "volume", "", "line", List.of("HUMAN", "AGENT", "INTEGRATION"), "normal", "auto"),
+            new ObservabilityChartPreference("risk", "risk", "", "mixed", List.of("failed", "blocked"), "normal", "auto"),
+            new ObservabilityChartPreference("source", "source", "", "donut", List.of("HUMAN", "AGENT", "INTEGRATION"), "normal", "auto"),
+            new ObservabilityChartPreference("error", "error", "", "bar", List.of(), "normal", "auto"));
 
     private final UserAccessService accessService;
     private final UserSettingsService settingsService;
@@ -80,21 +80,30 @@ public class ObservabilityPreferenceServiceImpl implements ObservabilityPreferen
     }
 
     private List<ObservabilityChartPreference> validate(List<ObservabilityChartPreference> charts) {
-        if (charts == null || charts.size() != DEFAULTS.size()) throw invalid();
+        if (charts == null || charts.isEmpty() || charts.size() > 12) throw invalid();
         Set<String> ids = new HashSet<>();
+        java.util.ArrayList<ObservabilityChartPreference> normalized = new java.util.ArrayList<>(charts.size());
         for (ObservabilityChartPreference chart : charts) {
+            String kind = chart == null ? null : chart.kind() == null && chart.id() != null && MODES.containsKey(chart.id())
+                    ? chart.id() : chart.kind();
             if (chart == null || chart.id() == null || chart.mode() == null || chart.size() == null
-                    || !MODES.containsKey(chart.id())
-                    || !ids.add(chart.id()) || !MODES.get(chart.id()).contains(chart.mode())
+                    || !chart.id().matches("[a-z0-9-]{1,64}") || kind == null || !MODES.containsKey(kind)
+                    || !ids.add(chart.id()) || !MODES.get(kind).contains(chart.mode())
                     || !Set.of("normal", "wide").contains(chart.size()) || chart.content() == null) throw invalid();
+            String title = chart.title() == null ? "" : chart.title().trim();
+            String granularity = chart.granularity() == null ? "auto" : chart.granularity();
+            if (title.length() > 40 || title.chars().anyMatch(Character::isISOControl)
+                    || !Set.of("auto", "hour", "day").contains(granularity)) throw invalid();
             List<String> selected = chart.content();
             if (selected.size() > 8 || selected.stream().anyMatch(value -> value == null)
                     || new HashSet<>(selected).size() != selected.size()) throw invalid();
-            if ("error".equals(chart.id())) {
+            if ("error".equals(kind)) {
                 if (selected.stream().anyMatch(code -> code == null || !code.matches("[A-Za-z0-9_.:-]{1,64}"))) throw invalid();
-            } else if (selected.isEmpty() || !CONTENT.get(chart.id()).containsAll(selected)) throw invalid();
+            } else if (selected.isEmpty() || !CONTENT.get(kind).containsAll(selected)) throw invalid();
+            normalized.add(new ObservabilityChartPreference(chart.id(), kind, title, chart.mode(),
+                    List.copyOf(selected), chart.size(), granularity));
         }
-        return List.copyOf(charts);
+        return List.copyOf(normalized);
     }
 
     private BusinessException invalid() {

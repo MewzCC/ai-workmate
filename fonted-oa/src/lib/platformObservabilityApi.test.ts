@@ -25,4 +25,12 @@ describe('platform observability API', () => {
     expect(fetchMock.mock.calls[1][0]).toBe('/api/admin/platform-observability/preferences');
     expect(fetchMock.mock.calls[1][1]).toMatchObject({ method: 'PUT', body: JSON.stringify({ charts: [] }) });
   });
+
+  it('requests a bounded alternate timeline with encoded range parameters', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true, json: async () => ({ code: 200, data: { timeline: [] } }),
+    } as Response);
+    await platformObservabilityApi.timeline('2026-09-16T00:00:00', '2026-09-23T00:00:00', 'hour');
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/admin/platform-observability/timeline?from=2026-09-16T00%3A00%3A00&to=2026-09-23T00%3A00%3A00&interval=hour');
+  });
 });

@@ -13,8 +13,11 @@ export default {
   noChartData: '当前时段暂无可展示的数据',
   chartType: '{{title}}图表类型', chartContent: '显示内容', chartContentFor: '{{title}}显示内容',
   chartModes: { line: '折线', area: '面积', bar: '柱状', mixed: '组合', donut: '环形' },
-  layout: '调整布局', layoutHelp: '调整图表顺序和宽度，完成后点击页面顶部的“保存配置”。',
+  layout: '调整布局', layoutHelp: '从受控指标中添加、复制或移除图表，设置标题、时间粒度、顺序与宽度；完成后点击页面顶部的“保存配置”。',
   savePreferences: '保存配置', preferencesError: '图表配置加载或保存失败',
   chartSizeFor: '{{title}}图表宽度', normal: '标准', wide: '通栏', moveUp: '上移', moveDown: '下移',
+  addChart: '添加图表', newChartKind: '选择图表内容', chartLimit: '{{count}} / 12 张图表',
+  duplicate: '复制', customTitle: '自定义标题', customTitleFor: '{{title}}自定义标题',
+  granularityFor: '{{title}}时间粒度', granularity: { auto: '自动', hour: '按小时', day: '按天' },
   footnote: '数据来自当前租户的脱敏运行日志；图表不代表基础设施 CPU、内存或可用性监控。',
 };

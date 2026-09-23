@@ -19,6 +19,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.http.MediaType;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.mockito.Mockito.never;
@@ -71,6 +72,31 @@ class PlatformObservabilityControllerSecurityTest {
                         .param("range", "24h"))
                 .andExpect(status().isOk());
         verify(service).overview(42L, "24h");
+    }
+
+    @Test void protectsAndDelegatesTheAlternateTimeline() throws Exception {
+        mvc.perform(get("/api/admin/platform-observability/timeline")
+                        .param("from", "2026-09-16T00:00:00")
+                        .param("to", "2026-09-23T00:00:00")
+                        .param("interval", "hour"))
+                .andExpect(status().isUnauthorized());
+        when(accessService.resolveActiveUser(42L)).thenReturn(access(List.of("route:platform-observability")));
+        mvc.perform(get("/api/admin/platform-observability/timeline")
+                        .header("Authorization", "Bearer valid")
+                        .param("from", "2026-09-16T00:00:00")
+                        .param("to", "2026-09-23T00:00:00")
+                        .param("interval", "hour"))
+                .andExpect(status().isForbidden());
+        when(accessService.resolveActiveUser(42L)).thenReturn(access(List.of(
+                "route:platform-observability", "runtime-log:read")));
+        mvc.perform(get("/api/admin/platform-observability/timeline")
+                        .header("Authorization", "Bearer valid")
+                        .param("from", "2026-09-16T00:00:00")
+                        .param("to", "2026-09-23T00:00:00")
+                        .param("interval", "hour"))
+                .andExpect(status().isOk());
+        verify(service).timeline(42L, LocalDateTime.parse("2026-09-16T00:00:00"),
+                LocalDateTime.parse("2026-09-23T00:00:00"), "hour");
     }
 
     @Test void protectsPreferenceReadAndWriteWithTheSameLivePermissions() throws Exception {

@@ -19,12 +19,17 @@
 图表仅代表运行日志已有事实，不冒充 CPU、内存或基础设施可用性监控。
 
 图表个人配置通过 `GET/PUT /api/admin/platform-observability/preferences` 读取和保存。
-请求体为 `{ "charts": [{ "id", "mode", "content", "size" }] }`，四个图表 ID 必须各出现一次，
-列表顺序即页面顺序；`size` 仅允许 `normal` 或 `wide`。服务端在每次读写时重新校验上述两项权限，
-并逐图校验可选类型、可显示内容及错误码长度，拒绝任意指标或任意查询表达式。
+请求体为 `{ "charts": [{ "id", "kind", "title", "mode", "content", "size", "granularity" }] }`。
+`kind` 仅允许 `volume`、`risk`、`source`、`error` 四类真实运行日志指标；每人可保留 1–12 张卡片，
+`id` 在当前配置中唯一，列表顺序即页面顺序。可从受控目录添加、复制或移除卡片，标题最多 40 字符；
+`size` 仅允许 `normal` 或 `wide`，趋势图时间粒度仅允许 `auto`、`hour` 或 `day`。
+服务端在每次读写时重新校验上述两项权限，并逐图校验类型、可显示内容及错误码长度，
+拒绝任意指标或任意查询表达式。旧版四字段配置可读取，服务端会补全 `kind` 和默认时间粒度。
+`GET /api/admin/platform-observability/timeline?from=...&to=...&interval=hour|day`
+仅用于非默认时间粒度的趋势图，服务端限制跨度不超过 31 天并按当前认证租户聚合。
 配置按认证用户写入现有 `user_setting`，不保存租户业务数据；权限被撤销后接口立即拒绝。
 `V202609231755__observability_preference_value.sql` 仅将该表的 `setting_value` 从
-`VARCHAR(255)` 扩为 `TEXT`，用于容纳四张图的受控 JSON。旧设置仍可读取，旧程序也无需新字段。
+`VARCHAR(255)` 扩为 `TEXT`，用于容纳受控图表卡片的 JSON。旧设置仍可读取，旧程序也无需新字段。
 
 本能力用于平台运维和业务追踪，不替代不可抵赖的合规审计、基础设施日志或 SIEM。
 

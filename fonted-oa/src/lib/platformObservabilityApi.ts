@@ -1,13 +1,16 @@
 import { queryString, request } from '@/lib/oaApi';
 
 export type ObservabilityRange = '24h' | '7d' | '30d';
-export type ObservabilityChartId = 'volume' | 'risk' | 'source' | 'error';
+export type ObservabilityChartKind = 'volume' | 'risk' | 'source' | 'error';
 export type ObservabilityChartSize = 'normal' | 'wide';
 export interface ObservabilityChartPreference {
-  id: ObservabilityChartId;
+  id: string;
+  kind?: ObservabilityChartKind;
+  title?: string;
   mode: string;
   content: string[];
   size: ObservabilityChartSize;
+  granularity?: 'auto' | 'hour' | 'day';
 }
 export interface ObservabilityPreferences { charts: ObservabilityChartPreference[] }
 
@@ -35,9 +38,18 @@ export interface PlatformObservabilityOverview {
   errorCodes: ObservabilityCategory[];
 }
 
+export interface PlatformObservabilityTimeline {
+  from: string;
+  to: string;
+  interval: 'hour' | 'day';
+  timeline: ObservabilityTimelinePoint[];
+}
+
 export const platformObservabilityApi = {
   overview: (range: ObservabilityRange) =>
     request<PlatformObservabilityOverview>(`/admin/platform-observability/overview${queryString({ range })}`),
+  timeline: (from: string, to: string, interval: 'hour' | 'day') =>
+    request<PlatformObservabilityTimeline>(`/admin/platform-observability/timeline${queryString({ from, to, interval })}`),
   preferences: () => request<ObservabilityPreferences>('/admin/platform-observability/preferences'),
   updatePreferences: (charts: ObservabilityChartPreference[]) =>
     request<ObservabilityPreferences>('/admin/platform-observability/preferences', {

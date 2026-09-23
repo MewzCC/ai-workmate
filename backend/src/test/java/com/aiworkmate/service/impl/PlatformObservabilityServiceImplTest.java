@@ -55,6 +55,19 @@ class PlatformObservabilityServiceImplTest {
         verify(mapper, never()).selectSourceCounts(any(), any(), any());
     }
 
+    @Test void alternateTimelineIsTenantScopedAndRejectsUnboundedOrInvalidGranularity() {
+        when(accessService.resolveActiveUser(7L)).thenReturn(access(List.of(
+                "route:platform-observability", "runtime-log:read")));
+        LocalDateTime to = LocalDateTime.now();
+        LocalDateTime from = to.minusDays(7);
+        service.timeline(7L, from, to, "hour");
+        verify(mapper).selectTimeline(9L, from, to, "hour");
+        assertThatThrownBy(() -> service.timeline(7L, from.minusDays(40), to, "hour"))
+                .isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> service.timeline(7L, from, to, "minute"))
+                .isInstanceOf(BusinessException.class);
+    }
+
     private ResolvedUserAccess access(List<String> permissions) {
         return new ResolvedUserAccess(7L, "admin", 9L, "SYSTEM_ADMIN",
                 List.of("SYSTEM_ADMIN"), permissions, List.of("TENANT"), 1L);
