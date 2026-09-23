@@ -26,6 +26,7 @@ import budget from './budget';
 import apiCenter from './apiCenter';
 import pageActions from './pageActions';
 import runtimeLogs from './runtimeLogs';
+import platformObservability from './platformObservability';
 import sandboxReplay from './sandboxReplay';
 
 const enUS = {
@@ -57,6 +58,7 @@ const enUS = {
   apiCenter,
   pageActions,
   runtimeLogs,
+  platformObservability,
   sandboxReplay,
 };
 

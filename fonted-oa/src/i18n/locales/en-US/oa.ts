@@ -144,6 +144,7 @@ export default {
     'api-center': 'API Center',
     'page-actions': 'Page Actions',
     'runtime-logs': 'Runtime Logs',
+    'platform-observability': 'Platform Observability',
     'sandbox-replay': 'Sandbox Replay',
     settings: 'Settings',
     users: 'Users',

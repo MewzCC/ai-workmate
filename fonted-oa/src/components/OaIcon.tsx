@@ -366,6 +366,7 @@ const routeIconMap: Record<string, OaIconName> = {
   'api-center': 'api-center',
   'page-actions': 'page-actions',
   'runtime-logs': 'runtime-logs',
+  'platform-observability': 'bar-chart',
   'sandbox-replay': 'sandbox',
   settings: 'settings',
   'access-control': 'role',

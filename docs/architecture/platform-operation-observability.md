@@ -11,6 +11,13 @@
 运行日志页面通过 `GET /api/admin/runtime-logs` 及详情接口读取统一视图。接口继续要求
 `route:runtime-logs` 与 `runtime-log:read`，并按当前认证租户查询；前端权限不能代替后端鉴权。
 
+独立的 `/oa/platform-observability` 页面通过
+`GET /api/admin/platform-observability/overview?range=24h|7d|30d` 展示同一视图的脱敏聚合。
+该接口要求 `route:platform-observability` 与 `runtime-log:read`，由服务端重新解析实时权限和租户。
+响应包括时间桶调用量、失败与拦截、来源分布、高频错误码、平均及 P95 耗时。
+空时间桶不伪造事件；无数据时显示明确空态。时间范围固定为 24 小时、7 天或 30 天。
+图表仅代表运行日志已有事实，不冒充 CPU、内存或基础设施可用性监控。
+
 本能力用于平台运维和业务追踪，不替代不可抵赖的合规审计、基础设施日志或 SIEM。
 
 ## 2. 数据模型

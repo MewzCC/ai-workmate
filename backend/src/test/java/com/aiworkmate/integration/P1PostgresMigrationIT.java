@@ -206,6 +206,11 @@ class P1PostgresMigrationIT {
                     """)).isOne();
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM rbac_route
+                    WHERE route_key = 'platform-observability'
+                      AND component_key = 'PLATFORM_OBSERVABILITY' AND enabled = TRUE
+                    """)).isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_route
                     WHERE route_key = 'sandbox-replay' AND component_key = 'SANDBOX_REPLAY'
                     """)).isOne();
             assertThat(count(statement, """
@@ -222,6 +227,7 @@ class P1PostgresMigrationIT {
                         ('api-center', 'API_CENTER'),
                         ('page-actions', 'PAGE_ACTIONS'),
                         ('runtime-logs', 'RUNTIME_LOGS'),
+                        ('platform-observability', 'PLATFORM_OBSERVABILITY'),
                         ('sandbox-replay', 'SANDBOX_REPLAY')
                     ) AS planned(route_key, component_key)
                     JOIN rbac_route route
@@ -229,7 +235,7 @@ class P1PostgresMigrationIT {
                      AND route.component_key = planned.component_key
                      AND route.route_type = 'PAGE'
                      AND route.enabled = TRUE
-                    """)).isEqualTo(12);
+                    """)).isEqualTo(13);
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM rbac_route
                     WHERE route_type = 'PAGE' AND enabled = TRUE
@@ -239,7 +245,7 @@ class P1PostgresMigrationIT {
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM rbac_route
                     WHERE route_type = 'PAGE' AND enabled = TRUE
-                    """)).as("R4 浏览器回归清单必须覆盖全部已启用页面").isEqualTo(41);
+                    """)).as("已启用页面必须与组件清单一致").isEqualTo(42);
             assertEnabledPageManifest(statement);
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM agent_page_action_policy

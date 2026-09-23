@@ -14,7 +14,7 @@ class PageCapabilityCatalogTest {
     private final PageCapabilityCatalog catalog = new PageCapabilityCatalog();
 
     @Test
-    void registersAllFortyOneEnabledPagesWithUniqueComponents() {
+    void registersAllEnabledPagesWithUniqueComponents() {
         assertThat(catalog.all()).hasSize(OaPage.values().length);
         assertThat(catalog.all()).extracting(PageCapabilityDefinition::pageId).doesNotHaveDuplicates();
         assertThat(catalog.all()).extracting(PageCapabilityDefinition::componentKey).doesNotHaveDuplicates();

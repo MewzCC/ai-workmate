@@ -3,6 +3,7 @@ package com.aiworkmate.mapper;
 import com.aiworkmate.dto.RuntimeLogDetailResponse;
 import com.aiworkmate.dto.RuntimeLogRecordResponse;
 import com.aiworkmate.dto.RuntimeLogStatsResponse;
+import com.aiworkmate.dto.PlatformObservabilityResponse;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
@@ -12,6 +13,47 @@ import java.util.List;
 
 @Mapper
 public interface RuntimeLogMapper {
+
+    @Select("""
+            SELECT date_trunc(#{bucket}, started_at) AS bucket, source,
+                   COUNT(*) AS total,
+                   COUNT(*) FILTER (WHERE outcome IN ('FAILED', 'TIMED_OUT', 'RESULT_INVALID')) AS failed,
+                   COUNT(*) FILTER (WHERE outcome = 'REJECTED' OR decision IN ('DENY', 'STALE', 'THROTTLED', 'UNAVAILABLE')) AS blocked
+            FROM runtime_log_view
+            WHERE tenant_id = #{tenantId} AND started_at >= #{from} AND started_at <= #{to}
+            GROUP BY date_trunc(#{bucket}, started_at), source
+            ORDER BY bucket, source
+            """)
+    List<PlatformObservabilityResponse.TimelinePoint> selectTimeline(
+            @Param("tenantId") Long tenantId, @Param("from") LocalDateTime from,
+            @Param("to") LocalDateTime to, @Param("bucket") String bucket);
+
+    @Select("""
+            SELECT source AS code, COUNT(*) AS total FROM runtime_log_view
+            WHERE tenant_id = #{tenantId} AND started_at >= #{from} AND started_at <= #{to}
+            GROUP BY source ORDER BY total DESC
+            """)
+    List<PlatformObservabilityResponse.CategoryCount> selectSourceCounts(
+            @Param("tenantId") Long tenantId, @Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
+
+    @Select("""
+            SELECT error_code AS code, COUNT(*) AS total FROM runtime_log_view
+            WHERE tenant_id = #{tenantId} AND started_at >= #{from} AND started_at <= #{to}
+              AND outcome IN ('FAILED', 'TIMED_OUT', 'RESULT_INVALID', 'REJECTED')
+              AND error_code IS NOT NULL AND error_code <> ''
+            GROUP BY error_code ORDER BY total DESC, error_code LIMIT 8
+            """)
+    List<PlatformObservabilityResponse.CategoryCount> selectTopErrorCodes(
+            @Param("tenantId") Long tenantId, @Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
+
+    @Select("""
+            SELECT CAST(COALESCE(ROUND((percentile_cont(0.95) WITHIN GROUP (ORDER BY duration_ms))::numeric), 0) AS BIGINT)
+            FROM runtime_log_view
+            WHERE tenant_id = #{tenantId} AND started_at >= #{from} AND started_at <= #{to}
+              AND duration_ms IS NOT NULL
+            """)
+    Long selectP95Duration(@Param("tenantId") Long tenantId,
+                           @Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
 
     @Select({
             "<script>",

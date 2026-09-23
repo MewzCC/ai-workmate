@@ -1,0 +1,15 @@
+export default {
+  eyebrow: 'PLATFORM SIGNAL / OBSERVABILITY',
+  title: 'Platform Observability',
+  subtitle: 'Explore real activity and incidents across human actions, AI tools, and system integrations.',
+  tenantScoped: 'Current tenant', readOnly: 'Read-only', openLogs: 'Open runtime logs',
+  autoRefresh: 'Refresh every minute',
+  ranges: { day: 'Last 24 hours', week: 'Last 7 days', month: 'Last 30 days' },
+  total: 'Total calls', successRate: 'Success rate', failed: 'Failed', blocked: 'Rejected / blocked', p95: 'P95 latency',
+  volumeTitle: 'Activity volume', volumeSubtitle: 'Platform load by source',
+  riskTitle: 'Incident pulse', riskSubtitle: 'Failures and blocks over time',
+  sourceTitle: 'Source composition', sourceSubtitle: 'Human · Agent · Integration',
+  errorTitle: 'Top error codes', errorSubtitle: 'Redacted error categories only',
+  noChartData: 'No data is available for this period',
+  footnote: 'Data comes from redacted runtime logs for the current tenant. This is not infrastructure CPU, memory, or uptime monitoring.',
+};

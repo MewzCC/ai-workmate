@@ -144,6 +144,7 @@ export default {
     'api-center': '接口联调中心',
     'page-actions': '页面操作配置',
     'runtime-logs': '运行日志',
+    'platform-observability': '平台观测',
     'sandbox-replay': '沙箱回放',
     settings: '系统设置',
     users: '人员配置',

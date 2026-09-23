@@ -1,0 +1,15 @@
+export default {
+  eyebrow: 'PLATFORM SIGNAL / 运行观测',
+  title: '平台观测',
+  subtitle: '从真实运行记录观察人为操作、AI 工具与系统集成的流量和异常。',
+  tenantScoped: '当前租户', readOnly: '只读观测', openLogs: '查看运行日志',
+  autoRefresh: '每分钟刷新',
+  ranges: { day: '近 24 小时', week: '近 7 天', month: '近 30 天' },
+  total: '调用总量', successRate: '成功率', failed: '失败', blocked: '拒绝 / 拦截', p95: 'P95 耗时',
+  volumeTitle: '调用流量', volumeSubtitle: '按来源观察平台负载',
+  riskTitle: '异常脉冲', riskSubtitle: '失败与拦截的时间分布',
+  sourceTitle: '来源构成', sourceSubtitle: '人为 · Agent · 系统集成',
+  errorTitle: '高频错误码', errorSubtitle: '仅展示脱敏的错误分类',
+  noChartData: '当前时段暂无可展示的数据',
+  footnote: '数据来自当前租户的脱敏运行日志；图表不代表基础设施 CPU、内存或可用性监控。',
+};

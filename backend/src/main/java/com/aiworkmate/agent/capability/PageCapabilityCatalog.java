@@ -167,6 +167,8 @@ public class PageCapabilityCatalog {
                 page(OaPage.RUNTIME_LOGS, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         context(text("source"), number("recordId"), text("outcome"), text("keyword"),
                                 text("from"), text("to"), number("page"), number("size")), tool(RUNTIME_LOG_QUERY)),
+                page(OaPage.PLATFORM_OBSERVABILITY, OwnershipPolicy.TENANT_SCOPED, READ_COMMANDS,
+                        context(), tool(RUNTIME_LOG_QUERY)),
                 page(OaPage.SANDBOX_REPLAY, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         context(number("replayId"), text("keyword"), text("status"), number("page"), number("size")),
                         tool(SANDBOX_REPLAY_QUERY)),
