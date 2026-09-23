@@ -17,8 +17,10 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -66,6 +68,32 @@ class PlatformObservabilityServiceImplTest {
                 .isInstanceOf(BusinessException.class);
         assertThatThrownBy(() -> service.timeline(7L, from, to, "minute"))
                 .isInstanceOf(BusinessException.class);
+    }
+
+    @Test void comparesAdjacentEqualWindowsWithoutCountingBoundaryTwice() {
+        when(accessService.resolveActiveUser(7L)).thenReturn(access(List.of(
+                "route:platform-observability", "runtime-log:read")));
+        when(mapper.selectStats(eq(9L), eq(null), eq(null), eq(null), eq(null), eq(null),
+                any(LocalDateTime.class), any(LocalDateTime.class), anyBoolean()))
+                .thenReturn(new RuntimeLogStatsResponse(8L, 6L, 2L, 0L, 80L),
+                        new RuntimeLogStatsResponse(4L, 3L, 1L, 0L, 120L));
+        var response = service.comparison(7L, "24h");
+        assertThat(response.current().stats().total()).isEqualTo(8L);
+        assertThat(response.previous().stats().total()).isEqualTo(4L);
+        assertThat(response.current().from()).isEqualTo(response.previous().to());
+        assertThat(response.previous().toExclusive()).isTrue();
+        assertThat(response.current().toExclusive()).isFalse();
+        assertThat(java.time.Duration.between(response.previous().from(), response.previous().to()))
+                .isEqualTo(java.time.Duration.between(response.current().from(), response.current().to()));
+        verify(mapper, times(2)).selectStats(eq(9L), eq(null), eq(null), eq(null), eq(null), eq(null),
+                any(LocalDateTime.class), any(LocalDateTime.class), anyBoolean());
+    }
+
+    @Test void comparisonRejectsUnknownRangeBeforeDatabaseAccess() {
+        when(accessService.resolveActiveUser(7L)).thenReturn(access(List.of(
+                "route:platform-observability", "runtime-log:read")));
+        assertThatThrownBy(() -> service.comparison(7L, "90d")).isInstanceOf(BusinessException.class);
+        verify(mapper, never()).selectStats(any(), any(), any(), any(), any(), any(), any(), any(), anyBoolean());
     }
 
     private ResolvedUserAccess access(List<String> permissions) {

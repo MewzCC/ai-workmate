@@ -99,6 +99,22 @@ class PlatformObservabilityControllerSecurityTest {
                 LocalDateTime.parse("2026-09-23T00:00:00"), "hour");
     }
 
+    @Test void protectsComparisonWithTheSameLivePermissions() throws Exception {
+        mvc.perform(get("/api/admin/platform-observability/comparison"))
+                .andExpect(status().isUnauthorized());
+        when(accessService.resolveActiveUser(42L)).thenReturn(access(List.of("route:platform-observability")));
+        mvc.perform(get("/api/admin/platform-observability/comparison")
+                        .header("Authorization", "Bearer valid"))
+                .andExpect(status().isForbidden());
+        when(accessService.resolveActiveUser(42L)).thenReturn(access(List.of(
+                "route:platform-observability", "runtime-log:read")));
+        mvc.perform(get("/api/admin/platform-observability/comparison")
+                        .header("Authorization", "Bearer valid")
+                        .param("range", "30d"))
+                .andExpect(status().isOk());
+        verify(service).comparison(42L, "30d");
+    }
+
     @Test void protectsPreferenceReadAndWriteWithTheSameLivePermissions() throws Exception {
         mvc.perform(get("/api/admin/platform-observability/preferences"))
                 .andExpect(status().isUnauthorized());

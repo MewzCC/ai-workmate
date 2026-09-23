@@ -18,6 +18,7 @@ import {
   type ObservabilityChartPreference,
   type PlatformObservabilityOverview,
   type PlatformObservabilityTimeline,
+  type PlatformObservabilityComparison,
   type ObservabilityTimelinePoint,
 } from '@/lib/platformObservabilityApi';
 
@@ -147,6 +148,11 @@ export default function PlatformObservabilityPage() {
   const { allowed: canOpenLogs } = usePermission('route:runtime-logs');
   const [range, setRange] = useState<ObservabilityRange>('7d');
   const [autoRefresh, setAutoRefresh] = useState(false);
+  const [showComparison, setShowComparison] = useState(false);
+  const [comparison, setComparison] = useState<PlatformObservabilityComparison>();
+  const [comparisonLoading, setComparisonLoading] = useState(false);
+  const [comparisonError, setComparisonError] = useState<string>();
+  const [comparisonRetry, setComparisonRetry] = useState(0);
   const [overview, setOverview] = useState<PlatformObservabilityOverview>();
   const [alternateTimeline, setAlternateTimeline] = useState<PlatformObservabilityTimeline>();
   const [alternateLoading, setAlternateLoading] = useState(false);
@@ -251,10 +257,26 @@ export default function PlatformObservabilityPage() {
   useEffect(() => {
     if (!autoRefresh) return;
     const timer = window.setInterval(() => {
-      if (document.visibilityState === 'visible') void load();
+      if (document.visibilityState === 'visible') {
+        void load();
+        if (showComparison) setComparisonRetry((value) => value + 1);
+      }
     }, 60_000);
     return () => window.clearInterval(timer);
-  }, [autoRefresh, load]);
+  }, [autoRefresh, load, showComparison]);
+
+  useEffect(() => {
+    if (!showComparison) return;
+    let active = true;
+    setComparison(undefined);
+    setComparisonError(undefined);
+    setComparisonLoading(true);
+    void platformObservabilityApi.comparison(range)
+      .then((result) => { if (active) setComparison(result); })
+      .catch((cause) => { if (active) setComparisonError(formatOaApiError(cause)); })
+      .finally(() => { if (active) setComparisonLoading(false); });
+    return () => { active = false; };
+  }, [comparisonRetry, range, showComparison]);
 
   const number = useMemo(() => new Intl.NumberFormat(i18n.language), [i18n.language]);
   const needsAlternate = !!overview && charts.some((chart) =>
@@ -418,12 +440,18 @@ export default function PlatformObservabilityPage() {
         <div className="oa-observability-actions">
           <Space><Switch size="small" checked={autoRefresh} onChange={setAutoRefresh} aria-label={t('platformObservability.autoRefresh')} />
             <Typography.Text type="secondary">{t('platformObservability.autoRefresh')}</Typography.Text></Space>
+          <Space><Switch size="small" checked={showComparison} onChange={setShowComparison}
+            aria-label={t('platformObservability.compare')} />
+            <Typography.Text type="secondary">{t('platformObservability.compare')}</Typography.Text></Space>
           <Segmented<ObservabilityRange> value={range} onChange={(next) => { setRange(next); setOverview(undefined); }} options={([
             { value: '24h', label: t('platformObservability.ranges.day') },
             { value: '7d', label: t('platformObservability.ranges.week') },
             { value: '30d', label: t('platformObservability.ranges.month') },
           ])} />
-          <Button icon={<OaIcon name="reload" />} loading={loading} onClick={() => void load()}>{t('common.refresh')}</Button>
+          <Button icon={<OaIcon name="reload" />} loading={loading} onClick={() => {
+            void load();
+            if (showComparison) setComparisonRetry((value) => value + 1);
+          }}>{t('common.refresh')}</Button>
           <Button disabled={preferencesLoading || !!preferencesError || preferencesSaving} onClick={() => setLayoutOpen(true)}>
             {t('platformObservability.layout')}
           </Button>
@@ -449,6 +477,46 @@ export default function PlatformObservabilityPage() {
           <Card><Statistic title={t('platformObservability.blocked')} value={overview.stats.blocked ?? 0} formatter={(value) => number.format(Number(value))} /></Card>
           <Card><Statistic title={t('platformObservability.p95')} value={overview.p95DurationMs ?? 0} suffix="ms" /></Card>
         </div>
+        {showComparison && <Card className="oa-observability-comparison"
+          title={t('platformObservability.compareTitle')}
+          extra={<Tag>{t('platformObservability.ranges.' + ({ '24h': 'day', '7d': 'week', '30d': 'month' }[range]))}</Tag>}>
+          {comparisonError ? <Alert type="error" showIcon title={comparisonError}
+            action={<Button onClick={() => setComparisonRetry((value) => value + 1)}>{t('common.retry')}</Button>} />
+            : comparisonLoading || comparison?.range !== range ? <Skeleton active paragraph={{ rows: 2 }} />
+              : <>
+                <Typography.Text type="secondary" className="oa-observability-comparison-range">
+                  {t('platformObservability.current')}: {dayjs(comparison.current.from).format('YYYY-MM-DD HH:mm')} – {dayjs(comparison.current.to).format('YYYY-MM-DD HH:mm')}
+                  {' · '}{t('platformObservability.previous')}: {dayjs(comparison.previous.from).format('YYYY-MM-DD HH:mm')} – {dayjs(comparison.previous.to).format('YYYY-MM-DD HH:mm')}
+                </Typography.Text>
+                <div className="oa-observability-comparison-grid">
+                {([
+                  { key: 'volume', current: comparison.current.stats.total, previous: comparison.previous.stats.total,
+                    format: (value: number) => number.format(value), unit: '' },
+                  { key: 'failureRate',
+                    current: comparison.current.stats.total ? comparison.current.stats.failed / comparison.current.stats.total * 100 : null,
+                    previous: comparison.previous.stats.total ? comparison.previous.stats.failed / comparison.previous.stats.total * 100 : null,
+                    format: (value: number) => `${value.toFixed(1)}%`, unit: t('platformObservability.points') },
+                  { key: 'latency', current: comparison.current.stats.total ? comparison.current.stats.averageDurationMs : null,
+                    previous: comparison.previous.stats.total ? comparison.previous.stats.averageDurationMs : null,
+                    format: (value: number) => `${number.format(value)} ms`, unit: 'ms' },
+                ] as const).map((metric) => <div key={metric.key} className="oa-observability-comparison-metric">
+                  <Typography.Text strong>{t(`platformObservability.compareMetrics.${metric.key}`)}</Typography.Text>
+                  <div className="oa-observability-comparison-values">
+                    <span>{t('platformObservability.current')}: {metric.current == null ? '—' : metric.format(metric.current)}</span>
+                    <span>{t('platformObservability.previous')}: {metric.previous == null ? '—' : metric.format(metric.previous)}</span>
+                  </div>
+                  <Tag color={metric.current == null || metric.previous == null ? 'default'
+                    : metric.key === 'volume' ? 'blue'
+                    : metric.current > metric.previous ? 'volcano' : metric.current < metric.previous ? 'green' : 'blue'}>
+                    {metric.current == null || metric.previous == null ? t('platformObservability.notComparable')
+                      : `${metric.current - metric.previous > 0 ? '+' : ''}${metric.key === 'failureRate'
+                        ? (metric.current - metric.previous).toFixed(1)
+                        : number.format(metric.current - metric.previous)} ${metric.unit}`.trim()}
+                  </Tag>
+                </div>)}
+                </div>
+              </>}
+        </Card>}
         <div className="oa-observability-grid">
           {charts.map((chart) => {
             const kind = chartKind(chart);

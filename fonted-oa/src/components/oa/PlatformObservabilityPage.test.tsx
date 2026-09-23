@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import PlatformObservabilityPage from './PlatformObservabilityPage';
 
 const overview = vi.fn();
+const comparison = vi.fn();
 const timeline = vi.fn();
 const preferences = vi.fn();
 const updatePreferences = vi.fn();
@@ -20,6 +21,7 @@ vi.mock('echarts/core', () => ({ use: vi.fn(), init: () => ({ setOption: chartSe
   resize: vi.fn(), dispose: vi.fn() }) }));
 vi.mock('@/lib/platformObservabilityApi', () => ({ platformObservabilityApi: {
   overview: (...args: unknown[]) => overview(...args),
+  comparison: (...args: unknown[]) => comparison(...args),
   timeline: (...args: unknown[]) => timeline(...args),
   preferences: (...args: unknown[]) => preferences(...args),
   updatePreferences: (...args: unknown[]) => updatePreferences(...args),
@@ -35,6 +37,7 @@ const emptyOverview = {
 describe('PlatformObservabilityPage', () => {
   beforeEach(() => {
     overview.mockReset();
+    comparison.mockReset();
     timeline.mockReset();
     preferences.mockReset().mockResolvedValue({ charts: defaultCharts });
     updatePreferences.mockReset().mockImplementation(async (charts) => ({ charts }));
@@ -182,5 +185,23 @@ describe('PlatformObservabilityPage', () => {
     expect(query.get('from')).toBe(emptyOverview.from);
     expect(query.get('to')).toBe(emptyOverview.to);
     expect(query.has('keyword')).toBe(false);
+  });
+
+  it('compares equal adjacent periods using server metrics without inventing a zero-baseline rate', async () => {
+    overview.mockResolvedValue(emptyOverview);
+    comparison.mockResolvedValue({ range: '7d',
+      current: { from: '2026-09-16T00:00:00', to: '2026-09-23T00:00:00', toExclusive: false,
+        stats: { total: 8, failed: 2, averageDurationMs: 80 } },
+      previous: { from: '2026-09-09T00:00:00', to: '2026-09-16T00:00:00', toExclusive: true,
+        stats: { total: 0, failed: 0, averageDurationMs: 0 } },
+    });
+    render(<MemoryRouter><PlatformObservabilityPage /></MemoryRouter>);
+    await screen.findByText('调用流量');
+    fireEvent.click(screen.getByRole('switch', { name: '时段对比' }));
+    await waitFor(() => expect(comparison).toHaveBeenCalledWith('7d'));
+    expect(await screen.findByText('与上一等长时段对比')).toBeTruthy();
+    expect(screen.getAllByText('无可比数据')).toHaveLength(2);
+    expect(screen.getByText('本期: 8')).toBeTruthy();
+    expect(screen.getByText('上期: 0')).toBeTruthy();
   });
 });

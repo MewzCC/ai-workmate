@@ -33,4 +33,12 @@ describe('platform observability API', () => {
     await platformObservabilityApi.timeline('2026-09-16T00:00:00', '2026-09-23T00:00:00', 'hour');
     expect(fetchMock.mock.calls[0][0]).toBe('/api/admin/platform-observability/timeline?from=2026-09-16T00%3A00%3A00&to=2026-09-23T00%3A00%3A00&interval=hour');
   });
+
+  it('loads an adjacent-period comparison from the authenticated endpoint', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true, json: async () => ({ code: 200, data: { range: '30d' } }),
+    } as Response);
+    await platformObservabilityApi.comparison('30d');
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/admin/platform-observability/comparison?range=30d');
+  });
 });

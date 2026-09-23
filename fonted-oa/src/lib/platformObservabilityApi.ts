@@ -45,11 +45,19 @@ export interface PlatformObservabilityTimeline {
   timeline: ObservabilityTimelinePoint[];
 }
 
+export interface PlatformObservabilityComparison {
+  range: ObservabilityRange;
+  current: { from: string; to: string; toExclusive: boolean; stats: PlatformObservabilityOverview['stats'] };
+  previous: { from: string; to: string; toExclusive: boolean; stats: PlatformObservabilityOverview['stats'] };
+}
+
 export const platformObservabilityApi = {
   overview: (range: ObservabilityRange) =>
     request<PlatformObservabilityOverview>(`/admin/platform-observability/overview${queryString({ range })}`),
   timeline: (from: string, to: string, interval: 'hour' | 'day') =>
     request<PlatformObservabilityTimeline>(`/admin/platform-observability/timeline${queryString({ from, to, interval })}`),
+  comparison: (range: ObservabilityRange) =>
+    request<PlatformObservabilityComparison>(`/admin/platform-observability/comparison${queryString({ range })}`),
   preferences: () => request<ObservabilityPreferences>('/admin/platform-observability/preferences'),
   updatePreferences: (charts: ObservabilityChartPreference[]) =>
     request<ObservabilityPreferences>('/admin/platform-observability/preferences', {

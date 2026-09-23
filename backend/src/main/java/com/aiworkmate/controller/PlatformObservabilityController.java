@@ -3,6 +3,7 @@ package com.aiworkmate.controller;
 import com.aiworkmate.common.Result;
 import com.aiworkmate.dto.PlatformObservabilityResponse;
 import com.aiworkmate.dto.PlatformObservabilityTimelineResponse;
+import com.aiworkmate.dto.PlatformObservabilityComparisonResponse;
 import com.aiworkmate.dto.ObservabilityPreferenceRequest;
 import com.aiworkmate.dto.ObservabilityPreferenceResponse;
 import com.aiworkmate.security.AuthenticatedUser;
@@ -44,6 +45,13 @@ public class PlatformObservabilityController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to,
             @RequestParam String interval) {
         return Result.ok(service.timeline(user.userId(), from, to, interval));
+    }
+
+    @GetMapping("/comparison")
+    public Result<PlatformObservabilityComparisonResponse> comparison(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @RequestParam(defaultValue = "7d") String range) {
+        return Result.ok(service.comparison(user.userId(), range));
     }
 
     @GetMapping("/preferences")

@@ -4,6 +4,7 @@ import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.common.ErrorCode;
 import com.aiworkmate.dto.PlatformObservabilityResponse;
 import com.aiworkmate.dto.PlatformObservabilityTimelineResponse;
+import com.aiworkmate.dto.PlatformObservabilityComparisonResponse;
 import com.aiworkmate.dto.RuntimeLogStatsResponse;
 import com.aiworkmate.mapper.RuntimeLogMapper;
 import com.aiworkmate.service.PlatformObservabilityService;
@@ -28,10 +29,7 @@ public class PlatformObservabilityServiceImpl implements PlatformObservabilitySe
     @Transactional(readOnly = true)
     public PlatformObservabilityResponse overview(Long userId, String range) {
         ResolvedUserAccess actor = requireAccess(userId);
-        String selectedRange = range == null ? "7d" : range;
-        if (!ALLOWED_RANGES.contains(selectedRange)) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.observability.range.invalid");
-        }
+        String selectedRange = validateRange(range);
         LocalDateTime to = LocalDateTime.now();
         LocalDateTime from = switch (selectedRange) {
             case "24h" -> to.minusHours(24);
@@ -48,6 +46,29 @@ public class PlatformObservabilityServiceImpl implements PlatformObservabilitySe
                 mapper.selectTimeline(tenantId, from, to, interval),
                 mapper.selectSourceCounts(tenantId, from, to),
                 mapper.selectTopErrorCodes(tenantId, from, to));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PlatformObservabilityComparisonResponse comparison(Long userId, String range) {
+        ResolvedUserAccess actor = requireAccess(userId);
+        String selectedRange = validateRange(range);
+        Duration duration = switch (selectedRange) {
+            case "24h" -> Duration.ofHours(24);
+            case "30d" -> Duration.ofDays(30);
+            default -> Duration.ofDays(7);
+        };
+        LocalDateTime to = LocalDateTime.now();
+        LocalDateTime from = to.minus(duration);
+        LocalDateTime previousFrom = from.minus(duration);
+        Long tenantId = actor.tenantId();
+        RuntimeLogStatsResponse current = safeStats(mapper.selectStats(tenantId, null, null,
+                null, null, null, from, to, false));
+        RuntimeLogStatsResponse previous = safeStats(mapper.selectStats(tenantId, null, null,
+                null, null, null, previousFrom, from, true));
+        return new PlatformObservabilityComparisonResponse(selectedRange,
+                new PlatformObservabilityComparisonResponse.Period(from, to, false, current),
+                new PlatformObservabilityComparisonResponse.Period(previousFrom, from, true, previous));
     }
 
     @Override
@@ -73,5 +94,17 @@ public class PlatformObservabilityServiceImpl implements PlatformObservabilitySe
             throw new BusinessException(ErrorCode.PERMISSION_DENIED);
         }
         return actor;
+    }
+
+    private String validateRange(String range) {
+        String selectedRange = range == null ? "7d" : range;
+        if (!ALLOWED_RANGES.contains(selectedRange)) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.observability.range.invalid");
+        }
+        return selectedRange;
+    }
+
+    private RuntimeLogStatsResponse safeStats(RuntimeLogStatsResponse stats) {
+        return stats == null ? new RuntimeLogStatsResponse(0L, 0L, 0L, 0L, 0L) : stats;
     }
 }
