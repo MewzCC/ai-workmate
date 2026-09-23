@@ -29,6 +29,7 @@ public class UserSettingsServiceImpl implements UserSettingsService {
     static final String KEY_CHAT_STREAM = "chat.stream";
     static final String KEY_DASHBOARD_METRIC_CODES = "dashboard.metricCodes";
     static final String KEY_OBSERVABILITY_CHARTS = "observability.charts";
+    static final String KEY_OBSERVABILITY_THRESHOLDS = "observability.thresholds";
     private static final int DEFAULT_CONTEXT_ROUNDS = 10;
 
     private final UserSettingMapper userSettingMapper;
@@ -112,6 +113,20 @@ public class UserSettingsServiceImpl implements UserSettingsService {
     public void setObservabilityChartConfig(Long userId, String config) {
         upsert(userId, KEY_OBSERVABILITY_CHARTS, config);
         log.info("User observability chart preference updated, userId={}", userId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public String getObservabilityThresholdConfig(Long userId) {
+        UserSetting setting = findSetting(userId, KEY_OBSERVABILITY_THRESHOLDS);
+        return setting == null ? null : setting.getSettingValue();
+    }
+
+    @Override
+    @Transactional
+    public void setObservabilityThresholdConfig(Long userId, String config) {
+        upsert(userId, KEY_OBSERVABILITY_THRESHOLDS, config);
+        log.info("User observability visual threshold preference updated, userId={}", userId);
     }
 
     private Map<String, UserSetting> settings(Long userId) {

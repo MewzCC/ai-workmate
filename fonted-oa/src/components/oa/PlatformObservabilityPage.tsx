@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Button, Card, Checkbox, Empty, Input, Modal, Popover, Segmented, Select, Skeleton, Space, Statistic, Switch, Tag, Typography } from 'antd';
+import { Alert, Button, Card, Checkbox, Empty, Input, InputNumber, Modal, Popover, Segmented, Select, Skeleton, Space, Statistic, Switch, Tag, Typography } from 'antd';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import * as echarts from 'echarts/core';
@@ -19,6 +19,7 @@ import {
   type PlatformObservabilityOverview,
   type PlatformObservabilityTimeline,
   type PlatformObservabilityComparison,
+  type ObservabilityThresholds,
   type ObservabilityTimelinePoint,
 } from '@/lib/platformObservabilityApi';
 
@@ -63,6 +64,7 @@ function buildSeries(from: string, to: string, interval: 'hour' | 'day',
 }
 
 const EMPTY_SERIES: ChartSeries = { buckets: [], labels: [], bySource: {}, failed: [], blocked: [] };
+const EMPTY_THRESHOLDS: ObservabilityThresholds = { failedCount: null, blockedCount: null, p95DurationMs: null };
 
 function readColors(element: HTMLElement): ChartColors {
   const styles = getComputedStyle(element);
@@ -153,6 +155,12 @@ export default function PlatformObservabilityPage() {
   const [comparisonLoading, setComparisonLoading] = useState(false);
   const [comparisonError, setComparisonError] = useState<string>();
   const [comparisonRetry, setComparisonRetry] = useState(0);
+  const [thresholds, setThresholds] = useState<ObservabilityThresholds>();
+  const [thresholdDraft, setThresholdDraft] = useState<ObservabilityThresholds>(EMPTY_THRESHOLDS);
+  const [thresholdsLoading, setThresholdsLoading] = useState(true);
+  const [thresholdsSaving, setThresholdsSaving] = useState(false);
+  const [thresholdsError, setThresholdsError] = useState<string>();
+  const [thresholdsOpen, setThresholdsOpen] = useState(false);
   const [overview, setOverview] = useState<PlatformObservabilityOverview>();
   const [alternateTimeline, setAlternateTimeline] = useState<PlatformObservabilityTimeline>();
   const [alternateLoading, setAlternateLoading] = useState(false);
@@ -182,6 +190,33 @@ export default function PlatformObservabilityPage() {
     }
   }, []);
   useEffect(() => { void loadPreferences(); }, [loadPreferences]);
+  const loadThresholds = useCallback(async () => {
+    setThresholdsLoading(true);
+    setThresholdsError(undefined);
+    try {
+      setThresholds(await platformObservabilityApi.thresholds());
+    } catch (cause) {
+      setThresholds(undefined);
+      setThresholdsError(formatOaApiError(cause));
+    } finally {
+      setThresholdsLoading(false);
+    }
+  }, []);
+  useEffect(() => { void loadThresholds(); }, [loadThresholds]);
+  const saveThresholds = async () => {
+    setThresholdsSaving(true);
+    setThresholdsError(undefined);
+    try {
+      setThresholds(await platformObservabilityApi.updateThresholds(thresholdDraft));
+      setThresholdsOpen(false);
+    } catch (cause) {
+      setThresholdsError(formatOaApiError(cause));
+    } finally {
+      setThresholdsSaving(false);
+    }
+  };
+  const editThreshold = (key: keyof ObservabilityThresholds, value: number | null) =>
+    setThresholdDraft((current) => ({ ...current, [key]: value }));
   const updateChart = useCallback((next: ObservabilityChartPreference) => {
     setCharts((current) => current.map((chart) => chart.id === next.id ? next : chart));
     setPreferencesDirty(true);
@@ -455,6 +490,10 @@ export default function PlatformObservabilityPage() {
           <Button disabled={preferencesLoading || !!preferencesError || preferencesSaving} onClick={() => setLayoutOpen(true)}>
             {t('platformObservability.layout')}
           </Button>
+          <Button disabled={thresholdsLoading || !!thresholdsError || thresholdsSaving}
+            onClick={() => { setThresholdDraft(thresholds ?? EMPTY_THRESHOLDS); setThresholdsOpen(true); }}>
+            {t('platformObservability.thresholds')}
+          </Button>
           <Button type={preferencesDirty ? 'primary' : 'default'} loading={preferencesSaving}
             disabled={!preferencesDirty || preferencesLoading || !!preferencesError} onClick={() => void savePreferences()}>
             {t('platformObservability.savePreferences')}
@@ -468,14 +507,31 @@ export default function PlatformObservabilityPage() {
         description={preferencesError} action={<Button onClick={() => void (preferencesDirty ? savePreferences() : loadPreferences())}>
           {t('common.retry')}
         </Button>} />}
+      {thresholdsError && <Alert type="error" showIcon title={t('platformObservability.thresholdsError')}
+        description={thresholdsError} action={<Button onClick={() => void loadThresholds()}>{t('common.retry')}</Button>} />}
       {error && <Alert type="error" showIcon title={error} action={<Button onClick={() => void load()}>{t('common.retry')}</Button>} />}
       {(loading && !overview) || preferencesLoading ? <Skeleton active paragraph={{ rows: 10 }} /> : overview && <>
         <div className="oa-observability-metrics">
           <Card><Statistic title={t('platformObservability.total')} value={overview.stats.total ?? 0} formatter={(value) => number.format(Number(value))} /></Card>
           <Card><Statistic title={t('platformObservability.successRate')} value={overview.stats.total ? overview.stats.succeeded / overview.stats.total * 100 : 0} precision={1} suffix="%" /></Card>
-          <Card><Statistic title={t('platformObservability.failed')} value={overview.stats.failed ?? 0} formatter={(value) => number.format(Number(value))} /></Card>
-          <Card><Statistic title={t('platformObservability.blocked')} value={overview.stats.blocked ?? 0} formatter={(value) => number.format(Number(value))} /></Card>
-          <Card><Statistic title={t('platformObservability.p95')} value={overview.p95DurationMs ?? 0} suffix="ms" /></Card>
+          <Card className={thresholds?.failedCount != null && overview.stats.failed >= thresholds.failedCount ? 'oa-observability-metric-exceeded' : ''}>
+            <Statistic title={<Space size={4} wrap>{t('platformObservability.failed')}
+              {thresholds?.failedCount != null && overview.stats.failed >= thresholds.failedCount
+                && <Tag color="volcano">{t('platformObservability.thresholdReached')}</Tag>}</Space>}
+              value={overview.stats.failed ?? 0} formatter={(value) => number.format(Number(value))} />
+          </Card>
+          <Card className={thresholds?.blockedCount != null && overview.stats.blocked >= thresholds.blockedCount ? 'oa-observability-metric-exceeded' : ''}>
+            <Statistic title={<Space size={4} wrap>{t('platformObservability.blocked')}
+              {thresholds?.blockedCount != null && overview.stats.blocked >= thresholds.blockedCount
+                && <Tag color="volcano">{t('platformObservability.thresholdReached')}</Tag>}</Space>}
+              value={overview.stats.blocked ?? 0} formatter={(value) => number.format(Number(value))} />
+          </Card>
+          <Card className={thresholds?.p95DurationMs != null && overview.p95DurationMs != null && overview.p95DurationMs >= thresholds.p95DurationMs ? 'oa-observability-metric-exceeded' : ''}>
+            <Statistic title={<Space size={4} wrap>{t('platformObservability.p95')}
+              {thresholds?.p95DurationMs != null && overview.p95DurationMs != null && overview.p95DurationMs >= thresholds.p95DurationMs
+                && <Tag color="volcano">{t('platformObservability.thresholdReached')}</Tag>}</Space>}
+              value={overview.p95DurationMs ?? 0} suffix="ms" />
+          </Card>
         </div>
         {showComparison && <Card className="oa-observability-comparison"
           title={t('platformObservability.compareTitle')}
@@ -585,6 +641,25 @@ export default function PlatformObservabilityPage() {
             </Space>
           </div>)}
         </div>
+      </Modal>
+      <Modal title={t('platformObservability.thresholds')} open={thresholdsOpen}
+        onCancel={() => setThresholdsOpen(false)}
+        footer={<Space><Button onClick={() => setThresholdsOpen(false)}>{t('common.cancel')}</Button>
+          <Button type="primary" loading={thresholdsSaving} onClick={() => void saveThresholds()}>{t('common.save')}</Button></Space>}>
+        <Typography.Paragraph type="secondary">{t('platformObservability.thresholdsHelp')}</Typography.Paragraph>
+        <div className="oa-observability-threshold-form">
+          {([
+            { key: 'failedCount', max: 1_000_000, label: t('platformObservability.failed'), unit: t('platformObservability.callsUnit') },
+            { key: 'blockedCount', max: 1_000_000, label: t('platformObservability.blocked'), unit: t('platformObservability.callsUnit') },
+            { key: 'p95DurationMs', max: 600_000, label: t('platformObservability.p95'), unit: 'ms' },
+          ] as const).map((field) => <label key={field.key}>
+            <Typography.Text>{field.label} ({field.unit})</Typography.Text>
+            <InputNumber min={1} max={field.max} precision={0} value={thresholdDraft[field.key]}
+              onChange={(value) => editThreshold(field.key, value)}
+              placeholder={t('platformObservability.thresholdDisabled')} />
+          </label>)}
+        </div>
+        <Typography.Text type="secondary">{t('platformObservability.thresholdsNotice')}</Typography.Text>
       </Modal>
     </section>
   );

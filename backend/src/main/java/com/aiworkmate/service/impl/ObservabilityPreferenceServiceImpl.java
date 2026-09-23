@@ -5,6 +5,7 @@ import com.aiworkmate.common.ErrorCode;
 import com.aiworkmate.dto.ObservabilityChartPreference;
 import com.aiworkmate.dto.ObservabilityPreferenceRequest;
 import com.aiworkmate.dto.ObservabilityPreferenceResponse;
+import com.aiworkmate.dto.ObservabilityThresholdPreference;
 import com.aiworkmate.service.ObservabilityPreferenceService;
 import com.aiworkmate.service.UserAccessService;
 import com.aiworkmate.service.UserSettingsService;
@@ -68,6 +69,48 @@ public class ObservabilityPreferenceServiceImpl implements ObservabilityPreferen
             throw new IllegalStateException("Cannot serialize observability chart preference", exception);
         }
         return new ObservabilityPreferenceResponse(charts);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ObservabilityThresholdPreference thresholds(Long userId) {
+        requireAccess(userId);
+        String value = settingsService.getObservabilityThresholdConfig(userId);
+        if (value == null || value.isBlank()) return emptyThresholds();
+        try {
+            ObservabilityThresholdPreference saved = objectMapper.readValue(value, ObservabilityThresholdPreference.class);
+            return validateThresholds(saved);
+        } catch (JsonProcessingException | BusinessException ignored) {
+            return emptyThresholds();
+        }
+    }
+
+    @Override
+    @Transactional
+    public ObservabilityThresholdPreference updateThresholds(Long userId, ObservabilityThresholdPreference request) {
+        requireAccess(userId);
+        ObservabilityThresholdPreference validated = validateThresholds(request);
+        try {
+            settingsService.setObservabilityThresholdConfig(userId, objectMapper.writeValueAsString(validated));
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException("Cannot serialize observability visual threshold preference", exception);
+        }
+        return validated;
+    }
+
+    private ObservabilityThresholdPreference emptyThresholds() {
+        return new ObservabilityThresholdPreference(null, null, null);
+    }
+
+    private ObservabilityThresholdPreference validateThresholds(ObservabilityThresholdPreference thresholds) {
+        if (thresholds == null || !bounded(thresholds.failedCount(), 1_000_000)
+                || !bounded(thresholds.blockedCount(), 1_000_000)
+                || !bounded(thresholds.p95DurationMs(), 600_000)) throw invalid();
+        return thresholds;
+    }
+
+    private boolean bounded(Integer value, int maximum) {
+        return value == null || value >= 1 && value <= maximum;
     }
 
     private void requireAccess(Long userId) {

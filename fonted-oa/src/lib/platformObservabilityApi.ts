@@ -51,6 +51,12 @@ export interface PlatformObservabilityComparison {
   previous: { from: string; to: string; toExclusive: boolean; stats: PlatformObservabilityOverview['stats'] };
 }
 
+export interface ObservabilityThresholds {
+  failedCount: number | null;
+  blockedCount: number | null;
+  p95DurationMs: number | null;
+}
+
 export const platformObservabilityApi = {
   overview: (range: ObservabilityRange) =>
     request<PlatformObservabilityOverview>(`/admin/platform-observability/overview${queryString({ range })}`),
@@ -58,6 +64,11 @@ export const platformObservabilityApi = {
     request<PlatformObservabilityTimeline>(`/admin/platform-observability/timeline${queryString({ from, to, interval })}`),
   comparison: (range: ObservabilityRange) =>
     request<PlatformObservabilityComparison>(`/admin/platform-observability/comparison${queryString({ range })}`),
+  thresholds: () => request<ObservabilityThresholds>('/admin/platform-observability/thresholds'),
+  updateThresholds: (thresholds: ObservabilityThresholds) =>
+    request<ObservabilityThresholds>('/admin/platform-observability/thresholds', {
+      method: 'PUT', body: JSON.stringify(thresholds),
+    }),
   preferences: () => request<ObservabilityPreferences>('/admin/platform-observability/preferences'),
   updatePreferences: (charts: ObservabilityChartPreference[]) =>
     request<ObservabilityPreferences>('/admin/platform-observability/preferences', {

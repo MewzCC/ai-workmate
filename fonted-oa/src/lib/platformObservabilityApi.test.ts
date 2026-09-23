@@ -41,4 +41,15 @@ describe('platform observability API', () => {
     await platformObservabilityApi.comparison('30d');
     expect(fetchMock.mock.calls[0][0]).toBe('/api/admin/platform-observability/comparison?range=30d');
   });
+
+  it('loads and saves personal visual thresholds through authenticated settings', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true, json: async () => ({ code: 200, data: { failedCount: 5 } }),
+    } as Response);
+    await platformObservabilityApi.thresholds();
+    await platformObservabilityApi.updateThresholds({ failedCount: 5, blockedCount: null, p95DurationMs: null });
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/admin/platform-observability/thresholds');
+    expect(fetchMock.mock.calls[1][1]).toMatchObject({ method: 'PUT',
+      body: JSON.stringify({ failedCount: 5, blockedCount: null, p95DurationMs: null }) });
+  });
 });

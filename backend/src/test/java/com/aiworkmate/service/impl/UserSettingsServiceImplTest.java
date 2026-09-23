@@ -132,6 +132,16 @@ class UserSettingsServiceImplTest {
         verify(userSettingMapper).updateById(existing);
     }
 
+    @Test
+    void observabilityVisualThresholdsUseExistingUserSettingWithoutNewTable() {
+        UserSetting existing = setting("observability.thresholds", "{}");
+        when(userSettingMapper.selectOne(any())).thenReturn(existing);
+        settingsService.setObservabilityThresholdConfig(1001L, "{\"failedCount\":5}");
+        assertThat(settingsService.getObservabilityThresholdConfig(1001L))
+                .isEqualTo("{\"failedCount\":5}");
+        verify(userSettingMapper).updateById(existing);
+    }
+
     private UserSetting setting(String value) {
         return setting("ocr.forcePdfOcr", value);
     }

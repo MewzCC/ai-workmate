@@ -3,6 +3,7 @@ package com.aiworkmate.service.impl;
 import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.dto.ObservabilityChartPreference;
 import com.aiworkmate.dto.ObservabilityPreferenceRequest;
+import com.aiworkmate.dto.ObservabilityThresholdPreference;
 import com.aiworkmate.service.UserAccessService;
 import com.aiworkmate.service.UserSettingsService;
 import com.aiworkmate.service.model.ResolvedUserAccess;
@@ -112,6 +113,28 @@ class ObservabilityPreferenceServiceImplTest {
         when(settingsService.getObservabilityChartConfig(7L)).thenReturn("[{\"id\":\"volume\"}]");
         assertThat(service.preferences(7L).charts()).extracting(ObservabilityChartPreference::id)
                 .containsExactly("volume", "risk", "source", "error");
+    }
+
+    @Test void savesAndRestoresOnlyBoundedPersonalVisualThresholds() {
+        allow();
+        var thresholds = new ObservabilityThresholdPreference(5, null, 1500);
+        assertThat(service.updateThresholds(7L, thresholds)).isEqualTo(thresholds);
+        org.mockito.ArgumentCaptor<String> value = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(settingsService).setObservabilityThresholdConfig(eq(7L), value.capture());
+        when(settingsService.getObservabilityThresholdConfig(7L)).thenReturn(value.getValue());
+        assertThat(service.thresholds(7L)).isEqualTo(thresholds);
+    }
+
+    @Test void rejectsUnsafeVisualThresholdsAndRevokedPermission() {
+        allow();
+        assertThatThrownBy(() -> service.updateThresholds(7L,
+                new ObservabilityThresholdPreference(0, null, 600001)))
+                .isInstanceOf(BusinessException.class);
+        verify(settingsService, never()).setObservabilityThresholdConfig(eq(7L), anyString());
+        org.mockito.Mockito.reset(accessService);
+        when(accessService.resolveActiveUser(7L)).thenReturn(access(List.of("route:platform-observability")));
+        assertThatThrownBy(() -> service.thresholds(7L)).isInstanceOf(BusinessException.class);
+        verify(settingsService, never()).getObservabilityThresholdConfig(7L);
     }
 
     private void allow() {

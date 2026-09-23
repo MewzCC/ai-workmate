@@ -6,6 +6,7 @@ import com.aiworkmate.dto.PlatformObservabilityTimelineResponse;
 import com.aiworkmate.dto.PlatformObservabilityComparisonResponse;
 import com.aiworkmate.dto.ObservabilityPreferenceRequest;
 import com.aiworkmate.dto.ObservabilityPreferenceResponse;
+import com.aiworkmate.dto.ObservabilityThresholdPreference;
 import com.aiworkmate.security.AuthenticatedUser;
 import com.aiworkmate.service.PlatformObservabilityService;
 import com.aiworkmate.service.ObservabilityPreferenceService;
@@ -65,5 +66,18 @@ public class PlatformObservabilityController {
             @AuthenticationPrincipal AuthenticatedUser user,
             @Valid @RequestBody ObservabilityPreferenceRequest request) {
         return Result.ok(preferenceService.update(user.userId(), request));
+    }
+
+    @GetMapping("/thresholds")
+    public Result<ObservabilityThresholdPreference> thresholds(
+            @AuthenticationPrincipal AuthenticatedUser user) {
+        return Result.ok(preferenceService.thresholds(user.userId()));
+    }
+
+    @PutMapping("/thresholds")
+    public Result<ObservabilityThresholdPreference> updateThresholds(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @Valid @RequestBody ObservabilityThresholdPreference request) {
+        return Result.ok(preferenceService.updateThresholds(user.userId(), request));
     }
 }

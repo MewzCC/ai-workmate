@@ -23,4 +23,8 @@ public interface UserSettingsService {
     String getObservabilityChartConfig(Long userId);
 
     void setObservabilityChartConfig(Long userId, String config);
+
+    String getObservabilityThresholdConfig(Long userId);
+
+    void setObservabilityThresholdConfig(Long userId, String config);
 }

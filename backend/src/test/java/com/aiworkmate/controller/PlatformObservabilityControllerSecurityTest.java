@@ -115,6 +115,26 @@ class PlatformObservabilityControllerSecurityTest {
         verify(service).comparison(42L, "30d");
     }
 
+    @Test void validatesAndProtectsVisualThresholdSettings() throws Exception {
+        mvc.perform(get("/api/admin/platform-observability/thresholds"))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(put("/api/admin/platform-observability/thresholds")
+                        .header("Authorization", "Bearer valid")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"failedCount\":0,\"blockedCount\":null,\"p95DurationMs\":null}"))
+                .andExpect(status().isBadRequest());
+        when(accessService.resolveActiveUser(42L)).thenReturn(access(List.of("route:platform-observability")));
+        mvc.perform(get("/api/admin/platform-observability/thresholds")
+                        .header("Authorization", "Bearer valid"))
+                .andExpect(status().isForbidden());
+        when(accessService.resolveActiveUser(42L)).thenReturn(access(List.of(
+                "route:platform-observability", "runtime-log:read")));
+        mvc.perform(get("/api/admin/platform-observability/thresholds")
+                        .header("Authorization", "Bearer valid"))
+                .andExpect(status().isOk());
+        verify(preferenceService).thresholds(42L);
+    }
+
     @Test void protectsPreferenceReadAndWriteWithTheSameLivePermissions() throws Exception {
         mvc.perform(get("/api/admin/platform-observability/preferences"))
                 .andExpect(status().isUnauthorized());

@@ -1,10 +1,12 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import PlatformObservabilityPage from './PlatformObservabilityPage';
 
 const overview = vi.fn();
 const comparison = vi.fn();
+const thresholds = vi.fn();
+const updateThresholds = vi.fn();
 const timeline = vi.fn();
 const preferences = vi.fn();
 const updatePreferences = vi.fn();
@@ -22,6 +24,8 @@ vi.mock('echarts/core', () => ({ use: vi.fn(), init: () => ({ setOption: chartSe
 vi.mock('@/lib/platformObservabilityApi', () => ({ platformObservabilityApi: {
   overview: (...args: unknown[]) => overview(...args),
   comparison: (...args: unknown[]) => comparison(...args),
+  thresholds: (...args: unknown[]) => thresholds(...args),
+  updateThresholds: (...args: unknown[]) => updateThresholds(...args),
   timeline: (...args: unknown[]) => timeline(...args),
   preferences: (...args: unknown[]) => preferences(...args),
   updatePreferences: (...args: unknown[]) => updatePreferences(...args),
@@ -38,6 +42,8 @@ describe('PlatformObservabilityPage', () => {
   beforeEach(() => {
     overview.mockReset();
     comparison.mockReset();
+    thresholds.mockReset().mockResolvedValue({ failedCount: null, blockedCount: null, p95DurationMs: null });
+    updateThresholds.mockReset().mockImplementation(async (value) => value);
     timeline.mockReset();
     preferences.mockReset().mockResolvedValue({ charts: defaultCharts });
     updatePreferences.mockReset().mockImplementation(async (charts) => ({ charts }));
@@ -203,5 +209,29 @@ describe('PlatformObservabilityPage', () => {
     expect(screen.getAllByText('无可比数据')).toHaveLength(2);
     expect(screen.getByText('本期: 8')).toBeTruthy();
     expect(screen.getByText('上期: 0')).toBeTruthy();
+  });
+
+  it('highlights only measured values that cross a persisted visual threshold', async () => {
+    overview.mockResolvedValue({ ...emptyOverview,
+      stats: { ...emptyOverview.stats, total: 3, failed: 2, blocked: 0 }, p95DurationMs: 900 });
+    thresholds.mockResolvedValue({ failedCount: 2, blockedCount: 1, p95DurationMs: 1000 });
+    render(<MemoryRouter><PlatformObservabilityPage /></MemoryRouter>);
+    await waitFor(() => expect(thresholds).toHaveBeenCalled());
+    expect(await screen.findByText('达到阈值')).toBeTruthy();
+    expect(screen.getAllByText('达到阈值')).toHaveLength(1);
+  });
+
+  it('saves bounded visual thresholds separately from chart configuration', async () => {
+    overview.mockResolvedValue(emptyOverview);
+    render(<MemoryRouter><PlatformObservabilityPage /></MemoryRouter>);
+    await screen.findByText('调用流量');
+    fireEvent.click(screen.getByRole('button', { name: '视觉阈值' }));
+    const inputs = screen.getAllByRole('spinbutton');
+    fireEvent.change(inputs[0], { target: { value: '5' } });
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /保\s*存/ }));
+    await waitFor(() => expect(updateThresholds).toHaveBeenCalledWith({
+      failedCount: 5, blockedCount: null, p95DurationMs: null,
+    }));
+    expect(updatePreferences).not.toHaveBeenCalled();
   });
 });
