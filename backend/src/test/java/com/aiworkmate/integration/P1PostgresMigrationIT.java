@@ -185,6 +185,11 @@ class P1PostgresMigrationIT {
                     SELECT COUNT(*) FROM flyway_schema_history WHERE success
                     """)).isGreaterThan(30);
             assertThat(count(statement, """
+                    SELECT COUNT(*) FROM information_schema.columns
+                    WHERE table_schema = current_schema() AND table_name = 'user_setting'
+                      AND column_name = 'setting_value' AND data_type = 'text'
+                    """)).as("观测图表配置应支持完整的受控 JSON").isOne();
+            assertThat(count(statement, """
                     SELECT COUNT(*) FROM approval_process
                     WHERE process_key = 'expense-single-approval' AND status = 'ENABLED' AND deleted = FALSE
                     """)).isOne();

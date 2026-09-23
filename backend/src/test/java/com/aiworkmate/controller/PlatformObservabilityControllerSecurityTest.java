@@ -6,6 +6,7 @@ import com.aiworkmate.config.SecurityConfig;
 import com.aiworkmate.security.JwtAuthenticationFilter;
 import com.aiworkmate.security.JwtValidationStatus;
 import com.aiworkmate.service.PlatformObservabilityService;
+import com.aiworkmate.service.ObservabilityPreferenceService;
 import com.aiworkmate.service.UserAccessService;
 import com.aiworkmate.service.model.ResolvedUserAccess;
 import com.aiworkmate.util.JwtUtil;
@@ -16,6 +17,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.http.MediaType;
 
 import java.util.List;
 
@@ -23,13 +25,23 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(PlatformObservabilityController.class)
 @Import({SecurityConfig.class, JwtAuthenticationFilter.class, RequestTraceFilter.class, GlobalExceptionHandler.class})
 class PlatformObservabilityControllerSecurityTest {
+    private static final String VALID_PREFERENCES = """
+            {"charts":[
+              {"id":"volume","mode":"line","content":["HUMAN"],"size":"normal"},
+              {"id":"risk","mode":"mixed","content":["failed"],"size":"normal"},
+              {"id":"source","mode":"donut","content":["HUMAN"],"size":"normal"},
+              {"id":"error","mode":"bar","content":[],"size":"normal"}
+            ]}
+            """;
     @Autowired MockMvc mvc;
     @MockBean PlatformObservabilityService service;
+    @MockBean ObservabilityPreferenceService preferenceService;
     @MockBean JwtUtil jwtUtil;
     @MockBean UserAccessService accessService;
 
@@ -59,6 +71,29 @@ class PlatformObservabilityControllerSecurityTest {
                         .param("range", "24h"))
                 .andExpect(status().isOk());
         verify(service).overview(42L, "24h");
+    }
+
+    @Test void protectsPreferenceReadAndWriteWithTheSameLivePermissions() throws Exception {
+        mvc.perform(get("/api/admin/platform-observability/preferences"))
+                .andExpect(status().isUnauthorized());
+        when(accessService.resolveActiveUser(42L)).thenReturn(access(List.of("route:platform-observability")));
+        mvc.perform(get("/api/admin/platform-observability/preferences")
+                        .header("Authorization", "Bearer valid"))
+                .andExpect(status().isForbidden());
+        mvc.perform(put("/api/admin/platform-observability/preferences")
+                        .header("Authorization", "Bearer valid")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(VALID_PREFERENCES))
+                .andExpect(status().isForbidden());
+        verify(preferenceService, never()).preferences(42L);
+    }
+
+    @Test void rejectsMalformedPreferenceBeforeService() throws Exception {
+        mvc.perform(put("/api/admin/platform-observability/preferences")
+                        .header("Authorization", "Bearer valid")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"charts\":[]}"))
+                .andExpect(status().isBadRequest());
     }
 
     private ResolvedUserAccess access(List<String> permissions) {

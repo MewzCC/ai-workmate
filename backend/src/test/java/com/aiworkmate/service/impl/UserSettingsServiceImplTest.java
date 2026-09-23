@@ -122,6 +122,16 @@ class UserSettingsServiceImplTest {
         verify(userSettingMapper).updateById(existing);
     }
 
+    @Test
+    void observabilityChartsUseExistingUserSettingWithoutNewTable() {
+        UserSetting existing = setting("observability.charts", "[]");
+        when(userSettingMapper.selectOne(any())).thenReturn(existing);
+        settingsService.setObservabilityChartConfig(1001L, "[{\"id\":\"volume\"}]");
+        assertThat(settingsService.getObservabilityChartConfig(1001L))
+                .isEqualTo("[{\"id\":\"volume\"}]");
+        verify(userSettingMapper).updateById(existing);
+    }
+
     private UserSetting setting(String value) {
         return setting("ocr.forcePdfOcr", value);
     }

@@ -19,4 +19,8 @@ public interface UserSettingsService {
     List<String> getDashboardMetricCodes(Long userId);
 
     void setDashboardMetricCodes(Long userId, List<String> metricCodes);
+
+    String getObservabilityChartConfig(Long userId);
+
+    void setObservabilityChartConfig(Long userId, String config);
 }

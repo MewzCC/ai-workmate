@@ -13,5 +13,8 @@ export default {
   noChartData: 'No data is available for this period',
   chartType: '{{title}} chart type', chartContent: 'Show data', chartContentFor: '{{title}} visible data',
   chartModes: { line: 'Line', area: 'Area', bar: 'Bar', mixed: 'Mixed', donut: 'Donut' },
+  layout: 'Arrange charts', layoutHelp: 'Set chart order and width, then select Save configuration at the top of the page.',
+  savePreferences: 'Save configuration', preferencesError: 'Chart settings could not be loaded or saved',
+  chartSizeFor: '{{title}} chart width', normal: 'Standard', wide: 'Full width', moveUp: 'Move up', moveDown: 'Move down',
   footnote: 'Data comes from redacted runtime logs for the current tenant. This is not infrastructure CPU, memory, or uptime monitoring.',
 };

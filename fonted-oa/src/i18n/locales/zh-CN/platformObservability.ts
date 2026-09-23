@@ -13,5 +13,8 @@ export default {
   noChartData: '当前时段暂无可展示的数据',
   chartType: '{{title}}图表类型', chartContent: '显示内容', chartContentFor: '{{title}}显示内容',
   chartModes: { line: '折线', area: '面积', bar: '柱状', mixed: '组合', donut: '环形' },
+  layout: '调整布局', layoutHelp: '调整图表顺序和宽度，完成后点击页面顶部的“保存配置”。',
+  savePreferences: '保存配置', preferencesError: '图表配置加载或保存失败',
+  chartSizeFor: '{{title}}图表宽度', normal: '标准', wide: '通栏', moveUp: '上移', moveDown: '下移',
   footnote: '数据来自当前租户的脱敏运行日志；图表不代表基础设施 CPU、内存或可用性监控。',
 };

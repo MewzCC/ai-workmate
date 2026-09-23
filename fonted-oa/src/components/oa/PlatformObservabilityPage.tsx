@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Button, Card, Checkbox, Empty, Popover, Segmented, Skeleton, Space, Statistic, Switch, Tag, Typography } from 'antd';
+import { Alert, Button, Card, Checkbox, Empty, Modal, Popover, Segmented, Select, Skeleton, Space, Statistic, Switch, Tag, Typography } from 'antd';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import * as echarts from 'echarts/core';
@@ -14,6 +14,8 @@ import { formatOaApiError } from '@/lib/oaApi';
 import {
   platformObservabilityApi,
   type ObservabilityRange,
+  type ObservabilityChartId,
+  type ObservabilityChartPreference,
   type PlatformObservabilityOverview,
 } from '@/lib/platformObservabilityApi';
 
@@ -22,6 +24,12 @@ echarts.use([BarChart, LineChart, PieChart, GridComponent, LegendComponent, Tool
 type ChartColors = { text: string; muted: string; border: string; primary: string; cyan: string; green: string; amber: string; red: string };
 type ChartOptionFactory = (colors: ChartColors, mode: string, selected: string[]) => EChartsCoreOption;
 type ChartChoice = { value: string; label: string };
+const DEFAULT_CHARTS: ObservabilityChartPreference[] = [
+  { id: 'volume', mode: 'line', content: ['HUMAN', 'AGENT', 'INTEGRATION'], size: 'normal' },
+  { id: 'risk', mode: 'mixed', content: ['failed', 'blocked'], size: 'normal' },
+  { id: 'source', mode: 'donut', content: ['HUMAN', 'AGENT', 'INTEGRATION'], size: 'normal' },
+  { id: 'error', mode: 'bar', content: [], size: 'normal' },
+];
 
 function readColors(element: HTMLElement): ChartColors {
   const styles = getComputedStyle(element);
@@ -33,17 +41,18 @@ function readColors(element: HTMLElement): ChartColors {
   };
 }
 
-function ChartPanel({ title, subtitle, dataCount, option, modes, content }: {
+function ChartPanel({ title, subtitle, dataCount, option, modes, content, preference, onChange, disabled }: {
   title: string; subtitle: string; dataCount: number; option: ChartOptionFactory;
-  modes: ChartChoice[]; content: ChartChoice[];
+  modes: ChartChoice[]; content: ChartChoice[]; preference: ObservabilityChartPreference;
+  onChange: (next: ObservabilityChartPreference) => void;
+  disabled: boolean;
 }) {
   const { t } = useTranslation();
   const host = useRef<HTMLDivElement>(null);
   const chart = useRef<echarts.EChartsType | null>(null);
   const hasData = dataCount > 0;
-  const [mode, setMode] = useState(modes[0].value);
-  const [selected, setSelected] = useState<string[]>(() => content.map((item) => item.value));
-  const selectedValues = content.map((item) => item.value).filter((value) => selected.includes(value));
+  const { mode } = preference;
+  const selectedValues = content.map((item) => item.value).filter((value) => preference.content.includes(value));
   const activeValues = selectedValues.length ? selectedValues : content.map((item) => item.value);
   const renderChart = useRef<() => void>(() => undefined);
   const previousMode = useRef<string | undefined>(undefined);
@@ -70,19 +79,20 @@ function ChartPanel({ title, subtitle, dataCount, option, modes, content }: {
     themeObserver.observe(document.body, { attributes: true, attributeFilter: ['class', 'style', 'data-theme'] });
     return () => { resize.disconnect(); themeObserver.disconnect(); instance.dispose(); chart.current = null; previousMode.current = undefined; };
   }, [hasData]);
-  useEffect(() => { renderChart.current(); }, [dataCount, option, mode, selected]);
+  useEffect(() => { renderChart.current(); }, [dataCount, option, mode, preference.content]);
 
   return (
     <Card className="oa-observability-chart" title={<span>{title}<small>{subtitle}</small></span>}
       extra={<div className="oa-observability-chart-controls">
-        <Segmented size="small" aria-label={t('platformObservability.chartType', { title })} value={mode} onChange={setMode} options={modes} />
+        <Segmented size="small" disabled={disabled} aria-label={t('platformObservability.chartType', { title })} value={mode}
+          onChange={(next) => onChange({ ...preference, mode: next })} options={modes} />
         <Popover trigger="click" placement="bottomRight" title={t('platformObservability.chartContent')}
           content={<div className="oa-observability-content-options">
-            <Checkbox.Group value={activeValues} onChange={(values) => { if (values.length) setSelected(values.map(String)); }}>
+            <Checkbox.Group disabled={disabled} value={activeValues} onChange={(values) => { if (values.length) onChange({ ...preference, content: values.map(String) }); }}>
               {content.map((item) => <Checkbox key={item.value} value={item.value}>{item.label}</Checkbox>)}
             </Checkbox.Group>
           </div>}>
-          <Button size="small" aria-label={t('platformObservability.chartContentFor', { title })}>
+          <Button size="small" disabled={disabled} aria-label={t('platformObservability.chartContentFor', { title })}>
             {t('platformObservability.chartContent')} · {activeValues.length}
           </Button>
         </Popover>
@@ -103,7 +113,55 @@ export default function PlatformObservabilityPage() {
   const [overview, setOverview] = useState<PlatformObservabilityOverview>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
+  const [charts, setCharts] = useState<ObservabilityChartPreference[]>(DEFAULT_CHARTS);
+  const [preferencesLoading, setPreferencesLoading] = useState(true);
+  const [preferencesError, setPreferencesError] = useState<string>();
+  const [preferencesDirty, setPreferencesDirty] = useState(false);
+  const [preferencesSaving, setPreferencesSaving] = useState(false);
+  const [layoutOpen, setLayoutOpen] = useState(false);
   const requestSequence = useRef(0);
+  const loadPreferences = useCallback(async () => {
+    setPreferencesLoading(true);
+    setPreferencesError(undefined);
+    try {
+      const result = await platformObservabilityApi.preferences();
+      setCharts(result.charts);
+      setPreferencesDirty(false);
+    } catch (cause) {
+      setPreferencesError(formatOaApiError(cause));
+    } finally {
+      setPreferencesLoading(false);
+    }
+  }, []);
+  useEffect(() => { void loadPreferences(); }, [loadPreferences]);
+  const updateChart = useCallback((next: ObservabilityChartPreference) => {
+    setCharts((current) => current.map((chart) => chart.id === next.id ? next : chart));
+    setPreferencesDirty(true);
+  }, []);
+  const moveChart = useCallback((id: ObservabilityChartId, direction: -1 | 1) => {
+    setCharts((current) => {
+      const index = current.findIndex((chart) => chart.id === id);
+      const target = index + direction;
+      if (index < 0 || target < 0 || target >= current.length) return current;
+      const next = [...current];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
+    setPreferencesDirty(true);
+  }, []);
+  const savePreferences = useCallback(async () => {
+    setPreferencesSaving(true);
+    setPreferencesError(undefined);
+    try {
+      const result = await platformObservabilityApi.updatePreferences(charts);
+      setCharts(result.charts);
+      setPreferencesDirty(false);
+    } catch (cause) {
+      setPreferencesError(formatOaApiError(cause));
+    } finally {
+      setPreferencesSaving(false);
+    }
+  }, [charts]);
   const load = useCallback(async () => {
     const sequence = ++requestSequence.current;
     setLoading(true);
@@ -176,6 +234,10 @@ export default function PlatformObservabilityPage() {
     { value: 'bar', label: t('platformObservability.chartModes.bar') },
     { value: 'donut', label: t('platformObservability.chartModes.donut') },
   ]), [t]);
+  const chartTitles: Record<ObservabilityChartId, string> = {
+    volume: t('platformObservability.volumeTitle'), risk: t('platformObservability.riskTitle'),
+    source: t('platformObservability.sourceTitle'), error: t('platformObservability.errorTitle'),
+  };
   const volumeOption = useCallback<ChartOptionFactory>((colors, mode, selected) => ({
     color: [colors.primary, colors.cyan, colors.amber],
     tooltip: { trigger: 'axis', renderMode: 'richText' }, legend: { bottom: 0, textStyle: { color: colors.muted } },
@@ -250,13 +312,24 @@ export default function PlatformObservabilityPage() {
             { value: '30d', label: t('platformObservability.ranges.month') },
           ])} />
           <Button icon={<OaIcon name="reload" />} loading={loading} onClick={() => void load()}>{t('common.refresh')}</Button>
+          <Button disabled={preferencesLoading || !!preferencesError || preferencesSaving} onClick={() => setLayoutOpen(true)}>
+            {t('platformObservability.layout')}
+          </Button>
+          <Button type={preferencesDirty ? 'primary' : 'default'} loading={preferencesSaving}
+            disabled={!preferencesDirty || preferencesLoading || !!preferencesError} onClick={() => void savePreferences()}>
+            {t('platformObservability.savePreferences')}
+          </Button>
           {canOpenLogs && <Button type="primary" icon={<OaIcon name="runtime-logs" />} onClick={() => navigate('/oa/runtime-logs')}>
             {t('platformObservability.openLogs')}
           </Button>}
         </div>
       </header>
+      {preferencesError && <Alert type="error" showIcon title={t('platformObservability.preferencesError')}
+        description={preferencesError} action={<Button onClick={() => void (preferencesDirty ? savePreferences() : loadPreferences())}>
+          {t('common.retry')}
+        </Button>} />}
       {error && <Alert type="error" showIcon title={error} action={<Button onClick={() => void load()}>{t('common.retry')}</Button>} />}
-      {loading && !overview ? <Skeleton active paragraph={{ rows: 10 }} /> : overview && <>
+      {(loading && !overview) || preferencesLoading ? <Skeleton active paragraph={{ rows: 10 }} /> : overview && <>
         <div className="oa-observability-metrics">
           <Card><Statistic title={t('platformObservability.total')} value={overview.stats.total ?? 0} formatter={(value) => number.format(Number(value))} /></Card>
           <Card><Statistic title={t('platformObservability.successRate')} value={overview.stats.total ? overview.stats.succeeded / overview.stats.total * 100 : 0} precision={1} suffix="%" /></Card>
@@ -265,13 +338,38 @@ export default function PlatformObservabilityPage() {
           <Card><Statistic title={t('platformObservability.p95')} value={overview.p95DurationMs ?? 0} suffix="ms" /></Card>
         </div>
         <div className="oa-observability-grid">
-          <ChartPanel title={t('platformObservability.volumeTitle')} subtitle={t('platformObservability.volumeSubtitle')} dataCount={overview.stats.total ? series.buckets.length : 0} option={volumeOption} modes={volumeModes} content={sourceChoices} />
-          <ChartPanel title={t('platformObservability.riskTitle')} subtitle={t('platformObservability.riskSubtitle')} dataCount={overview.stats.total ? series.buckets.length : 0} option={riskOption} modes={riskModes} content={riskChoices} />
-          <ChartPanel title={t('platformObservability.sourceTitle')} subtitle={t('platformObservability.sourceSubtitle')} dataCount={overview.sources.length} option={sourceOption} modes={distributionModes} content={sourceChoices} />
-          <ChartPanel title={t('platformObservability.errorTitle')} subtitle={t('platformObservability.errorSubtitle')} dataCount={overview.errorCodes.length} option={errorOption} modes={rankingModes} content={errorChoices} />
+          {charts.map((chart) => {
+            const settings = chart.id === 'volume'
+              ? { subtitle: t('platformObservability.volumeSubtitle'), dataCount: overview.stats.total ? series.buckets.length : 0, option: volumeOption, modes: volumeModes, content: sourceChoices }
+              : chart.id === 'risk'
+                ? { subtitle: t('platformObservability.riskSubtitle'), dataCount: overview.stats.total ? series.buckets.length : 0, option: riskOption, modes: riskModes, content: riskChoices }
+                : chart.id === 'source'
+                  ? { subtitle: t('platformObservability.sourceSubtitle'), dataCount: overview.sources.length, option: sourceOption, modes: distributionModes, content: sourceChoices }
+                  : { subtitle: t('platformObservability.errorSubtitle'), dataCount: overview.errorCodes.length, option: errorOption, modes: rankingModes, content: errorChoices };
+            return <div key={chart.id} className={`oa-observability-slot${chart.size === 'wide' ? ' oa-observability-slot-wide' : ''}`}>
+              <ChartPanel title={chartTitles[chart.id]} preference={chart} onChange={updateChart}
+                disabled={preferencesSaving || !!preferencesError} {...settings} />
+            </div>;
+          })}
         </div>
         <Typography.Text type="secondary" className="oa-observability-footnote">{t('platformObservability.footnote')}</Typography.Text>
       </>}
+      <Modal title={t('platformObservability.layout')} open={layoutOpen} onCancel={() => setLayoutOpen(false)}
+        footer={<Button type="primary" onClick={() => setLayoutOpen(false)}>{t('common.confirm')}</Button>}>
+        <Typography.Paragraph type="secondary">{t('platformObservability.layoutHelp')}</Typography.Paragraph>
+        <div className="oa-observability-layout-list">
+          {charts.map((chart, index) => <div key={chart.id} className="oa-observability-layout-row">
+            <Typography.Text strong>{chartTitles[chart.id]}</Typography.Text>
+            <Space wrap>
+              <Select aria-label={t('platformObservability.chartSizeFor', { title: chartTitles[chart.id] })}
+                value={chart.size} style={{ width: 112 }} onChange={(size) => updateChart({ ...chart, size })}
+                options={[{ value: 'normal', label: t('platformObservability.normal') }, { value: 'wide', label: t('platformObservability.wide') }]} />
+              <Button disabled={index === 0} onClick={() => moveChart(chart.id, -1)}>{t('platformObservability.moveUp')}</Button>
+              <Button disabled={index === charts.length - 1} onClick={() => moveChart(chart.id, 1)}>{t('platformObservability.moveDown')}</Button>
+            </Space>
+          </div>)}
+        </div>
+      </Modal>
     </section>
   );
 }

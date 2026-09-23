@@ -4,9 +4,21 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import PlatformObservabilityPage from './PlatformObservabilityPage';
 
 const overview = vi.fn();
+const preferences = vi.fn();
+const updatePreferences = vi.fn();
+const defaultCharts = [
+  { id: 'volume', mode: 'line', content: ['HUMAN', 'AGENT', 'INTEGRATION'], size: 'normal' },
+  { id: 'risk', mode: 'mixed', content: ['failed', 'blocked'], size: 'normal' },
+  { id: 'source', mode: 'donut', content: ['HUMAN', 'AGENT', 'INTEGRATION'], size: 'normal' },
+  { id: 'error', mode: 'bar', content: [], size: 'normal' },
+];
 const chartSetOption = vi.hoisted(() => vi.fn());
 vi.mock('echarts/core', () => ({ use: vi.fn(), init: () => ({ setOption: chartSetOption, resize: vi.fn(), dispose: vi.fn() }) }));
-vi.mock('@/lib/platformObservabilityApi', () => ({ platformObservabilityApi: { overview: (...args: unknown[]) => overview(...args) } }));
+vi.mock('@/lib/platformObservabilityApi', () => ({ platformObservabilityApi: {
+  overview: (...args: unknown[]) => overview(...args),
+  preferences: (...args: unknown[]) => preferences(...args),
+  updatePreferences: (...args: unknown[]) => updatePreferences(...args),
+} }));
 vi.mock('@/hooks/usePermission', () => ({ usePermission: () => ({ allowed: true }) }));
 
 const emptyOverview = {
@@ -18,6 +30,8 @@ const emptyOverview = {
 describe('PlatformObservabilityPage', () => {
   beforeEach(() => {
     overview.mockReset();
+    preferences.mockReset().mockResolvedValue({ charts: defaultCharts });
+    updatePreferences.mockReset().mockImplementation(async (charts) => ({ charts }));
     chartSetOption.mockReset();
   });
   afterEach(cleanup);
@@ -38,6 +52,15 @@ describe('PlatformObservabilityPage', () => {
     expect(screen.queryByText('调用总量')).toBeNull();
   });
 
+  it('does not offer a writable fallback when chart preferences fail to load', async () => {
+    overview.mockResolvedValue(emptyOverview);
+    preferences.mockRejectedValue(new Error('offline'));
+    render(<MemoryRouter><PlatformObservabilityPage /></MemoryRouter>);
+    expect(await screen.findByText('图表配置加载或保存失败')).toBeTruthy();
+    expect((screen.getByRole('button', { name: '保存配置' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(updatePreferences).not.toHaveBeenCalled();
+  });
+
   it('switches chart type and selected content without reloading data', async () => {
     overview.mockResolvedValue({
       ...emptyOverview,
@@ -56,5 +79,31 @@ describe('PlatformObservabilityPage', () => {
     await waitFor(() => expect(chartSetOption.mock.calls.some(([option]) => option.series?.length === 2 && option.series.some((item: { areaStyle?: unknown }) => item.areaStyle))).toBe(true));
     expect(chartSetOption.mock.lastCall?.[1]).toMatchObject({ replaceMerge: ['series'] });
     expect(overview).toHaveBeenCalledTimes(1);
+  });
+
+  it('saves chart type, content, order and width through the authenticated settings API', async () => {
+    overview.mockResolvedValue(emptyOverview);
+    render(<MemoryRouter><PlatformObservabilityPage /></MemoryRouter>);
+    await screen.findByText('调用流量');
+    fireEvent.click(screen.getByText('面积'));
+    const layoutButton = screen.getByRole('button', { name: '调整布局' });
+    expect(layoutButton.hasAttribute('disabled')).toBe(false);
+    fireEvent.click(layoutButton);
+    expect(screen.queryByRole('dialog')).toBeTruthy();
+    fireEvent.click(screen.getAllByRole('button', { name: /下\s*移/ })[0]);
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: '调用流量图表宽度' }));
+    fireEvent.click((await screen.findAllByText('通栏'))[0]);
+    fireEvent.click(screen.getByRole('button', { name: /确\s*认/ }));
+    fireEvent.click(screen.getByRole('button', { name: '保存配置' }));
+    await waitFor(() => expect(updatePreferences).toHaveBeenCalled());
+    const submitted = updatePreferences.mock.calls[0][0];
+    expect(submitted[0].id).toBe('risk');
+    expect(submitted[1]).toMatchObject({ id: 'volume', mode: 'area', content: ['HUMAN', 'AGENT', 'INTEGRATION'], size: 'wide' });
+    cleanup();
+    preferences.mockResolvedValue({ charts: submitted });
+    const restored = render(<MemoryRouter><PlatformObservabilityPage /></MemoryRouter>);
+    await screen.findByText('异常脉冲');
+    await waitFor(() => expect(restored.container.querySelector('.oa-observability-slot')?.textContent).toContain('异常脉冲'));
+    expect(restored.container.querySelectorAll('.oa-observability-slot')[1].className).toContain('oa-observability-slot-wide');
   });
 });

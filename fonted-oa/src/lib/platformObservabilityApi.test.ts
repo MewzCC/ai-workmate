@@ -14,4 +14,15 @@ describe('platform observability API', () => {
 
     expect(fetchMock.mock.calls[0][0]).toBe('/api/admin/platform-observability/overview?range=7d');
   });
+
+  it('loads and saves chart preferences through the authenticated API client', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true, json: async () => ({ code: 200, data: { charts: [] } }),
+    } as Response);
+    await platformObservabilityApi.preferences();
+    await platformObservabilityApi.updatePreferences([]);
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/admin/platform-observability/preferences');
+    expect(fetchMock.mock.calls[1][0]).toBe('/api/admin/platform-observability/preferences');
+    expect(fetchMock.mock.calls[1][1]).toMatchObject({ method: 'PUT', body: JSON.stringify({ charts: [] }) });
+  });
 });
