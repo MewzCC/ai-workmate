@@ -27,6 +27,7 @@ type ChartColors = { text: string; muted: string; border: string; primary: strin
 type ChartSeries = { buckets: string[]; labels: string[]; bySource: Record<string, number[]>; failed: number[]; blocked: number[] };
 type ChartOptionFactory = (colors: ChartColors, mode: string, selected: string[], data: ChartSeries) => EChartsCoreOption;
 type ChartChoice = { value: string; label: string };
+type ChartHit = { dataIndex?: number; name?: string; seriesName?: string };
 const DEFAULT_CHARTS: ObservabilityChartPreference[] = [
   { id: 'volume', kind: 'volume', title: '', mode: 'line', content: ['HUMAN', 'AGENT', 'INTEGRATION'], size: 'normal', granularity: 'auto' },
   { id: 'risk', kind: 'risk', title: '', mode: 'mixed', content: ['failed', 'blocked'], size: 'normal', granularity: 'auto' },
@@ -72,10 +73,11 @@ function readColors(element: HTMLElement): ChartColors {
   };
 }
 
-function ChartPanel({ title, subtitle, dataCount, option, modes, content, preference, onChange, disabled, seriesData }: {
+function ChartPanel({ title, subtitle, dataCount, option, modes, content, preference, onChange, onDrilldown, disabled, seriesData }: {
   title: string; subtitle: string; dataCount: number; option: ChartOptionFactory;
   modes: ChartChoice[]; content: ChartChoice[]; preference: ObservabilityChartPreference;
   onChange: (next: ObservabilityChartPreference) => void;
+  onDrilldown?: (hit: ChartHit) => void;
   disabled: boolean;
   seriesData: ChartSeries;
 }) {
@@ -87,6 +89,8 @@ function ChartPanel({ title, subtitle, dataCount, option, modes, content, prefer
   const selectedValues = content.map((item) => item.value).filter((value) => preference.content.includes(value));
   const activeValues = preference.content.length ? selectedValues : content.map((item) => item.value);
   const renderChart = useRef<() => void>(() => undefined);
+  const drilldownRef = useRef(onDrilldown);
+  drilldownRef.current = onDrilldown;
   const previousMode = useRef<string | undefined>(undefined);
 
   renderChart.current = () => {
@@ -104,6 +108,7 @@ function ChartPanel({ title, subtitle, dataCount, option, modes, content, prefer
     if (!element || !hasData) return;
     const instance = echarts.init(element);
     chart.current = instance;
+    instance.on('click', (hit) => drilldownRef.current?.(hit));
     const resize = new ResizeObserver(() => instance.resize());
     resize.observe(element);
     const themeObserver = new MutationObserver(() => renderChart.current());
@@ -309,6 +314,42 @@ export default function PlatformObservabilityPage() {
     volume: t('platformObservability.volumeTitle'), risk: t('platformObservability.riskTitle'),
     source: t('platformObservability.sourceTitle'), error: t('platformObservability.errorTitle'),
   };
+  const drilldown = (kind: ObservabilityChartKind, chart: ObservabilityChartPreference,
+                     data: ChartSeries, interval: 'hour' | 'day', hit: ChartHit) => {
+    if (!overview || !canOpenLogs) return;
+    const query = new URLSearchParams({ from: overview.from, to: overview.to });
+    if (kind === 'volume' || kind === 'risk') {
+      const bucket = data.buckets[hit.dataIndex ?? -1];
+      if (!bucket) return;
+      const start = dayjs(bucket);
+      const next = start.add(1, interval);
+      query.set('from', start.isAfter(dayjs(overview.from)) ? bucket : overview.from);
+      if (!next.isAfter(dayjs(overview.to))) {
+        query.set('to', next.format('YYYY-MM-DDTHH:mm:ss'));
+        query.set('toExclusive', 'true');
+      }
+      if (kind === 'volume') {
+        const source = sourceChoices.find((item) => item.label === hit.seriesName)?.value;
+        if (!source) return;
+        query.set('source', source);
+      } else {
+        const group = riskChoices.find((item) => item.label === hit.seriesName)?.value;
+        if (!group) return;
+        query.set('group', group.toUpperCase());
+      }
+    } else if (kind === 'source') {
+      const selected = overview.sources.filter((item) => chart.content.includes(item.code));
+      const entry = selected[hit.dataIndex ?? -1];
+      if (!entry) return;
+      query.set('source', entry.code);
+    } else {
+      const selected = overview.errorCodes.filter((item) => !chart.content.length || chart.content.includes(item.code));
+      const entry = selected[hit.dataIndex ?? -1];
+      if (!entry) return;
+      query.set('errorCode', entry.code);
+    }
+    navigate(`/oa/runtime-logs?${query.toString()}`);
+  };
   const volumeOption = useCallback<ChartOptionFactory>((colors, mode, selected, data) => ({
     color: [colors.primary, colors.cyan, colors.amber],
     tooltip: { trigger: 'axis', renderMode: 'richText' }, legend: { bottom: 0, textStyle: { color: colors.muted } },
@@ -432,6 +473,8 @@ export default function PlatformObservabilityPage() {
                     : <Skeleton active loading={alternateLoading || !alternateReady} paragraph={{ rows: 5 }} />}
                 </Card>
                 : <ChartPanel title={chart.title?.trim() || chartTitles[kind]} preference={chart} onChange={updateChart}
+                    onDrilldown={canOpenLogs ? (hit) => drilldown(kind, chart, chartSeries,
+                      requiresAlternate ? alternateInterval : overview.interval, hit) : undefined}
                     disabled={preferencesSaving || !!preferencesError} seriesData={chartSeries} {...settings} />}
             </div>;
           })}

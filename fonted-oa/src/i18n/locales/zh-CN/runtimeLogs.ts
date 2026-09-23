@@ -8,7 +8,8 @@ export default {
   boundaryDescription: '日志只包含当前租户的脱敏操作摘要；不记录请求体、响应体、密码、验证码、Cookie、Token 或内部连接地址。',
   durationMs: '{{value}} ms',
   stats: { total: '匹配记录', succeeded: '操作成功', failed: '操作失败', blocked: '拒绝或拦截', average: '平均耗时' },
-  filters: { keyword: '搜索请求、操作人、工具、Trace ID 或错误码', source: '全部调用来源', outcome: '全部结果' },
+  filters: { keyword: '搜索请求、操作人、工具、Trace ID 或错误码', source: '全部调用来源', outcome: '全部结果', group: '全部异常分组', errorCode: '精确错误码' },
+  groups: { FAILED: '失败类', BLOCKED: '拒绝／拦截类' },
   source: { HUMAN: '人为操作', INTEGRATION: '系统集成', AGENT: 'AI 自助调用' },
   actorType: { HUMAN: '平台用户', SYSTEM: '系统服务', AI_AGENT: 'AI Agent' },
   eventType: {

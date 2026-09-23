@@ -33,7 +33,7 @@ class PlatformObservabilityServiceImplTest {
     @Test void aggregatesOnlyCurrentTenantWithBoundedHourlyRange() {
         when(accessService.resolveActiveUser(7L)).thenReturn(access(List.of(
                 "route:platform-observability", "runtime-log:read")));
-        when(mapper.selectStats(eq(9L), eq(null), eq(null), eq(null), any(), any()))
+        when(mapper.selectStats(eq(9L), eq(null), eq(null), eq(null), eq(null), eq(null), any(), any(), eq(false)))
                 .thenReturn(new RuntimeLogStatsResponse(3L, 2L, 1L, 0L, 20L));
         var response = service.overview(7L, "24h");
         assertThat(response.interval()).isEqualTo("hour");

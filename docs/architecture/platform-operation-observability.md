@@ -27,6 +27,13 @@
 拒绝任意指标或任意查询表达式。旧版四字段配置可读取，服务端会补全 `kind` 和默认时间粒度。
 `GET /api/admin/platform-observability/timeline?from=...&to=...&interval=hour|day`
 仅用于非默认时间粒度的趋势图，服务端限制跨度不超过 31 天并按当前认证租户聚合。
+
+图表点击通过真实路由进入 `/oa/runtime-logs`。趋势点传递与聚合一致的时间桶：
+起点取时间桶与总范围较晚者，非末桶使用右开边界 `toExclusive=true`，末桶沿用总范围结束时间；
+流量图传 `source`，异常图传 `group=FAILED|BLOCKED`，来源构成图传 `source`，错误码图传精确 `errorCode`。
+日志接口的服务端 SQL 与统计汇总使用相同的租户、来源、异常分组、错误码和边界条件；
+错误码仅匹配失败、超时、无效结果或拒绝，与高频错误码聚合口径保持一致。
+新参数不会授予访问权限：`route:runtime-logs` 与 `runtime-log:read` 仍需实时满足。
 配置按认证用户写入现有 `user_setting`，不保存租户业务数据；权限被撤销后接口立即拒绝。
 `V202609231755__observability_preference_value.sql` 仅将该表的 `setting_value` 从
 `VARCHAR(255)` 扩为 `TEXT`，用于容纳受控图表卡片的 JSON。旧设置仍可读取，旧程序也无需新字段。

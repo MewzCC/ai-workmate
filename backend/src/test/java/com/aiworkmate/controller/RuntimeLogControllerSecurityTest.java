@@ -23,6 +23,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -57,13 +59,14 @@ class RuntimeLogControllerSecurityTest {
         mvc.perform(get("/api/admin/runtime-logs").header("Authorization", "Bearer valid"))
                 .andExpect(status().isForbidden());
 
-        verify(service, never()).query(any(), any(), any(), any(), any(), any(), any(Integer.class), any(Integer.class));
+        verify(service, never()).queryDrilldown(any(), any(), any(), any(), any(), any(), any(), any(),
+                anyBoolean(), anyInt(), anyInt());
     }
 
     @Test
     void queryUsesAuthenticatedIdentity() throws Exception {
         LocalDateTime now = LocalDateTime.now();
-        when(service.query(42L, "AGENT", null, null, null, null, 1, 20))
+        when(service.queryDrilldown(42L, "AGENT", null, null, null, null, null, null, false, 1, 20))
                 .thenReturn(new RuntimeLogPageResponse(List.of(), 0, 1, 20,
                         now.minusDays(7), now, new RuntimeLogStatsResponse(0L, 0L, 0L, 0L, 0L)));
 
@@ -72,7 +75,23 @@ class RuntimeLogControllerSecurityTest {
                         .param("source", "AGENT"))
                 .andExpect(status().isOk());
 
-        verify(service).query(42L, "AGENT", null, null, null, null, 1, 20);
+        verify(service).queryDrilldown(42L, "AGENT", null, null, null, null, null, null, false, 1, 20);
+    }
+
+    @Test
+    void chartDrilldownParametersReachOnlyTheAuthenticatedQuery() throws Exception {
+        mvc.perform(get("/api/admin/runtime-logs")
+                        .header("Authorization", "Bearer valid")
+                        .param("source", "AGENT")
+                        .param("group", "FAILED")
+                        .param("errorCode", "TIMEOUT")
+                        .param("from", "2026-09-23T10:00:00")
+                        .param("to", "2026-09-23T11:00:00")
+                        .param("toExclusive", "true"))
+                .andExpect(status().isOk());
+        verify(service).queryDrilldown(42L, "AGENT", null, "FAILED", "TIMEOUT", null,
+                LocalDateTime.parse("2026-09-23T10:00:00"),
+                LocalDateTime.parse("2026-09-23T11:00:00"), true, 1, 20);
     }
 
     private ResolvedUserAccess access(List<String> permissions) {

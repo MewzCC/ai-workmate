@@ -65,12 +65,16 @@ public interface RuntimeLogMapper {
             "WHERE tenant_id = #{tenantId}",
             "<if test='source != null'> AND source = #{source}</if>",
             "<if test='outcome != null'> AND outcome = #{outcome}</if>",
+            "<if test='group == \"FAILED\"'> AND outcome IN ('FAILED', 'TIMED_OUT', 'RESULT_INVALID')</if>",
+            "<if test='group == \"BLOCKED\"'> AND (outcome = 'REJECTED' OR decision IN ('DENY', 'STALE', 'THROTTLED', 'UNAVAILABLE'))</if>",
+            "<if test='errorCode != null'> AND error_code = #{errorCode} AND outcome IN ('FAILED', 'TIMED_OUT', 'RESULT_INVALID', 'REJECTED')</if>",
             "<if test='keyword != null'> AND (reference_code ILIKE CONCAT('%', #{keyword}, '%')",
             " OR operation ILIKE CONCAT('%', #{keyword}, '%')",
             " OR operator_label ILIKE CONCAT('%', #{keyword}, '%')",
             " OR trace_id ILIKE CONCAT('%', #{keyword}, '%')",
             " OR error_code ILIKE CONCAT('%', #{keyword}, '%'))</if>",
-            "AND started_at &gt;= #{from} AND started_at &lt;= #{to}",
+            "AND started_at &gt;= #{from}",
+            "<choose><when test='toExclusive'> AND started_at &lt; #{to}</when><otherwise> AND started_at &lt;= #{to}</otherwise></choose>",
             "ORDER BY started_at DESC, source, log_id DESC",
             "LIMIT #{size} OFFSET #{offset}",
             "</script>"
@@ -79,9 +83,12 @@ public interface RuntimeLogMapper {
             @Param("tenantId") Long tenantId,
             @Param("source") String source,
             @Param("outcome") String outcome,
+            @Param("group") String group,
+            @Param("errorCode") String errorCode,
             @Param("keyword") String keyword,
             @Param("from") LocalDateTime from,
             @Param("to") LocalDateTime to,
+            @Param("toExclusive") boolean toExclusive,
             @Param("size") int size,
             @Param("offset") int offset);
 
@@ -96,21 +103,28 @@ public interface RuntimeLogMapper {
             "WHERE tenant_id = #{tenantId}",
             "<if test='source != null'> AND source = #{source}</if>",
             "<if test='outcome != null'> AND outcome = #{outcome}</if>",
+            "<if test='group == \"FAILED\"'> AND outcome IN ('FAILED', 'TIMED_OUT', 'RESULT_INVALID')</if>",
+            "<if test='group == \"BLOCKED\"'> AND (outcome = 'REJECTED' OR decision IN ('DENY', 'STALE', 'THROTTLED', 'UNAVAILABLE'))</if>",
+            "<if test='errorCode != null'> AND error_code = #{errorCode} AND outcome IN ('FAILED', 'TIMED_OUT', 'RESULT_INVALID', 'REJECTED')</if>",
             "<if test='keyword != null'> AND (reference_code ILIKE CONCAT('%', #{keyword}, '%')",
             " OR operation ILIKE CONCAT('%', #{keyword}, '%')",
             " OR operator_label ILIKE CONCAT('%', #{keyword}, '%')",
             " OR trace_id ILIKE CONCAT('%', #{keyword}, '%')",
             " OR error_code ILIKE CONCAT('%', #{keyword}, '%'))</if>",
-            "AND started_at &gt;= #{from} AND started_at &lt;= #{to}",
+            "AND started_at &gt;= #{from}",
+            "<choose><when test='toExclusive'> AND started_at &lt; #{to}</when><otherwise> AND started_at &lt;= #{to}</otherwise></choose>",
             "</script>"
     })
     RuntimeLogStatsResponse selectStats(
             @Param("tenantId") Long tenantId,
             @Param("source") String source,
             @Param("outcome") String outcome,
+            @Param("group") String group,
+            @Param("errorCode") String errorCode,
             @Param("keyword") String keyword,
             @Param("from") LocalDateTime from,
-            @Param("to") LocalDateTime to);
+            @Param("to") LocalDateTime to,
+            @Param("toExclusive") boolean toExclusive);
 
     @Select("""
             SELECT source, log_id AS id, reference_code AS referenceCode, operation, outcome,

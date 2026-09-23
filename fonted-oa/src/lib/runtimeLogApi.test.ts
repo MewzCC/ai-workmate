@@ -34,4 +34,10 @@ describe('运行日志 API', () => {
     await runtimeLogApi.list({ source: 'HUMAN', page: 1, size: 20 });
     expect(fetchMock.mock.calls[0][0]).toBe('/api/admin/runtime-logs?source=HUMAN&page=1&size=20');
   });
+
+  it('使用精确错误码、异常分组和右开时间边界查询图表明细', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(result({ records: [] }));
+    await runtimeLogApi.list({ group: 'FAILED', errorCode: 'TIMEOUT', toExclusive: true });
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/admin/runtime-logs?group=FAILED&errorCode=TIMEOUT&toExclusive=true');
+  });
 });

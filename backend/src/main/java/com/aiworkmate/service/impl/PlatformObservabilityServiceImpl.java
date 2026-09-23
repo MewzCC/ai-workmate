@@ -40,7 +40,8 @@ public class PlatformObservabilityServiceImpl implements PlatformObservabilitySe
         };
         String interval = "24h".equals(selectedRange) ? "hour" : "day";
         Long tenantId = actor.tenantId();
-        RuntimeLogStatsResponse stats = mapper.selectStats(tenantId, null, null, null, from, to);
+        RuntimeLogStatsResponse stats = mapper.selectStats(tenantId, null, null, null, null,
+                null, from, to, false);
         if (stats == null) stats = new RuntimeLogStatsResponse(0L, 0L, 0L, 0L, 0L);
         return new PlatformObservabilityResponse(from, to, interval, stats,
                 mapper.selectP95Duration(tenantId, from, to),

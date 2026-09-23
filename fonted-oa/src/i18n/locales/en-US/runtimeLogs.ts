@@ -8,7 +8,8 @@ export default {
   boundaryDescription: 'Only redacted activity summaries for the current tenant are shown. Request or response bodies, passwords, codes, cookies, tokens, and internal addresses are never recorded.',
   durationMs: '{{value}} ms',
   stats: { total: 'Matched', succeeded: 'Succeeded', failed: 'Failed', blocked: 'Rejected or blocked', average: 'Average latency' },
-  filters: { keyword: 'Search request, operator, tool, trace ID, or error code', source: 'All activity sources', outcome: 'All outcomes' },
+  filters: { keyword: 'Search request, operator, tool, trace ID, or error code', source: 'All activity sources', outcome: 'All outcomes', group: 'All incident groups', errorCode: 'Exact error code' },
+  groups: { FAILED: 'Failures', BLOCKED: 'Rejected / blocked' },
   source: { HUMAN: 'Human activity', INTEGRATION: 'System integration', AGENT: 'AI autonomous call' },
   actorType: { HUMAN: 'Platform user', SYSTEM: 'System service', AI_AGENT: 'AI Agent' },
   eventType: {

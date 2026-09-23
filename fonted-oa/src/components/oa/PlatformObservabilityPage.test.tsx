@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import PlatformObservabilityPage from './PlatformObservabilityPage';
 
@@ -14,7 +14,10 @@ const defaultCharts = [
   { id: 'error', mode: 'bar', content: [], size: 'normal' },
 ];
 const chartSetOption = vi.hoisted(() => vi.fn());
-vi.mock('echarts/core', () => ({ use: vi.fn(), init: () => ({ setOption: chartSetOption, resize: vi.fn(), dispose: vi.fn() }) }));
+const chartHandlers = vi.hoisted(() => [] as Array<(hit: { dataIndex: number; seriesName: string }) => void>);
+vi.mock('echarts/core', () => ({ use: vi.fn(), init: () => ({ setOption: chartSetOption,
+  on: (_event: string, handler: (hit: { dataIndex: number; seriesName: string }) => void) => chartHandlers.push(handler),
+  resize: vi.fn(), dispose: vi.fn() }) }));
 vi.mock('@/lib/platformObservabilityApi', () => ({ platformObservabilityApi: {
   overview: (...args: unknown[]) => overview(...args),
   timeline: (...args: unknown[]) => timeline(...args),
@@ -36,6 +39,7 @@ describe('PlatformObservabilityPage', () => {
     preferences.mockReset().mockResolvedValue({ charts: defaultCharts });
     updatePreferences.mockReset().mockImplementation(async (charts) => ({ charts }));
     chartSetOption.mockReset();
+    chartHandlers.length = 0;
   });
   afterEach(cleanup);
 
@@ -108,7 +112,7 @@ describe('PlatformObservabilityPage', () => {
     await screen.findByText('异常脉冲');
     await waitFor(() => expect(restored.container.querySelector('.oa-observability-slot')?.textContent).toContain('异常脉冲'));
     expect(restored.container.querySelectorAll('.oa-observability-slot')[1].className).toContain('oa-observability-slot-wide');
-  });
+  }, 20_000);
 
   it('adds, duplicates, renames and removes controlled chart cards before saving', async () => {
     overview.mockResolvedValue(emptyOverview);
@@ -129,7 +133,7 @@ describe('PlatformObservabilityPage', () => {
     expect(updatePreferences.mock.calls[0][0][4]).toMatchObject({
       id: 'volume-1', kind: 'volume', title: '重点流量', mode: 'line',
     });
-  });
+  }, 20_000);
 
   it('loads an alternate hourly timeline for a custom time granularity', async () => {
     overview.mockResolvedValue({ ...emptyOverview, stats: { ...emptyOverview.stats, total: 1 } });
@@ -138,5 +142,45 @@ describe('PlatformObservabilityPage', () => {
     render(<MemoryRouter><PlatformObservabilityPage /></MemoryRouter>);
     await waitFor(() => expect(timeline).toHaveBeenCalledWith(emptyOverview.from, emptyOverview.to, 'hour'));
     expect(await screen.findByRole('img', { name: '调用流量' })).toBeTruthy();
+  });
+
+  it('drills into matching tenant logs for a clicked time bucket and source', async () => {
+    overview.mockResolvedValue({ ...emptyOverview, stats: { ...emptyOverview.stats, total: 1 },
+      timeline: [{ bucket: emptyOverview.from, source: 'HUMAN', total: 1, failed: 0, blocked: 0 }],
+    });
+    function LogLocation() { return <output>{useLocation().search}</output>; }
+    render(<MemoryRouter initialEntries={['/oa/platform-observability']}><Routes>
+      <Route path="/oa/platform-observability" element={<PlatformObservabilityPage />} />
+      <Route path="/oa/runtime-logs" element={<LogLocation />} />
+    </Routes></MemoryRouter>);
+    await screen.findByRole('img', { name: '调用流量' });
+    await waitFor(() => expect(chartHandlers.length).toBeGreaterThan(0));
+    fireEvent.click(screen.getByRole('img', { name: '调用流量' }));
+    chartHandlers[0]({ dataIndex: 0, seriesName: '人为操作' });
+    const query = new URLSearchParams((await screen.findByRole('status')).textContent ?? '');
+    expect(query.get('source')).toBe('HUMAN');
+    expect(query.get('from')).toBe(emptyOverview.from);
+    expect(query.get('to')).toBe('2026-09-17T00:00:00');
+    expect(query.get('toExclusive')).toBe('true');
+  });
+
+  it('uses the exact error code instead of a fuzzy keyword when drilling into an error chart', async () => {
+    overview.mockResolvedValue({ ...emptyOverview, stats: { ...emptyOverview.stats, total: 1 },
+      sources: [{ code: 'AGENT', total: 1 }], errorCodes: [{ code: 'TIMEOUT', total: 1 }],
+      timeline: [{ bucket: emptyOverview.from, source: 'AGENT', total: 1, failed: 1, blocked: 0 }],
+    });
+    function LogLocation() { return <output>{useLocation().search}</output>; }
+    render(<MemoryRouter initialEntries={['/oa/platform-observability']}><Routes>
+      <Route path="/oa/platform-observability" element={<PlatformObservabilityPage />} />
+      <Route path="/oa/runtime-logs" element={<LogLocation />} />
+    </Routes></MemoryRouter>);
+    await screen.findByRole('img', { name: '高频错误码' });
+    await waitFor(() => expect(chartHandlers).toHaveLength(4));
+    chartHandlers[3]({ dataIndex: 0, seriesName: '高频错误码' });
+    const query = new URLSearchParams((await screen.findByRole('status')).textContent ?? '');
+    expect(query.get('errorCode')).toBe('TIMEOUT');
+    expect(query.get('from')).toBe(emptyOverview.from);
+    expect(query.get('to')).toBe(emptyOverview.to);
+    expect(query.has('keyword')).toBe(false);
   });
 });

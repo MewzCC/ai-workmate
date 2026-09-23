@@ -1,5 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { App } from 'antd';
+import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const api = vi.hoisted(() => ({
@@ -68,7 +69,7 @@ describe('RuntimeLogsPage', () => {
       userAgent: 'Desktop Browser',
     });
 
-    render(<App><RuntimeLogsPage /></App>);
+    render(<MemoryRouter><App><RuntimeLogsPage /></App></MemoryRouter>);
 
     expect(await screen.findByText('平台操作日志')).toBeTruthy();
     expect(screen.getAllByText('人为操作').length).toBeGreaterThan(0);
@@ -82,5 +83,18 @@ describe('RuntimeLogsPage', () => {
     await waitFor(() => expect(api.detail).toHaveBeenCalledWith('HUMAN', 11));
     expect(await screen.findByText('10.0.0.7')).toBeTruthy();
     expect(screen.getByText('Desktop Browser')).toBeTruthy();
+  });
+
+  it('从图表下钻时准确读取时间桶、异常分组和精确错误码', async () => {
+    api.list.mockResolvedValue({ records: [], total: 0, page: 1, size: 20,
+      from: '2026-09-22T10:00:00', to: '2026-09-22T11:00:00',
+      stats: { total: 0, succeeded: 0, failed: 0, blocked: 0, averageDurationMs: 0 },
+    });
+    render(<MemoryRouter initialEntries={['/oa/runtime-logs?from=2026-09-22T10%3A00%3A00.123456789&to=2026-09-22T11%3A00%3A00&toExclusive=true&group=FAILED&errorCode=TIMEOUT']}>
+      <App><RuntimeLogsPage /></App></MemoryRouter>);
+    await waitFor(() => expect(api.list).toHaveBeenCalledWith(expect.objectContaining({
+      from: '2026-09-22T10:00:00.123456789', to: '2026-09-22T11:00:00',
+      toExclusive: true, group: 'FAILED', errorCode: 'TIMEOUT',
+    })));
   });
 });

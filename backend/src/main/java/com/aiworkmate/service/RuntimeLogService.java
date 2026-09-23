@@ -9,5 +9,9 @@ public interface RuntimeLogService {
     RuntimeLogPageResponse query(Long userId, String source, String outcome, String keyword,
                                  LocalDateTime from, LocalDateTime to, int page, int size);
 
+    RuntimeLogPageResponse queryDrilldown(Long userId, String source, String outcome, String group,
+                                          String errorCode, String keyword, LocalDateTime from,
+                                          LocalDateTime to, boolean toExclusive, int page, int size);
+
     RuntimeLogDetailResponse detail(Long userId, String source, Long id);
 }
