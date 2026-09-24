@@ -1,4 +1,5 @@
 import { queryString, request } from '@/lib/oaApi';
+import type { DashboardExportResponse } from '@/lib/dashboardApi';
 
 export type ObservabilityRange = '24h' | '7d' | '30d';
 export type ObservabilityChartKind = 'volume' | 'risk' | 'source' | 'error';
@@ -73,5 +74,9 @@ export const platformObservabilityApi = {
   updatePreferences: (charts: ObservabilityChartPreference[]) =>
     request<ObservabilityPreferences>('/admin/platform-observability/preferences', {
       method: 'PUT', body: JSON.stringify({ charts }),
+    }),
+  exportChart: (range: ObservabilityRange, chartId: string) =>
+    request<DashboardExportResponse>('/admin/platform-observability/export', {
+      method: 'POST', body: JSON.stringify({ range, chartId }),
     }),
 };

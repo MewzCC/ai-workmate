@@ -7,6 +7,7 @@ import com.aiworkmate.security.JwtAuthenticationFilter;
 import com.aiworkmate.security.JwtValidationStatus;
 import com.aiworkmate.service.PlatformObservabilityService;
 import com.aiworkmate.service.ObservabilityPreferenceService;
+import com.aiworkmate.service.ObservabilityExportService;
 import com.aiworkmate.service.UserAccessService;
 import com.aiworkmate.service.model.ResolvedUserAccess;
 import com.aiworkmate.util.JwtUtil;
@@ -27,6 +28,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(PlatformObservabilityController.class)
@@ -43,6 +45,7 @@ class PlatformObservabilityControllerSecurityTest {
     @Autowired MockMvc mvc;
     @MockBean PlatformObservabilityService service;
     @MockBean ObservabilityPreferenceService preferenceService;
+    @MockBean ObservabilityExportService exportService;
     @MockBean JwtUtil jwtUtil;
     @MockBean UserAccessService accessService;
 
@@ -133,6 +136,25 @@ class PlatformObservabilityControllerSecurityTest {
                         .header("Authorization", "Bearer valid"))
                 .andExpect(status().isOk());
         verify(preferenceService).thresholds(42L);
+    }
+
+    @Test void exportRequiresLiveReadAndExportPermissions() throws Exception {
+        String url = "/api/admin/platform-observability/export";
+        mvc.perform(post(url).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"range\":\"7d\",\"chartId\":\"volume\"}"))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(post(url).header("Authorization", "Bearer valid").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"range\":\"7d\",\"chartId\":\"volume\"}"))
+                .andExpect(status().isForbidden());
+        when(accessService.resolveActiveUser(42L)).thenReturn(access(List.of(
+                "route:platform-observability", "runtime-log:read", "data:export")));
+        mvc.perform(post(url).header("Authorization", "Bearer valid").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"range\":\"365d\",\"chartId\":\"volume\"}"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(post(url).header("Authorization", "Bearer valid").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"range\":\"7d\",\"chartId\":\"volume\"}"))
+                .andExpect(status().isOk());
+        verify(exportService).export(42L, new com.aiworkmate.dto.ObservabilityExportRequest("7d", "volume"));
     }
 
     @Test void protectsPreferenceReadAndWriteWithTheSameLivePermissions() throws Exception {

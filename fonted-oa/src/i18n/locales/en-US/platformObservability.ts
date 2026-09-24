@@ -22,6 +22,7 @@ export default {
   chartModes: { line: 'Line', area: 'Area', bar: 'Bar', mixed: 'Mixed', donut: 'Donut' },
   layout: 'Arrange charts', layoutHelp: 'Add, duplicate or remove controlled charts and set titles, time granularity, order and width; then select Save configuration at the top of the page.',
   savePreferences: 'Save configuration', preferencesError: 'Chart settings could not be loaded or saved',
+  exportCsv: 'Export CSV', exportFor: 'Export {{title}} data', exportError: 'Chart export failed',
   chartSizeFor: '{{title}} chart width', normal: 'Standard', wide: 'Full width', moveUp: 'Move up', moveDown: 'Move down',
   addChart: 'Add chart', newChartKind: 'Choose chart data', chartLimit: '{{count}} / 12 charts',
   duplicate: 'Duplicate', customTitle: 'Custom title', customTitleFor: '{{title}} custom title',

@@ -10,6 +10,7 @@ const updateThresholds = vi.fn();
 const timeline = vi.fn();
 const preferences = vi.fn();
 const updatePreferences = vi.fn();
+const exportChart = vi.fn();
 const defaultCharts = [
   { id: 'volume', mode: 'line', content: ['HUMAN', 'AGENT', 'INTEGRATION'], size: 'normal' },
   { id: 'risk', mode: 'mixed', content: ['failed', 'blocked'], size: 'normal' },
@@ -29,6 +30,7 @@ vi.mock('@/lib/platformObservabilityApi', () => ({ platformObservabilityApi: {
   timeline: (...args: unknown[]) => timeline(...args),
   preferences: (...args: unknown[]) => preferences(...args),
   updatePreferences: (...args: unknown[]) => updatePreferences(...args),
+  exportChart: (...args: unknown[]) => exportChart(...args),
 } }));
 vi.mock('@/hooks/usePermission', () => ({ usePermission: () => ({ allowed: true }) }));
 
@@ -47,6 +49,8 @@ describe('PlatformObservabilityPage', () => {
     timeline.mockReset();
     preferences.mockReset().mockResolvedValue({ charts: defaultCharts });
     updatePreferences.mockReset().mockImplementation(async (charts) => ({ charts }));
+    exportChart.mockReset().mockResolvedValue({ filename: 'observability-volume-7d.csv',
+      contentType: 'text/csv;charset=UTF-8', content: 'series,bucket,value', rowCount: 1 });
     chartSetOption.mockReset();
     chartHandlers.length = 0;
   });
@@ -59,6 +63,27 @@ describe('PlatformObservabilityPage', () => {
     expect(await screen.findAllByText('当前时段暂无可展示的数据')).toHaveLength(4);
     fireEvent.click(screen.getByText('近 24 小时'));
     await waitFor(() => expect(overview).toHaveBeenCalledWith('24h'));
+  });
+
+  it('offers governed chart export only for saved configuration', async () => {
+    overview.mockResolvedValue(emptyOverview);
+    const createUrl = vi.fn().mockReturnValue('blob:test');
+    const revokeUrl = vi.fn();
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: createUrl });
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: revokeUrl });
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    render(<MemoryRouter><PlatformObservabilityPage /></MemoryRouter>);
+    await screen.findByText('调用流量');
+    fireEvent.click(screen.getByRole('button', { name: '导出调用流量数据' }));
+    await waitFor(() => expect(exportChart).toHaveBeenCalledWith('7d', 'volume'));
+    expect(createUrl).toHaveBeenCalled();
+    expect(click).toHaveBeenCalled();
+    expect(revokeUrl).toHaveBeenCalledWith('blob:test');
+    fireEvent.click(screen.getByText('面积'));
+    expect((screen.getByRole('button', { name: '导出调用流量数据' }) as HTMLButtonElement).disabled).toBe(true);
+    Reflect.deleteProperty(URL, 'createObjectURL');
+    Reflect.deleteProperty(URL, 'revokeObjectURL');
+    click.mockRestore();
   });
 
   it('shows a retryable error without mock fallback', async () => {

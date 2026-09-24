@@ -22,6 +22,7 @@ export default {
   chartModes: { line: '折线', area: '面积', bar: '柱状', mixed: '组合', donut: '环形' },
   layout: '调整布局', layoutHelp: '从受控指标中添加、复制或移除图表，设置标题、时间粒度、顺序与宽度；完成后点击页面顶部的“保存配置”。',
   savePreferences: '保存配置', preferencesError: '图表配置加载或保存失败',
+  exportCsv: '导出 CSV', exportFor: '导出{{title}}数据', exportError: '图表导出失败',
   chartSizeFor: '{{title}}图表宽度', normal: '标准', wide: '通栏', moveUp: '上移', moveDown: '下移',
   addChart: '添加图表', newChartKind: '选择图表内容', chartLimit: '{{count}} / 12 张图表',
   duplicate: '复制', customTitle: '自定义标题', customTitleFor: '{{title}}自定义标题',

@@ -7,9 +7,12 @@ import com.aiworkmate.dto.PlatformObservabilityComparisonResponse;
 import com.aiworkmate.dto.ObservabilityPreferenceRequest;
 import com.aiworkmate.dto.ObservabilityPreferenceResponse;
 import com.aiworkmate.dto.ObservabilityThresholdPreference;
+import com.aiworkmate.dto.ObservabilityExportRequest;
+import com.aiworkmate.dto.DashboardExportResponse;
 import com.aiworkmate.security.AuthenticatedUser;
 import com.aiworkmate.service.PlatformObservabilityService;
 import com.aiworkmate.service.ObservabilityPreferenceService;
+import com.aiworkmate.service.ObservabilityExportService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -19,6 +22,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.format.annotation.DateTimeFormat;
 
@@ -31,6 +35,14 @@ import java.time.LocalDateTime;
 public class PlatformObservabilityController {
     private final PlatformObservabilityService service;
     private final ObservabilityPreferenceService preferenceService;
+    private final ObservabilityExportService exportService;
+
+    @PostMapping("/export")
+    @PreAuthorize("hasAuthority('route:platform-observability') and hasAuthority('runtime-log:read') and hasAuthority('data:export')")
+    public Result<DashboardExportResponse> export(@AuthenticationPrincipal AuthenticatedUser user,
+                                                   @Valid @RequestBody ObservabilityExportRequest request) {
+        return Result.ok(exportService.export(user.userId(), request));
+    }
 
     @GetMapping("/overview")
     public Result<PlatformObservabilityResponse> overview(

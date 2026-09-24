@@ -52,4 +52,14 @@ describe('platform observability API', () => {
     expect(fetchMock.mock.calls[1][1]).toMatchObject({ method: 'PUT',
       body: JSON.stringify({ failedCount: 5, blockedCount: null, p95DurationMs: null }) });
   });
+
+  it('requests a governed export for one saved chart only', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true, json: async () => ({ code: 200, data: { filename: 'observability-volume-7d.csv', content: '' } }),
+    } as Response);
+    await platformObservabilityApi.exportChart('7d', 'volume');
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/admin/platform-observability/export');
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({ method: 'POST',
+      body: JSON.stringify({ range: '7d', chartId: 'volume' }) });
+  });
 });

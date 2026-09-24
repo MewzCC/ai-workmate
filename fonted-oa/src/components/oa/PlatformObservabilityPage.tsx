@@ -11,6 +11,7 @@ import dayjs from 'dayjs';
 import { OaIcon } from '@/components/OaIcon';
 import { usePermission } from '@/hooks/usePermission';
 import { formatOaApiError } from '@/lib/oaApi';
+import { downloadDashboardExport } from '@/lib/dashboardApi';
 import {
   platformObservabilityApi,
   type ObservabilityRange,
@@ -76,11 +77,14 @@ function readColors(element: HTMLElement): ChartColors {
   };
 }
 
-function ChartPanel({ title, subtitle, dataCount, option, modes, content, preference, onChange, onDrilldown, disabled, seriesData }: {
+function ChartPanel({ title, subtitle, dataCount, option, modes, content, preference, onChange, onDrilldown, onExport, exporting, exportDisabled, disabled, seriesData }: {
   title: string; subtitle: string; dataCount: number; option: ChartOptionFactory;
   modes: ChartChoice[]; content: ChartChoice[]; preference: ObservabilityChartPreference;
   onChange: (next: ObservabilityChartPreference) => void;
   onDrilldown?: (hit: ChartHit) => void;
+  onExport?: () => void;
+  exporting?: boolean;
+  exportDisabled?: boolean;
   disabled: boolean;
   seriesData: ChartSeries;
 }) {
@@ -124,6 +128,8 @@ function ChartPanel({ title, subtitle, dataCount, option, modes, content, prefer
   return (
     <Card className="oa-observability-chart" title={<span>{title}<small>{subtitle}</small></span>}
       extra={<div className="oa-observability-chart-controls">
+        {onExport && <Button size="small" loading={exporting} disabled={exportDisabled} onClick={onExport}
+          aria-label={t('platformObservability.exportFor', { title })}>{t('platformObservability.exportCsv')}</Button>}
         <Segmented size="small" disabled={disabled} aria-label={t('platformObservability.chartType', { title })} value={mode}
           onChange={(next) => onChange({ ...preference, mode: next })} options={modes} />
         <Popover trigger="click" placement="bottomRight" title={t('platformObservability.chartContent')}
@@ -148,6 +154,7 @@ export default function PlatformObservabilityPage() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const { allowed: canOpenLogs } = usePermission('route:runtime-logs');
+  const { allowed: canExport } = usePermission('data:export');
   const [range, setRange] = useState<ObservabilityRange>('7d');
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [showComparison, setShowComparison] = useState(false);
@@ -174,6 +181,8 @@ export default function PlatformObservabilityPage() {
   const [preferencesDirty, setPreferencesDirty] = useState(false);
   const [preferencesSaving, setPreferencesSaving] = useState(false);
   const [layoutOpen, setLayoutOpen] = useState(false);
+  const [exportingId, setExportingId] = useState<string>();
+  const [exportError, setExportError] = useState<string>();
   const [newKind, setNewKind] = useState<ObservabilityChartKind>('volume');
   const requestSequence = useRef(0);
   const loadPreferences = useCallback(async () => {
@@ -275,6 +284,17 @@ export default function PlatformObservabilityPage() {
       setPreferencesSaving(false);
     }
   }, [charts]);
+  const exportChart = async (chartId: string) => {
+    setExportingId(chartId);
+    setExportError(undefined);
+    try {
+      downloadDashboardExport(await platformObservabilityApi.exportChart(range, chartId));
+    } catch (cause) {
+      setExportError(formatOaApiError(cause));
+    } finally {
+      setExportingId(undefined);
+    }
+  };
   const load = useCallback(async () => {
     const sequence = ++requestSequence.current;
     setLoading(true);
@@ -510,6 +530,7 @@ export default function PlatformObservabilityPage() {
       {thresholdsError && <Alert type="error" showIcon title={t('platformObservability.thresholdsError')}
         description={thresholdsError} action={<Button onClick={() => void loadThresholds()}>{t('common.retry')}</Button>} />}
       {error && <Alert type="error" showIcon title={error} action={<Button onClick={() => void load()}>{t('common.retry')}</Button>} />}
+      {exportError && <Alert type="error" showIcon title={t('platformObservability.exportError')} description={exportError} closable onClose={() => setExportError(undefined)} />}
       {(loading && !overview) || preferencesLoading ? <Skeleton active paragraph={{ rows: 10 }} /> : overview && <>
         <div className="oa-observability-metrics">
           <Card><Statistic title={t('platformObservability.total')} value={overview.stats.total ?? 0} formatter={(value) => number.format(Number(value))} /></Card>
@@ -599,6 +620,9 @@ export default function PlatformObservabilityPage() {
                 : <ChartPanel title={chart.title?.trim() || chartTitles[kind]} preference={chart} onChange={updateChart}
                     onDrilldown={canOpenLogs ? (hit) => drilldown(kind, chart, chartSeries,
                       requiresAlternate ? alternateInterval : overview.interval, hit) : undefined}
+                    onExport={canExport ? () => void exportChart(chart.id) : undefined}
+                    exporting={exportingId === chart.id}
+                    exportDisabled={preferencesDirty || preferencesSaving || !!preferencesError || loading || exportingId !== undefined}
                     disabled={preferencesSaving || !!preferencesError} seriesData={chartSeries} {...settings} />}
             </div>;
           })}
