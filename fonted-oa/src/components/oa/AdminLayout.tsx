@@ -19,7 +19,7 @@ import ApprovalDetailPage from './ApprovalDetailPage';
 import { useAiChatStore } from '@/store/aiChatStore';
 import { OaPageRenderer } from './OaPageRenderer';
 import PageAgentLauncher, { type PageAgentLauncherHandle } from './PageAgentLauncher';
-import { PageAgentContextProvider } from './PageAgentContext';
+import { PageAgentContextObserver, PageAgentContextProvider, type PageAgentContextSnapshot } from './PageAgentContext';
 const KnowledgeBasePage = lazy(() => import('./KnowledgeBasePage'));
 
 const { Content } = Layout;
@@ -174,6 +174,10 @@ export default function AdminLayout() {
   const [openTabs, setOpenTabs] = useState<OaPageTab[]>([]);
   const [openTabsReady, setOpenTabsReady] = useState(false);
   const [pageRevision, setPageRevision] = useState(0);
+  const [agentPageContext, setAgentPageContext] = useState<{ pageId: string; snapshot: PageAgentContextSnapshot } | null>(null);
+  const updateAgentPageContext = useCallback((snapshot: PageAgentContextSnapshot) => {
+    setAgentPageContext({ pageId: selectedMenu.id, snapshot });
+  }, [selectedMenu.id]);
 
   const currentTheme = useMemo(() => themes.find((theme) => theme.name === themeName) || themes[0], [themeName]);
   const pinnedMenu = useMemo(
@@ -453,7 +457,6 @@ export default function AdminLayout() {
         },
       }}
     >
-      <PageAgentContextProvider key={selectedMenu.id} pageId={selectedMenu.id}>
         <div className={`oa-shell ${collapsed ? 'oa-shell-collapsed' : ''} ${wallpaper ? 'oa-has-wallpaper' : ''} ${selectedMenu.id === 'ai-workspace' ? 'oa-chat-page' : ''}`}>
           <div
             className={`oa-sider-mask ${collapsed ? '' : 'is-visible'}`}
@@ -520,34 +523,39 @@ export default function AdminLayout() {
                 ) : null}
               </div>
               <Content className={`oa-content ${selectedMenu.id === 'ai-workspace' ? 'oa-chat-content' : ''}`}>
-                <Suspense fallback={<div className="oa-route-loading"><Spin size="large" /></div>}>
-                  <div key={`${selectedMenu.id}:${pageRevision}`} className="oa-page-transition">
-                    {approvalTaskId ? (
-                      <ApprovalDetailPage taskId={approvalTaskId} />
-                    ) : kbId ? (
-                      <KnowledgeBasePage kbId={kbId} />
-                  ) : (
-                    <OaPageRenderer
-                      menu={{
-                        ...selectedMenu,
-                        name: t(`oa.menu.${selectedMenu.id}`, { defaultValue: selectedMenu.name }),
-                      }}
-                      role={role}
-                      primaryColor={currentTheme.primary}
-                      onOpenAi={openAi}
-                    />
-                    )}
-                  </div>
-                </Suspense>
+                <PageAgentContextProvider pageId={selectedMenu.id}>
+                  <PageAgentContextObserver onChange={updateAgentPageContext} />
+                  <Suspense fallback={<div className="oa-route-loading"><Spin size="large" /></div>}>
+                    <div key={`${selectedMenu.id}:${pageRevision}`} className="oa-page-transition">
+                      {approvalTaskId ? (
+                        <ApprovalDetailPage taskId={approvalTaskId} />
+                      ) : kbId ? (
+                        <KnowledgeBasePage kbId={kbId} />
+                      ) : (
+                        <OaPageRenderer
+                          menu={{
+                            ...selectedMenu,
+                            name: t(`oa.menu.${selectedMenu.id}`, { defaultValue: selectedMenu.name }),
+                          }}
+                          role={role}
+                          primaryColor={currentTheme.primary}
+                          onOpenAi={openAi}
+                        />
+                      )}
+                    </div>
+                  </Suspense>
+                </PageAgentContextProvider>
               </Content>
             </Layout>
           </Layout>
 
           <PageAgentLauncher
+            key={`${userId ?? 'guest'}:${permissionVersion ?? 0}`}
             ref={agentLauncherRef}
             role={role}
             pageId={selectedMenu.id}
             pageTitle={t(`oa.menu.${selectedMenu.id}`, { defaultValue: selectedMenu.name })}
+            pageContext={agentPageContext?.pageId === selectedMenu.id ? agentPageContext.snapshot : undefined}
             miniEnabled={aiMiniEnabled}
             onPageRefresh={() => setPageRevision((revision) => revision + 1)}
           />
@@ -569,7 +577,6 @@ export default function AdminLayout() {
           />
 
         </div>
-      </PageAgentContextProvider>
     </ConfigProvider>
   );
 }

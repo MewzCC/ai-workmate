@@ -249,6 +249,8 @@ export default {
     userInput: 'User input',
     aiReply: 'AI response',
     planTitle: 'Execution plan',
+    planFromOtherPage: 'This plan belongs to another page. Return there to execute it.',
+    planSourcePage: 'Plan source: {{page}}. Navigation preserves the session, but a plan cannot be executed on another page.',
     requireConfirmTag: 'Confirmation needed',
     redactedArgument: 'Sensitive argument hidden',
     redactedArgumentLabel: 'Sensitive argument',

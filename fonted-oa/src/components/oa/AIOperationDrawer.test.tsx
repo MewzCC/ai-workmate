@@ -201,6 +201,50 @@ describe('AIOperationDrawer', () => {
     expect(input.value).toBe('查询我的待办');
   });
 
+  it('preserves the plan across page changes but blocks execution outside its source page', async () => {
+    api.planAiTask.mockResolvedValue(basePlan);
+    const drawer = (pageId: string) => <App><AIOperationDrawer open role="system_admin" pageId={pageId}
+      pageTitle={pageId === 'todo-list' ? '待办中心' : '访客预约'} onClose={vi.fn()} /></App>;
+    const view = render(drawer('todo-list'));
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: '查询我的待办' } });
+    fireEvent.click(screen.getByRole('button', { name: /发送 \/ 生成计划/ }));
+    await waitFor(() => expect(screen.getAllByText(basePlan.summary)).toHaveLength(2));
+
+    view.rerender(drawer('visitor-booking'));
+    expect(screen.getByText('该计划属于其他页面，请返回原页面后执行')).toBeTruthy();
+    expect((screen.getByRole('button', { name: '执行计划' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(api.executeAiTask).not.toHaveBeenCalled();
+
+    view.rerender(drawer('todo-list'));
+    expect((screen.getByRole('button', { name: '执行计划' }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('keeps listening for the real result while the drawer is hidden during navigation', async () => {
+    api.planAiTask.mockResolvedValue(basePlan);
+    api.executeAiTask.mockResolvedValue({ taskId: basePlan.taskId, status: 'QUEUED', statusUrl: '/status', eventsUrl: '/events' });
+    api.agentTaskApi.detail.mockResolvedValue({ taskId: basePlan.taskId, status: 'SUCCEEDED', steps: [
+      { sequence: 1, toolCode: 'todo.query', status: 'SUCCEEDED', resultSummary: null, result: { total: 0, items: [] } },
+    ], errorCode: null });
+    const drawer = (open: boolean, pageId: string) => <App><AIOperationDrawer open={open} role="system_admin"
+      pageId={pageId} pageTitle={pageId === 'todo-list' ? '待办中心' : 'AI 工作空间'} onClose={vi.fn()} /></App>;
+    const view = render(drawer(true, 'todo-list'));
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: '查询我的待办' } });
+    fireEvent.click(screen.getByRole('button', { name: /发送 \/ 生成计划/ }));
+    await waitFor(() => expect(screen.getAllByText(basePlan.summary)).toHaveLength(2));
+    fireEvent.click(screen.getByRole('button', { name: '执行计划' }));
+    await waitFor(() => expect(api.subscribeAiTaskEvents).toHaveBeenCalledTimes(1));
+
+    view.rerender(drawer(false, 'ai-workspace'));
+    expect(api.subscribeAiTaskEvents.mock.results[0].value).not.toHaveBeenCalled();
+    const subscription = api.subscribeAiTaskEvents.mock.calls[0][1] as {
+      onEvent: (event: { id: string; type: string; data: Record<string, unknown> }) => void;
+    };
+    act(() => subscription.onEvent({ id: 'evt-1', type: 'task-completed', data: { status: 'SUCCEEDED' } }));
+    await waitFor(() => expect(api.agentTaskApi.detail).toHaveBeenCalledWith(basePlan.taskId));
+    view.rerender(drawer(true, 'todo-list'));
+    expect(await screen.findByText('没有匹配的记录')).toBeTruthy();
+  });
+
   it('shows a retryable result error instead of inventing output when detail retrieval fails', async () => {
     api.planAiTask.mockResolvedValue(basePlan);
     api.executeAiTask.mockResolvedValue({ taskId: basePlan.taskId, status: 'QUEUED', statusUrl: '/status', eventsUrl: '/events' });

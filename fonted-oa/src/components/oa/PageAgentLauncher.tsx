@@ -2,7 +2,6 @@
 
 import {
   forwardRef,
-  useEffect,
   useImperativeHandle,
   useState,
 } from 'react';
@@ -12,7 +11,7 @@ import { OaIcon } from '@/components/OaIcon';
 import type { OaRole } from '@/types/oa';
 import AIOperationDrawer from './AIOperationDrawer';
 import AiMiniPanel from './AiMiniPanel';
-import { usePageAgentContextSnapshot } from './PageAgentContext';
+import type { PageAgentContextSnapshot } from './PageAgentContext';
 
 const AGENT_WORKSPACE_PAGE_ID = 'ai-workspace';
 
@@ -24,6 +23,7 @@ interface PageAgentLauncherProps {
   role: OaRole;
   pageId: string;
   pageTitle: string;
+  pageContext?: PageAgentContextSnapshot;
   miniEnabled: boolean;
   onPageRefresh?: () => void;
 }
@@ -33,12 +33,11 @@ interface PageAgentLauncherProps {
  * 抽屉、迷你面板和提示词生命周期统一在这里管理。
  */
 const PageAgentLauncher = forwardRef<PageAgentLauncherHandle, PageAgentLauncherProps>(
-  function PageAgentLauncher({ role, pageId, pageTitle, miniEnabled, onPageRefresh }, ref) {
+  function PageAgentLauncher({ role, pageId, pageTitle, pageContext, miniEnabled, onPageRefresh }, ref) {
     const { t } = useTranslation();
     const [open, setOpen] = useState(false);
     const [drawerPresent, setDrawerPresent] = useState(false);
     const [prompt, setPrompt] = useState('');
-    const pageContext = usePageAgentContextSnapshot();
     const enabled = pageId !== AGENT_WORKSPACE_PAGE_ID;
 
     useImperativeHandle(ref, () => ({
@@ -49,14 +48,6 @@ const PageAgentLauncher = forwardRef<PageAgentLauncherHandle, PageAgentLauncherP
       },
     }), [enabled]);
 
-    useEffect(() => {
-      setOpen(false);
-      setDrawerPresent(false);
-      setPrompt('');
-    }, [pageId]);
-
-    if (!enabled) return null;
-
     const openAgent = (initialPrompt?: string) => {
       setPrompt(initialPrompt || '');
       setOpen(true);
@@ -64,21 +55,20 @@ const PageAgentLauncher = forwardRef<PageAgentLauncherHandle, PageAgentLauncherP
 
     return (
       <>
-        <FloatButton
+        {enabled && <FloatButton
           type="primary"
           icon={<OaIcon name="ai" size={20} />}
           tooltip={t('oa.ai.openPanel')}
           aria-label={t('oa.ai.openPanel')}
           onClick={() => openAgent()}
-        />
+        />}
 
-        {miniEnabled && !open && !drawerPresent ? (
+        {enabled && miniEnabled && !open && !drawerPresent ? (
           <AiMiniPanel onOpenAi={openAgent} />
         ) : null}
 
         <AIOperationDrawer
-          key={pageId}
-          open={open}
+          open={enabled && open}
           role={role}
           pageId={pageId}
           pageTitle={pageTitle}

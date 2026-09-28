@@ -249,6 +249,8 @@ export default {
     userInput: '用户输入',
     aiReply: 'AI 返回',
     planTitle: '执行计划',
+    planFromOtherPage: '该计划属于其他页面，请返回原页面后执行',
+    planSourcePage: '计划来源：{{page}}。切换页面不会清除会话，但不能跨页面执行旧计划。',
     requireConfirmTag: '需要确认',
     redactedArgument: '已隐藏敏感参数',
     redactedArgumentLabel: '敏感参数',

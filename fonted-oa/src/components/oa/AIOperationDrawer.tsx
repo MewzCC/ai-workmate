@@ -61,6 +61,7 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageC
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<ChatLine[]>([]);
   const [plan, setPlan] = useState<AiTaskPlanResponse | null>(null);
+  const [planPage, setPlanPage] = useState<{ id: string; title: string } | null>(null);
   const [execution, setExecution] = useState<AiTaskExecuteResponse | null>(null);
   const [taskStatus, setTaskStatus] = useState<AgentTaskStatus | null>(null);
   const [events, setEvents] = useState<AiTaskEvent[]>([]);
@@ -80,6 +81,8 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageC
   const loadedResultTaskRef = useRef<string | null>(null);
   const resultRequestRef = useRef(0);
   const resultCardRef = useRef<HTMLDivElement | null>(null);
+  const currentPageIdRef = useRef(pageId);
+  currentPageIdRef.current = pageId;
 
   const stopEventStream = () => {
     unsubscribeRef.current?.();
@@ -95,7 +98,6 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageC
     if (open && initialPrompt) setInput(initialPrompt);
     if (!open) {
       confirmationTokenRef.current = null;
-      stopEventStream();
     }
   }, [open, initialPrompt]);
 
@@ -174,6 +176,7 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageC
           : {}),
       });
       setPlan(nextPlan);
+      setPlanPage({ id: pageId, title: pageTitle });
       setTaskStatus(nextPlan.status);
       setInput((current) => current.trim() === value ? '' : current);
       setMessages((previous) => [...previous, { role: 'assistant', content: nextPlan.summary }]);
@@ -181,6 +184,7 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageC
     } catch (error) {
       const errorMessage = formatOaApiError(error);
       setPlan(null);
+      setPlanPage(null);
       setOperationError({ message: errorMessage, retryable: error instanceof OaApiError && error.retryable });
       setMessages((previous) => [...previous, { role: 'assistant', content: errorMessage }]);
       message.error(errorMessage);
@@ -225,6 +229,10 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageC
 
   const runPlan = async (withConfirmation: boolean) => {
     if (!plan) return;
+    if (planPage?.id !== currentPageIdRef.current) {
+      message.warning(t('oa.ai.planFromOtherPage'));
+      return;
+    }
     setExecuting(true);
     setOperationError(null);
     try {
@@ -258,6 +266,10 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageC
       message.warning(t('oa.ai.generatePlanFirst'));
       return;
     }
+    if (planPage?.id !== pageId) {
+      message.warning(t('oa.ai.planFromOtherPage'));
+      return;
+    }
     if (!plan.confirmationRequired) {
       void runPlan(false).catch(() => undefined);
       return;
@@ -276,9 +288,7 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageC
   };
 
   const closeDrawer = () => {
-    resultRequestRef.current += 1;
     confirmationTokenRef.current = null;
-    stopEventStream();
     onClose();
   };
 
@@ -288,7 +298,7 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageC
         <Input.TextArea rows={4} maxLength={4096} showCount value={input} onChange={(event) => setInput(event.target.value)} placeholder={t('oa.ai.placeholder')} />
         <Space wrap>
           <Button type="primary" icon={<OaIcon name="send" />} loading={loading} disabled={executing} onClick={() => submitPlan()}>{t('oa.ai.send')}</Button>
-          <Button icon={<OaIcon name="pause" />} disabled={loading} onClick={() => { resetExecution(); setPlan(null); message.info(t('oa.ai.cancelledPlan')); }}>{t('oa.ai.cancelPlan')}</Button>
+          <Button icon={<OaIcon name="pause" />} disabled={loading} onClick={() => { resetExecution(); setPlan(null); setPlanPage(null); message.info(t('oa.ai.cancelledPlan')); }}>{t('oa.ai.cancelPlan')}</Button>
         </Space>
       </Space>}
     >
@@ -335,12 +345,13 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageC
         </Card></div>}
 
         {plan && <Card size="small" className="oa-ai-plan-card" title={t('oa.ai.planTitle')}>
+          {planPage?.id !== pageId && <Alert type="warning" showIcon title={t('oa.ai.planFromOtherPage')} description={t('oa.ai.planSourcePage', { page: planPage?.title })} />}
           <AgentPlanPreview
             plan={plan}
             status={taskStatus ?? plan.status}
             completedSteps={events.filter((event) => event.type === 'step-completed').length}
           />
-          <Button type="primary" icon={<OaIcon name="ai" />} loading={executing} disabled={Boolean(execution)} onClick={requestExecution}>{plan.confirmationRequired ? t('oa.ai.confirmExecute') : t('oa.ai.executePlan')}</Button>
+          <Button type="primary" icon={<OaIcon name="ai" />} loading={executing} disabled={Boolean(execution) || planPage?.id !== pageId} onClick={requestExecution}>{plan.confirmationRequired ? t('oa.ai.confirmExecute') : t('oa.ai.executePlan')}</Button>
         </Card>}
 
         {execution && <Card size="small" className="oa-ai-progress-card" title={t('oa.ai.progressTitle')}>
