@@ -5508,6 +5508,44 @@ html.oa-wallpaper-active .ant-menu-submenu-popup .ant-menu-dark {
   margin-bottom: 0 !important;
 }
 
+.oa-ai-result-content {
+  width: 100%;
+}
+
+.oa-ai-result-loading {
+  min-height: 72px;
+}
+
+.oa-ai-result-step {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--oa-border, rgba(15, 23, 42, 0.08));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--oa-primary, #1677ff) 4%, var(--oa-card, #fff));
+}
+
+.oa-ai-result-step-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.oa-ai-result-json {
+  max-height: 320px;
+  margin: 0;
+  padding: 10px 12px;
+  overflow: auto;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--oa-text, #172033) 5%, var(--oa-card, #fff));
+  color: var(--oa-text, #172033);
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .oa-health-progress {
   margin-top: 18px;
 }

@@ -2,11 +2,11 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Alert, App as AntdApp, Button, Card, Drawer, Empty, Input, Space, Tag, Timeline, Typography } from 'antd';
-import type { AgentTaskStatus, AiTaskEvent, AiTaskExecuteResponse, AiTaskPlanResponse, OaRole, PageCapability } from '@/types/oa';
+import { Alert, App as AntdApp, Button, Card, Drawer, Empty, Input, Space, Spin, Tag, Timeline, Typography } from 'antd';
+import type { AgentTaskDetail, AgentTaskStatus, AiTaskEvent, AiTaskExecuteResponse, AiTaskPlanResponse, OaRole, PageCapability } from '@/types/oa';
 import { sanitizePageAgentContext, type PageAgentContextSnapshot } from './PageAgentContext';
 import PageAgentCapabilityPanel from './PageAgentCapabilityPanel';
-import { executeAiTask, formatOaApiError, getPageCapabilities, issueAiTaskConfirmation, OaApiError, planAiTask, subscribeAiTaskEvents } from '@/lib/oaApi';
+import { agentTaskApi, executeAiTask, formatOaApiError, getPageCapabilities, issueAiTaskConfirmation, OaApiError, planAiTask, subscribeAiTaskEvents } from '@/lib/oaApi';
 import { OaIcon } from '@/components/OaIcon';
 import AgentPlanPreview from './AgentPlanPreview';
 
@@ -47,6 +47,14 @@ function eventStatus(event: AiTaskEvent): AgentTaskStatus | null {
     : null;
 }
 
+function resultPage(result: unknown): { total: number; empty: boolean } | null {
+  if (!result || typeof result !== 'object' || Array.isArray(result)) return null;
+  const page = result as Record<string, unknown>;
+  return typeof page.total === 'number' && Array.isArray(page.items)
+    ? { total: page.total, empty: page.items.length === 0 }
+    : null;
+}
+
 export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageContext, initialPrompt, onClose, onOpenChangeComplete, onExecutionCompleted }: AIOperationDrawerProps) {
   const { t } = useTranslation();
   const { message, modal } = AntdApp.useApp();
@@ -56,6 +64,9 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageC
   const [execution, setExecution] = useState<AiTaskExecuteResponse | null>(null);
   const [taskStatus, setTaskStatus] = useState<AgentTaskStatus | null>(null);
   const [events, setEvents] = useState<AiTaskEvent[]>([]);
+  const [resultDetail, setResultDetail] = useState<AgentTaskDetail | null>(null);
+  const [resultLoading, setResultLoading] = useState(false);
+  const [resultError, setResultError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [executing, setExecuting] = useState(false);
   const [operationError, setOperationError] = useState<{ message: string; retryable: boolean } | null>(null);
@@ -66,6 +77,9 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageC
   const confirmationTokenRef = useRef<string | null>(null);
   const unsubscribeRef = useRef<(() => void) | null>(null);
   const refreshedTaskRef = useRef<string | null>(null);
+  const loadedResultTaskRef = useRef<string | null>(null);
+  const resultRequestRef = useRef(0);
+  const resultCardRef = useRef<HTMLDivElement | null>(null);
 
   const stopEventStream = () => {
     unsubscribeRef.current?.();
@@ -73,6 +87,10 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageC
   };
 
   useEffect(() => () => stopEventStream(), []);
+  useEffect(() => () => { resultRequestRef.current += 1; }, []);
+  useEffect(() => {
+    if (resultDetail || resultError) resultCardRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'nearest' });
+  }, [resultDetail, resultError]);
   useEffect(() => {
     if (open && initialPrompt) setInput(initialPrompt);
     if (!open) {
@@ -101,11 +119,37 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageC
   }, [open, pageId, capabilityReload]);
 
   const resetExecution = () => {
+    resultRequestRef.current += 1;
+    loadedResultTaskRef.current = null;
     confirmationTokenRef.current = null;
     stopEventStream();
     setExecution(null);
     setTaskStatus(null);
     setEvents([]);
+    setResultDetail(null);
+    setResultLoading(false);
+    setResultError(null);
+  };
+
+  const loadResult = async (taskId: string) => {
+    const request = ++resultRequestRef.current;
+    setResultLoading(true);
+    setResultError(null);
+    try {
+      const detail = await agentTaskApi.detail(taskId);
+      if (request !== resultRequestRef.current) return;
+      if (detail.taskId !== taskId || !TERMINAL_STATUSES.has(detail.status)) {
+        throw new Error(t('oa.ai.resultNotReady'));
+      }
+      setResultDetail(detail);
+      setTaskStatus(detail.status);
+    } catch (error) {
+      if (request !== resultRequestRef.current) return;
+      loadedResultTaskRef.current = null;
+      setResultError(error instanceof OaApiError ? formatOaApiError(error) : t('oa.ai.resultNotReady'));
+    } finally {
+      if (request === resultRequestRef.current) setResultLoading(false);
+    }
   };
 
   const submitPlan = async (preset?: string) => {
@@ -131,6 +175,7 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageC
       });
       setPlan(nextPlan);
       setTaskStatus(nextPlan.status);
+      setInput((current) => current.trim() === value ? '' : current);
       setMessages((previous) => [...previous, { role: 'assistant', content: nextPlan.summary }]);
       message.success(t('oa.ai.planGenerated'));
     } catch (error) {
@@ -155,8 +200,14 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageC
         if (TERMINAL_STATUSES.has(status)) {
           setExecuting(false);
           confirmationTokenRef.current = null;
+          if (loadedResultTaskRef.current !== taskId) {
+            loadedResultTaskRef.current = taskId;
+            void loadResult(taskId);
+            if (status === 'SUCCEEDED' || status === 'PARTIALLY_SUCCEEDED') {
+              message.success(t('oa.ai.executionCompletedMessage'));
+            }
+          }
           if (status === 'SUCCEEDED' || status === 'PARTIALLY_SUCCEEDED') {
-            message.success(t('oa.ai.executionCompletedMessage'));
             if (refreshedTaskRef.current !== taskId) {
               refreshedTaskRef.current = taskId;
               onExecutionCompleted?.();
@@ -225,6 +276,7 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageC
   };
 
   const closeDrawer = () => {
+    resultRequestRef.current += 1;
     confirmationTokenRef.current = null;
     stopEventStream();
     onClose();
@@ -263,6 +315,24 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageC
             </li>)}
           </ul>}
         </Card>
+
+        {execution && (resultLoading || resultError || resultDetail) && <div ref={resultCardRef}><Card size="small" className="oa-ai-result-card" title={t('oa.ai.resultTitle')}>
+          {resultLoading && <Spin description={t('oa.ai.resultLoading')}><div className="oa-ai-result-loading" /></Spin>}
+          {resultError && <Alert type="error" showIcon title={t('oa.ai.resultLoadFailed')} description={resultError}
+            action={<Button size="small" onClick={() => { loadedResultTaskRef.current = execution.taskId; void loadResult(execution.taskId); }}>{t('common.retry')}</Button>} />}
+          {resultDetail && <Space orientation="vertical" size={12} className="oa-ai-result-content">
+            <Tag color={statusColor(resultDetail.status)}>{t(`oa.ai.status.${resultDetail.status}`)}</Tag>
+            {resultDetail.errorCode && <Alert type="error" showIcon title={t('oa.ai.executionFailed')} description={resultDetail.errorCode} />}
+            {resultDetail.steps.map((step) => <div className="oa-ai-result-step" key={step.sequence}>
+              <div className="oa-ai-result-step-heading"><Typography.Text strong>{t('oa.ai.resultStep', { sequence: step.sequence })} · {plan?.steps.find((item) => item.sequence === step.sequence)?.title ?? step.toolCode}</Typography.Text><Tag color={step.status === 'SUCCEEDED' ? 'success' : 'error'}>{step.status === 'SUCCEEDED' ? t('oa.ai.status.SUCCEEDED') : t('oa.ai.status.FAILED')}</Tag></div>
+              {step.resultSummary && <Typography.Paragraph>{step.resultSummary}</Typography.Paragraph>}
+              {resultPage(step.result) && <Typography.Paragraph type="secondary">{t('oa.ai.resultCount', { count: resultPage(step.result)?.total })}</Typography.Paragraph>}
+              {resultPage(step.result)?.empty && <Empty description={t('oa.ai.resultEmpty')} image={Empty.PRESENTED_IMAGE_SIMPLE} />}
+              {step.result != null && !resultPage(step.result)?.empty && <pre className="oa-ai-result-json">{JSON.stringify(step.result, null, 2)}</pre>}
+              {step.result == null && <Typography.Text type="secondary">{step.errorCode || t('oa.ai.noStepResult')}</Typography.Text>}
+            </div>)}
+          </Space>}
+        </Card></div>}
 
         {plan && <Card size="small" className="oa-ai-plan-card" title={t('oa.ai.planTitle')}>
           <AgentPlanPreview

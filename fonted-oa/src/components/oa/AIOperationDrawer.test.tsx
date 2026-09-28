@@ -14,6 +14,7 @@ const api = vi.hoisted(() => ({
     },
   ) => vi.fn()),
   getPageCapabilities: vi.fn(),
+  agentTaskApi: { detail: vi.fn() },
 }));
 
 vi.mock('@/lib/oaApi', async (importOriginal) => {
@@ -148,10 +149,18 @@ describe('AIOperationDrawer', () => {
       eventsUrl: `/api/ai/tasks/${basePlan.taskId}/events`,
     });
     const onExecutionCompleted = vi.fn();
+    api.agentTaskApi.detail.mockResolvedValue({
+      taskId: basePlan.taskId,
+      status: 'SUCCEEDED',
+      steps: [{ sequence: 1, toolCode: 'todo.query', status: 'SUCCEEDED', resultSummary: null, result: { total: 1, items: [{ applicantName: '张三', status: 'PENDING' }] } }],
+      errorCode: null,
+    });
     renderDrawer(onExecutionCompleted);
-    fireEvent.change(screen.getByRole('textbox'), { target: { value: '查询我的待办' } });
+    const input = screen.getByRole('textbox') as HTMLTextAreaElement;
+    fireEvent.change(input, { target: { value: '查询我的待办' } });
     fireEvent.click(screen.getByRole('button', { name: /发送 \/ 生成计划/ }));
     await waitFor(() => expect(screen.getAllByText(basePlan.summary)).toHaveLength(2));
+    expect(input.value).toBe('');
     fireEvent.click(screen.getByRole('button', { name: '执行计划' }));
     await waitFor(() => expect(api.subscribeAiTaskEvents).toHaveBeenCalledTimes(1));
 
@@ -164,6 +173,50 @@ describe('AIOperationDrawer', () => {
     });
 
     expect(onExecutionCompleted).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(api.agentTaskApi.detail).toHaveBeenCalledTimes(1));
+    expect(await screen.findByText('实际执行结果')).toBeTruthy();
+    expect(await screen.findByText('共 1 条记录')).toBeTruthy();
+    expect(await screen.findByText(/张三/)).toBeTruthy();
+  });
+
+  it('keeps the prompt when planning fails and does not erase a newer draft', async () => {
+    let resolvePlan: (value: typeof basePlan) => void = () => undefined;
+    api.planAiTask.mockImplementation(() => new Promise((resolve) => { resolvePlan = resolve; }));
+    renderDrawer();
+    const input = screen.getByRole('textbox') as HTMLTextAreaElement;
+    fireEvent.change(input, { target: { value: '查询我的待办' } });
+    fireEvent.click(screen.getByRole('button', { name: /发送 \/ 生成计划/ }));
+    fireEvent.change(input, { target: { value: '下一条指令' } });
+    await act(async () => resolvePlan(basePlan));
+    expect(input.value).toBe('下一条指令');
+  });
+
+  it('retains the submitted prompt when planning fails so it can be edited and retried', async () => {
+    api.planAiTask.mockRejectedValue(new Error('planning unavailable'));
+    renderDrawer();
+    const input = screen.getByRole('textbox') as HTMLTextAreaElement;
+    fireEvent.change(input, { target: { value: '查询我的待办' } });
+    fireEvent.click(screen.getByRole('button', { name: /发送 \/ 生成计划/ }));
+    await waitFor(() => expect(screen.getByText('AI 能力调用失败')).toBeTruthy());
+    expect(input.value).toBe('查询我的待办');
+  });
+
+  it('shows a retryable result error instead of inventing output when detail retrieval fails', async () => {
+    api.planAiTask.mockResolvedValue(basePlan);
+    api.executeAiTask.mockResolvedValue({ taskId: basePlan.taskId, status: 'QUEUED', statusUrl: '/status', eventsUrl: '/events' });
+    api.agentTaskApi.detail.mockRejectedValue(new Error('network down'));
+    renderDrawer();
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: '查询我的待办' } });
+    fireEvent.click(screen.getByRole('button', { name: /发送 \/ 生成计划/ }));
+    await waitFor(() => expect(screen.getAllByText(basePlan.summary)).toHaveLength(2));
+    fireEvent.click(screen.getByRole('button', { name: '执行计划' }));
+    await waitFor(() => expect(api.subscribeAiTaskEvents).toHaveBeenCalledTimes(1));
+    const subscription = api.subscribeAiTaskEvents.mock.calls[0][1] as {
+      onEvent: (event: { id: string; type: string; data: Record<string, unknown> }) => void;
+    };
+    act(() => subscription.onEvent({ id: 'evt-1', type: 'task-completed', data: { status: 'SUCCEEDED' } }));
+    expect(await screen.findByText('执行结果读取失败')).toBeTruthy();
+    expect(screen.queryByText('此步骤没有返回数据')).toBeNull();
   });
 
   it('issues a memory-only confirmation credential immediately before L1 execution', async () => {
