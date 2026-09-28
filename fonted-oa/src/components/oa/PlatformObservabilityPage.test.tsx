@@ -90,6 +90,8 @@ describe('PlatformObservabilityPage', () => {
     overview.mockRejectedValue(new Error('offline'));
     render(<MemoryRouter><PlatformObservabilityPage /></MemoryRouter>);
     expect(await screen.findByText('请求失败，请稍后重试')).toBeTruthy();
+    expect(screen.getByText('暂时无法加载观测数据')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /重\s*试/ })).toBeTruthy();
     expect(screen.queryByText('调用总量')).toBeNull();
   });
 
@@ -113,6 +115,9 @@ describe('PlatformObservabilityPage', () => {
     render(<MemoryRouter><PlatformObservabilityPage /></MemoryRouter>);
     await screen.findByText('调用流量');
     await waitFor(() => expect(chartSetOption).toHaveBeenCalled());
+    for (const name of ['调用流量', '异常脉冲', '来源构成', '高频错误码']) {
+      expect(screen.getByRole('img', { name })).toBeTruthy();
+    }
     fireEvent.click(screen.getByText('面积'));
     await waitFor(() => expect(chartSetOption.mock.calls.some(([option]) => option.series?.some((item: { areaStyle?: unknown }) => item.areaStyle))).toBe(true));
     fireEvent.click(screen.getByRole('button', { name: '调用流量显示内容' }));

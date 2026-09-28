@@ -12,6 +12,17 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class RuntimeLogMapperSqlTest {
     @Test
+    void timelineGroupsByTheSelectedExpressionInsteadOfASecondBindParameter() {
+        Configuration configuration = new Configuration();
+        configuration.addMapper(RuntimeLogMapper.class);
+        Map<String, Object> parameters = Map.of("tenantId", 9L, "from", LocalDateTime.of(2026, 9, 23, 10, 0),
+                "to", LocalDateTime.of(2026, 9, 23, 11, 0), "bucket", "hour");
+        String sql = configuration.getMappedStatement(RuntimeLogMapper.class.getName() + ".selectTimeline")
+                .getBoundSql(parameters).getSql();
+        assertThat(sql).contains("GROUP BY 1, 2").doesNotContain("GROUP BY date_trunc(?)");
+    }
+
+    @Test
     void chartDrilldownUsesTheSameExactGroupsAndExclusiveBoundaryForRowsAndTotals() {
         Configuration configuration = new Configuration();
         configuration.addMapper(RuntimeLogMapper.class);

@@ -21,7 +21,7 @@ public interface RuntimeLogMapper {
                    COUNT(*) FILTER (WHERE outcome = 'REJECTED' OR decision IN ('DENY', 'STALE', 'THROTTLED', 'UNAVAILABLE')) AS blocked
             FROM runtime_log_view
             WHERE tenant_id = #{tenantId} AND started_at >= #{from} AND started_at <= #{to}
-            GROUP BY date_trunc(#{bucket}, started_at), source
+            GROUP BY 1, 2
             ORDER BY bucket, source
             """)
     List<PlatformObservabilityResponse.TimelinePoint> selectTimeline(

@@ -18,6 +18,17 @@
 空时间桶不伪造事件；无数据时显示明确空态。时间范围固定为 24 小时、7 天或 30 天。
 图表仅代表运行日志已有事实，不冒充 CPU、内存或基础设施可用性监控。
 
+### 看板验收
+
+开发库有真实运行记录时，打开 `/oa/platform-observability`，依次切换近 24 小时、7 天、30 天，
+检查汇总卡、流量、异常、来源和错误码图表。图表类型、显示内容、卡片顺序与时间粒度应可切换并保存；
+趋势点下钻到运行日志，时段对比、视觉阈值和受权 CSV 导出分别验证。
+没有相应记录的图表应显示真实空态，不填充演示数据；接口失败时显示占满工作区的错误态和重试入口。
+`RuntimeLogMapperPostgresIntegrationTest` 在真实 PostgreSQL 中插入并回滚一条测试日志，覆盖汇总、
+P95、小时/天趋势、来源和错误码，避免仅靠 Mock 测试漏掉 SQL 参数绑定错误。
+该测试需要设置 `OBSERVABILITY_TEST_DB_URL`、`OBSERVABILITY_TEST_DB_USERNAME` 和
+`OBSERVABILITY_TEST_DB_PASSWORD` 指向**非生产**库；未配置时跳过，不能作为数据库验收通过的证据。
+
 图表个人配置通过 `GET/PUT /api/admin/platform-observability/preferences` 读取和保存。
 请求体为 `{ "charts": [{ "id", "kind", "title", "mode", "content", "size", "granularity" }] }`。
 `kind` 仅允许 `volume`、`risk`、`source`、`error` 四类真实运行日志指标；每人可保留 1–12 张卡片，

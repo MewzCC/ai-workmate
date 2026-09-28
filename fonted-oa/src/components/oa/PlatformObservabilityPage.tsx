@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Button, Card, Checkbox, Empty, Input, InputNumber, Modal, Popover, Segmented, Select, Skeleton, Space, Statistic, Switch, Tag, Typography } from 'antd';
+import { Alert, Button, Card, Checkbox, Empty, Input, InputNumber, Modal, Popover, Result, Segmented, Select, Skeleton, Space, Statistic, Switch, Tag, Typography } from 'antd';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import * as echarts from 'echarts/core';
@@ -529,7 +529,10 @@ export default function PlatformObservabilityPage() {
         </Button>} />}
       {thresholdsError && <Alert type="error" showIcon title={t('platformObservability.thresholdsError')}
         description={thresholdsError} action={<Button onClick={() => void loadThresholds()}>{t('common.retry')}</Button>} />}
-      {error && <Alert type="error" showIcon title={error} action={<Button onClick={() => void load()}>{t('common.retry')}</Button>} />}
+      {error && !overview && !loading && <Card className="oa-observability-failure">
+        <Result status="error" title={t('platformObservability.loadFailed')} subTitle={error}
+          extra={<Button type="primary" onClick={() => void load()}>{t('common.retry')}</Button>} />
+      </Card>}
       {exportError && <Alert type="error" showIcon title={t('platformObservability.exportError')} description={exportError} closable onClose={() => setExportError(undefined)} />}
       {(loading && !overview) || preferencesLoading ? <Skeleton active paragraph={{ rows: 10 }} /> : overview && <>
         <div className="oa-observability-metrics">

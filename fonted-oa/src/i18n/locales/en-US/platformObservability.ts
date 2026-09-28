@@ -18,6 +18,7 @@ export default {
   sourceTitle: 'Source composition', sourceSubtitle: 'Human · Agent · Integration',
   errorTitle: 'Top error codes', errorSubtitle: 'Redacted error categories only',
   noChartData: 'No data is available for this period',
+  loadFailed: 'Observability data is temporarily unavailable',
   chartType: '{{title}} chart type', chartContent: 'Show data', chartContentFor: '{{title}} visible data',
   chartModes: { line: 'Line', area: 'Area', bar: 'Bar', mixed: 'Mixed', donut: 'Donut' },
   layout: 'Arrange charts', layoutHelp: 'Add, duplicate or remove controlled charts and set titles, time granularity, order and width; then select Save configuration at the top of the page.',
