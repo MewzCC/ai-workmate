@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -42,13 +43,13 @@ class RuntimeLogServiceImplTest {
     void queriesOnlyCurrentTenantWithinDefaultSevenDayWindow() {
         when(accessService.resolveActiveUser(7L)).thenReturn(access(
                 List.of("route:runtime-logs", "runtime-log:read")));
-        when(mapper.selectStats(eq(9L), eq("AGENT"), eq("FAILED"), eq("trace-1"), any(), any()))
+        when(mapper.selectStats(eq(9L), eq("AGENT"), eq("FAILED"), eq(null), eq(null), eq("trace-1"), any(), any(), eq(false)))
                 .thenReturn(new RuntimeLogStatsResponse(1L, 0L, 1L, 0L, 42L));
-        when(mapper.selectPage(eq(9L), eq("AGENT"), eq("FAILED"), eq("trace-1"),
-                any(), any(), eq(100), eq(100)))
+        when(mapper.selectPage(eq(9L), eq("AGENT"), eq("FAILED"), eq(null), eq(null), eq("trace-1"),
+                any(), any(), eq(false), eq(100), eq(100)))
                 .thenReturn(List.of(new RuntimeLogRecordResponse(
                         "AGENT", 4L, "TASK-1", "todo.query", "FAILED", "ALLOW",
-                        null, 42L, "operator", "trace-1", "TIMEOUT",
+                        null, 42L, "operator", "trace-1", "TIMEOUT", "AI_AGENT", "TOOL_CALL",
                         LocalDateTime.now(), LocalDateTime.now())));
 
         var result = service.query(7L, "agent", "failed", " trace-1 ",
@@ -69,7 +70,7 @@ class RuntimeLogServiceImplTest {
         assertThatThrownBy(() -> service.query(7L, null, null, null,
                 to.minusDays(32), to, 1, 20)).isInstanceOf(BusinessException.class);
 
-        verify(mapper, never()).selectStats(any(), any(), any(), any(), any(), any());
+        verify(mapper, never()).selectStats(any(), any(), any(), any(), any(), any(), any(), any(), anyBoolean());
     }
 
     @Test
@@ -79,7 +80,7 @@ class RuntimeLogServiceImplTest {
         assertThatThrownBy(() -> service.query(7L, null, null, null,
                 null, null, 1, 20)).isInstanceOf(BusinessException.class);
 
-        verify(mapper, never()).selectPage(any(), any(), any(), any(), any(), any(), anyInt(), anyInt());
+        verify(mapper, never()).selectPage(any(), any(), any(), any(), any(), any(), any(), any(), anyBoolean(), anyInt(), anyInt());
     }
 
     @Test
@@ -92,6 +93,47 @@ class RuntimeLogServiceImplTest {
                 .isInstanceOf(BusinessException.class);
 
         verify(mapper).selectDetail(9L, "INTEGRATION", 88L);
+    }
+
+    @Test
+    void acceptsHumanOperationSource() {
+        when(accessService.resolveActiveUser(7L)).thenReturn(access(
+                List.of("route:runtime-logs", "runtime-log:read")));
+        when(mapper.selectStats(eq(9L), eq("HUMAN"), eq(null), eq(null), eq(null), eq(null), any(), any(), eq(false)))
+                .thenReturn(new RuntimeLogStatsResponse(0L, 0L, 0L, 0L, 0L));
+
+        service.query(7L, "human", null, null, null, null, 1, 20);
+
+        verify(mapper).selectPage(eq(9L), eq("HUMAN"), eq(null), eq(null), eq(null), eq(null), any(), any(), eq(false), eq(20), eq(0));
+    }
+
+    @Test
+    void chartDrilldownKeepsTenantExactErrorAndExclusiveBucketBoundary() {
+        when(accessService.resolveActiveUser(7L)).thenReturn(access(
+                List.of("route:runtime-logs", "runtime-log:read")));
+        LocalDateTime from = LocalDateTime.of(2026, 9, 23, 10, 0);
+        LocalDateTime to = from.plusHours(1);
+        when(mapper.selectStats(eq(9L), eq("AGENT"), eq(null), eq("FAILED"), eq("TIMEOUT"),
+                eq(null), eq(from), eq(to), eq(true)))
+                .thenReturn(new RuntimeLogStatsResponse(1L, 0L, 1L, 0L, 20L));
+
+        var result = service.queryDrilldown(7L, "AGENT", null, "FAILED", "TIMEOUT",
+                null, from, to, true, 1, 20);
+
+        assertThat(result.total()).isOne();
+        verify(mapper).selectPage(9L, "AGENT", null, "FAILED", "TIMEOUT", null,
+                from, to, true, 20, 0);
+    }
+
+    @Test
+    void chartDrilldownRejectsUnlistedGroupAndUnsafeErrorCodeBeforeDatabase() {
+        when(accessService.resolveActiveUser(7L)).thenReturn(access(
+                List.of("route:runtime-logs", "runtime-log:read")));
+        assertThatThrownBy(() -> service.queryDrilldown(7L, null, null, "ALL", null,
+                null, null, null, false, 1, 20)).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> service.queryDrilldown(7L, null, null, null, "%' OR 1=1",
+                null, null, null, false, 1, 20)).isInstanceOf(BusinessException.class);
+        verify(mapper, never()).selectStats(any(), any(), any(), any(), any(), any(), any(), any(), anyBoolean());
     }
 
     private ResolvedUserAccess access(List<String> permissions) {

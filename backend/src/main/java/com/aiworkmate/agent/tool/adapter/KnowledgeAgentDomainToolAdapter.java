@@ -5,9 +5,8 @@ import com.aiworkmate.agent.tool.port.ToolActorContext;
 import com.aiworkmate.dto.KnowledgeSearchRequest;
 import com.aiworkmate.service.KnowledgeService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
 
-@Component
+@LocalAgentDomainAdapter
 @RequiredArgsConstructor
 public class KnowledgeAgentDomainToolAdapter implements KnowledgeToolPort {
     private final KnowledgeService knowledgeService;

@@ -4,9 +4,8 @@ import com.aiworkmate.agent.tool.port.TodoToolPort;
 import com.aiworkmate.agent.tool.port.ToolActorContext;
 import com.aiworkmate.service.LeaveWorkflowService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
 
-@Component
+@LocalAgentDomainAdapter
 @RequiredArgsConstructor
 public final class TodoAgentDomainToolAdapter implements TodoToolPort {
     private final LeaveWorkflowService leaveWorkflowService;

@@ -6,7 +6,8 @@ import i18n from '@/i18n';
 
 const capability: PageCapability = {
   pageId: 'todo', componentKey: 'TODO_LIST', version: 1, uiCommands: [],
-  dataScopePolicy: 'ASSIGNED_TO_SELF', effectiveDataScopes: ['SELF'], tools: [],
+  dataScopePolicy: 'ASSIGNED_TO_SELF', effectiveDataScopes: ['SELF'],
+  contextSchema: { maxBytes: 1024, maxDepth: 1, fields: [] }, tools: [],
   unavailableReason: 'NO_AVAILABLE_TOOLS',
 };
 

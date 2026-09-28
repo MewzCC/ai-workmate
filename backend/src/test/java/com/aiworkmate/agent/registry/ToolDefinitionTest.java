@@ -79,6 +79,22 @@ class ToolDefinitionTest {
         }
     }
 
+    @Test
+    void shouldRejectSideEffectsThatDriftFromTheCodeOwnedManifest() throws Exception {
+        JsonNode closed = schema("page");
+        JsonNode output = objectMapper.readTree("""
+                {"type":"object","properties":{},"additionalProperties":false}
+                """);
+
+        assertThatThrownBy(() -> ToolDefinition.create(
+                ToolCode.TODO_QUERY, "Todo query", "Query my todos", "Read-only self todos", "1.0.0",
+                closed, output, RiskLevel.L1, Set.of("todo:read"), PermissionMode.ALL,
+                OwnershipPolicy.SELF, RetryPolicy.NEVER, SideEffect.SINGLE_WRITE,
+                ConfirmationPolicy.EXPLICIT, 1, 1024, 1000, "TEST_AUDIT"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("code-owned");
+    }
+
     private JsonNode schema(String property) throws Exception {
         return objectMapper.readTree("""
                 {"type":"object","properties":{"%s":{"type":"integer"}},"additionalProperties":false}

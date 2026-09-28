@@ -1,7 +1,7 @@
 package com.aiworkmate.agent.tool.internal;
 
 import com.aiworkmate.agent.registry.ToolCode;
-import com.aiworkmate.agent.tool.port.ToolOperationKey;
+import com.aiworkmate.agent.tool.port.ToolWriteReceipt;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -11,18 +11,26 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  * generation. Domain authorization, ownership, state and optimistic locking
  * remain in the typed port and its domain service.
  */
-abstract class TypedWriteToolHandler<C, R> implements ToolHandler {
-    private static final String DEFAULT_HANDLER_VERSION = "1.0.0";
-
+abstract class TypedWriteToolHandler<C, R extends ToolWriteReceipt> implements ToolHandler {
     private final ToolCode code;
     private final ObjectMapper objectMapper;
+    private final ToolExecutionTemplate executionTemplate;
 
     protected TypedWriteToolHandler(ToolCode code, ObjectMapper objectMapper) {
+        this(code, objectMapper, ToolExecutionTemplate.DIRECT_WRITE);
+    }
+
+    protected TypedWriteToolHandler(
+            ToolCode code, ObjectMapper objectMapper, ToolExecutionTemplate executionTemplate) {
         if (code == null || objectMapper == null) {
             throw new IllegalArgumentException("Write tool code and object mapper are required");
         }
+        if (executionTemplate == null || !executionTemplate.isWrite()) {
+            throw new IllegalArgumentException("Write execution template is required");
+        }
         this.code = code;
         this.objectMapper = objectMapper;
+        this.executionTemplate = executionTemplate;
     }
 
     @Override
@@ -32,7 +40,12 @@ abstract class TypedWriteToolHandler<C, R> implements ToolHandler {
 
     @Override
     public String handlerVersion() {
-        return DEFAULT_HANDLER_VERSION;
+        return ToolHandlerContract.VERSION;
+    }
+
+    @Override
+    public final ToolExecutionTemplate executionTemplate() {
+        return executionTemplate;
     }
 
     @Override
@@ -48,10 +61,6 @@ abstract class TypedWriteToolHandler<C, R> implements ToolHandler {
 
     protected JsonNode serializeResult(R result) {
         return objectMapper.valueToTree(result);
-    }
-
-    protected final ToolOperationKey stableOperationKey(TrustedToolContext context) {
-        return StableToolOperationKey.v1(context, code);
     }
 
     protected final ObjectMapper objectMapper() {

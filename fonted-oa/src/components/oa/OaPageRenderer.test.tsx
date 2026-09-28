@@ -38,7 +38,7 @@ describe('OA page component registry', () => {
     const backendRouteKeys = backendPages.map(({ routeKey }) => routeKey);
     const backendComponentKeys = backendPages.map(({ componentKey }) => componentKey);
 
-    expect(backendPages).toHaveLength(41);
+    expect(backendPages).toHaveLength(42);
     expect(new Set(backendRouteKeys).size).toBe(backendRouteKeys.length);
     expect(new Set(backendComponentKeys).size).toBe(backendComponentKeys.length);
     expect([...backendComponentKeys].sort()).toEqual([...ENABLED_PAGE_COMPONENT_KEYS].sort());

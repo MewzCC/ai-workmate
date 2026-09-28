@@ -205,6 +205,38 @@ class GenericApprovalServiceImplTest {
     }
 
     @Test
+    void updateAgentDraftUsesSharedTransactionAndTransactionalAudit() {
+        when(applicationMapper.selectOne(any())).thenReturn(application("DRAFT", 0));
+        when(formMapper.selectOne(any())).thenReturn(form());
+        when(applicationMapper.update(any(), any())).thenReturn(1);
+        when(applicationMapper.selectView(TENANT_ID, 10L)).thenReturn(view("DRAFT", 1));
+
+        ApprovalApplicationResponse response = service.updateAgentDraft(
+                USER_ID, 10L, new ApprovalDraftUpdateRequest(
+                        null, Map.of("reason", "调整后的事由"), 0));
+
+        assertThat(response.version()).isOne();
+        verify(auditService).recordTransactional(
+                TENANT_ID, USER_ID, "GENERIC_APPROVAL", "10",
+                "DRAFT_UPDATE", "SUCCESS", "更新通用表单草稿");
+        verify(auditService, never()).record(any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void updateAgentDraftFailsClosedAfterCreatePermissionRevocation() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(new ResolvedUserAccess(
+                USER_ID, "applicant", TENANT_ID, "EMPLOYEE", List.of("EMPLOYEE"),
+                List.of("route:approval-start"), List.of("SELF"), 2L));
+
+        assertThatThrownBy(() -> service.updateAgentDraft(
+                USER_ID, 10L, new ApprovalDraftUpdateRequest(
+                        null, Map.of("reason", "不得写入"), 0)))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("PERMISSION_DENIED");
+        verify(applicationMapper, never()).update(any(), any());
+    }
+
+    @Test
     void cancelDraftUsesVersionAndMovesToCancelled() {
         when(applicationMapper.selectOne(any())).thenReturn(application("DRAFT", 2));
         when(applicationMapper.update(any(), any())).thenReturn(1);

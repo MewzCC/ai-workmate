@@ -24,8 +24,7 @@ public class AgentEmployeeChangeWriteToolDefinitions {
                 "Creates one approval-bound employee change application in the authenticated tenant.",
                 "Submit one bounded employee change application only after explicit confirmation.",
                 objectMapper.readTree(APPLY_INPUT_SCHEMA), objectMapper.readTree(APPLY_OUTPUT_SCHEMA),
-                RiskLevel.L1, Set.of("hr:manage"), OwnershipPolicy.TENANT_SCOPED,
-                RetryPolicy.BUSINESS_IDEMPOTENT, ConfirmationPolicy.EXPLICIT,
+                ToolWriteProfile.IDEMPOTENT_L1, Set.of("hr:manage"), OwnershipPolicy.TENANT_SCOPED,
                 1, 8192, 15000);
     }
 }

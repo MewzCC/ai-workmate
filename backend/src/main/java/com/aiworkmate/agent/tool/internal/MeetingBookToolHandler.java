@@ -2,6 +2,7 @@ package com.aiworkmate.agent.tool.internal;
 
 import com.aiworkmate.agent.registry.ToolCode;
 import com.aiworkmate.agent.tool.port.MeetingToolPort;
+import com.aiworkmate.agent.tool.port.ToolOperationKey;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Component;
@@ -13,7 +14,7 @@ import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.requiredLo
 import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.requiredText;
 
 @Component
-public final class MeetingBookToolHandler extends TypedWriteToolHandler<MeetingToolPort.BookCommand, MeetingToolPort.WriteResult> {
+public final class MeetingBookToolHandler extends TypedOperationKeyWriteToolHandler<MeetingToolPort.BookCommand, MeetingToolPort.WriteResult> {
     private final MeetingToolPort port;
 
     public MeetingBookToolHandler(MeetingToolPort port, ObjectMapper objectMapper) {
@@ -30,8 +31,9 @@ public final class MeetingBookToolHandler extends TypedWriteToolHandler<MeetingT
     }
 
     @Override
-    protected MeetingToolPort.WriteResult invoke(
-            TrustedToolContext context, MeetingToolPort.BookCommand command) {
-        return port.book(context.actor(), command, stableOperationKey(context));
+    protected MeetingToolPort.WriteResult invokeWithOperationKey(
+            TrustedToolContext context, MeetingToolPort.BookCommand command,
+            ToolOperationKey operationKey) {
+        return port.book(context.actor(), command, operationKey);
     }
 }

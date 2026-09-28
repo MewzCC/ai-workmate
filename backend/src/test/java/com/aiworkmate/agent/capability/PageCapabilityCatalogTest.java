@@ -14,7 +14,7 @@ class PageCapabilityCatalogTest {
     private final PageCapabilityCatalog catalog = new PageCapabilityCatalog();
 
     @Test
-    void registersAllFortyOneEnabledPagesWithUniqueComponents() {
+    void registersAllEnabledPagesWithUniqueComponents() {
         assertThat(catalog.all()).hasSize(OaPage.values().length);
         assertThat(catalog.all()).extracting(PageCapabilityDefinition::pageId).doesNotHaveDuplicates();
         assertThat(catalog.all()).extracting(PageCapabilityDefinition::componentKey).doesNotHaveDuplicates();
@@ -53,6 +53,12 @@ class PageCapabilityCatalogTest {
         assertThat(catalog.find("todo").orElseThrow().readTools())
                 .extracting(PageToolReference::code)
                 .containsExactly(ToolCode.TODO_QUERY);
+        assertThat(catalog.find("dashboard").orElseThrow().readTools())
+                .extracting(PageToolReference::code)
+                .contains(ToolCode.USER_PERMISSION_MINE_QUERY);
+        assertThat(catalog.find("ai-workspace").orElseThrow().readTools())
+                .extracting(PageToolReference::code)
+                .contains(ToolCode.USER_PERMISSION_MINE_QUERY);
     }
 
     @Test
@@ -152,13 +158,27 @@ class PageCapabilityCatalogTest {
         assertThat(expense.readTools())
                 .extracting(PageToolReference::code).containsExactly(ToolCode.EXPENSE_QUERY);
         assertThat(expense.writeTools())
-                .extracting(PageToolReference::code).containsExactly(ToolCode.EXPENSE_CREATE_DRAFT);
-        assertThat(catalog.find("budget").orElseThrow().readTools())
+                .extracting(PageToolReference::code).containsExactly(
+                        ToolCode.EXPENSE_CREATE_DRAFT, ToolCode.EXPENSE_UPDATE_DRAFT,
+                        ToolCode.EXPENSE_SUBMIT_DRAFT, ToolCode.EXPENSE_WITHDRAW,
+                        ToolCode.EXPENSE_REOPEN);
+        var budget = catalog.find("budget").orElseThrow();
+        assertThat(budget.readTools())
                 .extracting(PageToolReference::code).containsExactly(ToolCode.BUDGET_QUERY);
+        assertThat(budget.writeTools())
+                .extracting(PageToolReference::code).containsExactly(
+                        ToolCode.BUDGET_CREATE_DRAFT, ToolCode.BUDGET_UPDATE_DRAFT,
+                        ToolCode.BUDGET_ACTIVATE_DRAFT, ToolCode.BUDGET_CANCEL_DRAFT);
         assertThat(catalog.find("contracts").orElseThrow().readTools())
                 .extracting(PageToolReference::code).containsExactly(ToolCode.CONTRACT_QUERY);
+        assertThat(catalog.find("contracts").orElseThrow().writeTools())
+                .extracting(PageToolReference::code).containsExactly(
+                        ToolCode.CONTRACT_CREATE_DRAFT, ToolCode.CONTRACT_UPDATE_DRAFT);
         assertThat(catalog.find("suppliers").orElseThrow().readTools())
                 .extracting(PageToolReference::code).containsExactly(ToolCode.SUPPLIER_QUERY);
+        assertThat(catalog.find("suppliers").orElseThrow().writeTools())
+                .extracting(PageToolReference::code).containsExactly(
+                        ToolCode.SUPPLIER_CREATE_DRAFT, ToolCode.SUPPLIER_UPDATE_DRAFT);
     }
 
     @Test

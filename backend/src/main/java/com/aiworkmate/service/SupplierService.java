@@ -5,6 +5,7 @@ import com.aiworkmate.dto.SupplierPageResponse;
 import com.aiworkmate.dto.SupplierRequest;
 import com.aiworkmate.dto.SupplierResponse;
 import com.aiworkmate.dto.SupplierStatusRequest;
+import com.aiworkmate.service.model.SupplierAgentDraftCommand;
 
 public interface SupplierService {
     SupplierPageResponse list(Long userId, String keyword, String status, String category, int page, int size);
@@ -14,6 +15,8 @@ public interface SupplierService {
     SupplierResponse create(Long userId, SupplierRequest request);
 
     SupplierResponse update(Long userId, Long id, SupplierRequest request);
+
+    SupplierResponse updateAgentDraft(Long userId, Long id, Integer version, SupplierAgentDraftCommand command);
 
     SupplierResponse updateStatus(Long userId, Long id, SupplierStatusRequest request);
 }

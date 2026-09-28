@@ -35,9 +35,8 @@ public class AgentApprovalApplicationWriteToolDefinitions {
                 "Creates exactly one generic approval draft owned by the authenticated user.",
                 "Save one schema-validated draft without starting an approval workflow.",
                 objectMapper.readTree(CREATE_DRAFT_INPUT_SCHEMA),
-                objectMapper.readTree(CREATE_DRAFT_OUTPUT_SCHEMA), RiskLevel.L1,
+                objectMapper.readTree(CREATE_DRAFT_OUTPUT_SCHEMA), ToolWriteProfile.IDEMPOTENT_L1,
                 Set.of("approval:create"), OwnershipPolicy.SELF,
-                RetryPolicy.BUSINESS_IDEMPOTENT, ConfirmationPolicy.EXPLICIT,
                 1, 16384, 15000);
     }
 
@@ -49,9 +48,8 @@ public class AgentApprovalApplicationWriteToolDefinitions {
                 "Submits exactly one generic approval draft owned by the authenticated user.",
                 "Atomically freeze the configured form and workflow, then create the first approval task.",
                 objectMapper.readTree(SUBMIT_DRAFT_INPUT_SCHEMA),
-                objectMapper.readTree(SUBMIT_DRAFT_OUTPUT_SCHEMA), RiskLevel.L1,
+                objectMapper.readTree(SUBMIT_DRAFT_OUTPUT_SCHEMA), ToolWriteProfile.NON_RETRYABLE_L1,
                 Set.of("approval:submit"), OwnershipPolicy.SELF,
-                RetryPolicy.NEVER, ConfirmationPolicy.EXPLICIT,
                 1, 4096, 15000);
     }
 
@@ -63,9 +61,8 @@ public class AgentApprovalApplicationWriteToolDefinitions {
                 "Withdraws exactly one pending generic approval application owned by the authenticated user.",
                 "Atomically cancel the current approval task and workflow instance for one owned application.",
                 objectMapper.readTree(WITHDRAW_INPUT_SCHEMA),
-                objectMapper.readTree(WITHDRAW_OUTPUT_SCHEMA), RiskLevel.L1,
+                objectMapper.readTree(WITHDRAW_OUTPUT_SCHEMA), ToolWriteProfile.NON_RETRYABLE_L1,
                 Set.of("approval:withdraw"), OwnershipPolicy.SELF,
-                RetryPolicy.NEVER, ConfirmationPolicy.EXPLICIT,
                 1, 4096, 15000);
     }
 
@@ -77,9 +74,8 @@ public class AgentApprovalApplicationWriteToolDefinitions {
                 "Reopens exactly one rejected or withdrawn generic application owned by the authenticated user.",
                 "Restore one completed application to an editable draft while preserving its prior workflow history.",
                 objectMapper.readTree(REOPEN_INPUT_SCHEMA),
-                objectMapper.readTree(REOPEN_OUTPUT_SCHEMA), RiskLevel.L1,
+                objectMapper.readTree(REOPEN_OUTPUT_SCHEMA), ToolWriteProfile.NON_RETRYABLE_L1,
                 Set.of("approval:reopen"), OwnershipPolicy.SELF,
-                RetryPolicy.NEVER, ConfirmationPolicy.EXPLICIT,
                 1, 4096, 15000);
     }
 }

@@ -38,6 +38,7 @@ public enum OaPage {
     API_CENTER("api-center", "API_CENTER"),
     PAGE_ACTIONS("page-actions", "PAGE_ACTIONS"),
     RUNTIME_LOGS("runtime-logs", "RUNTIME_LOGS"),
+    PLATFORM_OBSERVABILITY("platform-observability", "PLATFORM_OBSERVABILITY"),
     SANDBOX_REPLAY("sandbox-replay", "SANDBOX_REPLAY"),
     ATTENDANCE_CLOCK("attendance-clock", "ATTENDANCE_CLOCK"),
     ATTENDANCE_EXCEPTION("attendance-exception", "ATTENDANCE_EXCEPTION"),

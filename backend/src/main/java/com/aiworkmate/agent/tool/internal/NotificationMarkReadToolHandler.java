@@ -9,7 +9,7 @@ import org.springframework.stereotype.Component;
 import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.requiredLong;
 
 @Component
-public final class NotificationMarkReadToolHandler extends TypedWriteToolHandler<Long, NotificationToolPort.ReadResult> {
+public final class NotificationMarkReadToolHandler extends TypedNaturallyIdempotentWriteToolHandler<Long, NotificationToolPort.ReadResult> {
     private final NotificationToolPort port;
 
     public NotificationMarkReadToolHandler(NotificationToolPort port, ObjectMapper objectMapper) {

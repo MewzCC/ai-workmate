@@ -10,7 +10,7 @@ class OaPageTest {
 
     @Test
     void keepsRouteAndComponentPairsUniqueAndRejectsRemapping() {
-        assertThat(OaPage.values()).hasSize(41);
+        assertThat(OaPage.values()).hasSize(42);
         assertThat(Arrays.stream(OaPage.values()).map(OaPage::routeKey)).doesNotHaveDuplicates();
         assertThat(Arrays.stream(OaPage.values()).map(OaPage::componentKey)).doesNotHaveDuplicates();
         assertThat(OaPage.supportsEnabledRoute("meeting-room", "MEETING_ROOM")).isTrue();

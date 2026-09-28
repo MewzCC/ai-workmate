@@ -29,21 +29,47 @@ class ToolDefinitionFactoryTest {
     }
 
     @Test
-    void fixesTheSingleWriteSafetyProfileWhileKeepingRiskAndConfirmationExplicit() throws Exception {
+    void fixesTheIdempotentL1WriteSafetyProfile() throws Exception {
         ToolDefinition definition = ToolDefinitionFactory.singleWrite(
-                ToolCode.LEAVE_WITHDRAW, "name", "description", "purpose",
+                ToolCode.LEAVE_CREATE_DRAFT, "name", "description", "purpose",
                 mapper.readTree(ClosedToolSchemas.versionedResourceInput("applicationId")),
                 mapper.readTree(ClosedToolSchemas.positiveIdInput("applicationId")),
-                RiskLevel.L1, Set.of("leave:withdraw"), OwnershipPolicy.SELF,
-                RetryPolicy.NEVER, ConfirmationPolicy.EXPLICIT,
+                ToolWriteProfile.IDEMPOTENT_L1, Set.of("leave:create"), OwnershipPolicy.SELF,
                 1, 4096, 10000);
 
         assertThat(definition.handlerVersion()).isEqualTo("1.0.0");
         assertThat(definition.riskLevel()).isEqualTo(RiskLevel.L1);
         assertThat(definition.permissionMode()).isEqualTo(PermissionMode.ALL);
-        assertThat(definition.retryPolicy()).isEqualTo(RetryPolicy.NEVER);
+        assertThat(definition.retryPolicy()).isEqualTo(RetryPolicy.BUSINESS_IDEMPOTENT);
         assertThat(definition.sideEffect()).isEqualTo(SideEffect.SINGLE_WRITE);
         assertThat(definition.confirmationPolicy()).isEqualTo(ConfirmationPolicy.EXPLICIT);
         assertThat(definition.auditPolicy()).isEqualTo("FULL_WRITE_AUDIT");
+    }
+
+    @Test
+    void exposesOnlyReviewedWritePolicyCombinations() {
+        assertThat(ToolWriteProfile.values()).extracting(
+                        ToolWriteProfile::riskLevel,
+                        ToolWriteProfile::retryPolicy,
+                        ToolWriteProfile::confirmationPolicy)
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple(
+                                RiskLevel.L1, RetryPolicy.BUSINESS_IDEMPOTENT, ConfirmationPolicy.EXPLICIT),
+                        org.assertj.core.groups.Tuple.tuple(
+                                RiskLevel.L1, RetryPolicy.NEVER, ConfirmationPolicy.EXPLICIT),
+                        org.assertj.core.groups.Tuple.tuple(
+                                RiskLevel.L2, RetryPolicy.NEVER, ConfirmationPolicy.SECONDARY));
+    }
+
+    @Test
+    void rejectsMissingWriteProfile() throws Exception {
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> ToolDefinitionFactory.singleWrite(
+                        ToolCode.LEAVE_WITHDRAW, "name", "description", "purpose",
+                        mapper.readTree(ClosedToolSchemas.versionedResourceInput("applicationId")),
+                        mapper.readTree(ClosedToolSchemas.positiveIdInput("applicationId")),
+                        null, Set.of("leave:withdraw"), OwnershipPolicy.SELF,
+                        1, 4096, 10000))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Write profile is required");
     }
 }

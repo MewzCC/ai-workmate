@@ -25,6 +25,10 @@ public interface GenericApprovalService {
     /** 更新本人处于 DRAFT 状态的草稿，使用乐观锁防止覆盖。 */
     ApprovalApplicationResponse updateDraft(Long userId, Long id, ApprovalDraftUpdateRequest request);
 
+    /** Agent 专用的本人草稿更新入口；只允许已有创建权限的用户修改草稿。 */
+    ApprovalApplicationResponse updateAgentDraft(
+            Long userId, Long id, ApprovalDraftUpdateRequest request);
+
     /** 提交本人草稿并原子创建工作流实例与首个待办。 */
     ApprovalApplicationResponse submitDraft(Long userId, Long id, VersionRequest request);
 

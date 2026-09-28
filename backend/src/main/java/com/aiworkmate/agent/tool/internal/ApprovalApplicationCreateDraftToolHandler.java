@@ -2,6 +2,7 @@ package com.aiworkmate.agent.tool.internal;
 
 import com.aiworkmate.agent.registry.ToolCode;
 import com.aiworkmate.agent.tool.port.ApprovalApplicationToolPort;
+import com.aiworkmate.agent.tool.port.ToolOperationKey;
 import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.common.ErrorCode;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -15,7 +16,7 @@ import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.optionalTe
 import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.requiredText;
 
 @Component
-public final class ApprovalApplicationCreateDraftToolHandler extends TypedWriteToolHandler<ApprovalApplicationToolPort.Draft, ApprovalApplicationToolPort.WriteResult> {
+public final class ApprovalApplicationCreateDraftToolHandler extends TypedOperationKeyWriteToolHandler<ApprovalApplicationToolPort.Draft, ApprovalApplicationToolPort.WriteResult> {
     private final ApprovalApplicationToolPort approvalApplicationToolPort;
 
     public ApprovalApplicationCreateDraftToolHandler(
@@ -59,9 +60,10 @@ public final class ApprovalApplicationCreateDraftToolHandler extends TypedWriteT
     }
 
     @Override
-    protected ApprovalApplicationToolPort.WriteResult invoke(
-            TrustedToolContext context, ApprovalApplicationToolPort.Draft command) {
+    protected ApprovalApplicationToolPort.WriteResult invokeWithOperationKey(
+            TrustedToolContext context, ApprovalApplicationToolPort.Draft command,
+            ToolOperationKey operationKey) {
         return approvalApplicationToolPort.createDraft(
-                context.actor(), command, stableOperationKey(context));
+                context.actor(), command, operationKey);
     }
 }

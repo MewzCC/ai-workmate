@@ -10,8 +10,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  * and output normalization.
  */
 abstract class TypedReadToolHandler<Q, R> implements ToolHandler {
-    private static final String DEFAULT_HANDLER_VERSION = "1.0.0";
-
     private final ToolCode code;
     private final ObjectMapper objectMapper;
 
@@ -30,7 +28,12 @@ abstract class TypedReadToolHandler<Q, R> implements ToolHandler {
 
     @Override
     public String handlerVersion() {
-        return DEFAULT_HANDLER_VERSION;
+        return ToolHandlerContract.VERSION;
+    }
+
+    @Override
+    public final ToolExecutionTemplate executionTemplate() {
+        return ToolExecutionTemplate.READ_ONLY;
     }
 
     @Override

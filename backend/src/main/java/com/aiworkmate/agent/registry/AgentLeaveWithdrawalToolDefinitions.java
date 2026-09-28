@@ -19,8 +19,7 @@ public class AgentLeaveWithdrawalToolDefinitions {
                 "Withdraws exactly one pending leave application owned by the authenticated user.",
                 "Withdraw one owned pending application at its expected version after explicit confirmation; never retry automatically.",
                 mapper.readTree(INPUT_SCHEMA), mapper.readTree(OUTPUT_SCHEMA),
-                RiskLevel.L1, Set.of("leave:withdraw"), OwnershipPolicy.SELF,
-                RetryPolicy.NEVER, ConfirmationPolicy.EXPLICIT,
+                ToolWriteProfile.NON_RETRYABLE_L1, Set.of("leave:withdraw"), OwnershipPolicy.SELF,
                 1, 4096, 10000);
     }
 }

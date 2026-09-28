@@ -13,6 +13,7 @@ import com.aiworkmate.service.BusinessAuditService;
 import com.aiworkmate.service.BudgetService;
 import com.aiworkmate.service.NotificationService;
 import com.aiworkmate.service.UserAccessService;
+import com.aiworkmate.service.model.BudgetAgentDraftCommand;
 import com.aiworkmate.service.model.ResolvedUserAccess;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
@@ -29,12 +30,16 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.regex.Pattern;
 
 @Service
 @RequiredArgsConstructor
 public class BudgetServiceImpl implements BudgetService {
     private static final String READ = "route:budget";
     private static final String MANAGE = "budget:manage";
+    private static final Pattern CODE_PATTERN = Pattern.compile("^[A-Za-z0-9][A-Za-z0-9_-]{1,63}$");
+    private static final Set<String> CURRENCIES = Set.of("CNY", "USD", "EUR", "HKD");
+    private static final BigDecimal MAX_AMOUNT = new BigDecimal("9999999999999999.99");
     private static final Set<String> STATUSES = Set.of("DRAFT", "ACTIVE", "CLOSED", "CANCELLED");
     private static final Map<String,List<String>> TRANSITIONS = Map.of(
             "DRAFT", List.of("ACTIVE", "CANCELLED"), "ACTIVE", List.of("CLOSED", "CANCELLED"),
@@ -89,6 +94,7 @@ public class BudgetServiceImpl implements BudgetService {
 
     @Override @Transactional
     public BudgetResponse create(Long userId, BudgetPlanRequest request) {
+        validateRequest(request);
         ResolvedUserAccess actor=requireManage(userId); User owner=requireOwner(actor,request.ownerUserId());
         BudgetPlan plan=new BudgetPlan(); plan.setTenantId(actor.tenantId()); plan.setBudgetCode(code(request.code()));
         apply(plan,request,owner); plan.setOccupiedAmount(BigDecimal.ZERO); plan.setSpentAmount(BigDecimal.ZERO);
@@ -101,15 +107,35 @@ public class BudgetServiceImpl implements BudgetService {
 
     @Override @Transactional
     public BudgetResponse update(Long userId, Long id, BudgetPlanRequest request) {
+        validateRequest(request);
         ResolvedUserAccess actor=requireManage(userId); BudgetPlan old=requirePlan(actor,id); version(request.version(),old.getVersion());
         if (!("DRAFT".equals(old.getStatus())||"ACTIVE".equals(old.getStatus()))) state("validation.budget.edit.closed");
         if (!old.getBudgetCode().equals(code(request.code()))) state("validation.budget.code.immutable");
+        return updatePlan(actor,old,request,false);
+    }
+
+    @Override @Transactional
+    public BudgetResponse updateAgentDraft(Long userId, Long id, int version, BudgetAgentDraftCommand command) {
+        if (command == null) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        ResolvedUserAccess actor=requireManage(userId); BudgetPlan old=requirePlan(actor,id);
+        BudgetPlanRequest request=new BudgetPlanRequest(
+                old.getBudgetCode(), command.name(), command.fiscalYear(), command.ownerUserId(),
+                command.totalAmount(), command.currency(), command.warningThreshold(), command.summary(), version);
+        validateRequest(request); version(request.version(),old.getVersion());
+        if (!"DRAFT".equals(old.getStatus())) state("validation.budget.edit.draftOnly");
+        return updatePlan(actor,old,request,true);
+    }
+
+    private BudgetResponse updatePlan(ResolvedUserAccess actor, BudgetPlan old,
+                                      BudgetPlanRequest request, boolean draftOnly) {
         if (request.totalAmount().compareTo(old.getOccupiedAmount().add(old.getSpentAmount()))<0) state("validation.budget.amount.belowUsed");
         User owner=requireOwner(actor,request.ownerUserId()); BudgetPlan changed=new BudgetPlan(); apply(changed,request,owner);
         changed.setUpdatedBy(actor.userId()); changed.setUpdatedAt(LocalDateTime.now()); changed.setVersion(old.getVersion()+1);
-        int count=planMapper.update(changed,update(actor,old)); if(count!=1) conflict();
+        LambdaUpdateWrapper<BudgetPlan> conditions=update(actor,old);
+        if(draftOnly) conditions.eq(BudgetPlan::getStatus,"DRAFT");
+        int count=planMapper.update(changed,conditions); if(count!=1) conflict();
         event(actor,old,"UPDATED",old.getOccupiedAmount(),old.getSpentAmount(),null,null,null); audit(actor,old,"UPDATE");
-        return response(requirePlan(actor,id),true);
+        return response(requirePlan(actor,old.getId()),true);
     }
 
     @Override @Transactional
@@ -119,10 +145,25 @@ public class BudgetServiceImpl implements BudgetService {
         if(target==null || !TRANSITIONS.getOrDefault(old.getStatus(),List.of()).contains(target)) state("validation.budget.transition.invalid");
         if("CLOSED".equals(target)&&old.getOccupiedAmount().signum()>0) state("validation.budget.close.occupied");
         if("CANCELLED".equals(target)&&(old.getOccupiedAmount().signum()>0||old.getSpentAmount().signum()>0)) state("validation.budget.cancel.used");
-        int count=planMapper.update(null,update(actor,old).set(BudgetPlan::getStatus,target).set(BudgetPlan::getUpdatedBy,actor.userId())
+        return transition(actor,old,target,request.reason(),null);
+    }
+
+    @Override @Transactional
+    public BudgetResponse cancelAgentDraft(Long userId, Long id, int expectedVersion) {
+        ResolvedUserAccess actor=requireManage(userId); BudgetPlan old=requirePlan(actor,id); version(expectedVersion,old.getVersion());
+        if(!"DRAFT".equals(old.getStatus())) state("validation.budget.transition.invalid");
+        if(old.getOccupiedAmount().signum()>0||old.getSpentAmount().signum()>0) state("validation.budget.cancel.used");
+        return transition(actor,old,"CANCELLED",null,"DRAFT");
+    }
+
+    private BudgetResponse transition(ResolvedUserAccess actor, BudgetPlan old, String target,
+                                      String reason, String requiredSource) {
+        LambdaUpdateWrapper<BudgetPlan> conditions=update(actor,old);
+        if(requiredSource!=null) conditions.eq(BudgetPlan::getStatus,requiredSource);
+        int count=planMapper.update(null,conditions.set(BudgetPlan::getStatus,target).set(BudgetPlan::getUpdatedBy,actor.userId())
                 .set(BudgetPlan::getUpdatedAt,LocalDateTime.now()).set(BudgetPlan::getVersion,old.getVersion()+1)); if(count!=1) conflict();
-        event(actor,old,"STATUS_"+target,old.getOccupiedAmount(),old.getSpentAmount(),null,null,request.reason()); audit(actor,old,"STATUS_"+target);
-        return response(requirePlan(actor,id),true);
+        event(actor,old,"STATUS_"+target,old.getOccupiedAmount(),old.getSpentAmount(),null,null,reason); audit(actor,old,"STATUS_"+target);
+        return response(requirePlan(actor,old.getId()),true);
     }
 
     @Override @Transactional
@@ -145,6 +186,23 @@ public class BudgetServiceImpl implements BudgetService {
     }
 
     private void apply(BudgetPlan plan,BudgetPlanRequest r,User owner){ plan.setName(r.name().trim()); plan.setFiscalYear(r.fiscalYear()); plan.setOwnerUserId(owner.getId()); plan.setOwnerLabel(label(owner)); plan.setTotalAmount(r.totalAmount()); plan.setCurrency(r.currency().toUpperCase(Locale.ROOT)); plan.setWarningThreshold(r.warningThreshold()); plan.setSummary(trim(r.summary())); }
+    private void validateRequest(BudgetPlanRequest request) {
+        if (request == null || !StringUtils.hasText(request.code())
+                || !CODE_PATTERN.matcher(request.code().trim()).matches()
+                || !StringUtils.hasText(request.name()) || request.name().trim().length() > 160
+                || request.fiscalYear() == null || request.fiscalYear() < 2000 || request.fiscalYear() > 2200
+                || request.ownerUserId() == null || request.ownerUserId() < 1
+                || request.totalAmount() == null || request.totalAmount().compareTo(new BigDecimal("0.01")) < 0
+                || request.totalAmount().compareTo(MAX_AMOUNT) > 0
+                || request.totalAmount().stripTrailingZeros().scale() > 2
+                || !StringUtils.hasText(request.currency())
+                || !CURRENCIES.contains(request.currency().toUpperCase(Locale.ROOT))
+                || request.warningThreshold() == null || request.warningThreshold() < 1
+                || request.warningThreshold() > 100
+                || request.summary() != null && request.summary().length() > 2000) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+    }
     private BudgetResponse response(BudgetPlan p,boolean manage){ BigDecimal available=p.getTotalAmount().subtract(p.getOccupiedAmount()).subtract(p.getSpentAmount()); return new BudgetResponse(p.getId(),p.getBudgetCode(),p.getName(),p.getFiscalYear(),p.getOwnerUserId(),p.getOwnerLabel(),p.getTotalAmount(),p.getOccupiedAmount(),p.getSpentAmount(),available,p.getCurrency(),p.getWarningThreshold(),utilization(p),alertLevel(p),p.getStatus(),p.getSummary(),p.getVersion(),p.getUpdatedAt(),manage,manage?TRANSITIONS.getOrDefault(p.getStatus(),List.of()):List.of()); }
     private BudgetTransactionResponse transactionResponse(BudgetTransaction t){ return new BudgetTransactionResponse(t.getId(),t.getTransactionType(),t.getAmount(),t.getOccupiedBefore(),t.getOccupiedAfter(),t.getSpentBefore(),t.getSpentAfter(),t.getReferenceCode(),t.getNote(),t.getOperatorLabel(),t.getCreatedAt()); }
     private void event(ResolvedUserAccess actor,BudgetPlan p,String type,BigDecimal occupiedAfter,BigDecimal spentAfter,BigDecimal amount,String reference,String note){ BudgetTransaction t=new BudgetTransaction();t.setTenantId(actor.tenantId());t.setBudgetId(p.getId());t.setTransactionType(type);t.setAmount(amount);t.setOccupiedBefore(p.getOccupiedAmount());t.setOccupiedAfter(occupiedAfter);t.setSpentBefore(p.getSpentAmount());t.setSpentAfter(spentAfter);t.setReferenceCode(trim(reference));t.setNote(trim(note));t.setOperatorId(actor.userId());t.setOperatorLabel(actor.username());t.setCreatedAt(LocalDateTime.now());transactionMapper.insert(t); }

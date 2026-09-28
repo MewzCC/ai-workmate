@@ -2,6 +2,7 @@ package com.aiworkmate.agent.tool.internal;
 
 import com.aiworkmate.agent.registry.ToolCode;
 import com.aiworkmate.agent.tool.port.ToolOperationKey;
+import com.aiworkmate.agent.tool.port.ToolWriteReceipt;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -25,6 +26,7 @@ class TypedWriteToolHandlerTest {
 
         assertThat(handler.toolCode()).isEqualTo("notification.markRead");
         assertThat(handler.handlerVersion()).isEqualTo("1.0.0");
+        assertThat(handler.executionTemplate()).isEqualTo(ToolExecutionTemplate.OPERATION_KEY_WRITE);
         assertThat(calls).containsExactly("parse", "invoke:7:draft");
         assertThat(output.path("value").asText()).isEqualTo("draft");
         assertThat(output.path("operationKey").asText())
@@ -50,41 +52,10 @@ class TypedWriteToolHandlerTest {
                 objectMapper.readTree("{\"applicationId\":19,\"version\":2}"));
 
         assertThat(output.path("value").asText()).isEqualTo("19:2:7");
+        assertThat(handler.executionTemplate()).isEqualTo(ToolExecutionTemplate.VERSIONED_WRITE);
     }
 
-    @Test
-    void allCurrentWriteHandlersUseTheTemplateWithoutMixingReadHandlers() {
-        assertThat(List.of(
-                ApprovalApplicationCreateDraftToolHandler.class,
-                ApprovalApplicationSubmitDraftToolHandler.class,
-                ApprovalApplicationWithdrawToolHandler.class,
-                ApprovalApplicationReopenToolHandler.class,
-                AttendanceReissueApplyToolHandler.class,
-                LeaveApplyToolHandler.class,
-                LeaveCreateDraftToolHandler.class,
-                LeaveSubmitToolHandler.class,
-                LeaveWithdrawToolHandler.class,
-                EmployeeChangeApplyToolHandler.class,
-                ExpenseCreateDraftToolHandler.class,
-                MeetingBookToolHandler.class,
-                MeetingCancelToolHandler.class,
-                NotificationMarkReadToolHandler.class
-        )).allMatch(TypedWriteToolHandler.class::isAssignableFrom);
-        assertThat(List.of(
-                ApprovalApplicationSubmitDraftToolHandler.class,
-                ApprovalApplicationWithdrawToolHandler.class,
-                ApprovalApplicationReopenToolHandler.class,
-                LeaveSubmitToolHandler.class,
-                LeaveWithdrawToolHandler.class
-        )).allMatch(TypedVersionedWriteToolHandler.class::isAssignableFrom);
-        assertThat(List.of(
-                AssetQueryToolHandler.class,
-                TodoQueryToolHandler.class,
-                NotificationMineToolHandler.class
-        )).noneMatch(TypedWriteToolHandler.class::isAssignableFrom);
-    }
-
-    private static final class SampleHandler extends TypedWriteToolHandler<String, Result> {
+    private static final class SampleHandler extends TypedOperationKeyWriteToolHandler<String, Result> {
         private final List<String> calls;
 
         private SampleHandler(ObjectMapper objectMapper, List<String> calls) {
@@ -99,9 +70,10 @@ class TypedWriteToolHandlerTest {
         }
 
         @Override
-        protected Result invoke(TrustedToolContext context, String command) {
+        protected Result invokeWithOperationKey(
+                TrustedToolContext context, String command, ToolOperationKey operationKey) {
             calls.add("invoke:" + context.userId() + ":" + command);
-            return new Result(command, stableOperationKey(context), "hidden");
+            return new Result(command, operationKey, "hidden");
         }
 
         @Override
@@ -112,7 +84,8 @@ class TypedWriteToolHandlerTest {
         }
     }
 
-    private record Result(String value, ToolOperationKey operationKey, String internalValue) { }
+    private record Result(String value, ToolOperationKey operationKey, String internalValue)
+            implements ToolWriteReceipt { }
 
     private static final class SampleVersionedHandler extends TypedVersionedWriteToolHandler<Result> {
         private SampleVersionedHandler(ObjectMapper objectMapper, String idArgument) {

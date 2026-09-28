@@ -8,11 +8,10 @@ import com.aiworkmate.service.AdminAssetsService;
 import com.aiworkmate.service.model.SealAgentApplicationCommand;
 import com.aiworkmate.service.model.SealAgentUseCommand;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
 
 import java.util.List;
 
-@Component
+@LocalAgentDomainAdapter
 @RequiredArgsConstructor
 public final class SealAgentDomainToolAdapter implements SealToolPort {
     private final AdminAssetsService adminAssetsService;
@@ -42,11 +41,11 @@ public final class SealAgentDomainToolAdapter implements SealToolPort {
     @Override
     public ToolWriteVerification<ApplicationResult> findApplication(
             ToolActorContext context, ApplicationCommand command, ToolOperationKey operationKey) {
-        return adminAssetsService.findAgentSealUsage(
-                        context.userId(), toDomain(command), operationKey.value())
-                .map(result -> ToolWriteVerification.observed(new ApplicationResult(
-                        result.usageId(), result.status(), result.version(), result.submittedAt())))
-                .orElseGet(ToolWriteVerification::unobserved);
+        return ToolWriteVerification.fromOptional(
+                adminAssetsService.findAgentSealUsage(
+                        context.userId(), toDomain(command), operationKey.value()),
+                result -> new ApplicationResult(
+                        result.usageId(), result.status(), result.version(), result.submittedAt()));
     }
 
     private SealAgentApplicationCommand toDomain(ApplicationCommand command) {
@@ -66,12 +65,11 @@ public final class SealAgentDomainToolAdapter implements SealToolPort {
     @Override
     public ToolWriteVerification<UseResult> findRegisteredUse(
             ToolActorContext context, UseCommand command, ToolOperationKey operationKey) {
-        return adminAssetsService.findAgentRegisteredSealUse(
-                        context.userId(), toDomain(command), operationKey.value())
-                .map(result -> ToolWriteVerification.observed(new UseResult(
-                        result.usageId(), result.status(), result.version(),
-                        result.actualCopies(), result.usedAt())))
-                .orElseGet(ToolWriteVerification::unobserved);
+        return ToolWriteVerification.fromOptional(
+                adminAssetsService.findAgentRegisteredSealUse(
+                        context.userId(), toDomain(command), operationKey.value()),
+                result -> new UseResult(result.usageId(), result.status(), result.version(),
+                        result.actualCopies(), result.usedAt()));
     }
 
     private SealAgentUseCommand toDomain(UseCommand command) {

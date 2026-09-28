@@ -2,6 +2,7 @@ package com.aiworkmate.agent.tool.internal;
 
 import com.aiworkmate.agent.registry.ToolCode;
 import com.aiworkmate.agent.tool.port.MeetingToolPort;
+import com.aiworkmate.agent.tool.port.ToolOperationKey;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Component;
@@ -11,7 +12,7 @@ import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.requiredIn
 import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.requiredLong;
 
 @Component
-public final class MeetingCancelToolHandler extends TypedWriteToolHandler<MeetingToolPort.CancelCommand, MeetingToolPort.CancelResult> {
+public final class MeetingCancelToolHandler extends TypedOperationKeyWriteToolHandler<MeetingToolPort.CancelCommand, MeetingToolPort.CancelResult> {
     private final MeetingToolPort port;
 
     public MeetingCancelToolHandler(MeetingToolPort port, ObjectMapper objectMapper) {
@@ -28,8 +29,9 @@ public final class MeetingCancelToolHandler extends TypedWriteToolHandler<Meetin
     }
 
     @Override
-    protected MeetingToolPort.CancelResult invoke(
-            TrustedToolContext context, MeetingToolPort.CancelCommand command) {
-        return port.cancel(context.actor(), command, stableOperationKey(context));
+    protected MeetingToolPort.CancelResult invokeWithOperationKey(
+            TrustedToolContext context, MeetingToolPort.CancelCommand command,
+            ToolOperationKey operationKey) {
+        return port.cancel(context.actor(), command, operationKey);
     }
 }

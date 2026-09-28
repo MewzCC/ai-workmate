@@ -1,26 +1,27 @@
 package com.aiworkmate.agent.tool.port;
 
 import org.junit.jupiter.api.Test;
+import com.tngtech.archunit.core.domain.JavaClass;
+import com.tngtech.archunit.core.importer.ClassFileImporter;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.RecordComponent;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AgentDomainToolPortContractTest {
-    private static final List<Class<?>> PORTS = List.of(
-            TodoToolPort.class, LeaveToolPort.class, KnowledgeToolPort.class, NotificationToolPort.class,
-            ApprovalConfigurationToolPort.class, ApprovalTaskToolPort.class, HrOrganizationToolPort.class,
-            ApprovalApplicationToolPort.class,
-            HrEmployeeToolPort.class, EmployeeChangeToolPort.class, AttendanceToolPort.class,
-            AssetToolPort.class, MeetingToolPort.class, VisitorToolPort.class, SealToolPort.class,
-            FinanceToolPort.class, PlatformOperationsToolPort.class, SecurityGovernanceToolPort.class,
-            OperationalGovernanceToolPort.class, AgentTaskCenterToolPort.class);
+    private static final Set<Class<?>> PORTS = new ClassFileImporter()
+            .importPackages("com.aiworkmate.agent.tool.port").stream()
+            .filter(JavaClass::isInterface)
+            .filter(javaClass -> javaClass.getSimpleName().endsWith("ToolPort"))
+            .map(JavaClass::reflect)
+            .collect(Collectors.toUnmodifiableSet());
 
     @Test
     void portsAreFrameworkNeutralInterfacesWithoutGenericExecutionEscapeHatch() {
@@ -47,6 +48,25 @@ class AgentDomainToolPortContractTest {
                     }
                 }
             }
+        });
+    }
+
+    @Test
+    void trustedRemoteActorContextCannotCarryClientAssertedAuthorizationOrTargets() {
+        assertEquals(
+                List.of("tenantId", "userId", "taskId", "stepId", "attempt", "traceId"),
+                List.of(ToolActorContext.class.getRecordComponents()).stream()
+                        .map(RecordComponent::getName)
+                        .toList());
+        PORTS.forEach(port -> {
+            String contract = port.toGenericString();
+            for (Method method : port.getDeclaredMethods()) {
+                contract += method.toGenericString();
+            }
+            assertFalse(contract.contains("java.net.URL"));
+            assertFalse(contract.contains("java.net.URI"));
+            assertFalse(contract.contains("permissions"));
+            assertFalse(contract.contains("roles"));
         });
     }
 }

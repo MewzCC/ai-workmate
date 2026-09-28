@@ -3,6 +3,8 @@ package com.aiworkmate.service.impl;
 import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.dto.ApprovalApplicationResponse;
 import com.aiworkmate.dto.ApprovalDraftRequest;
+import com.aiworkmate.dto.ApprovalDraftUpdateRequest;
+import com.aiworkmate.dto.VersionRequest;
 import com.aiworkmate.entity.ApprovalApplication;
 import com.aiworkmate.mapper.ApprovalApplicationMapper;
 import com.aiworkmate.service.GenericApprovalService;
@@ -25,6 +27,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -102,6 +105,163 @@ class ExpenseApplicationServiceImplTest {
                 .extracting("errorCode").isEqualTo("IDEMPOTENCY_CONFLICT");
     }
 
+    @Test
+    void submitsOnlyOwnedExpenseDraftThroughGenericApprovalTransaction() {
+        when(userAccessService.resolveActiveUser(7L)).thenReturn(submitAccess());
+        ApprovalApplication expense = existing("{\"amount\":88.50}");
+        when(applicationMapper.selectById(51L)).thenReturn(expense);
+        ApprovalApplicationResponse response = org.mockito.Mockito.mock(ApprovalApplicationResponse.class);
+        when(response.id()).thenReturn(51L);
+        when(response.formKey()).thenReturn("expense-application");
+        when(response.status()).thenReturn("PENDING");
+        when(response.version()).thenReturn(1);
+        when(approvalService.submitAgentDraft(7L, 51L, new VersionRequest(0))).thenReturn(response);
+
+        var receipt = service.submitAgentDraft(7L, 51L, 0);
+
+        assertThat(receipt.status()).isEqualTo("PENDING");
+        assertThat(receipt.formKey()).isEqualTo("expense-application");
+        verify(approvalService).submitAgentDraft(7L, 51L, new VersionRequest(0));
+    }
+
+    @Test
+    void patchesSelectedExpenseFieldsWithoutDroppingExistingDraftData() {
+        when(userAccessService.resolveActiveUser(7L)).thenReturn(access());
+        ApprovalApplication expense = existing("""
+                {"amount":88.50,"category":"TRAVEL","expenseDate":"2026-09-17",
+                 "invoiceNumber":"INV-1","reason":"客户拜访"}
+                """);
+        when(applicationMapper.selectById(51L)).thenReturn(expense);
+        ApprovalApplicationResponse response = org.mockito.Mockito.mock(ApprovalApplicationResponse.class);
+        when(response.id()).thenReturn(51L);
+        when(response.formKey()).thenReturn("expense-application");
+        when(response.status()).thenReturn("DRAFT");
+        when(response.version()).thenReturn(1);
+        when(approvalService.updateAgentDraft(
+                org.mockito.ArgumentMatchers.eq(7L), org.mockito.ArgumentMatchers.eq(51L),
+                org.mockito.ArgumentMatchers.any())).thenReturn(response);
+
+        var receipt = service.updateAgentDraft(7L, 51L, 0,
+                new ExpenseAgentDraftCommand(new BigDecimal("99.50"), null, null, null, null));
+
+        ArgumentCaptor<ApprovalDraftUpdateRequest> captor =
+                ArgumentCaptor.forClass(ApprovalDraftUpdateRequest.class);
+        verify(approvalService).updateAgentDraft(
+                org.mockito.ArgumentMatchers.eq(7L), org.mockito.ArgumentMatchers.eq(51L),
+                captor.capture());
+        assertThat(captor.getValue().version()).isZero();
+        assertThat(captor.getValue().formData())
+                .containsEntry("amount", new BigDecimal("99.50"))
+                .containsEntry("category", "TRAVEL")
+                .containsEntry("invoiceNumber", "INV-1")
+                .containsEntry("reason", "客户拜访");
+        assertThat(receipt.status()).isEqualTo("DRAFT");
+    }
+
+    @Test
+    void rejectsOtherFormsAndRevokedSubmitPermissionBeforeWriting() {
+        when(userAccessService.resolveActiveUser(7L)).thenReturn(submitAccess());
+        ApprovalApplication other = existing("{}");
+        other.setFormKey("leave-application");
+        when(applicationMapper.selectById(51L)).thenReturn(other);
+
+        assertThatThrownBy(() -> service.submitAgentDraft(7L, 51L, 0))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("RESOURCE_NOT_FOUND");
+        verify(approvalService, never()).submitAgentDraft(
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any());
+
+        when(userAccessService.resolveActiveUser(8L)).thenReturn(access());
+        assertThatThrownBy(() -> service.submitAgentDraft(8L, 51L, 0))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("PERMISSION_DENIED");
+    }
+
+    @Test
+    void withdrawsOnlyOwnedExpenseApplicationThroughGenericApprovalTransaction() {
+        when(userAccessService.resolveActiveUser(7L)).thenReturn(withdrawAccess());
+        ApprovalApplication expense = existing("{\"amount\":88.50}");
+        expense.setStatus("PENDING");
+        expense.setVersion(1);
+        when(applicationMapper.selectById(51L)).thenReturn(expense);
+        ApprovalApplicationResponse response = org.mockito.Mockito.mock(ApprovalApplicationResponse.class);
+        when(response.id()).thenReturn(51L);
+        when(response.formKey()).thenReturn("expense-application");
+        when(response.status()).thenReturn("WITHDRAWN");
+        when(response.version()).thenReturn(2);
+        when(approvalService.withdrawAgentApplication(7L, 51L, new VersionRequest(1)))
+                .thenReturn(response);
+
+        var receipt = service.withdrawAgentApplication(7L, 51L, 1);
+
+        assertThat(receipt.status()).isEqualTo("WITHDRAWN");
+        assertThat(receipt.formKey()).isEqualTo("expense-application");
+        verify(approvalService).withdrawAgentApplication(7L, 51L, new VersionRequest(1));
+    }
+
+    @Test
+    void rejectsOtherFormsAndRevokedWithdrawPermissionBeforeWriting() {
+        when(userAccessService.resolveActiveUser(7L)).thenReturn(withdrawAccess());
+        ApprovalApplication other = existing("{}");
+        other.setFormKey("leave-application");
+        when(applicationMapper.selectById(51L)).thenReturn(other);
+
+        assertThatThrownBy(() -> service.withdrawAgentApplication(7L, 51L, 1))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("RESOURCE_NOT_FOUND");
+        verify(approvalService, never()).withdrawAgentApplication(
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any());
+
+        when(userAccessService.resolveActiveUser(8L)).thenReturn(access());
+        assertThatThrownBy(() -> service.withdrawAgentApplication(8L, 51L, 1))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("PERMISSION_DENIED");
+    }
+
+    @Test
+    void reopensOnlyOwnedExpenseApplicationThroughGenericApprovalTransaction() {
+        when(userAccessService.resolveActiveUser(7L)).thenReturn(reopenAccess());
+        ApprovalApplication expense = existing("{\"amount\":88.50}");
+        expense.setStatus("WITHDRAWN");
+        expense.setVersion(2);
+        when(applicationMapper.selectById(51L)).thenReturn(expense);
+        ApprovalApplicationResponse response = org.mockito.Mockito.mock(ApprovalApplicationResponse.class);
+        when(response.id()).thenReturn(51L);
+        when(response.formKey()).thenReturn("expense-application");
+        when(response.status()).thenReturn("DRAFT");
+        when(response.version()).thenReturn(3);
+        when(approvalService.reopenAgentApplication(7L, 51L, new VersionRequest(2)))
+                .thenReturn(response);
+
+        var receipt = service.reopenAgentApplication(7L, 51L, 2);
+
+        assertThat(receipt.status()).isEqualTo("DRAFT");
+        assertThat(receipt.formKey()).isEqualTo("expense-application");
+        verify(approvalService).reopenAgentApplication(7L, 51L, new VersionRequest(2));
+    }
+
+    @Test
+    void rejectsOtherFormsAndRevokedReopenPermissionBeforeWriting() {
+        when(userAccessService.resolveActiveUser(7L)).thenReturn(reopenAccess());
+        ApprovalApplication other = existing("{}");
+        other.setFormKey("leave-application");
+        when(applicationMapper.selectById(51L)).thenReturn(other);
+
+        assertThatThrownBy(() -> service.reopenAgentApplication(7L, 51L, 2))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("RESOURCE_NOT_FOUND");
+        verify(approvalService, never()).reopenAgentApplication(
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any());
+
+        when(userAccessService.resolveActiveUser(8L)).thenReturn(access());
+        assertThatThrownBy(() -> service.reopenAgentApplication(8L, 51L, 2))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("PERMISSION_DENIED");
+    }
+
     private ExpenseAgentDraftCommand command() {
         return new ExpenseAgentDraftCommand(
                 new BigDecimal("88.50"), "TRAVEL", LocalDate.of(2026, 9, 17),
@@ -112,6 +272,24 @@ class ExpenseApplicationServiceImplTest {
         return new ResolvedUserAccess(
                 7L, "user", 1L, "EMPLOYEE", List.of("EMPLOYEE"),
                 List.of("route:approval-start", "approval:create"), List.of("SELF"), 1L);
+    }
+
+    private ResolvedUserAccess submitAccess() {
+        return new ResolvedUserAccess(
+                7L, "user", 1L, "EMPLOYEE", List.of("EMPLOYEE"),
+                List.of("route:approval-start", "approval:submit"), List.of("SELF"), 1L);
+    }
+
+    private ResolvedUserAccess withdrawAccess() {
+        return new ResolvedUserAccess(
+                7L, "user", 1L, "EMPLOYEE", List.of("EMPLOYEE"),
+                List.of("route:approval-start", "approval:withdraw"), List.of("SELF"), 1L);
+    }
+
+    private ResolvedUserAccess reopenAccess() {
+        return new ResolvedUserAccess(
+                7L, "user", 1L, "EMPLOYEE", List.of("EMPLOYEE"),
+                List.of("route:approval-start", "approval:reopen"), List.of("SELF"), 1L);
     }
 
     private ApprovalApplication existing(String dataJson) {

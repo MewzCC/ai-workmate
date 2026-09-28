@@ -15,6 +15,26 @@ public class AgentExpenseWriteToolDefinitions {
     public static final String CREATE_DRAFT_OUTPUT_SCHEMA = """
             {"type":"object","additionalProperties":false,"required":["applicationId","formKey","status","version","createdAt"],"properties":{"applicationId":{"type":"integer","minimum":1},"formKey":{"type":"string","const":"expense-application"},"status":{"type":"string","enum":["DRAFT","PENDING","APPROVED","REJECTED","WITHDRAWN","CANCELLED"]},"version":{"type":"integer","minimum":0},"createdAt":{"type":"string","format":"date-time"}}}
             """.strip();
+    public static final String SUBMIT_DRAFT_INPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["applicationId","version"],"properties":{"applicationId":{"type":"integer","minimum":1},"version":{"type":"integer","minimum":0,"maximum":2147483646}}}
+            """.strip();
+    public static final String UPDATE_DRAFT_INPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["applicationId","version"],"minProperties":3,"properties":{"applicationId":{"type":"integer","minimum":1},"version":{"type":"integer","minimum":0,"maximum":2147483646},"amount":{"type":"number","minimum":0.01,"maximum":999999999.99,"multipleOf":0.01},"category":{"type":"string","enum":["TRAVEL","MEAL","TRANSPORT","OFFICE","OTHER"]},"expenseDate":{"type":"string","format":"date"},"invoiceNumber":{"type":"string","minLength":1,"maxLength":100},"reason":{"type":"string","minLength":1,"maxLength":1000}}}
+            """.strip();
+    public static final String UPDATE_DRAFT_OUTPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["applicationId","formKey","status","version"],"properties":{"applicationId":{"type":"integer","minimum":1},"formKey":{"type":"string","const":"expense-application"},"status":{"type":"string","const":"DRAFT"},"version":{"type":"integer","minimum":1}}}
+            """.strip();
+    public static final String SUBMIT_DRAFT_OUTPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["applicationId","formKey","status","version"],"properties":{"applicationId":{"type":"integer","minimum":1},"formKey":{"type":"string","const":"expense-application"},"status":{"type":"string","const":"PENDING"},"version":{"type":"integer","minimum":1}}}
+            """.strip();
+    public static final String WITHDRAW_INPUT_SCHEMA = SUBMIT_DRAFT_INPUT_SCHEMA;
+    public static final String WITHDRAW_OUTPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["applicationId","formKey","status","version"],"properties":{"applicationId":{"type":"integer","minimum":1},"formKey":{"type":"string","const":"expense-application"},"status":{"type":"string","const":"WITHDRAWN"},"version":{"type":"integer","minimum":1}}}
+            """.strip();
+    public static final String REOPEN_INPUT_SCHEMA = SUBMIT_DRAFT_INPUT_SCHEMA;
+    public static final String REOPEN_OUTPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["applicationId","formKey","status","version"],"properties":{"applicationId":{"type":"integer","minimum":1},"formKey":{"type":"string","const":"expense-application"},"status":{"type":"string","const":"DRAFT"},"version":{"type":"integer","minimum":1}}}
+            """.strip();
 
     @Bean
     ToolDefinition expenseCreateDraftToolDefinition(ObjectMapper objectMapper)
@@ -25,8 +45,59 @@ public class AgentExpenseWriteToolDefinitions {
                 "Create one bounded expense draft only after explicit confirmation; never submit or approve it.",
                 objectMapper.readTree(CREATE_DRAFT_INPUT_SCHEMA),
                 objectMapper.readTree(CREATE_DRAFT_OUTPUT_SCHEMA),
-                RiskLevel.L1, Set.of("approval:create"), OwnershipPolicy.SELF,
-                RetryPolicy.BUSINESS_IDEMPOTENT, ConfirmationPolicy.EXPLICIT,
+                ToolWriteProfile.IDEMPOTENT_L1, Set.of("approval:create"), OwnershipPolicy.SELF,
                 1, 8192, 15000);
+    }
+
+    @Bean
+    ToolDefinition expenseSubmitDraftToolDefinition(ObjectMapper objectMapper)
+            throws JsonProcessingException {
+        return ToolDefinitionFactory.singleWrite(
+                ToolCode.EXPENSE_SUBMIT_DRAFT, "Submit my expense draft",
+                "Submits one self-owned expense draft and starts its approval workflow.",
+                "Submit only a verified expense-application draft after explicit confirmation.",
+                objectMapper.readTree(SUBMIT_DRAFT_INPUT_SCHEMA),
+                objectMapper.readTree(SUBMIT_DRAFT_OUTPUT_SCHEMA),
+                ToolWriteProfile.NON_RETRYABLE_L1, Set.of("approval:submit"), OwnershipPolicy.SELF,
+                1, 4096, 15000);
+    }
+
+    @Bean
+    ToolDefinition expenseUpdateDraftToolDefinition(ObjectMapper objectMapper)
+            throws JsonProcessingException {
+        return ToolDefinitionFactory.singleWrite(
+                ToolCode.EXPENSE_UPDATE_DRAFT, "Update my expense draft",
+                "Updates selected fields on one self-owned expense draft without submitting it.",
+                "Patch only a verified expense draft and preserve every field not explicitly provided.",
+                objectMapper.readTree(UPDATE_DRAFT_INPUT_SCHEMA),
+                objectMapper.readTree(UPDATE_DRAFT_OUTPUT_SCHEMA),
+                ToolWriteProfile.NON_RETRYABLE_L1, Set.of("approval:create"), OwnershipPolicy.SELF,
+                1, 4096, 15000);
+    }
+
+    @Bean
+    ToolDefinition expenseWithdrawToolDefinition(ObjectMapper objectMapper)
+            throws JsonProcessingException {
+        return ToolDefinitionFactory.singleWrite(
+                ToolCode.EXPENSE_WITHDRAW, "Withdraw my expense application",
+                "Withdraws one self-owned pending expense application.",
+                "Cancel the active approval task and workflow only for a verified expense application.",
+                objectMapper.readTree(WITHDRAW_INPUT_SCHEMA),
+                objectMapper.readTree(WITHDRAW_OUTPUT_SCHEMA),
+                ToolWriteProfile.NON_RETRYABLE_L1, Set.of("approval:withdraw"), OwnershipPolicy.SELF,
+                1, 4096, 15000);
+    }
+
+    @Bean
+    ToolDefinition expenseReopenToolDefinition(ObjectMapper objectMapper)
+            throws JsonProcessingException {
+        return ToolDefinitionFactory.singleWrite(
+                ToolCode.EXPENSE_REOPEN, "Reopen my expense application as draft",
+                "Reopens one self-owned rejected or withdrawn expense application as an editable draft.",
+                "Restore only a verified expense application to draft without editing or resubmitting it.",
+                objectMapper.readTree(REOPEN_INPUT_SCHEMA),
+                objectMapper.readTree(REOPEN_OUTPUT_SCHEMA),
+                ToolWriteProfile.NON_RETRYABLE_L1, Set.of("approval:reopen"), OwnershipPolicy.SELF,
+                1, 4096, 15000);
     }
 }

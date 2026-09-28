@@ -8,7 +8,9 @@ import com.aiworkmate.dto.RegisterRequest;
 import com.aiworkmate.dto.ResetPasswordRequest;
 import com.aiworkmate.security.AuthCookieManager;
 import com.aiworkmate.security.AuthenticatedUser;
+import com.aiworkmate.security.ClientRequestMetadata;
 import com.aiworkmate.service.AuthService;
+import com.aiworkmate.service.PlatformOperationAuditService;
 import com.aiworkmate.util.JwtUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -21,11 +23,15 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
+
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
 public class AuthController {
     private final AuthService authService;
+    private final PlatformOperationAuditService operationAuditService;
     private final JwtUtil jwtUtil;
     private final AuthCookieManager cookieManager;
 
@@ -33,17 +39,18 @@ public class AuthController {
     public Result<AuthUserResponse> passwordLogin(@Valid @RequestBody PasswordLoginRequest request,
                                                    HttpServletRequest servletRequest,
                                                    HttpServletResponse response) {
-        AuthUserResponse user = authService.loginWithPassword(request, clientIp(servletRequest));
-        establishSession(user, request.remember(), response);
-        return Result.ok(user);
+        ClientRequestMetadata metadata = ClientRequestMetadata.from(servletRequest);
+        return completeLogin(request.email(), "PASSWORD", request.remember(), metadata, response,
+                () -> authService.loginWithPassword(request, metadata.clientIp()));
     }
 
     @PostMapping("/login/email-code")
     public Result<AuthUserResponse> emailCodeLogin(@Valid @RequestBody EmailCodeLoginRequest request,
+                                                    HttpServletRequest servletRequest,
                                                     HttpServletResponse response) {
-        AuthUserResponse user = authService.loginWithEmailCode(request);
-        establishSession(user, request.remember(), response);
-        return Result.ok(user);
+        ClientRequestMetadata metadata = ClientRequestMetadata.from(servletRequest);
+        return completeLogin(request.email(), "EMAIL_CODE", request.remember(), metadata, response,
+                () -> authService.loginWithEmailCode(request));
     }
 
     @PostMapping("/register")
@@ -75,9 +82,24 @@ public class AuthController {
         cookieManager.write(response, jwtUtil.generateToken(user.id(), user.email(), user.role()), remember);
     }
 
-    private String clientIp(HttpServletRequest request) {
-        String forwarded = request.getHeader("X-Forwarded-For");
-        return forwarded == null || forwarded.isBlank()
-                ? request.getRemoteAddr() : forwarded.split(",")[0].trim();
+    private Result<AuthUserResponse> completeLogin(String account, String loginMethod, boolean remember,
+                                                   ClientRequestMetadata metadata, HttpServletResponse response,
+                                                   Supplier<AuthUserResponse> authentication) {
+        long started = System.nanoTime();
+        try {
+            AuthUserResponse user = authentication.get();
+            establishSession(user, remember, response);
+            operationAuditService.recordLoginSuccess(user, loginMethod, elapsedMillis(started),
+                    metadata.clientIp(), metadata.userAgent());
+            return Result.ok(user);
+        } catch (RuntimeException exception) {
+            operationAuditService.recordLoginFailure(account, loginMethod, elapsedMillis(started),
+                    metadata.clientIp(), metadata.userAgent(), exception);
+            throw exception;
+        }
+    }
+
+    private long elapsedMillis(long started) {
+        return TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started);
     }
 }

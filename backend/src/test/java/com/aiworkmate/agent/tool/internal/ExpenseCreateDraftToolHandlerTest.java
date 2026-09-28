@@ -1,6 +1,6 @@
 package com.aiworkmate.agent.tool.internal;
 
-import com.aiworkmate.agent.tool.port.FinanceToolPort;
+import com.aiworkmate.agent.tool.port.ExpenseToolPort;
 import com.aiworkmate.agent.tool.port.ToolOperationKey;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -17,16 +17,16 @@ import static org.mockito.Mockito.when;
 class ExpenseCreateDraftToolHandlerTest {
     @Test
     void mapsOnlyExpenseFieldsAndUsesStableOperationKey() throws Exception {
-        FinanceToolPort port = mock(FinanceToolPort.class);
+        ExpenseToolPort port = mock(ExpenseToolPort.class);
         ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
         TrustedToolContext context = new TrustedToolContext(1L, 7L, 10L, 26L, 1, "trace");
-        var command = new FinanceToolPort.ExpenseDraft(
+        var command = new ExpenseToolPort.ExpenseDraft(
                 new BigDecimal("88.5"), "TRAVEL", LocalDate.of(2026, 9, 17),
                 "INV-1", "客户拜访");
         var operationKey = new ToolOperationKey("agent:10:26:expense.createDraft:v1");
         LocalDateTime createdAt = LocalDateTime.of(2026, 9, 18, 12, 0);
         when(port.createExpenseDraft(context.actor(), command, operationKey)).thenReturn(
-                new FinanceToolPort.ExpenseDraftResult(
+                new ExpenseToolPort.ExpenseDraftResult(
                         51L, "expense-application", "DRAFT", 0, createdAt));
 
         var output = new ExpenseCreateDraftToolHandler(port, mapper).execute(

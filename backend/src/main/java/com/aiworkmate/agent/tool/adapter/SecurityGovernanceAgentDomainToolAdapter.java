@@ -6,9 +6,8 @@ import com.aiworkmate.service.AccessGovernanceQueryService;
 import com.aiworkmate.service.AiOperationPermissionQueryService;
 import com.aiworkmate.service.DataPermissionService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
 
-@Component
+@LocalAgentDomainAdapter
 @RequiredArgsConstructor
 public class SecurityGovernanceAgentDomainToolAdapter implements SecurityGovernanceToolPort {
     private final AccessGovernanceQueryService accessService;

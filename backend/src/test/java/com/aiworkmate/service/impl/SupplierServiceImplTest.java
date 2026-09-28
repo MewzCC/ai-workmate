@@ -10,6 +10,7 @@ import com.aiworkmate.mapper.SupplierStatusHistoryMapper;
 import com.aiworkmate.service.BusinessAuditService;
 import com.aiworkmate.service.UserAccessService;
 import com.aiworkmate.service.model.ResolvedUserAccess;
+import com.aiworkmate.service.model.SupplierAgentDraftCommand;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
@@ -94,6 +95,34 @@ class SupplierServiceImplTest {
     }
 
     @Test
+    void agentUpdateRejectsActiveSupplier() {
+        when(userAccessService.resolveActiveUser(10L)).thenReturn(manageAccess());
+        when(supplierMapper.selectOne(any())).thenReturn(supplier("ACTIVE", 0));
+        assertThatThrownBy(() -> service.updateAgentDraft(10L, 71L, 0, agentUpdate()))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("BUSINESS_STATE_INVALID");
+        verify(supplierMapper, never()).update(any(), any());
+    }
+
+    @Test
+    void agentUpdateKeepsCodeAndWritesAudit() {
+        when(userAccessService.resolveActiveUser(10L)).thenReturn(manageAccess());
+        Supplier before = supplier("DRAFT", 0);
+        Supplier after = supplier("DRAFT", 1);
+        after.setName("更新供应商");
+        when(supplierMapper.selectOne(any())).thenReturn(before, after);
+        when(supplierMapper.update(any(), any())).thenReturn(1);
+        var response = service.updateAgentDraft(10L, 71L, 0, agentUpdate());
+        ArgumentCaptor<Supplier> changed = ArgumentCaptor.forClass(Supplier.class);
+        verify(supplierMapper).update(changed.capture(), any());
+        assertThat(response.code()).isEqualTo("SUP-001");
+        assertThat(response.version()).isOne();
+        assertThat(changed.getValue().getContactPhone()).isEqualTo("13800000000");
+        assertThat(changed.getValue().getRiskNote()).isEqualTo("年度复审");
+        verify(auditService).recordTransactional(9L, 10L, "SUPPLIER", "71", "UPDATE", "SUCCESS", "SUP-001");
+    }
+
+    @Test
     void statusChangeRejectsIllegalTransition() {
         when(userAccessService.resolveActiveUser(10L)).thenReturn(manageAccess());
         when(supplierMapper.selectOne(any())).thenReturn(supplier("DRAFT", 0));
@@ -146,11 +175,17 @@ class SupplierServiceImplTest {
                 "contact@example.com", "上海市", "验收后30天", "年度复审", version);
     }
 
+    private SupplierAgentDraftCommand agentUpdate() {
+        return new SupplierAgentDraftCommand(
+                "更新供应商", "更新简称", "SERVICE", "PREFERRED", "月结45天");
+    }
+
     private Supplier supplier(String status, int version) {
         Supplier supplier = new Supplier();
         supplier.setId(71L); supplier.setTenantId(9L); supplier.setSupplierCode("SUP-001");
         supplier.setName("示例供应商有限公司"); supplier.setShortName("示例供应商");
         supplier.setCategory("SERVICE"); supplier.setSupplierLevel("PREFERRED"); supplier.setStatus(status);
+        supplier.setContactPhone("13800000000"); supplier.setRiskNote("年度复审");
         supplier.setVersion(version); supplier.setDeleted(false); supplier.setCreatedAt(LocalDateTime.now());
         supplier.setUpdatedAt(LocalDateTime.now());
         return supplier;

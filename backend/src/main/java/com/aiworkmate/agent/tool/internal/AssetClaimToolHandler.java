@@ -2,6 +2,7 @@ package com.aiworkmate.agent.tool.internal;
 
 import com.aiworkmate.agent.registry.ToolCode;
 import com.aiworkmate.agent.tool.port.AssetToolPort;
+import com.aiworkmate.agent.tool.port.ToolOperationKey;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Component;
@@ -12,7 +13,7 @@ import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.requiredLo
 
 @Component
 public final class AssetClaimToolHandler
-        extends TypedWriteToolHandler<AssetToolPort.ClaimCommand, AssetToolPort.ClaimResult> {
+        extends TypedOperationKeyWriteToolHandler<AssetToolPort.ClaimCommand, AssetToolPort.ClaimResult> {
     private final AssetToolPort port;
 
     public AssetClaimToolHandler(AssetToolPort port, ObjectMapper objectMapper) {
@@ -30,8 +31,9 @@ public final class AssetClaimToolHandler
     }
 
     @Override
-    protected AssetToolPort.ClaimResult invoke(
-            TrustedToolContext context, AssetToolPort.ClaimCommand command) {
-        return port.claim(context.actor(), command, stableOperationKey(context));
+    protected AssetToolPort.ClaimResult invokeWithOperationKey(
+            TrustedToolContext context, AssetToolPort.ClaimCommand command,
+            ToolOperationKey operationKey) {
+        return port.claim(context.actor(), command, operationKey);
     }
 }

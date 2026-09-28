@@ -46,6 +46,7 @@ const BudgetPage = lazy(() => import('./BudgetPage'));
 const ApiCenterPage = lazy(() => import('./ApiCenterPage'));
 const PageActionsPage = lazy(() => import('./PageActionsPage'));
 const RuntimeLogsPage = lazy(() => import('./RuntimeLogsPage'));
+const PlatformObservabilityPage = lazy(() => import('./PlatformObservabilityPage'));
 const SandboxReplayPage = lazy(() => import('./SandboxReplayPage'));
 
 export interface OaPageRendererProps {
@@ -89,6 +90,7 @@ export const OA_PAGE_REGISTRY: Readonly<Record<ComponentKey, PageRenderer>> = {
   API_CENTER: () => <ApiCenterPage />,
   PAGE_ACTIONS: () => <PageActionsPage />,
   RUNTIME_LOGS: () => <RuntimeLogsPage />,
+  PLATFORM_OBSERVABILITY: () => <PlatformObservabilityPage />,
   SANDBOX_REPLAY: () => <SandboxReplayPage />,
   WORKBENCH_MODULE: ({ menu }) => <WorkbenchModulePage moduleKey={menu.id} title={menu.name} />,
   ATTENDANCE_CLOCK: () => <AttendanceClockPage />,

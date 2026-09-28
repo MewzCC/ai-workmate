@@ -2,6 +2,7 @@ package com.aiworkmate.agent.tool.internal;
 
 import com.aiworkmate.agent.registry.ToolCode;
 import com.aiworkmate.agent.tool.port.EmployeeChangeToolPort;
+import com.aiworkmate.agent.tool.port.ToolOperationKey;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Component;
@@ -12,7 +13,7 @@ import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.requiredLo
 import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.requiredText;
 
 @Component
-public final class EmployeeChangeApplyToolHandler extends TypedWriteToolHandler<
+public final class EmployeeChangeApplyToolHandler extends TypedOperationKeyWriteToolHandler<
         EmployeeChangeToolPort.ApplicationCommand, EmployeeChangeToolPort.ApplicationResult> {
     private final EmployeeChangeToolPort port;
 
@@ -35,8 +36,9 @@ public final class EmployeeChangeApplyToolHandler extends TypedWriteToolHandler<
     }
 
     @Override
-    protected EmployeeChangeToolPort.ApplicationResult invoke(
-            TrustedToolContext context, EmployeeChangeToolPort.ApplicationCommand command) {
-        return port.apply(context.actor(), command, stableOperationKey(context));
+    protected EmployeeChangeToolPort.ApplicationResult invokeWithOperationKey(
+            TrustedToolContext context, EmployeeChangeToolPort.ApplicationCommand command,
+            ToolOperationKey operationKey) {
+        return port.apply(context.actor(), command, operationKey);
     }
 }

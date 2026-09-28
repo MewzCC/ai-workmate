@@ -4,9 +4,8 @@ import com.aiworkmate.agent.tool.port.HrEmployeeToolPort;
 import com.aiworkmate.agent.tool.port.ToolActorContext;
 import com.aiworkmate.service.HrService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
 
-@Component
+@LocalAgentDomainAdapter
 @RequiredArgsConstructor
 public final class HrEmployeeAgentDomainToolAdapter implements HrEmployeeToolPort {
     private final HrService hrService;

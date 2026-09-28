@@ -4,6 +4,8 @@ import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.common.ErrorCode;
 import com.aiworkmate.dto.ApprovalApplicationResponse;
 import com.aiworkmate.dto.ApprovalDraftRequest;
+import com.aiworkmate.dto.ApprovalDraftUpdateRequest;
+import com.aiworkmate.dto.VersionRequest;
 import com.aiworkmate.entity.ApprovalApplication;
 import com.aiworkmate.mapper.ApprovalApplicationMapper;
 import com.aiworkmate.service.ExpenseApplicationService;
@@ -11,6 +13,7 @@ import com.aiworkmate.service.GenericApprovalService;
 import com.aiworkmate.service.UserAccessService;
 import com.aiworkmate.service.model.ExpenseAgentDraftCommand;
 import com.aiworkmate.service.model.ExpenseAgentDraftReceipt;
+import com.aiworkmate.service.model.ExpenseAgentLifecycleReceipt;
 import com.aiworkmate.service.model.ResolvedUserAccess;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -67,6 +70,52 @@ public class ExpenseApplicationServiceImpl implements ExpenseApplicationService 
                 existing.getVersion(), existing.getCreatedAt()));
     }
 
+    @Override
+    @Transactional
+    public ExpenseAgentLifecycleReceipt updateAgentDraft(
+            Long userId, Long applicationId, int version, ExpenseAgentDraftCommand patch) {
+        ResolvedUserAccess actor = requireLifecycleAccess(userId, "approval:create");
+        ApprovalApplication existing = requireOwnedExpense(actor, applicationId);
+        Map<String, Object> merged = readFields(existing.getDataJson());
+        merged.putAll(request(patch).formData());
+        ApprovalApplicationResponse updated = approvalService.updateAgentDraft(
+                userId, applicationId, new ApprovalDraftUpdateRequest(null, merged, version));
+        return lifecycleReceipt(updated);
+    }
+
+    @Override
+    @Transactional
+    public ExpenseAgentLifecycleReceipt submitAgentDraft(
+            Long userId, Long applicationId, int version) {
+        ResolvedUserAccess actor = requireLifecycleAccess(userId, "approval:submit");
+        requireOwnedExpense(actor, applicationId);
+        ApprovalApplicationResponse submitted = approvalService.submitAgentDraft(
+                userId, applicationId, new VersionRequest(version));
+        return lifecycleReceipt(submitted);
+    }
+
+    @Override
+    @Transactional
+    public ExpenseAgentLifecycleReceipt withdrawAgentApplication(
+            Long userId, Long applicationId, int version) {
+        ResolvedUserAccess actor = requireLifecycleAccess(userId, "approval:withdraw");
+        requireOwnedExpense(actor, applicationId);
+        ApprovalApplicationResponse withdrawn = approvalService.withdrawAgentApplication(
+                userId, applicationId, new VersionRequest(version));
+        return lifecycleReceipt(withdrawn);
+    }
+
+    @Override
+    @Transactional
+    public ExpenseAgentLifecycleReceipt reopenAgentApplication(
+            Long userId, Long applicationId, int version) {
+        ResolvedUserAccess actor = requireLifecycleAccess(userId, "approval:reopen");
+        requireOwnedExpense(actor, applicationId);
+        ApprovalApplicationResponse reopened = approvalService.reopenAgentApplication(
+                userId, applicationId, new VersionRequest(version));
+        return lifecycleReceipt(reopened);
+    }
+
     private ApprovalDraftRequest request(ExpenseAgentDraftCommand command) {
         if (command == null) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID);
@@ -117,6 +166,49 @@ public class ExpenseApplicationServiceImpl implements ExpenseApplicationService 
             throw new BusinessException(ErrorCode.PERMISSION_DENIED);
         }
         return actor;
+    }
+
+    private ResolvedUserAccess requireLifecycleAccess(Long userId, String permission) {
+        ResolvedUserAccess actor = userAccessService.resolveActiveUser(userId);
+        if (actor == null || actor.tenantId() == null
+                || !actor.permissions().contains("route:approval-start")
+                || !actor.permissions().contains(permission)) {
+            throw new BusinessException(ErrorCode.PERMISSION_DENIED);
+        }
+        return actor;
+    }
+
+    private ApprovalApplication requireOwnedExpense(ResolvedUserAccess actor, Long applicationId) {
+        ApprovalApplication existing = applicationMapper.selectById(applicationId);
+        if (existing == null || !Objects.equals(existing.getTenantId(), actor.tenantId())
+                || !Objects.equals(existing.getApplicantUserId(), actor.userId())
+                || !FORM_KEY.equals(existing.getFormKey())) {
+            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        }
+        return existing;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> readFields(String dataJson) {
+        try {
+            JsonNode value = objectMapper.readTree(dataJson);
+            if (value == null || !value.isObject()) {
+                throw new BusinessException(ErrorCode.REQUEST_INVALID);
+            }
+            return new LinkedHashMap<>(objectMapper.convertValue(value, Map.class));
+        } catch (BusinessException exception) {
+            throw exception;
+        } catch (Exception exception) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+    }
+
+    private ExpenseAgentLifecycleReceipt lifecycleReceipt(ApprovalApplicationResponse value) {
+        if (!FORM_KEY.equals(value.formKey())) {
+            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        }
+        return new ExpenseAgentLifecycleReceipt(
+                value.id(), value.formKey(), value.status(), value.version());
     }
 
     private ExpenseAgentDraftReceipt receipt(ApprovalApplicationResponse value) {

@@ -17,6 +17,7 @@ import com.aiworkmate.service.BusinessAuditService;
 import com.aiworkmate.service.SupplierService;
 import com.aiworkmate.service.UserAccessService;
 import com.aiworkmate.service.model.ResolvedUserAccess;
+import com.aiworkmate.service.model.SupplierAgentDraftCommand;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -131,6 +132,29 @@ public class SupplierServiceImpl implements SupplierService {
         if (!existing.getSupplierCode().equals(normalizeCode(request.code()))) {
             throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID, "validation.supplier.code.immutable");
         }
+        return updateSupplier(actor, existing, request, false);
+    }
+
+    @Override
+    @Transactional
+    public SupplierResponse updateAgentDraft(
+            Long userId, Long id, Integer version, SupplierAgentDraftCommand command) {
+        ResolvedUserAccess actor = requireManage(userId);
+        Supplier existing = requireSupplier(actor, id);
+        requireVersion(version, existing.getVersion());
+        if (!"DRAFT".equals(existing.getStatus())) {
+            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID, "validation.supplier.edit.draftOnly");
+        }
+        SupplierRequest request = new SupplierRequest(
+                existing.getSupplierCode(), command.name(), command.shortName(),
+                existing.getUnifiedSocialCreditCode(), command.category(), command.supplierLevel(),
+                existing.getContactName(), existing.getContactPhone(), existing.getContactEmail(),
+                existing.getAddress(), command.paymentTerms(), existing.getRiskNote(), version);
+        return updateSupplier(actor, existing, request, true);
+    }
+
+    private SupplierResponse updateSupplier(
+            ResolvedUserAccess actor, Supplier existing, SupplierRequest request, boolean draftOnly) {
         Supplier changed = new Supplier();
         apply(changed, request);
         changed.setUpdatedBy(actor.userId());
@@ -138,13 +162,15 @@ public class SupplierServiceImpl implements SupplierService {
         changed.setVersion(existing.getVersion() + 1);
         int updated;
         try {
-            updated = supplierMapper.update(changed, versionUpdate(actor, existing));
+            LambdaUpdateWrapper<Supplier> update = versionUpdate(actor, existing);
+            if (draftOnly) update.eq(Supplier::getStatus, "DRAFT");
+            updated = supplierMapper.update(changed, update);
         } catch (DuplicateKeyException exception) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.supplier.duplicate");
         }
         if (updated != 1) throw new BusinessException(ErrorCode.VERSION_CONFLICT);
-        audit(actor, id, "UPDATE", existing.getSupplierCode());
-        return response(requireSupplier(actor, id), true);
+        audit(actor, existing.getId(), "UPDATE", existing.getSupplierCode());
+        return response(requireSupplier(actor, existing.getId()), true);
     }
 
     @Override

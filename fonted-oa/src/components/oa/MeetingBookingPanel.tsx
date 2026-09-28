@@ -37,6 +37,7 @@ import {
 import { formatOaApiError } from '@/lib/oaApi';
 import { OaIcon } from '@/components/OaIcon';
 import ResponsiveTable from './ResponsiveTable';
+import { usePublishPageAgentContext } from './PageAgentContext';
 
 interface Props {
   rooms: MeetingRoom[];
@@ -64,6 +65,12 @@ export default function MeetingBookingPanel({ rooms, canManage }: Props) {
   const [bookingOpen, setBookingOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [form] = Form.useForm<BookingFormValues>();
+
+  usePublishPageAgentContext({
+    from: calendarValue.startOf('month').toISOString(),
+    to: calendarValue.endOf('month').toISOString(),
+    bookingStatus: 'BOOKED',
+  });
 
   const load = useCallback(async () => {
     setLoading(true);

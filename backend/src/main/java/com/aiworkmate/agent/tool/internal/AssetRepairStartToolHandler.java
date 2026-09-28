@@ -2,6 +2,7 @@ package com.aiworkmate.agent.tool.internal;
 
 import com.aiworkmate.agent.registry.ToolCode;
 import com.aiworkmate.agent.tool.port.AssetToolPort;
+import com.aiworkmate.agent.tool.port.ToolOperationKey;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Component;
@@ -12,7 +13,7 @@ import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.requiredTe
 
 @Component
 public final class AssetRepairStartToolHandler
-        extends TypedWriteToolHandler<AssetToolPort.RepairStartCommand, AssetToolPort.RepairStartResult> {
+        extends TypedOperationKeyWriteToolHandler<AssetToolPort.RepairStartCommand, AssetToolPort.RepairStartResult> {
     private final AssetToolPort port;
 
     public AssetRepairStartToolHandler(AssetToolPort port, ObjectMapper objectMapper) {
@@ -29,8 +30,9 @@ public final class AssetRepairStartToolHandler
     }
 
     @Override
-    protected AssetToolPort.RepairStartResult invoke(
-            TrustedToolContext context, AssetToolPort.RepairStartCommand command) {
-        return port.startRepair(context.actor(), command, stableOperationKey(context));
+    protected AssetToolPort.RepairStartResult invokeWithOperationKey(
+            TrustedToolContext context, AssetToolPort.RepairStartCommand command,
+            ToolOperationKey operationKey) {
+        return port.startRepair(context.actor(), command, operationKey);
     }
 }

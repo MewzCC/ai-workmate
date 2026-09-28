@@ -10,16 +10,18 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class DatabaseBackedToolRegistry implements ToolRegistry {
 
     private final AgentRuntimeProperties properties;
-    private final AgentToolMapper toolMapper;
-    private final AgentTenantPolicyMapper tenantPolicyMapper;
+    private final ToolPolicySource policySource;
     private final ToolCatalog catalog;
     private final PageActionPolicyResolver pageActionPolicyResolver;
     private final ObjectMapper objectMapper;
@@ -27,13 +29,20 @@ public class DatabaseBackedToolRegistry implements ToolRegistry {
     @Override
     @Transactional(readOnly = true)
     public List<ToolDefinition> resolveAllowedTools(ResolvedUserAccess access, String pageId) {
-        if (access == null || !properties.isEnabled() || !properties.isPlanningEnabled() || !tenantEnabled(access.tenantId())) {
+        if (access == null || !properties.isEnabled() || !properties.isPlanningEnabled()) {
             return List.of();
         }
+        ToolPolicySource.TenantPolicy policy = policySource.tenantPolicy(access.tenantId()).orElse(null);
+        if (!tenantEnabled(policy)) return List.of();
         Set<String> pageTools = pageActionPolicyResolver.enabledToolCodes(access.tenantId(), pageId);
+        if (pageTools.isEmpty()) return List.of();
+
+        Map<String, ToolPolicySource.ToolPolicy> platformRows = index(policySource.platformTools(), null);
+        Map<String, ToolPolicySource.ToolPolicy> tenantRows = index(policySource.tenantTools(access.tenantId()), access.tenantId());
         return catalog.all().stream()
                 .filter(definition -> pageTools.contains(definition.code()))
-                .map(definition -> resolveExecutableTool(access.tenantId(), definition.code()).orElse(null))
+                .map(definition -> resolveDefinition(policy, definition,
+                        platformRows.get(definition.code()), tenantRows.get(definition.code())).orElse(null))
                 .filter(java.util.Objects::nonNull)
                 .filter(definition -> hasPermissions(access.permissions(), definition))
                 .toList();
@@ -51,40 +60,58 @@ public class DatabaseBackedToolRegistry implements ToolRegistry {
         if (tenantId == null || toolCode == null) {
             return ToolAvailability.unavailable(ToolAvailability.Status.UNAVAILABLE);
         }
-        AgentTenantPolicy policy = tenantPolicyMapper.selectById(tenantId);
-        if (!properties.isEnabled()
-                || policy == null || !Boolean.TRUE.equals(policy.getEnabled())) {
+        ToolPolicySource.TenantPolicy policy = policySource.tenantPolicy(tenantId).orElse(null);
+        if (!properties.isEnabled() || !tenantEnabled(policy)) {
             return ToolAvailability.unavailable(ToolAvailability.Status.DISABLED);
         }
         ToolDefinition definition = catalog.find(toolCode).orElse(null);
         if (definition == null) {
             return ToolAvailability.unavailable(ToolAvailability.Status.UNAVAILABLE);
         }
-        if (definition.sideEffect() != SideEffect.NONE
-                && (!properties.isWriteToolsEnabled() || !Boolean.TRUE.equals(policy.getWriteToolsEnabled()))) {
+        if (!writeEnabled(policy, definition)) {
             return ToolAvailability.unavailable(ToolAvailability.Status.DISABLED);
         }
-        AgentTool platform = toolMapper.selectPlatformTool(toolCode);
-        ToolDefinition effective = platform != null && platform.getTenantId() == null ? narrow(definition, platform) : null;
-        if (effective == null) {
-            return ToolAvailability.unavailable(ToolAvailability.Status.UNAVAILABLE);
-        }
-        AgentTool tenant = toolMapper.selectTenantTool(tenantId, toolCode);
-        if (tenant == null) {
-            return ToolAvailability.available(effective);
+        ToolPolicySource.ToolPolicy platform = policySource.platformTool(toolCode).orElse(null);
+        ToolPolicySource.ToolPolicy tenant = policySource.tenantTool(tenantId, toolCode).orElse(null);
+        return resolveDefinition(policy, definition, platform, tenant)
+                .map(ToolAvailability::available)
+                .orElseGet(() -> ToolAvailability.unavailable(ToolAvailability.Status.UNAVAILABLE));
+    }
+
+    private Optional<ToolDefinition> resolveDefinition(ToolPolicySource.TenantPolicy policy,
+                                                       ToolDefinition definition,
+                                                       ToolPolicySource.ToolPolicy platform,
+                                                       ToolPolicySource.ToolPolicy tenant) {
+        if (!writeEnabled(policy, definition) || platform == null || platform.tenantId() != null) {
+            return Optional.empty();
         }
         try {
-            ToolDefinition narrowed = tenantId.equals(tenant.getTenantId()) ? narrow(effective, tenant) : null;
-            return narrowed == null ? ToolAvailability.unavailable(ToolAvailability.Status.UNAVAILABLE)
-                    : ToolAvailability.available(narrowed);
+            ToolDefinition effective = narrow(definition, platform);
+            if (effective == null) return Optional.empty();
+            if (tenant == null) return Optional.of(effective);
+            if (!policy.tenantId().equals(tenant.tenantId())) return Optional.empty();
+            return Optional.ofNullable(narrow(effective, tenant));
         } catch (RuntimeException exception) {
-            return ToolAvailability.unavailable(ToolAvailability.Status.UNAVAILABLE);
+            return Optional.empty();
         }
     }
 
-    private boolean tenantEnabled(Long tenantId) {
-        AgentTenantPolicy policy = tenantPolicyMapper.selectById(tenantId);
-        return policy != null && Boolean.TRUE.equals(policy.getEnabled());
+    private Map<String, ToolPolicySource.ToolPolicy> index(List<ToolPolicySource.ToolPolicy> rows,
+                                                           Long expectedTenantId) {
+        if (rows == null) return Map.of();
+        return rows.stream()
+                .filter(row -> row != null && java.util.Objects.equals(expectedTenantId, row.tenantId()))
+                .collect(Collectors.toUnmodifiableMap(ToolPolicySource.ToolPolicy::code,
+                        Function.identity(), (left, right) -> left));
+    }
+
+    private boolean tenantEnabled(ToolPolicySource.TenantPolicy policy) {
+        return policy != null && policy.tenantId() != null && policy.enabled();
+    }
+
+    private boolean writeEnabled(ToolPolicySource.TenantPolicy policy, ToolDefinition definition) {
+        return definition.sideEffect() == SideEffect.NONE
+                || (properties.isWriteToolsEnabled() && policy.writeToolsEnabled());
     }
 
     private boolean hasPermissions(List<String> permissions, ToolDefinition definition) {
@@ -94,28 +121,28 @@ public class DatabaseBackedToolRegistry implements ToolRegistry {
         return businessPermission && permissions.contains(permissionCode(definition.code()));
     }
 
-    private ToolDefinition narrow(ToolDefinition definition, AgentTool row) {
-        if (row == null || !Boolean.TRUE.equals(row.getEnabled()) || !definition.code().equals(row.getCode())) {
+    private ToolDefinition narrow(ToolDefinition definition, ToolPolicySource.ToolPolicy row) {
+        if (row == null || !row.enabled() || !definition.code().equals(row.code())) {
             return null;
         }
         try {
-            RiskLevel risk = RiskLevel.valueOf(row.getRiskLevel());
-            ConfirmationPolicy confirmation = ConfirmationPolicy.valueOf(row.getConfirmationPolicy());
-            PermissionMode permissionMode = PermissionMode.valueOf(row.getPermissionMode());
-            RetryPolicy retryPolicy = RetryPolicy.valueOf(row.getRetryPolicy());
-            Set<String> permissions = jsonPermissions(row.getRequiredPermissions());
-            boolean valid = definition.handlerVersion().equals(row.getHandlerVersion())
-                    && definition.schemaHash().equals(row.getSchemaHash())
+            RiskLevel risk = RiskLevel.valueOf(row.riskLevel());
+            ConfirmationPolicy confirmation = ConfirmationPolicy.valueOf(row.confirmationPolicy());
+            PermissionMode permissionMode = PermissionMode.valueOf(row.permissionMode());
+            RetryPolicy retryPolicy = RetryPolicy.valueOf(row.retryPolicy());
+            Set<String> permissions = jsonPermissions(row.requiredPermissions());
+            boolean valid = definition.handlerVersion().equals(row.handlerVersion())
+                    && definition.schemaHash().equals(row.schemaHash())
                     && risk.ordinal() >= definition.riskLevel().ordinal()
                     && strongerPermissionMode(definition.permissionMode(), permissionMode)
-                    && definition.ownershipPolicy().name().equals(row.getDataScopePolicy())
+                    && definition.ownershipPolicy().name().equals(row.dataScopePolicy())
                     && strongerRetryPolicy(definition.retryPolicy(), retryPolicy)
-                    && definition.sideEffect().name().equals(row.getSideEffect())
+                    && definition.sideEffect().name().equals(row.sideEffect())
                     && confirmation.ordinal() >= definition.confirmationPolicy().ordinal()
                     && confirmationForRisk(risk, confirmation)
-                    && row.getMaxResultItems() <= definition.maxResultItems()
-                    && row.getMaxResultBytes() <= definition.maxResultBytes()
-                    && row.getTimeoutMs() <= definition.timeoutMs()
+                    && row.maxResultItems() <= definition.maxResultItems()
+                    && row.maxResultBytes() <= definition.maxResultBytes()
+                    && row.timeoutMs() <= definition.timeoutMs()
                     && permissions.containsAll(definition.requiredPermissions());
             if (!valid) {
                 return null;
@@ -124,8 +151,8 @@ public class DatabaseBackedToolRegistry implements ToolRegistry {
                     definition.code(), definition.name(), definition.description(), definition.purpose(),
                     definition.handlerVersion(), definition.inputSchema(), definition.outputSchema(), definition.schemaHash(),
                     risk, permissions, permissionMode, definition.ownershipPolicy(), retryPolicy,
-                    definition.sideEffect(), confirmation, row.getMaxResultItems(), row.getMaxResultBytes(),
-                    row.getTimeoutMs(), definition.auditPolicy()
+                    definition.sideEffect(), confirmation, row.maxResultItems(), row.maxResultBytes(),
+                    row.timeoutMs(), definition.auditPolicy()
             );
             narrowed.validate();
             return narrowed;

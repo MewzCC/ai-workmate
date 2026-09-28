@@ -1,26 +1,25 @@
 'use client';
 
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { usePathname, useRouter } from '@/lib/nextCompat';
-import { ConfigProvider, FloatButton, Layout, Spin, theme as antdTheme } from 'antd';
+import { ConfigProvider, Layout, Spin, theme as antdTheme } from 'antd';
 import { message } from '@/lib/antdMessage';
 import type { OaMenuItem, OaRole, OaTheme } from '@/types/oa';
 import { findMenu, firstPage, flattenPages } from '@/lib/navigationTree';
 import SidebarMenu from './SidebarMenu';
 import Topbar from './Topbar';
 import AppearanceDrawer from './AppearanceDrawer';
-import AIOperationDrawer from './AIOperationDrawer';
-import AiMiniPanel from './AiMiniPanel';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { OA_MOBILE_MEDIA_QUERY } from '@/hooks/useIsMobile';
 import { getNavigation, type NavigationRoute } from '@/lib/navigationApi';
 import { profileApi } from '@/lib/profileApi';
-import { OaIcon } from '@/components/OaIcon';
 import PageTabBar, { type OaPageTab } from './PageTabBar';
 import ApprovalDetailPage from './ApprovalDetailPage';
 import { useAiChatStore } from '@/store/aiChatStore';
 import { OaPageRenderer } from './OaPageRenderer';
+import PageAgentLauncher, { type PageAgentLauncherHandle } from './PageAgentLauncher';
+import { PageAgentContextObserver, PageAgentContextProvider, type PageAgentContextSnapshot } from './PageAgentContext';
 const KnowledgeBasePage = lazy(() => import('./KnowledgeBasePage'));
 
 const { Content } = Layout;
@@ -166,9 +165,7 @@ export default function AdminLayout() {
   const [navigationLoaded, setNavigationLoaded] = useState(false);
   const [selectedMenu, setSelectedMenu] = useState<OaMenuItem>(dashboardMenu);
   const [appearanceOpen, setAppearanceOpen] = useState(false);
-  const [aiOpen, setAiOpen] = useState(false);
-  const [aiDrawerPresent, setAiDrawerPresent] = useState(false);
-  const [aiPrompt, setAiPrompt] = useState('');
+  const agentLauncherRef = useRef<PageAgentLauncherHandle>(null);
   const [themeName, setThemeName] = useState(() => readStorage('workmeta-oa-theme', 'enterprise-blue'));
   const [aiMiniEnabled, setAiMiniEnabled] = useState(() => readStorage('workmeta-oa-ai-mini-enabled', 'false') === 'true');
   const [wallpaper, setWallpaper] = useState<string | null>(null);
@@ -176,6 +173,11 @@ export default function AdminLayout() {
   const [wallpaperBlur, setWallpaperBlur] = useState(() => Number(readStorage('workmeta-oa-wallpaper-blur', '4')));
   const [openTabs, setOpenTabs] = useState<OaPageTab[]>([]);
   const [openTabsReady, setOpenTabsReady] = useState(false);
+  const [pageRevision, setPageRevision] = useState(0);
+  const [agentPageContext, setAgentPageContext] = useState<{ pageId: string; snapshot: PageAgentContextSnapshot } | null>(null);
+  const updateAgentPageContext = useCallback((snapshot: PageAgentContextSnapshot) => {
+    setAgentPageContext({ pageId: selectedMenu.id, snapshot });
+  }, [selectedMenu.id]);
 
   const currentTheme = useMemo(() => themes.find((theme) => theme.name === themeName) || themes[0], [themeName]);
   const pinnedMenu = useMemo(
@@ -366,10 +368,9 @@ export default function AdminLayout() {
     window.localStorage.setItem('workmeta-oa-wallpaper-blur', String(wallpaperBlur));
   }, [wallpaperOpacity, wallpaperBlur]);
 
-  const openAi = (prompt?: string) => {
-    setAiPrompt(prompt || '');
-    setAiOpen(true);
-  };
+  const openAi = useCallback((prompt?: string) => {
+    agentLauncherRef.current?.open(prompt);
+  }, []);
 
   const navigateToPage = (tab: OaPageTab) => {
     if (tab.id === currentPageId) return;
@@ -456,7 +457,6 @@ export default function AdminLayout() {
         },
       }}
     >
-      <>
         <div className={`oa-shell ${collapsed ? 'oa-shell-collapsed' : ''} ${wallpaper ? 'oa-has-wallpaper' : ''} ${selectedMenu.id === 'ai-workspace' ? 'oa-chat-page' : ''}`}>
           <div
             className={`oa-sider-mask ${collapsed ? '' : 'is-visible'}`}
@@ -523,41 +523,42 @@ export default function AdminLayout() {
                 ) : null}
               </div>
               <Content className={`oa-content ${selectedMenu.id === 'ai-workspace' ? 'oa-chat-content' : ''}`}>
-                <Suspense fallback={<div className="oa-route-loading"><Spin size="large" /></div>}>
-                  <div key={selectedMenu.id} className="oa-page-transition">
-                    {approvalTaskId ? (
-                      <ApprovalDetailPage taskId={approvalTaskId} />
-                    ) : kbId ? (
-                      <KnowledgeBasePage kbId={kbId} />
-                  ) : (
-                    <OaPageRenderer
-                      menu={{
-                        ...selectedMenu,
-                        name: t(`oa.menu.${selectedMenu.id}`, { defaultValue: selectedMenu.name }),
-                      }}
-                      role={role}
-                      primaryColor={currentTheme.primary}
-                      onOpenAi={openAi}
-                    />
-                    )}
-                  </div>
-                </Suspense>
+                <PageAgentContextProvider pageId={selectedMenu.id}>
+                  <PageAgentContextObserver onChange={updateAgentPageContext} />
+                  <Suspense fallback={<div className="oa-route-loading"><Spin size="large" /></div>}>
+                    <div key={`${selectedMenu.id}:${pageRevision}`} className="oa-page-transition">
+                      {approvalTaskId ? (
+                        <ApprovalDetailPage taskId={approvalTaskId} />
+                      ) : kbId ? (
+                        <KnowledgeBasePage kbId={kbId} />
+                      ) : (
+                        <OaPageRenderer
+                          menu={{
+                            ...selectedMenu,
+                            name: t(`oa.menu.${selectedMenu.id}`, { defaultValue: selectedMenu.name }),
+                          }}
+                          role={role}
+                          primaryColor={currentTheme.primary}
+                          onOpenAi={openAi}
+                        />
+                      )}
+                    </div>
+                  </Suspense>
+                </PageAgentContextProvider>
               </Content>
             </Layout>
           </Layout>
 
-          {selectedMenu.id !== 'ai-workspace' && <FloatButton
-            type="primary"
-            icon={<OaIcon name="ai" size={20} />}
-            tooltip={t('oa.ai.openPanel')}
-            onClick={() => openAi()}
-          />}
-
-          {aiMiniEnabled
-            && !aiOpen
-            && !aiDrawerPresent
-            && selectedMenu.id !== 'ai-workspace'
-            && <AiMiniPanel onOpenAi={openAi} />}
+          <PageAgentLauncher
+            key={`${userId ?? 'guest'}:${permissionVersion ?? 0}`}
+            ref={agentLauncherRef}
+            role={role}
+            pageId={selectedMenu.id}
+            pageTitle={t(`oa.menu.${selectedMenu.id}`, { defaultValue: selectedMenu.name })}
+            pageContext={agentPageContext?.pageId === selectedMenu.id ? agentPageContext.snapshot : undefined}
+            miniEnabled={aiMiniEnabled}
+            onPageRefresh={() => setPageRevision((revision) => revision + 1)}
+          />
 
           <AppearanceDrawer
             open={appearanceOpen}
@@ -575,17 +576,7 @@ export default function AdminLayout() {
             onWallpaperBlurChange={setWallpaperBlur}
           />
 
-          {selectedMenu.id !== 'ai-workspace' && <AIOperationDrawer
-            open={aiOpen}
-            role={role}
-            pageId={selectedMenu.id}
-            pageTitle={t(`oa.menu.${selectedMenu.id}`, { defaultValue: selectedMenu.name })}
-            initialPrompt={aiPrompt}
-            onClose={() => setAiOpen(false)}
-            onOpenChangeComplete={setAiDrawerPresent}
-          />}
         </div>
-      </>
     </ConfigProvider>
   );
 }

@@ -9,6 +9,7 @@ import com.aiworkmate.dto.ContractReminderRequest;
 import com.aiworkmate.dto.ContractRequest;
 import com.aiworkmate.dto.ContractResponse;
 import com.aiworkmate.dto.ContractStatusRequest;
+import com.aiworkmate.service.model.ContractAgentDraftCommand;
 
 public interface ContractService {
     ContractPageResponse list(Long userId, String keyword, String status, String contractType,
@@ -17,6 +18,7 @@ public interface ContractService {
     ContractOptionsResponse options(Long userId);
     ContractResponse create(Long userId, ContractRequest request);
     ContractResponse update(Long userId, Long id, ContractRequest request);
+    ContractResponse updateAgentDraft(Long userId, Long id, int version, ContractAgentDraftCommand command);
     ContractResponse updateStatus(Long userId, Long id, ContractStatusRequest request);
     ContractResponse updateFulfillment(Long userId, Long id, ContractFulfillmentRequest request);
     ContractResponse recordPayment(Long userId, Long id, ContractPaymentRequest request);

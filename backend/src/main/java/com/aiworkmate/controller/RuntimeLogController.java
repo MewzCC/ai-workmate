@@ -34,14 +34,18 @@ public class RuntimeLogController {
             @AuthenticationPrincipal AuthenticatedUser user,
             @RequestParam(required = false) String source,
             @RequestParam(required = false) String outcome,
+            @RequestParam(required = false) String group,
+            @RequestParam(required = false) @Size(max = 64) String errorCode,
             @RequestParam(required = false) @Size(max = 100) String keyword,
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to,
+            @RequestParam(defaultValue = "false") boolean toExclusive,
             @RequestParam(defaultValue = "1") @Min(1) int page,
             @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
-        return Result.ok(service.query(user.userId(), source, outcome, keyword, from, to, page, size));
+        return Result.ok(service.queryDrilldown(user.userId(), source, outcome, group, errorCode,
+                keyword, from, to, toExclusive, page, size));
     }
 
     @GetMapping("/{source}/{id}")

@@ -7,5 +7,7 @@ public interface ToolHandler {
 
     String handlerVersion();
 
+    ToolExecutionTemplate executionTemplate();
+
     JsonNode execute(TrustedToolContext context, JsonNode arguments);
 }

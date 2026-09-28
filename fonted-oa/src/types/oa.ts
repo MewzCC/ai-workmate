@@ -27,7 +27,7 @@ export type RiskLevel = 'low' | 'medium' | 'high' | 'critical';
 export const COMPONENT_KEYS = [
   'DASHBOARD', 'AI_WORKSPACE', 'AI_TASK_CENTER', 'ACCESS_CONTROL', 'WORKBENCH_MODULE',
   'DICTIONARY', 'TENANT_CONFIG', 'DATA_PERMISSION', 'AI_PERMISSION', 'SUPPLIER',
-  'CONTRACT', 'EXPENSE', 'BUDGET', 'API_CENTER', 'PAGE_ACTIONS', 'RUNTIME_LOGS',
+  'CONTRACT', 'EXPENSE', 'BUDGET', 'API_CENTER', 'PAGE_ACTIONS', 'RUNTIME_LOGS', 'PLATFORM_OBSERVABILITY',
   'SANDBOX_REPLAY', 'TODO_LIST', 'LEAVE_FORM', 'MY_APPLICATIONS', 'AUDIT_CENTER',
   'APPROVAL_LIST', 'APPROVAL_START', 'APPROVAL_FORM', 'FORM_ENGINE', 'PROCESS_CONFIG',
   'APPROVAL_RULES', 'ORG_TREE', 'KNOWLEDGE_BASE', 'MESSAGE_CENTER', 'SYSTEM_CONFIG',
@@ -152,6 +152,20 @@ export interface PageCapabilityTool {
   ownershipPolicy: 'SELF' | 'ASSIGNED_TO_SELF' | 'TENANT_SCOPED' | 'FIXED_RESOURCE';
 }
 
+export type PageContextValueType = 'STRING' | 'NUMBER' | 'BOOLEAN';
+
+export interface PageContextFieldDefinition {
+  name: string;
+  valueType: PageContextValueType;
+  maxLength: number;
+}
+
+export interface PageContextSchema {
+  maxBytes: number;
+  maxDepth: number;
+  fields: PageContextFieldDefinition[];
+}
+
 export interface PageCapability {
   pageId: string;
   componentKey: ComponentKey;
@@ -159,6 +173,7 @@ export interface PageCapability {
   uiCommands: PageUiCommandCode[];
   dataScopePolicy: PageCapabilityTool['ownershipPolicy'];
   effectiveDataScopes: string[];
+  contextSchema: PageContextSchema;
   tools: PageCapabilityTool[];
   unavailableReason?: 'NO_AVAILABLE_TOOLS' | null;
 }

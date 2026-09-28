@@ -244,7 +244,8 @@ class AccessControlServiceImplTest {
 
         assertThatThrownBy(() -> accessControlService.saveRoute(7L, request))
                 .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("error.route.placeholder_not_allowed");
+                .satisfies(error -> assertThat(((BusinessException) error).getMessageKey())
+                        .isEqualTo("error.route.placeholder_not_allowed"));
 
         verify(accessControlMapper, never()).insertRouteForTenant(
                 org.mockito.ArgumentMatchers.anyLong(),
@@ -269,7 +270,8 @@ class AccessControlServiceImplTest {
 
         assertThatThrownBy(() -> accessControlService.saveRoute(7L, request))
                 .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("error.route.dashboard_reserved");
+                .satisfies(error -> assertThat(((BusinessException) error).getMessageKey())
+                        .isEqualTo("error.route.dashboard_reserved"));
     }
 
     @Test
@@ -281,7 +283,8 @@ class AccessControlServiceImplTest {
 
         assertThatThrownBy(() -> accessControlService.saveRoute(7L, request))
                 .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("validation.componentKey.invalid");
+                .satisfies(error -> assertThat(((BusinessException) error).getMessageKey())
+                        .isEqualTo("validation.componentKey.invalid"));
 
         verify(accessControlMapper, never()).insertRouteForTenant(
                 org.mockito.ArgumentMatchers.anyLong(),

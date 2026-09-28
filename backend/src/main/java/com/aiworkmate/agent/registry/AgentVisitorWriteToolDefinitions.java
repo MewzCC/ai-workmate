@@ -35,8 +35,7 @@ public class AgentVisitorWriteToolDefinitions {
                 "Creates one approval-bound visitor booking owned by the authenticated applicant.",
                 "Submit one bounded visitor booking only after the applicant explicitly confirms it.",
                 objectMapper.readTree(APPLY_INPUT_SCHEMA), objectMapper.readTree(APPLY_OUTPUT_SCHEMA),
-                RiskLevel.L1, Set.of("visitor:create"), OwnershipPolicy.SELF,
-                RetryPolicy.BUSINESS_IDEMPOTENT, ConfirmationPolicy.EXPLICIT,
+                ToolWriteProfile.IDEMPOTENT_L1, Set.of("visitor:create"), OwnershipPolicy.SELF,
                 1, 8192, 15000);
     }
 
@@ -47,8 +46,7 @@ public class AgentVisitorWriteToolDefinitions {
                 "Checks in one approved visitor application related to the authenticated user.",
                 "Use only for one version-bound visitor check-in after explicit confirmation.",
                 objectMapper.readTree(CHECK_IN_INPUT_SCHEMA), objectMapper.readTree(CHECK_IN_OUTPUT_SCHEMA),
-                RiskLevel.L1, Set.of("visitor:register"), OwnershipPolicy.SELF,
-                RetryPolicy.BUSINESS_IDEMPOTENT, ConfirmationPolicy.EXPLICIT,
+                ToolWriteProfile.IDEMPOTENT_L1, Set.of("visitor:register"), OwnershipPolicy.SELF,
                 1, 8192, 10000);
     }
 
@@ -59,8 +57,7 @@ public class AgentVisitorWriteToolDefinitions {
                 "Marks one checked-in visitor application related to the authenticated user as arrived.",
                 "Use only for one version-bound visitor arrival after explicit confirmation.",
                 objectMapper.readTree(CHECK_IN_INPUT_SCHEMA), objectMapper.readTree(ARRIVAL_OUTPUT_SCHEMA),
-                RiskLevel.L1, Set.of("visitor:register"), OwnershipPolicy.SELF,
-                RetryPolicy.BUSINESS_IDEMPOTENT, ConfirmationPolicy.EXPLICIT,
+                ToolWriteProfile.IDEMPOTENT_L1, Set.of("visitor:register"), OwnershipPolicy.SELF,
                 1, 8192, 10000);
     }
 
@@ -71,8 +68,7 @@ public class AgentVisitorWriteToolDefinitions {
                 "Registers departure for one visited application related to the authenticated user.",
                 "Use only for one version-bound visitor departure after explicit confirmation.",
                 objectMapper.readTree(CHECK_IN_INPUT_SCHEMA), objectMapper.readTree(LEAVE_OUTPUT_SCHEMA),
-                RiskLevel.L1, Set.of("visitor:register"), OwnershipPolicy.SELF,
-                RetryPolicy.BUSINESS_IDEMPOTENT, ConfirmationPolicy.EXPLICIT,
+                ToolWriteProfile.IDEMPOTENT_L1, Set.of("visitor:register"), OwnershipPolicy.SELF,
                 1, 8192, 10000);
     }
 }

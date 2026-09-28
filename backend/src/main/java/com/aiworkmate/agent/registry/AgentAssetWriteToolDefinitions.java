@@ -35,8 +35,7 @@ public class AgentAssetWriteToolDefinitions {
                 "Assigns one idle tenant asset to one active employee selected by the authenticated operator.",
                 "Use only for one version-bound asset assignment after explicit confirmation.",
                 objectMapper.readTree(INPUT_SCHEMA), objectMapper.readTree(OUTPUT_SCHEMA),
-                RiskLevel.L1, Set.of("asset:claim"), OwnershipPolicy.TENANT_SCOPED,
-                RetryPolicy.BUSINESS_IDEMPOTENT, ConfirmationPolicy.EXPLICIT,
+                ToolWriteProfile.IDEMPOTENT_L1, Set.of("asset:claim"), OwnershipPolicy.TENANT_SCOPED,
                 1, 8192, 10000);
     }
 
@@ -47,8 +46,7 @@ public class AgentAssetWriteToolDefinitions {
                 "Returns one in-use tenant asset to the idle pool for the authenticated operator.",
                 "Use only for one version-bound asset return after explicit confirmation.",
                 objectMapper.readTree(RETURN_INPUT_SCHEMA), objectMapper.readTree(RETURN_OUTPUT_SCHEMA),
-                RiskLevel.L1, Set.of("asset:return"), OwnershipPolicy.TENANT_SCOPED,
-                RetryPolicy.BUSINESS_IDEMPOTENT, ConfirmationPolicy.EXPLICIT,
+                ToolWriteProfile.IDEMPOTENT_L1, Set.of("asset:return"), OwnershipPolicy.TENANT_SCOPED,
                 1, 8192, 10000);
     }
 
@@ -60,8 +58,7 @@ public class AgentAssetWriteToolDefinitions {
                 "Use only to register one version-bound repair after explicit confirmation.",
                 objectMapper.readTree(REPAIR_START_INPUT_SCHEMA),
                 objectMapper.readTree(REPAIR_START_OUTPUT_SCHEMA),
-                RiskLevel.L1, Set.of("asset:repair"), OwnershipPolicy.TENANT_SCOPED,
-                RetryPolicy.BUSINESS_IDEMPOTENT, ConfirmationPolicy.EXPLICIT,
+                ToolWriteProfile.IDEMPOTENT_L1, Set.of("asset:repair"), OwnershipPolicy.TENANT_SCOPED,
                 1, 8192, 10000);
     }
 }

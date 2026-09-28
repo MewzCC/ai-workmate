@@ -24,7 +24,7 @@ import java.util.Set;
 public class RuntimeLogServiceImpl implements RuntimeLogService {
     private static final String ROUTE_PERMISSION = "route:runtime-logs";
     private static final String READ_PERMISSION = "runtime-log:read";
-    private static final Set<String> SOURCES = Set.of("INTEGRATION", "AGENT");
+    private static final Set<String> SOURCES = Set.of("HUMAN", "INTEGRATION", "AGENT");
     private static final Set<String> OUTCOMES = Set.of(
             "RUNNING", "SUCCEEDED", "REJECTED", "FAILED", "TIMED_OUT", "RESULT_INVALID");
     private static final Duration DEFAULT_WINDOW = Duration.ofDays(7);
@@ -37,9 +37,23 @@ public class RuntimeLogServiceImpl implements RuntimeLogService {
     @Transactional(readOnly = true)
     public RuntimeLogPageResponse query(Long userId, String source, String outcome, String keyword,
                                         LocalDateTime from, LocalDateTime to, int page, int size) {
+        return queryDrilldown(userId, source, outcome, null, null, keyword, from, to, false, page, size);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public RuntimeLogPageResponse queryDrilldown(Long userId, String source, String outcome, String group,
+                                                  String errorCode, String keyword, LocalDateTime from,
+                                                  LocalDateTime to, boolean toExclusive, int page, int size) {
         ResolvedUserAccess actor = requireAccess(userId);
         String normalizedSource = normalizeOptional(source, SOURCES, "validation.runtimeLog.source.invalid");
         String normalizedOutcome = normalizeOptional(outcome, OUTCOMES, "validation.runtimeLog.outcome.invalid");
+        String normalizedGroup = normalizeOptional(group, Set.of("FAILED", "BLOCKED"),
+                "validation.runtimeLog.group.invalid");
+        String normalizedErrorCode = StringUtils.hasText(errorCode) ? errorCode.trim() : null;
+        if (normalizedErrorCode != null && !normalizedErrorCode.matches("[A-Za-z0-9_.:-]{1,64}")) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.runtimeLog.errorCode.invalid");
+        }
         String normalizedKeyword = StringUtils.hasText(keyword) ? keyword.trim() : null;
         LocalDateTime effectiveTo = to == null ? LocalDateTime.now() : to;
         LocalDateTime effectiveFrom = from == null ? effectiveTo.minus(DEFAULT_WINDOW) : from;
@@ -47,11 +61,13 @@ public class RuntimeLogServiceImpl implements RuntimeLogService {
         int safePage = Math.max(1, page);
         int safeSize = Math.min(100, Math.max(1, size));
         RuntimeLogStatsResponse stats = mapper.selectStats(actor.tenantId(), normalizedSource,
-                normalizedOutcome, normalizedKeyword, effectiveFrom, effectiveTo);
+                normalizedOutcome, normalizedGroup, normalizedErrorCode, normalizedKeyword,
+                effectiveFrom, effectiveTo, toExclusive);
         if (stats == null) stats = new RuntimeLogStatsResponse(0L, 0L, 0L, 0L, 0L);
         return new RuntimeLogPageResponse(
                 mapper.selectPage(actor.tenantId(), normalizedSource, normalizedOutcome,
-                        normalizedKeyword, effectiveFrom, effectiveTo, safeSize, (safePage - 1) * safeSize),
+                        normalizedGroup, normalizedErrorCode, normalizedKeyword, effectiveFrom,
+                        effectiveTo, toExclusive, safeSize, (safePage - 1) * safeSize),
                 stats.total() == null ? 0 : stats.total(), safePage, safeSize,
                 effectiveFrom, effectiveTo, stats);
     }

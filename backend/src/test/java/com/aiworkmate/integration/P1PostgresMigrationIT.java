@@ -82,6 +82,14 @@ class P1PostgresMigrationIT {
                 databaseUrl, databaseUsername, databasePassword, emptySchema);
         ExpenseDraftPostgresVerifier.verify(
                 databaseUrl, databaseUsername, databasePassword, emptySchema);
+        BudgetDraftPostgresVerifier.verify(
+                databaseUrl, databaseUsername, databasePassword, emptySchema);
+        ContractDraftPostgresVerifier.verify(
+                databaseUrl, databaseUsername, databasePassword, emptySchema);
+        SupplierDraftPostgresVerifier.verify(
+                databaseUrl, databaseUsername, databasePassword, emptySchema);
+        PlatformOperationLogPostgresVerifier.verify(
+                databaseUrl, databaseUsername, databasePassword, emptySchema);
         Flyway restartedEmpty = flyway(emptySchema, null);
         assertThat(restartedEmpty.migrate().migrationsExecuted).isZero();
         assertThat(restartedEmpty.validateWithResult().validationSuccessful).isTrue();
@@ -103,6 +111,8 @@ class P1PostgresMigrationIT {
         assertThat(upgraded.migrate().migrationsExecuted).isGreaterThan(0);
         assertThat(upgraded.validateWithResult().validationSuccessful).isTrue();
         assertP1Schema(upgradeSchema);
+        PlatformOperationLogPostgresVerifier.verify(
+                databaseUrl, databaseUsername, databasePassword, upgradeSchema);
         assertThat(queryCount(upgradeSchema, """
                 SELECT COUNT(*) FROM supplier
                 WHERE supplier_code = 'LEGACY-SUP-001' AND status = 'ACTIVE'
@@ -159,8 +169,8 @@ class P1PostgresMigrationIT {
                         'tenant_configuration', 'tenant_configuration_history',
                         'supplier', 'supplier_status_history', 'business_contract', 'contract_event',
                         'budget_plan', 'budget_transaction', 'integration_endpoint', 'integration_invocation',
-                        'agent_page_action_policy', 'integration_replay_job')
-                    """)).isEqualTo(23);
+                        'agent_page_action_policy', 'integration_replay_job', 'platform_operation_log')
+                    """)).isEqualTo(24);
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM rbac_permission
                     WHERE code IN ('approval:manage', 'hr:manage', 'asset:write', 'asset:claim', 'asset:return',
@@ -174,6 +184,11 @@ class P1PostgresMigrationIT {
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM flyway_schema_history WHERE success
                     """)).isGreaterThan(30);
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM information_schema.columns
+                    WHERE table_schema = current_schema() AND table_name = 'user_setting'
+                      AND column_name = 'setting_value' AND data_type = 'text'
+                    """)).as("观测图表配置应支持完整的受控 JSON").isOne();
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM approval_process
                     WHERE process_key = 'expense-single-approval' AND status = 'ENABLED' AND deleted = FALSE
@@ -196,6 +211,11 @@ class P1PostgresMigrationIT {
                     """)).isOne();
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM rbac_route
+                    WHERE route_key = 'platform-observability'
+                      AND component_key = 'PLATFORM_OBSERVABILITY' AND enabled = TRUE
+                    """)).isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_route
                     WHERE route_key = 'sandbox-replay' AND component_key = 'SANDBOX_REPLAY'
                     """)).isOne();
             assertThat(count(statement, """
@@ -212,6 +232,7 @@ class P1PostgresMigrationIT {
                         ('api-center', 'API_CENTER'),
                         ('page-actions', 'PAGE_ACTIONS'),
                         ('runtime-logs', 'RUNTIME_LOGS'),
+                        ('platform-observability', 'PLATFORM_OBSERVABILITY'),
                         ('sandbox-replay', 'SANDBOX_REPLAY')
                     ) AS planned(route_key, component_key)
                     JOIN rbac_route route
@@ -219,7 +240,7 @@ class P1PostgresMigrationIT {
                      AND route.component_key = planned.component_key
                      AND route.route_type = 'PAGE'
                      AND route.enabled = TRUE
-                    """)).isEqualTo(12);
+                    """)).isEqualTo(13);
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM rbac_route
                     WHERE route_type = 'PAGE' AND enabled = TRUE
@@ -229,7 +250,7 @@ class P1PostgresMigrationIT {
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM rbac_route
                     WHERE route_type = 'PAGE' AND enabled = TRUE
-                    """)).as("R4 浏览器回归清单必须覆盖全部已启用页面").isEqualTo(41);
+                    """)).as("已启用页面必须与组件清单一致").isEqualTo(42);
             assertEnabledPageManifest(statement);
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM agent_page_action_policy
@@ -671,6 +692,183 @@ class P1PostgresMigrationIT {
                     """)).as("费用报销草稿 Agent 工具必须具备独立实时权限").isOne();
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'expense.updateDraft'
+                      AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:e08fd6a543d60ed628123a93a209bd1c2d330d940530531e095dd9bc0ca99fcc'
+                      AND risk_level = 'L1' AND data_scope_policy = 'SELF'
+                      AND required_permissions = '["approval:create"]'::jsonb
+                      AND retry_policy = 'NEVER'
+                      AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'EXPLICIT' AND enabled = TRUE
+                    """)).as("费用草稿更新工具必须以冻结的本人原子写契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code = 'agent:tool:expense.updateDraft'
+                    """)).as("费用草稿更新 Agent 工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'expense.submitDraft'
+                      AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:4a38437ed858eee879c9cadcf868a4f21e3ad0b70b17efa4dff6f1c73d5578d3'
+                      AND risk_level = 'L1' AND data_scope_policy = 'SELF'
+                      AND required_permissions = '["approval:submit"]'::jsonb
+                      AND retry_policy = 'NEVER'
+                      AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'EXPLICIT' AND enabled = TRUE
+                    """)).as("费用报销草稿提交工具必须以冻结的本人原子写契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code = 'agent:tool:expense.submitDraft'
+                    """)).as("费用报销草稿提交 Agent 工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'expense.withdraw'
+                      AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:c8e2e2a9d93a8ee8031186fb657a094d19abe0a78cb5c9dbaa0c51ceb62377e4'
+                      AND risk_level = 'L1' AND data_scope_policy = 'SELF'
+                      AND required_permissions = '["approval:withdraw"]'::jsonb
+                      AND retry_policy = 'NEVER'
+                      AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'EXPLICIT' AND enabled = TRUE
+                    """)).as("费用报销撤回工具必须以冻结的本人原子写契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code = 'agent:tool:expense.withdraw'
+                    """)).as("费用报销撤回 Agent 工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'expense.reopen'
+                      AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:ccf55e1542cb739160c2bcab1ac0b8181b70d0ad0a9ef4598d0003b48e093428'
+                      AND risk_level = 'L1' AND data_scope_policy = 'SELF'
+                      AND required_permissions = '["approval:reopen"]'::jsonb
+                      AND retry_policy = 'NEVER'
+                      AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'EXPLICIT' AND enabled = TRUE
+                    """)).as("费用申请恢复草稿工具必须以冻结的本人原子写契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code = 'agent:tool:expense.reopen'
+                    """)).as("费用申请恢复草稿 Agent 工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'budget.createDraft'
+                      AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:30d568a5b7743a291b88653c2548d4a40c39561e8647f26f155abc26a0f1cbca'
+                      AND risk_level = 'L1' AND data_scope_policy = 'TENANT_SCOPED'
+                      AND required_permissions = '["budget:manage"]'::jsonb
+                      AND retry_policy = 'NEVER'
+                      AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'EXPLICIT' AND enabled = TRUE
+                    """)).as("预算草稿创建工具必须以冻结的租户原子写契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code = 'agent:tool:budget.createDraft'
+                    """)).as("预算草稿创建 Agent 工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'budget.updateDraft'
+                      AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:9fc377f5ffee46d9b770a4d7a588519e7b85884b2b077e18aa85b5aae4d79e5f'
+                      AND risk_level = 'L1' AND data_scope_policy = 'TENANT_SCOPED'
+                      AND required_permissions = '["budget:manage"]'::jsonb
+                      AND retry_policy = 'NEVER'
+                      AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'EXPLICIT' AND enabled = TRUE
+                    """)).as("预算草稿更新工具必须以冻结的租户原子写契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code = 'agent:tool:budget.updateDraft'
+                    """)).as("预算草稿更新 Agent 工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'budget.activateDraft'
+                      AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:51d4be688b529ca56eebc2cc04adcb6b67b0e929d15f68ea7f3a935d9c0e7611'
+                      AND risk_level = 'L2' AND data_scope_policy = 'TENANT_SCOPED'
+                      AND required_permissions = '["budget:manage"]'::jsonb
+                      AND retry_policy = 'NEVER'
+                      AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'SECONDARY' AND enabled = TRUE
+                    """)).as("预算草稿启用工具必须以冻结的高风险状态迁移契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code = 'agent:tool:budget.activateDraft'
+                    """)).as("预算草稿启用 Agent 工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'budget.cancelDraft'
+                      AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:ad145cbe546f3e631e10eec19e05a791915da61397ab1edd0a8599c41e32e440'
+                      AND risk_level = 'L2' AND data_scope_policy = 'TENANT_SCOPED'
+                      AND required_permissions = '["budget:manage"]'::jsonb
+                      AND retry_policy = 'NEVER'
+                      AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'SECONDARY' AND enabled = TRUE
+                    """)).as("预算草稿取消工具必须以冻结的高风险状态迁移契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code = 'agent:tool:budget.cancelDraft'
+                    """)).as("预算草稿取消 Agent 工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'contract.createDraft'
+                      AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:bd88de26d791f44a7d830c3786729fd65efa377500a30a3e0539758d646cba68'
+                      AND risk_level = 'L1' AND data_scope_policy = 'TENANT_SCOPED'
+                      AND required_permissions = '["contract:manage"]'::jsonb
+                      AND retry_policy = 'NEVER'
+                      AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'EXPLICIT' AND enabled = TRUE
+                    """)).as("合同草稿创建工具必须以冻结的租户原子写契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code = 'agent:tool:contract.createDraft'
+                    """)).as("合同草稿创建 Agent 工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'contract.updateDraft'
+                      AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:c5b10829bb43ebcfd88fd91a1cd9b167d6c62f9fc1e359fb5788b03f33b10b95'
+                      AND risk_level = 'L1' AND data_scope_policy = 'TENANT_SCOPED'
+                      AND required_permissions = '["contract:manage"]'::jsonb
+                      AND retry_policy = 'NEVER' AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'EXPLICIT' AND enabled = TRUE
+                    """)).as("合同草稿更新工具必须以冻结的乐观锁原子写契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code = 'agent:tool:contract.updateDraft'
+                    """)).as("合同草稿更新 Agent 工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'supplier.createDraft'
+                      AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:9d859cfb46661e9c8994e04a29966aa378f2ef717eb5f62f6e8b5d434add1fdb'
+                      AND risk_level = 'L1' AND data_scope_policy = 'TENANT_SCOPED'
+                      AND required_permissions = '["supplier:manage"]'::jsonb
+                      AND retry_policy = 'NEVER' AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'EXPLICIT' AND enabled = TRUE
+                    """)).as("供应商草稿创建工具必须以冻结的非敏感租户原子写契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code = 'agent:tool:supplier.createDraft'
+                    """)).as("供应商草稿创建 Agent 工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'supplier.updateDraft'
+                      AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:3c9db3701c11f5089f1e6b3415b479c72c6d2d2da3d3ce8b174e115e6716dae3'
+                      AND risk_level = 'L1' AND data_scope_policy = 'TENANT_SCOPED'
+                      AND required_permissions = '["supplier:manage"]'::jsonb
+                      AND retry_policy = 'NEVER' AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'EXPLICIT' AND enabled = TRUE
+                    """)).as("供应商草稿更新工具必须以冻结的乐观锁非敏感契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code = 'agent:tool:supplier.updateDraft'
+                    """)).as("供应商草稿更新 Agent 工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
                     WHERE tenant_id IS NULL AND enabled = TRUE AND side_effect = 'NONE'
                       AND (code, schema_hash, data_scope_policy) IN (
                         ('integration.endpoint.query','sha256:77b6949a8aca42cdd8c7776e51e64e2fa4bf52c64bb4d950e5d61e2c19eadd22','TENANT_SCOPED'),
@@ -722,9 +920,25 @@ class P1PostgresMigrationIT {
                     WHERE code IN ('agent:task:read','agent:tool:agentTask.mine.query')
                     """)).as("AI 任务中心工具必须具备业务与工具两层实时权限").isEqualTo(2);
             assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='NONE'
+                      AND code='userPermission.mine.query'
+                      AND schema_hash='sha256:3a7a57d10e446b40d09a32d49c9a94bd017872d9e2f823b1890802d6f1e11128'
+                      AND data_scope_policy='SELF'
+                    """)).as("本人实时权限查询工具必须以冻结契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code IN ('user-permission:read:self','agent:tool:userPermission.mine.query')
+                    """)).as("本人权限查询工具必须具备业务与工具两层实时权限").isEqualTo(2);
+            assertThat(count(statement, """
                     SELECT COUNT(*) FROM information_schema.views
                     WHERE table_schema = current_schema() AND table_name = 'runtime_log_view'
                     """)).isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM information_schema.columns
+                    WHERE table_schema = current_schema() AND table_name = 'runtime_log_view'
+                      AND column_name IN ('actor_type', 'event_type', 'client_ip', 'user_agent')
+                    """)).as("统一运行日志必须暴露调用主体与客户端元数据").isEqualTo(4);
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM information_schema.columns
                     WHERE table_schema = current_schema() AND table_name = 'integration_invocation'

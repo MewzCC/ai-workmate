@@ -7,6 +7,8 @@ import org.junit.jupiter.api.Test;
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
+import static com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAPackage;
+import static com.tngtech.archunit.core.domain.properties.HasName.Predicates.nameEndingWith;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class AgentMicroserviceBoundaryArchitectureTest {
@@ -47,6 +49,23 @@ class AgentMicroserviceBoundaryArchitectureTest {
     }
 
     @Test
+    void toolRegistryDependsOnThePolicyPortInsteadOfPersistenceMappers() {
+        noClasses().that().haveSimpleName("DatabaseBackedToolRegistry")
+                .should().dependOnClassesThat(
+                        resideInAPackage("..agent.registry..").and(nameEndingWith("Mapper")))
+                .because("tool policy reads must remain replaceable by a remote Spring Cloud adapter")
+                .check(classes);
+    }
+
+    @Test
+    void toolPolicyPortRemainsTransportNeutral() {
+        classes().that().haveSimpleName("ToolPolicySource")
+                .should().onlyDependOnClassesThat().resideInAnyPackage(
+                        "java..", "..agent.registry..")
+                .check(classes);
+    }
+
+    @Test
     void portsDoNotReplaceTypedDomainContractsWithGenericMaps() {
         noClasses().that().resideInAPackage("..agent.tool.port..")
                 .should().dependOnClassesThat().areAssignableTo(java.util.Map.class)
@@ -69,7 +88,8 @@ class AgentMicroserviceBoundaryArchitectureTest {
 
     @Test
     void localAdaptersDependOnlyOnPortsAndCurrentDomainFacades() {
-        classes().that().resideInAPackage("..agent.tool.adapter..")
+        classes().that().areAnnotatedWith(
+                        com.aiworkmate.agent.tool.adapter.LocalAgentDomainAdapter.class)
                 .should().onlyDependOnClassesThat().resideInAnyPackage(
                         "java..",
                         "..agent.tool.adapter..",
@@ -78,7 +98,31 @@ class AgentMicroserviceBoundaryArchitectureTest {
                         "..dto..",
                         "..common..",
                         "lombok..",
-                        "org.springframework.stereotype..")
+                        "org.springframework.stereotype..",
+                        "org.springframework.boot.autoconfigure.condition..")
+                .check(classes);
+    }
+
+    @Test
+    void onlyDedicatedRemoteAdaptersMayUseRemoteClientInfrastructure() {
+        noClasses().that().resideInAPackage("..agent..")
+                .and().resideOutsideOfPackage("..agent.tool.adapter.remote..")
+                .should().dependOnClassesThat().resideInAnyPackage(
+                        "org.springframework.cloud..",
+                        "org.springframework.web.client..",
+                        "org.springframework.web.reactive.function.client..",
+                        "feign..",
+                        "java.net.http..")
+                .because("service targets and transport clients belong only to fixed remote adapters")
+                .check(classes);
+    }
+
+    @Test
+    void localAdaptersAreReplaceableAsOneDeploymentMode() {
+        classes().that().haveSimpleNameEndingWith("AgentDomainToolAdapter")
+                .should().beAnnotatedWith(
+                        com.aiworkmate.agent.tool.adapter.LocalAgentDomainAdapter.class)
+                .because("Spring Cloud adapters must replace the complete local boundary without bean conflicts")
                 .check(classes);
     }
 }

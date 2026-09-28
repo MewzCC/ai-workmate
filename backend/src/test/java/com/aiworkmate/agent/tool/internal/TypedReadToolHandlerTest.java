@@ -24,6 +24,7 @@ class TypedReadToolHandlerTest {
 
         assertThat(handler.toolCode()).isEqualTo("todo.query");
         assertThat(handler.handlerVersion()).isEqualTo("1.0.0");
+        assertThat(handler.executionTemplate()).isEqualTo(ToolExecutionTemplate.READ_ONLY);
         assertThat(calls).containsExactly("parse", "invoke:7:report");
         assertThat(output.path("value").asText()).isEqualTo("report");
         assertThat(output.has("internalValue")).isFalse();
