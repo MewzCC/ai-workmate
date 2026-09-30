@@ -113,6 +113,17 @@ class PageCapabilityCatalogTest {
     }
 
     @Test
+    void approvalCenterOffersReadAndSingleTaskActionsOnly() {
+        var page = catalog.find("approval-list").orElseThrow();
+        assertThat(page.readTools()).extracting(PageToolReference::code)
+                .containsExactly(ToolCode.APPROVAL_TASK_QUERY);
+        assertThat(page.writeTools()).extracting(PageToolReference::code)
+                .containsExactly(ToolCode.APPROVAL_TASK_APPROVE, ToolCode.APPROVAL_TASK_REJECT,
+                        ToolCode.APPROVAL_TASK_TRANSFER, ToolCode.APPROVAL_TASK_COPY,
+                        ToolCode.APPROVAL_TASK_ADD_SIGN);
+    }
+
+    @Test
     void messagePageOffersSelfOwnedReadAndSingleItemWrite() {
         var page = catalog.find("messages").orElseThrow();
         assertThat(page.readTools()).extracting(PageToolReference::code)

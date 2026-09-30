@@ -110,7 +110,8 @@ public class PageCapabilityCatalog {
                         tool(APPROVAL_APPLICATION_REOPEN)),
 
                 page(OaPage.APPROVAL_LIST, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
-                        tool(APPROVAL_TASK_QUERY)),
+                        tool(APPROVAL_TASK_QUERY), tool(APPROVAL_TASK_APPROVE), tool(APPROVAL_TASK_REJECT),
+                        tool(APPROVAL_TASK_TRANSFER), tool(APPROVAL_TASK_COPY), tool(APPROVAL_TASK_ADD_SIGN)),
                 page(OaPage.APPROVAL_START, OwnershipPolicy.SELF, READ_COMMANDS,
                         tool(APPROVAL_CONFIGURATION_QUERY), tool(APPROVAL_APPLICATION_CREATE_DRAFT),
                         tool(APPROVAL_APPLICATION_SUBMIT_DRAFT)),

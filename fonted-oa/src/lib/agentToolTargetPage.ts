@@ -25,6 +25,7 @@ const EXACT_TARGETS: Record<string, string> = {
 };
 
 const PREFIX_TARGETS: Array<[string, string]> = [
+  ['approval.task.', 'approval-list'],
   ['notification.', 'messages'],
   ['leave.', 'my-applications'],
   ['approval.application.', 'my-applications'],

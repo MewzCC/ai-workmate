@@ -951,6 +951,19 @@ class P1PostgresMigrationIT {
                     WHERE code IN ('user-permission:read:self','agent:tool:userPermission.mine.query')
                     """)).as("本人权限查询工具必须具备业务与工具两层实时权限").isEqualTo(2);
             assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='SINGLE_WRITE'
+                      AND code IN ('approval.task.approve','approval.task.reject','approval.task.transfer',
+                        'approval.task.copy','approval.task.addSign')
+                      AND data_scope_policy='ASSIGNED_TO_SELF'
+                    """)).as("审批中心必须具备五个单任务受控写工具").isEqualTo(5);
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code IN ('agent:tool:approval.task.approve','agent:tool:approval.task.reject',
+                      'agent:tool:approval.task.transfer','agent:tool:approval.task.copy',
+                      'agent:tool:approval.task.addSign')
+                    """)).as("审批写工具必须具备独立实时权限").isEqualTo(5);
+            assertThat(count(statement, """
                     SELECT COUNT(*) FROM information_schema.views
                     WHERE table_schema = current_schema() AND table_name = 'runtime_log_view'
                     """)).isOne();
