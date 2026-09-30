@@ -135,7 +135,9 @@ public class PageCapabilityCatalog {
 
                 page(OaPage.ASSET_LEDGER, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         context(text("keyword"), text("category"), text("status"), number("page"), number("size")),
-                        tool(ASSET_QUERY), tool(ASSET_CLAIM), tool(ASSET_RETURN), tool(ASSET_REPAIR_START)),
+                        tool(ASSET_QUERY), tool(ASSET_CLAIM), tool(ASSET_RETURN), tool(ASSET_REPAIR_START),
+                        tool(ASSET_TRANSFER), tool(ASSET_REPAIR_COMPLETE), tool(ASSET_INVENTORY),
+                        tool(ASSET_SCRAP)),
                 page(OaPage.MEETING_ROOM, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         context(text("keyword"), text("roomStatus"), text("from"), text("to"),
                                 text("bookingStatus"), number("page"), number("size")),

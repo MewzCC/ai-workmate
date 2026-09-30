@@ -964,6 +964,12 @@ class P1PostgresMigrationIT {
                       'agent:tool:approval.task.addSign')
                     """)).as("审批写工具必须具备独立实时权限").isEqualTo(5);
             assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='SINGLE_WRITE'
+                      AND code IN ('asset.transfer','asset.repair.complete','asset.inventory','asset.scrap')
+                      AND data_scope_policy='TENANT_SCOPED'
+                    """)).as("资产台账必须具备四个剩余单资产生命周期工具").isEqualTo(4);
+            assertThat(count(statement, """
                     SELECT COUNT(*) FROM information_schema.views
                     WHERE table_schema = current_schema() AND table_name = 'runtime_log_view'
                     """)).isOne();

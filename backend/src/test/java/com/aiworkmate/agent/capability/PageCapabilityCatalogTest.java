@@ -92,7 +92,9 @@ class PageCapabilityCatalogTest {
         assertThat(page.readTools()).extracting(PageToolReference::code)
                 .containsExactly(ToolCode.ASSET_QUERY);
         assertThat(page.writeTools()).extracting(PageToolReference::code)
-                .containsExactly(ToolCode.ASSET_CLAIM, ToolCode.ASSET_RETURN, ToolCode.ASSET_REPAIR_START);
+                .containsExactly(ToolCode.ASSET_CLAIM, ToolCode.ASSET_RETURN, ToolCode.ASSET_REPAIR_START,
+                        ToolCode.ASSET_TRANSFER, ToolCode.ASSET_REPAIR_COMPLETE, ToolCode.ASSET_INVENTORY,
+                        ToolCode.ASSET_SCRAP);
     }
 
     @Test
