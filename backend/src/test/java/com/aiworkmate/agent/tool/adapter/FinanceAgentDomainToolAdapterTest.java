@@ -183,6 +183,25 @@ class FinanceAgentDomainToolAdapterTest {
     }
 
     @Test
+    void changesContractStatusThroughExistingStateMachine() {
+        var updatedAt = LocalDateTime.of(2026, 9, 30, 20, 15);
+        when(contracts.updateStatus(eq(7L), eq(81L), any())).thenReturn(new ContractResponse(
+                81L, "HT-001", "更新合同", "SERVICE", "示例公司", null, null, 7L, "员工",
+                new BigDecimal("1200.00"), BigDecimal.ZERO, "CNY", LocalDate.of(2026, 9, 1),
+                LocalDate.of(2026, 9, 1), LocalDate.of(2027, 8, 31), "TERMINATED", "NOT_STARTED",
+                "NORMAL", 346, "更新摘要", 0, null, 3, updatedAt, updatedAt, true,
+                List.of(), List.of(), false, false));
+
+        var command = new ContractToolPort.ContractStatusUpdate(
+                81L, 2, "TERMINATED", "双方协商终止");
+        assertThat(contractAdapter.updateContractStatus(actor, command)).isEqualTo(
+                new ContractToolPort.ContractDraftResult(81L, "HT-001", "TERMINATED", 3, updatedAt));
+        verify(contracts).updateStatus(eq(7L), eq(81L), argThat(request ->
+                request.version() == 2 && request.status().equals("TERMINATED")
+                        && request.reason().equals("双方协商终止")));
+    }
+
+    @Test
     void submitsExpenseThroughDedicatedTypedBoundary() {
         when(expenseApplications.submitAgentDraft(7L, 51L, 0))
                 .thenReturn(new ExpenseAgentLifecycleReceipt(

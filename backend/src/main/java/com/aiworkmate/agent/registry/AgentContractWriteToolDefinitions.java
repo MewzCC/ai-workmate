@@ -21,6 +21,12 @@ public class AgentContractWriteToolDefinitions {
     public static final String UPDATE_DRAFT_OUTPUT_SCHEMA = """
             {"type":"object","additionalProperties":false,"required":["contractId","code","status","version","updatedAt"],"properties":{"contractId":{"type":"integer","minimum":1},"code":{"type":"string"},"status":{"type":"string","const":"DRAFT"},"version":{"type":"integer","minimum":1},"updatedAt":{"type":"string","format":"date-time"}}}
             """.strip();
+    public static final String UPDATE_STATUS_INPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["contractId","version","status"],"properties":{"contractId":{"type":"integer","minimum":1},"version":{"type":"integer","minimum":0,"maximum":2147483646},"status":{"type":"string","enum":["ACTIVE","COMPLETED","TERMINATED"]},"reason":{"type":"string","maxLength":500}}}
+            """.strip();
+    public static final String UPDATE_STATUS_OUTPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["contractId","code","status","version","updatedAt"],"properties":{"contractId":{"type":"integer","minimum":1},"code":{"type":"string"},"status":{"type":"string","enum":["ACTIVE","COMPLETED","TERMINATED"]},"version":{"type":"integer","minimum":1},"updatedAt":{"type":"string","format":"date-time"}}}
+            """.strip();
 
     @Bean
     ToolDefinition contractCreateDraftToolDefinition(ObjectMapper objectMapper)
@@ -45,5 +51,18 @@ public class AgentContractWriteToolDefinitions {
                 objectMapper.readTree(UPDATE_DRAFT_INPUT_SCHEMA),
                 objectMapper.readTree(UPDATE_DRAFT_OUTPUT_SCHEMA),
                 ToolWriteProfile.NON_RETRYABLE_L1, Set.of("contract:manage"), OwnershipPolicy.TENANT_SCOPED, 1, 4096, 15000);
+    }
+
+    @Bean
+    ToolDefinition contractUpdateStatusToolDefinition(ObjectMapper objectMapper)
+            throws JsonProcessingException {
+        return ToolDefinitionFactory.singleWrite(
+                ToolCode.CONTRACT_UPDATE_STATUS, "Update one contract status",
+                "Applies one allowed lifecycle transition to one tenant-scoped contract using optimistic locking.",
+                "Change only the lifecycle status of one contract after secondary confirmation; never pay, send or edit it.",
+                objectMapper.readTree(UPDATE_STATUS_INPUT_SCHEMA),
+                objectMapper.readTree(UPDATE_STATUS_OUTPUT_SCHEMA),
+                ToolWriteProfile.SECONDARY_L2, Set.of("contract:manage"), OwnershipPolicy.TENANT_SCOPED,
+                1, 4096, 15000);
     }
 }

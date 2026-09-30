@@ -4,6 +4,7 @@ import com.aiworkmate.agent.tool.port.ContractToolPort;
 import com.aiworkmate.agent.tool.port.ToolActorContext;
 import com.aiworkmate.agent.tool.port.ToolPage;
 import com.aiworkmate.dto.ContractRequest;
+import com.aiworkmate.dto.ContractStatusRequest;
 import com.aiworkmate.service.ContractService;
 import com.aiworkmate.service.model.ContractAgentDraftCommand;
 import lombok.RequiredArgsConstructor;
@@ -41,6 +42,13 @@ public class ContractAgentDomainToolAdapter implements ContractToolPort {
                 new ContractAgentDraftCommand(command.name(), command.contractType(), command.counterpartyName(),
                         command.supplierId(), command.ownerUserId(), command.amount(), command.currency(),
                         command.signedDate(), command.startDate(), command.endDate(), command.summary()));
+        return result(result);
+    }
+
+    @Override public ContractDraftResult updateContractStatus(
+            ToolActorContext context, ContractStatusUpdate command) {
+        var result = contractService.updateStatus(context.userId(), command.contractId(),
+                new ContractStatusRequest(command.status(), command.reason(), command.version()));
         return result(result);
     }
 

@@ -96,6 +96,7 @@ const aiPermission = {
     contract_query: { name: '查询合同', description: '返回受控合同摘要，不包含内部身份字段。' },
     contract_createDraft: { name: '创建合同草稿', description: '仅创建合同草稿，不签署、不付款、不外发。' },
     contract_updateDraft: { name: '更新合同草稿', description: '更新版本匹配的合同草稿，不改变生效状态。' },
+    contract_updateStatus: { name: '变更合同状态', description: '经二次确认后激活、完成或终止一份版本匹配的合同。' },
     supplier_query: { name: '查询供应商', description: '返回受控供应商摘要，不包含联系人和信用标识。' },
     supplier_createDraft: { name: '创建供应商草稿', description: '仅创建供应商候选草稿，不激活或外发。' },
     supplier_updateDraft: { name: '更新供应商草稿', description: '更新版本匹配的供应商草稿，不改变启用状态。' },

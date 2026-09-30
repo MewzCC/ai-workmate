@@ -9,6 +9,7 @@ public interface ContractToolPort {
     ToolPage<Contract> contracts(ToolActorContext context, ContractQuery query);
     ContractDraftResult createContractDraft(ToolActorContext context, ContractDraft command);
     ContractDraftResult updateContractDraft(ToolActorContext context, ContractDraftUpdate command);
+    ContractDraftResult updateContractStatus(ToolActorContext context, ContractStatusUpdate command);
 
     record ContractQuery(Long contractId, String keyword, String status, String contractType,
                          String expiryState, int page, int size) { }
@@ -19,6 +20,7 @@ public interface ContractToolPort {
                                String counterpartyName, Long supplierId, long ownerUserId,
                                BigDecimal amount, String currency, LocalDate signedDate,
                                LocalDate startDate, LocalDate endDate, String summary) { }
+    record ContractStatusUpdate(long contractId, int version, String status, String reason) { }
     record ContractDraftResult(long contractId, String code, String status, int version,
                                LocalDateTime updatedAt) implements ToolWriteReceipt { }
     record Contract(long id, String code, String name, String contractType, String counterpartyName,
