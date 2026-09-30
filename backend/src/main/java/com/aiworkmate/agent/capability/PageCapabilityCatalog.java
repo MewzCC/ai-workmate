@@ -172,7 +172,7 @@ public class PageCapabilityCatalog {
                 page(OaPage.SUPPLIERS, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         context(number("supplierId"), text("keyword"), text("status"), text("category"),
                                 number("page"), number("size")), tool(SUPPLIER_QUERY), tool(SUPPLIER_CREATE_DRAFT),
-                        tool(SUPPLIER_UPDATE_DRAFT)),
+                        tool(SUPPLIER_UPDATE_DRAFT), tool(SUPPLIER_UPDATE_STATUS)),
 
                 page(OaPage.API_CENTER, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         context(number("endpointId"), text("keyword"), text("status"), number("page"), number("size")),

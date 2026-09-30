@@ -99,6 +99,7 @@ const aiPermission = {
     supplier_query: { name: 'Query suppliers', description: 'Returns controlled supplier summaries without contacts or credit identifiers.' },
     supplier_createDraft: { name: 'Create supplier draft', description: 'Creates only a supplier candidate draft without activation or external delivery.' },
     supplier_updateDraft: { name: 'Update supplier draft', description: 'Updates a version-matched supplier draft without changing its enabled status.' },
+    supplier_updateStatus: { name: 'Update supplier status', description: 'Activates, suspends, restores, or blacklists one supplier after secondary confirmation.' },
     integration_endpoint_query: { name: 'Query integration endpoints', description: 'Returns controlled endpoint metadata without request templates or response payloads.' },
     pageAction_query: { name: 'Query page actions', description: 'Returns the code-owned page action catalog and tenant enablement status.' },
     runtimeLog_query: { name: 'Query runtime logs', description: 'Returns bounded runtime metadata without payload previews or fingerprints.' },

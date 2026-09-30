@@ -99,6 +99,7 @@ const aiPermission = {
     supplier_query: { name: '查询供应商', description: '返回受控供应商摘要，不包含联系人和信用标识。' },
     supplier_createDraft: { name: '创建供应商草稿', description: '仅创建供应商候选草稿，不激活或外发。' },
     supplier_updateDraft: { name: '更新供应商草稿', description: '更新版本匹配的供应商草稿，不改变启用状态。' },
+    supplier_updateStatus: { name: '变更供应商状态', description: '经二次确认后启用、暂停、恢复或拉黑一条供应商记录。' },
     integration_endpoint_query: { name: '查询接口端点', description: '返回受控端点元数据，不包含请求模板或响应载荷。' },
     pageAction_query: { name: '查询页面操作', description: '返回代码拥有的页面操作目录及租户启用状态。' },
     runtimeLog_query: { name: '查询运行日志', description: '返回有界运行元数据，不包含载荷预览或指纹。' },

@@ -275,4 +275,22 @@ class FinanceAgentDomainToolAdapterTest {
         verify(suppliers).updateAgentDraft(eq(7L), eq(92L), eq(0), argThat(update ->
                 update.name().equals("更新供应商") && update.supplierLevel().equals("PREFERRED")));
     }
+
+    @Test
+    void updatesSupplierStatusThroughExistingAuditedStateMachine() {
+        var command = new SupplierToolPort.SupplierStatusUpdate(
+                92L, 1, "BLACKLISTED", "合规风险");
+        var updatedAt = LocalDateTime.of(2026, 9, 30, 19, 55);
+        when(suppliers.updateStatus(eq(7L), eq(92L), any())).thenReturn(new SupplierResponse(
+                92L, "SUP-2027", "示例供应商", "示例", null, "SERVICE", "STANDARD", "BLACKLISTED",
+                null, null, null, null, "月结30天", "合规风险", 2,
+                updatedAt.minusDays(1), updatedAt, true, List.of("SUSPENDED")));
+
+        assertThat(supplierAdapter.updateSupplierStatus(actor, command)).isEqualTo(
+                new SupplierToolPort.SupplierDraftResult(
+                        92L, "SUP-2027", "BLACKLISTED", 2, updatedAt));
+        verify(suppliers).updateStatus(eq(7L), eq(92L), argThat(request ->
+                request.status().equals("BLACKLISTED") && request.version() == 1
+                        && request.reason().equals("合规风险")));
+    }
 }
