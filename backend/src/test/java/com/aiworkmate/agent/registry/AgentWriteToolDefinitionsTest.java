@@ -74,4 +74,22 @@ class AgentWriteToolDefinitionsTest {
                  "endDate":"2026-09-09","endPeriod":"PM","reason":"家庭事务","tenantId":9}
                 """))).isFalse();
     }
+
+    @Test
+    void leaveDraftUpdateIsOwnedVersionBoundAndDoesNotSubmit() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        ToolDefinition definition = new AgentWriteToolDefinitions().leaveUpdateDraftToolDefinition(mapper);
+
+        assertThat(definition.schemaHash()).isEqualTo(
+                "sha256:0d86bdad65ea58db352edcf9457669496db8f74ce78f85fd72fcc041eb401bd2");
+        assertThat(definition.requiredPermissions()).containsExactly("leave:create");
+        assertThat(definition.ownershipPolicy()).isEqualTo(OwnershipPolicy.SELF);
+        assertThat(definition.retryPolicy()).isEqualTo(RetryPolicy.NEVER);
+        assertThat(definition.confirmationPolicy()).isEqualTo(ConfirmationPolicy.EXPLICIT);
+        assertThat(new ToolSchemaValidator().valid(definition.inputSchema(), mapper.readTree("""
+                {"applicationId":10,"version":2,"leaveType":"PERSONAL",
+                 "startDate":"2026-10-01","startPeriod":"AM","endDate":"2026-10-01",
+                 "endPeriod":"PM","reason":"家庭事务"}
+                """))).isTrue();
+    }
 }

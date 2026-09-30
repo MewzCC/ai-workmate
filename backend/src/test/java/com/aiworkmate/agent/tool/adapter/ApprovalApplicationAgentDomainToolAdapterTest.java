@@ -124,4 +124,39 @@ class ApprovalApplicationAgentDomainToolAdapterTest {
                 new ApprovalApplicationToolPort.WriteResult(30L, "expense", "PENDING", 6));
         verify(service).remind(20L, 30L, new com.aiworkmate.dto.VersionRequest(5));
     }
+
+    @Test
+    void updatesOwnedDraftThroughSchemaValidatedAgentService() {
+        var response = mock(ApprovalApplicationResponse.class);
+        when(response.id()).thenReturn(30L);
+        when(response.formKey()).thenReturn("expense");
+        when(response.status()).thenReturn("DRAFT");
+        when(response.version()).thenReturn(2);
+        var update = new ApprovalApplicationToolPort.DraftUpdate(null, List.of(
+                new ApprovalApplicationToolPort.FieldValue("reason", List.of("调整事由"), false)));
+        when(service.updateAgentDraft(eq(20L), eq(30L), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(response);
+
+        assertThat(adapter.updateDraft(actor, 30L, 1, update)).isEqualTo(
+                new ApprovalApplicationToolPort.WriteResult(30L, "expense", "DRAFT", 2));
+        var request = ArgumentCaptor.forClass(com.aiworkmate.dto.ApprovalDraftUpdateRequest.class);
+        verify(service).updateAgentDraft(eq(20L), eq(30L), request.capture());
+        assertThat(request.getValue().version()).isOne();
+        assertThat(request.getValue().formData()).containsEntry("reason", "调整事由");
+    }
+
+    @Test
+    void cancelsOwnedDraftThroughDedicatedAgentService() {
+        var response = mock(ApprovalApplicationResponse.class);
+        when(response.id()).thenReturn(30L);
+        when(response.formKey()).thenReturn("expense");
+        when(response.status()).thenReturn("CANCELLED");
+        when(response.version()).thenReturn(3);
+        when(service.cancelAgentDraft(20L, 30L, new com.aiworkmate.dto.VersionRequest(2)))
+                .thenReturn(response);
+
+        assertThat(adapter.cancelDraft(actor, 30L, 2)).isEqualTo(
+                new ApprovalApplicationToolPort.WriteResult(30L, "expense", "CANCELLED", 3));
+        verify(service).cancelAgentDraft(20L, 30L, new com.aiworkmate.dto.VersionRequest(2));
+    }
 }

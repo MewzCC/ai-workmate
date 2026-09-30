@@ -1002,6 +1002,20 @@ class P1PostgresMigrationIT {
                                    'agent:tool:leave.remind','agent:tool:approval.application.remind')
                     """)).as("申请催办必须具备业务权限和独立 Agent 权限").isEqualTo(4);
             assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='SINGLE_WRITE'
+                      AND code IN ('leave.updateDraft','approval.application.updateDraft',
+                                   'approval.application.cancelDraft')
+                      AND data_scope_policy='SELF' AND retry_policy='NEVER'
+                      AND confirmation_policy='EXPLICIT'
+                    """)).as("申请草稿必须具备编辑与取消原子工具").isEqualTo(3);
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code IN ('approval:cancel','agent:tool:leave.updateDraft',
+                                   'agent:tool:approval.application.updateDraft',
+                                   'agent:tool:approval.application.cancelDraft')
+                    """)).as("申请草稿工具必须具备独立实时权限").isEqualTo(4);
+            assertThat(count(statement, """
                     SELECT COUNT(*) FROM information_schema.views
                     WHERE table_schema = current_schema() AND table_name = 'runtime_log_view'
                     """)).isOne();

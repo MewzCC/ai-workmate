@@ -8,10 +8,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.stereotype.Component;
 
-import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.optionalPositiveLong;
-import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.requiredDate;
-import static com.aiworkmate.agent.tool.internal.BoundedToolArguments.requiredText;
-
 @Component
 public final class LeaveCreateDraftToolHandler extends TypedOperationKeyWriteToolHandler<LeaveToolPort.Draft, LeaveToolPort.WriteResult> {
     private final LeaveToolPort leaveToolPort;
@@ -23,11 +19,7 @@ public final class LeaveCreateDraftToolHandler extends TypedOperationKeyWriteToo
 
     @Override
     protected LeaveToolPort.Draft parseArguments(JsonNode arguments) {
-        return new LeaveToolPort.Draft(
-                requiredText(arguments, "leaveType"), optionalPositiveLong(arguments, "approverUserId"),
-                requiredDate(arguments, "startDate"), requiredText(arguments, "startPeriod"),
-                requiredDate(arguments, "endDate"), requiredText(arguments, "endPeriod"),
-                requiredText(arguments, "reason"));
+        return LeaveDraftArguments.parse(arguments);
     }
 
     @Override

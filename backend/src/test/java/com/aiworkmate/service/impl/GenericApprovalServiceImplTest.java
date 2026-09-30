@@ -250,6 +250,28 @@ class GenericApprovalServiceImplTest {
     }
 
     @Test
+    void cancelAgentDraftRequiresDedicatedPermissionAndUsesSameVersionedTransition() {
+        when(applicationMapper.selectOne(any())).thenReturn(application("DRAFT", 2));
+        when(applicationMapper.update(any(), any())).thenReturn(1);
+        when(applicationMapper.selectView(TENANT_ID, 10L)).thenReturn(view("CANCELLED", 3));
+
+        assertThat(service.cancelAgentDraft(USER_ID, 10L, new VersionRequest(2)).status())
+                .isEqualTo("CANCELLED");
+    }
+
+    @Test
+    void cancelAgentDraftFailsClosedAfterCancelPermissionRevocation() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(new ResolvedUserAccess(
+                USER_ID, "applicant", TENANT_ID, "EMPLOYEE", List.of("EMPLOYEE"),
+                List.of("route:approval-start", "approval:create"), List.of("SELF"), 2L));
+
+        assertThatThrownBy(() -> service.cancelAgentDraft(USER_ID, 10L, new VersionRequest(2)))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("PERMISSION_DENIED");
+        verify(applicationMapper, never()).update(any(), any());
+    }
+
+    @Test
     void submitDraftAtomicallyStartsWorkflowAndCreatesFirstTask() {
         when(applicationMapper.selectOne(any())).thenReturn(application("DRAFT", 2));
         when(formMapper.selectOne(any())).thenReturn(form());
@@ -579,7 +601,7 @@ class GenericApprovalServiceImplTest {
         return new ResolvedUserAccess(USER_ID, "applicant", TENANT_ID, "EMPLOYEE",
                 List.of("EMPLOYEE"),
                 List.of("route:approval-start", "approval:create", "approval:submit", "approval:withdraw",
-                        "approval:reopen"),
+                        "approval:reopen", "approval:cancel"),
                 List.of("SELF"), 1L);
     }
 

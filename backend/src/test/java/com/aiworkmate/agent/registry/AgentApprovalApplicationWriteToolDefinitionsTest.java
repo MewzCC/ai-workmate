@@ -102,4 +102,34 @@ class AgentApprovalApplicationWriteToolDefinitionsTest {
         assertThat(new ToolSchemaValidator().valid(definition.inputSchema(), mapper.readTree(
                 "{\"applicationId\":10,\"version\":4}"))).isTrue();
     }
+
+    @Test
+    void genericDraftUpdateUsesClosedFieldsAndExpectedVersion() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        var definition = new AgentApprovalApplicationWriteToolDefinitions()
+                .approvalApplicationUpdateDraftToolDefinition(mapper);
+
+        assertThat(definition.schemaHash()).isEqualTo(
+                "sha256:a5c42c9496a21a5168c36ccda217610628fe07528ea042342fa483368e445290");
+        assertThat(definition.requiredPermissions()).containsExactly("approval:create");
+        assertThat(definition.retryPolicy()).isEqualTo(RetryPolicy.NEVER);
+        assertThat(new ToolSchemaValidator().valid(definition.inputSchema(), mapper.readTree("""
+                {"applicationId":10,"version":2,"fields":[{"name":"reason","value":"客户拜访"}]}
+                """))).isTrue();
+    }
+
+    @Test
+    void genericDraftCancelUsesDedicatedPermissionAndPreservesAuditRecord() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        var definition = new AgentApprovalApplicationWriteToolDefinitions()
+                .approvalApplicationCancelDraftToolDefinition(mapper);
+
+        assertThat(definition.schemaHash()).isEqualTo(
+                "sha256:4f107bb62068d65d559bf3c36366f59f30d6ef60d209a4576f3f9480620ca808");
+        assertThat(definition.requiredPermissions()).containsExactly("approval:cancel");
+        assertThat(definition.ownershipPolicy()).isEqualTo(OwnershipPolicy.SELF);
+        assertThat(definition.retryPolicy()).isEqualTo(RetryPolicy.NEVER);
+        assertThat(new ToolSchemaValidator().valid(definition.inputSchema(), mapper.readTree(
+                "{\"applicationId\":10,\"version\":2}"))).isTrue();
+    }
 }

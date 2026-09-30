@@ -21,18 +21,21 @@ public final class ApprovalApplicationAgentDomainToolAdapter implements Approval
 
     @Override
     public WriteResult createDraft(ToolActorContext context, Draft command, ToolOperationKey operationKey) {
-        Map<String, Object> formData = new LinkedHashMap<>();
-        for (FieldValue field : command.fields()) {
-            Object value = field.multiple() ? field.values() : field.values().get(0);
-            if (formData.putIfAbsent(field.name(), value) != null) {
-                throw new BusinessException(ErrorCode.REQUEST_INVALID);
-            }
-        }
         ApprovalApplicationResponse created = approvalService.createAgentDraft(
                 context.userId(),
-                new ApprovalDraftRequest(command.formKey(), command.processKey(), formData),
+                new ApprovalDraftRequest(command.formKey(), command.processKey(), formData(command.fields())),
                 operationKey.value());
         return new WriteResult(created.id(), created.formKey(), created.status(), created.version());
+    }
+
+    @Override
+    public WriteResult updateDraft(
+            ToolActorContext context, long applicationId, int version, DraftUpdate command) {
+        ApprovalApplicationResponse updated = approvalService.updateAgentDraft(
+                context.userId(), applicationId,
+                new com.aiworkmate.dto.ApprovalDraftUpdateRequest(
+                        command.processKey(), formData(command.fields()), version));
+        return new WriteResult(updated.id(), updated.formKey(), updated.status(), updated.version());
     }
 
     @Override
@@ -41,6 +44,14 @@ public final class ApprovalApplicationAgentDomainToolAdapter implements Approval
                 context.userId(), applicationId, new VersionRequest(version));
         return new WriteResult(
                 submitted.id(), submitted.formKey(), submitted.status(), submitted.version());
+    }
+
+    @Override
+    public WriteResult cancelDraft(ToolActorContext context, long applicationId, int version) {
+        ApprovalApplicationResponse cancelled = approvalService.cancelAgentDraft(
+                context.userId(), applicationId, new VersionRequest(version));
+        return new WriteResult(
+                cancelled.id(), cancelled.formKey(), cancelled.status(), cancelled.version());
     }
 
     @Override
@@ -65,5 +76,16 @@ public final class ApprovalApplicationAgentDomainToolAdapter implements Approval
                 context.userId(), applicationId, new VersionRequest(version));
         return new WriteResult(
                 reminded.id(), reminded.formKey(), reminded.status(), reminded.version());
+    }
+
+    private Map<String, Object> formData(java.util.List<FieldValue> fields) {
+        Map<String, Object> formData = new LinkedHashMap<>();
+        for (FieldValue field : fields) {
+            Object value = field.multiple() ? field.values() : field.values().get(0);
+            if (formData.putIfAbsent(field.name(), value) != null) {
+                throw new BusinessException(ErrorCode.REQUEST_INVALID);
+            }
+        }
+        return formData;
     }
 }

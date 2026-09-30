@@ -67,7 +67,7 @@ class PageCapabilityCatalogTest {
         assertThat(catalog.find("leave-application").orElseThrow().tools())
                 .extracting(PageToolReference::code)
                 .containsExactlyInAnyOrder(ToolCode.LEAVE_MINE, ToolCode.LEAVE_CREATE_DRAFT,
-                        ToolCode.LEAVE_SUBMIT, ToolCode.LEAVE_APPLY, ToolCode.LEAVE_WITHDRAW,
+                        ToolCode.LEAVE_UPDATE_DRAFT, ToolCode.LEAVE_SUBMIT, ToolCode.LEAVE_APPLY, ToolCode.LEAVE_WITHDRAW,
                         ToolCode.LEAVE_REMIND);
     }
 
@@ -109,6 +109,8 @@ class PageCapabilityCatalogTest {
                 .extracting(PageToolReference::code)
                 .contains(ToolCode.APPROVAL_APPLICATION_WITHDRAW,
                         ToolCode.APPROVAL_APPLICATION_REOPEN,
+                        ToolCode.APPROVAL_APPLICATION_UPDATE_DRAFT,
+                        ToolCode.APPROVAL_APPLICATION_CANCEL_DRAFT,
                         ToolCode.APPROVAL_APPLICATION_REMIND);
         assertThat(catalog.find("approval-start").orElseThrow().writeTools())
                 .extracting(PageToolReference::code)

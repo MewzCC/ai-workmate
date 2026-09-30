@@ -28,6 +28,12 @@ public class AgentWriteToolDefinitions {
 
     public static final String LEAVE_APPLY_INPUT_SCHEMA = LEAVE_CREATE_DRAFT_INPUT_SCHEMA;
 
+    public static final String LEAVE_UPDATE_DRAFT_INPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["applicationId","version","leaveType","startDate","startPeriod","endDate","endPeriod","reason"],"properties":{"applicationId":{"type":"integer","minimum":1},"version":{"type":"integer","minimum":0,"maximum":2147483646},"leaveType":{"type":"string","enum":["ANNUAL","PERSONAL","SICK","MARRIAGE","MATERNITY","PATERNITY","BEREAVEMENT","COMPENSATORY","OTHER"]},"approverUserId":{"type":"integer","minimum":1},"startDate":{"type":"string","format":"date","maxLength":10},"startPeriod":{"type":"string","enum":["AM","PM"]},"endDate":{"type":"string","format":"date","maxLength":10},"endPeriod":{"type":"string","enum":["AM","PM"]},"reason":{"type":"string","minLength":1,"maxLength":500}}}
+            """.strip();
+
+    public static final String LEAVE_UPDATE_DRAFT_OUTPUT_SCHEMA = LEAVE_CREATE_DRAFT_OUTPUT_SCHEMA;
+
     public static final String LEAVE_APPLY_OUTPUT_SCHEMA = """
             {"type":"object","additionalProperties":false,"required":["applicationId","status","version","approvalTaskId"],"properties":{"applicationId":{"type":"integer","minimum":1},"status":{"type":"string","const":"PENDING"},"version":{"type":"integer","minimum":1},"approvalTaskId":{"type":"integer","minimum":1}}}
             """.strip();
@@ -64,6 +70,18 @@ public class AgentWriteToolDefinitions {
                 "Use when the user asks to apply for leave in one request. Create the application and start its approval workflow as one transactional operation after secondary confirmation.",
                 objectMapper.readTree(LEAVE_APPLY_INPUT_SCHEMA),
                 objectMapper.readTree(LEAVE_APPLY_OUTPUT_SCHEMA), ToolWriteProfile.SECONDARY_L2,
+                Set.of("leave:create"), OwnershipPolicy.SELF,
+                1, 16384, 15000);
+    }
+
+    @Bean
+    public ToolDefinition leaveUpdateDraftToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {
+        return ToolDefinitionFactory.singleWrite(
+                ToolCode.LEAVE_UPDATE_DRAFT, "Update my leave draft",
+                "Replaces the bounded form fields on exactly one leave draft owned by the authenticated user.",
+                "Update one version-bound draft without submitting it or starting a workflow.",
+                objectMapper.readTree(LEAVE_UPDATE_DRAFT_INPUT_SCHEMA),
+                objectMapper.readTree(LEAVE_UPDATE_DRAFT_OUTPUT_SCHEMA), ToolWriteProfile.NON_RETRYABLE_L1,
                 Set.of("leave:create"), OwnershipPolicy.SELF,
                 1, 16384, 15000);
     }

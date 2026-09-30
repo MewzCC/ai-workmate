@@ -6,7 +6,11 @@ import java.util.List;
 public interface ApprovalApplicationToolPort {
     WriteResult createDraft(ToolActorContext context, Draft command, ToolOperationKey operationKey);
 
+    WriteResult updateDraft(ToolActorContext context, long applicationId, int version, DraftUpdate command);
+
     WriteResult submitDraft(ToolActorContext context, long applicationId, int version);
+
+    WriteResult cancelDraft(ToolActorContext context, long applicationId, int version);
 
     WriteResult withdraw(ToolActorContext context, long applicationId, int version);
 
@@ -18,6 +22,10 @@ public interface ApprovalApplicationToolPort {
         public Draft {
             fields = List.copyOf(fields);
         }
+    }
+
+    record DraftUpdate(String processKey, List<FieldValue> fields) {
+        public DraftUpdate { fields = List.copyOf(fields); }
     }
 
     record FieldValue(String name, List<String> values, boolean multiple) {

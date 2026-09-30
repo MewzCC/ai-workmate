@@ -491,6 +491,27 @@ class AgentDomainToolAdaptersTest {
     }
 
     @Test
+    void mapsCompleteLeaveDraftUpdateWithExpectedVersion() {
+        LeaveApplicationResponse response = mock(LeaveApplicationResponse.class);
+        when(response.id()).thenReturn(30L);
+        when(response.status()).thenReturn("DRAFT");
+        when(response.version()).thenReturn(2);
+        when(response.taskId()).thenReturn(null);
+        LeaveToolPort.Draft draft = new LeaveToolPort.Draft(
+                "PERSONAL", 8L, LocalDate.of(2026, 10, 1), "AM",
+                LocalDate.of(2026, 10, 1), "PM", "调整事由");
+        when(leaveWorkflowService.updateDraft(eq(7L), eq(30L), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(response);
+
+        assertThat(leaveAdapter.updateDraft(context, 30L, 1, draft))
+                .isEqualTo(new LeaveToolPort.WriteResult(30L, "DRAFT", 2, null));
+        var request = ArgumentCaptor.forClass(com.aiworkmate.dto.LeaveApplicationRequest.class);
+        verify(leaveWorkflowService).updateDraft(eq(7L), eq(30L), request.capture());
+        assertThat(request.getValue().version()).isOne();
+        assertThat(request.getValue().reason()).isEqualTo("调整事由");
+    }
+
+    @Test
     void mapsKnowledgeSearchWithoutExposingProviderMetadata() {
         when(knowledgeService.search(eq(7L), org.mockito.ArgumentMatchers.any()))
                 .thenReturn(new KnowledgeSearchResponse("provider", "model", 8, List.of(

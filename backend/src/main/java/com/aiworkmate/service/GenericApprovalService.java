@@ -38,6 +38,9 @@ public interface GenericApprovalService {
     /** 取消本人草稿；取消后只保留审计记录，不允许继续编辑。 */
     ApprovalApplicationResponse cancelDraft(Long userId, Long id, VersionRequest request);
 
+    /** Agent 专用草稿取消入口；领域层再次校验独立取消权限。 */
+    ApprovalApplicationResponse cancelAgentDraft(Long userId, Long id, VersionRequest request);
+
     /** 撤回本人审批中的申请，同时取消当前流程实例和唯一有效待办。 */
     ApprovalApplicationResponse withdraw(Long userId, Long id, VersionRequest request);
 

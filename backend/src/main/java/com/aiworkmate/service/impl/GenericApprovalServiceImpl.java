@@ -302,6 +302,21 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
     @Transactional
     public ApprovalApplicationResponse cancelDraft(Long userId, Long id, VersionRequest request) {
         ResolvedUserAccess actor = requirePermission(userId, "route:approval-start");
+        return cancelDraftInternal(actor, id, request);
+    }
+
+    @Override
+    @Transactional
+    public ApprovalApplicationResponse cancelAgentDraft(Long userId, Long id, VersionRequest request) {
+        ResolvedUserAccess actor = requirePermission(userId, "route:approval-start");
+        if (!actor.permissions().contains("approval:cancel")) {
+            throw new BusinessException(ErrorCode.PERMISSION_DENIED);
+        }
+        return cancelDraftInternal(actor, id, request);
+    }
+
+    private ApprovalApplicationResponse cancelDraftInternal(
+            ResolvedUserAccess actor, Long id, VersionRequest request) {
         ApprovalApplication application = requireOwnedApplication(actor, id);
         requireDraft(application);
         LocalDateTime now = LocalDateTime.now();
