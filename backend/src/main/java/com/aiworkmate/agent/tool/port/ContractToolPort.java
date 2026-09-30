@@ -13,6 +13,7 @@ public interface ContractToolPort {
     ContractFulfillmentResult updateContractFulfillment(
             ToolActorContext context, ContractFulfillmentUpdate command);
     ContractPaymentResult recordContractPayment(ToolActorContext context, ContractPayment command);
+    ContractReminderResult remindContract(ToolActorContext context, long contractId, int version);
 
     record ContractQuery(Long contractId, String keyword, String status, String contractType,
                          String expiryState, int page, int size) { }
@@ -35,6 +36,9 @@ public interface ContractToolPort {
     record ContractPaymentResult(long contractId, String code, String status, BigDecimal amount,
                                  BigDecimal paidAmount, String currency, int version,
                                  LocalDateTime updatedAt) implements ToolWriteReceipt { }
+    record ContractReminderResult(long contractId, String code, String expiryState,
+                                  int reminderCount, LocalDateTime lastRemindedAt,
+                                  int version) implements ToolWriteReceipt { }
     record Contract(long id, String code, String name, String contractType, String counterpartyName,
                     String supplierLabel, String ownerLabel, BigDecimal amount, BigDecimal paidAmount,
                     String currency, LocalDate signedDate, LocalDate startDate, LocalDate endDate,

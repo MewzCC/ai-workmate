@@ -246,6 +246,23 @@ class FinanceAgentDomainToolAdapterTest {
     }
 
     @Test
+    void remindsContractOwnerThroughExistingRateLimitedBoundary() {
+        var remindedAt = LocalDateTime.of(2026, 9, 30, 21, 5);
+        var updatedAt = remindedAt.plusSeconds(1);
+        when(contracts.remind(eq(7L), eq(81L), any())).thenReturn(new ContractResponse(
+                81L, "HT-001", "更新合同", "SERVICE", "示例公司", null, null, 7L, "员工",
+                new BigDecimal("1200.00"), new BigDecimal("300.00"), "CNY", LocalDate.of(2026, 9, 1),
+                LocalDate.of(2026, 9, 1), LocalDate.of(2026, 10, 5), "ACTIVE", "IN_PROGRESS",
+                "EXPIRING", 5, "更新摘要", 2, remindedAt, 6, updatedAt.minusDays(1), updatedAt, true,
+                List.of("COMPLETED", "TERMINATED"), List.of("FULFILLED", "BREACHED"), true, false));
+
+        assertThat(contractAdapter.remindContract(actor, 81L, 5)).isEqualTo(
+                new ContractToolPort.ContractReminderResult(
+                        81L, "HT-001", "EXPIRING", 2, remindedAt, 6));
+        verify(contracts).remind(eq(7L), eq(81L), argThat(request -> request.version() == 5));
+    }
+
+    @Test
     void submitsExpenseThroughDedicatedTypedBoundary() {
         when(expenseApplications.submitAgentDraft(7L, 51L, 0))
                 .thenReturn(new ExpenseAgentLifecycleReceipt(

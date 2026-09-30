@@ -99,6 +99,7 @@ const aiPermission = {
     contract_updateStatus: { name: 'Change contract status', description: 'Activates, completes, or terminates one version-matched contract after secondary confirmation.' },
     contract_updateFulfillment: { name: 'Change contract fulfillment', description: 'Updates the fulfillment progress of one active contract after secondary confirmation; breach requires a reason.' },
     contract_recordPayment: { name: 'Record contract payment', description: 'Records one payment against an active contract after secondary confirmation without exceeding its total amount.' },
+    contract_remind: { name: 'Remind contract expiry', description: 'Sends one rate-limited internal expiry reminder after explicit confirmation.' },
     supplier_query: { name: 'Query suppliers', description: 'Returns controlled supplier summaries without contacts or credit identifiers.' },
     supplier_createDraft: { name: 'Create supplier draft', description: 'Creates only a supplier candidate draft without activation or external delivery.' },
     supplier_updateDraft: { name: 'Update supplier draft', description: 'Updates a version-matched supplier draft without changing its enabled status.' },

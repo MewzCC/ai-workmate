@@ -99,6 +99,7 @@ const aiPermission = {
     contract_updateStatus: { name: '变更合同状态', description: '经二次确认后激活、完成或终止一份版本匹配的合同。' },
     contract_updateFulfillment: { name: '变更合同履约状态', description: '经二次确认后更新一份生效合同的履约进度，违约时必须提供原因。' },
     contract_recordPayment: { name: '登记合同付款', description: '经二次确认后为一份生效合同登记单笔付款，累计金额不得超过合同总额。' },
+    contract_remind: { name: '提醒合同到期', description: '经显式确认后向合同负责人发送一条受频率限制的站内到期提醒。' },
     supplier_query: { name: '查询供应商', description: '返回受控供应商摘要，不包含联系人和信用标识。' },
     supplier_createDraft: { name: '创建供应商草稿', description: '仅创建供应商候选草稿，不激活或外发。' },
     supplier_updateDraft: { name: '更新供应商草稿', description: '更新版本匹配的供应商草稿，不改变启用状态。' },

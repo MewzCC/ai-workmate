@@ -6,6 +6,7 @@ import com.aiworkmate.agent.tool.port.ToolPage;
 import com.aiworkmate.dto.ContractRequest;
 import com.aiworkmate.dto.ContractFulfillmentRequest;
 import com.aiworkmate.dto.ContractPaymentRequest;
+import com.aiworkmate.dto.ContractReminderRequest;
 import com.aiworkmate.dto.ContractStatusRequest;
 import com.aiworkmate.service.ContractService;
 import com.aiworkmate.service.model.ContractAgentDraftCommand;
@@ -69,6 +70,13 @@ public class ContractAgentDomainToolAdapter implements ContractToolPort {
                         command.reference(), command.note(), command.version()));
         return new ContractPaymentResult(result.id(), result.code(), result.status(), command.amount(),
                 result.paidAmount(), result.currency(), result.version(), result.updatedAt());
+    }
+
+    @Override public ContractReminderResult remindContract(
+            ToolActorContext context, long contractId, int version) {
+        var result = contractService.remind(context.userId(), contractId, new ContractReminderRequest(version));
+        return new ContractReminderResult(result.id(), result.code(), result.expiryState(),
+                result.reminderCount(), result.lastRemindedAt(), result.version());
     }
 
     private ContractDraftResult result(com.aiworkmate.dto.ContractResponse item) {

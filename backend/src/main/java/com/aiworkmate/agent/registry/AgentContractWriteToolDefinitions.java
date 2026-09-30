@@ -39,6 +39,12 @@ public class AgentContractWriteToolDefinitions {
     public static final String RECORD_PAYMENT_OUTPUT_SCHEMA = """
             {"type":"object","additionalProperties":false,"required":["contractId","code","status","amount","paidAmount","currency","version","updatedAt"],"properties":{"contractId":{"type":"integer","minimum":1},"code":{"type":"string"},"status":{"type":"string","const":"ACTIVE"},"amount":{"type":"number","minimum":0.01},"paidAmount":{"type":"number","minimum":0},"currency":{"type":"string","enum":["CNY","USD","EUR","HKD"]},"version":{"type":"integer","minimum":1},"updatedAt":{"type":"string","format":"date-time"}}}
             """.strip();
+    public static final String REMIND_INPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["contractId","version"],"properties":{"contractId":{"type":"integer","minimum":1},"version":{"type":"integer","minimum":0,"maximum":2147483646}}}
+            """.strip();
+    public static final String REMIND_OUTPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["contractId","code","expiryState","reminderCount","lastRemindedAt","version"],"properties":{"contractId":{"type":"integer","minimum":1},"code":{"type":"string"},"expiryState":{"type":"string","enum":["EXPIRING","EXPIRED"]},"reminderCount":{"type":"integer","minimum":1},"lastRemindedAt":{"type":"string","format":"date-time"},"version":{"type":"integer","minimum":1}}}
+            """.strip();
 
     @Bean
     ToolDefinition contractCreateDraftToolDefinition(ObjectMapper objectMapper)
@@ -101,6 +107,18 @@ public class AgentContractWriteToolDefinitions {
                 objectMapper.readTree(RECORD_PAYMENT_INPUT_SCHEMA),
                 objectMapper.readTree(RECORD_PAYMENT_OUTPUT_SCHEMA),
                 ToolWriteProfile.SECONDARY_L2, Set.of("contract:manage"), OwnershipPolicy.TENANT_SCOPED,
+                1, 4096, 15000);
+    }
+
+    @Bean
+    ToolDefinition contractRemindToolDefinition(ObjectMapper objectMapper)
+            throws JsonProcessingException {
+        return ToolDefinitionFactory.singleWrite(
+                ToolCode.CONTRACT_REMIND, "Remind one contract owner",
+                "Sends one rate-limited internal expiry reminder for one due tenant-scoped contract.",
+                "Remind exactly one expiring or expired contract owner after explicit confirmation; never send externally.",
+                objectMapper.readTree(REMIND_INPUT_SCHEMA), objectMapper.readTree(REMIND_OUTPUT_SCHEMA),
+                ToolWriteProfile.NON_RETRYABLE_L1, Set.of("contract:manage"), OwnershipPolicy.TENANT_SCOPED,
                 1, 4096, 15000);
     }
 }

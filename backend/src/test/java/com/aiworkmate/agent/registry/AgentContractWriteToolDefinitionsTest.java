@@ -113,4 +113,24 @@ class AgentContractWriteToolDefinitionsTest {
                  "reference":"PAY-20260930-001"}
                 """))).isFalse();
     }
+
+    @Test
+    void reminderRequiresExplicitConfirmationAndOnlyAcceptsIdentityAndVersion() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        ToolDefinition definition = new AgentContractWriteToolDefinitions()
+                .contractRemindToolDefinition(mapper);
+        assertThat(definition.schemaHash()).isEqualTo(
+                "sha256:578ed3fa7179edbd9e6e5b874edd2ae196248d0333dbe631bf41bc9db5b90321");
+        assertThat(definition.requiredPermissions()).containsExactly("contract:manage");
+        assertThat(definition.riskLevel()).isEqualTo(RiskLevel.L1);
+        assertThat(definition.retryPolicy()).isEqualTo(RetryPolicy.NEVER);
+        assertThat(definition.confirmationPolicy()).isEqualTo(ConfirmationPolicy.EXPLICIT);
+        assertThat(definition.ownershipPolicy()).isEqualTo(OwnershipPolicy.TENANT_SCOPED);
+        assertThat(new ToolSchemaValidator().valid(definition.inputSchema(), mapper.readTree("""
+                {"contractId":81,"version":5}
+                """))).isTrue();
+        assertThat(new ToolSchemaValidator().valid(definition.inputSchema(), mapper.readTree("""
+                {"contractId":81,"version":5,"recipient":"external@example.com"}
+                """))).isFalse();
+    }
 }

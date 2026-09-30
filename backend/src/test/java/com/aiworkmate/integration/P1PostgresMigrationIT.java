@@ -903,6 +903,20 @@ class P1PostgresMigrationIT {
                     """)).as("合同付款 Agent 工具必须具备独立实时权限").isOne();
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'contract.remind'
+                      AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:578ed3fa7179edbd9e6e5b874edd2ae196248d0333dbe631bf41bc9db5b90321'
+                      AND risk_level = 'L1' AND data_scope_policy = 'TENANT_SCOPED'
+                      AND required_permissions = '["contract:manage"]'::jsonb
+                      AND retry_policy = 'NEVER' AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'EXPLICIT' AND enabled = TRUE
+                    """)).as("合同到期提醒工具必须以冻结的站内频控原子写契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code = 'agent:tool:contract.remind'
+                    """)).as("合同到期提醒 Agent 工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
                     WHERE tenant_id IS NULL AND code = 'supplier.createDraft'
                       AND handler_version = '1.0.0'
                       AND schema_hash = 'sha256:9d859cfb46661e9c8994e04a29966aa378f2ef717eb5f62f6e8b5d434add1fdb'
