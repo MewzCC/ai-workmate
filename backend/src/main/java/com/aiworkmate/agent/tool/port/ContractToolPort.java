@@ -12,6 +12,7 @@ public interface ContractToolPort {
     ContractDraftResult updateContractStatus(ToolActorContext context, ContractStatusUpdate command);
     ContractFulfillmentResult updateContractFulfillment(
             ToolActorContext context, ContractFulfillmentUpdate command);
+    ContractPaymentResult recordContractPayment(ToolActorContext context, ContractPayment command);
 
     record ContractQuery(Long contractId, String keyword, String status, String contractType,
                          String expiryState, int page, int size) { }
@@ -24,11 +25,16 @@ public interface ContractToolPort {
                                LocalDate startDate, LocalDate endDate, String summary) { }
     record ContractStatusUpdate(long contractId, int version, String status, String reason) { }
     record ContractFulfillmentUpdate(long contractId, int version, String status, String reason) { }
+    record ContractPayment(long contractId, int version, BigDecimal amount, LocalDate paymentDate,
+                           String reference, String note) { }
     record ContractDraftResult(long contractId, String code, String status, int version,
                                LocalDateTime updatedAt) implements ToolWriteReceipt { }
     record ContractFulfillmentResult(long contractId, String code, String status,
                                      String fulfillmentStatus, int version,
                                      LocalDateTime updatedAt) implements ToolWriteReceipt { }
+    record ContractPaymentResult(long contractId, String code, String status, BigDecimal amount,
+                                 BigDecimal paidAmount, String currency, int version,
+                                 LocalDateTime updatedAt) implements ToolWriteReceipt { }
     record Contract(long id, String code, String name, String contractType, String counterpartyName,
                     String supplierLabel, String ownerLabel, BigDecimal amount, BigDecimal paidAmount,
                     String currency, LocalDate signedDate, LocalDate startDate, LocalDate endDate,

@@ -92,4 +92,25 @@ class AgentContractWriteToolDefinitionsTest {
                 {"contractId":81,"version":3,"status":"NOT_STARTED"}
                 """))).isFalse();
     }
+
+    @Test
+    void paymentRequiresSecondaryConfirmationAndBoundedAmount() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        ToolDefinition definition = new AgentContractWriteToolDefinitions()
+                .contractRecordPaymentToolDefinition(mapper);
+        assertThat(definition.schemaHash()).isEqualTo(
+                "sha256:a9d8ba8b0aaedf6bc8e18d201f28f349f73c45111548a179fb8ca5021341c585");
+        assertThat(definition.requiredPermissions()).containsExactly("contract:manage");
+        assertThat(definition.riskLevel()).isEqualTo(RiskLevel.L2);
+        assertThat(definition.retryPolicy()).isEqualTo(RetryPolicy.NEVER);
+        assertThat(definition.confirmationPolicy()).isEqualTo(ConfirmationPolicy.SECONDARY);
+        assertThat(new ToolSchemaValidator().valid(definition.inputSchema(), mapper.readTree("""
+                {"contractId":81,"version":4,"amount":200.00,"paymentDate":"2026-09-30",
+                 "reference":"PAY-20260930-001","note":"首付款"}
+                """))).isTrue();
+        assertThat(new ToolSchemaValidator().valid(definition.inputSchema(), mapper.readTree("""
+                {"contractId":81,"version":4,"amount":0,"paymentDate":"2026-09-30",
+                 "reference":"PAY-20260930-001"}
+                """))).isFalse();
+    }
 }

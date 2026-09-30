@@ -33,6 +33,12 @@ public class AgentContractWriteToolDefinitions {
     public static final String UPDATE_FULFILLMENT_OUTPUT_SCHEMA = """
             {"type":"object","additionalProperties":false,"required":["contractId","code","status","fulfillmentStatus","version","updatedAt"],"properties":{"contractId":{"type":"integer","minimum":1},"code":{"type":"string"},"status":{"type":"string","const":"ACTIVE"},"fulfillmentStatus":{"type":"string","enum":["IN_PROGRESS","FULFILLED","BREACHED"]},"version":{"type":"integer","minimum":1},"updatedAt":{"type":"string","format":"date-time"}}}
             """.strip();
+    public static final String RECORD_PAYMENT_INPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["contractId","version","amount","paymentDate","reference"],"properties":{"contractId":{"type":"integer","minimum":1},"version":{"type":"integer","minimum":0,"maximum":2147483646},"amount":{"type":"number","minimum":0.01,"maximum":9999999999999999.99,"multipleOf":0.01},"paymentDate":{"type":"string","format":"date"},"reference":{"type":"string","minLength":1,"maxLength":100},"note":{"type":"string","maxLength":500}}}
+            """.strip();
+    public static final String RECORD_PAYMENT_OUTPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["contractId","code","status","amount","paidAmount","currency","version","updatedAt"],"properties":{"contractId":{"type":"integer","minimum":1},"code":{"type":"string"},"status":{"type":"string","const":"ACTIVE"},"amount":{"type":"number","minimum":0.01},"paidAmount":{"type":"number","minimum":0},"currency":{"type":"string","enum":["CNY","USD","EUR","HKD"]},"version":{"type":"integer","minimum":1},"updatedAt":{"type":"string","format":"date-time"}}}
+            """.strip();
 
     @Bean
     ToolDefinition contractCreateDraftToolDefinition(ObjectMapper objectMapper)
@@ -81,6 +87,19 @@ public class AgentContractWriteToolDefinitions {
                 "Change only the fulfillment status of one active contract after secondary confirmation; require a reason for breach.",
                 objectMapper.readTree(UPDATE_FULFILLMENT_INPUT_SCHEMA),
                 objectMapper.readTree(UPDATE_FULFILLMENT_OUTPUT_SCHEMA),
+                ToolWriteProfile.SECONDARY_L2, Set.of("contract:manage"), OwnershipPolicy.TENANT_SCOPED,
+                1, 4096, 15000);
+    }
+
+    @Bean
+    ToolDefinition contractRecordPaymentToolDefinition(ObjectMapper objectMapper)
+            throws JsonProcessingException {
+        return ToolDefinitionFactory.singleWrite(
+                ToolCode.CONTRACT_RECORD_PAYMENT, "Record one contract payment",
+                "Records one bounded payment against one active tenant-scoped contract using optimistic locking.",
+                "Record exactly one payment after secondary confirmation; never exceed the contract amount or change lifecycle state.",
+                objectMapper.readTree(RECORD_PAYMENT_INPUT_SCHEMA),
+                objectMapper.readTree(RECORD_PAYMENT_OUTPUT_SCHEMA),
                 ToolWriteProfile.SECONDARY_L2, Set.of("contract:manage"), OwnershipPolicy.TENANT_SCOPED,
                 1, 4096, 15000);
     }

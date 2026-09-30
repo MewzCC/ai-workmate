@@ -222,6 +222,30 @@ class FinanceAgentDomainToolAdapterTest {
     }
 
     @Test
+    void recordsContractPaymentThroughExistingFinancialBoundary() {
+        var updatedAt = LocalDateTime.of(2026, 9, 30, 20, 45);
+        when(contracts.recordPayment(eq(7L), eq(81L), any())).thenReturn(new ContractResponse(
+                81L, "HT-001", "更新合同", "SERVICE", "示例公司", null, null, 7L, "员工",
+                new BigDecimal("1200.00"), new BigDecimal("300.00"), "CNY", LocalDate.of(2026, 9, 1),
+                LocalDate.of(2026, 9, 1), LocalDate.of(2027, 8, 31), "ACTIVE", "IN_PROGRESS",
+                "NORMAL", 346, "更新摘要", 0, null, 5, updatedAt, updatedAt, true,
+                List.of("COMPLETED", "TERMINATED"), List.of("FULFILLED", "BREACHED"), true, false));
+
+        var command = new ContractToolPort.ContractPayment(
+                81L, 4, new BigDecimal("200.00"), LocalDate.of(2026, 9, 30),
+                "PAY-20260930-001", "首付款");
+        assertThat(contractAdapter.recordContractPayment(actor, command)).isEqualTo(
+                new ContractToolPort.ContractPaymentResult(
+                        81L, "HT-001", "ACTIVE", new BigDecimal("200.00"),
+                        new BigDecimal("300.00"), "CNY", 5, updatedAt));
+        verify(contracts).recordPayment(eq(7L), eq(81L), argThat(request ->
+                request.version() == 4 && request.amount().compareTo(new BigDecimal("200.00")) == 0
+                        && request.paymentDate().equals(LocalDate.of(2026, 9, 30))
+                        && request.reference().equals("PAY-20260930-001")
+                        && request.note().equals("首付款")));
+    }
+
+    @Test
     void submitsExpenseThroughDedicatedTypedBoundary() {
         when(expenseApplications.submitAgentDraft(7L, 51L, 0))
                 .thenReturn(new ExpenseAgentLifecycleReceipt(

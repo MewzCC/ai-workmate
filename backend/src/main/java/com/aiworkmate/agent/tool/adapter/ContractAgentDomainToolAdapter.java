@@ -5,6 +5,7 @@ import com.aiworkmate.agent.tool.port.ToolActorContext;
 import com.aiworkmate.agent.tool.port.ToolPage;
 import com.aiworkmate.dto.ContractRequest;
 import com.aiworkmate.dto.ContractFulfillmentRequest;
+import com.aiworkmate.dto.ContractPaymentRequest;
 import com.aiworkmate.dto.ContractStatusRequest;
 import com.aiworkmate.service.ContractService;
 import com.aiworkmate.service.model.ContractAgentDraftCommand;
@@ -59,6 +60,15 @@ public class ContractAgentDomainToolAdapter implements ContractToolPort {
                 new ContractFulfillmentRequest(command.status(), command.reason(), command.version()));
         return new ContractFulfillmentResult(result.id(), result.code(), result.status(),
                 result.fulfillmentStatus(), result.version(), result.updatedAt());
+    }
+
+    @Override public ContractPaymentResult recordContractPayment(
+            ToolActorContext context, ContractPayment command) {
+        var result = contractService.recordPayment(context.userId(), command.contractId(),
+                new ContractPaymentRequest(command.amount(), command.paymentDate(),
+                        command.reference(), command.note(), command.version()));
+        return new ContractPaymentResult(result.id(), result.code(), result.status(), command.amount(),
+                result.paidAmount(), result.currency(), result.version(), result.updatedAt());
     }
 
     private ContractDraftResult result(com.aiworkmate.dto.ContractResponse item) {
