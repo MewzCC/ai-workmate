@@ -169,7 +169,7 @@ public class PageCapabilityCatalog {
                         context(number("contractId"), text("keyword"), text("status"), text("contractType"),
                                 text("expiryState"), number("page"), number("size")),
                         tool(CONTRACT_QUERY), tool(CONTRACT_CREATE_DRAFT), tool(CONTRACT_UPDATE_DRAFT),
-                        tool(CONTRACT_UPDATE_STATUS)),
+                        tool(CONTRACT_UPDATE_STATUS), tool(CONTRACT_UPDATE_FULFILLMENT)),
                 page(OaPage.SUPPLIERS, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         context(number("supplierId"), text("keyword"), text("status"), text("category"),
                                 number("page"), number("size")), tool(SUPPLIER_QUERY), tool(SUPPLIER_CREATE_DRAFT),

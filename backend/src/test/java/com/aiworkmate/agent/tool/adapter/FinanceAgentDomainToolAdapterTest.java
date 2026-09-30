@@ -202,6 +202,26 @@ class FinanceAgentDomainToolAdapterTest {
     }
 
     @Test
+    void changesContractFulfillmentThroughExistingStateMachine() {
+        var updatedAt = LocalDateTime.of(2026, 9, 30, 20, 25);
+        when(contracts.updateFulfillment(eq(7L), eq(81L), any())).thenReturn(new ContractResponse(
+                81L, "HT-001", "更新合同", "SERVICE", "示例公司", null, null, 7L, "员工",
+                new BigDecimal("1200.00"), BigDecimal.ZERO, "CNY", LocalDate.of(2026, 9, 1),
+                LocalDate.of(2026, 9, 1), LocalDate.of(2027, 8, 31), "ACTIVE", "BREACHED",
+                "NORMAL", 346, "更新摘要", 0, null, 4, updatedAt, updatedAt, true,
+                List.of("COMPLETED", "TERMINATED"), List.of("IN_PROGRESS", "FULFILLED"), true, false));
+
+        var command = new ContractToolPort.ContractFulfillmentUpdate(
+                81L, 3, "BREACHED", "交付逾期");
+        assertThat(contractAdapter.updateContractFulfillment(actor, command)).isEqualTo(
+                new ContractToolPort.ContractFulfillmentResult(
+                        81L, "HT-001", "ACTIVE", "BREACHED", 4, updatedAt));
+        verify(contracts).updateFulfillment(eq(7L), eq(81L), argThat(request ->
+                request.version() == 3 && request.status().equals("BREACHED")
+                        && request.reason().equals("交付逾期")));
+    }
+
+    @Test
     void submitsExpenseThroughDedicatedTypedBoundary() {
         when(expenseApplications.submitAgentDraft(7L, 51L, 0))
                 .thenReturn(new ExpenseAgentLifecycleReceipt(

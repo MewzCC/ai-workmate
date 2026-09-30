@@ -73,4 +73,23 @@ class AgentContractWriteToolDefinitionsTest {
                 {"contractId":81,"version":2,"status":"PAID"}
                 """))).isFalse();
     }
+
+    @Test
+    void fulfillmentUpdateRequiresSecondaryConfirmationAndClosedArguments() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        ToolDefinition definition = new AgentContractWriteToolDefinitions()
+                .contractUpdateFulfillmentToolDefinition(mapper);
+        assertThat(definition.schemaHash()).isEqualTo(
+                "sha256:d6db3babd6a6432c6f4621cf711fffeda272c3b65f18d34266700235dd620556");
+        assertThat(definition.requiredPermissions()).containsExactly("contract:manage");
+        assertThat(definition.riskLevel()).isEqualTo(RiskLevel.L2);
+        assertThat(definition.retryPolicy()).isEqualTo(RetryPolicy.NEVER);
+        assertThat(definition.confirmationPolicy()).isEqualTo(ConfirmationPolicy.SECONDARY);
+        assertThat(new ToolSchemaValidator().valid(definition.inputSchema(), mapper.readTree("""
+                {"contractId":81,"version":3,"status":"BREACHED","reason":"交付逾期"}
+                """))).isTrue();
+        assertThat(new ToolSchemaValidator().valid(definition.inputSchema(), mapper.readTree("""
+                {"contractId":81,"version":3,"status":"NOT_STARTED"}
+                """))).isFalse();
+    }
 }

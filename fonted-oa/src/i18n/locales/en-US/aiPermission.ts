@@ -97,6 +97,7 @@ const aiPermission = {
     contract_createDraft: { name: 'Create contract draft', description: 'Creates only a contract draft without signing, payment, or external delivery.' },
     contract_updateDraft: { name: 'Update contract draft', description: 'Updates a version-matched contract draft without changing its effective status.' },
     contract_updateStatus: { name: 'Change contract status', description: 'Activates, completes, or terminates one version-matched contract after secondary confirmation.' },
+    contract_updateFulfillment: { name: 'Change contract fulfillment', description: 'Updates the fulfillment progress of one active contract after secondary confirmation; breach requires a reason.' },
     supplier_query: { name: 'Query suppliers', description: 'Returns controlled supplier summaries without contacts or credit identifiers.' },
     supplier_createDraft: { name: 'Create supplier draft', description: 'Creates only a supplier candidate draft without activation or external delivery.' },
     supplier_updateDraft: { name: 'Update supplier draft', description: 'Updates a version-matched supplier draft without changing its enabled status.' },

@@ -80,6 +80,7 @@ public enum ToolCode {
     CONTRACT_CREATE_DRAFT("contract.createDraft", SideEffect.SINGLE_WRITE),
     CONTRACT_UPDATE_DRAFT("contract.updateDraft", SideEffect.SINGLE_WRITE),
     CONTRACT_UPDATE_STATUS("contract.updateStatus", SideEffect.SINGLE_WRITE),
+    CONTRACT_UPDATE_FULFILLMENT("contract.updateFulfillment", SideEffect.SINGLE_WRITE),
     SUPPLIER_QUERY("supplier.query"),
     SUPPLIER_CREATE_DRAFT("supplier.createDraft", SideEffect.SINGLE_WRITE),
     SUPPLIER_UPDATE_DRAFT("supplier.updateDraft", SideEffect.SINGLE_WRITE),
