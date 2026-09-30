@@ -12,6 +12,8 @@ public interface SealToolPort {
     UseResult registerUse(ToolActorContext context, UseCommand command, ToolOperationKey operationKey);
     ToolWriteVerification<UseResult> findRegisteredUse(
             ToolActorContext context, UseCommand command, ToolOperationKey operationKey);
+    StatusResult withdraw(ToolActorContext context, VersionCommand command);
+    StatusResult returnSeal(ToolActorContext context, ReturnCommand command);
     enum Queue { MINE, PENDING }
     record Query(Long usageId, Queue queue, String status, int page, int size) { }
     record ApplicationCommand(String sealType, String documentTitle, String usageReason, int copies) { }
@@ -20,6 +22,9 @@ public interface SealToolPort {
     record UseCommand(long usageId, int version, int actualCopies, String remark) { }
     record UseResult(long usageId, String status, int version, int actualCopies, LocalDateTime usedAt)
             implements ToolWriteReceipt { }
+    record VersionCommand(long usageId, int version) { }
+    record ReturnCommand(long usageId, int version, String remark) { }
+    record StatusResult(long usageId, String status, int version) implements ToolWriteReceipt { }
     record Page(List<Item> items, long total, int page, int size) {
         public Page { items = List.copyOf(items); }
     }

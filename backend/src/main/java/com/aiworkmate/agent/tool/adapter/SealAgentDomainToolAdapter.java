@@ -4,6 +4,8 @@ import com.aiworkmate.agent.tool.port.SealToolPort;
 import com.aiworkmate.agent.tool.port.ToolActorContext;
 import com.aiworkmate.agent.tool.port.ToolOperationKey;
 import com.aiworkmate.agent.tool.port.ToolWriteVerification;
+import com.aiworkmate.dto.SealReturnRequest;
+import com.aiworkmate.dto.VersionRequest;
 import com.aiworkmate.service.AdminAssetsService;
 import com.aiworkmate.service.model.SealAgentApplicationCommand;
 import com.aiworkmate.service.model.SealAgentUseCommand;
@@ -75,6 +77,20 @@ public final class SealAgentDomainToolAdapter implements SealToolPort {
     private SealAgentUseCommand toDomain(UseCommand command) {
         return new SealAgentUseCommand(
                 command.usageId(), command.version(), command.actualCopies(), command.remark());
+    }
+
+    @Override
+    public StatusResult withdraw(ToolActorContext context, VersionCommand command) {
+        var result = adminAssetsService.withdrawSealUsage(
+                context.userId(), command.usageId(), new VersionRequest(command.version()));
+        return new StatusResult(result.id(), result.status(), result.version());
+    }
+
+    @Override
+    public StatusResult returnSeal(ToolActorContext context, ReturnCommand command) {
+        var result = adminAssetsService.returnSeal(
+                context.userId(), command.usageId(), new SealReturnRequest(command.version(), command.remark()));
+        return new StatusResult(result.id(), result.status(), result.version());
     }
 
     private Item toItem(com.aiworkmate.dto.SealUsageResponse item) {

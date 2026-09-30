@@ -980,6 +980,16 @@ class P1PostgresMigrationIT {
                     WHERE code IN ('agent:tool:visitor.withdraw','agent:tool:visitor.noShow')
                     """)).as("访客生命周期工具必须具备独立实时权限").isEqualTo(2);
             assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='SINGLE_WRITE'
+                      AND code IN ('seal.withdraw','seal.return')
+                      AND retry_policy='NEVER' AND confirmation_policy='EXPLICIT'
+                    """)).as("印章用印必须具备撤回与归还两个单记录受控工具").isEqualTo(2);
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code IN ('agent:tool:seal.withdraw','agent:tool:seal.return')
+                    """)).as("印章生命周期工具必须具备独立实时权限").isEqualTo(2);
+            assertThat(count(statement, """
                     SELECT COUNT(*) FROM information_schema.views
                     WHERE table_schema = current_schema() AND table_name = 'runtime_log_view'
                     """)).isOne();

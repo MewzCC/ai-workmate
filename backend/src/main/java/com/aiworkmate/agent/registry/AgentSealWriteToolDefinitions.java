@@ -21,6 +21,16 @@ public class AgentSealWriteToolDefinitions {
     public static final String REGISTER_USE_OUTPUT_SCHEMA = """
             {"type":"object","additionalProperties":false,"required":["usageId","status","version","actualCopies","usedAt"],"properties":{"usageId":{"type":"integer","minimum":1},"status":{"type":"string","const":"USED"},"version":{"type":"integer","minimum":1},"actualCopies":{"type":"integer","minimum":1,"maximum":1000},"usedAt":{"type":"string","format":"date-time"}}}
             """.strip();
+    public static final String WITHDRAW_INPUT_SCHEMA = ClosedToolSchemas.versionedResourceInput("usageId");
+    public static final String RETURN_INPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["usageId","version"],"properties":{"usageId":{"type":"integer","minimum":1},"version":{"type":"integer","minimum":0,"maximum":2147483646},"remark":{"type":"string","maxLength":500}}}
+            """.strip();
+    public static final String WITHDRAW_OUTPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["usageId","status","version"],"properties":{"usageId":{"type":"integer","minimum":1},"status":{"type":"string","const":"WITHDRAWN"},"version":{"type":"integer","minimum":1}}}
+            """.strip();
+    public static final String RETURN_OUTPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["usageId","status","version"],"properties":{"usageId":{"type":"integer","minimum":1},"status":{"type":"string","const":"RETURNED"},"version":{"type":"integer","minimum":1}}}
+            """.strip();
 
     @Bean
     ToolDefinition sealApplyToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {
@@ -42,6 +52,28 @@ public class AgentSealWriteToolDefinitions {
                 objectMapper.readTree(REGISTER_USE_INPUT_SCHEMA),
                 objectMapper.readTree(REGISTER_USE_OUTPUT_SCHEMA),
                 ToolWriteProfile.SECONDARY_L2, Set.of("seal:register"), OwnershipPolicy.SELF,
+                1, 8192, 10000);
+    }
+
+    @Bean
+    ToolDefinition sealWithdrawToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {
+        return ToolDefinitionFactory.singleWrite(
+                ToolCode.SEAL_WITHDRAW, "Withdraw one pending seal application",
+                "Withdraws one pending seal application owned by the authenticated applicant.",
+                "Withdraw one version-bound pending seal application after explicit confirmation.",
+                objectMapper.readTree(WITHDRAW_INPUT_SCHEMA), objectMapper.readTree(WITHDRAW_OUTPUT_SCHEMA),
+                ToolWriteProfile.NON_RETRYABLE_L1, Set.of("seal:withdraw"), OwnershipPolicy.SELF,
+                1, 8192, 10000);
+    }
+
+    @Bean
+    ToolDefinition sealReturnToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {
+        return ToolDefinitionFactory.singleWrite(
+                ToolCode.SEAL_RETURN, "Register one seal return",
+                "Registers return for one used seal application visible to the authenticated registrar.",
+                "Return one version-bound used seal record after explicit confirmation.",
+                objectMapper.readTree(RETURN_INPUT_SCHEMA), objectMapper.readTree(RETURN_OUTPUT_SCHEMA),
+                ToolWriteProfile.NON_RETRYABLE_L1, Set.of("seal:register"), OwnershipPolicy.TENANT_SCOPED,
                 1, 8192, 10000);
     }
 }

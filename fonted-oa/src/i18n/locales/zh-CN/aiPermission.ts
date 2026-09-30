@@ -75,6 +75,8 @@ const aiPermission = {
     seal_query: { name: '查询本人用印记录', description: '读取当前用户有权查看的用印申请和登记。' },
     seal_apply: { name: '发起用印申请', description: '创建一条需审批的用印申请。' },
     seal_registerUse: { name: '登记实际用印', description: '为已批准申请登记一次实际用印。' },
+    seal_withdraw: { name: '撤回用印申请', description: '撤回本人一条仍在审批中的用印申请。' },
+    seal_return: { name: '登记印章归还', description: '为一条有权操作的已用印记录登记归还。' },
     expense_query: { name: '查询本人费用申请', description: '只读取当前用户自己的费用申请摘要。' },
     expense_createDraft: { name: '创建本人费用草稿', description: '仅保存一份本人费用草稿。' },
     expense_updateDraft: { name: '更新本人费用草稿', description: '更新本人且版本匹配的费用草稿。' },

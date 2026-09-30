@@ -149,7 +149,8 @@ public class PageCapabilityCatalog {
                         tool(VISITOR_NO_SHOW)),
                 page(OaPage.SEAL_USAGE, OwnershipPolicy.SELF, LIST_COMMANDS,
                         context(number("usageId"), text("queue"), text("status"), number("page"), number("size")),
-                        tool(SEAL_QUERY), tool(SEAL_APPLY), tool(SEAL_REGISTER_USE)),
+                        tool(SEAL_QUERY), tool(SEAL_APPLY), tool(SEAL_REGISTER_USE),
+                        tool(SEAL_WITHDRAW), tool(SEAL_RETURN)),
 
                 page(OaPage.EXPENSE, OwnershipPolicy.SELF, FORM_COMMANDS,
                         context(number("applicationId"), text("status"), number("page"), number("size")),

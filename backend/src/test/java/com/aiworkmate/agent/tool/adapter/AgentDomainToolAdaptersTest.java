@@ -429,6 +429,36 @@ class AgentDomainToolAdaptersTest {
     }
 
     @Test
+    void mapsSealWithdrawAndReturnThroughVersionBoundDomainRequests() {
+        SealUsageResponse withdrawn = mock(SealUsageResponse.class);
+        when(withdrawn.id()).thenReturn(41L);
+        when(withdrawn.status()).thenReturn("WITHDRAWN");
+        when(withdrawn.version()).thenReturn(3);
+        when(adminAssetsService.withdrawSealUsage(
+                7L, 41L, new com.aiworkmate.dto.VersionRequest(2))).thenReturn(withdrawn);
+
+        assertThat(sealAdapter.withdraw(context,
+                new com.aiworkmate.agent.tool.port.SealToolPort.VersionCommand(41, 2)))
+                .isEqualTo(new com.aiworkmate.agent.tool.port.SealToolPort.StatusResult(
+                        41, "WITHDRAWN", 3));
+
+        SealUsageResponse returned = mock(SealUsageResponse.class);
+        when(returned.id()).thenReturn(42L);
+        when(returned.status()).thenReturn("RETURNED");
+        when(returned.version()).thenReturn(5);
+        var returnRequest = new com.aiworkmate.dto.SealReturnRequest(4, "印章已归还");
+        when(adminAssetsService.returnSeal(7L, 42L, returnRequest)).thenReturn(returned);
+
+        assertThat(sealAdapter.returnSeal(context,
+                new com.aiworkmate.agent.tool.port.SealToolPort.ReturnCommand(42, 4, "印章已归还")))
+                .isEqualTo(new com.aiworkmate.agent.tool.port.SealToolPort.StatusResult(
+                        42, "RETURNED", 5));
+        verify(adminAssetsService).withdrawSealUsage(
+                7L, 41L, new com.aiworkmate.dto.VersionRequest(2));
+        verify(adminAssetsService).returnSeal(7L, 42L, returnRequest);
+    }
+
+    @Test
     void keepsLeaveOperationKeyAndMapsWriteResult() {
         when(leaveWorkflowService.createAgentDraft(eq(7L), org.mockito.ArgumentMatchers.any(), eq("operation-1")))
                 .thenReturn(leaveApplication());

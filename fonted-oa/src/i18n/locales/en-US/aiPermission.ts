@@ -75,6 +75,8 @@ const aiPermission = {
     seal_query: { name: 'Query my seal records', description: 'Reads seal applications and usage records visible to the current user.' },
     seal_apply: { name: 'Submit seal application', description: 'Creates one seal application that requires approval.' },
     seal_registerUse: { name: 'Register actual seal use', description: 'Registers one actual use against an approved seal application.' },
+    seal_withdraw: { name: 'Withdraw seal application', description: 'Withdraws one of your seal applications that is still pending approval.' },
+    seal_return: { name: 'Register seal return', description: 'Registers return for one used seal record you are allowed to operate.' },
     expense_query: { name: 'Query my expense applications', description: 'Reads only expense application summaries owned by the current user.' },
     expense_createDraft: { name: 'Create my expense draft', description: 'Saves one expense draft owned by the current user.' },
     expense_updateDraft: { name: 'Update my expense draft', description: 'Updates an owned, version-matched expense draft.' },
