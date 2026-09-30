@@ -80,6 +80,9 @@ public class AttendanceServiceImpl implements AttendanceService {
     @Transactional
     public AttendanceClockResponse clock(Long userId, AttendanceClockRequest request, String clientIp) {
         ResolvedUserAccess actor = requireActiveUser(userId);
+        if (!actor.permissions().contains("attendance:clock")) {
+            throw new BusinessException(ErrorCode.PERMISSION_DENIED);
+        }
         LocalDate today = LocalDate.now();
         LocalDateTime now = LocalDateTime.now();
         boolean isClockIn = "CLOCK_IN".equals(request.clockType());
@@ -121,6 +124,8 @@ public class AttendanceServiceImpl implements AttendanceService {
             recomputeStatus(record, workHours);
             recordMapper.updateById(record);
         }
+        auditService.recordTransactional(actor.tenantId(), actor.userId(), "ATTENDANCE_RECORD",
+                String.valueOf(record.getId()), request.clockType(), "SUCCESS", record.getClockDate().toString());
         return toClockResponse(record);
     }
 

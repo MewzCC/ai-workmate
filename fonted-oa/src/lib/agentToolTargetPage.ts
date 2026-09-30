@@ -10,6 +10,7 @@ const EXACT_TARGETS: Record<string, string> = {
   'hr.change.query': 'employee-change',
   'hr.change.apply': 'employee-change',
   'attendance.query': 'attendance-clock',
+  'attendance.clock': 'attendance-clock',
   'attendance.reissue.apply': 'attendance-reissue',
   'integration.endpoint.query': 'api-center',
   'pageAction.query': 'page-actions',

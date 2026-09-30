@@ -155,6 +155,9 @@ class PageCapabilityCatalogTest {
         assertThat(catalog.find("attendance-reissue").orElseThrow().writeTools())
                 .extracting(PageToolReference::code)
                 .containsExactly(ToolCode.ATTENDANCE_REISSUE_APPLY);
+        assertThat(catalog.find("attendance-clock").orElseThrow().writeTools())
+                .extracting(PageToolReference::code)
+                .containsExactly(ToolCode.ATTENDANCE_CLOCK);
     }
 
     @Test

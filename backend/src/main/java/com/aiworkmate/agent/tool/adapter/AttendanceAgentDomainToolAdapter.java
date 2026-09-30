@@ -4,6 +4,7 @@ import com.aiworkmate.agent.tool.port.AttendanceToolPort;
 import com.aiworkmate.agent.tool.port.ToolActorContext;
 import com.aiworkmate.agent.tool.port.ToolOperationKey;
 import com.aiworkmate.dto.AttendanceReissueRequest;
+import com.aiworkmate.dto.AttendanceClockRequest;
 import com.aiworkmate.service.AttendanceService;
 import lombok.RequiredArgsConstructor;
 
@@ -25,6 +26,13 @@ public final class AttendanceAgentDomainToolAdapter implements AttendanceToolPor
             case STATISTICS -> statistics(context, query);
             case SETTINGS -> settings(context, query);
         };
+    }
+
+    @Override
+    public ClockWriteResult clock(ToolActorContext context, String clockType) {
+        var item = attendanceService.clock(context.userId(), new AttendanceClockRequest(clockType), null);
+        return new ClockWriteResult(item.id(), item.clockDate(), item.clockInTime(), item.clockOutTime(),
+                item.status(), item.lateMinutes(), item.earlyLeaveMinutes());
     }
 
     @Override

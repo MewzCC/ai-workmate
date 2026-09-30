@@ -30,6 +30,8 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -49,7 +51,8 @@ class AttendanceServiceImplTest {
     private static final long USER_ID = 1001L;
 
     private static final ResolvedUserAccess ACTOR = new ResolvedUserAccess(
-            USER_ID, "alice", "EMPLOYEE", List.of("route:attendance-clock", "attendance:reissue:apply"));
+            USER_ID, "alice", "EMPLOYEE",
+            List.of("route:attendance-clock", "attendance:clock", "attendance:reissue:apply"));
 
     @Mock
     private AttendanceRecordMapper recordMapper;
@@ -183,6 +186,8 @@ class AttendanceServiceImplTest {
         assertThat(inserted.getCreatedAt()).isNotNull();
         assertThat(inserted.getUpdatedAt()).isNotNull();
         assertThat(inserted.getClockInTime()).isNotNull();
+        verify(auditService).recordTransactional(eq(ACTOR.tenantId()), eq(USER_ID),
+                eq("ATTENDANCE_RECORD"), anyString(), eq("CLOCK_IN"), eq("SUCCESS"), anyString());
     }
 
     @Test

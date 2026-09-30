@@ -543,6 +543,19 @@ class P1PostgresMigrationIT {
                     """)).as("考勤 Agent 工具必须具备业务与工具两层实时权限").isEqualTo(2);
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'attendance.clock' AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:dd02d5489088fddfdb73f510972bf86b047b75470e72ac4c8293758f908bdd86'
+                      AND risk_level = 'L1' AND data_scope_policy = 'SELF'
+                      AND required_permissions = '["attendance:clock"]'::jsonb
+                      AND retry_policy = 'NEVER' AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'EXPLICIT' AND enabled = TRUE
+                    """)).as("本人考勤打卡工具必须以冻结的当前时间原子写契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code IN ('attendance:clock', 'agent:tool:attendance.clock')
+                    """)).as("本人考勤打卡工具必须具备业务与工具两层实时权限").isEqualTo(2);
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
                     WHERE tenant_id IS NULL AND code = 'attendance.reissue.apply' AND handler_version = '1.0.0'
                       AND schema_hash = 'sha256:bb3f7af3920e01290f14107d053425e8d986f988069eaa20031455ce49cce760'
                       AND risk_level = 'L1' AND data_scope_policy = 'SELF'

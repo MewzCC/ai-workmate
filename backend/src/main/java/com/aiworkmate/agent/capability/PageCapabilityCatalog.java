@@ -192,7 +192,7 @@ public class PageCapabilityCatalog {
                         tool(SANDBOX_REPLAY_QUERY)),
 
                 page(OaPage.ATTENDANCE_CLOCK, OwnershipPolicy.SELF, READ_COMMANDS,
-                        context(text("resource")), tool(ATTENDANCE_QUERY)),
+                        context(text("resource")), tool(ATTENDANCE_QUERY), tool(ATTENDANCE_CLOCK)),
                 page(OaPage.ATTENDANCE_EXCEPTION, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         attendanceListContext(), tool(ATTENDANCE_QUERY)),
                 page(OaPage.ATTENDANCE_REISSUE, OwnershipPolicy.SELF, LIST_COMMANDS,

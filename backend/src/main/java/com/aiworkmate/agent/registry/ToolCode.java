@@ -34,6 +34,7 @@ public enum ToolCode {
     HR_CHANGE_QUERY("hr.change.query"),
     HR_CHANGE_APPLY("hr.change.apply", SideEffect.SINGLE_WRITE),
     ATTENDANCE_QUERY("attendance.query"),
+    ATTENDANCE_CLOCK("attendance.clock", SideEffect.SINGLE_WRITE),
     ATTENDANCE_REISSUE_APPLY("attendance.reissue.apply", SideEffect.SINGLE_WRITE),
     APPROVAL_APPLICATION_CREATE_DRAFT("approval.application.createDraft", SideEffect.SINGLE_WRITE),
     APPROVAL_APPLICATION_UPDATE_DRAFT("approval.application.updateDraft", SideEffect.SINGLE_WRITE),

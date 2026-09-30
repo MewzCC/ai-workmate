@@ -51,6 +51,7 @@ const aiPermission = {
     hr_change_query: { name: 'Query employee changes', description: 'Reads onboarding, regularization, transfer, and offboarding summaries within live data scope.' },
     hr_change_apply: { name: 'Submit employee change application', description: 'Creates one approval-required employee change application without directly changing the employee profile.' },
     attendance_query: { name: 'Query attendance view', description: 'Reads attendance summaries within the current page and data scope.' },
+    attendance_clock: { name: 'Clock attendance', description: 'Clocks in or out once for the current user at server time after explicit confirmation.' },
     attendance_reissue_apply: { name: 'Submit my attendance correction', description: 'Creates one approval-required correction for the current user without changing clock records directly.' },
     approval_application_createDraft: { name: 'Create general application draft', description: 'Saves only a draft owned by the current user without starting approval.' },
     approval_application_submitDraft: { name: 'Submit general application draft', description: 'Submits an owned, version-matched draft and starts approval.' },

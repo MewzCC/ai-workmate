@@ -29,6 +29,7 @@ describe('Agent tool business navigation', () => {
   });
 
   it('uses task center only for task inspection or unknown historical tools', () => {
+    expect(agentToolTargetPage('attendance.clock')).toBe('attendance-clock');
     expect(agentToolTargetPage('agentTask.mine.query')).toBe('ai-tasks');
     expect(agentToolTargetPage('legacy.unknown')).toBe('ai-tasks');
   });

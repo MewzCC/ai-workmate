@@ -9,12 +9,30 @@ import java.util.Set;
 
 @Configuration(proxyBeanMethods = false)
 public class AgentAttendanceWriteToolDefinitions {
+    public static final String CLOCK_INPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["clockType"],"properties":{"clockType":{"type":"string","enum":["CLOCK_IN","CLOCK_OUT"]}}}
+            """.strip();
+    public static final String CLOCK_OUTPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["recordId","clockDate","status","lateMinutes","earlyLeaveMinutes"],"properties":{"recordId":{"type":"integer","minimum":1},"clockDate":{"type":"string","format":"date"},"clockInTime":{"type":["string","null"],"format":"date-time"},"clockOutTime":{"type":["string","null"],"format":"date-time"},"status":{"type":"string","enum":["NORMAL","LATE","EARLY_LEAVE","LATE_AND_EARLY","MISSING_CLOCK"]},"lateMinutes":{"type":"integer","minimum":0},"earlyLeaveMinutes":{"type":"integer","minimum":0}}}
+            """.strip();
     public static final String REISSUE_INPUT_SCHEMA = """
             {"type":"object","additionalProperties":false,"required":["clockDate","clockType","reason"],"properties":{"clockDate":{"type":"string","format":"date"},"clockType":{"type":"string","enum":["CLOCK_IN","CLOCK_OUT"]},"reason":{"type":"string","minLength":1,"maxLength":500}}}
             """.strip();
     public static final String REISSUE_OUTPUT_SCHEMA = """
             {"type":"object","additionalProperties":false,"required":["reissueId","status","clockDate","clockType","submittedAt"],"properties":{"reissueId":{"type":"integer","minimum":1},"status":{"type":"string","const":"PENDING"},"clockDate":{"type":"string","format":"date"},"clockType":{"type":"string","enum":["CLOCK_IN","CLOCK_OUT"]},"submittedAt":{"type":"string","format":"date-time"}}}
             """.strip();
+
+    @Bean
+    public ToolDefinition attendanceClockToolDefinition(ObjectMapper objectMapper)
+            throws JsonProcessingException {
+        return ToolDefinitionFactory.singleWrite(
+                ToolCode.ATTENDANCE_CLOCK, "Clock my attendance",
+                "Records one current-time clock-in or clock-out for the authenticated user.",
+                "Clock only the current user at server time after explicit confirmation; never accept another identity or timestamp.",
+                objectMapper.readTree(CLOCK_INPUT_SCHEMA), objectMapper.readTree(CLOCK_OUTPUT_SCHEMA),
+                ToolWriteProfile.NON_RETRYABLE_L1, Set.of("attendance:clock"), OwnershipPolicy.SELF,
+                1, 4096, 10000);
+    }
 
     @Bean
     public ToolDefinition attendanceReissueApplyToolDefinition(ObjectMapper objectMapper)

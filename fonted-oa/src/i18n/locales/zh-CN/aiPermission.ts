@@ -51,6 +51,7 @@ const aiPermission = {
     hr_change_query: { name: '查询员工变动', description: '按实时数据范围读取入转调离申请摘要。' },
     hr_change_apply: { name: '发起员工变动申请', description: '仅创建一条需审批的员工变动申请，不直接修改员工档案。' },
     attendance_query: { name: '查询考勤视图', description: '按页面和数据范围读取考勤摘要。' },
+    attendance_clock: { name: '考勤打卡', description: '经显式确认后按服务端当前时间为本人完成一次上班或下班打卡。' },
     attendance_reissue_apply: { name: '提交本人补卡申请', description: '仅创建本人待审批补卡申请，不直接修改打卡记录。' },
     approval_application_createDraft: { name: '创建通用申请草稿', description: '仅保存本人草稿，不启动审批。' },
     approval_application_submitDraft: { name: '提交通用申请草稿', description: '提交本人且版本匹配的草稿并启动审批。' },

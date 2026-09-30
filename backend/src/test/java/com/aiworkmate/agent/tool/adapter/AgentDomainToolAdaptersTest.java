@@ -200,6 +200,21 @@ class AgentDomainToolAdaptersTest {
     }
 
     @Test
+    void mapsSelfAttendanceClockWithoutInventingClientIpOrTimestamp() {
+        LocalDate day = LocalDate.of(2026, 9, 30);
+        LocalDateTime clockIn = day.atTime(9, 0);
+        when(attendanceService.clock(7L, new com.aiworkmate.dto.AttendanceClockRequest("CLOCK_IN"), null))
+                .thenReturn(new com.aiworkmate.dto.AttendanceClockResponse(
+                        81L, day, clockIn, null, "NORMAL", 0, 0));
+
+        assertThat(attendanceAdapter.clock(context, "CLOCK_IN")).isEqualTo(
+                new AttendanceToolPort.ClockWriteResult(
+                        81L, day, clockIn, null, "NORMAL", 0, 0));
+        verify(attendanceService).clock(
+                7L, new com.aiworkmate.dto.AttendanceClockRequest("CLOCK_IN"), null);
+    }
+
+    @Test
     void mapsVisitorSummaryWithoutPhonePlateOrInternalIdentities() {
         LocalDateTime now = LocalDateTime.of(2026, 9, 14, 9, 30);
         when(adminAssetsService.listMyVisitorBookings(7L, "APPROVED", 1, 20))
