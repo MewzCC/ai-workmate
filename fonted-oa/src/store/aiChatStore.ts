@@ -3,7 +3,7 @@
 import { create } from 'zustand';
 import { message as antMessage } from '@/lib/antdMessage';
 import {
-  createConversation, deleteConversation, listConversations, listMessages,
+  appendAgentTodoResult, createConversation, deleteConversation, listConversations, listMessages,
   renameConversation, sendChat, streamChat, uploadAttachment,
 } from '@/lib/chatApi';
 import type { ChatAttachment, ChatConversation, ChatMessage, ChatMessageCitation, ChatSettings } from '@/types/chat';
@@ -12,11 +12,13 @@ import { StreamTypewriter } from '@/lib/StreamTypewriter';
 import { uuid } from '@/lib/uuid';
 import i18n from '@/i18n';
 import { getChatPreferences, updateChatPreferences } from '@/lib/userSettingsApi';
+import { agentTaskApi, executeAiTask, planAiTask } from '@/lib/oaApi';
 
 const SETTINGS_KEY = 'workmeta-ai-chat-settings';
 const SETTINGS_MIGRATED_KEY = 'workmeta-ai-chat-settings-migrated';
 const controllers = new Map<number, AbortController>();
 const typewriters = new Map<number, StreamTypewriter>();
+const agentTasks = new Map<number, string>();
 let settingsHydration: Promise<void> | null = null;
 
 export interface UploadProgressItem {
@@ -54,6 +56,30 @@ interface AiChatState {
 }
 
 const defaultSettings: ChatSettings = { model: DEFAULT_AI_MODEL, kbId: null, maxContextRounds: 10, stream: true };
+
+/** A narrow read-intent route. All planning, execution and ownership checks remain server-side. */
+export function isMyTodoQuery(content: string): boolean {
+  const normalized = content.trim().replace(/[？?。！!，,\s]/g, '');
+  return /^(?:请|帮我|给我|能否|可以)?(?:查(?:一?下|询|看)?|看(?:一?下)?|搜索|列出|显示)?(?:我(?:的)?|本人)(?:待办|待处理(?:事项|任务)?)(?:有(?:哪(?:些|几条))?|列表|事项|任务|情况)?$/.test(normalized);
+}
+
+async function waitForReadTask(taskId: string, signal: AbortSignal): Promise<void> {
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
+    const detail = await agentTaskApi.detail(taskId);
+    if (detail.status === 'SUCCEEDED' && detail.steps.length === 1
+        && detail.steps[0].toolCode === 'todo.query' && detail.steps[0].status === 'SUCCEEDED') return;
+    if (['FAILED', 'TIMED_OUT', 'REJECTED', 'EXPIRED', 'CANCELLED', 'PARTIALLY_SUCCEEDED'].includes(detail.status)) {
+      throw new Error(i18n.t('chat.todoQueryFailed'));
+    }
+    await new Promise<void>((resolve) => {
+      const onAbort = () => { window.clearTimeout(timer); resolve(); };
+      const timer = window.setTimeout(() => { signal.removeEventListener('abort', onAbort); resolve(); }, 1000);
+      signal.addEventListener('abort', onAbort, { once: true });
+    });
+  }
+  throw new Error(i18n.t('chat.todoQueryTimeout'));
+}
 
 export const useAiChatStore = create<AiChatState>((set, get) => ({
   conversations: [],
@@ -254,33 +280,51 @@ export const useAiChatStore = create<AiChatState>((set, get) => ({
     const controller = new AbortController();
     controllers.set(conversationId, controller);
     try {
-      const request = {
-        conversationId,
-        message: content,
-        model: state.settings.model,
-        kbId: state.settings.kbId ?? null,
-        attachmentIds: attachments.map((item) => item.id),
-        maxContextRounds: state.settings.maxContextRounds,
-      };
-      if (state.settings.stream) {
-        const typewriter = new StreamTypewriter((delta) => {
-          appendMessageContent(set, conversationId, assistantId, delta);
-        });
-        typewriters.set(conversationId, typewriter);
-        await streamChat(request, controller.signal, (event) => {
-          if (event.type === 'delta' && event.data) typewriter.push(event.data);
-          if (event.type === 'references' && event.data) {
-            try {
-              const citations = JSON.parse(event.data) as ChatMessageCitation[];
-              updateMessage(set, conversationId, assistantId, { citations });
-            } catch {
-              // 引用数据异常时忽略，不影响对话主流程
-            }
-          }
-        });
-        await typewriter.finish();
+      if (attachments.length === 0 && isMyTodoQuery(content)) {
+        const plan = await planAiTask({ input: content, pageId: 'ai-workspace' });
+        if (controller.signal.aborted) throw new DOMException('Aborted', 'AbortError');
+        const argumentsObject = plan.steps[0]?.arguments ?? {};
+        if (plan.riskLevel !== 'L0' || plan.confirmationRequired || plan.steps.length !== 1
+            || plan.steps[0].toolCode !== 'todo.query'
+            || (argumentsObject.status != null && argumentsObject.status !== 'PENDING')
+            || argumentsObject.from != null || argumentsObject.to != null
+            || (argumentsObject.page != null && argumentsObject.page !== 1)) {
+          throw new Error(i18n.t('chat.todoPlanUnavailable'));
+        }
+        agentTasks.set(conversationId, plan.taskId);
+        await executeAiTask(plan.taskId, { planVersion: plan.planVersion, planHash: plan.planHash });
+        await waitForReadTask(plan.taskId, controller.signal);
+        if (controller.signal.aborted) throw new DOMException('Aborted', 'AbortError');
+        await appendAgentTodoResult(conversationId, plan.taskId);
       } else {
-        await sendChat(request, controller.signal);
+        const request = {
+          conversationId,
+          message: content,
+          model: state.settings.model,
+          kbId: state.settings.kbId ?? null,
+          attachmentIds: attachments.map((item) => item.id),
+          maxContextRounds: state.settings.maxContextRounds,
+        };
+        if (state.settings.stream) {
+          const typewriter = new StreamTypewriter((delta) => {
+            appendMessageContent(set, conversationId, assistantId, delta);
+          });
+          typewriters.set(conversationId, typewriter);
+          await streamChat(request, controller.signal, (event) => {
+            if (event.type === 'delta' && event.data) typewriter.push(event.data);
+            if (event.type === 'references' && event.data) {
+              try {
+                const citations = JSON.parse(event.data) as ChatMessageCitation[];
+                updateMessage(set, conversationId, assistantId, { citations });
+              } catch {
+                // 引用数据异常时忽略，不影响对话主流程
+              }
+            }
+          });
+          await typewriter.finish();
+        } else {
+          await sendChat(request, controller.signal);
+        }
       }
       const persistedMessages = await listMessages(conversationId);
       set((current) => ({
@@ -297,10 +341,13 @@ export const useAiChatStore = create<AiChatState>((set, get) => ({
         await typewriter?.finish();
       }
       if (!controller.signal.aborted) antMessage.error(error instanceof Error ? error.message : i18n.t('chat.aiReplyFailed'));
-      updateMessage(set, conversationId, assistantId, { status: 'failed' });
+      updateMessage(set, conversationId, assistantId, {
+        status: 'failed', content: error instanceof Error && !controller.signal.aborted ? error.message : i18n.t('chat.aiReplyFailed'),
+      });
     } finally {
       controllers.delete(conversationId);
       typewriters.delete(conversationId);
+      agentTasks.delete(conversationId);
       set((current) => ({ generatingIds: current.generatingIds.filter((id) => id !== conversationId) }));
     }
   },
@@ -308,6 +355,8 @@ export const useAiChatStore = create<AiChatState>((set, get) => ({
   stop: (id) => {
     controllers.get(id)?.abort();
     typewriters.get(id)?.cancel();
+    const taskId = agentTasks.get(id);
+    if (taskId) void agentTaskApi.cancel(taskId).catch(() => undefined);
   },
   retry: async (content) => get().send(content),
 

@@ -65,6 +65,7 @@ class P1PostgresMigrationIT {
         assertThat(emptyResult.migrationsExecuted).isGreaterThan(0);
         assertThat(empty.validateWithResult().validationSuccessful).isTrue();
         assertP1Schema(emptySchema);
+        assertChatAgentResultSchema(emptySchema);
         MeetingBookingPostgresVerifier.verify(databaseUrl, databaseUsername, databasePassword, emptySchema);
         AttendanceReissuePostgresVerifier.verify(databaseUrl, databaseUsername, databasePassword, emptySchema);
         NotificationMarkReadPostgresVerifier.verify(databaseUrl, databaseUsername, databasePassword, emptySchema);
@@ -111,6 +112,7 @@ class P1PostgresMigrationIT {
         assertThat(upgraded.migrate().migrationsExecuted).isGreaterThan(0);
         assertThat(upgraded.validateWithResult().validationSuccessful).isTrue();
         assertP1Schema(upgradeSchema);
+        assertChatAgentResultSchema(upgradeSchema);
         PlatformOperationLogPostgresVerifier.verify(
                 databaseUrl, databaseUsername, databasePassword, upgradeSchema);
         assertThat(queryCount(upgradeSchema, """
@@ -152,6 +154,19 @@ class P1PostgresMigrationIT {
                 .baselineVersion(MigrationVersion.fromVersion("0"));
         if (target != null) configuration.target(target);
         return configuration.load();
+    }
+
+    private static void assertChatAgentResultSchema(String schema) throws Exception {
+        assertThat(queryCount(schema, """
+                SELECT COUNT(*) FROM information_schema.columns
+                WHERE table_schema = current_schema() AND table_name = 'message'
+                  AND column_name = 'source_task_no'
+                """)).isOne();
+        assertThat(queryCount(schema, """
+                SELECT COUNT(*) FROM pg_indexes
+                WHERE schemaname = current_schema() AND tablename = 'message'
+                  AND indexname = 'uk_message_source_task_no' AND indexdef ILIKE '%UNIQUE%'
+                """)).isOne();
     }
 
     private static void assertP1Schema(String schema) throws Exception {

@@ -97,6 +97,16 @@ class AgentDomainToolAdaptersTest {
     }
 
     @Test
+    void defaultsUnfilteredTodoQueryToPendingLikeMyTodoPage() {
+        when(leaveWorkflowService.todos(7L, "PENDING", null, null, 1, 20))
+                .thenReturn(PageResponse.of(List.of(), 0, 1, 20));
+        TodoToolPort.Page result = todoAdapter.query(context,
+                new TodoToolPort.Query(null, null, null, 1, 20));
+        assertThat(result.total()).isZero();
+        verify(leaveWorkflowService).todos(7L, "PENDING", null, null, 1, 20);
+    }
+
+    @Test
     void dispatchesApprovalResourceThroughTypedDomainMethod() {
         LocalDateTime now = LocalDateTime.of(2026, 9, 12, 8, 30);
         when(approvalEngineService.listForms(7L, "报销", "ENABLED", 1, 20))

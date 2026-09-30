@@ -558,6 +558,12 @@ export default function AdminLayout() {
             pageContext={agentPageContext?.pageId === selectedMenu.id ? agentPageContext.snapshot : undefined}
             miniEnabled={aiMiniEnabled}
             onPageRefresh={() => setPageRevision((revision) => revision + 1)}
+            onNavigatePage={(pageId) => {
+              const target = findMenu(pageId, menus);
+              if (!target || target.type !== 'page') return false;
+              navigateToPage(toPageTab(target));
+              return true;
+            }}
           />
 
           <AppearanceDrawer

@@ -20,6 +20,7 @@ interface AIOperationDrawerProps {
   onClose: () => void;
   onOpenChangeComplete?: (open: boolean) => void;
   onExecutionCompleted?: () => void;
+  onNavigatePage?: (pageId: string) => boolean;
 }
 
 interface ChatLine { role: 'user' | 'assistant'; content: string }
@@ -55,7 +56,7 @@ function resultPage(result: unknown): { total: number; empty: boolean } | null {
     : null;
 }
 
-export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageContext, initialPrompt, onClose, onOpenChangeComplete, onExecutionCompleted }: AIOperationDrawerProps) {
+export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageContext, initialPrompt, onClose, onOpenChangeComplete, onExecutionCompleted, onNavigatePage }: AIOperationDrawerProps) {
   const { t } = useTranslation();
   const { message, modal } = AntdApp.useApp();
   const [input, setInput] = useState('');
@@ -81,6 +82,7 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageC
   const loadedResultTaskRef = useRef<string | null>(null);
   const resultRequestRef = useRef(0);
   const resultCardRef = useRef<HTMLDivElement | null>(null);
+  const answeredTaskRef = useRef<string | null>(null);
   const currentPageIdRef = useRef(pageId);
   currentPageIdRef.current = pageId;
 
@@ -145,6 +147,17 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageC
       }
       setResultDetail(detail);
       setTaskStatus(detail.status);
+      const todoStep = detail.status === 'SUCCEEDED'
+        ? detail.steps.find((step) => step.toolCode === 'todo.query' && step.status === 'SUCCEEDED')
+        : null;
+      if (todoStep?.resultSummary && answeredTaskRef.current !== taskId) {
+        answeredTaskRef.current = taskId;
+        setMessages((previous) => [...previous, { role: 'assistant', content: todoStep.resultSummary! }]);
+        if ((todoStep.arguments?.status == null || todoStep.arguments.status === 'PENDING')
+            && todoStep.arguments?.from == null && todoStep.arguments?.to == null) {
+          onNavigatePage?.('todo');
+        }
+      }
     } catch (error) {
       if (request !== resultRequestRef.current) return;
       loadedResultTaskRef.current = null;
@@ -338,7 +351,7 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageC
               {step.resultSummary && <Typography.Paragraph>{step.resultSummary}</Typography.Paragraph>}
               {resultPage(step.result) && <Typography.Paragraph type="secondary">{t('oa.ai.resultCount', { count: resultPage(step.result)?.total })}</Typography.Paragraph>}
               {resultPage(step.result)?.empty && <Empty description={t('oa.ai.resultEmpty')} image={Empty.PRESENTED_IMAGE_SIMPLE} />}
-              {step.result != null && !resultPage(step.result)?.empty && <pre className="oa-ai-result-json">{JSON.stringify(step.result, null, 2)}</pre>}
+              {step.result != null && !step.resultSummary && !resultPage(step.result)?.empty && <pre className="oa-ai-result-json">{JSON.stringify(step.result, null, 2)}</pre>}
               {step.result == null && <Typography.Text type="secondary">{step.errorCode || t('oa.ai.noStepResult')}</Typography.Text>}
             </div>)}
           </Space>}

@@ -121,4 +121,8 @@ export default {
   uploadFailed: '上传失败',
   defaultAttachmentPrompt: '请分析这些附件。',
   aiReplyFailed: 'AI 回复失败',
+  todoQueryFailed: '待办查询未完成，请在 AI 任务中心查看任务状态。',
+  todoQueryTimeout: '待办查询仍在执行，请稍后到 AI 任务中心查看。',
+  todoPlanUnavailable: '当前未能生成受控的待办查询计划，未执行任何查询。',
+  openMyTodo: '前往我的待办',
 };

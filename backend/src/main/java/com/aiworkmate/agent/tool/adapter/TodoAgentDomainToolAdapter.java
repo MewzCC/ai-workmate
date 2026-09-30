@@ -13,7 +13,8 @@ public final class TodoAgentDomainToolAdapter implements TodoToolPort {
     @Override
     public Page query(ToolActorContext context, Query query) {
         var result = leaveWorkflowService.todos(
-                context.userId(), query.status(), query.from(), query.to(), query.page(), query.size());
+                context.userId(), query.status() == null ? "PENDING" : query.status(),
+                query.from(), query.to(), query.page(), query.size());
         return new Page(result.records().stream().map(item -> new Item(
                 item.id(), item.applicationId(), item.applicantName(), item.leaveType(), item.durationHalfDays(),
                 item.status(), item.version(), item.submittedAt(), item.dueAt(), item.overdue())).toList(),

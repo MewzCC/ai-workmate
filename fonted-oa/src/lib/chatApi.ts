@@ -58,6 +58,12 @@ export async function listMessages(conversationId: number): Promise<ChatMessage[
   return parse(await fetch(`${BASE}/conversations/${conversationId}/messages`, { headers: headers(false) }));
 }
 
+export async function appendAgentTodoResult(conversationId: number, taskId: string): Promise<string> {
+  return parse(await fetch(`${BASE}/conversations/${conversationId}/agent-results/${encodeURIComponent(taskId)}`, {
+    method: 'POST', headers: headers(false),
+  }));
+}
+
 export async function uploadAttachment(
   conversationId: number,
   file: File,

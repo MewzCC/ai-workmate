@@ -9,6 +9,7 @@ AI Chat Workspace 是 OA 左侧菜单中的独立工作页面，路由为 `/oa/a
 - 聊天模型可以分析和建议，但不能声称已完成审批、付款、删除、权限修改或敏感导出。
 - OA 写操作继续使用 `/api/ai/tasks/plan` 与 `/api/ai/tasks/execute`，执行前重新鉴权，高风险动作人工确认。
 - 未连接真实业务工具时返回能力不可用，不提供 mock 成功。
+- “查询我的待办”走受控只读 Agent 任务，不由通用聊天模型猜测业务数据；执行结果来自 Tool Gateway 调用的真实业务工具。
 
 ## 2. 技术方案
 
@@ -78,13 +79,14 @@ backend/src/main/java/com/aiworkmate/
 | GET | `/api/attachments/{id}/content` | 读取图片或文件 | JWT + attachment owner |
 | POST | `/api/chat` | 非流式聊天 | JWT + conversation/attachment owner |
 | POST | `/api/chat/stream` | SSE 流式聊天 | JWT + conversation/attachment owner |
+| POST | `/api/conversations/{id}/agent-results/{taskId}` | 将已完成的本人待办查询转为可读回复并写入会话 | JWT + 会话/任务所有权 + 实时权限 + 只读计划校验 |
 
 流式事件类型为 `metadata`、`delta`、`done`、`error`。错误事件包含 `errorCode` 和 `traceId`。
 
 ## 5. 数据模型
 
 - **Conversation**：`id`、`userId`、`title`、`model`、`createdAt`、`updatedAt`。
-- **Message**：`id`、`conversationId`、`role`、`content`、`status`、`feedback`、`tokenCount`、`createdAt`。
+- **Message**：`id`、`conversationId`、`role`、`content`、`status`、`feedback`、`tokenCount`、`sourceTaskNo`、`createdAt`。`sourceTaskNo` 只由服务端写入，标记来自已验证的 Agent 任务。
 - **Attachment**：`id`、`userId`、`conversationId`、`messageId`、`type`、`name`、`storageName`、`size`、`mimeType`、`extractedText`、`createdAt`。
 
 原始文件名仅用于展示；磁盘文件名使用 UUID。附件在发送时绑定消息，已绑定附件不能被其他消息重复引用。
@@ -99,6 +101,8 @@ backend/src/main/java/com/aiworkmate/
 6. API Key 仅由 `AI_API_KEY` 注入；设置页不读取或保存密钥。
 7. 系统提示词禁止权限提升和伪造业务执行结果。
 8. 删除会话只删除当前用户拥有的资源，并同步清理物理附件。
+9. 待办查询先规划并通过 Tool Gateway 执行；结果接口仅读取已成功的本人 L0 单步 `todo.query` 任务，不直接调用工具处理器，也不接受前端传入的查询结果。
+10. 结果写入在数据库行锁和唯一索引下幂等；越权、跨租户、非待处理筛选和未完成任务均拒绝，不把模型文本当作成功凭据。
 
 ## 7. 当前交付状态
 
@@ -113,18 +117,19 @@ backend/src/main/java/com/aiworkmate/
 - PDF、Word、Excel、CSV、Markdown、文本解析缓存。
 - Markdown、代码高亮、亮暗主题和移动端会话抽屉。
 - 模型、上下文轮数、流式开关和清空记录设置。
+- 本人待办只读查询可在聊天会话中展示真实结果，回复提供有权限时的“前往我的待办”入口；侧边 AI 小窗执行相同工具后展示可读摘要并打开待办页面。无匹配记录时明确显示 0 条。
 
 ### 外部依赖
 
 - 需要 PostgreSQL、Redis 和后端服务可访问。
 - 需要有效 `AI_API_KEY`、`AI_BASE_URL` 和 `AI_MODEL`。
 - 图像识别要求配置的模型本身支持视觉输入。
-- 新库和既有数据库统一执行 `backend/src/main/resources/db/init.sql`；该文件已包含 AI Chat Workspace 表结构与兼容升级。
+- 新库和既有数据库均由 Flyway 自动迁移；本次会话结果来源字段由 `V202609281000__chat_agent_result_source.sql` 增加，不修改历史迁移。
 
 ### 有意保留的边界
 
 - 浏览器不能编辑或读取 API Key、内部 AI 网关地址。
-- Chat Workspace 当前不直接调用 OA 写工具；页面操作仍进入受控 plan/execute 链路。
+- Chat Workspace 仅为明确的本人待办查询接入受控 L0 只读计划；OA 写操作仍走独立受控 plan/execute 链路，不通过聊天结果接口写业务数据。
 - 附件当前使用本地磁盘，生产环境应迁移对象存储并增加病毒扫描。
 
 ## 8. 启动方式

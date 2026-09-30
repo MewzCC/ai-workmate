@@ -11,6 +11,7 @@ public record MessageResponse(
         String feedback,
         List<AttachmentResponse> attachments,
         List<MessageCitationResponse> citations,
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        String sourceTaskNo
 ) {
 }

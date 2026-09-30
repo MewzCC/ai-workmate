@@ -17,6 +17,8 @@ import AttachmentPreview from './AttachmentPreview';
 import MarkdownRenderer from './MarkdownRenderer';
 import CitationList, { extractCitedIndexes, type CitedItem } from './CitationList';
 import { OaIcon } from '@/components/OaIcon';
+import { usePermission } from '@/hooks/usePermission';
+import { useRouter } from '@/lib/nextCompat';
 
 interface MessageItemProps {
   item: ChatMessage;
@@ -27,6 +29,8 @@ export default function MessageItem({ item, onRetry }: MessageItemProps) {
   const { t } = useTranslation();
   const isAssistant = item.role === 'assistant';
   const { user } = useAuth();
+  const { allowed: canOpenTodo } = usePermission('route:todo');
+  const router = useRouter();
   const [feedbackValue, setFeedbackValue] = useState(item.feedback);
 
   // 末尾引用列表只展示正文中实际标注过的引用，保持与上标序号一一对应；
@@ -91,6 +95,11 @@ export default function MessageItem({ item, onRetry }: MessageItemProps) {
         </div>
         {isAssistant && item.status === 'success' && visibleCitations.length > 0 && (
           <CitationList citations={visibleCitations} />
+        )}
+        {isAssistant && item.sourceTaskNo && canOpenTodo && (
+          <Button type="link" icon={<OaIcon name="todo" />} onClick={() => router.push('/oa/todo')}>
+            {t('chat.openMyTodo')}
+          </Button>
         )}
         {isAssistant && item.status !== 'sending' && (
           <Space size={2} className="ai-message-actions">

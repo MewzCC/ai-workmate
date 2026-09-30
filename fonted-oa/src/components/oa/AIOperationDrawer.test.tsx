@@ -39,6 +39,7 @@ const basePlan = {
 function renderDrawer(
   onExecutionCompleted = vi.fn(),
   pageContext?: Readonly<Record<string, string | number | boolean>>,
+  onNavigatePage?: (pageId: string) => boolean,
 ) {
   render(
     <App>
@@ -50,6 +51,7 @@ function renderDrawer(
         pageContext={pageContext}
         onClose={vi.fn()}
         onExecutionCompleted={onExecutionCompleted}
+        onNavigatePage={onNavigatePage}
       />
     </App>,
   );
@@ -177,6 +179,30 @@ describe('AIOperationDrawer', () => {
     expect(await screen.findByText('实际执行结果')).toBeTruthy();
     expect(await screen.findByText('共 1 条记录')).toBeTruthy();
     expect(await screen.findByText(/张三/)).toBeTruthy();
+  });
+
+  it('answers with real todo text and navigates to an authorized todo page once', async () => {
+    api.planAiTask.mockResolvedValue(basePlan);
+    api.executeAiTask.mockResolvedValue({ taskId: basePlan.taskId, status: 'QUEUED', statusUrl: '/status', eventsUrl: '/events' });
+    api.agentTaskApi.detail.mockResolvedValue({ taskId: basePlan.taskId, status: 'SUCCEEDED', steps: [
+      { sequence: 1, toolCode: 'todo.query', status: 'SUCCEEDED', arguments: {},
+        resultSummary: '查询到 1 条：张三的年假申请。', result: { total: 1, items: [{ id: 1, applicantName: '张三' }] } },
+    ], errorCode: null });
+    const navigate = vi.fn(() => true);
+    renderDrawer(vi.fn(), undefined, navigate);
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: '查询我的待办' } });
+    fireEvent.click(screen.getByRole('button', { name: /发送 \/ 生成计划/ }));
+    await waitFor(() => expect(screen.getAllByText(basePlan.summary)).toHaveLength(2));
+    fireEvent.click(screen.getByRole('button', { name: '执行计划' }));
+    await waitFor(() => expect(api.subscribeAiTaskEvents).toHaveBeenCalledTimes(1));
+    const subscription = api.subscribeAiTaskEvents.mock.calls[0][1] as {
+      onEvent: (event: { id: string; type: string; data: Record<string, unknown> }) => void;
+    };
+    act(() => subscription.onEvent({ id: 'evt-1', type: 'task-completed', data: { status: 'SUCCEEDED' } }));
+    await waitFor(() => expect(navigate).toHaveBeenCalledOnce());
+    expect(navigate).toHaveBeenCalledWith('todo');
+    expect(screen.getAllByText('查询到 1 条：张三的年假申请。')).toHaveLength(2);
+    expect(document.querySelector('.oa-ai-result-json')).toBeNull();
   });
 
   it('keeps the prompt when planning fails and does not erase a newer draft', async () => {

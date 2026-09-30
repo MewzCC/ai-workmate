@@ -121,4 +121,8 @@ export default {
   uploadFailed: 'Upload failed',
   defaultAttachmentPrompt: 'Please analyze these attachments.',
   aiReplyFailed: 'AI response failed',
+  todoQueryFailed: 'The task query did not finish. Check its status in AI Task Center.',
+  todoQueryTimeout: 'The task query is still running. Check AI Task Center shortly.',
+  todoPlanUnavailable: 'A controlled task-query plan could not be created; no query was run.',
+  openMyTodo: 'Open My Tasks',
 };
