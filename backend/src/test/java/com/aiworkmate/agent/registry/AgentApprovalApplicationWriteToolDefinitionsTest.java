@@ -88,4 +88,18 @@ class AgentApprovalApplicationWriteToolDefinitionsTest {
         assertThat(validator.valid(definition.inputSchema(), mapper.readTree(
                 "{\"applicationId\":10,\"version\":4,\"submit\":true}"))).isFalse();
     }
+
+    @Test
+    void genericApplicationReminderIsOwnedRateLimitedAndNonRetryable() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        var definition = new AgentApprovalApplicationWriteToolDefinitions()
+                .approvalApplicationRemindToolDefinition(mapper);
+
+        assertThat(definition.requiredPermissions()).containsExactly("approval:remind");
+        assertThat(definition.ownershipPolicy()).isEqualTo(OwnershipPolicy.SELF);
+        assertThat(definition.retryPolicy()).isEqualTo(RetryPolicy.NEVER);
+        assertThat(definition.confirmationPolicy()).isEqualTo(ConfirmationPolicy.EXPLICIT);
+        assertThat(new ToolSchemaValidator().valid(definition.inputSchema(), mapper.readTree(
+                "{\"applicationId\":10,\"version\":4}"))).isTrue();
+    }
 }

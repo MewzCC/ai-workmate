@@ -109,4 +109,19 @@ class ApprovalApplicationAgentDomainToolAdapterTest {
                 new ApprovalApplicationToolPort.WriteResult(30L, "expense", "DRAFT", 5));
         verify(service).reopenAgentApplication(20L, 30L, new com.aiworkmate.dto.VersionRequest(4));
     }
+
+    @Test
+    void remindsOwnedPendingApplicationThroughExistingRateLimitedService() {
+        var response = mock(ApprovalApplicationResponse.class);
+        when(response.id()).thenReturn(30L);
+        when(response.formKey()).thenReturn("expense");
+        when(response.status()).thenReturn("PENDING");
+        when(response.version()).thenReturn(6);
+        when(service.remind(20L, 30L, new com.aiworkmate.dto.VersionRequest(5)))
+                .thenReturn(response);
+
+        assertThat(adapter.remind(actor, 30L, 5)).isEqualTo(
+                new ApprovalApplicationToolPort.WriteResult(30L, "expense", "PENDING", 6));
+        verify(service).remind(20L, 30L, new com.aiworkmate.dto.VersionRequest(5));
+    }
 }

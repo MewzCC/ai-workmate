@@ -26,6 +26,10 @@ public class AgentApprovalApplicationWriteToolDefinitions {
             """.strip();
     public static final String REOPEN_INPUT_SCHEMA = SUBMIT_DRAFT_INPUT_SCHEMA;
     public static final String REOPEN_OUTPUT_SCHEMA = CREATE_DRAFT_OUTPUT_SCHEMA;
+    public static final String REMIND_INPUT_SCHEMA = SUBMIT_DRAFT_INPUT_SCHEMA;
+    public static final String REMIND_OUTPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["applicationId","formKey","status","version"],"properties":{"applicationId":{"type":"integer","minimum":1},"formKey":{"type":"string","maxLength":64},"status":{"type":"string","const":"PENDING"},"version":{"type":"integer","minimum":1}}}
+            """.strip();
 
     @Bean
     public ToolDefinition approvalApplicationCreateDraftToolDefinition(ObjectMapper objectMapper)
@@ -76,6 +80,19 @@ public class AgentApprovalApplicationWriteToolDefinitions {
                 objectMapper.readTree(REOPEN_INPUT_SCHEMA),
                 objectMapper.readTree(REOPEN_OUTPUT_SCHEMA), ToolWriteProfile.NON_RETRYABLE_L1,
                 Set.of("approval:reopen"), OwnershipPolicy.SELF,
+                1, 4096, 15000);
+    }
+
+    @Bean
+    public ToolDefinition approvalApplicationRemindToolDefinition(ObjectMapper objectMapper)
+            throws JsonProcessingException {
+        return ToolDefinitionFactory.singleWrite(
+                ToolCode.APPROVAL_APPLICATION_REMIND, "Remind the approver of my application",
+                "Sends one rate-limited reminder for an owned pending generic approval application.",
+                "Remind the current assignee for one version-bound application; never retry automatically.",
+                objectMapper.readTree(REMIND_INPUT_SCHEMA),
+                objectMapper.readTree(REMIND_OUTPUT_SCHEMA), ToolWriteProfile.NON_RETRYABLE_L1,
+                Set.of("approval:remind"), OwnershipPolicy.SELF,
                 1, 4096, 15000);
     }
 }

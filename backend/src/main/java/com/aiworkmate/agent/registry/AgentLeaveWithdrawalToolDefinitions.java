@@ -12,6 +12,9 @@ public class AgentLeaveWithdrawalToolDefinitions {
     public static final String OUTPUT_SCHEMA = """
             {"type":"object","additionalProperties":false,"required":["applicationId","status","version"],"properties":{"applicationId":{"type":"integer","minimum":1},"status":{"type":"string","const":"WITHDRAWN"},"version":{"type":"integer","minimum":1}}}
             """.strip();
+    public static final String REMIND_OUTPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["applicationId","status","version"],"properties":{"applicationId":{"type":"integer","minimum":1},"status":{"type":"string","const":"PENDING"},"version":{"type":"integer","minimum":1}}}
+            """.strip();
 
     @Bean
     public ToolDefinition leaveWithdrawalToolDefinition(ObjectMapper mapper) throws JsonProcessingException {
@@ -20,6 +23,16 @@ public class AgentLeaveWithdrawalToolDefinitions {
                 "Withdraw one owned pending application at its expected version after explicit confirmation; never retry automatically.",
                 mapper.readTree(INPUT_SCHEMA), mapper.readTree(OUTPUT_SCHEMA),
                 ToolWriteProfile.NON_RETRYABLE_L1, Set.of("leave:withdraw"), OwnershipPolicy.SELF,
+                1, 4096, 10000);
+    }
+
+    @Bean
+    public ToolDefinition leaveRemindToolDefinition(ObjectMapper mapper) throws JsonProcessingException {
+        return ToolDefinitionFactory.singleWrite(ToolCode.LEAVE_REMIND, "Remind my leave approver",
+                "Sends one rate-limited reminder for a pending leave application owned by the authenticated user.",
+                "Remind the current assignee for one version-bound leave application; never retry automatically.",
+                mapper.readTree(INPUT_SCHEMA), mapper.readTree(REMIND_OUTPUT_SCHEMA),
+                ToolWriteProfile.NON_RETRYABLE_L1, Set.of("leave:remind"), OwnershipPolicy.SELF,
                 1, 4096, 10000);
     }
 }

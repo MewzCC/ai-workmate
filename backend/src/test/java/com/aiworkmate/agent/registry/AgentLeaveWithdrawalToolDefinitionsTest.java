@@ -28,4 +28,17 @@ class AgentLeaveWithdrawalToolDefinitionsTest {
             assertThat(validator.valid(definition.inputSchema(), mapper.readTree(invalid))).isFalse();
         }
     }
+
+    @Test
+    void reminderUsesDedicatedPermissionAndNonRetryableWrite() throws Exception {
+        var mapper = new ObjectMapper();
+        var definition = new AgentLeaveWithdrawalToolDefinitions().leaveRemindToolDefinition(mapper);
+
+        assertThat(definition.requiredPermissions()).containsExactly("leave:remind");
+        assertThat(definition.ownershipPolicy()).isEqualTo(OwnershipPolicy.SELF);
+        assertThat(definition.retryPolicy()).isEqualTo(RetryPolicy.NEVER);
+        assertThat(definition.confirmationPolicy()).isEqualTo(ConfirmationPolicy.EXPLICIT);
+        assertThat(new ToolSchemaValidator().valid(definition.inputSchema(), mapper.readTree(
+                "{\"applicationId\":10,\"version\":2}"))).isTrue();
+    }
 }

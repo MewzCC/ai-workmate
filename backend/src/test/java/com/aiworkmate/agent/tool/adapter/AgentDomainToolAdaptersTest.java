@@ -477,6 +477,20 @@ class AgentDomainToolAdaptersTest {
     }
 
     @Test
+    void mapsLeaveReminderThroughTheRateLimitedDomainOperation() {
+        LeaveApplicationResponse response = mock(LeaveApplicationResponse.class);
+        when(response.id()).thenReturn(30L);
+        when(response.status()).thenReturn("PENDING");
+        when(response.version()).thenReturn(4);
+        when(leaveWorkflowService.remind(7L, 30L, new com.aiworkmate.dto.VersionRequest(3)))
+                .thenReturn(response);
+
+        assertThat(leaveAdapter.remind(context, 30L, 3))
+                .isEqualTo(new LeaveToolPort.StatusResult(30L, "PENDING", 4));
+        verify(leaveWorkflowService).remind(7L, 30L, new com.aiworkmate.dto.VersionRequest(3));
+    }
+
+    @Test
     void mapsKnowledgeSearchWithoutExposingProviderMetadata() {
         when(knowledgeService.search(eq(7L), org.mockito.ArgumentMatchers.any()))
                 .thenReturn(new KnowledgeSearchResponse("provider", "model", 8, List.of(

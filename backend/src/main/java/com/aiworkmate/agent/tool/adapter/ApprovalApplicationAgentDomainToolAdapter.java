@@ -58,4 +58,12 @@ public final class ApprovalApplicationAgentDomainToolAdapter implements Approval
         return new WriteResult(
                 reopened.id(), reopened.formKey(), reopened.status(), reopened.version());
     }
+
+    @Override
+    public WriteResult remind(ToolActorContext context, long applicationId, int version) {
+        ApprovalApplicationResponse reminded = approvalService.remind(
+                context.userId(), applicationId, new VersionRequest(version));
+        return new WriteResult(
+                reminded.id(), reminded.formKey(), reminded.status(), reminded.version());
+    }
 }
