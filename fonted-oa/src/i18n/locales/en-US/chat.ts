@@ -22,6 +22,9 @@ export default {
 
   // ChatInput
   inputPlaceholder: 'Type a message, or drag in images and documents…',
+  operationInputPlaceholder: 'Describe the OA data or action you need. A governed execution plan will be generated…',
+  chatMode: 'Chat',
+  operationMode: 'OA action',
   uploadFile: 'Upload image or file',
   uploading: 'Uploading',
   inputHint: 'Enter to send · Shift + Enter for new line',
@@ -52,6 +55,7 @@ export default {
 
   // ChatWindow
   serverValidated: 'Permissions are validated by the server',
+  availableOperations: 'Available: {{read}} read · {{write}} write',
   selectKnowledgeBase: 'Select knowledge base',
   allKnowledgeBases: 'All knowledge bases',
   switchModel: 'Switch conversation model',
@@ -125,4 +129,18 @@ export default {
   todoQueryTimeout: 'The task query is still running. Check AI Task Center shortly.',
   todoPlanUnavailable: 'A controlled task-query plan could not be created; no query was run.',
   openMyTodo: 'Open My Tasks',
+  openBusinessPage: 'Open related business page',
+  operationPlanTitle: 'OA action awaiting confirmation',
+  operationAwaitingConfirmation: 'This plan has not been executed',
+  operationGatewayHint: 'The server rechecks identity, tenant, live permissions, business state, and scope after confirmation.',
+  operationConfirmTitle: 'Execute this OA action?',
+  operationConfirmContent: 'Risk level: {{riskLevel}}. Confirmation does not grant any new permission.',
+  operationConfirm: 'Confirm and execute',
+  operationDiscard: 'Discard plan',
+  operationPending: 'This conversation already has a plan awaiting confirmation.',
+  operationCancelled: 'The operation plan was discarded. No business write was executed.',
+  operationFailed: 'The OA action did not complete. Check AI Task Center for its status.',
+  operationTimeout: 'The OA action is still running. Check AI Task Center shortly.',
+  operationPlanUnavailable: 'No policy-compliant OA action plan could be generated. Nothing was executed.',
+  operationAttachmentsUnsupported: 'OA action mode does not accept attachments. Remove them or switch to Chat mode.',
 };

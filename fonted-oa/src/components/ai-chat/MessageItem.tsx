@@ -19,6 +19,7 @@ import CitationList, { extractCitedIndexes, type CitedItem } from './CitationLis
 import { OaIcon } from '@/components/OaIcon';
 import { usePermission } from '@/hooks/usePermission';
 import { useRouter } from '@/lib/nextCompat';
+import { agentToolTargetPage } from '@/lib/agentToolTargetPage';
 
 interface MessageItemProps {
   item: ChatMessage;
@@ -29,7 +30,8 @@ export default function MessageItem({ item, onRetry }: MessageItemProps) {
   const { t } = useTranslation();
   const isAssistant = item.role === 'assistant';
   const { user } = useAuth();
-  const { allowed: canOpenTodo } = usePermission('route:todo');
+  const targetPage = agentToolTargetPage(item.sourceToolCode);
+  const { allowed: canOpenTarget } = usePermission(`route:${targetPage}`);
   const router = useRouter();
   const [feedbackValue, setFeedbackValue] = useState(item.feedback);
 
@@ -96,9 +98,9 @@ export default function MessageItem({ item, onRetry }: MessageItemProps) {
         {isAssistant && item.status === 'success' && visibleCitations.length > 0 && (
           <CitationList citations={visibleCitations} />
         )}
-        {isAssistant && item.sourceTaskNo && canOpenTodo && (
-          <Button type="link" icon={<OaIcon name="todo" />} onClick={() => router.push('/oa/todo')}>
-            {t('chat.openMyTodo')}
+        {isAssistant && item.sourceTaskNo && canOpenTarget && (
+          <Button type="link" icon={<OaIcon name="integration" />} onClick={() => router.push(`/oa/${targetPage}`)}>
+            {t('chat.openBusinessPage')}
           </Button>
         )}
         {isAssistant && item.status !== 'sending' && (

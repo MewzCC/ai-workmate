@@ -19,6 +19,6 @@ public class AgentChatResultController {
     @PostMapping("/{conversationId}/agent-results/{taskId}")
     public Result<String> append(@PathVariable Long conversationId, @PathVariable String taskId,
                                  @AuthenticationPrincipal AuthenticatedUser user) {
-        return Result.ok(service.appendTodoResult(user, conversationId, taskId));
+        return Result.ok(service.appendResult(user, conversationId, taskId));
     }
 }

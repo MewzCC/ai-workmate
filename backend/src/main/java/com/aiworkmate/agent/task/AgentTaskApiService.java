@@ -220,8 +220,8 @@ public class AgentTaskApiService {
     private AgentTaskDetailResponse.Step step(AgentTaskStep step) {
         JsonNode result = json(step.getResult());
         String summary = step.getResultSummary();
-        if ("SUCCEEDED".equals(step.getStatus()) && "todo.query".equals(step.getToolCode())) {
-            summary = AgentReadResultPresenter.todo(result);
+        if ("SUCCEEDED".equals(step.getStatus()) && result != null) {
+            summary = AgentReadResultPresenter.present(step.getToolCode(), result);
         }
         return new AgentTaskDetailResponse.Step(step.getSequenceNo(), step.getToolCode(), step.getRiskLevel(),
                 step.getStatus(), json(step.getArgs()), result, summary,

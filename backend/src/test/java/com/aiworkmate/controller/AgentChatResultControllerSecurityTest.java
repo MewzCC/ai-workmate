@@ -55,7 +55,7 @@ class AgentChatResultControllerSecurityTest {
         mvc.perform(post("/api/conversations/3/agent-results/task-1")
                         .header("Authorization", "Bearer valid"))
                 .andExpect(status().isOk());
-        verify(resultService).appendTodoResult(argThat(user -> user.userId() == 42L && user.tenantId() == 9L),
+        verify(resultService).appendResult(argThat(user -> user.userId() == 42L && user.tenantId() == 9L),
                 org.mockito.ArgumentMatchers.eq(3L), org.mockito.ArgumentMatchers.eq("task-1"));
     }
 }

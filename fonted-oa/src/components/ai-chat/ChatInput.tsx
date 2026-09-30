@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
-import { Button, Input, Progress, Space, Tooltip, Typography, Upload } from 'antd';
+import { Button, Input, Progress, Segmented, Space, Tooltip, Typography, Upload } from 'antd';
 import { LoadingOutlined } from '@ant-design/icons';
 import { message } from '@/lib/antdMessage';
 import type { ChatAttachment } from '@/types/chat';
@@ -23,13 +23,15 @@ interface ChatInputProps {
   pending: ChatAttachment[];
   uploading: UploadProgressItem[];
   generating: boolean;
+  mode: 'chat' | 'operation';
+  onModeChange: (mode: 'chat' | 'operation') => void;
   onUpload: (files: File[]) => void;
   onRemoveAttachment: (id: number) => void;
   onSend: (content: string) => void;
   onStop: () => void;
 }
 
-export default function ChatInput({ pending, uploading, generating, onUpload, onRemoveAttachment, onSend, onStop }: ChatInputProps) {
+export default function ChatInput({ pending, uploading, generating, mode, onModeChange, onUpload, onRemoveAttachment, onSend, onStop }: ChatInputProps) {
   const { t } = useTranslation();
   const [value, setValue] = useState('');
   const [dragging, setDragging] = useState(false);
@@ -73,10 +75,20 @@ export default function ChatInput({ pending, uploading, generating, onUpload, on
           {pending.map((item) => <AttachmentPreview key={item.id} attachment={item} removable onRemove={() => onRemoveAttachment(item.id)} />)}
         </div>
       )}
+      <Segmented<'chat' | 'operation'>
+        className="ai-composer-mode"
+        value={mode}
+        disabled={generating}
+        options={[
+          { value: 'chat', label: t('chat.chatMode'), icon: <OaIcon name="messages" /> },
+          { value: 'operation', label: t('chat.operationMode'), icon: <OaIcon name="ai" /> },
+        ]}
+        onChange={onModeChange}
+      />
       <Input.TextArea
         value={value}
         autoSize={{ minRows: 1, maxRows: 7 }}
-        placeholder={t('chat.inputPlaceholder')}
+        placeholder={t(mode === 'operation' ? 'chat.operationInputPlaceholder' : 'chat.inputPlaceholder')}
         onChange={(event) => setValue(event.target.value)}
         onPaste={(event) => {
           const files = Array.from(event.clipboardData.files);
@@ -88,7 +100,7 @@ export default function ChatInput({ pending, uploading, generating, onUpload, on
       />
       <div className="ai-composer-toolbar">
         <Space>
-          <Upload accept={ACCEPT} multiple showUploadList={false} beforeUpload={(file, list) => {
+          <Upload accept={ACCEPT} multiple showUploadList={false} disabled={mode === 'operation'} beforeUpload={(file, list) => {
             if (file.uid === list[0]?.uid) acceptFiles(list as File[]);
             return false;
           }}>

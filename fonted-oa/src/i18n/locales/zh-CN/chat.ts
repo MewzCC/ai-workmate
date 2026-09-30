@@ -22,6 +22,9 @@ export default {
 
   // ChatInput
   inputPlaceholder: '输入消息，或拖入图片和文档…',
+  operationInputPlaceholder: '描述要查询或办理的 OA 事项，系统会生成受控执行计划…',
+  chatMode: '对话',
+  operationMode: 'OA 操作',
   uploadFile: '上传图片或文件',
   uploading: '上传中',
   inputHint: 'Enter 发送 · Shift + Enter 换行',
@@ -52,6 +55,7 @@ export default {
 
   // ChatWindow
   serverValidated: '权限由服务端校验',
+  availableOperations: '当前可用：读 {{read}} · 写 {{write}}',
   selectKnowledgeBase: '选择知识库',
   allKnowledgeBases: '全部知识库',
   switchModel: '切换对话模型',
@@ -125,4 +129,18 @@ export default {
   todoQueryTimeout: '待办查询仍在执行，请稍后到 AI 任务中心查看。',
   todoPlanUnavailable: '当前未能生成受控的待办查询计划，未执行任何查询。',
   openMyTodo: '前往我的待办',
+  openBusinessPage: '前往对应业务页面',
+  operationPlanTitle: '待确认的 OA 操作计划',
+  operationAwaitingConfirmation: '计划尚未执行',
+  operationGatewayHint: '确认后仍会由服务端重新校验账号、租户、实时权限、业务状态和操作范围。',
+  operationConfirmTitle: '确认执行这项 OA 操作？',
+  operationConfirmContent: '风险等级：{{riskLevel}}。确认不会授予任何新权限。',
+  operationConfirm: '确认并执行',
+  operationDiscard: '放弃计划',
+  operationPending: '当前会话已有待确认计划，请先确认或放弃。',
+  operationCancelled: '已放弃该操作计划，未执行任何业务写入。',
+  operationFailed: 'OA 操作未完成，请到 AI 任务中心核对状态。',
+  operationTimeout: 'OA 操作仍在执行，请稍后到 AI 任务中心查看。',
+  operationPlanUnavailable: '未能生成符合安全策略的 OA 操作计划，未执行任何操作。',
+  operationAttachmentsUnsupported: 'OA 操作模式暂不接受附件，请移除附件或切换到对话模式。',
 };

@@ -8,12 +8,13 @@ import { message } from '@/lib/antdMessage';
 import { MenuUnfoldOutlined } from '@ant-design/icons';
 import { useAiChatStore } from '@/store/aiChatStore';
 import { knowledgeApi, type KnowledgeBase } from '@/lib/knowledgeApi';
-import type { OaRole } from '@/types/oa';
+import type { OaRole, PageCapability } from '@/types/oa';
 import type { AiModelId } from '@/config/aiModels';
 import ChatSidebar from './ChatSidebar';
 import ChatWindow from './ChatWindow';
 import { OaIcon } from '@/components/OaIcon';
 import { useRouter } from '@/lib/nextCompat';
+import { getPageCapabilities } from '@/lib/oaApi';
 
 const SIDEBAR_COLLAPSED_KEY = 'workmeta-ai-chat-sidebar-collapsed';
 /** 收起侧栏时最近会话快捷跳转的上限（LRU，最近使用优先） */
@@ -32,6 +33,7 @@ export default function AiChatWorkspace({ role }: AiChatWorkspaceProps) {
   const [mobileSessionsOpen, setMobileSessionsOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [kbOptions, setKbOptions] = useState<KnowledgeBase[]>([]);
+  const [operationCapability, setOperationCapability] = useState<PageCapability | null>(null);
   const active = useMemo(
     () => store.conversations.find((item) => item.id === store.activeId),
     [store.activeId, store.conversations],
@@ -67,6 +69,9 @@ export default function AiChatWorkspace({ role }: AiChatWorkspaceProps) {
     knowledgeApi.listBases()
       .then(setKbOptions)
       .catch(() => setKbOptions([]));
+    getPageCapabilities('ai-workspace')
+      .then(setOperationCapability)
+      .catch(() => setOperationCapability(null));
   // Store actions are stable in Zustand.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -152,11 +157,17 @@ export default function AiChatWorkspace({ role }: AiChatWorkspaceProps) {
         pending={store.activeId ? store.pendingAttachments[store.activeId] || [] : []}
         uploading={store.activeId ? store.uploading[store.activeId] || [] : []}
         generating={store.activeId ? store.generatingIds.includes(store.activeId) : false}
+        mode={store.composerMode}
+        pendingPlan={store.activeId ? store.pendingPlans[store.activeId] : undefined}
+        operationCapability={operationCapability}
         onOpenSessions={() => setMobileSessionsOpen(true)}
         onUpload={store.upload}
         onRemoveAttachment={store.removePendingAttachment}
         onSend={(content) => store.send(content)}
         onStop={() => store.activeId && store.stop(store.activeId)}
+        onModeChange={store.setComposerMode}
+        onConfirmOperation={() => store.activeId ? store.confirmOperation(store.activeId) : Promise.resolve()}
+        onDiscardOperation={() => store.activeId ? store.discardOperation(store.activeId) : Promise.resolve()}
         onModelChange={(model: AiModelId) => void store.updateSettings({ ...store.settings, model })
           .catch((error) => message.error(error instanceof Error ? error.message : t('errors.requestFailed')))}
         onKbChange={(kbId: number | null) => void store.updateSettings({ ...store.settings, kbId })}

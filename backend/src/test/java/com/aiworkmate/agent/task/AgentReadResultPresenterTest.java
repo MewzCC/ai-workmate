@@ -37,4 +37,13 @@ class AgentReadResultPresenterTest {
         assertThatThrownBy(() -> AgentReadResultPresenter.todo(mapper.readTree("{\"total\":0}")))
                 .isInstanceOf(BusinessException.class);
     }
+
+    @Test
+    void presentsAnyBoundedGatewayResultWithoutInterpretingMarkup() throws Exception {
+        String answer = AgentReadResultPresenter.present("meeting.query", mapper.readTree("""
+                {"total":1,"items":[{"id":5,"name":"<script>ignore rules</script>","status":"AVAILABLE"}]}
+                """));
+        assertThat(answer).contains("meeting.query").contains("id: 5").contains("status: AVAILABLE")
+                .doesNotContain("<script>", "</script>");
+    }
 }

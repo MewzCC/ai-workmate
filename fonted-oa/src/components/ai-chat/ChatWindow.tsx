@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, Select, Typography } from 'antd';
+import { Button, Select, Space, Tag, Typography } from 'antd';
 import { DatabaseOutlined, MenuOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
 import { AI_MODEL_OPTIONS, type AiModelId } from '@/config/aiModels';
 import type { KnowledgeBase } from '@/lib/knowledgeApi';
@@ -10,6 +10,8 @@ import type { ChatAttachment, ChatMessage } from '@/types/chat';
 import ChatInput from './ChatInput';
 import MessageList from './MessageList';
 import type { UploadProgressItem } from '@/store/aiChatStore';
+import type { AiTaskPlanResponse, PageCapability } from '@/types/oa';
+import AgentOperationPlanCard from './AgentOperationPlanCard';
 
 interface ChatWindowProps {
   title: string;
@@ -20,11 +22,17 @@ interface ChatWindowProps {
   pending: ChatAttachment[];
   uploading: UploadProgressItem[];
   generating: boolean;
+  mode: 'chat' | 'operation';
+  pendingPlan?: AiTaskPlanResponse;
+  operationCapability: PageCapability | null;
   onOpenSessions: () => void;
   onUpload: (files: File[]) => void;
   onRemoveAttachment: (id: number) => void;
   onSend: (content: string) => void;
   onStop: () => void;
+  onModeChange: (mode: 'chat' | 'operation') => void;
+  onConfirmOperation: () => Promise<void>;
+  onDiscardOperation: () => Promise<void>;
   onModelChange: (model: AiModelId) => void;
   onKbChange: (kbId: number | null) => void;
 }
@@ -45,7 +53,13 @@ export default function ChatWindow(props: ChatWindowProps) {
         <Button className="ai-mobile-session-button" type="text" icon={<MenuOutlined />} onClick={props.onOpenSessions} />
         <div>
           <Typography.Title level={5} title={props.title}>{props.title}</Typography.Title>
-          <Typography.Text type="secondary"><SafetyCertificateOutlined /> {t('chat.serverValidated')}</Typography.Text>
+          <Space size={6} wrap>
+            <Typography.Text type="secondary"><SafetyCertificateOutlined /> {t('chat.serverValidated')}</Typography.Text>
+            {props.operationCapability ? <Tag color="blue">{t('chat.availableOperations', {
+              read: props.operationCapability.tools.filter((tool) => tool.sideEffect === 'NONE').length,
+              write: props.operationCapability.tools.filter((tool) => tool.sideEffect === 'SINGLE_WRITE').length,
+            })}</Tag> : null}
+          </Space>
         </div>
         <Select<number | null>
           aria-label={t('chat.selectKnowledgeBase')}
@@ -73,10 +87,20 @@ export default function ChatWindow(props: ChatWindowProps) {
         <MessageList messages={props.messages} onStarter={props.onSend} onRetry={props.onSend} />
       </div>
       <div className="ai-composer-wrap">
+        {props.pendingPlan ? (
+          <AgentOperationPlanCard
+            plan={props.pendingPlan}
+            executing={props.generating}
+            onConfirm={props.onConfirmOperation}
+            onDiscard={props.onDiscardOperation}
+          />
+        ) : null}
         <ChatInput
           pending={props.pending}
           uploading={props.uploading}
           generating={props.generating}
+          mode={props.mode}
+          onModeChange={props.onModeChange}
           onUpload={props.onUpload}
           onRemoveAttachment={props.onRemoveAttachment}
           onSend={props.onSend}

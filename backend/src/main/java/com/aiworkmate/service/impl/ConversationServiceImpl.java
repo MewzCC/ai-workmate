@@ -140,7 +140,7 @@ public class ConversationServiceImpl implements ConversationService {
     private MessageResponse toMessageResponse(Message message, List<AttachmentResponse> attachments) {
         return new MessageResponse(message.getId(), message.getRole(), message.getContent(), message.getStatus(),
                 message.getFeedback(), attachments, parseCitations(message.getCitations()), message.getCreatedAt(),
-                message.getSourceTaskNo());
+                message.getSourceTaskNo(), message.getSourceToolCode());
     }
 
     private List<MessageCitationResponse> parseCitations(String citations) {

@@ -95,4 +95,49 @@ class PageCapabilityServiceImplTest {
         assertEquals(List.of(), response.tools());
         assertEquals(PageCapabilityResponse.UnavailableReason.NO_AVAILABLE_TOOLS, response.unavailableReason());
     }
+
+    @Test
+    void workspaceExposesOnlyToolsWhoseBusinessPageIsCurrentlyAccessible() {
+        var access = access(List.of("route:ai-workspace", "route:meeting-room", "meeting:write", "asset:read"));
+        var meetingBook = tool("meeting.book", SideEffect.SINGLE_WRITE, RiskLevel.L2,
+                ConfirmationPolicy.SECONDARY);
+        var assetQuery = tool("asset.query", SideEffect.NONE, RiskLevel.L0, ConfirmationPolicy.NONE);
+        when(userAccessService.resolveActiveUser(42L)).thenReturn(access);
+        when(toolRegistry.resolveAllowedTools(access, "ai-workspace"))
+                .thenReturn(List.of(assetQuery, meetingBook));
+
+        var response = service.resolve(42L, "ai-workspace");
+
+        assertEquals(List.of("meeting.book"), response.tools().stream()
+                .map(PageCapabilityResponse.Tool::code)
+                .toList());
+        assertEquals(null, response.unavailableReason());
+    }
+
+    @Test
+    void workspaceFailsClosedWhenNoAssociatedBusinessRouteIsAccessible() {
+        var access = access(List.of("route:ai-workspace", "meeting:write"));
+        var meetingBook = tool("meeting.book", SideEffect.SINGLE_WRITE, RiskLevel.L2,
+                ConfirmationPolicy.SECONDARY);
+        when(userAccessService.resolveActiveUser(42L)).thenReturn(access);
+        when(toolRegistry.resolveAllowedTools(access, "ai-workspace")).thenReturn(List.of(meetingBook));
+
+        var response = service.resolve(42L, "ai-workspace");
+
+        assertEquals(List.of(), response.tools());
+        assertEquals(PageCapabilityResponse.UnavailableReason.NO_AVAILABLE_TOOLS, response.unavailableReason());
+    }
+
+    private ToolDefinition tool(String code, SideEffect sideEffect, RiskLevel riskLevel,
+                                ConfirmationPolicy confirmationPolicy) {
+        ToolDefinition definition = mock(ToolDefinition.class);
+        when(definition.code()).thenReturn(code);
+        when(definition.name()).thenReturn(code);
+        when(definition.description()).thenReturn(code + " description");
+        when(definition.riskLevel()).thenReturn(riskLevel);
+        when(definition.sideEffect()).thenReturn(sideEffect);
+        when(definition.confirmationPolicy()).thenReturn(confirmationPolicy);
+        when(definition.ownershipPolicy()).thenReturn(OwnershipPolicy.TENANT_SCOPED);
+        return definition;
+    }
 }

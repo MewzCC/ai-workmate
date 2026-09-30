@@ -3,7 +3,7 @@
 import { create } from 'zustand';
 import { message as antMessage } from '@/lib/antdMessage';
 import {
-  appendAgentTodoResult, createConversation, deleteConversation, listConversations, listMessages,
+  appendAgentResult, createConversation, deleteConversation, listConversations, listMessages,
   renameConversation, sendChat, streamChat, uploadAttachment,
 } from '@/lib/chatApi';
 import type { ChatAttachment, ChatConversation, ChatMessage, ChatMessageCitation, ChatSettings } from '@/types/chat';
@@ -12,7 +12,8 @@ import { StreamTypewriter } from '@/lib/StreamTypewriter';
 import { uuid } from '@/lib/uuid';
 import i18n from '@/i18n';
 import { getChatPreferences, updateChatPreferences } from '@/lib/userSettingsApi';
-import { agentTaskApi, executeAiTask, planAiTask } from '@/lib/oaApi';
+import { agentTaskApi, executeAiTask, issueAiTaskConfirmation, planAiTask } from '@/lib/oaApi';
+import type { AiTaskPlanResponse } from '@/types/oa';
 
 const SETTINGS_KEY = 'workmeta-ai-chat-settings';
 const SETTINGS_MIGRATED_KEY = 'workmeta-ai-chat-settings-migrated';
@@ -29,6 +30,8 @@ export interface UploadProgressItem {
 }
 
 interface AiChatState {
+  composerMode: 'chat' | 'operation';
+  pendingPlans: Record<number, AiTaskPlanResponse>;
   conversations: ChatConversation[];
   activeId: number | null;
   draftMode: boolean;
@@ -48,6 +51,9 @@ interface AiChatState {
   upload: (files: File[]) => Promise<void>;
   removePendingAttachment: (id: number) => void;
   send: (content: string) => Promise<void>;
+  setComposerMode: (mode: 'chat' | 'operation') => void;
+  confirmOperation: (conversationId: number) => Promise<void>;
+  discardOperation: (conversationId: number) => Promise<void>;
   stop: (id: number) => void;
   retry: (content: string) => Promise<void>;
   hydrateSettings: () => Promise<void>;
@@ -63,14 +69,14 @@ export function isMyTodoQuery(content: string): boolean {
   return /^(?:请|帮我|给我|能否|可以)?(?:查(?:一?下|询|看)?|看(?:一?下)?|搜索|列出|显示)?(?:我(?:的)?|本人)(?:待办|待处理(?:事项|任务)?)(?:有(?:哪(?:些|几条))?|列表|事项|任务|情况)?$/.test(normalized);
 }
 
-async function waitForReadTask(taskId: string, signal: AbortSignal): Promise<void> {
+async function waitForAgentTask(taskId: string, signal: AbortSignal): Promise<void> {
   for (let attempt = 0; attempt < 60; attempt += 1) {
     if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
     const detail = await agentTaskApi.detail(taskId);
-    if (detail.status === 'SUCCEEDED' && detail.steps.length === 1
-        && detail.steps[0].toolCode === 'todo.query' && detail.steps[0].status === 'SUCCEEDED') return;
+    if (detail.status === 'SUCCEEDED' && detail.steps.length > 0
+        && detail.steps.every((step) => step.status === 'SUCCEEDED')) return;
     if (['FAILED', 'TIMED_OUT', 'REJECTED', 'EXPIRED', 'CANCELLED', 'PARTIALLY_SUCCEEDED'].includes(detail.status)) {
-      throw new Error(i18n.t('chat.todoQueryFailed'));
+      throw new Error(i18n.t('chat.operationFailed'));
     }
     await new Promise<void>((resolve) => {
       const onAbort = () => { window.clearTimeout(timer); resolve(); };
@@ -78,11 +84,13 @@ async function waitForReadTask(taskId: string, signal: AbortSignal): Promise<voi
       signal.addEventListener('abort', onAbort, { once: true });
     });
   }
-  throw new Error(i18n.t('chat.todoQueryTimeout'));
+  throw new Error(i18n.t('chat.operationTimeout'));
 }
 
 export const useAiChatStore = create<AiChatState>((set, get) => ({
   conversations: [],
+  composerMode: 'chat',
+  pendingPlans: {},
   activeId: null,
   draftMode: false,
   messagesByConversation: {},
@@ -179,10 +187,13 @@ export const useAiChatStore = create<AiChatState>((set, get) => ({
       delete messages[id];
       const previews = { ...state.previewByConversation };
       delete previews[id];
+      const pendingPlans = { ...state.pendingPlans };
+      delete pendingPlans[id];
       return {
         conversations,
         messagesByConversation: messages,
         previewByConversation: previews,
+        pendingPlans,
         activeId: state.activeId === id ? conversations[0]?.id ?? null : state.activeId,
         draftMode: state.activeId === id ? false : state.draftMode,
       };
@@ -247,6 +258,8 @@ export const useAiChatStore = create<AiChatState>((set, get) => ({
     } }));
   },
 
+  setComposerMode: (composerMode) => set({ composerMode }),
+
   send: async (rawContent) => {
     const state = get();
     let conversationId = state.activeId;
@@ -267,8 +280,18 @@ export const useAiChatStore = create<AiChatState>((set, get) => ({
       }
     }
     if (controllers.has(conversationId)) return;
+    if (get().pendingPlans[conversationId]) {
+      antMessage.warning(i18n.t('chat.operationPending'));
+      return;
+    }
     const attachments = state.pendingAttachments[conversationId] || [];
     const content = rawContent.trim() || i18n.t('chat.defaultAttachmentPrompt');
+    const operationRequest = state.composerMode === 'operation'
+      || (attachments.length === 0 && isMyTodoQuery(content));
+    if (operationRequest && attachments.length > 0) {
+      antMessage.error(i18n.t('chat.operationAttachmentsUnsupported'));
+      return;
+    }
     const now = new Date().toISOString();
     const userId = `local-user-${uuid()}`;
     const assistantId = `local-assistant-${uuid()}`;
@@ -280,22 +303,20 @@ export const useAiChatStore = create<AiChatState>((set, get) => ({
     const controller = new AbortController();
     controllers.set(conversationId, controller);
     try {
-      if (attachments.length === 0 && isMyTodoQuery(content)) {
+      if (operationRequest) {
         const plan = await planAiTask({ input: content, pageId: 'ai-workspace' });
         if (controller.signal.aborted) throw new DOMException('Aborted', 'AbortError');
-        const argumentsObject = plan.steps[0]?.arguments ?? {};
-        if (plan.riskLevel !== 'L0' || plan.confirmationRequired || plan.steps.length !== 1
-            || plan.steps[0].toolCode !== 'todo.query'
-            || (argumentsObject.status != null && argumentsObject.status !== 'PENDING')
-            || argumentsObject.from != null || argumentsObject.to != null
-            || (argumentsObject.page != null && argumentsObject.page !== 1)) {
-          throw new Error(i18n.t('chat.todoPlanUnavailable'));
-        }
+        if (!plan.steps.length) throw new Error(i18n.t('chat.operationPlanUnavailable'));
         agentTasks.set(conversationId, plan.taskId);
+        if (plan.confirmationRequired) {
+          updateMessage(set, conversationId, assistantId, { content: plan.summary, status: 'success' });
+          set((current) => ({ pendingPlans: { ...current.pendingPlans, [conversationId]: plan } }));
+          return;
+        }
         await executeAiTask(plan.taskId, { planVersion: plan.planVersion, planHash: plan.planHash });
-        await waitForReadTask(plan.taskId, controller.signal);
+        await waitForAgentTask(plan.taskId, controller.signal);
         if (controller.signal.aborted) throw new DOMException('Aborted', 'AbortError');
-        await appendAgentTodoResult(conversationId, plan.taskId);
+        await appendAgentResult(conversationId, plan.taskId);
       } else {
         const request = {
           conversationId,
@@ -352,6 +373,76 @@ export const useAiChatStore = create<AiChatState>((set, get) => ({
     }
   },
 
+  confirmOperation: async (conversationId) => {
+    const plan = get().pendingPlans[conversationId];
+    if (!plan || controllers.has(conversationId)) return;
+    const controller = new AbortController();
+    controllers.set(conversationId, controller);
+    agentTasks.set(conversationId, plan.taskId);
+    set((current) => ({ generatingIds: [...current.generatingIds, conversationId] }));
+    try {
+      const credential = await issueAiTaskConfirmation(plan.taskId, {
+        planVersion: plan.planVersion,
+        planHash: plan.planHash,
+      });
+      if (controller.signal.aborted) throw new DOMException('Aborted', 'AbortError');
+      await executeAiTask(plan.taskId, {
+        planVersion: plan.planVersion,
+        planHash: plan.planHash,
+        confirmationToken: credential.token,
+      });
+      await waitForAgentTask(plan.taskId, controller.signal);
+      if (controller.signal.aborted) throw new DOMException('Aborted', 'AbortError');
+      await appendAgentResult(conversationId, plan.taskId);
+      const persistedMessages = await listMessages(conversationId);
+      set((current) => {
+        const pendingPlans = { ...current.pendingPlans };
+        delete pendingPlans[conversationId];
+        return {
+          pendingPlans,
+          messagesByConversation: { ...current.messagesByConversation, [conversationId]: persistedMessages },
+          previewByConversation: { ...current.previewByConversation, [conversationId]: persistedMessages.slice(-1) },
+        };
+      });
+      await get().loadConversations();
+    } catch (error) {
+      if (!controller.signal.aborted) {
+        antMessage.error(error instanceof Error ? error.message : i18n.t('chat.operationFailed'));
+      }
+    } finally {
+      controllers.delete(conversationId);
+      agentTasks.delete(conversationId);
+      set((current) => ({ generatingIds: current.generatingIds.filter((id) => id !== conversationId) }));
+    }
+  },
+
+  discardOperation: async (conversationId) => {
+    const plan = get().pendingPlans[conversationId];
+    if (!plan) return;
+    await agentTaskApi.cancel(plan.taskId).catch(() => undefined);
+    const now = new Date().toISOString();
+    set((current) => {
+      const pendingPlans = { ...current.pendingPlans };
+      delete pendingPlans[conversationId];
+      return {
+        pendingPlans,
+        messagesByConversation: {
+          ...current.messagesByConversation,
+          [conversationId]: [...(current.messagesByConversation[conversationId] || []), {
+            id: `local-cancelled-${uuid()}`,
+            role: 'assistant',
+            content: i18n.t('chat.operationCancelled'),
+            status: 'success',
+            feedback: null,
+            attachments: [],
+            citations: [],
+            createdAt: now,
+          }],
+        },
+      };
+    });
+  },
+
   stop: (id) => {
     controllers.get(id)?.abort();
     typewriters.get(id)?.cancel();
@@ -388,7 +479,7 @@ export const useAiChatStore = create<AiChatState>((set, get) => ({
     typewriters.forEach((typewriter) => typewriter.cancel());
     controllers.clear();
     typewriters.clear();
-    set({ conversations: [], activeId: null, draftMode: false, messagesByConversation: {}, previewByConversation: {}, pendingAttachments: {}, uploading: {}, generatingIds: [] });
+    set({ conversations: [], activeId: null, draftMode: false, messagesByConversation: {}, previewByConversation: {}, pendingAttachments: {}, uploading: {}, generatingIds: [], pendingPlans: {} });
   },
 }));
 

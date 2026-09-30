@@ -9,9 +9,11 @@ import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.common.ErrorCode;
 import com.aiworkmate.entity.Conversation;
 import com.aiworkmate.entity.Message;
+import com.aiworkmate.dto.PageCapabilityResponse;
 import com.aiworkmate.mapper.ConversationMapper;
 import com.aiworkmate.mapper.MessageMapper;
 import com.aiworkmate.security.AuthenticatedUser;
+import com.aiworkmate.service.PageCapabilityService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -22,8 +24,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
-/** Persists a verified L0 task answer in the owner's chat; never executes a tool. */
+/** Persists a verified gateway task answer in the owner's chat; never executes a tool. */
 @Service
 @RequiredArgsConstructor
 public class AgentChatResultService {
@@ -32,12 +37,11 @@ public class AgentChatResultService {
     private final ConversationMapper conversationMapper;
     private final MessageMapper messageMapper;
     private final ObjectMapper objectMapper;
+    private final PageCapabilityService pageCapabilityService;
 
     @Transactional
-    public String appendTodoResult(AuthenticatedUser user, Long conversationId, String taskNo) {
-        if (!user.permissions().contains("route:ai-workspace")
-                || !user.permissions().contains("todo:read")
-                || !user.permissions().contains("agent:tool:todo.query")) {
+    public String appendResult(AuthenticatedUser user, Long conversationId, String taskNo) {
+        if (!user.permissions().contains("route:ai-workspace")) {
             throw new BusinessException(ErrorCode.PERMISSION_DENIED);
         }
         Conversation conversation = conversationMapper.selectOne(new LambdaQueryWrapper<Conversation>()
@@ -48,26 +52,18 @@ public class AgentChatResultService {
 
         AgentTask task = taskMapper.selectOwnedForUpdate(user.tenantId(), user.userId(), taskNo);
         if (task == null) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
-        if (!"ai-workspace".equals(task.getPageId()) || !"SUCCEEDED".equals(task.getStatus())
-                || !"L0".equals(task.getMaxRiskLevel())) throw new BusinessException(ErrorCode.INVALID_TASK_STATE);
+        if (!"ai-workspace".equals(task.getPageId()) || !"SUCCEEDED".equals(task.getStatus())) {
+            throw new BusinessException(ErrorCode.INVALID_TASK_STATE);
+        }
 
         List<AgentTaskStep> steps = stepMapper.selectByTaskId(task.getId());
-        if (steps.size() != 1 || !"todo.query".equals(steps.get(0).getToolCode())
-                || !"SUCCEEDED".equals(steps.get(0).getStatus())) {
+        if (steps.isEmpty() || steps.size() > 3 || steps.stream().anyMatch(step -> !"SUCCEEDED".equals(step.getStatus()))) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID);
         }
-        JsonNode arguments;
-        if (steps.get(0).getArgs() == null) throw new BusinessException(ErrorCode.REQUEST_INVALID);
-        try {
-            arguments = objectMapper.readTree(steps.get(0).getArgs());
-        } catch (JsonProcessingException exception) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID);
-        }
-        if (arguments == null || !arguments.isObject()
-                || (arguments.hasNonNull("status") && !"PENDING".equals(arguments.path("status").asText()))
-                || arguments.hasNonNull("from") || arguments.hasNonNull("to")
-                || (arguments.hasNonNull("page") && (!arguments.path("page").isIntegralNumber()
-                || arguments.path("page").asInt() != 1))) {
+        PageCapabilityResponse capability = pageCapabilityService.resolve(user.userId(), "ai-workspace");
+        Map<String, PageCapabilityResponse.Tool> allowed = capability.tools().stream()
+                .collect(Collectors.toUnmodifiableMap(PageCapabilityResponse.Tool::code, Function.identity()));
+        if (steps.stream().anyMatch(step -> !allowed.containsKey(step.getToolCode()))) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID);
         }
         Message existing = messageMapper.selectOne(new LambdaQueryWrapper<Message>()
@@ -76,15 +72,18 @@ public class AgentChatResultService {
             if (!conversationId.equals(existing.getConversationId())) throw new BusinessException(ErrorCode.RESOURCE_FORBIDDEN);
             return existing.getContent();
         }
-        if (steps.get(0).getResult() == null) throw new BusinessException(ErrorCode.REQUEST_INVALID);
-
-        JsonNode result;
-        try {
-            result = objectMapper.readTree(steps.get(0).getResult());
-        } catch (JsonProcessingException exception) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        StringBuilder answer = new StringBuilder();
+        for (AgentTaskStep step : steps) {
+            if (step.getResult() == null) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+            JsonNode result;
+            try {
+                result = objectMapper.readTree(step.getResult());
+            } catch (JsonProcessingException exception) {
+                throw new BusinessException(ErrorCode.REQUEST_INVALID);
+            }
+            if (!answer.isEmpty()) answer.append("\n\n");
+            answer.append(AgentReadResultPresenter.present(step.getToolCode(), result));
         }
-        String answer = AgentReadResultPresenter.todo(result);
         LocalDateTime now = LocalDateTime.now();
         Message prompt = new Message();
         prompt.setConversationId(conversationId);
@@ -98,9 +97,10 @@ public class AgentChatResultService {
         Message reply = new Message();
         reply.setConversationId(conversationId);
         reply.setRole("assistant");
-        reply.setContent(answer);
+        reply.setContent(answer.toString());
         reply.setStatus("success");
         reply.setSourceTaskNo(taskNo);
+        reply.setSourceToolCode(steps.get(0).getToolCode());
         reply.setTokenCount(0);
         reply.setCreatedAt(now.plusNanos(1_000));
         messageMapper.insert(reply);
@@ -109,6 +109,6 @@ public class AgentChatResultService {
         }
         conversation.setUpdatedAt(now);
         conversationMapper.updateById(conversation);
-        return answer;
+        return answer.toString();
     }
 }

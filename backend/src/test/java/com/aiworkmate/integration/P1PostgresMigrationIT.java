@@ -163,6 +163,11 @@ class P1PostgresMigrationIT {
                   AND column_name = 'source_task_no'
                 """)).isOne();
         assertThat(queryCount(schema, """
+                SELECT COUNT(*) FROM information_schema.columns
+                WHERE table_schema = current_schema() AND table_name = 'message'
+                  AND column_name = 'source_tool_code'
+                """)).isOne();
+        assertThat(queryCount(schema, """
                 SELECT COUNT(*) FROM pg_indexes
                 WHERE schemaname = current_schema() AND tablename = 'message'
                   AND indexname = 'uk_message_source_task_no' AND indexdef ILIKE '%UNIQUE%'

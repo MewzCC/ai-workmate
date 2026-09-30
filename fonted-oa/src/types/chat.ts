@@ -37,8 +37,10 @@ export interface ChatMessage {
   /** AI 回复引用的知识库片段；无引用时为空数组 */
   citations: ChatMessageCitation[];
   createdAt: string;
-  /** Only populated for a server-verified read task answer. */
+  /** Only populated for a server-verified Agent task answer. */
   sourceTaskNo?: string | null;
+  /** First executed fixed tool, used only to select an authorized destination page. */
+  sourceToolCode?: string | null;
 }
 
 export interface ChatConversation {

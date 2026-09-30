@@ -12,6 +12,7 @@ public record MessageResponse(
         List<AttachmentResponse> attachments,
         List<MessageCitationResponse> citations,
         LocalDateTime createdAt,
-        String sourceTaskNo
+        String sourceTaskNo,
+        String sourceToolCode
 ) {
 }

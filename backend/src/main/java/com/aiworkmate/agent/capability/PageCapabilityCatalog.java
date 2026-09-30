@@ -6,6 +6,7 @@ import com.aiworkmate.oa.page.OaPage;
 import org.springframework.stereotype.Component;
 
 import java.util.Collection;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -58,6 +59,16 @@ public class PageCapabilityCatalog {
         return definitions.values();
     }
 
+    /** Returns real business pages for a tool, excluding the global conversational entry. */
+    public Set<String> businessPageIdsForTool(String toolCode) {
+        if (toolCode == null) return Set.of();
+        return definitions.values().stream()
+                .filter(page -> !OaPage.AI_WORKSPACE.routeKey().equals(page.pageId()))
+                .filter(page -> page.tools().stream().anyMatch(tool -> toolCode.equals(tool.toolCode())))
+                .map(PageCapabilityDefinition::pageId)
+                .collect(java.util.stream.Collectors.toUnmodifiableSet());
+    }
+
     /**
      * Returns whether an enabled database PAGE route exactly matches the code-owned page manifest.
      * Legacy aliases are intentionally excluded: they remain accepted only as inbound page context
@@ -78,12 +89,7 @@ public class PageCapabilityCatalog {
                         context(text("status"), number("page"), number("size")),
                         tool(TODO_QUERY), tool(NOTIFICATION_MINE), tool(USER_PERMISSION_MINE_QUERY)),
                 page(OaPage.AI_WORKSPACE, OwnershipPolicy.SELF, READ_COMMANDS, PageContextSchema.empty(),
-                        tool(TODO_QUERY), tool(LEAVE_MINE), tool(KNOWLEDGE_SEARCH), tool(NOTIFICATION_MINE),
-                        tool(USER_PERMISSION_MINE_QUERY),
-                        tool(NOTIFICATION_MARK_READ), tool(LEAVE_CREATE_DRAFT), tool(LEAVE_SUBMIT),
-                        tool(LEAVE_APPLY), tool(LEAVE_WITHDRAW), tool(ATTENDANCE_REISSUE_APPLY),
-                        tool(APPROVAL_APPLICATION_CREATE_DRAFT), tool(APPROVAL_APPLICATION_SUBMIT_DRAFT),
-                        tool(APPROVAL_APPLICATION_WITHDRAW), tool(APPROVAL_APPLICATION_REOPEN)),
+                        allTools()),
                 page(OaPage.AI_TASKS, OwnershipPolicy.SELF, LIST_COMMANDS,
                         context(text("status"), text("from"), text("to"), number("page"), number("size")),
                         tool(AGENT_TASK_MINE_QUERY)),
@@ -219,6 +225,14 @@ public class PageCapabilityCatalog {
 
     private PageToolReference tool(ToolCode code) {
         return new PageToolReference(code);
+    }
+
+    /**
+     * The workspace is the conversational entry for the same fixed tools exposed by all OA pages.
+     * Tool Registry, live RBAC, tenant policy and the gateway still narrow this code-owned maximum.
+     */
+    private PageToolReference[] allTools() {
+        return Arrays.stream(ToolCode.values()).map(this::tool).toArray(PageToolReference[]::new);
     }
 
     private PageContextField text(String name) {

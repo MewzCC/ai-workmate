@@ -39,6 +39,9 @@ public class PageCapabilityServiceImpl implements PageCapabilityService {
                 .toList();
         List<String> scopes = access.dataScopes().stream().sorted().toList();
         List<PageCapabilityResponse.Tool> tools = toolRegistry.resolveAllowedTools(access, page.pageId()).stream()
+                .filter(tool -> !"ai-workspace".equals(page.pageId()) || pageCapabilityCatalog
+                        .businessPageIdsForTool(tool.code()).stream()
+                        .anyMatch(targetPage -> access.permissions().contains("route:" + targetPage)))
                 .sorted(Comparator.comparing(ToolDefinition::code))
                 .map(this::toResponse)
                 .toList();

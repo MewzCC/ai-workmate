@@ -44,12 +44,9 @@ class PageCapabilityCatalogTest {
 
         assertThat(registered).isEqualTo(knownTools);
         assertThat(catalog.find("access-control").orElseThrow().writeTools()).isEmpty();
-        assertThat(catalog.find("ai-workspace").orElseThrow().writeTools())
+        assertThat(catalog.find("ai-workspace").orElseThrow().tools())
                 .extracting(PageToolReference::toolCode)
-                .containsExactlyInAnyOrder("notification.markRead", "leave.createDraft", "leave.submit",
-                        "leave.apply", "leave.withdraw", "attendance.reissue.apply",
-                        "approval.application.createDraft", "approval.application.submitDraft",
-                        "approval.application.withdraw", "approval.application.reopen");
+                .containsExactlyInAnyOrderElementsOf(knownTools);
         assertThat(catalog.find("todo").orElseThrow().readTools())
                 .extracting(PageToolReference::code)
                 .containsExactly(ToolCode.TODO_QUERY);
@@ -71,6 +68,13 @@ class PageCapabilityCatalogTest {
                 .extracting(PageToolReference::code)
                 .containsExactlyInAnyOrder(ToolCode.LEAVE_MINE, ToolCode.LEAVE_CREATE_DRAFT,
                         ToolCode.LEAVE_SUBMIT, ToolCode.LEAVE_APPLY, ToolCode.LEAVE_WITHDRAW);
+    }
+
+    @Test
+    void everyWorkspaceToolHasAtLeastOnePermissionBearingBusinessPage() {
+        assertThat(catalog.find("ai-workspace").orElseThrow().tools()).allSatisfy(tool ->
+                assertThat(catalog.businessPageIdsForTool(tool.toolCode())).as(tool.toolCode()).isNotEmpty());
+        assertThat(catalog.businessPageIdsForTool("meeting.book")).containsExactly("meeting-room");
     }
 
     @Test
