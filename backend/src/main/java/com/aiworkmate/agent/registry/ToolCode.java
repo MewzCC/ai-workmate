@@ -53,6 +53,8 @@ public enum ToolCode {
     VISITOR_CHECK_IN("visitor.checkIn", SideEffect.SINGLE_WRITE),
     VISITOR_MARK_ARRIVED("visitor.markArrived", SideEffect.SINGLE_WRITE),
     VISITOR_LEAVE("visitor.leave", SideEffect.SINGLE_WRITE),
+    VISITOR_WITHDRAW("visitor.withdraw", SideEffect.SINGLE_WRITE),
+    VISITOR_NO_SHOW("visitor.noShow", SideEffect.SINGLE_WRITE),
     SEAL_QUERY("seal.query"),
     SEAL_APPLY("seal.apply", SideEffect.SINGLE_WRITE),
     SEAL_REGISTER_USE("seal.registerUse", SideEffect.SINGLE_WRITE),

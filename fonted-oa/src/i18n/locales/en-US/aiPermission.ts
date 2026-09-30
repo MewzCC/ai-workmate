@@ -70,6 +70,8 @@ const aiPermission = {
     visitor_checkIn: { name: 'Register visitor check-in', description: 'Registers check-in for one approved visitor booking.' },
     visitor_markArrived: { name: 'Register visitor arrival', description: 'Marks one checked-in visitor record as arrived.' },
     visitor_leave: { name: 'Register visitor departure', description: 'Registers departure for one arrived visitor record.' },
+    visitor_withdraw: { name: 'Withdraw visitor booking', description: 'Withdraws one of your visitor bookings that is still pending approval.' },
+    visitor_noShow: { name: 'Mark visitor no-show', description: 'Marks one approved visitor booking past its scheduled time as a no-show.' },
     seal_query: { name: 'Query my seal records', description: 'Reads seal applications and usage records visible to the current user.' },
     seal_apply: { name: 'Submit seal application', description: 'Creates one seal application that requires approval.' },
     seal_registerUse: { name: 'Register actual seal use', description: 'Registers one actual use against an approved seal application.' },

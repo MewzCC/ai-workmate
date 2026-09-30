@@ -40,6 +40,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -319,6 +320,44 @@ class AgentDomainToolAdaptersTest {
                 .isEqualTo(com.aiworkmate.agent.tool.port.ToolWriteVerification.observed(expected));
         verify(adminAssetsService).leaveVisitorAgent(7L, domain, "operation-4");
         verify(adminAssetsService).findAgentVisitorLeave(7L, domain, "operation-4");
+    }
+
+    @Test
+    void mapsVisitorWithdrawAndNoShowWithoutAcceptingAnActorFromArguments() {
+        VisitorBookingResponse withdrawn = mock(VisitorBookingResponse.class);
+        when(withdrawn.id()).thenReturn(31L);
+        when(withdrawn.status()).thenReturn("WITHDRAWN");
+        when(withdrawn.version()).thenReturn(3);
+        when(adminAssetsService.withdrawVisitorBooking(
+                7L, 31L, new com.aiworkmate.dto.VersionRequest(2))).thenReturn(withdrawn);
+
+        var withdrawResult = visitorAdapter.withdraw(context,
+                new com.aiworkmate.agent.tool.port.VisitorToolPort.VersionCommand(31, 2));
+        assertThat(withdrawResult).isEqualTo(
+                new com.aiworkmate.agent.tool.port.VisitorToolPort.StatusResult(31, "WITHDRAWN", 3));
+
+        LocalDateTime occurredAt = LocalDateTime.of(2026, 9, 30, 18, 20);
+        var command = new com.aiworkmate.agent.tool.port.VisitorToolPort.VisitCommand(
+                32, 4, "超过预约时间未到访");
+        var domain = new com.aiworkmate.service.model.VisitorAgentVisitCommand(
+                32, 4, "超过预约时间未到访");
+        var receipt = new com.aiworkmate.service.model.VisitorAgentVisitReceipt(
+                32, "NO_SHOW", 5, occurredAt);
+        when(adminAssetsService.markVisitorNoShowAgent(7L, domain, "operation-5"))
+                .thenReturn(receipt);
+        when(adminAssetsService.findAgentVisitorNoShow(7L, domain, "operation-5"))
+                .thenReturn(java.util.Optional.of(receipt));
+
+        var expected = new com.aiworkmate.agent.tool.port.VisitorToolPort.VisitResult(
+                32, "NO_SHOW", 5, occurredAt);
+        assertThat(visitorAdapter.markNoShow(context, command, new ToolOperationKey("operation-5")))
+                .isEqualTo(expected);
+        assertThat(visitorAdapter.findNoShow(context, command, new ToolOperationKey("operation-5")))
+                .isEqualTo(com.aiworkmate.agent.tool.port.ToolWriteVerification.observed(expected));
+        verify(adminAssetsService).withdrawVisitorBooking(
+                7L, 31L, new com.aiworkmate.dto.VersionRequest(2));
+        verify(adminAssetsService).markVisitorNoShowAgent(7L, domain, "operation-5");
+        verify(adminAssetsService).findAgentVisitorNoShow(7L, domain, "operation-5");
     }
 
     @Test

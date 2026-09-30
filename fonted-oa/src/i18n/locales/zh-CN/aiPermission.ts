@@ -70,6 +70,8 @@ const aiPermission = {
     visitor_checkIn: { name: '登记访客签到', description: '为一条已批准访客预约登记签到。' },
     visitor_markArrived: { name: '登记访客到访', description: '将一条已签到记录标记为已到访。' },
     visitor_leave: { name: '登记访客离场', description: '为一条到访记录登记离场。' },
+    visitor_withdraw: { name: '撤回访客预约', description: '撤回本人一条仍在审批中的访客预约。' },
+    visitor_noShow: { name: '标记访客失约', description: '将一条已过预约时间的已批准访客记录标记为失约。' },
     seal_query: { name: '查询本人用印记录', description: '读取当前用户有权查看的用印申请和登记。' },
     seal_apply: { name: '发起用印申请', description: '创建一条需审批的用印申请。' },
     seal_registerUse: { name: '登记实际用印', description: '为已批准申请登记一次实际用印。' },

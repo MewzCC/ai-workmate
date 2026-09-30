@@ -136,6 +136,12 @@ public interface AdminAssetsService {
     Optional<VisitorAgentVisitReceipt> findAgentVisitorLeave(
             Long userId, VisitorAgentVisitCommand command, String operationKey);
 
+    VisitorAgentVisitReceipt markVisitorNoShowAgent(
+            Long userId, VisitorAgentVisitCommand command, String operationKey);
+
+    Optional<VisitorAgentVisitReceipt> findAgentVisitorNoShow(
+            Long userId, VisitorAgentVisitCommand command, String operationKey);
+
     VisitorBookingResponse getVisitorBooking(Long userId, Long id);
 
     PageResponse<VisitorBookingResponse> listMyVisitorBookings(Long userId, String status,

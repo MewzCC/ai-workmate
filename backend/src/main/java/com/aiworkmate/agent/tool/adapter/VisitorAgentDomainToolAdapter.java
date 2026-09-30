@@ -4,6 +4,7 @@ import com.aiworkmate.agent.tool.port.ToolActorContext;
 import com.aiworkmate.agent.tool.port.ToolOperationKey;
 import com.aiworkmate.agent.tool.port.ToolWriteVerification;
 import com.aiworkmate.agent.tool.port.VisitorToolPort;
+import com.aiworkmate.dto.VersionRequest;
 import com.aiworkmate.service.AdminAssetsService;
 import com.aiworkmate.service.model.VisitorAgentApplicationCommand;
 import com.aiworkmate.service.model.VisitorAgentVisitCommand;
@@ -111,6 +112,32 @@ public final class VisitorAgentDomainToolAdapter implements VisitorToolPort {
             ToolActorContext context, VisitCommand command, ToolOperationKey operationKey) {
         return ToolWriteVerification.fromOptional(
                 adminAssetsService.findAgentVisitorLeave(
+                        context.userId(), toDomain(command), operationKey.value()),
+                result -> new VisitResult(
+                        result.bookingId(), result.status(), result.version(), result.occurredAt()));
+    }
+
+    @Override
+    public StatusResult withdraw(ToolActorContext context, VersionCommand command) {
+        var result = adminAssetsService.withdrawVisitorBooking(
+                context.userId(), command.bookingId(), new VersionRequest(command.version()));
+        return new StatusResult(result.id(), result.status(), result.version());
+    }
+
+    @Override
+    public VisitResult markNoShow(
+            ToolActorContext context, VisitCommand command, ToolOperationKey operationKey) {
+        var result = adminAssetsService.markVisitorNoShowAgent(
+                context.userId(), toDomain(command), operationKey.value());
+        return new VisitResult(
+                result.bookingId(), result.status(), result.version(), result.occurredAt());
+    }
+
+    @Override
+    public ToolWriteVerification<VisitResult> findNoShow(
+            ToolActorContext context, VisitCommand command, ToolOperationKey operationKey) {
+        return ToolWriteVerification.fromOptional(
+                adminAssetsService.findAgentVisitorNoShow(
                         context.userId(), toDomain(command), operationKey.value()),
                 result -> new VisitResult(
                         result.bookingId(), result.status(), result.version(), result.occurredAt()));

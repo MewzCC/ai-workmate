@@ -27,6 +27,13 @@ public class AgentVisitorWriteToolDefinitions {
     public static final String LEAVE_OUTPUT_SCHEMA = """
             {"type":"object","additionalProperties":false,"required":["bookingId","status","version","occurredAt"],"properties":{"bookingId":{"type":"integer","minimum":1},"status":{"type":"string","const":"LEFT"},"version":{"type":"integer","minimum":1},"occurredAt":{"type":"string","format":"date-time"}}}
             """.strip();
+    public static final String WITHDRAW_INPUT_SCHEMA = ClosedToolSchemas.versionedResourceInput("bookingId");
+    public static final String WITHDRAW_OUTPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["bookingId","status","version"],"properties":{"bookingId":{"type":"integer","minimum":1},"status":{"type":"string","const":"WITHDRAWN"},"version":{"type":"integer","minimum":1}}}
+            """.strip();
+    public static final String NO_SHOW_OUTPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["bookingId","status","version","occurredAt"],"properties":{"bookingId":{"type":"integer","minimum":1},"status":{"type":"string","const":"NO_SHOW"},"version":{"type":"integer","minimum":1},"occurredAt":{"type":"string","format":"date-time"}}}
+            """.strip();
 
     @Bean
     ToolDefinition visitorApplyToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {
@@ -68,6 +75,28 @@ public class AgentVisitorWriteToolDefinitions {
                 "Registers departure for one visited application related to the authenticated user.",
                 "Use only for one version-bound visitor departure after explicit confirmation.",
                 objectMapper.readTree(CHECK_IN_INPUT_SCHEMA), objectMapper.readTree(LEAVE_OUTPUT_SCHEMA),
+                ToolWriteProfile.IDEMPOTENT_L1, Set.of("visitor:register"), OwnershipPolicy.SELF,
+                1, 8192, 10000);
+    }
+
+    @Bean
+    ToolDefinition visitorWithdrawToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {
+        return ToolDefinitionFactory.singleWrite(
+                ToolCode.VISITOR_WITHDRAW, "Withdraw one pending visitor booking",
+                "Withdraws one pending visitor booking owned by the authenticated applicant.",
+                "Withdraw one version-bound pending visitor booking after explicit confirmation.",
+                objectMapper.readTree(WITHDRAW_INPUT_SCHEMA), objectMapper.readTree(WITHDRAW_OUTPUT_SCHEMA),
+                ToolWriteProfile.NON_RETRYABLE_L1, Set.of("visitor:withdraw"), OwnershipPolicy.SELF,
+                1, 8192, 10000);
+    }
+
+    @Bean
+    ToolDefinition visitorNoShowToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {
+        return ToolDefinitionFactory.singleWrite(
+                ToolCode.VISITOR_NO_SHOW, "Mark one approved visitor as no-show",
+                "Marks one approved visitor booking related to the authenticated registrar as no-show.",
+                "Use only for one elapsed version-bound visitor booking after explicit confirmation.",
+                objectMapper.readTree(CHECK_IN_INPUT_SCHEMA), objectMapper.readTree(NO_SHOW_OUTPUT_SCHEMA),
                 ToolWriteProfile.IDEMPOTENT_L1, Set.of("visitor:register"), OwnershipPolicy.SELF,
                 1, 8192, 10000);
     }

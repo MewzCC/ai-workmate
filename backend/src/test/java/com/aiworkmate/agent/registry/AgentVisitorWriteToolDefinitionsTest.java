@@ -96,4 +96,43 @@ class AgentVisitorWriteToolDefinitionsTest {
         assertThat(definition.outputSchema().path("properties").path("status").path("const").asText())
                 .isEqualTo("LEFT");
     }
+
+    @Test
+    void visitorWithdrawIsOneNonRetryableConfirmedOwnerWrite() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        ToolDefinition definition = new AgentVisitorWriteToolDefinitions()
+                .visitorWithdrawToolDefinition(mapper);
+        ToolSchemaValidator validator = new ToolSchemaValidator();
+
+        assertThat(definition.schemaHash()).isEqualTo(
+                "sha256:db8d511f72e6025c495c596e4160a7562ee4f82b794bfd6eb52e75561333bbdc");
+        assertThat(definition.requiredPermissions()).containsExactly("visitor:withdraw");
+        assertThat(definition.riskLevel()).isEqualTo(RiskLevel.L1);
+        assertThat(definition.retryPolicy()).isEqualTo(RetryPolicy.NEVER);
+        assertThat(definition.confirmationPolicy()).isEqualTo(ConfirmationPolicy.EXPLICIT);
+        assertThat(definition.ownershipPolicy()).isEqualTo(OwnershipPolicy.SELF);
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree("""
+                {"bookingId":31,"version":2}
+                """))).isTrue();
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree("""
+                {"bookingId":31,"version":2,"reason":"越界字段"}
+                """))).isFalse();
+    }
+
+    @Test
+    void visitorNoShowIsOneIdempotentConfirmedRelatedBookingWrite() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        ToolDefinition definition = new AgentVisitorWriteToolDefinitions()
+                .visitorNoShowToolDefinition(mapper);
+
+        assertThat(definition.schemaHash()).isEqualTo(
+                "sha256:43572cea8f475a40e1851407cb017eb1c715e16e3700ec7a29446a37753a807d");
+        assertThat(definition.requiredPermissions()).containsExactly("visitor:register");
+        assertThat(definition.riskLevel()).isEqualTo(RiskLevel.L1);
+        assertThat(definition.retryPolicy()).isEqualTo(RetryPolicy.BUSINESS_IDEMPOTENT);
+        assertThat(definition.confirmationPolicy()).isEqualTo(ConfirmationPolicy.EXPLICIT);
+        assertThat(definition.ownershipPolicy()).isEqualTo(OwnershipPolicy.SELF);
+        assertThat(definition.outputSchema().path("properties").path("status").path("const").asText())
+                .isEqualTo("NO_SHOW");
+    }
 }
