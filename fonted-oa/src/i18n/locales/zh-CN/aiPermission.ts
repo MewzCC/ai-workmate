@@ -55,6 +55,7 @@ const aiPermission = {
     attendance_reissue_apply: { name: '提交本人补卡申请', description: '仅创建本人待审批补卡申请，不直接修改打卡记录。' },
     attendance_reissue_decide: { name: '审批补卡申请', description: '经二次确认后，仅批准或驳回分配给本人的一条待审批补卡申请。' },
     attendance_settings_update: { name: '更新考勤设置', description: '经二次确认并校验版本后，更新当前租户的上下班时间与弹性规则。' },
+    userSettings_update: { name: '更新个人系统设置', description: '经明确确认后，更新当前用户的模型、上下文、流式输出与 OCR 偏好。' },
     approval_application_createDraft: { name: '创建通用申请草稿', description: '仅保存本人草稿，不启动审批。' },
     approval_application_submitDraft: { name: '提交通用申请草稿', description: '提交本人且版本匹配的草稿并启动审批。' },
     approval_application_withdraw: { name: '撤回通用申请', description: '仅撤回本人处于待审批状态的申请。' },

@@ -3,6 +3,10 @@ package com.aiworkmate.service.impl;
 import com.aiworkmate.entity.UserSetting;
 import com.aiworkmate.dto.ChatPreferencesRequest;
 import com.aiworkmate.mapper.UserSettingMapper;
+import com.aiworkmate.service.BusinessAuditService;
+import com.aiworkmate.service.UserAccessService;
+import com.aiworkmate.service.model.ResolvedUserAccess;
+import com.aiworkmate.common.BusinessException;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -21,6 +25,12 @@ class UserSettingsServiceImplTest {
 
     @Mock
     private UserSettingMapper userSettingMapper;
+
+    @Mock
+    private UserAccessService userAccessService;
+
+    @Mock
+    private BusinessAuditService auditService;
 
     @InjectMocks
     private UserSettingsServiceImpl settingsService;
@@ -99,6 +109,36 @@ class UserSettingsServiceImplTest {
         assertThat(response.initialized()).isTrue();
         assertThat(response.model()).isEqualTo("deepseek-v4-pro");
         verify(userSettingMapper, times(4)).insert(any(UserSetting.class));
+    }
+
+    @Test
+    void agentUpdateRechecksLivePermissionAndAuditsInTheSameTransaction() {
+        when(userAccessService.resolveActiveUser(1001L)).thenReturn(new ResolvedUserAccess(
+                1001L, "alice", 7L, "SYSTEM_ADMIN", java.util.List.of("SYSTEM_ADMIN"),
+                java.util.List.of("settings:self:update"), java.util.List.of("SELF"), 3L));
+        when(userSettingMapper.selectOne(any())).thenReturn(null);
+
+        var response = settingsService.updateChatPreferencesByAgent(1001L,
+                new ChatPreferencesRequest("deepseek-v4-pro", 8, true, false));
+
+        assertThat(response.model()).isEqualTo("deepseek-v4-pro");
+        verify(userSettingMapper, times(4)).insert(any(UserSetting.class));
+        verify(auditService).recordTransactional(7L, 1001L, "USER_SETTINGS", "1001",
+                "UPDATE_CHAT_PREFERENCES", "SUCCESS",
+                "Updated personal chat and OCR preferences through Agent");
+    }
+
+    @Test
+    void agentUpdateFailsClosedWhenLivePermissionWasRevoked() {
+        when(userAccessService.resolveActiveUser(1001L)).thenReturn(new ResolvedUserAccess(
+                1001L, "alice", 7L, "EMPLOYEE", java.util.List.of("EMPLOYEE"),
+                java.util.List.of(), java.util.List.of("SELF"), 4L));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                settingsService.updateChatPreferencesByAgent(1001L,
+                        new ChatPreferencesRequest("deepseek-v4-flash", 10, true, false)))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("PERMISSION_DENIED");
     }
 
     @Test

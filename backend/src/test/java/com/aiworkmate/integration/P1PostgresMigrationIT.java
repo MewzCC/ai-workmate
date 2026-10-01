@@ -616,6 +616,20 @@ class P1PostgresMigrationIT {
                     """)).as("考勤设置必须持久化非空乐观锁版本").isOne();
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'userSettings.update'
+                      AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:3feb8fb4d05d55598844578f85d61f905114ceb4ac1bca9096f0b06dfbc11e59'
+                      AND risk_level = 'L1' AND data_scope_policy = 'SELF'
+                      AND required_permissions = '["settings:self:update"]'::jsonb
+                      AND retry_policy = 'NEVER' AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'EXPLICIT' AND enabled = TRUE
+                    """)).as("个人系统设置工具必须以本人原子写契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code IN ('settings:self:update', 'agent:tool:userSettings.update')
+                    """)).as("个人系统设置工具必须具备业务与工具两层实时权限").isEqualTo(2);
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
                     WHERE tenant_id IS NULL AND code = 'approval.application.createDraft'
                       AND handler_version = '1.0.0'
                       AND schema_hash = 'sha256:0b91ec92030a3bdb99baac22dce2b1e7c3a239829740fe9ad174b24ecf340424'

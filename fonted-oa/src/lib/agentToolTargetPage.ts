@@ -25,6 +25,7 @@ const EXACT_TARGETS: Record<string, string> = {
   'tenantConfiguration.query': 'tenant-config',
   'dictionary.query': 'dictionary',
   'systemCapability.query': 'system-config',
+  'userSettings.update': 'system-config',
 };
 
 const PREFIX_TARGETS: Array<[string, string]> = [

@@ -16,6 +16,8 @@ public interface UserSettingsService {
 
     ChatPreferencesResponse updateChatPreferences(Long userId, ChatPreferencesRequest request);
 
+    ChatPreferencesResponse updateChatPreferencesByAgent(Long userId, ChatPreferencesRequest request);
+
     List<String> getDashboardMetricCodes(Long userId);
 
     void setDashboardMetricCodes(Long userId, List<String> metricCodes);

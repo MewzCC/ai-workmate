@@ -220,7 +220,7 @@ public class PageCapabilityCatalog {
                 page(OaPage.DICTIONARY, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         context(text("keyword"), text("status")), tool(DICTIONARY_QUERY)),
                 page(OaPage.SYSTEM_CONFIG, OwnershipPolicy.SELF, READ_COMMANDS,
-                        context(), tool(SYSTEM_CAPABILITY_QUERY))
+                        context(), tool(SYSTEM_CAPABILITY_QUERY), tool(USER_SETTINGS_UPDATE))
         );
     }
 

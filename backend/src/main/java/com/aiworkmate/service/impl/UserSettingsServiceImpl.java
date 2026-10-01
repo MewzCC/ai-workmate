@@ -1,11 +1,16 @@
 package com.aiworkmate.service.impl;
 
-import com.aiworkmate.entity.UserSetting;
+import com.aiworkmate.common.BusinessException;
+import com.aiworkmate.common.ErrorCode;
 import com.aiworkmate.dto.ChatPreferencesRequest;
 import com.aiworkmate.dto.ChatPreferencesResponse;
+import com.aiworkmate.entity.UserSetting;
 import com.aiworkmate.mapper.UserSettingMapper;
+import com.aiworkmate.service.BusinessAuditService;
+import com.aiworkmate.service.UserAccessService;
 import com.aiworkmate.service.UserSettingsService;
 import com.aiworkmate.service.model.AiModelCatalog;
+import com.aiworkmate.service.model.ResolvedUserAccess;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -33,6 +38,8 @@ public class UserSettingsServiceImpl implements UserSettingsService {
     private static final int DEFAULT_CONTEXT_ROUNDS = 10;
 
     private final UserSettingMapper userSettingMapper;
+    private final UserAccessService userAccessService;
+    private final BusinessAuditService auditService;
 
     @Override
     @Transactional(readOnly = true)
@@ -78,6 +85,24 @@ public class UserSettingsServiceImpl implements UserSettingsService {
                 userId, model, request.maxContextRounds(), request.stream(), request.forcePdfOcr());
         return new ChatPreferencesResponse(model, request.maxContextRounds(), request.stream(),
                 request.forcePdfOcr(), true);
+    }
+
+    @Override
+    @Transactional
+    public ChatPreferencesResponse updateChatPreferencesByAgent(
+            Long userId, ChatPreferencesRequest request) {
+        ResolvedUserAccess actor = userAccessService.resolveActiveUser(userId);
+        if (actor == null) {
+            throw new BusinessException(ErrorCode.AUTH_REQUIRED);
+        }
+        if (!actor.permissions().contains("settings:self:update")) {
+            throw new BusinessException(ErrorCode.PERMISSION_DENIED);
+        }
+        ChatPreferencesResponse response = updateChatPreferences(actor.userId(), request);
+        auditService.recordTransactional(actor.tenantId(), actor.userId(), "USER_SETTINGS",
+                actor.userId().toString(), "UPDATE_CHAT_PREFERENCES", "SUCCESS",
+                "Updated personal chat and OCR preferences through Agent");
+        return response;
     }
 
     @Override

@@ -101,6 +101,7 @@ public enum ToolCode {
     TENANT_CONFIGURATION_QUERY("tenantConfiguration.query"),
     DICTIONARY_QUERY("dictionary.query"),
     SYSTEM_CAPABILITY_QUERY("systemCapability.query"),
+    USER_SETTINGS_UPDATE("userSettings.update", SideEffect.SINGLE_WRITE),
     AGENT_TASK_MINE_QUERY("agentTask.mine.query");
 
     private static final Map<String, ToolCode> BY_CODE;
