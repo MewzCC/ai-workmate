@@ -5,6 +5,8 @@ import com.aiworkmate.agent.tool.port.ToolActorContext;
 import com.aiworkmate.dto.DictionaryTypeListResponse;
 import com.aiworkmate.dto.DictionaryTypeResponse;
 import com.aiworkmate.dto.DictionaryTypeAgentUpdateRequest;
+import com.aiworkmate.dto.DictionaryItemAgentCreateRequest;
+import com.aiworkmate.dto.DictionaryItemResponse;
 import com.aiworkmate.service.DataDictionaryService;
 import org.junit.jupiter.api.Test;
 
@@ -68,5 +70,22 @@ class DictionaryAgentDomainToolAdapterTest {
         assertThat(result.version()).isEqualTo(1);
         verify(service).updateTypeAgent(2L, "PROJECT_STAGE",
                 new DictionaryTypeAgentUpdateRequest(0, "项目阶段新版", "", 30));
+    }
+
+    @Test
+    void mapsTypeCodeAndBoundedItemCreate() {
+        var updatedAt = LocalDateTime.of(2026, 10, 2, 1, 45);
+        when(service.createItemAgent(2L, "PROJECT_STAGE",
+                new DictionaryItemAgentCreateRequest("IN_PROGRESS", "进行中", "处理中", 10)))
+                .thenReturn(new DictionaryItemResponse(101L, 91L, "IN_PROGRESS", "进行中", "处理中",
+                        "ACTIVE", 10, 0L, 0, updatedAt, true, true));
+
+        var result = adapter.createItem(actor, new DictionaryToolPort.CreateItemCommand(
+                "PROJECT_STAGE", "IN_PROGRESS", "进行中", "处理中", 10));
+
+        assertThat(result.dictionaryItemId()).isEqualTo(101L);
+        assertThat(result.typeCode()).isEqualTo("PROJECT_STAGE");
+        verify(service).createItemAgent(2L, "PROJECT_STAGE",
+                new DictionaryItemAgentCreateRequest("IN_PROGRESS", "进行中", "处理中", 10));
     }
 }

@@ -36,5 +36,17 @@ class AgentDictionaryWriteToolDefinitionsTest {
         assertThat(update.inputSchema().path("required")).extracting(JsonNode::asText)
                 .containsExactly("code", "version");
         assertThat(update.inputSchema().path("properties").has("status")).isFalse();
+
+        var createItem = definitions.dictionaryItemCreateToolDefinition(new ObjectMapper());
+        assertThat(createItem.code()).isEqualTo("dictionary.item.create");
+        assertThat(createItem.schemaHash()).isEqualTo(
+                "sha256:e02f5ca5efeaca0e10f3b00ea3312a2cb03d6fd88900cabb1e43781627d9f742");
+        assertThat(createItem.riskLevel()).isEqualTo(RiskLevel.L2);
+        assertThat(createItem.retryPolicy()).isEqualTo(RetryPolicy.NEVER);
+        assertThat(createItem.confirmationPolicy()).isEqualTo(ConfirmationPolicy.SECONDARY);
+        assertThat(createItem.ownershipPolicy()).isEqualTo(OwnershipPolicy.FIXED_RESOURCE);
+        assertThat(createItem.inputSchema().path("required")).extracting(JsonNode::asText)
+                .containsExactly("typeCode", "value", "label");
+        assertThat(createItem.inputSchema().path("properties").has("dictionaryTypeId")).isFalse();
     }
 }

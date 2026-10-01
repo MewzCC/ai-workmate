@@ -32,15 +32,24 @@ class DictionaryToolHandlerTest {
                 "PROJECT_STAGE", 0, "项目阶段新版", "", 30);
         when(port.updateType(context.actor(), updateCommand)).thenReturn(new DictionaryToolPort.UpdateTypeResult(
                 91L, "PROJECT_STAGE", "项目阶段新版", null, "ACTIVE", 30, 1, createdAt));
+        var createItemCommand = new DictionaryToolPort.CreateItemCommand(
+                "PROJECT_STAGE", "IN_PROGRESS", "进行中", "处理中", 10);
+        when(port.createItem(context.actor(), createItemCommand)).thenReturn(new DictionaryToolPort.CreateItemResult(
+                101L, "PROJECT_STAGE", "IN_PROGRESS", "进行中", "处理中",
+                "ACTIVE", 10, 0, 0, createdAt));
 
         var query = new DictionaryQueryToolHandler(port, mapper);
         var create = new DictionaryTypeCreateToolHandler(port, mapper);
         var update = new DictionaryTypeUpdateToolHandler(port, mapper);
+        var createItem = new DictionaryItemCreateToolHandler(port, mapper);
         var result = create.execute(context, mapper.readTree("""
                 {"code":"PROJECT_STAGE","name":"项目阶段","description":"项目阶段字典","sortOrder":20}
                 """));
         var updated = update.execute(context, mapper.readTree("""
                 {"code":"PROJECT_STAGE","version":0,"name":"项目阶段新版","description":"","sortOrder":30}
+                """));
+        var item = createItem.execute(context, mapper.readTree("""
+                {"typeCode":"PROJECT_STAGE","value":"IN_PROGRESS","label":"进行中","description":"处理中","sortOrder":10}
                 """));
 
         assertThat(query.toolCode()).isEqualTo(ToolCode.DICTIONARY_QUERY.code());
@@ -51,8 +60,11 @@ class DictionaryToolHandlerTest {
         assertThat(update.toolCode()).isEqualTo(ToolCode.DICTIONARY_TYPE_UPDATE.code());
         assertThat(update.executionTemplate()).isEqualTo(ToolExecutionTemplate.DIRECT_WRITE);
         assertThat(updated.path("version").asInt()).isEqualTo(1);
+        assertThat(createItem.toolCode()).isEqualTo(ToolCode.DICTIONARY_ITEM_CREATE.code());
+        assertThat(item.path("dictionaryItemId").asLong()).isEqualTo(101L);
         verify(port).createType(context.actor(), command);
         verify(port).updateType(context.actor(), updateCommand);
+        verify(port).createItem(context.actor(), createItemCommand);
         verify(port).dictionaries(context.actor(), new DictionaryToolPort.DictionaryQuery(null, null));
     }
 }

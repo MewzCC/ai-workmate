@@ -1335,6 +1335,18 @@ class P1PostgresMigrationIT {
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM agent_tool
                     WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='SINGLE_WRITE'
+                      AND code='dictionary.item.create'
+                      AND schema_hash='sha256:e02f5ca5efeaca0e10f3b00ea3312a2cb03d6fd88900cabb1e43781627d9f742'
+                      AND risk_level='L2' AND data_scope_policy='FIXED_RESOURCE'
+                      AND retry_policy='NEVER' AND confirmation_policy='SECONDARY'
+                    """)).as("数据字典必须具备启用类型下单字典项受控创建工具").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code='agent:tool:dictionary.item.create'
+                    """)).as("字典项创建工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='SINGLE_WRITE'
                       AND code='knowledge.base.update'
                       AND schema_hash='sha256:79f873ae75d3b83b062efa802cfd1aa22708fd41d7fdde6f373ad400457c66f2'
                       AND risk_level='L1' AND data_scope_policy='FIXED_RESOURCE'

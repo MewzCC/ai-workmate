@@ -3,6 +3,7 @@ package com.aiworkmate.service.impl;
 import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.dto.DictionaryTypeRequest;
 import com.aiworkmate.dto.DictionaryTypeAgentUpdateRequest;
+import com.aiworkmate.dto.DictionaryItemAgentCreateRequest;
 import com.aiworkmate.entity.DataDictionaryItem;
 import com.aiworkmate.entity.DataDictionaryType;
 import com.aiworkmate.mapper.DataDictionaryItemMapper;
@@ -109,6 +110,35 @@ class DataDictionaryServiceImplTest {
     void shouldRejectAgentTypeUpdateWithoutChangeBeforeResolvingActor() {
         assertThatThrownBy(() -> service.updateTypeAgent(1001L, "PROJECT_STAGE",
                 new DictionaryTypeAgentUpdateRequest(2, null, null, null)))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("REQUEST_INVALID");
+        verifyNoInteractions(userAccessService, typeMapper, itemMapper, usageMapper, auditService);
+    }
+
+    @Test
+    void shouldCreateAgentItemInsideActiveTypeAndAudit() {
+        when(userAccessService.resolveActiveUser(1001L)).thenReturn(
+                access(List.of("route:dictionary", "dictionary:manage")));
+        when(typeMapper.selectOne(any())).thenReturn(
+                dictionaryType("PROJECT_STAGE", "项目阶段", null, 20, 1));
+        doAnswer(invocation -> { DataDictionaryItem item = invocation.getArgument(0); item.setId(101L); return 1; })
+                .when(itemMapper).insert(any(DataDictionaryItem.class));
+        when(usageMapper.selectCount(any())).thenReturn(0L);
+
+        var response = service.createItemAgent(1001L, "PROJECT_STAGE",
+                new DictionaryItemAgentCreateRequest("IN_PROGRESS", "进行中", "处理中", 10));
+
+        assertThat(response.id()).isEqualTo(101L);
+        assertThat(response.status()).isEqualTo("ACTIVE");
+        assertThat(response.usageCount()).isZero();
+        verify(auditService).recordTransactional(
+                9L, 1001L, "DICTIONARY_ITEM", "101", "CREATE", "SUCCESS", "IN_PROGRESS");
+    }
+
+    @Test
+    void shouldRejectInvalidAgentItemBeforeResolvingActor() {
+        assertThatThrownBy(() -> service.createItemAgent(1001L, "PROJECT_STAGE",
+                new DictionaryItemAgentCreateRequest("bad value", "进行中", null, 10)))
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode").isEqualTo("REQUEST_INVALID");
         verifyNoInteractions(userAccessService, typeMapper, itemMapper, usageMapper, auditService);

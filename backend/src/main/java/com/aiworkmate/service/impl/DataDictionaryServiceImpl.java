@@ -4,6 +4,7 @@ import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.common.ErrorCode;
 import com.aiworkmate.dto.DictionaryItemPageResponse;
 import com.aiworkmate.dto.DictionaryItemRequest;
+import com.aiworkmate.dto.DictionaryItemAgentCreateRequest;
 import com.aiworkmate.dto.DictionaryItemResponse;
 import com.aiworkmate.dto.DictionaryOptionResponse;
 import com.aiworkmate.dto.DictionaryStatusRequest;
@@ -40,6 +41,7 @@ public class DataDictionaryServiceImpl implements DataDictionaryService {
     private static final String READ_PERMISSION = "route:dictionary";
     private static final String MANAGE_PERMISSION = "dictionary:manage";
     private static final Pattern TYPE_CODE_PATTERN = Pattern.compile("^[A-Z][A-Z0-9_]{1,63}$");
+    private static final Pattern ITEM_VALUE_PATTERN = Pattern.compile("^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$");
 
     private final DataDictionaryTypeMapper typeMapper;
     private final DataDictionaryItemMapper itemMapper;
@@ -181,6 +183,25 @@ public class DataDictionaryServiceImpl implements DataDictionaryService {
     public DictionaryItemResponse createItem(Long userId, Long typeId, DictionaryItemRequest request) {
         ResolvedUserAccess actor = requireManage(userId);
         requireType(actor, typeId);
+        return createItemInternal(actor, typeId, request);
+    }
+
+    @Override
+    @Transactional
+    public DictionaryItemResponse createItemAgent(
+            Long userId, String typeCode, DictionaryItemAgentCreateRequest request) {
+        validateAgentItemCreate(typeCode, request);
+        ResolvedUserAccess actor = requireManage(userId);
+        DataDictionaryType type = requireType(actor, typeCode.trim());
+        if (!"ACTIVE".equals(type.getStatus())) {
+            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID);
+        }
+        return createItemInternal(actor, type.getId(), new DictionaryItemRequest(
+                request.value(), request.label(), request.description(), request.sortOrder(), null));
+    }
+
+    private DictionaryItemResponse createItemInternal(
+            ResolvedUserAccess actor, Long typeId, DictionaryItemRequest request) {
         DataDictionaryItem item = new DataDictionaryItem();
         item.setTenantId(actor.tenantId());
         item.setDictionaryTypeId(typeId);
@@ -383,6 +404,16 @@ public class DataDictionaryServiceImpl implements DataDictionaryService {
                 || (request.name() == null && request.description() == null && request.sortOrder() == null)
                 || (request.name() != null && (!StringUtils.hasText(request.name())
                 || request.name().trim().length() > 120))
+                || (request.description() != null && request.description().trim().length() > 500)
+                || (request.sortOrder() != null && (request.sortOrder() < 0 || request.sortOrder() > 9999))) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+    }
+    private void validateAgentItemCreate(String typeCode, DictionaryItemAgentCreateRequest request) {
+        if (!StringUtils.hasText(typeCode) || !TYPE_CODE_PATTERN.matcher(typeCode.trim()).matches()
+                || request == null || !StringUtils.hasText(request.value())
+                || !ITEM_VALUE_PATTERN.matcher(request.value().trim()).matches()
+                || !StringUtils.hasText(request.label()) || request.label().trim().length() > 160
                 || (request.description() != null && request.description().trim().length() > 500)
                 || (request.sortOrder() != null && (request.sortOrder() < 0 || request.sortOrder() > 9999))) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID);
