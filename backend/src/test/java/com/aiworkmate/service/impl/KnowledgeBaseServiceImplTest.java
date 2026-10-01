@@ -13,6 +13,7 @@ import com.aiworkmate.service.model.ResolvedUserAccess;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -25,6 +26,29 @@ class KnowledgeBaseServiceImplTest {
     private final UserAccessService accessService = mock(UserAccessService.class);
     private final KnowledgeBaseServiceImpl service = new KnowledgeBaseServiceImpl(
             mapper, embeddingService, new EmbeddingProperties(), accessService);
+
+    @Test
+    void agentQueryReturnsOnlyOwnedBasesAndBoundsTheRequestedLimit() {
+        when(accessService.resolveActiveUser(7L)).thenReturn(access(List.of("knowledge:search")));
+        when(mapper.selectOwned(99L, 7L, 50)).thenReturn(List.of(ownedBase()));
+
+        var result = service.queryAgent(7L, null, 500);
+
+        assertThat(result).extracting(response -> response.id()).containsExactly(42L);
+        verify(mapper).selectOwned(99L, 7L, 50);
+    }
+
+    @Test
+    void agentQueryFailsClosedBeforePersistenceWhenPermissionWasRevoked() {
+        when(accessService.resolveActiveUser(7L)).thenReturn(access(List.of()));
+
+        assertThatThrownBy(() -> service.queryAgent(7L, null, 20))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
+                        .isEqualTo(ErrorCode.PERMISSION_DENIED.getErrorCode()));
+
+        verifyNoInteractions(mapper, embeddingService);
+    }
 
     @Test
     void agentCreationUsesTrustedOwnerAndCurrentEmbeddingConfiguration() {
@@ -63,5 +87,24 @@ class KnowledgeBaseServiceImplTest {
     private ResolvedUserAccess access(List<String> permissions) {
         return new ResolvedUserAccess(7L, "owner", 99L, "SYSTEM_ADMIN",
                 List.of("SYSTEM_ADMIN"), permissions, List.of("SELF"), 1L);
+    }
+
+    private KnowledgeBase ownedBase() {
+        KnowledgeBase base = new KnowledgeBase();
+        base.setId(42L);
+        base.setTenantId(99L);
+        base.setUserId(7L);
+        base.setName("研发制度");
+        base.setIcon("book");
+        base.setDescription("团队制度资料");
+        base.setEmbeddingProvider("local");
+        base.setEmbeddingModel("embedding-v1");
+        base.setChunkSize(1000);
+        base.setChunkOverlap(120);
+        base.setDenseTopK(5);
+        base.setSparseTopK(5);
+        base.setCreatedAt(LocalDateTime.of(2026, 10, 1, 20, 50));
+        base.setUpdatedAt(base.getCreatedAt());
+        return base;
     }
 }

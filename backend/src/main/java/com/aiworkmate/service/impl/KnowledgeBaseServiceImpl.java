@@ -35,11 +35,27 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     @Override
     public List<KnowledgeBaseResponse> list(Long userId) {
         ResolvedUserAccess access = requireAccess(userId);
-        return knowledgeBaseMapper.selectList(new LambdaQueryWrapper<KnowledgeBase>()
+        return list(access);
+    }
+
+    @Override
+    public List<KnowledgeBaseResponse> queryAgent(Long userId, Long kbId, int limit) {
+        ResolvedUserAccess access = requireAgentAccess(userId);
+        if (kbId != null) {
+            return List.of(toResponse(requireOwned(access, kbId)));
+        }
+        int boundedLimit = Math.min(50, Math.max(1, limit));
+        return knowledgeBaseMapper.selectOwned(access.tenantId(), access.userId(), boundedLimit)
+                .stream().map(this::toResponse).toList();
+    }
+
+    private List<KnowledgeBaseResponse> list(ResolvedUserAccess access) {
+        LambdaQueryWrapper<KnowledgeBase> query = new LambdaQueryWrapper<KnowledgeBase>()
                         .eq(KnowledgeBase::getTenantId, access.tenantId())
                         .eq(KnowledgeBase::getUserId, access.userId())
                         .orderByDesc(KnowledgeBase::getCreatedAt)
-                        .orderByDesc(KnowledgeBase::getId))
+                        .orderByDesc(KnowledgeBase::getId);
+        return knowledgeBaseMapper.selectList(query)
                 .stream().map(this::toResponse).toList();
     }
 
@@ -53,10 +69,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     @Override
     @Transactional
     public KnowledgeBaseResponse createAgent(Long userId, KnowledgeBaseCreateRequest request) {
-        ResolvedUserAccess access = requireAccess(userId);
-        if (!access.permissions().contains("knowledge:search")) {
-            throw new BusinessException(ErrorCode.PERMISSION_DENIED);
-        }
+        ResolvedUserAccess access = requireAgentAccess(userId);
         return create(access, request);
     }
 
@@ -154,6 +167,14 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             throw new BusinessException(ErrorCode.AUTH_REQUIRED);
         }
         return userAccessService.resolveActiveUser(userId);
+    }
+
+    private ResolvedUserAccess requireAgentAccess(Long userId) {
+        ResolvedUserAccess access = requireAccess(userId);
+        if (!access.permissions().contains("knowledge:search")) {
+            throw new BusinessException(ErrorCode.PERMISSION_DENIED);
+        }
+        return access;
     }
 
     private KnowledgeBase requireOwned(ResolvedUserAccess access, Long kbId) {

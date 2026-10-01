@@ -6,10 +6,17 @@ import java.util.List;
 /** Fixed-resource search port. Returned content remains untrusted model input. */
 public interface KnowledgeToolPort {
     Result search(ToolActorContext context, Query query);
+    BaseQueryResult queryBases(ToolActorContext context, BaseQuery query);
     CreateBaseResult createBase(ToolActorContext context, CreateBaseCommand command);
     CreateTextResult createText(ToolActorContext context, CreateTextCommand command);
 
     record Query(String text, int topK, Double minScore) { }
+    record BaseQuery(Long knowledgeBaseId, int limit) { }
+    record BaseQueryResult(List<BaseItem> items) {
+        public BaseQueryResult { items = List.copyOf(items); }
+    }
+    record BaseItem(long knowledgeBaseId, String name, String icon, String description,
+                    long documentCount, long chunkCount, LocalDateTime createdAt, LocalDateTime updatedAt) { }
     record CreateBaseCommand(String name, String icon, String description) { }
     record CreateBaseResult(long knowledgeBaseId, String name, String icon, String description,
                             long documentCount, long chunkCount, LocalDateTime createdAt)

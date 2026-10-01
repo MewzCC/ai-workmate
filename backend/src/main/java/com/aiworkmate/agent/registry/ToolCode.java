@@ -14,6 +14,7 @@ public enum ToolCode {
     DASHBOARD_PREFERENCES_UPDATE("dashboard.preferences.update", SideEffect.SINGLE_WRITE),
     LEAVE_MINE("leave.mine"),
     KNOWLEDGE_SEARCH("knowledge.search"),
+    KNOWLEDGE_BASE_QUERY("knowledge.base.query"),
     KNOWLEDGE_BASE_CREATE("knowledge.base.create", SideEffect.SINGLE_WRITE),
     KNOWLEDGE_DOCUMENT_CREATE_TEXT("knowledge.document.createText", SideEffect.SINGLE_WRITE),
     NOTIFICATION_MINE("notification.mine"),

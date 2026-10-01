@@ -11,6 +11,7 @@ import com.aiworkmate.service.KnowledgeService;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
@@ -20,6 +21,22 @@ class KnowledgeAgentDomainToolAdapterTest {
     private final KnowledgeBaseService baseService = mock(KnowledgeBaseService.class);
     private final KnowledgeAgentDomainToolAdapter adapter = new KnowledgeAgentDomainToolAdapter(service, baseService);
     private final ToolActorContext actor = new ToolActorContext(99, 7, 10, 20, 0, "trace");
+
+    @Test
+    void delegatesOwnedBaseQueryAndRemovesEmbeddingInternals() {
+        var query = new KnowledgeToolPort.BaseQuery(null, 20);
+        var createdAt = LocalDateTime.of(2026, 10, 1, 20, 30);
+        var updatedAt = createdAt.plusMinutes(1);
+        when(baseService.queryAgent(7L, null, 20)).thenReturn(List.of(
+                new KnowledgeBaseResponse(42L, "研发制度", "book", null, 2, 8,
+                        "internal-provider", "internal-model", "internal-reranker",
+                        1000, 120, 5, 5, createdAt, updatedAt)));
+
+        assertThat(adapter.queryBases(actor, query)).isEqualTo(new KnowledgeToolPort.BaseQueryResult(List.of(
+                new KnowledgeToolPort.BaseItem(42L, "研发制度", "book", null, 2, 8, createdAt, updatedAt))));
+        verify(baseService).queryAgent(7L, null, 20);
+        verifyNoMoreInteractions(service, baseService);
+    }
 
     @Test
     void delegatesBaseCreationToAgentSpecificDomainEntry() {

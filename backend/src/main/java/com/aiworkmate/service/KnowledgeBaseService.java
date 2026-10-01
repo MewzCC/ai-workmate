@@ -10,6 +10,8 @@ public interface KnowledgeBaseService {
 
     List<KnowledgeBaseResponse> list(Long userId);
 
+    List<KnowledgeBaseResponse> queryAgent(Long userId, Long kbId, int limit);
+
     KnowledgeBaseResponse create(Long userId, KnowledgeBaseCreateRequest request);
 
     KnowledgeBaseResponse createAgent(Long userId, KnowledgeBaseCreateRequest request);
