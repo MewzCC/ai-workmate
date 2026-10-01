@@ -14,6 +14,7 @@ import java.util.List;
 public interface DataDictionaryService {
     DictionaryTypeListResponse listTypes(Long userId, String keyword, String status);
     DictionaryTypeResponse createType(Long userId, DictionaryTypeRequest request);
+    DictionaryTypeResponse createTypeAgent(Long userId, DictionaryTypeRequest request);
     DictionaryTypeResponse updateType(Long userId, Long id, DictionaryTypeRequest request);
     DictionaryTypeResponse updateTypeStatus(Long userId, Long id, DictionaryStatusRequest request);
     void deleteType(Long userId, Long id, Integer version);

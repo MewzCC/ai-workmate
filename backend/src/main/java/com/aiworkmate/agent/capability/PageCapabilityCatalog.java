@@ -227,7 +227,8 @@ public class PageCapabilityCatalog {
                 page(OaPage.TENANT_CONFIG, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         context(), tool(TENANT_CONFIGURATION_QUERY)),
                 page(OaPage.DICTIONARY, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
-                        context(text("keyword"), text("status")), tool(DICTIONARY_QUERY)),
+                        context(text("keyword"), text("status")), tool(DICTIONARY_QUERY),
+                        tool(DICTIONARY_TYPE_CREATE)),
                 page(OaPage.SYSTEM_CONFIG, OwnershipPolicy.SELF, READ_COMMANDS,
                         context(), tool(SYSTEM_CAPABILITY_QUERY), tool(USER_SETTINGS_UPDATE))
         );

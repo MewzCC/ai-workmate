@@ -8,12 +8,10 @@ import java.util.List;
 public interface OperationalGovernanceToolPort {
     AuditPage auditRecords(ToolActorContext context, AuditQuery query);
     TenantConfiguration tenantConfiguration(ToolActorContext context);
-    DictionaryOverview dictionaries(ToolActorContext context, DictionaryQuery query);
     SystemCapabilities systemCapabilities(ToolActorContext context);
 
     record AuditQuery(String action, String resourceType, String result, LocalDateTime from,
                       LocalDateTime to, int page, int size) { }
-    record DictionaryQuery(String keyword, String status) { }
     record AuditPage(List<AuditRecord> records, long total, int page, int size) {
         public AuditPage { records = List.copyOf(records); }
     }
@@ -24,11 +22,6 @@ public interface OperationalGovernanceToolPort {
                                int version, LocalDateTime updatedAt) { }
     record FeatureSwitches(boolean approval, boolean attendance, boolean asset, boolean meeting,
                            boolean visitor, boolean seal) { }
-    record DictionaryOverview(List<DictionaryType> records, boolean canManage) {
-        public DictionaryOverview { records = List.copyOf(records); }
-    }
-    record DictionaryType(String code, String name, String description, String status, int sortOrder,
-                          int itemCount, int activeItemCount, int version, LocalDateTime updatedAt) { }
     record SystemCapabilities(Instant checkedAt, List<Capability> capabilities) {
         public SystemCapabilities { capabilities = List.copyOf(capabilities); }
     }

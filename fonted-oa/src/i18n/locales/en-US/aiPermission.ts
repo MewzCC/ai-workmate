@@ -139,6 +139,7 @@ const aiPermission = {
     audit_query: { name: 'Query audit records', description: 'Returns tenant audit metadata without identities, resource identifiers, traces, or summaries.' },
     tenantConfiguration_query: { name: 'Query tenant configuration', description: 'Returns authorized business and security policy summaries for the current tenant.' },
     dictionary_query: { name: 'Query data dictionary', description: 'Returns dictionary type summaries without internal IDs or item values.' },
+    dictionary_type_create: { name: 'Create dictionary type', description: 'Creates one active tenant dictionary type after secondary confirmation, without item creation, deletion, or batch changes.' },
     systemCapability_query: { name: 'Query system capabilities', description: 'Returns only capability status without keys, addresses, connection strings, or stacks.' },
     agentTask_mine_query: { name: 'Query my Agent tasks', description: 'Reads only Agent task summaries owned by the current user.' },
     agentTask_cancel: { name: 'Cancel my Agent task', description: 'Cancels one cancellable Agent task owned by the current user after explicit confirmation.' },

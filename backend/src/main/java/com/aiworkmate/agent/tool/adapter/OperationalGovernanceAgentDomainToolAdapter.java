@@ -4,7 +4,6 @@ import com.aiworkmate.agent.tool.port.OperationalGovernanceToolPort;
 import com.aiworkmate.agent.tool.port.ToolActorContext;
 import com.aiworkmate.dto.SystemCapabilityStatusResponse;
 import com.aiworkmate.service.AuditQueryService;
-import com.aiworkmate.service.DataDictionaryService;
 import com.aiworkmate.service.SystemCapabilityQueryService;
 import com.aiworkmate.service.TenantConfigurationService;
 import lombok.RequiredArgsConstructor;
@@ -16,7 +15,6 @@ import java.util.List;
 public class OperationalGovernanceAgentDomainToolAdapter implements OperationalGovernanceToolPort {
     private final AuditQueryService auditService;
     private final TenantConfigurationService tenantService;
-    private final DataDictionaryService dictionaryService;
     private final SystemCapabilityQueryService capabilityService;
 
     @Override
@@ -36,15 +34,6 @@ public class OperationalGovernanceAgentDomainToolAdapter implements OperationalG
                 x.assetEnabled(), x.meetingEnabled(), x.visitorEnabled(), x.sealEnabled()),
                 x.defaultApprovalDays(), x.expenseCurrency(), x.passwordMinLength(), x.sessionTimeoutMinutes(),
                 x.version(), x.updatedAt());
-    }
-
-    @Override
-    public DictionaryOverview dictionaries(ToolActorContext context, DictionaryQuery query) {
-        var x = dictionaryService.listTypes(context.userId(), query.keyword(), query.status());
-        return new DictionaryOverview(x.records().stream()
-                .map(t -> new DictionaryType(t.code(), t.name(), t.description(), t.status(), t.sortOrder(),
-                        t.itemCount(), t.activeItemCount(), t.version(), t.updatedAt()))
-                .toList(), x.canManage());
     }
 
     @Override

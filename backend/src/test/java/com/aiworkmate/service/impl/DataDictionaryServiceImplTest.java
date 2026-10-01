@@ -61,6 +61,30 @@ class DataDictionaryServiceImplTest {
     }
 
     @Test
+    void shouldCreateAgentTypeThroughTheSameTenantScopedTransaction() {
+        when(userAccessService.resolveActiveUser(1001L)).thenReturn(access(List.of("route:dictionary", "dictionary:manage")));
+        doAnswer(invocation -> { DataDictionaryType type = invocation.getArgument(0); type.setId(91L); return 1; })
+                .when(typeMapper).insert(any(DataDictionaryType.class));
+        when(itemMapper.selectCount(any())).thenReturn(0L);
+
+        var response = service.createTypeAgent(1001L,
+                new DictionaryTypeRequest("PROJECT_STAGE", "项目阶段", "项目阶段字典", 20, null));
+
+        assertThat(response.id()).isEqualTo(91L);
+        assertThat(response.status()).isEqualTo("ACTIVE");
+        verify(auditService).recordTransactional(9L, 1001L, "DICTIONARY_TYPE", "91", "CREATE", "SUCCESS", "PROJECT_STAGE");
+    }
+
+    @Test
+    void shouldRejectInvalidAgentTypeBeforeResolvingActorOrWriting() {
+        assertThatThrownBy(() -> service.createTypeAgent(1001L,
+                new DictionaryTypeRequest("bad-code", "项目阶段", null, 0, null)))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("REQUEST_INVALID");
+        verifyNoInteractions(userAccessService, typeMapper, itemMapper, usageMapper, auditService);
+    }
+
+    @Test
     void shouldRejectDeletingReferencedItem() {
         when(userAccessService.resolveActiveUser(1001L)).thenReturn(access(List.of("route:dictionary", "dictionary:manage")));
         DataDictionaryItem item = new DataDictionaryItem();

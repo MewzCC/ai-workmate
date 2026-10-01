@@ -31,12 +31,14 @@ import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.regex.Pattern;
 
 @Service
 @RequiredArgsConstructor
 public class DataDictionaryServiceImpl implements DataDictionaryService {
     private static final String READ_PERMISSION = "route:dictionary";
     private static final String MANAGE_PERMISSION = "dictionary:manage";
+    private static final Pattern TYPE_CODE_PATTERN = Pattern.compile("^[A-Z][A-Z0-9_]{1,63}$");
 
     private final DataDictionaryTypeMapper typeMapper;
     private final DataDictionaryItemMapper itemMapper;
@@ -64,6 +66,17 @@ public class DataDictionaryServiceImpl implements DataDictionaryService {
     @Override
     @Transactional
     public DictionaryTypeResponse createType(Long userId, DictionaryTypeRequest request) {
+        return createTypeInternal(userId, request);
+    }
+
+    @Override
+    @Transactional
+    public DictionaryTypeResponse createTypeAgent(Long userId, DictionaryTypeRequest request) {
+        validateAgentTypeRequest(request);
+        return createTypeInternal(userId, request);
+    }
+
+    private DictionaryTypeResponse createTypeInternal(Long userId, DictionaryTypeRequest request) {
         ResolvedUserAccess actor = requireManage(userId);
         DataDictionaryType type = new DataDictionaryType();
         type.setTenantId(actor.tenantId());
@@ -325,6 +338,16 @@ public class DataDictionaryServiceImpl implements DataDictionaryService {
     }
 
     private boolean canManage(ResolvedUserAccess actor) { return actor.permissions().contains(MANAGE_PERMISSION); }
+    private void validateAgentTypeRequest(DictionaryTypeRequest request) {
+        if (request == null || !StringUtils.hasText(request.code())
+                || !TYPE_CODE_PATTERN.matcher(request.code().trim()).matches()
+                || !StringUtils.hasText(request.name()) || request.name().trim().length() > 120
+                || (request.description() != null && request.description().trim().length() > 500)
+                || (request.sortOrder() != null && (request.sortOrder() < 0 || request.sortOrder() > 9999))
+                || request.version() != null) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+    }
     private void requireVersion(Integer actual, Integer expected) { if (actual == null || !actual.equals(expected)) throw new BusinessException(ErrorCode.VERSION_CONFLICT); }
     private String normalizeOptionalStatus(String value) {
         if (!StringUtils.hasText(value)) return null;

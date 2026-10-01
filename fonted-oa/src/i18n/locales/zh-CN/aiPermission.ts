@@ -139,6 +139,7 @@ const aiPermission = {
     audit_query: { name: '查询审计记录', description: '返回租户审计元数据，不暴露身份、资源标识、链路或摘要。' },
     tenantConfiguration_query: { name: '查询租户配置', description: '返回当前租户获授权的业务和安全策略摘要。' },
     dictionary_query: { name: '查询数据字典', description: '返回字典类型摘要，不暴露内部 ID 或字典项值。' },
+    dictionary_type_create: { name: '创建字典类型', description: '经二次确认后创建一个租户内启用的字典类型，不创建字典项、不删除或批量修改。' },
     systemCapability_query: { name: '查询系统能力', description: '只返回能力状态，不暴露密钥、地址、连接串或堆栈。' },
     agentTask_mine_query: { name: '查询本人 Agent 任务', description: '只读取当前用户自己的 Agent 任务摘要。' },
     agentTask_cancel: { name: '取消本人 Agent 任务', description: '经明确确认后取消当前用户自己的一条可取消 Agent 任务。' },

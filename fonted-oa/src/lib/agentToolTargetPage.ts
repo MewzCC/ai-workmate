@@ -46,6 +46,7 @@ const EXACT_TARGETS: Record<string, string> = {
   'audit.query': 'audit-center',
   'tenantConfiguration.query': 'tenant-config',
   'dictionary.query': 'dictionary',
+  'dictionary.type.create': 'dictionary',
   'systemCapability.query': 'system-config',
   'userSettings.update': 'system-config',
 };

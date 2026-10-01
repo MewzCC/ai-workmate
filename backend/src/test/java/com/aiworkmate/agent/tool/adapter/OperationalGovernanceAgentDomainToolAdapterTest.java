@@ -7,7 +7,6 @@ import com.aiworkmate.dto.AuditRecordResponse;
 import com.aiworkmate.dto.SystemCapabilitiesResponse;
 import com.aiworkmate.dto.SystemCapabilityStatusResponse;
 import com.aiworkmate.service.AuditQueryService;
-import com.aiworkmate.service.DataDictionaryService;
 import com.aiworkmate.service.SystemCapabilityQueryService;
 import com.aiworkmate.service.TenantConfigurationService;
 import org.junit.jupiter.api.Test;
@@ -23,11 +22,10 @@ import static org.mockito.Mockito.*;
 class OperationalGovernanceAgentDomainToolAdapterTest {
     private final AuditQueryService auditService = mock(AuditQueryService.class);
     private final TenantConfigurationService tenantService = mock(TenantConfigurationService.class);
-    private final DataDictionaryService dictionaryService = mock(DataDictionaryService.class);
     private final SystemCapabilityQueryService capabilityService = mock(SystemCapabilityQueryService.class);
     private final OperationalGovernanceAgentDomainToolAdapter adapter =
             new OperationalGovernanceAgentDomainToolAdapter(
-                    auditService, tenantService, dictionaryService, capabilityService);
+                    auditService, tenantService, capabilityService);
     private final ToolActorContext actor = new ToolActorContext(1L, 2L, 3L, 4L, 0, "gateway-trace");
 
     @Test
