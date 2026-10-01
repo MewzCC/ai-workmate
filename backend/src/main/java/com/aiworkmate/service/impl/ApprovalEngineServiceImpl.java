@@ -13,6 +13,7 @@ import com.aiworkmate.dto.ApprovalProcessAgentDraftUpdateRequest;
 import com.aiworkmate.dto.ApprovalProcessResponse;
 import com.aiworkmate.dto.ApprovalRuleRequest;
 import com.aiworkmate.dto.ApprovalRuleAgentDraftRequest;
+import com.aiworkmate.dto.ApprovalRuleAgentDraftUpdateRequest;
 import com.aiworkmate.dto.ApprovalRuleResponse;
 import com.aiworkmate.entity.ApprovalForm;
 import com.aiworkmate.entity.ApprovalProcess;
@@ -589,6 +590,59 @@ public class ApprovalEngineServiceImpl implements ApprovalEngineService {
 
     @Override
     @Transactional
+    public ApprovalRuleResponse updateRuleDraftAgent(Long userId, Long id,
+                                                     ApprovalRuleAgentDraftUpdateRequest request) {
+        requireAgentRuleDraft(request);
+        if (id == null || id < 1 || request.version() == null || request.version() < 1) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        ResolvedUserAccess actor = requirePermission(userId, "approval:manage");
+        ApprovalRule rule = requireRule(actor.tenantId(), id);
+        if (!"DISABLED".equals(rule.getStatus())) {
+            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID);
+        }
+        String conditionJson;
+        String actionJson;
+        try {
+            List<Map<String, String>> conditions = request.conditions().stream()
+                    .map(condition -> Map.of("field", condition.field(), "op", condition.operator(),
+                            "value", condition.value())).toList();
+            Object conditionDocument = conditions.size() == 1
+                    ? conditions.get(0)
+                    : Map.of("logic", request.logic(), "conditions", conditions);
+            conditionJson = objectMapper.writeValueAsString(conditionDocument);
+            actionJson = objectMapper.writeValueAsString(Map.of(
+                    "appendNode", request.action().appendNode(),
+                    "enabled", request.action().enabled(),
+                    "mode", request.action().mode()));
+        } catch (JsonProcessingException exception) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.approval.json.invalid");
+        }
+        LocalDateTime now = LocalDateTime.now();
+        int updated = ruleMapper.update(null, new LambdaUpdateWrapper<ApprovalRule>()
+                .eq(ApprovalRule::getId, id)
+                .eq(ApprovalRule::getTenantId, actor.tenantId())
+                .eq(ApprovalRule::getDeleted, false)
+                .eq(ApprovalRule::getStatus, "DISABLED")
+                .eq(ApprovalRule::getVersion, request.version())
+                .set(ApprovalRule::getRuleName, request.ruleName().trim())
+                .set(ApprovalRule::getRuleType, request.ruleType())
+                .set(ApprovalRule::getPriority, request.priority())
+                .set(ApprovalRule::getConditionJson, conditionJson)
+                .set(ApprovalRule::getActionJson, actionJson)
+                .set(ApprovalRule::getDescription, trim(request.description()))
+                .set(ApprovalRule::getUpdatedAt, now)
+                .setSql("version = version + 1"));
+        if (updated != 1) {
+            throw new BusinessException(ErrorCode.VERSION_CONFLICT);
+        }
+        auditService.record(actor.tenantId(), actor.userId(), RESOURCE_RULE,
+                id.toString(), "UPDATE", "SUCCESS", "Agent 更新审批规则草稿");
+        return toRuleResponse(ruleMapper.selectById(id), singleUserName(rule.getCreatedBy()), true);
+    }
+
+    @Override
+    @Transactional
     public ApprovalRuleResponse updateRule(Long userId, Long id, ApprovalRuleRequest request) {
         ResolvedUserAccess actor = requirePermission(userId, "approval:manage");
         requireVersion(request.version());
@@ -755,6 +809,19 @@ public class ApprovalEngineServiceImpl implements ApprovalEngineService {
                 throw new BusinessException(ErrorCode.REQUEST_INVALID);
             }
         }
+    }
+
+    private void requireAgentRuleDraft(ApprovalRuleAgentDraftUpdateRequest request) {
+        if (request == null || request.conditions() == null || request.action() == null) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        requireAgentRuleDraft(new ApprovalRuleAgentDraftRequest(
+                "agent-update", request.ruleName(), request.ruleType(), request.priority(),
+                request.description(), request.logic(), request.conditions().stream().map(condition ->
+                new ApprovalRuleAgentDraftRequest.Condition(condition.field(), condition.operator(),
+                        condition.value())).toList(),
+                new ApprovalRuleAgentDraftRequest.Action(request.action().appendNode(),
+                        request.action().enabled(), request.action().mode())));
     }
 
     private String agentProcessNodes(List<ApprovalProcessAgentDraftUpdateRequest.Node> nodes) {

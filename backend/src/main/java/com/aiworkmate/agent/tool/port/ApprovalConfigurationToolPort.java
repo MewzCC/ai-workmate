@@ -11,6 +11,7 @@ public interface ApprovalConfigurationToolPort {
     ProcessDraftResult createProcessDraft(ToolActorContext context, ProcessDraft command);
     ProcessDraftResult updateProcessDraft(ToolActorContext context, ProcessDraftUpdate command);
     RuleDraftResult createRuleDraft(ToolActorContext context, RuleDraft command);
+    RuleDraftResult updateRuleDraft(ToolActorContext context, RuleDraftUpdate command);
 
     enum Resource { FORM, PROCESS, RULE }
 
@@ -64,6 +65,12 @@ public interface ApprovalConfigurationToolPort {
     }
 
     record RuleCondition(String field, String operator, String value) { }
+
+    record RuleDraftUpdate(long ruleId, int version, String ruleName, String ruleType, int priority,
+                           String description, String logic, List<RuleCondition> conditions,
+                           RuleAction action) {
+        public RuleDraftUpdate { conditions = List.copyOf(conditions); }
+    }
 
     record RuleAction(String appendNode, boolean enabled, String mode) { }
 

@@ -137,4 +137,31 @@ class AgentApprovalConfigurationWriteToolDefinitionsTest {
                  "action":{"appendNode":"FINANCE_REVIEW","enabled":true,"mode":"OR_SIGN"}}
                 """))).isFalse();
     }
+
+    @Test
+    void updateRuleIsOneVersionBoundDisabledResourceWrite() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        ToolDefinition definition = new AgentApprovalConfigurationWriteToolDefinitions()
+                .approvalRuleUpdateDraftToolDefinition(mapper);
+        ToolSchemaValidator validator = new ToolSchemaValidator();
+
+        assertThat(definition.schemaHash()).isEqualTo(
+                "sha256:ae1d105826a8bb98979b5db5b997b25b35791c1d4b1c5c9e4c20976c83eab733");
+        assertThat(definition.requiredPermissions()).containsExactly("approval:manage");
+        assertThat(definition.riskLevel()).isEqualTo(RiskLevel.L1);
+        assertThat(definition.sideEffect()).isEqualTo(SideEffect.SINGLE_WRITE);
+        assertThat(definition.retryPolicy()).isEqualTo(RetryPolicy.NEVER);
+        assertThat(definition.confirmationPolicy()).isEqualTo(ConfirmationPolicy.EXPLICIT);
+        assertThat(definition.ownershipPolicy()).isEqualTo(OwnershipPolicy.FIXED_RESOURCE);
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree("""
+                {"ruleId":51,"version":2,"ruleName":"大额费用复核（新版）","ruleType":"AMOUNT_THRESHOLD",
+                 "priority":5,"logic":"AND","conditions":[{"field":"amount","operator":"gte","value":"8000"}],
+                 "action":{"appendNode":"FINANCE_REVIEW","enabled":true,"mode":"OR_SIGN"}}
+                """))).isTrue();
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree("""
+                {"ruleId":51,"version":2,"ruleKey":"changed","ruleName":"规则","ruleType":"AMOUNT_THRESHOLD",
+                 "priority":5,"logic":"AND","conditions":[],"status":"ENABLED","conditionJson":"{}",
+                 "action":{"appendNode":"FINANCE_REVIEW","enabled":true,"mode":"OR_SIGN"}}
+                """))).isFalse();
+    }
 }

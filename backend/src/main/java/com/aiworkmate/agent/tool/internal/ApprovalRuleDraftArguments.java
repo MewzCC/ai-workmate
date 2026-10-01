@@ -22,6 +22,21 @@ final class ApprovalRuleDraftArguments {
     private ApprovalRuleDraftArguments() { }
 
     static ApprovalConfigurationToolPort.RuleDraft create(JsonNode arguments) {
+        Parsed parsed = parse(arguments);
+        return new ApprovalConfigurationToolPort.RuleDraft(requiredText(arguments, "ruleKey"),
+                parsed.ruleName(), parsed.ruleType(), parsed.priority(), parsed.description(),
+                parsed.logic(), parsed.conditions(), parsed.action());
+    }
+
+    static ApprovalConfigurationToolPort.RuleDraftUpdate update(JsonNode arguments) {
+        Parsed parsed = parse(arguments);
+        return new ApprovalConfigurationToolPort.RuleDraftUpdate(
+                requiredLong(arguments, "ruleId", 1), requiredInt(arguments, "version", 1, Integer.MAX_VALUE),
+                parsed.ruleName(), parsed.ruleType(), parsed.priority(), parsed.description(),
+                parsed.logic(), parsed.conditions(), parsed.action());
+    }
+
+    private static Parsed parse(JsonNode arguments) {
         String ruleType = requiredText(arguments, "ruleType");
         String logic = requiredText(arguments, "logic");
         if (!RULE_TYPES.contains(ruleType) || !("AND".equals(logic) || "OR".equals(logic))) throw invalid();
@@ -41,12 +56,15 @@ final class ApprovalRuleDraftArguments {
         String mode = requiredText(action, "mode");
         JsonNode enabled = action.get("enabled");
         if (!NODES.contains(appendNode) || !MODES.contains(mode) || enabled == null || !enabled.isBoolean()) throw invalid();
-        return new ApprovalConfigurationToolPort.RuleDraft(requiredText(arguments, "ruleKey"),
-                requiredText(arguments, "ruleName"), ruleType,
+        return new Parsed(requiredText(arguments, "ruleName"), ruleType,
                 requiredInt(arguments, "priority", 0, 10000),
                 optionalTextPreservingEmpty(arguments, "description"), logic, List.copyOf(conditions),
                 new ApprovalConfigurationToolPort.RuleAction(appendNode, enabled.booleanValue(), mode));
     }
+
+    private record Parsed(String ruleName, String ruleType, int priority, String description,
+                          String logic, List<ApprovalConfigurationToolPort.RuleCondition> conditions,
+                          ApprovalConfigurationToolPort.RuleAction action) { }
 
     private static BusinessException invalid() { return new BusinessException(ErrorCode.REQUEST_INVALID); }
 }

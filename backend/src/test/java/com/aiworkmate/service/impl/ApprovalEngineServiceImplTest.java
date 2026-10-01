@@ -9,6 +9,7 @@ import com.aiworkmate.dto.ApprovalProcessAgentDraftRequest;
 import com.aiworkmate.dto.ApprovalProcessAgentDraftUpdateRequest;
 import com.aiworkmate.dto.ApprovalRuleResponse;
 import com.aiworkmate.dto.ApprovalRuleAgentDraftRequest;
+import com.aiworkmate.dto.ApprovalRuleAgentDraftUpdateRequest;
 import com.aiworkmate.entity.ApprovalForm;
 import com.aiworkmate.entity.ApprovalProcess;
 import com.aiworkmate.entity.ApprovalRule;
@@ -287,6 +288,48 @@ class ApprovalEngineServiceImplTest {
         assertThat(rule.getValue().getConditionJson()).contains("\"field\":\"amount\"");
         assertThat(rule.getValue().getActionJson()).contains("FINANCE_REVIEW");
         assertThat(rule.getValue().getStatus()).isEqualTo("DISABLED");
+    }
+
+    @Test
+    void agentUpdatesOnlyDisabledRuleAtExpectedVersion() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(readerAccess());
+        ApprovalRule existing = rule(USER_ID);
+        existing.setStatus("DISABLED");
+        existing.setVersion(2);
+        ApprovalRule updated = rule(USER_ID);
+        updated.setRuleName("大额费用复核（新版）");
+        updated.setStatus("DISABLED");
+        updated.setVersion(3);
+        when(ruleMapper.selectById(51L)).thenReturn(existing, updated);
+        when(ruleMapper.update(any(), any())).thenReturn(1);
+
+        var response = service.updateRuleDraftAgent(USER_ID, 51L,
+                new ApprovalRuleAgentDraftUpdateRequest(2, "大额费用复核（新版）",
+                        "AMOUNT_THRESHOLD", 5, null, "AND",
+                        List.of(new ApprovalRuleAgentDraftUpdateRequest.Condition("amount", "gte", "8000")),
+                        new ApprovalRuleAgentDraftUpdateRequest.Action("FINANCE_REVIEW", true, "OR_SIGN")));
+
+        assertThat(response.status()).isEqualTo("DISABLED");
+        assertThat(response.version()).isEqualTo(3);
+        verify(ruleMapper).update(org.mockito.ArgumentMatchers.isNull(), any());
+        verify(auditService).record(TENANT_ID, USER_ID, "APPROVAL_RULE", "51",
+                "UPDATE", "SUCCESS", "Agent 更新审批规则草稿");
+    }
+
+    @Test
+    void agentRejectsUpdatingEnabledRuleBeforeWriting() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(readerAccess());
+        ApprovalRule enabled = rule(USER_ID);
+        enabled.setStatus("ENABLED");
+        when(ruleMapper.selectById(51L)).thenReturn(enabled);
+
+        assertThatThrownBy(() -> service.updateRuleDraftAgent(USER_ID, 51L,
+                new ApprovalRuleAgentDraftUpdateRequest(2, "已启用规则", "AMOUNT_THRESHOLD", 5,
+                        null, "AND",
+                        List.of(new ApprovalRuleAgentDraftUpdateRequest.Condition("amount", "gte", "8000")),
+                        new ApprovalRuleAgentDraftUpdateRequest.Action("FINANCE_REVIEW", true, "OR_SIGN"))))
+                .isInstanceOf(com.aiworkmate.common.BusinessException.class);
+        org.mockito.Mockito.verify(ruleMapper, org.mockito.Mockito.never()).update(any(), any());
     }
 
     private ApprovalForm form(Long createdBy) {

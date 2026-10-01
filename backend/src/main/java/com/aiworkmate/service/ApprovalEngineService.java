@@ -11,6 +11,7 @@ import com.aiworkmate.dto.ApprovalProcessAgentDraftUpdateRequest;
 import com.aiworkmate.dto.ApprovalProcessResponse;
 import com.aiworkmate.dto.ApprovalRuleRequest;
 import com.aiworkmate.dto.ApprovalRuleAgentDraftRequest;
+import com.aiworkmate.dto.ApprovalRuleAgentDraftUpdateRequest;
 import com.aiworkmate.dto.ApprovalRuleResponse;
 
 /**
@@ -68,6 +69,9 @@ public interface ApprovalEngineService {
     ApprovalRuleResponse createRule(Long userId, ApprovalRuleRequest request);
 
     ApprovalRuleResponse createRuleDraftAgent(Long userId, ApprovalRuleAgentDraftRequest request);
+
+    ApprovalRuleResponse updateRuleDraftAgent(Long userId, Long id,
+                                               ApprovalRuleAgentDraftUpdateRequest request);
 
     ApprovalRuleResponse updateRule(Long userId, Long id, ApprovalRuleRequest request);
 
