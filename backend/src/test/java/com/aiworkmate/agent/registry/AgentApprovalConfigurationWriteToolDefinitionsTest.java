@@ -1,0 +1,39 @@
+package com.aiworkmate.agent.registry;
+
+import com.aiworkmate.agent.gateway.ToolSchemaValidator;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.Test;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+class AgentApprovalConfigurationWriteToolDefinitionsTest {
+    @Test
+    void createFormIsOneConfirmedUnpublishedTenantWrite() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        ToolDefinition definition = new AgentApprovalConfigurationWriteToolDefinitions()
+                .approvalFormCreateDraftToolDefinition(mapper);
+        ToolSchemaValidator validator = new ToolSchemaValidator();
+
+        assertThat(definition.schemaHash()).isEqualTo(
+                "sha256:8d37f2c2e3a5181b9dfdf2891550c7f44e6e10fc2264c07924c58a603c81402c");
+        assertThat(definition.requiredPermissions()).containsExactly("approval:manage");
+        assertThat(definition.riskLevel()).isEqualTo(RiskLevel.L1);
+        assertThat(definition.sideEffect()).isEqualTo(SideEffect.SINGLE_WRITE);
+        assertThat(definition.retryPolicy()).isEqualTo(RetryPolicy.NEVER);
+        assertThat(definition.confirmationPolicy()).isEqualTo(ConfirmationPolicy.EXPLICIT);
+        assertThat(definition.ownershipPolicy()).isEqualTo(OwnershipPolicy.TENANT_SCOPED);
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree("""
+                {"formKey":"travel","formName":"出差申请","fields":[
+                  {"name":"reason","label":"出差事由","type":"textarea","required":true,"width":"full"}
+                ]}
+                """))).isTrue();
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree("""
+                {"formKey":"travel","formName":"出差申请","status":"ENABLED","fields":[
+                  {"name":"reason","label":"出差事由","type":"textarea","required":true,"width":"full"}
+                ]}
+                """))).isFalse();
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree("""
+                {"formKey":"travel","formName":"出差申请","schemaJson":"{}","fields":[]}
+                """))).isFalse();
+    }
+}

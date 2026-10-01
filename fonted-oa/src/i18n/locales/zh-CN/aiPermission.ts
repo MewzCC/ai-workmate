@@ -46,6 +46,7 @@ const aiPermission = {
     leave_updateDraft: { name: '修改本人请假草稿', description: '按乐观锁版本修改本人一条请假草稿，不自动提交。' },
     leave_remind: { name: '催办本人请假申请', description: '对本人一条待审批请假申请发起受频率限制的催办。' },
     approval_configuration_query: { name: '查询审批配置', description: '只读取当前租户有权查看的表单、流程和规则摘要。' },
+    approval_form_createDraft: { name: '创建审批表单草稿', description: '经明确确认后创建一个未发布的审批表单定义草稿。' },
     approval_task_query: { name: '查询租户审批任务', description: '按实时权限和数据范围读取审批任务摘要。' },
     approval_task_approve: { name: '通过单个审批待办', description: '二次确认后仅通过当前用户负责且版本匹配的一条待办。' },
     approval_task_reject: { name: '驳回单个审批待办', description: '二次确认并填写理由后仅驳回当前用户负责的一条待办。' },

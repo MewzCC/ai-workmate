@@ -4,6 +4,7 @@ import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.common.ErrorCode;
 import com.aiworkmate.common.PageResponse;
 import com.aiworkmate.dto.ApprovalFormRequest;
+import com.aiworkmate.dto.ApprovalFormAgentDraftRequest;
 import com.aiworkmate.dto.ApprovalFormResponse;
 import com.aiworkmate.dto.ApprovalProcessRequest;
 import com.aiworkmate.dto.ApprovalProcessResponse;
@@ -33,6 +34,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -149,6 +152,20 @@ public class ApprovalEngineServiceImpl implements ApprovalEngineService {
         auditService.record(actor.tenantId(), actor.userId(), RESOURCE_FORM,
                 form.getId().toString(), "CREATE", "SUCCESS", "新增审批表单定义");
         return toFormResponse(form, singleUserName(actor.userId()), true);
+    }
+
+    @Override
+    @Transactional
+    public ApprovalFormResponse createFormDraftAgent(Long userId, ApprovalFormAgentDraftRequest request) {
+        requireAgentFormDraft(request);
+        String schemaJson;
+        try {
+            schemaJson = objectMapper.writeValueAsString(Map.of("fields", request.fields()));
+        } catch (JsonProcessingException exception) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.approval.json.invalid");
+        }
+        return createForm(userId, new ApprovalFormRequest(request.formKey(), request.formName(),
+                request.description(), schemaJson, "DISABLED", null));
     }
 
     @Override
@@ -515,6 +532,33 @@ public class ApprovalEngineServiceImpl implements ApprovalEngineService {
             throw new BusinessException(ErrorCode.PERMISSION_DENIED);
         }
         return access;
+    }
+
+    private void requireAgentFormDraft(ApprovalFormAgentDraftRequest request) {
+        Set<String> types = Set.of("text", "textarea", "number", "money", "date", "dateRange", "time",
+                "radio", "checkbox", "select", "user", "department", "file", "image", "table", "divider");
+        if (request == null || request.formKey() == null
+                || !request.formKey().matches("^[a-z][a-z0-9_-]{0,63}$")
+                || request.formName() == null || request.formName().isBlank()
+                || request.formName().length() > 120
+                || request.description() != null && request.description().length() > 500
+                || request.fields() == null || request.fields().isEmpty()
+                || request.fields().size() > 20) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        Set<String> names = new HashSet<>();
+        for (ApprovalFormAgentDraftRequest.Field field : request.fields()) {
+            if (field == null || field.name() == null
+                    || !field.name().matches("^[a-z][A-Za-z0-9_-]{0,39}$") || !names.add(field.name())
+                    || field.label() == null || field.label().isBlank() || field.label().length() > 40
+                    || !types.contains(field.type()) || !("full".equals(field.width()) || "half".equals(field.width()))
+                    || field.placeholder() != null && field.placeholder().length() > 80
+                    || field.options() == null || field.options().size() > 10
+                    || field.options().stream().anyMatch(option -> option == null || option.isBlank()
+                    || option.length() > 80)) {
+                throw new BusinessException(ErrorCode.REQUEST_INVALID);
+            }
+        }
     }
 
     private void requireVersion(Integer version) {

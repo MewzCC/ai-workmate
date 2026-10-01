@@ -41,6 +41,7 @@ import java.time.LocalTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -125,6 +126,28 @@ class AgentDomainToolAdaptersTest {
                 12L, ApprovalConfigurationToolPort.Resource.FORM, "expense", "费用报销", "报销表单",
                 "ENABLED", 3, null, null, null, now));
         assertThat(result.toString()).doesNotContain("sensitive-schema");
+    }
+
+    @Test
+    void createsOnlyDisabledApprovalFormDraftFromSemanticFields() {
+        LocalDateTime now = LocalDateTime.of(2026, 10, 1, 22, 10);
+        var command = new ApprovalConfigurationToolPort.FormDraft(
+                "travel", "出差申请", "员工出差申请", List.of(
+                new ApprovalConfigurationToolPort.FormField(
+                        "reason", "出差事由", "textarea", true, "请输入", List.of(), "full")));
+        when(approvalEngineService.createFormDraftAgent(eq(7L), any())).thenReturn(new ApprovalFormResponse(
+                31L, "travel", "出差申请", "员工出差申请", "{hidden}",
+                "DISABLED", 1, "管理员", now, now, true, true));
+
+        var result = approvalConfigurationAdapter.createFormDraft(context, command);
+
+        assertThat(result).isEqualTo(new ApprovalConfigurationToolPort.FormDraftResult(
+                31L, "travel", "DISABLED", 1, now));
+        var request = org.mockito.ArgumentCaptor.forClass(com.aiworkmate.dto.ApprovalFormAgentDraftRequest.class);
+        verify(approvalEngineService).createFormDraftAgent(eq(7L), request.capture());
+        assertThat(request.getValue().formKey()).isEqualTo("travel");
+        assertThat(request.getValue().fields()).extracting(com.aiworkmate.dto.ApprovalFormAgentDraftRequest.Field::name)
+                .containsExactly("reason");
     }
 
     @Test

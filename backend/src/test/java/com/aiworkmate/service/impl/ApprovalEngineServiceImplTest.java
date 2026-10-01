@@ -2,6 +2,7 @@ package com.aiworkmate.service.impl;
 
 import com.aiworkmate.common.PageResponse;
 import com.aiworkmate.dto.ApprovalFormResponse;
+import com.aiworkmate.dto.ApprovalFormAgentDraftRequest;
 import com.aiworkmate.dto.ApprovalProcessResponse;
 import com.aiworkmate.dto.ApprovalRuleResponse;
 import com.aiworkmate.entity.ApprovalForm;
@@ -27,7 +28,10 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -117,6 +121,40 @@ class ApprovalEngineServiceImplTest {
 
         assertThat(page.records()).hasSize(1);
         assertThat(page.records().get(0).creatorName()).isNull();
+    }
+
+    @Test
+    void agentCreatesOnlyDisabledFormFromBoundedSemanticFields() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(readerAccess());
+        when(formMapper.selectOne(any())).thenReturn(null);
+        doAnswer(invocation -> {
+            ApprovalForm inserted = invocation.getArgument(0);
+            inserted.setId(88L);
+            return 1;
+        }).when(formMapper).insert(any(ApprovalForm.class));
+
+        var response = service.createFormDraftAgent(USER_ID, new ApprovalFormAgentDraftRequest(
+                "travel", "出差申请", null, List.of(new ApprovalFormAgentDraftRequest.Field(
+                "reason", "出差事由", "textarea", true, null, List.of(), "full"))));
+
+        assertThat(response.id()).isEqualTo(88L);
+        assertThat(response.status()).isEqualTo("DISABLED");
+        var form = org.mockito.ArgumentCaptor.forClass(ApprovalForm.class);
+        verify(formMapper).insert(form.capture());
+        assertThat(form.getValue().getSchemaJson()).contains("\"name\":\"reason\"");
+        assertThat(form.getValue().getStatus()).isEqualTo("DISABLED");
+    }
+
+    @Test
+    void agentRejectsDuplicateFormFieldNamesBeforeWriting() {
+        var duplicate = new ApprovalFormAgentDraftRequest.Field(
+                "reason", "出差事由", "textarea", true, null, List.of(), "full");
+
+        assertThatThrownBy(() -> service.createFormDraftAgent(USER_ID,
+                new ApprovalFormAgentDraftRequest("travel", "出差申请", null,
+                        List.of(duplicate, duplicate))))
+                .isInstanceOf(com.aiworkmate.common.BusinessException.class);
+        org.mockito.Mockito.verifyNoInteractions(formMapper, userAccessService);
     }
 
     private ApprovalForm form(Long createdBy) {

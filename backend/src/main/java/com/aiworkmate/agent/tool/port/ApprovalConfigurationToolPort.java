@@ -6,6 +6,7 @@ import java.util.List;
 /** Tenant-scoped read boundary for approval forms, processes and rules. */
 public interface ApprovalConfigurationToolPort {
     Page query(ToolActorContext context, Query query);
+    FormDraftResult createFormDraft(ToolActorContext context, FormDraft command);
 
     enum Resource { FORM, PROCESS, RULE }
 
@@ -18,4 +19,16 @@ public interface ApprovalConfigurationToolPort {
     record Item(long id, Resource resource, String key, String name, String description,
                 String status, int version, String formName, String ruleType,
                 Integer priority, LocalDateTime updatedAt) { }
+
+    record FormDraft(String formKey, String formName, String description, List<FormField> fields) {
+        public FormDraft { fields = List.copyOf(fields); }
+    }
+
+    record FormField(String name, String label, String type, boolean required,
+                     String placeholder, List<String> options, String width) {
+        public FormField { options = List.copyOf(options); }
+    }
+
+    record FormDraftResult(long formId, String formKey, String status, int version,
+                           LocalDateTime updatedAt) implements ToolWriteReceipt { }
 }

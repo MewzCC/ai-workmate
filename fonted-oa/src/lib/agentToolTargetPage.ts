@@ -12,6 +12,7 @@ const EXACT_TARGETS: Record<string, string> = {
   'knowledge.document.createText': 'knowledge-base',
   'userPermission.mine.query': 'dashboard',
   'approval.configuration.query': 'process-config',
+  'approval.form.createDraft': 'form-engine',
   'approval.task.query': 'approval-list',
   'hr.organization.query': 'org-tree',
   'hr.employee.query': 'employee-files',

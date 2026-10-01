@@ -67,6 +67,9 @@ class PageCapabilityCatalogTest {
                 .extracting(PageToolReference::code)
                 .containsExactly(ToolCode.KNOWLEDGE_SEARCH, ToolCode.KNOWLEDGE_BASE_QUERY,
                         ToolCode.KNOWLEDGE_DOCUMENT_QUERY);
+        assertThat(catalog.find("form-engine").orElseThrow().writeTools())
+                .extracting(PageToolReference::code)
+                .containsExactly(ToolCode.APPROVAL_FORM_CREATE_DRAFT);
     }
 
     @Test
