@@ -32,6 +32,9 @@ public interface KnowledgeService {
 
     PageResponse<KnowledgeDocumentResponse> list(Long userId, Long kbId, int page, int size);
 
+    PageResponse<KnowledgeDocumentResponse> queryDocumentsAgent(
+            Long userId, Long kbId, Long documentId, int page, int size);
+
     void delete(Long userId, Long documentId);
 
     KnowledgeSearchResponse search(Long userId, KnowledgeSearchRequest request);

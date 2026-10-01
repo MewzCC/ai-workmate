@@ -6,6 +6,7 @@ import com.aiworkmate.dto.KnowledgeBaseCreateRequest;
 import com.aiworkmate.dto.KnowledgeBaseResponse;
 import com.aiworkmate.dto.KnowledgeBaseUpdateRequest;
 import com.aiworkmate.dto.KnowledgeDocumentCreateRequest;
+import com.aiworkmate.common.PageResponse;
 import com.aiworkmate.dto.KnowledgeDocumentResponse;
 import com.aiworkmate.service.KnowledgeBaseService;
 import com.aiworkmate.service.KnowledgeService;
@@ -36,6 +37,22 @@ class KnowledgeAgentDomainToolAdapterTest {
         assertThat(adapter.queryBases(actor, query)).isEqualTo(new KnowledgeToolPort.BaseQueryResult(List.of(
                 new KnowledgeToolPort.BaseItem(42L, "研发制度", "book", null, 2, 8, createdAt, updatedAt))));
         verify(baseService).queryAgent(7L, null, 20);
+        verifyNoMoreInteractions(service, baseService);
+    }
+
+    @Test
+    void delegatesOwnedDocumentQueryAndRemovesEmbeddingInternals() {
+        var query = new KnowledgeToolPort.DocumentQuery(5L, null, 1, 20);
+        var createdAt = LocalDateTime.of(2026, 10, 1, 20, 30);
+        var updatedAt = createdAt.plusMinutes(1);
+        when(service.queryDocumentsAgent(7L, 5L, null, 1, 20)).thenReturn(PageResponse.of(List.of(
+                new KnowledgeDocumentResponse(42L, "policy.txt", 128, "TEXT", 3, "READY",
+                        "internal-provider", "internal-model", createdAt, updatedAt)), 1, 1, 20));
+
+        assertThat(adapter.queryDocuments(actor, query)).isEqualTo(new KnowledgeToolPort.DocumentQueryResult(
+                5L, List.of(new KnowledgeToolPort.DocumentItem(42L, "policy.txt", 128, "TEXT", 3,
+                        "READY", createdAt, updatedAt)), 1, 1, 20));
+        verify(service).queryDocumentsAgent(7L, 5L, null, 1, 20);
         verifyNoMoreInteractions(service, baseService);
     }
 

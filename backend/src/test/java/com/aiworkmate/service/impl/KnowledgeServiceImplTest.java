@@ -99,6 +99,53 @@ class KnowledgeServiceImplTest {
     }
 
     @Test
+    void agentDocumentQueryReturnsOnlyDocumentFromRequestedOwnedBase() {
+        UserAccessService accessService = mock(UserAccessService.class);
+        when(accessService.resolveActiveUser(7L)).thenReturn(ACCESS);
+        KnowledgeDocumentMapper mapper = mock(KnowledgeDocumentMapper.class);
+        KnowledgeBaseMapper kbMapper = mock(KnowledgeBaseMapper.class);
+        when(kbMapper.selectOne(any())).thenReturn(ownedKnowledgeBase());
+        KnowledgeDocument document = new KnowledgeDocument();
+        document.setId(42L);
+        document.setTenantId(99L);
+        document.setUserId(7L);
+        document.setKbId(5L);
+        document.setFilename("policy.txt");
+        document.setFileSize(128L);
+        document.setFileType("TEXT");
+        document.setChunkCount(3);
+        document.setStatus("READY");
+        when(mapper.selectOne(any())).thenReturn(document);
+        KnowledgeServiceImpl service = service(mapper, kbMapper, mock(EmbeddingService.class),
+                accessService, mock(FileParserService.class), new EmbeddingProperties());
+
+        var result = service.queryDocumentsAgent(7L, 5L, 42L, 9, 20);
+
+        assertThat(result.records()).extracting(response -> response.id()).containsExactly(42L);
+        assertThat(result.total()).isOne();
+        assertThat(result.page()).isOne();
+        assertThat(result.size()).isOne();
+    }
+
+    @Test
+    void agentDocumentQueryFailsClosedBeforeOwnershipLookupWhenPermissionWasRevoked() {
+        UserAccessService accessService = mock(UserAccessService.class);
+        when(accessService.resolveActiveUser(7L)).thenReturn(new ResolvedUserAccess(
+                7L, "alice", 99L, "EMPLOYEE", List.of("EMPLOYEE"),
+                List.of(), List.of("SELF"), 1L));
+        KnowledgeDocumentMapper mapper = mock(KnowledgeDocumentMapper.class);
+        KnowledgeBaseMapper kbMapper = mock(KnowledgeBaseMapper.class);
+        KnowledgeServiceImpl service = service(mapper, kbMapper, mock(EmbeddingService.class),
+                accessService, mock(FileParserService.class), new EmbeddingProperties());
+
+        assertThatThrownBy(() -> service.queryDocumentsAgent(7L, 5L, null, 1, 20))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        error -> assertThat(error.getErrorCode()).isEqualTo("PERMISSION_DENIED"));
+
+        verifyNoInteractions(mapper, kbMapper);
+    }
+
+    @Test
     void searchShouldAlwaysScopeByResolvedTenantAndUserAndCurrentModel() {
         KnowledgeDocumentMapper mapper = mock(KnowledgeDocumentMapper.class);
         EmbeddingService embeddingService = mock(EmbeddingService.class);

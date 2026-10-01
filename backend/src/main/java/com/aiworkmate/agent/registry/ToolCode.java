@@ -17,6 +17,7 @@ public enum ToolCode {
     KNOWLEDGE_BASE_QUERY("knowledge.base.query"),
     KNOWLEDGE_BASE_CREATE("knowledge.base.create", SideEffect.SINGLE_WRITE),
     KNOWLEDGE_BASE_UPDATE("knowledge.base.update", SideEffect.SINGLE_WRITE),
+    KNOWLEDGE_DOCUMENT_QUERY("knowledge.document.query"),
     KNOWLEDGE_DOCUMENT_CREATE_TEXT("knowledge.document.createText", SideEffect.SINGLE_WRITE),
     NOTIFICATION_MINE("notification.mine"),
     USER_PERMISSION_MINE_QUERY("userPermission.mine.query"),

@@ -7,6 +7,7 @@ import java.util.List;
 public interface KnowledgeToolPort {
     Result search(ToolActorContext context, Query query);
     BaseQueryResult queryBases(ToolActorContext context, BaseQuery query);
+    DocumentQueryResult queryDocuments(ToolActorContext context, DocumentQuery query);
     CreateBaseResult createBase(ToolActorContext context, CreateBaseCommand command);
     UpdateBaseResult updateBase(ToolActorContext context, UpdateBaseCommand command);
     CreateTextResult createText(ToolActorContext context, CreateTextCommand command);
@@ -18,6 +19,13 @@ public interface KnowledgeToolPort {
     }
     record BaseItem(long knowledgeBaseId, String name, String icon, String description,
                     long documentCount, long chunkCount, LocalDateTime createdAt, LocalDateTime updatedAt) { }
+    record DocumentQuery(long knowledgeBaseId, Long documentId, int page, int size) { }
+    record DocumentQueryResult(long knowledgeBaseId, List<DocumentItem> records,
+                               long total, int page, int size) {
+        public DocumentQueryResult { records = List.copyOf(records); }
+    }
+    record DocumentItem(long documentId, String filename, long fileSize, String fileType,
+                        int chunkCount, String status, LocalDateTime createdAt, LocalDateTime updatedAt) { }
     record CreateBaseCommand(String name, String icon, String description) { }
     record CreateBaseResult(long knowledgeBaseId, String name, String icon, String description,
                             long documentCount, long chunkCount, LocalDateTime createdAt)

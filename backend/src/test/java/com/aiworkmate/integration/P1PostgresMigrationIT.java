@@ -1177,6 +1177,19 @@ class P1PostgresMigrationIT {
                     """)).as("知识库查询工具必须具备独立实时权限").isOne();
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='NONE'
+                      AND code='knowledge.document.query'
+                      AND schema_hash='sha256:b34bbef6fe8e164e15901ed574a0ae0647cea357bdec3d9ce4c12400b138aeea'
+                      AND risk_level='L0' AND data_scope_policy='FIXED_RESOURCE'
+                      AND retry_policy='READ_ONLY_SAFE' AND confirmation_policy='NONE'
+                      AND max_result_items=20
+                    """)).as("知识库必须具备本人资料受控查询工具").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code='agent:tool:knowledge.document.query'
+                    """)).as("知识库资料查询工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
                     WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='SINGLE_WRITE'
                       AND code='knowledge.base.update'
                       AND schema_hash='sha256:79f873ae75d3b83b062efa802cfd1aa22708fd41d7fdde6f373ad400457c66f2'

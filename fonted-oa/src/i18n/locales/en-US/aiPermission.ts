@@ -33,6 +33,7 @@ const aiPermission = {
     knowledge_base_query: { name: 'Query my knowledge bases', description: 'Reads the current user’s knowledge base list or one specified safe summary.' },
     knowledge_base_create: { name: 'Create my knowledge base', description: 'Creates one knowledge base owned by the current user after explicit confirmation.' },
     knowledge_base_update: { name: 'Update my knowledge base', description: 'Updates metadata and retrieval settings on one owned knowledge base after explicit confirmation.' },
+    knowledge_document_query: { name: 'Query knowledge documents', description: 'Reads a document list or one safe document summary from a specified owned knowledge base.' },
     knowledge_document_createText: { name: 'Create a knowledge text document', description: 'Creates one bounded text document in an existing owned knowledge base after explicit confirmation.' },
     notification_mine: { name: 'Query my notifications', description: 'Reads only notifications owned by the current user.' },
     userPermission_mine_query: { name: 'Query my permissions', description: 'Reads only the current user’s live roles, data scopes, and permission codes without accepting another identity.' },

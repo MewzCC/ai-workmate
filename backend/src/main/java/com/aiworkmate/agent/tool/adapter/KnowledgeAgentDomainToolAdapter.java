@@ -35,6 +35,16 @@ public class KnowledgeAgentDomainToolAdapter implements KnowledgeToolPort {
     }
 
     @Override
+    public DocumentQueryResult queryDocuments(ToolActorContext context, DocumentQuery query) {
+        var page = knowledgeService.queryDocumentsAgent(context.userId(), query.knowledgeBaseId(),
+                query.documentId(), query.page(), query.size());
+        return new DocumentQueryResult(query.knowledgeBaseId(), page.records().stream().map(response ->
+                new DocumentItem(response.id(), response.filename(), response.fileSize(), response.fileType(),
+                        response.chunkCount(), response.status(), response.createdAt(), response.updatedAt())).toList(),
+                page.total(), page.page(), page.size());
+    }
+
+    @Override
     public CreateBaseResult createBase(ToolActorContext context, CreateBaseCommand command) {
         var response = knowledgeBaseService.createAgent(context.userId(),
                 new KnowledgeBaseCreateRequest(command.name(), command.icon(), command.description()));
