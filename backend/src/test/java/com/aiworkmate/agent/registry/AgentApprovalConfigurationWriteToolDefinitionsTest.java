@@ -64,4 +64,25 @@ class AgentApprovalConfigurationWriteToolDefinitionsTest {
                 {"formId":31,"version":2,"formKey":"changed","formName":"出差申请","fields":[]}
                 """))).isFalse();
     }
+
+    @Test
+    void createProcessAcceptsSemanticNodesButNotRawJsonOrPublishStatus() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        ToolDefinition definition = new AgentApprovalConfigurationWriteToolDefinitions()
+                .approvalProcessCreateDraftToolDefinition(mapper);
+        ToolSchemaValidator validator = new ToolSchemaValidator();
+        assertThat(definition.schemaHash()).isEqualTo(
+                "sha256:6875532a42b510541241e91f7f4b71526d5f613d16a40f724728fc991c3ea23d");
+        assertThat(definition.ownershipPolicy()).isEqualTo(OwnershipPolicy.TENANT_SCOPED);
+        assertThat(definition.retryPolicy()).isEqualTo(RetryPolicy.NEVER);
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree("""
+                {"processKey":"travel","processName":"出差审批","nodes":[
+                  {"nodeType":"START","nodeName":"开始"},
+                  {"nodeType":"APPROVAL","nodeName":"主管审批","approveType":"DIRECT_MANAGER","mode":"OR_SIGN"},
+                  {"nodeType":"END","nodeName":"结束"}]}
+                """))).isTrue();
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree("""
+                {"processKey":"travel","processName":"出差审批","status":"ENABLED","nodeJson":"[]","nodes":[]}
+                """))).isFalse();
+    }
 }

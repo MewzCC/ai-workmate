@@ -8,6 +8,7 @@ public interface ApprovalConfigurationToolPort {
     Page query(ToolActorContext context, Query query);
     FormDraftResult createFormDraft(ToolActorContext context, FormDraft command);
     FormDraftResult updateFormDraft(ToolActorContext context, FormDraftUpdate command);
+    ProcessDraftResult createProcessDraft(ToolActorContext context, ProcessDraft command);
 
     enum Resource { FORM, PROCESS, RULE }
 
@@ -37,4 +38,15 @@ public interface ApprovalConfigurationToolPort {
 
     record FormDraftResult(long formId, String formKey, String status, int version,
                            LocalDateTime updatedAt) implements ToolWriteReceipt { }
+
+    record ProcessDraft(String processKey, String processName, String description, Long formId,
+                        List<ProcessNode> nodes) {
+        public ProcessDraft { nodes = List.copyOf(nodes); }
+    }
+
+    record ProcessNode(String nodeType, String nodeName, String approveType, String targetKey,
+                       String mode, Boolean timeoutEnabled, Integer timeoutHours, String timeoutAction) { }
+
+    record ProcessDraftResult(long processId, String processKey, String status, int version,
+                              LocalDateTime updatedAt) implements ToolWriteReceipt { }
 }

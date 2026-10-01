@@ -11,6 +11,7 @@ import com.aiworkmate.common.PageResponse;
 import com.aiworkmate.dto.KnowledgeSearchItemResponse;
 import com.aiworkmate.dto.KnowledgeSearchResponse;
 import com.aiworkmate.dto.ApprovalFormResponse;
+import com.aiworkmate.dto.ApprovalProcessResponse;
 import com.aiworkmate.agent.tool.port.ApprovalConfigurationToolPort;
 import com.aiworkmate.dto.LeaveApplicationResponse;
 import com.aiworkmate.dto.NotificationResponse;
@@ -172,6 +173,27 @@ class AgentDomainToolAdaptersTest {
         assertThat(request.getValue().fields())
                 .extracting(com.aiworkmate.dto.ApprovalFormAgentDraftUpdateRequest.Field::name)
                 .containsExactly("reason");
+    }
+
+    @Test
+    void createsOnlyDisabledApprovalProcessDraftFromSemanticNodes() {
+        LocalDateTime now = LocalDateTime.of(2026, 10, 1, 22, 50);
+        var command = new ApprovalConfigurationToolPort.ProcessDraft(
+                "travel", "出差审批", null, 31L, List.of(
+                new ApprovalConfigurationToolPort.ProcessNode("START", "开始", null, null, null, null, null, null),
+                new ApprovalConfigurationToolPort.ProcessNode("APPROVAL", "主管审批", "DIRECT_MANAGER", "", "OR_SIGN", false, 48, "REMIND"),
+                new ApprovalConfigurationToolPort.ProcessNode("END", "结束", null, null, null, null, null, null)));
+        when(approvalEngineService.createProcessDraftAgent(eq(7L), any())).thenReturn(
+                new ApprovalProcessResponse(41L, "travel", "出差审批", null, 31L, "出差申请",
+                        "[{hidden}]", "DISABLED", 1, "管理员", now, now, true, true));
+
+        var result = approvalConfigurationAdapter.createProcessDraft(context, command);
+
+        assertThat(result.status()).isEqualTo("DISABLED");
+        var request = org.mockito.ArgumentCaptor.forClass(
+                com.aiworkmate.dto.ApprovalProcessAgentDraftRequest.class);
+        verify(approvalEngineService).createProcessDraftAgent(eq(7L), request.capture());
+        assertThat(request.getValue().nodes()).hasSize(3);
     }
 
     @Test

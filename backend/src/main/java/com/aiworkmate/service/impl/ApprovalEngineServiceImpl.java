@@ -8,6 +8,7 @@ import com.aiworkmate.dto.ApprovalFormAgentDraftRequest;
 import com.aiworkmate.dto.ApprovalFormAgentDraftUpdateRequest;
 import com.aiworkmate.dto.ApprovalFormResponse;
 import com.aiworkmate.dto.ApprovalProcessRequest;
+import com.aiworkmate.dto.ApprovalProcessAgentDraftRequest;
 import com.aiworkmate.dto.ApprovalProcessResponse;
 import com.aiworkmate.dto.ApprovalRuleRequest;
 import com.aiworkmate.dto.ApprovalRuleResponse;
@@ -357,6 +358,21 @@ public class ApprovalEngineServiceImpl implements ApprovalEngineService {
 
     @Override
     @Transactional
+    public ApprovalProcessResponse createProcessDraftAgent(Long userId,
+                                                           ApprovalProcessAgentDraftRequest request) {
+        requireAgentProcessDraft(request);
+        String nodeJson;
+        try {
+            nodeJson = objectMapper.writeValueAsString(request.nodes());
+        } catch (JsonProcessingException exception) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.approval.json.invalid");
+        }
+        return createProcess(userId, new ApprovalProcessRequest(request.processKey(), request.processName(),
+                request.description(), request.formId(), nodeJson, "DISABLED", null));
+    }
+
+    @Override
+    @Transactional
     public ApprovalProcessResponse updateProcess(Long userId, Long id,
                                                  ApprovalProcessRequest request) {
         ResolvedUserAccess actor = requirePermission(userId, "approval:manage");
@@ -607,6 +623,39 @@ public class ApprovalEngineServiceImpl implements ApprovalEngineService {
 
     private record AgentFormField(String name, String label, String type, boolean required,
                                   String placeholder, List<String> options, String width) { }
+
+    private void requireAgentProcessDraft(ApprovalProcessAgentDraftRequest request) {
+        Set<String> nodeTypes = Set.of("START", "APPROVAL", "CONDITION", "CC", "DELAY", "END");
+        Set<String> approveTypes = Set.of("DIRECT_MANAGER", "ROLE", "DEPARTMENT", "USER", "SELF", "MULTI_LEVEL");
+        Set<String> modes = Set.of("COUNTERSIGN", "OR_SIGN", "SEQUENTIAL");
+        Set<String> timeoutActions = Set.of("REMIND", "TRANSFER", "AUTO_APPROVE");
+        if (request == null || request.processKey() == null
+                || !request.processKey().matches("^[a-z][a-z0-9_-]{0,63}$")
+                || request.processName() == null || request.processName().isBlank()
+                || request.processName().length() > 120
+                || request.description() != null && request.description().length() > 500
+                || request.formId() != null && request.formId() < 1
+                || request.nodes() == null || request.nodes().size() < 3 || request.nodes().size() > 20
+                || !"START".equals(request.nodes().get(0).nodeType())
+                || !"END".equals(request.nodes().get(request.nodes().size() - 1).nodeType())) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        long starts = request.nodes().stream().filter(node -> node != null && "START".equals(node.nodeType())).count();
+        long ends = request.nodes().stream().filter(node -> node != null && "END".equals(node.nodeType())).count();
+        long approvals = request.nodes().stream().filter(node -> node != null && "APPROVAL".equals(node.nodeType())).count();
+        if (starts != 1 || ends != 1 || approvals < 1) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        for (ApprovalProcessAgentDraftRequest.Node node : request.nodes()) {
+            if (node == null || !nodeTypes.contains(node.nodeType()) || node.nodeName() == null
+                    || node.nodeName().isBlank() || node.nodeName().length() > 80
+                    || node.targetKey() != null && node.targetKey().length() > 80
+                    || node.timeoutHours() != null && (node.timeoutHours() < 1 || node.timeoutHours() > 720)
+                    || node.timeoutAction() != null && !timeoutActions.contains(node.timeoutAction())
+                    || "APPROVAL".equals(node.nodeType())
+                    && (!approveTypes.contains(node.approveType()) || !modes.contains(node.mode()))) {
+                throw new BusinessException(ErrorCode.REQUEST_INVALID);
+            }
+        }
+    }
 
     private void requireVersion(Integer version) {
         if (version == null) {

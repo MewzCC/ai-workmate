@@ -32,6 +32,7 @@ public enum ToolCode {
     APPROVAL_CONFIGURATION_QUERY("approval.configuration.query"),
     APPROVAL_FORM_CREATE_DRAFT("approval.form.createDraft", SideEffect.SINGLE_WRITE),
     APPROVAL_FORM_UPDATE_DRAFT("approval.form.updateDraft", SideEffect.SINGLE_WRITE),
+    APPROVAL_PROCESS_CREATE_DRAFT("approval.process.createDraft", SideEffect.SINGLE_WRITE),
     APPROVAL_TASK_QUERY("approval.task.query"),
     APPROVAL_TASK_APPROVE("approval.task.approve", SideEffect.SINGLE_WRITE),
     APPROVAL_TASK_REJECT("approval.task.reject", SideEffect.SINGLE_WRITE),

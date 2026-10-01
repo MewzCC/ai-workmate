@@ -5,6 +5,7 @@ import com.aiworkmate.dto.ApprovalFormResponse;
 import com.aiworkmate.dto.ApprovalFormAgentDraftRequest;
 import com.aiworkmate.dto.ApprovalFormAgentDraftUpdateRequest;
 import com.aiworkmate.dto.ApprovalProcessResponse;
+import com.aiworkmate.dto.ApprovalProcessAgentDraftRequest;
 import com.aiworkmate.dto.ApprovalRuleResponse;
 import com.aiworkmate.entity.ApprovalForm;
 import com.aiworkmate.entity.ApprovalProcess;
@@ -196,6 +197,29 @@ class ApprovalEngineServiceImplTest {
                                 "reason", "事由", "text", true, null, List.of(), "full")))))
                 .isInstanceOf(com.aiworkmate.common.BusinessException.class);
         org.mockito.Mockito.verify(formMapper, org.mockito.Mockito.never()).update(any(), any());
+    }
+
+    @Test
+    void agentCreatesOnlyDisabledProcessFromSemanticNodes() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(readerAccess());
+        when(processMapper.selectOne(any())).thenReturn(null);
+        doAnswer(invocation -> {
+            ApprovalProcess inserted = invocation.getArgument(0);
+            inserted.setId(41L);
+            return 1;
+        }).when(processMapper).insert(any(ApprovalProcess.class));
+
+        var response = service.createProcessDraftAgent(USER_ID, new ApprovalProcessAgentDraftRequest(
+                "travel", "出差审批", null, null, List.of(
+                new ApprovalProcessAgentDraftRequest.Node("START", "开始", null, null, null, null, null, null),
+                new ApprovalProcessAgentDraftRequest.Node("APPROVAL", "主管审批", "DIRECT_MANAGER", "", "OR_SIGN", false, 48, "REMIND"),
+                new ApprovalProcessAgentDraftRequest.Node("END", "结束", null, null, null, null, null, null))));
+
+        assertThat(response.status()).isEqualTo("DISABLED");
+        var process = org.mockito.ArgumentCaptor.forClass(ApprovalProcess.class);
+        verify(processMapper).insert(process.capture());
+        assertThat(process.getValue().getNodeJson()).contains("DIRECT_MANAGER");
+        assertThat(process.getValue().getStatus()).isEqualTo("DISABLED");
     }
 
     private ApprovalForm form(Long createdBy) {
