@@ -20,6 +20,7 @@ const EXACT_TARGETS: Record<string, string> = {
   'approval.process.publishDraft': 'process-config',
   'approval.rule.createDraft': 'approval-rules',
   'approval.rule.updateDraft': 'approval-rules',
+  'approval.rule.enableDraft': 'approval-rules',
   'approval.task.query': 'approval-list',
   'hr.organization.query': 'org-tree',
   'hr.employee.query': 'employee-files',

@@ -206,4 +206,25 @@ class AgentApprovalConfigurationWriteToolDefinitionsTest {
                  "action":{"appendNode":"FINANCE_REVIEW","enabled":true,"mode":"OR_SIGN"}}
                 """))).isFalse();
     }
+
+    @Test
+    void enableRuleRequiresSecondaryConfirmationAndCannotEditConditions() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        ToolDefinition definition = new AgentApprovalConfigurationWriteToolDefinitions()
+                .approvalRuleEnableDraftToolDefinition(mapper);
+        ToolSchemaValidator validator = new ToolSchemaValidator();
+
+        assertThat(definition.schemaHash()).isEqualTo(
+                "sha256:a3e22a58f7f77633f402e444b7bf4f3555bf7fde854a4c8819b47233ee762740");
+        assertThat(definition.requiredPermissions()).containsExactly("approval:manage");
+        assertThat(definition.riskLevel()).isEqualTo(RiskLevel.L2);
+        assertThat(definition.sideEffect()).isEqualTo(SideEffect.SINGLE_WRITE);
+        assertThat(definition.retryPolicy()).isEqualTo(RetryPolicy.NEVER);
+        assertThat(definition.confirmationPolicy()).isEqualTo(ConfirmationPolicy.SECONDARY);
+        assertThat(definition.ownershipPolicy()).isEqualTo(OwnershipPolicy.FIXED_RESOURCE);
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree(
+                "{\"ruleId\":51,\"version\":2}"))).isTrue();
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree(
+                "{\"ruleId\":51,\"version\":2,\"status\":\"ENABLED\",\"conditionJson\":\"{}\"}"))).isFalse();
+    }
 }

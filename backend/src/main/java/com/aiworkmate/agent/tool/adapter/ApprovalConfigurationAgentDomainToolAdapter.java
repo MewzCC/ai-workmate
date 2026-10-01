@@ -136,4 +136,12 @@ public final class ApprovalConfigurationAgentDomainToolAdapter implements Approv
         return new RuleDraftResult(response.id(), response.ruleKey(), response.status(),
                 response.version(), response.updatedAt());
     }
+
+    @Override
+    public RuleDraftResult enableRuleDraft(ToolActorContext context, VersionedRule command) {
+        var response = approvalEngineService.enableRuleDraftAgent(
+                context.userId(), command.ruleId(), command.version());
+        return new RuleDraftResult(response.id(), response.ruleKey(), response.status(),
+                response.version(), response.updatedAt());
+    }
 }

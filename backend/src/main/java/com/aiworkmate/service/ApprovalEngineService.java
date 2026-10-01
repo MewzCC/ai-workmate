@@ -77,6 +77,8 @@ public interface ApprovalEngineService {
     ApprovalRuleResponse updateRuleDraftAgent(Long userId, Long id,
                                                ApprovalRuleAgentDraftUpdateRequest request);
 
+    ApprovalRuleResponse enableRuleDraftAgent(Long userId, Long id, Integer version);
+
     ApprovalRuleResponse updateRule(Long userId, Long id, ApprovalRuleRequest request);
 
     void deleteRule(Long userId, Long id);

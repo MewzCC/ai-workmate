@@ -711,6 +711,36 @@ public class ApprovalEngineServiceImpl implements ApprovalEngineService {
 
     @Override
     @Transactional
+    public ApprovalRuleResponse enableRuleDraftAgent(Long userId, Long id, Integer version) {
+        if (id == null || id < 1 || version == null || version < 1) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        ResolvedUserAccess actor = requirePermission(userId, "approval:manage");
+        ApprovalRule rule = requireRule(actor.tenantId(), id);
+        if (!"DISABLED".equals(rule.getStatus())) {
+            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID);
+        }
+        requirePublishableRule(rule);
+        LocalDateTime now = LocalDateTime.now();
+        int updated = ruleMapper.update(null, new LambdaUpdateWrapper<ApprovalRule>()
+                .eq(ApprovalRule::getId, id)
+                .eq(ApprovalRule::getTenantId, actor.tenantId())
+                .eq(ApprovalRule::getDeleted, false)
+                .eq(ApprovalRule::getStatus, "DISABLED")
+                .eq(ApprovalRule::getVersion, version)
+                .set(ApprovalRule::getStatus, "ENABLED")
+                .set(ApprovalRule::getUpdatedAt, now)
+                .setSql("version = version + 1"));
+        if (updated != 1) {
+            throw new BusinessException(ErrorCode.VERSION_CONFLICT);
+        }
+        auditService.record(actor.tenantId(), actor.userId(), RESOURCE_RULE,
+                id.toString(), "ENABLE", "SUCCESS", "Agent 启用审批规则草稿");
+        return toRuleResponse(ruleMapper.selectById(id), singleUserName(rule.getCreatedBy()), true);
+    }
+
+    @Override
+    @Transactional
     public ApprovalRuleResponse updateRule(Long userId, Long id, ApprovalRuleRequest request) {
         ResolvedUserAccess actor = requirePermission(userId, "approval:manage");
         requireVersion(request.version());
@@ -990,6 +1020,61 @@ public class ApprovalEngineServiceImpl implements ApprovalEngineService {
                         condition.value())).toList(),
                 new ApprovalRuleAgentDraftRequest.Action(request.action().appendNode(),
                         request.action().enabled(), request.action().mode())));
+    }
+
+    private void requirePublishableRule(ApprovalRule rule) {
+        if (rule.getConditionJson() == null || rule.getConditionJson().isBlank()
+                || rule.getActionJson() == null || rule.getActionJson().isBlank()) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.approval.json.invalid");
+        }
+        try {
+            JsonNode conditionDocument = objectMapper.readTree(rule.getConditionJson());
+            JsonNode actionDocument = objectMapper.readTree(rule.getActionJson());
+            if (conditionDocument == null || !conditionDocument.isObject()
+                    || actionDocument == null || !actionDocument.isObject()) {
+                throw new BusinessException(ErrorCode.REQUEST_INVALID,
+                        "validation.approval.json.invalid");
+            }
+            String logic = "AND";
+            List<ApprovalRuleAgentDraftRequest.Condition> conditions = new java.util.ArrayList<>();
+            JsonNode conditionList = conditionDocument.get("conditions");
+            if (conditionList == null) {
+                conditions.add(publishableRuleCondition(conditionDocument));
+            } else {
+                logic = textValue(conditionDocument, "logic");
+                if (!conditionList.isArray()) {
+                    throw new BusinessException(ErrorCode.REQUEST_INVALID,
+                            "validation.approval.json.invalid");
+                }
+                for (JsonNode condition : conditionList) {
+                    conditions.add(publishableRuleCondition(condition));
+                }
+            }
+            Boolean actionEnabled = nullableBooleanValue(actionDocument, "enabled");
+            if (!Boolean.TRUE.equals(actionEnabled)) {
+                throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID);
+            }
+            String mode = nullableTextValue(actionDocument, "mode");
+            requireAgentRuleDraft(new ApprovalRuleAgentDraftRequest(
+                    rule.getRuleKey(), rule.getRuleName(), rule.getRuleType(), rule.getPriority(),
+                    rule.getDescription(), logic, List.copyOf(conditions),
+                    new ApprovalRuleAgentDraftRequest.Action(textValue(actionDocument, "appendNode"),
+                            true, mode == null ? "OR_SIGN" : mode)));
+        } catch (JsonProcessingException exception) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.approval.json.invalid");
+        }
+    }
+
+    private ApprovalRuleAgentDraftRequest.Condition publishableRuleCondition(JsonNode condition) {
+        if (condition == null || !condition.isObject()) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.approval.json.invalid");
+        }
+        JsonNode value = condition.get("value");
+        if (value == null || value.isNull() || !value.isValueNode()) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.approval.json.invalid");
+        }
+        return new ApprovalRuleAgentDraftRequest.Condition(
+                textValue(condition, "field"), textValue(condition, "op"), value.asText());
     }
 
     private String agentProcessNodes(List<ApprovalProcessAgentDraftUpdateRequest.Node> nodes) {

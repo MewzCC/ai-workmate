@@ -48,6 +48,12 @@ public class AgentApprovalConfigurationWriteToolDefinitions {
     static final String UPDATE_RULE_DRAFT_INPUT = """
             {"type":"object","additionalProperties":false,"required":["ruleId","version","ruleName","ruleType","priority","logic","conditions","action"],"properties":{"ruleId":{"type":"integer","minimum":1},"version":{"type":"integer","minimum":1},"ruleName":{"type":"string","minLength":1,"maxLength":120},"ruleType":{"type":"string","enum":["AMOUNT_THRESHOLD","LEAVE_TYPE","EMPLOYEE_LEVEL","LIMIT_OVERRIDE"]},"priority":{"type":"integer","minimum":0,"maximum":10000},"description":{"type":"string","maxLength":500},"logic":{"type":"string","enum":["AND","OR"]},"conditions":{"type":"array","minItems":1,"maxItems":10,"items":{"type":"object","additionalProperties":false,"required":["field","operator","value"],"properties":{"field":{"type":"string","enum":["amount","durationDays","department","employeeLevel","leaveType"]},"operator":{"type":"string","enum":["eq","ne","gt","gte","lt","lte","in"]},"value":{"type":"string","minLength":1,"maxLength":120}}}},"action":{"type":"object","additionalProperties":false,"required":["appendNode","enabled","mode"],"properties":{"appendNode":{"type":"string","enum":["DEPARTMENT_HEAD","FINANCE_REVIEW","DIRECT_MANAGER"]},"enabled":{"type":"boolean"},"mode":{"type":"string","enum":["COUNTERSIGN","OR_SIGN","SEQUENTIAL"]}}}}}
             """.strip();
+    static final String ENABLE_RULE_DRAFT_INPUT = """
+            {"type":"object","additionalProperties":false,"required":["ruleId","version"],"properties":{"ruleId":{"type":"integer","minimum":1},"version":{"type":"integer","minimum":1}}}
+            """.strip();
+    static final String ENABLE_RULE_DRAFT_OUTPUT = """
+            {"type":"object","additionalProperties":false,"required":["ruleId","ruleKey","status","version","updatedAt"],"properties":{"ruleId":{"type":"integer","minimum":1},"ruleKey":{"type":"string","maxLength":64},"status":{"type":"string","const":"ENABLED"},"version":{"type":"integer","minimum":2},"updatedAt":{"type":"string","format":"date-time"}}}
+            """.strip();
 
     @Bean
     ToolDefinition approvalFormCreateDraftToolDefinition(ObjectMapper mapper)
@@ -143,5 +149,17 @@ public class AgentApprovalConfigurationWriteToolDefinitions {
                 mapper.readTree(UPDATE_RULE_DRAFT_INPUT), mapper.readTree(CREATE_RULE_DRAFT_OUTPUT),
                 ToolWriteProfile.NON_RETRYABLE_L1, Set.of("approval:manage"),
                 OwnershipPolicy.FIXED_RESOURCE, 1, 16384, 15000);
+    }
+
+    @Bean
+    ToolDefinition approvalRuleEnableDraftToolDefinition(ObjectMapper mapper)
+            throws JsonProcessingException {
+        return ToolDefinitionFactory.singleWrite(ToolCode.APPROVAL_RULE_ENABLE_DRAFT,
+                "Enable an approval rule draft",
+                "Enables one disabled tenant approval rule using an expected version.",
+                "Enable one validated disabled rule only after secondary confirmation; never delete or edit conditions.",
+                mapper.readTree(ENABLE_RULE_DRAFT_INPUT), mapper.readTree(ENABLE_RULE_DRAFT_OUTPUT),
+                ToolWriteProfile.SECONDARY_L2, Set.of("approval:manage"),
+                OwnershipPolicy.FIXED_RESOURCE, 1, 4096, 15000);
     }
 }

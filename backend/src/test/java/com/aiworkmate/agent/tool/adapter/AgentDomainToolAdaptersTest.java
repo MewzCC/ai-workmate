@@ -291,6 +291,22 @@ class AgentDomainToolAdaptersTest {
     }
 
     @Test
+    void enablesOnlyTheVersionBoundApprovalRuleDraft() {
+        LocalDateTime now = LocalDateTime.of(2026, 10, 2, 0, 50);
+        var command = new ApprovalConfigurationToolPort.VersionedRule(51L, 2);
+        when(approvalEngineService.enableRuleDraftAgent(7L, 51L, 2)).thenReturn(
+                new com.aiworkmate.dto.ApprovalRuleResponse(51L, "large-expense", "大额费用复核",
+                        "AMOUNT_THRESHOLD", 5, "{hidden}", "{hidden}", null, "ENABLED", 3,
+                        "管理员", now.minusDays(1), now, true, true));
+
+        var result = approvalConfigurationAdapter.enableRuleDraft(context, command);
+
+        assertThat(result).isEqualTo(new ApprovalConfigurationToolPort.RuleDraftResult(
+                51L, "large-expense", "ENABLED", 3, now));
+        verify(approvalEngineService).enableRuleDraftAgent(7L, 51L, 2);
+    }
+
+    @Test
     void forwardsTenantApprovalQueryAndDropsInternalIdentityFields() {
         LocalDateTime from = LocalDateTime.of(2026, 9, 1, 0, 0);
         LocalDateTime to = LocalDateTime.of(2026, 9, 30, 23, 59);

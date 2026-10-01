@@ -462,6 +462,88 @@ class ApprovalEngineServiceImplTest {
         org.mockito.Mockito.verify(ruleMapper, org.mockito.Mockito.never()).update(any(), any());
     }
 
+    @Test
+    void agentEnablesOnlyDisabledRuleAtExpectedVersion() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(readerAccess());
+        ApprovalRule existing = rule(USER_ID);
+        existing.setStatus("DISABLED");
+        existing.setVersion(2);
+        existing.setConditionJson("{\"field\":\"amount\",\"op\":\"gte\",\"value\":\"5000\"}");
+        existing.setActionJson("{\"appendNode\":\"FINANCE_REVIEW\",\"enabled\":true,\"mode\":\"OR_SIGN\"}");
+        ApprovalRule enabled = rule(USER_ID);
+        enabled.setStatus("ENABLED");
+        enabled.setVersion(3);
+        when(ruleMapper.selectById(51L)).thenReturn(existing, enabled);
+        when(ruleMapper.update(any(), any())).thenReturn(1);
+
+        var response = service.enableRuleDraftAgent(USER_ID, 51L, 2);
+
+        assertThat(response.status()).isEqualTo("ENABLED");
+        assertThat(response.version()).isEqualTo(3);
+        verify(ruleMapper).update(org.mockito.ArgumentMatchers.isNull(), any());
+        verify(auditService).record(TENANT_ID, USER_ID, "APPROVAL_RULE", "51",
+                "ENABLE", "SUCCESS", "Agent 启用审批规则草稿");
+    }
+
+    @Test
+    void agentEnablesLegacyRuleWithNumericValueAndDefaultMode() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(readerAccess());
+        ApprovalRule existing = rule(USER_ID);
+        existing.setStatus("DISABLED");
+        existing.setVersion(2);
+        existing.setConditionJson("{\"field\":\"durationDays\",\"op\":\"gte\",\"value\":3}");
+        existing.setActionJson("{\"appendNode\":\"DEPARTMENT_HEAD\",\"enabled\":true}");
+        ApprovalRule enabled = rule(USER_ID);
+        enabled.setStatus("ENABLED");
+        enabled.setVersion(3);
+        when(ruleMapper.selectById(51L)).thenReturn(existing, enabled);
+        when(ruleMapper.update(any(), any())).thenReturn(1);
+
+        assertThat(service.enableRuleDraftAgent(USER_ID, 51L, 2).status()).isEqualTo("ENABLED");
+    }
+
+    @Test
+    void agentRejectsEnablingAnAlreadyEnabledRule() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(readerAccess());
+        ApprovalRule enabled = rule(USER_ID);
+        enabled.setStatus("ENABLED");
+        when(ruleMapper.selectById(51L)).thenReturn(enabled);
+
+        assertThatThrownBy(() -> service.enableRuleDraftAgent(USER_ID, 51L, 2))
+                .isInstanceOf(com.aiworkmate.common.BusinessException.class);
+        org.mockito.Mockito.verify(ruleMapper, org.mockito.Mockito.never()).update(any(), any());
+    }
+
+    @Test
+    void agentRejectsEnablingMalformedStoredRule() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(readerAccess());
+        ApprovalRule invalid = rule(USER_ID);
+        invalid.setStatus("DISABLED");
+        invalid.setVersion(2);
+        invalid.setConditionJson("{}");
+        invalid.setActionJson("{}");
+        when(ruleMapper.selectById(51L)).thenReturn(invalid);
+
+        assertThatThrownBy(() -> service.enableRuleDraftAgent(USER_ID, 51L, 2))
+                .isInstanceOf(com.aiworkmate.common.BusinessException.class);
+        org.mockito.Mockito.verify(ruleMapper, org.mockito.Mockito.never()).update(any(), any());
+    }
+
+    @Test
+    void agentRejectsEnablingRuleWithDisabledAction() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(readerAccess());
+        ApprovalRule invalid = rule(USER_ID);
+        invalid.setStatus("DISABLED");
+        invalid.setVersion(2);
+        invalid.setConditionJson("{\"field\":\"amount\",\"op\":\"gte\",\"value\":\"5000\"}");
+        invalid.setActionJson("{\"appendNode\":\"FINANCE_REVIEW\",\"enabled\":false,\"mode\":\"OR_SIGN\"}");
+        when(ruleMapper.selectById(51L)).thenReturn(invalid);
+
+        assertThatThrownBy(() -> service.enableRuleDraftAgent(USER_ID, 51L, 2))
+                .isInstanceOf(com.aiworkmate.common.BusinessException.class);
+        org.mockito.Mockito.verify(ruleMapper, org.mockito.Mockito.never()).update(any(), any());
+    }
+
     private ApprovalForm form(Long createdBy) {
         ApprovalForm form = new ApprovalForm();
         form.setId(1L);

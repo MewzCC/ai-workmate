@@ -132,7 +132,7 @@ public class PageCapabilityCatalog {
                         tool(APPROVAL_PROCESS_UPDATE_DRAFT), tool(APPROVAL_PROCESS_PUBLISH_DRAFT)),
                 page(OaPage.APPROVAL_RULES, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         tool(APPROVAL_CONFIGURATION_QUERY), tool(APPROVAL_RULE_CREATE_DRAFT),
-                        tool(APPROVAL_RULE_UPDATE_DRAFT)),
+                        tool(APPROVAL_RULE_UPDATE_DRAFT), tool(APPROVAL_RULE_ENABLE_DRAFT)),
 
                 page(OaPage.ORG_TREE, OwnershipPolicy.TENANT_SCOPED, READ_COMMANDS,
                         context(text("keyword"), number("limit")), tool(HR_ORGANIZATION_QUERY)),
