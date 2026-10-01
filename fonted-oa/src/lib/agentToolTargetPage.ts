@@ -18,6 +18,8 @@ const EXACT_TARGETS: Record<string, string> = {
   'integration.endpoint.query': 'api-center',
   'pageAction.query': 'page-actions',
   'runtimeLog.query': 'runtime-logs',
+  'observability.preferences.update': 'platform-observability',
+  'observability.thresholds.update': 'platform-observability',
   'sandboxReplay.query': 'sandbox-replay',
   'accessGovernance.query': 'access-control',
   'dataPermission.query': 'data-permission',

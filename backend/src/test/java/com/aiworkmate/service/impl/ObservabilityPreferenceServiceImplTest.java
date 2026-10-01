@@ -6,6 +6,7 @@ import com.aiworkmate.dto.ObservabilityPreferenceRequest;
 import com.aiworkmate.dto.ObservabilityThresholdPreference;
 import com.aiworkmate.service.UserAccessService;
 import com.aiworkmate.service.UserSettingsService;
+import com.aiworkmate.service.BusinessAuditService;
 import com.aiworkmate.service.model.ResolvedUserAccess;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -28,10 +29,11 @@ import static org.mockito.Mockito.when;
 class ObservabilityPreferenceServiceImplTest {
     @Mock UserAccessService accessService;
     @Mock UserSettingsService settingsService;
+    @Mock BusinessAuditService auditService;
     private ObservabilityPreferenceServiceImpl service;
 
     @BeforeEach void setUp() {
-        service = new ObservabilityPreferenceServiceImpl(accessService, settingsService, new ObjectMapper());
+        service = new ObservabilityPreferenceServiceImpl(accessService, settingsService, new ObjectMapper(), auditService);
     }
 
     @Test void savesOrderedChartsAndReadsThemBack() {
@@ -48,6 +50,8 @@ class ObservabilityPreferenceServiceImplTest {
                 .containsExactly("error", "volume", "risk", "source");
         org.mockito.ArgumentCaptor<String> value = org.mockito.ArgumentCaptor.forClass(String.class);
         verify(settingsService).setObservabilityChartConfig(eq(7L), value.capture());
+        verify(auditService).recordTransactional(9L, 7L, "PLATFORM_OBSERVABILITY", "charts",
+                "UPDATE_CHART_PREFERENCES", "SUCCESS", "Updated personal chart preferences");
         when(settingsService.getObservabilityChartConfig(7L)).thenReturn(value.getValue());
         assertThat(service.preferences(7L).charts()).containsExactlyElementsOf(saved.charts());
     }
@@ -121,6 +125,8 @@ class ObservabilityPreferenceServiceImplTest {
         assertThat(service.updateThresholds(7L, thresholds)).isEqualTo(thresholds);
         org.mockito.ArgumentCaptor<String> value = org.mockito.ArgumentCaptor.forClass(String.class);
         verify(settingsService).setObservabilityThresholdConfig(eq(7L), value.capture());
+        verify(auditService).recordTransactional(9L, 7L, "PLATFORM_OBSERVABILITY", "thresholds",
+                "UPDATE_VISUAL_THRESHOLDS", "SUCCESS", "Updated personal visual thresholds");
         when(settingsService.getObservabilityThresholdConfig(7L)).thenReturn(value.getValue());
         assertThat(service.thresholds(7L)).isEqualTo(thresholds);
     }

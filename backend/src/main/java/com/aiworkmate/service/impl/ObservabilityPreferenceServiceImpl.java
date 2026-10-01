@@ -7,6 +7,7 @@ import com.aiworkmate.dto.ObservabilityPreferenceRequest;
 import com.aiworkmate.dto.ObservabilityPreferenceResponse;
 import com.aiworkmate.dto.ObservabilityThresholdPreference;
 import com.aiworkmate.service.ObservabilityPreferenceService;
+import com.aiworkmate.service.BusinessAuditService;
 import com.aiworkmate.service.UserAccessService;
 import com.aiworkmate.service.UserSettingsService;
 import com.aiworkmate.service.model.ResolvedUserAccess;
@@ -43,6 +44,7 @@ public class ObservabilityPreferenceServiceImpl implements ObservabilityPreferen
     private final UserAccessService accessService;
     private final UserSettingsService settingsService;
     private final ObjectMapper objectMapper;
+    private final BusinessAuditService auditService;
 
     @Override
     @Transactional(readOnly = true)
@@ -61,13 +63,15 @@ public class ObservabilityPreferenceServiceImpl implements ObservabilityPreferen
     @Override
     @Transactional
     public ObservabilityPreferenceResponse update(Long userId, ObservabilityPreferenceRequest request) {
-        requireAccess(userId);
+        ResolvedUserAccess actor = requireAccess(userId);
         List<ObservabilityChartPreference> charts = validate(request.charts());
         try {
             settingsService.setObservabilityChartConfig(userId, objectMapper.writeValueAsString(charts));
         } catch (JsonProcessingException exception) {
             throw new IllegalStateException("Cannot serialize observability chart preference", exception);
         }
+        auditService.recordTransactional(actor.tenantId(), actor.userId(), "PLATFORM_OBSERVABILITY",
+                "charts", "UPDATE_CHART_PREFERENCES", "SUCCESS", "Updated personal chart preferences");
         return new ObservabilityPreferenceResponse(charts);
     }
 
@@ -88,13 +92,15 @@ public class ObservabilityPreferenceServiceImpl implements ObservabilityPreferen
     @Override
     @Transactional
     public ObservabilityThresholdPreference updateThresholds(Long userId, ObservabilityThresholdPreference request) {
-        requireAccess(userId);
+        ResolvedUserAccess actor = requireAccess(userId);
         ObservabilityThresholdPreference validated = validateThresholds(request);
         try {
             settingsService.setObservabilityThresholdConfig(userId, objectMapper.writeValueAsString(validated));
         } catch (JsonProcessingException exception) {
             throw new IllegalStateException("Cannot serialize observability visual threshold preference", exception);
         }
+        auditService.recordTransactional(actor.tenantId(), actor.userId(), "PLATFORM_OBSERVABILITY",
+                "thresholds", "UPDATE_VISUAL_THRESHOLDS", "SUCCESS", "Updated personal visual thresholds");
         return validated;
     }
 
@@ -113,13 +119,14 @@ public class ObservabilityPreferenceServiceImpl implements ObservabilityPreferen
         return value == null || value >= 1 && value <= maximum;
     }
 
-    private void requireAccess(Long userId) {
+    private ResolvedUserAccess requireAccess(Long userId) {
         ResolvedUserAccess actor = accessService.resolveActiveUser(userId);
         if (actor == null) throw new BusinessException(ErrorCode.AUTH_REQUIRED);
         if (!actor.permissions().contains("route:platform-observability")
                 || !actor.permissions().contains("runtime-log:read")) {
             throw new BusinessException(ErrorCode.PERMISSION_DENIED);
         }
+        return actor;
     }
 
     private List<ObservabilityChartPreference> validate(List<ObservabilityChartPreference> charts) {

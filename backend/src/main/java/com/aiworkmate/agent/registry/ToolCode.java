@@ -94,6 +94,8 @@ public enum ToolCode {
     INTEGRATION_ENDPOINT_QUERY("integration.endpoint.query"),
     PAGE_ACTION_QUERY("pageAction.query"),
     RUNTIME_LOG_QUERY("runtimeLog.query"),
+    OBSERVABILITY_PREFERENCES_UPDATE("observability.preferences.update", SideEffect.SINGLE_WRITE),
+    OBSERVABILITY_THRESHOLDS_UPDATE("observability.thresholds.update", SideEffect.SINGLE_WRITE),
     SANDBOX_REPLAY_QUERY("sandboxReplay.query"),
     ACCESS_GOVERNANCE_QUERY("accessGovernance.query"),
     DATA_PERMISSION_QUERY("dataPermission.query"),

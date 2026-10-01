@@ -644,6 +644,21 @@ class P1PostgresMigrationIT {
                     """)).as("驾驶舱指标偏好工具必须具备独立实时工具权限").isOne();
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL
+                      AND code IN ('observability.preferences.update', 'observability.thresholds.update')
+                      AND handler_version = '1.0.0'
+                      AND risk_level = 'L1' AND data_scope_policy = 'SELF'
+                      AND required_permissions = '["runtime-log:read"]'::jsonb
+                      AND retry_policy = 'NEVER' AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'EXPLICIT' AND enabled = TRUE
+                    """)).as("平台观测个人偏好工具必须以本人原子写契约存在").isEqualTo(2);
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code IN ('agent:tool:observability.preferences.update',
+                                   'agent:tool:observability.thresholds.update')
+                    """)).as("平台观测个人偏好工具必须具备独立实时工具权限").isEqualTo(2);
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
                     WHERE tenant_id IS NULL AND code = 'approval.application.createDraft'
                       AND handler_version = '1.0.0'
                       AND schema_hash = 'sha256:0b91ec92030a3bdb99baac22dce2b1e7c3a239829740fe9ad174b24ecf340424'
