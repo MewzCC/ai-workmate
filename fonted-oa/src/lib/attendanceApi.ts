@@ -68,11 +68,13 @@ export interface AttendanceReissue {
   decidedAt?: string | null;
   createdAt: string;
   updatedAt: string;
+  version: number;
   canDecide: boolean;
   canWithdraw: boolean;
 }
 
 export interface AttendanceReissueDecision {
+  version: number;
   decision: 'APPROVED' | 'REJECTED';
   comment?: string;
 }

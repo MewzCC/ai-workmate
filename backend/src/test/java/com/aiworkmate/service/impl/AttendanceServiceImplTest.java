@@ -4,6 +4,7 @@ import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.common.ErrorCode;
 import com.aiworkmate.dto.AttendanceClockRequest;
 import com.aiworkmate.dto.AttendanceClockResponse;
+import com.aiworkmate.dto.AttendanceReissueDecisionRequest;
 import com.aiworkmate.dto.AttendanceSettingsRequest;
 import com.aiworkmate.dto.AttendanceSettingsResponse;
 import com.aiworkmate.entity.AttendanceRecord;
@@ -16,6 +17,10 @@ import com.aiworkmate.mapper.AttendanceSettingMapper;
 import com.aiworkmate.mapper.UserMapper;
 import com.aiworkmate.service.UserAccessService;
 import com.aiworkmate.service.model.ResolvedUserAccess;
+import com.baomidou.mybatisplus.core.MybatisConfiguration;
+import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
+import org.apache.ibatis.builder.MapperBuilderAssistant;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -52,7 +57,15 @@ class AttendanceServiceImplTest {
 
     private static final ResolvedUserAccess ACTOR = new ResolvedUserAccess(
             USER_ID, "alice", "EMPLOYEE",
-            List.of("route:attendance-clock", "attendance:clock", "attendance:reissue:apply"));
+            List.of("route:attendance-clock", "attendance:clock", "attendance:reissue:apply",
+                    "attendance:reissue:decide"));
+
+    @BeforeAll
+    static void initializeMybatisMetadata() {
+        TableInfoHelper.initTableInfo(
+                new MapperBuilderAssistant(new MybatisConfiguration(), "attendance-test"),
+                AttendanceReissue.class);
+    }
 
     @Mock
     private AttendanceRecordMapper recordMapper;
@@ -159,6 +172,51 @@ class AttendanceServiceImplTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode").isEqualTo("IDEMPOTENCY_CONFLICT");
         verifyNoInteractions(auditService, recordMapper);
+    }
+
+    @Test
+    void reissueDecisionRequiresDedicatedBusinessPermissionBeforeReadingTheRequest() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(new ResolvedUserAccess(
+                USER_ID, "alice", "PROCESS_ADMIN", List.of("route:attendance-reissue")));
+
+        assertThatThrownBy(() -> attendanceService.decideReissue(USER_ID, 41L,
+                new AttendanceReissueDecisionRequest(0, "APPROVED", null)))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("PERMISSION_DENIED");
+        verifyNoInteractions(reissueMapper, recordMapper, auditService);
+    }
+
+    @Test
+    void reissueDecisionRejectsStaleVersionWithoutUpdatingAttendance() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(ACTOR);
+        AttendanceReissue request = assignedPendingReissue();
+        request.setVersion(2);
+        when(reissueMapper.selectOne(any())).thenReturn(request);
+
+        assertThatThrownBy(() -> attendanceService.decideReissue(USER_ID, request.getId(),
+                new AttendanceReissueDecisionRequest(1, "APPROVED", null)))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("VERSION_CONFLICT");
+        verifyNoInteractions(recordMapper, auditService);
+    }
+
+    @Test
+    void reissueRejectionUsesAtomicAssignedVersionUpdateAndWritesAudit() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(ACTOR);
+        AttendanceReissue request = assignedPendingReissue();
+        when(reissueMapper.selectOne(any())).thenReturn(request);
+        when(reissueMapper.update(eq(null), any())).thenReturn(1);
+        when(userMapper.selectBatchIds(any())).thenReturn(List.of(activeApplicant()));
+
+        var response = attendanceService.decideReissue(USER_ID, request.getId(),
+                new AttendanceReissueDecisionRequest(0, "REJECTED", "证明不足"));
+
+        assertThat(response.status()).isEqualTo("REJECTED");
+        assertThat(response.version()).isEqualTo(1);
+        verify(reissueMapper).update(eq(null), any());
+        verifyNoInteractions(recordMapper);
+        verify(auditService).recordTransactional(eq(ACTOR.tenantId()), eq(USER_ID),
+                eq("ATTENDANCE_REISSUE"), eq("41"), eq("REJECTED"), eq("SUCCESS"), eq("version=1"));
     }
 
     @Test
@@ -333,10 +391,18 @@ class AttendanceServiceImplTest {
         reissue.setClockType("CLOCK_IN");
         reissue.setReason("忘记打卡");
         reissue.setStatus("PENDING");
+        reissue.setVersion(0);
         reissue.setAgentOperationKey(operationKey);
         reissue.setSubmittedAt(java.time.LocalDateTime.now());
         reissue.setCreatedAt(reissue.getSubmittedAt());
         reissue.setUpdatedAt(reissue.getSubmittedAt());
+        return reissue;
+    }
+
+    private AttendanceReissue assignedPendingReissue() {
+        AttendanceReissue reissue = pendingReissue(null);
+        reissue.setApplicantUserId(USER_ID + 1);
+        reissue.setApproverUserId(USER_ID);
         return reissue;
     }
 }

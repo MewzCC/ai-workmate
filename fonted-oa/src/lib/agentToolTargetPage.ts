@@ -12,6 +12,7 @@ const EXACT_TARGETS: Record<string, string> = {
   'attendance.query': 'attendance-clock',
   'attendance.clock': 'attendance-clock',
   'attendance.reissue.apply': 'attendance-reissue',
+  'attendance.reissue.decide': 'attendance-reissue',
   'integration.endpoint.query': 'api-center',
   'pageAction.query': 'page-actions',
   'runtimeLog.query': 'runtime-logs',

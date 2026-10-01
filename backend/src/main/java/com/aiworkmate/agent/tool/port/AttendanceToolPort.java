@@ -11,12 +11,16 @@ public interface AttendanceToolPort {
     ClockWriteResult clock(ToolActorContext context, String clockType);
     ReissueWriteResult submitReissue(
             ToolActorContext context, ReissueCommand command, ToolOperationKey operationKey);
+    ReissueDecisionResult decideReissue(ToolActorContext context, ReissueDecisionCommand command);
 
     enum Resource { TODAY, RECORDS, EXCEPTIONS, MY_REISSUES, PENDING_REISSUES, STATISTICS, SETTINGS }
 
     record Query(Resource resource, LocalDate from, LocalDate to, Long employeeId, String status,
                  Integer year, Integer month, int page, int size) { }
     record ReissueCommand(LocalDate clockDate, String clockType, String reason) { }
+    record ReissueDecisionCommand(long reissueId, int version, String decision, String comment) { }
+    record ReissueDecisionResult(long reissueId, String status, int version,
+                                 LocalDateTime decidedAt) implements ToolWriteReceipt { }
     record ReissueWriteResult(long reissueId, String status, LocalDate clockDate,
                               String clockType, LocalDateTime submittedAt)
             implements ToolWriteReceipt { }
@@ -43,7 +47,7 @@ public interface AttendanceToolPort {
     record Reissue(long id, String applicantName, String approverName, LocalDate clockDate,
                    String clockType, String reason, String status, String approverComment,
                    LocalDateTime submittedAt, LocalDateTime decidedAt,
-                   boolean canDecide, boolean canWithdraw) { }
+                   int version, boolean canDecide, boolean canWithdraw) { }
 
     record Statistics(LocalDate startDate, LocalDate endDate, PersonalStats personal,
                       List<TeamStats> team) {

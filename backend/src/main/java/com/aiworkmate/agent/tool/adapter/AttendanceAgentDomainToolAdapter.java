@@ -3,6 +3,7 @@ package com.aiworkmate.agent.tool.adapter;
 import com.aiworkmate.agent.tool.port.AttendanceToolPort;
 import com.aiworkmate.agent.tool.port.ToolActorContext;
 import com.aiworkmate.agent.tool.port.ToolOperationKey;
+import com.aiworkmate.dto.AttendanceReissueDecisionRequest;
 import com.aiworkmate.dto.AttendanceReissueRequest;
 import com.aiworkmate.dto.AttendanceClockRequest;
 import com.aiworkmate.service.AttendanceService;
@@ -44,6 +45,13 @@ public final class AttendanceAgentDomainToolAdapter implements AttendanceToolPor
                 item.clockType(), item.submittedAt());
     }
 
+    @Override
+    public ReissueDecisionResult decideReissue(ToolActorContext context, ReissueDecisionCommand command) {
+        var item = attendanceService.decideReissue(context.userId(), command.reissueId(),
+                new AttendanceReissueDecisionRequest(command.version(), command.decision(), command.comment()));
+        return new ReissueDecisionResult(item.id(), item.status(), item.version(), item.decidedAt());
+    }
+
     private Result today(ToolActorContext context, Query query) {
         var item = attendanceService.getTodayStatus(context.userId());
         var today = new Today(item.id(), item.clockDate(), item.clockInTime(), item.clockOutTime(),
@@ -71,7 +79,7 @@ public final class AttendanceAgentDomainToolAdapter implements AttendanceToolPor
         var reissues = page.records().stream().map(item -> new Reissue(
                 item.id(), item.applicantName(), item.approverName(), item.clockDate(), item.clockType(),
                 item.reason(), item.status(), item.approverComment(), item.submittedAt(), item.decidedAt(),
-                item.canDecide(), item.canWithdraw())).toList();
+                item.version(), item.canDecide(), item.canWithdraw())).toList();
         return new Result(query.resource(), null, List.of(), reissues, null, null,
                 page.total(), page.page(), page.size());
     }

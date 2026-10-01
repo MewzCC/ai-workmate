@@ -53,6 +53,7 @@ const aiPermission = {
     attendance_query: { name: '查询考勤视图', description: '按页面和数据范围读取考勤摘要。' },
     attendance_clock: { name: '考勤打卡', description: '经显式确认后按服务端当前时间为本人完成一次上班或下班打卡。' },
     attendance_reissue_apply: { name: '提交本人补卡申请', description: '仅创建本人待审批补卡申请，不直接修改打卡记录。' },
+    attendance_reissue_decide: { name: '审批补卡申请', description: '经二次确认后，仅批准或驳回分配给本人的一条待审批补卡申请。' },
     approval_application_createDraft: { name: '创建通用申请草稿', description: '仅保存本人草稿，不启动审批。' },
     approval_application_submitDraft: { name: '提交通用申请草稿', description: '提交本人且版本匹配的草稿并启动审批。' },
     approval_application_withdraw: { name: '撤回通用申请', description: '仅撤回本人处于待审批状态的申请。' },

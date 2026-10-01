@@ -21,6 +21,12 @@ public class AgentAttendanceWriteToolDefinitions {
     public static final String REISSUE_OUTPUT_SCHEMA = """
             {"type":"object","additionalProperties":false,"required":["reissueId","status","clockDate","clockType","submittedAt"],"properties":{"reissueId":{"type":"integer","minimum":1},"status":{"type":"string","const":"PENDING"},"clockDate":{"type":"string","format":"date"},"clockType":{"type":"string","enum":["CLOCK_IN","CLOCK_OUT"]},"submittedAt":{"type":"string","format":"date-time"}}}
             """.strip();
+    public static final String REISSUE_DECISION_INPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["reissueId","version","decision"],"properties":{"reissueId":{"type":"integer","minimum":1},"version":{"type":"integer","minimum":0},"decision":{"type":"string","enum":["APPROVED","REJECTED"]},"comment":{"type":"string","maxLength":500}}}
+            """.strip();
+    public static final String REISSUE_DECISION_OUTPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["reissueId","status","version","decidedAt"],"properties":{"reissueId":{"type":"integer","minimum":1},"status":{"type":"string","enum":["APPROVED","REJECTED"]},"version":{"type":"integer","minimum":1},"decidedAt":{"type":"string","format":"date-time"}}}
+            """.strip();
 
     @Bean
     public ToolDefinition attendanceClockToolDefinition(ObjectMapper objectMapper)
@@ -45,5 +51,18 @@ public class AgentAttendanceWriteToolDefinitions {
                 objectMapper.readTree(REISSUE_OUTPUT_SCHEMA), ToolWriteProfile.IDEMPOTENT_L1,
                 Set.of("attendance:reissue:apply"), OwnershipPolicy.SELF,
                 1, 8192, 10000);
+    }
+
+    @Bean
+    public ToolDefinition attendanceReissueDecideToolDefinition(ObjectMapper objectMapper)
+            throws JsonProcessingException {
+        return ToolDefinitionFactory.singleWrite(
+                ToolCode.ATTENDANCE_REISSUE_DECIDE, "Decide an assigned attendance correction",
+                "Approves or rejects exactly one pending attendance correction assigned to the authenticated user.",
+                "Use the current resource version and require a rejection comment; never decide an unassigned request.",
+                objectMapper.readTree(REISSUE_DECISION_INPUT_SCHEMA),
+                objectMapper.readTree(REISSUE_DECISION_OUTPUT_SCHEMA), ToolWriteProfile.SECONDARY_L2,
+                Set.of("attendance:reissue:decide"), OwnershipPolicy.ASSIGNED_TO_SELF,
+                1, 4096, 10000);
     }
 }

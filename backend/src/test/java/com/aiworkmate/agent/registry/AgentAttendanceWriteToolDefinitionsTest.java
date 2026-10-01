@@ -50,4 +50,26 @@ class AgentAttendanceWriteToolDefinitionsTest {
                 {"clockDate":"2026-09-14","clockType":"CLOCK_IN","reason":"忘记打卡","userId":99}
                 """))).isFalse();
     }
+
+    @Test
+    void reissueDecisionRequiresSecondaryConfirmationAndAssignedOwnership() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        var definition = new AgentAttendanceWriteToolDefinitions()
+                .attendanceReissueDecideToolDefinition(mapper);
+        var validator = new ToolSchemaValidator();
+
+        assertThat(definition.schemaHash()).isEqualTo(
+                "sha256:990ee606bb356549b674e8f03b90433b45e4887e081627eed1db950b227659e3");
+        assertThat(definition.requiredPermissions()).containsExactly("attendance:reissue:decide");
+        assertThat(definition.riskLevel()).isEqualTo(RiskLevel.L2);
+        assertThat(definition.retryPolicy()).isEqualTo(RetryPolicy.NEVER);
+        assertThat(definition.confirmationPolicy()).isEqualTo(ConfirmationPolicy.SECONDARY);
+        assertThat(definition.ownershipPolicy()).isEqualTo(OwnershipPolicy.ASSIGNED_TO_SELF);
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree("""
+                {"reissueId":31,"version":0,"decision":"APPROVED"}
+                """))).isTrue();
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree("""
+                {"reissueId":31,"version":0,"decision":"APPROVED","userId":99}
+                """))).isFalse();
+    }
 }

@@ -26,6 +26,7 @@ import com.aiworkmate.service.BusinessAuditService;
 import com.aiworkmate.service.UserAccessService;
 import com.aiworkmate.service.model.ResolvedUserAccess;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -254,6 +255,7 @@ public class AttendanceServiceImpl implements AttendanceService {
         reissue.setClockType(request.clockType());
         reissue.setReason(request.reason());
         reissue.setStatus("PENDING");
+        reissue.setVersion(0);
         LocalDateTime now = LocalDateTime.now();
         reissue.setSubmittedAt(now);
         reissue.setCreatedAt(now);
@@ -323,8 +325,13 @@ public class AttendanceServiceImpl implements AttendanceService {
     @Transactional
     public AttendanceReissueResponse decideReissue(Long userId, Long id, AttendanceReissueDecisionRequest request) {
         ResolvedUserAccess actor = requireActiveUser(userId);
-        AttendanceReissue reissue = reissueMapper.selectById(id);
-        if (reissue == null || !actor.tenantId().equals(reissue.getTenantId())) {
+        if (!actor.permissions().contains("attendance:reissue:decide")) {
+            throw new BusinessException(ErrorCode.PERMISSION_DENIED);
+        }
+        AttendanceReissue reissue = reissueMapper.selectOne(new LambdaQueryWrapper<AttendanceReissue>()
+                .eq(AttendanceReissue::getId, id)
+                .eq(AttendanceReissue::getTenantId, actor.tenantId()));
+        if (reissue == null) {
             throw new BusinessException(ErrorCode.ATTENDANCE_REISSUE_NOT_FOUND);
         }
         if (!actor.userId().equals(reissue.getApproverUserId())) {
@@ -333,15 +340,41 @@ public class AttendanceServiceImpl implements AttendanceService {
         if (!"PENDING".equals(reissue.getStatus())) {
             throw new BusinessException(ErrorCode.ATTENDANCE_REISSUE_DECIDED);
         }
+        if (request == null || request.version() == null || request.version() < 0
+                || !request.version().equals(reissue.getVersion())) {
+            throw new BusinessException(ErrorCode.VERSION_CONFLICT);
+        }
         boolean approved = "APPROVED".equals(request.decision());
-        reissue.setStatus(approved ? "APPROVED" : "REJECTED");
+        if (!approved && (request.comment() == null || request.comment().isBlank())) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        String decision = approved ? "APPROVED" : "REJECTED";
+        LocalDateTime decidedAt = LocalDateTime.now();
+        int updated = reissueMapper.update(null, new LambdaUpdateWrapper<AttendanceReissue>()
+                .eq(AttendanceReissue::getId, id)
+                .eq(AttendanceReissue::getTenantId, actor.tenantId())
+                .eq(AttendanceReissue::getApproverUserId, actor.userId())
+                .eq(AttendanceReissue::getStatus, "PENDING")
+                .eq(AttendanceReissue::getVersion, request.version())
+                .set(AttendanceReissue::getStatus, decision)
+                .set(AttendanceReissue::getApproverComment, request.comment())
+                .set(AttendanceReissue::getDecidedAt, decidedAt)
+                .set(AttendanceReissue::getUpdatedAt, decidedAt)
+                .set(AttendanceReissue::getVersion, request.version() + 1));
+        if (updated != 1) {
+            throw new BusinessException(ErrorCode.VERSION_CONFLICT);
+        }
+        reissue.setStatus(decision);
         reissue.setApproverComment(request.comment());
-        reissue.setDecidedAt(LocalDateTime.now());
-        reissueMapper.updateById(reissue);
+        reissue.setDecidedAt(decidedAt);
+        reissue.setUpdatedAt(decidedAt);
+        reissue.setVersion(request.version() + 1);
 
         if (approved) {
             applyReissueToRecord(reissue);
         }
+        auditService.recordTransactional(actor.tenantId(), actor.userId(), "ATTENDANCE_REISSUE",
+                reissue.getId().toString(), decision, "SUCCESS", "version=" + reissue.getVersion());
         return toReissueResponse(reissue, actor.userId());
     }
 
@@ -642,7 +675,7 @@ public class AttendanceServiceImpl implements AttendanceService {
                 reissue.getApproverUserId() != null ? nameMap.get(reissue.getApproverUserId()) : null,
                 reissue.getClockDate(), reissue.getClockType(), reissue.getReason(), reissue.getStatus(),
                 reissue.getApproverComment(), reissue.getSubmittedAt(), reissue.getDecidedAt(),
-                reissue.getCreatedAt(), reissue.getUpdatedAt(), canDecide, canWithdraw);
+                reissue.getCreatedAt(), reissue.getUpdatedAt(), reissue.getVersion(), canDecide, canWithdraw);
     }
 
     private AttendanceClockResponse toClockResponse(AttendanceRecord record) {

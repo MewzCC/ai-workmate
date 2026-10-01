@@ -154,7 +154,8 @@ class PageCapabilityCatalogTest {
                         .containsExactly(ToolCode.ATTENDANCE_QUERY));
         assertThat(catalog.find("attendance-reissue").orElseThrow().writeTools())
                 .extracting(PageToolReference::code)
-                .containsExactly(ToolCode.ATTENDANCE_REISSUE_APPLY);
+                .containsExactly(ToolCode.ATTENDANCE_REISSUE_APPLY,
+                        ToolCode.ATTENDANCE_REISSUE_DECIDE);
         assertThat(catalog.find("attendance-clock").orElseThrow().writeTools())
                 .extracting(PageToolReference::code)
                 .containsExactly(ToolCode.ATTENDANCE_CLOCK);

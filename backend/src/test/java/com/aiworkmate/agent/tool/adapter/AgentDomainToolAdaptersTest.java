@@ -185,7 +185,7 @@ class AgentDomainToolAdaptersTest {
                 eq("operation-1"))).thenReturn(new com.aiworkmate.dto.AttendanceReissueResponse(
                 31L, 7L, "当前用户", 8L, "直属主管", date, "CLOCK_IN", "忘记打卡",
                 "PENDING", null, submittedAt, null, submittedAt, submittedAt,
-                false, true));
+                0, false, true));
 
         var result = attendanceAdapter.submitReissue(context,
                 new AttendanceToolPort.ReissueCommand(date, "CLOCK_IN", "忘记打卡"),
@@ -197,6 +197,26 @@ class AgentDomainToolAdaptersTest {
         verify(attendanceService).submitAgentReissue(eq(7L), request.capture(), eq("operation-1"));
         assertThat(request.getValue()).isEqualTo(
                 new com.aiworkmate.dto.AttendanceReissueRequest(date, "CLOCK_IN", "忘记打卡"));
+    }
+
+    @Test
+    void mapsAttendanceReissueDecisionToVersionedDomainWrite() {
+        LocalDateTime decidedAt = LocalDateTime.of(2026, 10, 1, 9, 0);
+        when(attendanceService.decideReissue(eq(7L), eq(31L), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(new com.aiworkmate.dto.AttendanceReissueResponse(
+                        31L, 9L, "申请人", 7L, "当前用户", LocalDate.of(2026, 9, 30),
+                        "CLOCK_IN", "忘记打卡", "REJECTED", "信息不足", decidedAt.minusDays(1),
+                        decidedAt, decidedAt.minusDays(1), decidedAt, 4, false, false));
+
+        var result = attendanceAdapter.decideReissue(context,
+                new AttendanceToolPort.ReissueDecisionCommand(31L, 3, "REJECTED", "信息不足"));
+
+        assertThat(result).isEqualTo(new AttendanceToolPort.ReissueDecisionResult(
+                31L, "REJECTED", 4, decidedAt));
+        var request = ArgumentCaptor.forClass(com.aiworkmate.dto.AttendanceReissueDecisionRequest.class);
+        verify(attendanceService).decideReissue(eq(7L), eq(31L), request.capture());
+        assertThat(request.getValue()).isEqualTo(
+                new com.aiworkmate.dto.AttendanceReissueDecisionRequest(3, "REJECTED", "信息不足"));
     }
 
     @Test
