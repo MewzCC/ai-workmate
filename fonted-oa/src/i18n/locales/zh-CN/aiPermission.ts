@@ -140,6 +140,7 @@ const aiPermission = {
     tenantConfiguration_query: { name: '查询租户配置', description: '返回当前租户获授权的业务和安全策略摘要。' },
     dictionary_query: { name: '查询数据字典', description: '返回字典类型摘要，不暴露内部 ID 或字典项值。' },
     dictionary_type_create: { name: '创建字典类型', description: '经二次确认后创建一个租户内启用的字典类型，不创建字典项、不删除或批量修改。' },
+    dictionary_type_update: { name: '修改字典类型', description: '经确认后按不可变编码修改一个字典类型的名称、描述或排序，使用版本号防止并发覆盖。' },
     systemCapability_query: { name: '查询系统能力', description: '只返回能力状态，不暴露密钥、地址、连接串或堆栈。' },
     agentTask_mine_query: { name: '查询本人 Agent 任务', description: '只读取当前用户自己的 Agent 任务摘要。' },
     agentTask_cancel: { name: '取消本人 Agent 任务', description: '经明确确认后取消当前用户自己的一条可取消 Agent 任务。' },

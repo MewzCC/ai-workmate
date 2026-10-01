@@ -4,6 +4,7 @@ import com.aiworkmate.agent.tool.port.DictionaryToolPort;
 import com.aiworkmate.agent.tool.port.ToolActorContext;
 import com.aiworkmate.dto.DictionaryTypeListResponse;
 import com.aiworkmate.dto.DictionaryTypeResponse;
+import com.aiworkmate.dto.DictionaryTypeAgentUpdateRequest;
 import com.aiworkmate.service.DataDictionaryService;
 import org.junit.jupiter.api.Test;
 
@@ -50,5 +51,22 @@ class DictionaryAgentDomainToolAdapterTest {
         assertThat(result.status()).isEqualTo("ACTIVE");
         verify(service).createTypeAgent(2L, new com.aiworkmate.dto.DictionaryTypeRequest(
                 "PROJECT_STAGE", "项目阶段", "项目阶段字典", 20, null));
+    }
+
+    @Test
+    void mapsImmutableCodeAndOptimisticVersionForUpdate() {
+        var updatedAt = LocalDateTime.of(2026, 10, 2, 1, 25);
+        when(service.updateTypeAgent(2L, "PROJECT_STAGE",
+                new DictionaryTypeAgentUpdateRequest(0, "项目阶段新版", "", 30)))
+                .thenReturn(new DictionaryTypeResponse(91L, "PROJECT_STAGE", "项目阶段新版", null,
+                        "ACTIVE", 30, 0, 0, 1, updatedAt, true));
+
+        var result = adapter.updateType(actor, new DictionaryToolPort.UpdateTypeCommand(
+                "PROJECT_STAGE", 0, "项目阶段新版", "", 30));
+
+        assertThat(result.dictionaryTypeId()).isEqualTo(91L);
+        assertThat(result.version()).isEqualTo(1);
+        verify(service).updateTypeAgent(2L, "PROJECT_STAGE",
+                new DictionaryTypeAgentUpdateRequest(0, "项目阶段新版", "", 30));
     }
 }

@@ -47,6 +47,7 @@ const EXACT_TARGETS: Record<string, string> = {
   'tenantConfiguration.query': 'tenant-config',
   'dictionary.query': 'dictionary',
   'dictionary.type.create': 'dictionary',
+  'dictionary.type.update': 'dictionary',
   'systemCapability.query': 'system-config',
   'userSettings.update': 'system-config',
 };

@@ -9,6 +9,8 @@ public interface DictionaryToolPort {
 
     CreateTypeResult createType(ToolActorContext context, CreateTypeCommand command);
 
+    UpdateTypeResult updateType(ToolActorContext context, UpdateTypeCommand command);
+
     record DictionaryQuery(String keyword, String status) { }
 
     record DictionaryOverview(List<DictionaryType> records, boolean canManage) {
@@ -21,6 +23,12 @@ public interface DictionaryToolPort {
     record CreateTypeCommand(String code, String name, String description, Integer sortOrder) { }
 
     record CreateTypeResult(long dictionaryTypeId, String code, String name, String description,
+                            String status, int sortOrder, int version, LocalDateTime updatedAt)
+            implements ToolWriteReceipt { }
+
+    record UpdateTypeCommand(String code, int version, String name, String description, Integer sortOrder) { }
+
+    record UpdateTypeResult(long dictionaryTypeId, String code, String name, String description,
                             String status, int sortOrder, int version, LocalDateTime updatedAt)
             implements ToolWriteReceipt { }
 }

@@ -122,6 +122,7 @@ public enum ToolCode {
     TENANT_CONFIGURATION_QUERY("tenantConfiguration.query"),
     DICTIONARY_QUERY("dictionary.query"),
     DICTIONARY_TYPE_CREATE("dictionary.type.create", SideEffect.SINGLE_WRITE),
+    DICTIONARY_TYPE_UPDATE("dictionary.type.update", SideEffect.SINGLE_WRITE),
     SYSTEM_CAPABILITY_QUERY("systemCapability.query"),
     USER_SETTINGS_UPDATE("userSettings.update", SideEffect.SINGLE_WRITE),
     AGENT_TASK_MINE_QUERY("agentTask.mine.query"),

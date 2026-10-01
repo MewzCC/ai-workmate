@@ -8,6 +8,7 @@ import com.aiworkmate.dto.DictionaryItemResponse;
 import com.aiworkmate.dto.DictionaryOptionResponse;
 import com.aiworkmate.dto.DictionaryStatusRequest;
 import com.aiworkmate.dto.DictionaryTypeListResponse;
+import com.aiworkmate.dto.DictionaryTypeAgentUpdateRequest;
 import com.aiworkmate.dto.DictionaryTypeRequest;
 import com.aiworkmate.dto.DictionaryTypeResponse;
 import com.aiworkmate.entity.DataDictionaryItem;
@@ -107,6 +108,24 @@ public class DataDictionaryServiceImpl implements DataDictionaryService {
         updateTypeWithVersion(actor, existing, changed);
         audit(actor, "DICTIONARY_TYPE", id, "UPDATE", existing.getCode());
         return typeResponse(actor, requireType(actor, id), true);
+    }
+
+    @Override
+    @Transactional
+    public DictionaryTypeResponse updateTypeAgent(
+            Long userId, String code, DictionaryTypeAgentUpdateRequest request) {
+        validateAgentTypeUpdate(code, request);
+        ResolvedUserAccess actor = requireManage(userId);
+        DataDictionaryType existing = requireType(actor, code.trim());
+        requireVersion(request.version(), existing.getVersion());
+
+        DataDictionaryType changed = new DataDictionaryType();
+        if (request.name() != null) changed.setName(request.name().trim());
+        if (request.description() != null) changed.setDescription(trimToNull(request.description()));
+        if (request.sortOrder() != null) changed.setSortOrder(request.sortOrder());
+        updateTypeWithVersion(actor, existing, changed);
+        audit(actor, "DICTIONARY_TYPE", existing.getId(), "UPDATE", existing.getCode());
+        return typeResponse(actor, requireType(actor, existing.getId()), true);
     }
 
     @Override
@@ -313,6 +332,15 @@ public class DataDictionaryServiceImpl implements DataDictionaryService {
         return type;
     }
 
+    private DataDictionaryType requireType(ResolvedUserAccess actor, String code) {
+        DataDictionaryType type = typeMapper.selectOne(new LambdaQueryWrapper<DataDictionaryType>()
+                .eq(DataDictionaryType::getTenantId, actor.tenantId())
+                .eq(DataDictionaryType::getCode, code)
+                .eq(DataDictionaryType::getDeleted, false));
+        if (type == null) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        return type;
+    }
+
     private DataDictionaryItem requireItem(ResolvedUserAccess actor, Long typeId, Long itemId) {
         DataDictionaryItem item = itemMapper.selectOne(itemQuery(actor.tenantId(), typeId).eq(DataDictionaryItem::getId, itemId));
         if (item == null) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
@@ -345,6 +373,18 @@ public class DataDictionaryServiceImpl implements DataDictionaryService {
                 || (request.description() != null && request.description().trim().length() > 500)
                 || (request.sortOrder() != null && (request.sortOrder() < 0 || request.sortOrder() > 9999))
                 || request.version() != null) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+    }
+    private void validateAgentTypeUpdate(String code, DictionaryTypeAgentUpdateRequest request) {
+        if (!StringUtils.hasText(code) || !TYPE_CODE_PATTERN.matcher(code.trim()).matches()
+                || request == null || request.version() == null || request.version() < 0
+                || request.version() == Integer.MAX_VALUE
+                || (request.name() == null && request.description() == null && request.sortOrder() == null)
+                || (request.name() != null && (!StringUtils.hasText(request.name())
+                || request.name().trim().length() > 120))
+                || (request.description() != null && request.description().trim().length() > 500)
+                || (request.sortOrder() != null && (request.sortOrder() < 0 || request.sortOrder() > 9999))) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID);
         }
     }

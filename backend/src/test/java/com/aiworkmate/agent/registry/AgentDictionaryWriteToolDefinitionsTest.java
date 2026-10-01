@@ -1,5 +1,6 @@
 package com.aiworkmate.agent.registry;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
@@ -7,9 +8,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class AgentDictionaryWriteToolDefinitionsTest {
     @Test
-    void definesOneSecondaryConfirmedTenantWrite() throws Exception {
-        var definition = new AgentDictionaryWriteToolDefinitions()
-                .dictionaryTypeCreateToolDefinition(new ObjectMapper());
+    void definesCreateAndUpdateWithClosedConfirmedContracts() throws Exception {
+        var definitions = new AgentDictionaryWriteToolDefinitions();
+        var definition = definitions.dictionaryTypeCreateToolDefinition(new ObjectMapper());
 
         assertThat(definition.code()).isEqualTo("dictionary.type.create");
         assertThat(definition.schemaHash()).isEqualTo(
@@ -23,5 +24,17 @@ class AgentDictionaryWriteToolDefinitionsTest {
         assertThat(definition.inputSchema().path("additionalProperties").asBoolean()).isFalse();
         assertThat(definition.inputSchema().path("properties").has("userId")).isFalse();
         assertThat(definition.inputSchema().path("properties").has("tenantId")).isFalse();
+
+        var update = definitions.dictionaryTypeUpdateToolDefinition(new ObjectMapper());
+        assertThat(update.code()).isEqualTo("dictionary.type.update");
+        assertThat(update.schemaHash()).isEqualTo(
+                "sha256:1885b4e3284a75c88784f5318f5fbf0a7fb0c12a31699eb4cb4e7e73101d5678");
+        assertThat(update.riskLevel()).isEqualTo(RiskLevel.L1);
+        assertThat(update.retryPolicy()).isEqualTo(RetryPolicy.NEVER);
+        assertThat(update.confirmationPolicy()).isEqualTo(ConfirmationPolicy.EXPLICIT);
+        assertThat(update.ownershipPolicy()).isEqualTo(OwnershipPolicy.FIXED_RESOURCE);
+        assertThat(update.inputSchema().path("required")).extracting(JsonNode::asText)
+                .containsExactly("code", "version");
+        assertThat(update.inputSchema().path("properties").has("status")).isFalse();
     }
 }

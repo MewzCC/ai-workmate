@@ -2,6 +2,7 @@ package com.aiworkmate.service.impl;
 
 import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.dto.DictionaryTypeRequest;
+import com.aiworkmate.dto.DictionaryTypeAgentUpdateRequest;
 import com.aiworkmate.entity.DataDictionaryItem;
 import com.aiworkmate.entity.DataDictionaryType;
 import com.aiworkmate.mapper.DataDictionaryItemMapper;
@@ -85,6 +86,35 @@ class DataDictionaryServiceImplTest {
     }
 
     @Test
+    void shouldUpdateAgentTypeByImmutableCodeWithOptimisticVersion() {
+        when(userAccessService.resolveActiveUser(1001L)).thenReturn(
+                access(List.of("route:dictionary", "dictionary:manage")));
+        DataDictionaryType existing = dictionaryType("PROJECT_STAGE", "项目阶段", "原描述", 20, 2);
+        DataDictionaryType updated = dictionaryType("PROJECT_STAGE", "项目阶段新版", null, 30, 3);
+        when(typeMapper.selectOne(any())).thenReturn(existing, updated);
+        when(typeMapper.update(any(), any())).thenReturn(1);
+        when(itemMapper.selectCount(any())).thenReturn(0L);
+
+        var response = service.updateTypeAgent(1001L, "PROJECT_STAGE",
+                new DictionaryTypeAgentUpdateRequest(2, "项目阶段新版", "", 30));
+
+        assertThat(response.name()).isEqualTo("项目阶段新版");
+        assertThat(response.description()).isNull();
+        assertThat(response.version()).isEqualTo(3);
+        verify(auditService).recordTransactional(
+                9L, 1001L, "DICTIONARY_TYPE", "81", "UPDATE", "SUCCESS", "PROJECT_STAGE");
+    }
+
+    @Test
+    void shouldRejectAgentTypeUpdateWithoutChangeBeforeResolvingActor() {
+        assertThatThrownBy(() -> service.updateTypeAgent(1001L, "PROJECT_STAGE",
+                new DictionaryTypeAgentUpdateRequest(2, null, null, null)))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("REQUEST_INVALID");
+        verifyNoInteractions(userAccessService, typeMapper, itemMapper, usageMapper, auditService);
+    }
+
+    @Test
     void shouldRejectDeletingReferencedItem() {
         when(userAccessService.resolveActiveUser(1001L)).thenReturn(access(List.of("route:dictionary", "dictionary:manage")));
         DataDictionaryItem item = new DataDictionaryItem();
@@ -113,6 +143,15 @@ class DataDictionaryServiceImplTest {
 
     private DictionaryTypeRequest request(Integer version) {
         return new DictionaryTypeRequest("EMPLOYEE_STATUS", "员工状态", "员工档案状态", 10, version);
+    }
+
+    private DataDictionaryType dictionaryType(
+            String code, String name, String description, int sortOrder, int version) {
+        DataDictionaryType type = new DataDictionaryType();
+        type.setId(81L); type.setTenantId(9L); type.setCode(code); type.setName(name);
+        type.setDescription(description); type.setSortOrder(sortOrder); type.setStatus("ACTIVE");
+        type.setVersion(version); type.setDeleted(false);
+        return type;
     }
 
     private ResolvedUserAccess access(List<String> permissions) {
