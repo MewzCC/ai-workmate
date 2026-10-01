@@ -176,6 +176,21 @@ class AgentDomainToolAdaptersTest {
     }
 
     @Test
+    void publishesOnlyTheVersionBoundApprovalFormDraft() {
+        LocalDateTime now = LocalDateTime.of(2026, 10, 2, 0, 10);
+        var command = new ApprovalConfigurationToolPort.VersionedForm(31L, 2);
+        when(approvalEngineService.publishFormDraftAgent(7L, 31L, 2)).thenReturn(
+                new ApprovalFormResponse(31L, "travel", "出差申请", null, "{hidden}",
+                        "ENABLED", 3, "管理员", now.minusDays(1), now, true, true));
+
+        var result = approvalConfigurationAdapter.publishFormDraft(context, command);
+
+        assertThat(result).isEqualTo(new ApprovalConfigurationToolPort.FormDraftResult(
+                31L, "travel", "ENABLED", 3, now));
+        verify(approvalEngineService).publishFormDraftAgent(7L, 31L, 2);
+    }
+
+    @Test
     void createsOnlyDisabledApprovalProcessDraftFromSemanticNodes() {
         LocalDateTime now = LocalDateTime.of(2026, 10, 1, 22, 50);
         var command = new ApprovalConfigurationToolPort.ProcessDraft(

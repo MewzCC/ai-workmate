@@ -168,6 +168,10 @@ class ApprovalEngineServiceImplTest {
         ApprovalForm existing = form(USER_ID);
         existing.setStatus("DISABLED");
         existing.setVersion(2);
+        existing.setSchemaJson("""
+                {"fields":[{"name":"reason","label":"事由","type":"text","required":true,
+                "placeholder":"请输入","options":[],"width":"full"}]}
+                """);
         ApprovalForm updated = form(USER_ID);
         updated.setFormName("出差申请（新版）");
         updated.setStatus("DISABLED");
@@ -198,6 +202,57 @@ class ApprovalEngineServiceImplTest {
                 new ApprovalFormAgentDraftUpdateRequest(2, "已发布表单", null,
                         List.of(new ApprovalFormAgentDraftUpdateRequest.Field(
                                 "reason", "事由", "text", true, null, List.of(), "full")))))
+                .isInstanceOf(com.aiworkmate.common.BusinessException.class);
+        org.mockito.Mockito.verify(formMapper, org.mockito.Mockito.never()).update(any(), any());
+    }
+
+    @Test
+    void agentPublishesOnlyDisabledFormAtExpectedVersion() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(readerAccess());
+        ApprovalForm existing = form(USER_ID);
+        existing.setStatus("DISABLED");
+        existing.setVersion(2);
+        existing.setSchemaJson("""
+                {"fields":[{"name":"reason","label":"事由","type":"text","required":true,
+                "placeholder":"请输入","options":[],"width":"full"}]}
+                """);
+        ApprovalForm published = form(USER_ID);
+        published.setStatus("ENABLED");
+        published.setVersion(3);
+        when(formMapper.selectById(31L)).thenReturn(existing, published);
+        when(formMapper.update(any(), any())).thenReturn(1);
+
+        var response = service.publishFormDraftAgent(USER_ID, 31L, 2);
+
+        assertThat(response.status()).isEqualTo("ENABLED");
+        assertThat(response.version()).isEqualTo(3);
+        verify(formMapper).update(org.mockito.ArgumentMatchers.isNull(), any());
+        verify(auditService).record(TENANT_ID, USER_ID, "APPROVAL_FORM", "31",
+                "PUBLISH", "SUCCESS", "Agent 发布审批表单草稿");
+    }
+
+    @Test
+    void agentRejectsPublishingAnAlreadyEnabledForm() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(readerAccess());
+        ApprovalForm enabled = form(USER_ID);
+        enabled.setStatus("ENABLED");
+        when(formMapper.selectById(31L)).thenReturn(enabled);
+
+        assertThatThrownBy(() -> service.publishFormDraftAgent(USER_ID, 31L, 2))
+                .isInstanceOf(com.aiworkmate.common.BusinessException.class);
+        org.mockito.Mockito.verify(formMapper, org.mockito.Mockito.never()).update(any(), any());
+    }
+
+    @Test
+    void agentRejectsPublishingMalformedStoredFormSchema() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(readerAccess());
+        ApprovalForm invalid = form(USER_ID);
+        invalid.setStatus("DISABLED");
+        invalid.setVersion(2);
+        invalid.setSchemaJson("{\"fields\":[]}");
+        when(formMapper.selectById(31L)).thenReturn(invalid);
+
+        assertThatThrownBy(() -> service.publishFormDraftAgent(USER_ID, 31L, 2))
                 .isInstanceOf(com.aiworkmate.common.BusinessException.class);
         org.mockito.Mockito.verify(formMapper, org.mockito.Mockito.never()).update(any(), any());
     }

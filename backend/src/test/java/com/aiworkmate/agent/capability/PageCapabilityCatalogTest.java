@@ -69,7 +69,8 @@ class PageCapabilityCatalogTest {
                         ToolCode.KNOWLEDGE_DOCUMENT_QUERY);
         assertThat(catalog.find("form-engine").orElseThrow().writeTools())
                 .extracting(PageToolReference::code)
-                .containsExactly(ToolCode.APPROVAL_FORM_CREATE_DRAFT, ToolCode.APPROVAL_FORM_UPDATE_DRAFT);
+                .containsExactly(ToolCode.APPROVAL_FORM_CREATE_DRAFT, ToolCode.APPROVAL_FORM_UPDATE_DRAFT,
+                        ToolCode.APPROVAL_FORM_PUBLISH_DRAFT);
         assertThat(catalog.find("process-config").orElseThrow().writeTools())
                 .extracting(PageToolReference::code)
                 .containsExactly(ToolCode.APPROVAL_PROCESS_CREATE_DRAFT,

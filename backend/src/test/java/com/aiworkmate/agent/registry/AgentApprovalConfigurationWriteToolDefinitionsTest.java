@@ -66,6 +66,27 @@ class AgentApprovalConfigurationWriteToolDefinitionsTest {
     }
 
     @Test
+    void publishFormRequiresSecondaryConfirmationAndCannotEditContent() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        ToolDefinition definition = new AgentApprovalConfigurationWriteToolDefinitions()
+                .approvalFormPublishDraftToolDefinition(mapper);
+        ToolSchemaValidator validator = new ToolSchemaValidator();
+
+        assertThat(definition.schemaHash()).isEqualTo(
+                "sha256:f7edbba87f8613de2b780a4d15083b76b995be9031eb23da1432771f854085e9");
+        assertThat(definition.requiredPermissions()).containsExactly("approval:manage");
+        assertThat(definition.riskLevel()).isEqualTo(RiskLevel.L2);
+        assertThat(definition.sideEffect()).isEqualTo(SideEffect.SINGLE_WRITE);
+        assertThat(definition.retryPolicy()).isEqualTo(RetryPolicy.NEVER);
+        assertThat(definition.confirmationPolicy()).isEqualTo(ConfirmationPolicy.SECONDARY);
+        assertThat(definition.ownershipPolicy()).isEqualTo(OwnershipPolicy.FIXED_RESOURCE);
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree(
+                "{\"formId\":31,\"version\":2}"))).isTrue();
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree(
+                "{\"formId\":31,\"version\":2,\"status\":\"ENABLED\",\"schemaJson\":\"{}\"}"))).isFalse();
+    }
+
+    @Test
     void createProcessAcceptsSemanticNodesButNotRawJsonOrPublishStatus() throws Exception {
         ObjectMapper mapper = new ObjectMapper();
         ToolDefinition definition = new AgentApprovalConfigurationWriteToolDefinitions()

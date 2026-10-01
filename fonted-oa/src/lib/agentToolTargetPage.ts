@@ -14,6 +14,7 @@ const EXACT_TARGETS: Record<string, string> = {
   'approval.configuration.query': 'process-config',
   'approval.form.createDraft': 'form-engine',
   'approval.form.updateDraft': 'form-engine',
+  'approval.form.publishDraft': 'form-engine',
   'approval.process.createDraft': 'process-config',
   'approval.process.updateDraft': 'process-config',
   'approval.rule.createDraft': 'approval-rules',

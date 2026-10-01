@@ -126,7 +126,7 @@ public class PageCapabilityCatalog {
                         tool(APPROVAL_APPLICATION_CANCEL_DRAFT)),
                 page(OaPage.FORM_ENGINE, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         tool(APPROVAL_CONFIGURATION_QUERY), tool(APPROVAL_FORM_CREATE_DRAFT),
-                        tool(APPROVAL_FORM_UPDATE_DRAFT)),
+                        tool(APPROVAL_FORM_UPDATE_DRAFT), tool(APPROVAL_FORM_PUBLISH_DRAFT)),
                 page(OaPage.PROCESS_CONFIG, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         tool(APPROVAL_CONFIGURATION_QUERY), tool(APPROVAL_PROCESS_CREATE_DRAFT),
                         tool(APPROVAL_PROCESS_UPDATE_DRAFT)),

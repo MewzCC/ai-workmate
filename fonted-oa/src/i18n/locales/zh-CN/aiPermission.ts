@@ -48,6 +48,7 @@ const aiPermission = {
     approval_configuration_query: { name: '查询审批配置', description: '只读取当前租户有权查看的表单、流程和规则摘要。' },
     approval_form_createDraft: { name: '创建审批表单草稿', description: '经明确确认后创建一个未发布的审批表单定义草稿。' },
     approval_form_updateDraft: { name: '更新审批表单草稿', description: '经明确确认和版本校验后更新一个未发布的审批表单定义草稿。' },
+    approval_form_publishDraft: { name: '发布审批表单草稿', description: '经二次确认和版本校验后发布一个已校验的审批表单草稿。' },
     approval_process_createDraft: { name: '创建审批流程草稿', description: '经明确确认后使用受控节点创建一个未发布的审批流程定义草稿。' },
     approval_process_updateDraft: { name: '更新审批流程草稿', description: '经明确确认和版本校验后更新一个未发布的审批流程定义草稿。' },
     approval_rule_createDraft: { name: '创建审批规则草稿', description: '经明确确认后使用受控条件和动作创建一个未启用的审批规则草稿。' },

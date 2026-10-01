@@ -8,6 +8,7 @@ public interface ApprovalConfigurationToolPort {
     Page query(ToolActorContext context, Query query);
     FormDraftResult createFormDraft(ToolActorContext context, FormDraft command);
     FormDraftResult updateFormDraft(ToolActorContext context, FormDraftUpdate command);
+    FormDraftResult publishFormDraft(ToolActorContext context, VersionedForm command);
     ProcessDraftResult createProcessDraft(ToolActorContext context, ProcessDraft command);
     ProcessDraftResult updateProcessDraft(ToolActorContext context, ProcessDraftUpdate command);
     RuleDraftResult createRuleDraft(ToolActorContext context, RuleDraft command);
@@ -41,6 +42,8 @@ public interface ApprovalConfigurationToolPort {
 
     record FormDraftResult(long formId, String formKey, String status, int version,
                            LocalDateTime updatedAt) implements ToolWriteReceipt { }
+
+    record VersionedForm(long formId, int version) { }
 
     record ProcessDraft(String processKey, String processName, String description, Long formId,
                         List<ProcessNode> nodes) {

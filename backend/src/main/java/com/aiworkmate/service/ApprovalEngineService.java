@@ -37,6 +37,8 @@ public interface ApprovalEngineService {
     ApprovalFormResponse updateFormDraftAgent(Long userId, Long id,
                                               ApprovalFormAgentDraftUpdateRequest request);
 
+    ApprovalFormResponse publishFormDraftAgent(Long userId, Long id, Integer version);
+
     ApprovalFormResponse updateForm(Long userId, Long id, ApprovalFormRequest request);
 
     void deleteForm(Long userId, Long id);

@@ -48,6 +48,7 @@ const aiPermission = {
     approval_configuration_query: { name: 'Query approval configuration', description: 'Reads only accessible form, workflow, and rule summaries for the current tenant.' },
     approval_form_createDraft: { name: 'Create approval form draft', description: 'Creates one unpublished approval form definition after explicit confirmation.' },
     approval_form_updateDraft: { name: 'Update approval form draft', description: 'Updates one unpublished approval form definition after explicit confirmation and version validation.' },
+    approval_form_publishDraft: { name: 'Publish approval form draft', description: 'Publishes one validated approval form draft after secondary confirmation and version validation.' },
     approval_process_createDraft: { name: 'Create approval process draft', description: 'Creates one unpublished approval process from bounded semantic nodes after explicit confirmation.' },
     approval_process_updateDraft: { name: 'Update approval process draft', description: 'Updates one unpublished approval process after explicit confirmation and version validation.' },
     approval_rule_createDraft: { name: 'Create approval rule draft', description: 'Creates one disabled approval rule from bounded conditions and action after explicit confirmation.' },

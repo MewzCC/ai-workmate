@@ -69,6 +69,14 @@ public final class ApprovalConfigurationAgentDomainToolAdapter implements Approv
     }
 
     @Override
+    public FormDraftResult publishFormDraft(ToolActorContext context, VersionedForm command) {
+        var response = approvalEngineService.publishFormDraftAgent(
+                context.userId(), command.formId(), command.version());
+        return new FormDraftResult(response.id(), response.formKey(), response.status(),
+                response.version(), response.updatedAt());
+    }
+
+    @Override
     public ProcessDraftResult createProcessDraft(ToolActorContext context, ProcessDraft command) {
         var request = new ApprovalProcessAgentDraftRequest(command.processKey(), command.processName(),
                 command.description(), command.formId(), command.nodes().stream().map(node ->
