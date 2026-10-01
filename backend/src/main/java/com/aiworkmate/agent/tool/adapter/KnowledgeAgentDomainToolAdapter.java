@@ -69,4 +69,12 @@ public class KnowledgeAgentDomainToolAdapter implements KnowledgeToolPort {
         return new CreateTextResult(response.id(), command.kbId(), response.filename(), response.status(),
                 response.chunkCount(), response.createdAt());
     }
+
+    @Override
+    public ReindexDocumentResult reindexDocument(
+            ToolActorContext context, ReindexDocumentCommand command) {
+        var response = knowledgeService.reindexAgent(context.userId(), command.documentId());
+        return new ReindexDocumentResult(response.id(), response.filename(), response.status(),
+                response.chunkCount(), response.updatedAt());
+    }
 }

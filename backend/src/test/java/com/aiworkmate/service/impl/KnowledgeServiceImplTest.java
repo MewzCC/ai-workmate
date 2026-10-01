@@ -146,6 +146,25 @@ class KnowledgeServiceImplTest {
     }
 
     @Test
+    void agentReindexFailsClosedBeforeDocumentLookupWhenPermissionWasRevoked() {
+        UserAccessService accessService = mock(UserAccessService.class);
+        when(accessService.resolveActiveUser(7L)).thenReturn(new ResolvedUserAccess(
+                7L, "alice", 99L, "EMPLOYEE", List.of("EMPLOYEE"),
+                List.of(), List.of("SELF"), 1L));
+        KnowledgeDocumentMapper mapper = mock(KnowledgeDocumentMapper.class);
+        KnowledgeBaseMapper kbMapper = mock(KnowledgeBaseMapper.class);
+        EmbeddingService embeddingService = mock(EmbeddingService.class);
+        KnowledgeServiceImpl service = service(mapper, kbMapper, embeddingService,
+                accessService, mock(FileParserService.class), new EmbeddingProperties());
+
+        assertThatThrownBy(() -> service.reindexAgent(7L, 42L))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        error -> assertThat(error.getErrorCode()).isEqualTo("PERMISSION_DENIED"));
+
+        verifyNoInteractions(mapper, kbMapper, embeddingService);
+    }
+
+    @Test
     void searchShouldAlwaysScopeByResolvedTenantAndUserAndCurrentModel() {
         KnowledgeDocumentMapper mapper = mock(KnowledgeDocumentMapper.class);
         EmbeddingService embeddingService = mock(EmbeddingService.class);

@@ -104,4 +104,18 @@ class KnowledgeAgentDomainToolAdapterTest {
         verify(service).createAgent(7L, request);
         verifyNoMoreInteractions(service);
     }
+
+    @Test
+    void delegatesSingleDocumentReindexAndRemovesEmbeddingInternals() {
+        var command = new KnowledgeToolPort.ReindexDocumentCommand(42L);
+        var updatedAt = LocalDateTime.of(2026, 10, 1, 21, 50);
+        var response = new KnowledgeDocumentResponse(42L, "policy.txt", 128, "TEXT", 3,
+                "READY", "internal-provider", "internal-model", updatedAt.minusHours(1), updatedAt);
+        when(service.reindexAgent(7L, 42L)).thenReturn(response);
+
+        assertThat(adapter.reindexDocument(actor, command)).isEqualTo(
+                new KnowledgeToolPort.ReindexDocumentResult(42L, "policy.txt", "READY", 3, updatedAt));
+        verify(service).reindexAgent(7L, 42L);
+        verifyNoMoreInteractions(service, baseService);
+    }
 }

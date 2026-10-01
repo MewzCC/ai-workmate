@@ -22,6 +22,8 @@ public interface KnowledgeService {
 
     KnowledgeDocumentResponse reindex(Long userId, Long documentId);
 
+    KnowledgeDocumentResponse reindexAgent(Long userId, Long documentId);
+
     KnowledgeDocumentDetailResponse documentDetail(Long userId, Long documentId);
 
     void deleteChunk(Long userId, Long documentId, Long chunkId);

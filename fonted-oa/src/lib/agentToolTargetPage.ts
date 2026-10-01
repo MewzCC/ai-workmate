@@ -8,6 +8,7 @@ const EXACT_TARGETS: Record<string, string> = {
   'knowledge.base.create': 'knowledge-base',
   'knowledge.base.update': 'knowledge-base',
   'knowledge.document.query': 'knowledge-base',
+  'knowledge.document.reindex': 'knowledge-base',
   'knowledge.document.createText': 'knowledge-base',
   'userPermission.mine.query': 'dashboard',
   'approval.configuration.query': 'process-config',

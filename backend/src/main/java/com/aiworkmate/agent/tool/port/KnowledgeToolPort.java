@@ -11,6 +11,7 @@ public interface KnowledgeToolPort {
     CreateBaseResult createBase(ToolActorContext context, CreateBaseCommand command);
     UpdateBaseResult updateBase(ToolActorContext context, UpdateBaseCommand command);
     CreateTextResult createText(ToolActorContext context, CreateTextCommand command);
+    ReindexDocumentResult reindexDocument(ToolActorContext context, ReindexDocumentCommand command);
 
     record Query(String text, int topK, Double minScore) { }
     record BaseQuery(Long knowledgeBaseId, int limit) { }
@@ -39,6 +40,9 @@ public interface KnowledgeToolPort {
     record CreateTextCommand(long kbId, String filename, String content) { }
     record CreateTextResult(long documentId, long kbId, String filename, String status,
                             int chunkCount, LocalDateTime createdAt) implements ToolWriteReceipt { }
+    record ReindexDocumentCommand(long documentId) { }
+    record ReindexDocumentResult(long documentId, String filename, String status,
+                                 int chunkCount, LocalDateTime updatedAt) implements ToolWriteReceipt { }
     record Result(List<Item> items) {
         public Result { items = List.copyOf(items); }
     }

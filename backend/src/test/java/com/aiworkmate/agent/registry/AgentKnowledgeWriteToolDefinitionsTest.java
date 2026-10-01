@@ -54,4 +54,21 @@ class AgentKnowledgeWriteToolDefinitionsTest {
         assertThat(tool.schemaHash()).isEqualTo(
                 "sha256:15e630e3f3e2b4555b462814140dbff020de8be9546f2a365d8c3e3e912a4e9a");
     }
+
+    @Test
+    void exposesOnlyOneConfirmedOwnedDocumentReindex() throws Exception {
+        var tool = new AgentKnowledgeWriteToolDefinitions()
+                .knowledgeDocumentReindexToolDefinition(new ObjectMapper());
+        assertThat(tool.ownershipPolicy()).isEqualTo(OwnershipPolicy.FIXED_RESOURCE);
+        assertThat(tool.sideEffect()).isEqualTo(SideEffect.SINGLE_WRITE);
+        assertThat(tool.riskLevel()).isEqualTo(RiskLevel.L1);
+        assertThat(tool.confirmationPolicy()).isEqualTo(ConfirmationPolicy.EXPLICIT);
+        assertThat(tool.retryPolicy()).isEqualTo(RetryPolicy.NEVER);
+        assertThat(tool.requiredPermissions()).containsExactly("knowledge:search");
+        assertThat(tool.inputSchema().toString()).doesNotContain(
+                "\"model\"", "\"file\"", "\"url\"", "\"path\"", "\"ids\"",
+                "\"userId\"", "\"tenantId\"", "\"delete\"");
+        assertThat(tool.schemaHash()).isEqualTo(
+                "sha256:9b0d45dc6506d6b7e5f342d62f71aba31cc2a7e3d993fb7eab30c38528356205");
+    }
 }

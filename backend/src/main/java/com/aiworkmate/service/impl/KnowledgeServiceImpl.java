@@ -193,6 +193,16 @@ public class KnowledgeServiceImpl implements KnowledgeService {
     @Transactional
     public KnowledgeDocumentResponse reindex(Long userId, Long documentId) {
         ResolvedUserAccess access = requireAccess(userId);
+        return reindex(access, documentId);
+    }
+
+    @Override
+    @Transactional
+    public KnowledgeDocumentResponse reindexAgent(Long userId, Long documentId) {
+        return reindex(requireSearchAccess(userId), documentId);
+    }
+
+    private KnowledgeDocumentResponse reindex(ResolvedUserAccess access, Long documentId) {
         KnowledgeDocument document = requireOwned(access, documentId);
         EmbeddingDescriptor descriptor = embeddingService.current();
         KnowledgeDocument duplicate = findByHash(access, document.getKbId(), document.getContentHash(), descriptor);

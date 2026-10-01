@@ -27,6 +27,12 @@ public class AgentKnowledgeWriteToolDefinitions {
     static final String CREATE_TEXT_OUTPUT = """
             {"type":"object","additionalProperties":false,"required":["documentId","kbId","filename","status","chunkCount","createdAt"],"properties":{"documentId":{"type":"integer","minimum":1},"kbId":{"type":"integer","minimum":1},"filename":{"type":"string","maxLength":255},"status":{"type":"string","const":"READY"},"chunkCount":{"type":"integer","minimum":1},"createdAt":{"type":"string","format":"date-time"}}}
             """.strip();
+    static final String REINDEX_DOCUMENT_INPUT = """
+            {"type":"object","additionalProperties":false,"required":["documentId"],"properties":{"documentId":{"type":"integer","minimum":1}}}
+            """.strip();
+    static final String REINDEX_DOCUMENT_OUTPUT = """
+            {"type":"object","additionalProperties":false,"required":["documentId","filename","status","chunkCount","updatedAt"],"properties":{"documentId":{"type":"integer","minimum":1},"filename":{"type":"string","maxLength":255},"status":{"type":"string","const":"READY"},"chunkCount":{"type":"integer","minimum":1},"updatedAt":{"type":"string","format":"date-time"}}}
+            """.strip();
 
     @Bean
     ToolDefinition knowledgeBaseCreateToolDefinition(ObjectMapper mapper) throws JsonProcessingException {
@@ -58,6 +64,18 @@ public class AgentKnowledgeWriteToolDefinitions {
                 "Creates one bounded text document in a knowledge base owned by the authenticated user.",
                 "Create one confirmed text document without file-system, upload, delete or batch access.",
                 mapper.readTree(CREATE_TEXT_INPUT), mapper.readTree(CREATE_TEXT_OUTPUT),
+                ToolWriteProfile.NON_RETRYABLE_L1, Set.of("knowledge:search"), OwnershipPolicy.FIXED_RESOURCE,
+                1, 8192, 30000);
+    }
+
+    @Bean
+    ToolDefinition knowledgeDocumentReindexToolDefinition(ObjectMapper mapper)
+            throws JsonProcessingException {
+        return ToolDefinitionFactory.singleWrite(ToolCode.KNOWLEDGE_DOCUMENT_REINDEX,
+                "Reindex one knowledge document",
+                "Rebuilds embeddings for one knowledge document owned by the authenticated user.",
+                "Reindex one confirmed document without model selection, upload, delete or batch access.",
+                mapper.readTree(REINDEX_DOCUMENT_INPUT), mapper.readTree(REINDEX_DOCUMENT_OUTPUT),
                 ToolWriteProfile.NON_RETRYABLE_L1, Set.of("knowledge:search"), OwnershipPolicy.FIXED_RESOURCE,
                 1, 8192, 30000);
     }
