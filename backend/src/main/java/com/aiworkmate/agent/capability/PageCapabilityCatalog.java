@@ -215,7 +215,7 @@ public class PageCapabilityCatalog {
                         context(text("toolCode"), text("filterCode"), text("effectiveEnabled")), tool(AI_PERMISSION_QUERY)),
                 page(OaPage.KNOWLEDGE_BASE, OwnershipPolicy.FIXED_RESOURCE, LIST_COMMANDS,
                         context(text("query"), number("topK"), number("minScore")), tool(KNOWLEDGE_SEARCH),
-                        tool(KNOWLEDGE_DOCUMENT_CREATE_TEXT)),
+                        tool(KNOWLEDGE_BASE_CREATE), tool(KNOWLEDGE_DOCUMENT_CREATE_TEXT)),
                 page(OaPage.AUDIT_CENTER, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         context(text("action"), text("resourceType"), text("result"), text("from"), text("to"),
                                 number("page"), number("size")), tool(AUDIT_QUERY)),

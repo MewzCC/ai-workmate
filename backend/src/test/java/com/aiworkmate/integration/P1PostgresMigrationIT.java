@@ -1153,6 +1153,18 @@ class P1PostgresMigrationIT {
                     """)).as("知识库文本创建工具必须具备独立实时权限").isOne();
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='SINGLE_WRITE'
+                      AND code='knowledge.base.create'
+                      AND schema_hash='sha256:e397aeffc2f83042328b36a7308a762abac81935ffd00c2face07d301aeeb8c1'
+                      AND risk_level='L1' AND data_scope_policy='SELF'
+                      AND retry_policy='NEVER' AND confirmation_policy='EXPLICIT'
+                    """)).as("知识库必须具备本人单库受控创建工具").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code='agent:tool:knowledge.base.create'
+                    """)).as("知识库创建工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
                     WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='NONE'
                       AND code='userPermission.mine.query'
                       AND schema_hash='sha256:3a7a57d10e446b40d09a32d49c9a94bd017872d9e2f823b1890802d6f1e11128'

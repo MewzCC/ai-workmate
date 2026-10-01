@@ -47,6 +47,20 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     @Transactional
     public KnowledgeBaseResponse create(Long userId, KnowledgeBaseCreateRequest request) {
         ResolvedUserAccess access = requireAccess(userId);
+        return create(access, request);
+    }
+
+    @Override
+    @Transactional
+    public KnowledgeBaseResponse createAgent(Long userId, KnowledgeBaseCreateRequest request) {
+        ResolvedUserAccess access = requireAccess(userId);
+        if (!access.permissions().contains("knowledge:search")) {
+            throw new BusinessException(ErrorCode.PERMISSION_DENIED);
+        }
+        return create(access, request);
+    }
+
+    private KnowledgeBaseResponse create(ResolvedUserAccess access, KnowledgeBaseCreateRequest request) {
         EmbeddingDescriptor descriptor = embeddingService.current();
         LocalDateTime now = LocalDateTime.now();
         KnowledgeBase knowledgeBase = new KnowledgeBase();

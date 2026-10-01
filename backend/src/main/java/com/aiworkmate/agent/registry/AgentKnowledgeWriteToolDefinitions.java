@@ -9,12 +9,29 @@ import java.util.Set;
 
 @Configuration(proxyBeanMethods = false)
 public class AgentKnowledgeWriteToolDefinitions {
+    static final String CREATE_BASE_INPUT = """
+            {"type":"object","additionalProperties":false,"required":["name"],"properties":{"name":{"type":"string","minLength":1,"maxLength":80},"icon":{"type":"string","maxLength":40},"description":{"type":"string","maxLength":500}}}
+            """.strip();
+    static final String CREATE_BASE_OUTPUT = """
+            {"type":"object","additionalProperties":false,"required":["knowledgeBaseId","name","icon","documentCount","chunkCount","createdAt"],"properties":{"knowledgeBaseId":{"type":"integer","minimum":1},"name":{"type":"string","maxLength":80},"icon":{"type":"string","maxLength":40},"description":{"type":["string","null"],"maxLength":500},"documentCount":{"type":"integer","minimum":0},"chunkCount":{"type":"integer","minimum":0},"createdAt":{"type":"string","format":"date-time"}}}
+            """.strip();
     static final String CREATE_TEXT_INPUT = """
             {"type":"object","additionalProperties":false,"required":["kbId","filename","content"],"properties":{"kbId":{"type":"integer","minimum":1},"filename":{"type":"string","minLength":1,"maxLength":255},"content":{"type":"string","minLength":1,"maxLength":12000}}}
             """.strip();
     static final String CREATE_TEXT_OUTPUT = """
             {"type":"object","additionalProperties":false,"required":["documentId","kbId","filename","status","chunkCount","createdAt"],"properties":{"documentId":{"type":"integer","minimum":1},"kbId":{"type":"integer","minimum":1},"filename":{"type":"string","maxLength":255},"status":{"type":"string","const":"READY"},"chunkCount":{"type":"integer","minimum":1},"createdAt":{"type":"string","format":"date-time"}}}
             """.strip();
+
+    @Bean
+    ToolDefinition knowledgeBaseCreateToolDefinition(ObjectMapper mapper) throws JsonProcessingException {
+        return ToolDefinitionFactory.singleWrite(ToolCode.KNOWLEDGE_BASE_CREATE,
+                "Create one knowledge base",
+                "Creates one knowledge base owned by the authenticated user.",
+                "Create one confirmed personal knowledge base without delete, batch or security configuration access.",
+                mapper.readTree(CREATE_BASE_INPUT), mapper.readTree(CREATE_BASE_OUTPUT),
+                ToolWriteProfile.NON_RETRYABLE_L1, Set.of("knowledge:search"), OwnershipPolicy.SELF,
+                1, 8192, 10000);
+    }
 
     @Bean
     ToolDefinition knowledgeDocumentCreateTextToolDefinition(ObjectMapper mapper)

@@ -21,6 +21,7 @@ import com.aiworkmate.dto.PositionResponse;
 import com.aiworkmate.dto.SealUsageResponse;
 import com.aiworkmate.dto.VisitorBookingResponse;
 import com.aiworkmate.service.KnowledgeService;
+import com.aiworkmate.service.KnowledgeBaseService;
 import com.aiworkmate.service.LeaveWorkflowService;
 import com.aiworkmate.service.NotificationService;
 import com.aiworkmate.service.ApprovalEngineService;
@@ -49,6 +50,7 @@ import static org.mockito.Mockito.when;
 class AgentDomainToolAdaptersTest {
     @Mock private LeaveWorkflowService leaveWorkflowService;
     @Mock private KnowledgeService knowledgeService;
+    @Mock private KnowledgeBaseService knowledgeBaseService;
     @Mock private NotificationService notificationService;
     @Mock private ApprovalEngineService approvalEngineService;
     @Mock private HrService hrService;
@@ -77,7 +79,7 @@ class AgentDomainToolAdaptersTest {
         attendanceAdapter = new AttendanceAgentDomainToolAdapter(attendanceService);
         visitorAdapter = new VisitorAgentDomainToolAdapter(adminAssetsService);
         sealAdapter = new SealAgentDomainToolAdapter(adminAssetsService);
-        knowledgeAdapter = new KnowledgeAgentDomainToolAdapter(knowledgeService);
+        knowledgeAdapter = new KnowledgeAgentDomainToolAdapter(knowledgeService, knowledgeBaseService);
         notificationAdapter = new NotificationAgentDomainToolAdapter(notificationService);
     }
 

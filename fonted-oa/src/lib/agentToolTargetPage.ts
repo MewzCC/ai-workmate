@@ -4,6 +4,7 @@ const EXACT_TARGETS: Record<string, string> = {
   'todo.query': 'todo',
   'dashboard.preferences.update': 'dashboard',
   'knowledge.search': 'knowledge-base',
+  'knowledge.base.create': 'knowledge-base',
   'knowledge.document.createText': 'knowledge-base',
   'userPermission.mine.query': 'dashboard',
   'approval.configuration.query': 'process-config',

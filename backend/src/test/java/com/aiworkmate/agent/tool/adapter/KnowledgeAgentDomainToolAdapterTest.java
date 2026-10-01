@@ -2,8 +2,11 @@ package com.aiworkmate.agent.tool.adapter;
 
 import com.aiworkmate.agent.tool.port.KnowledgeToolPort;
 import com.aiworkmate.agent.tool.port.ToolActorContext;
+import com.aiworkmate.dto.KnowledgeBaseCreateRequest;
+import com.aiworkmate.dto.KnowledgeBaseResponse;
 import com.aiworkmate.dto.KnowledgeDocumentCreateRequest;
 import com.aiworkmate.dto.KnowledgeDocumentResponse;
+import com.aiworkmate.service.KnowledgeBaseService;
 import com.aiworkmate.service.KnowledgeService;
 import org.junit.jupiter.api.Test;
 
@@ -14,8 +17,24 @@ import static org.mockito.Mockito.*;
 
 class KnowledgeAgentDomainToolAdapterTest {
     private final KnowledgeService service = mock(KnowledgeService.class);
-    private final KnowledgeAgentDomainToolAdapter adapter = new KnowledgeAgentDomainToolAdapter(service);
+    private final KnowledgeBaseService baseService = mock(KnowledgeBaseService.class);
+    private final KnowledgeAgentDomainToolAdapter adapter = new KnowledgeAgentDomainToolAdapter(service, baseService);
     private final ToolActorContext actor = new ToolActorContext(99, 7, 10, 20, 0, "trace");
+
+    @Test
+    void delegatesBaseCreationToAgentSpecificDomainEntry() {
+        var command = new KnowledgeToolPort.CreateBaseCommand("研发制度", "book", "团队制度资料");
+        var request = new KnowledgeBaseCreateRequest("研发制度", "book", "团队制度资料");
+        var createdAt = LocalDateTime.of(2026, 10, 1, 20, 30);
+        var response = new KnowledgeBaseResponse(42L, "研发制度", "book", "团队制度资料",
+                0, 0, "local", "model", null, 1000, 120, 5, 5, createdAt, createdAt);
+        when(baseService.createAgent(7L, request)).thenReturn(response);
+
+        assertThat(adapter.createBase(actor, command)).isEqualTo(
+                new KnowledgeToolPort.CreateBaseResult(42L, "研发制度", "book", "团队制度资料", 0, 0, createdAt));
+        verify(baseService).createAgent(7L, request);
+        verifyNoMoreInteractions(service, baseService);
+    }
 
     @Test
     void delegatesTextCreationToAgentSpecificDomainEntry() {

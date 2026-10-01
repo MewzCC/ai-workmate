@@ -12,6 +12,8 @@ public interface KnowledgeBaseService {
 
     KnowledgeBaseResponse create(Long userId, KnowledgeBaseCreateRequest request);
 
+    KnowledgeBaseResponse createAgent(Long userId, KnowledgeBaseCreateRequest request);
+
     KnowledgeBaseResponse detail(Long userId, Long kbId);
 
     KnowledgeBaseResponse update(Long userId, Long kbId, KnowledgeBaseUpdateRequest request);
