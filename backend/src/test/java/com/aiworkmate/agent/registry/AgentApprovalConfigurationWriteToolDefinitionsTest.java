@@ -85,4 +85,33 @@ class AgentApprovalConfigurationWriteToolDefinitionsTest {
                 {"processKey":"travel","processName":"出差审批","status":"ENABLED","nodeJson":"[]","nodes":[]}
                 """))).isFalse();
     }
+
+    @Test
+    void updateProcessIsOneVersionBoundUnpublishedResourceWrite() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        ToolDefinition definition = new AgentApprovalConfigurationWriteToolDefinitions()
+                .approvalProcessUpdateDraftToolDefinition(mapper);
+        ToolSchemaValidator validator = new ToolSchemaValidator();
+
+        assertThat(definition.schemaHash()).isEqualTo(
+                "sha256:034f079551643c41dfbf3bf2f446205c7355890f63edbdff49a5b5daf6aa07f8");
+        assertThat(definition.requiredPermissions()).containsExactly("approval:manage");
+        assertThat(definition.riskLevel()).isEqualTo(RiskLevel.L1);
+        assertThat(definition.sideEffect()).isEqualTo(SideEffect.SINGLE_WRITE);
+        assertThat(definition.retryPolicy()).isEqualTo(RetryPolicy.NEVER);
+        assertThat(definition.confirmationPolicy()).isEqualTo(ConfirmationPolicy.EXPLICIT);
+        assertThat(definition.ownershipPolicy()).isEqualTo(OwnershipPolicy.FIXED_RESOURCE);
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree("""
+                {"processId":41,"version":2,"processName":"出差审批（新版）","nodes":[
+                  {"nodeType":"START","nodeName":"开始"},
+                  {"nodeType":"APPROVAL","nodeName":"主管审批","approveType":"DIRECT_MANAGER","mode":"OR_SIGN"},
+                  {"nodeType":"END","nodeName":"结束"}]}
+                """))).isTrue();
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree("""
+                {"processId":41,"version":2,"processKey":"changed","processName":"出差审批","nodes":[]}
+                """))).isFalse();
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree("""
+                {"processId":41,"version":2,"processName":"出差审批","status":"ENABLED","nodeJson":"[]","nodes":[]}
+                """))).isFalse();
+    }
 }

@@ -6,6 +6,7 @@ import com.aiworkmate.dto.ApprovalFormAgentDraftRequest;
 import com.aiworkmate.dto.ApprovalFormAgentDraftUpdateRequest;
 import com.aiworkmate.dto.ApprovalProcessResponse;
 import com.aiworkmate.dto.ApprovalProcessAgentDraftRequest;
+import com.aiworkmate.dto.ApprovalProcessAgentDraftUpdateRequest;
 import com.aiworkmate.dto.ApprovalRuleResponse;
 import com.aiworkmate.entity.ApprovalForm;
 import com.aiworkmate.entity.ApprovalProcess;
@@ -220,6 +221,48 @@ class ApprovalEngineServiceImplTest {
         verify(processMapper).insert(process.capture());
         assertThat(process.getValue().getNodeJson()).contains("DIRECT_MANAGER");
         assertThat(process.getValue().getStatus()).isEqualTo("DISABLED");
+    }
+
+    @Test
+    void agentUpdatesOnlyDisabledProcessAtExpectedVersion() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(readerAccess());
+        ApprovalProcess existing = process(USER_ID, null);
+        existing.setStatus("DISABLED");
+        existing.setVersion(2);
+        ApprovalProcess updated = process(USER_ID, null);
+        updated.setProcessName("出差审批（新版）");
+        updated.setStatus("DISABLED");
+        updated.setVersion(3);
+        when(processMapper.selectById(41L)).thenReturn(existing, updated);
+        when(processMapper.update(any(), any())).thenReturn(1);
+
+        var response = service.updateProcessDraftAgent(USER_ID, 41L,
+                new ApprovalProcessAgentDraftUpdateRequest(2, "出差审批（新版）", null, null, List.of(
+                        new ApprovalProcessAgentDraftUpdateRequest.Node("START", "开始", null, null, null, null, null, null),
+                        new ApprovalProcessAgentDraftUpdateRequest.Node("APPROVAL", "主管审批", "DIRECT_MANAGER", "", "OR_SIGN", false, 48, "REMIND"),
+                        new ApprovalProcessAgentDraftUpdateRequest.Node("END", "结束", null, null, null, null, null, null))));
+
+        assertThat(response.status()).isEqualTo("DISABLED");
+        assertThat(response.version()).isEqualTo(3);
+        verify(processMapper).update(org.mockito.ArgumentMatchers.isNull(), any());
+        verify(auditService).record(TENANT_ID, USER_ID, "APPROVAL_PROCESS", "41",
+                "UPDATE", "SUCCESS", "Agent 更新审批流程草稿");
+    }
+
+    @Test
+    void agentRejectsUpdatingEnabledProcessBeforeWriting() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(readerAccess());
+        ApprovalProcess enabled = process(USER_ID, null);
+        enabled.setStatus("ENABLED");
+        when(processMapper.selectById(41L)).thenReturn(enabled);
+
+        assertThatThrownBy(() -> service.updateProcessDraftAgent(USER_ID, 41L,
+                new ApprovalProcessAgentDraftUpdateRequest(2, "已发布流程", null, null, List.of(
+                        new ApprovalProcessAgentDraftUpdateRequest.Node("START", "开始", null, null, null, null, null, null),
+                        new ApprovalProcessAgentDraftUpdateRequest.Node("APPROVAL", "主管审批", "DIRECT_MANAGER", "", "OR_SIGN", false, 48, "REMIND"),
+                        new ApprovalProcessAgentDraftUpdateRequest.Node("END", "结束", null, null, null, null, null, null)))))
+                .isInstanceOf(com.aiworkmate.common.BusinessException.class);
+        org.mockito.Mockito.verify(processMapper, org.mockito.Mockito.never()).update(any(), any());
     }
 
     private ApprovalForm form(Long createdBy) {

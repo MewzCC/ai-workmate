@@ -15,6 +15,7 @@ const EXACT_TARGETS: Record<string, string> = {
   'approval.form.createDraft': 'form-engine',
   'approval.form.updateDraft': 'form-engine',
   'approval.process.createDraft': 'process-config',
+  'approval.process.updateDraft': 'process-config',
   'approval.task.query': 'approval-list',
   'hr.organization.query': 'org-tree',
   'hr.employee.query': 'employee-files',

@@ -5,6 +5,7 @@ import com.aiworkmate.agent.tool.port.ToolActorContext;
 import com.aiworkmate.dto.ApprovalFormAgentDraftRequest;
 import com.aiworkmate.dto.ApprovalFormAgentDraftUpdateRequest;
 import com.aiworkmate.dto.ApprovalProcessAgentDraftRequest;
+import com.aiworkmate.dto.ApprovalProcessAgentDraftUpdateRequest;
 import com.aiworkmate.service.ApprovalEngineService;
 import lombok.RequiredArgsConstructor;
 
@@ -73,6 +74,19 @@ public final class ApprovalConfigurationAgentDomainToolAdapter implements Approv
                         node.targetKey(), node.mode(), node.timeoutEnabled(), node.timeoutHours(),
                         node.timeoutAction())).toList());
         var response = approvalEngineService.createProcessDraftAgent(context.userId(), request);
+        return new ProcessDraftResult(response.id(), response.processKey(), response.status(),
+                response.version(), response.updatedAt());
+    }
+
+    @Override
+    public ProcessDraftResult updateProcessDraft(ToolActorContext context, ProcessDraftUpdate command) {
+        var request = new ApprovalProcessAgentDraftUpdateRequest(command.version(), command.processName(),
+                command.description(), command.formId(), command.nodes().stream().map(node ->
+                new ApprovalProcessAgentDraftUpdateRequest.Node(node.nodeType(), node.nodeName(), node.approveType(),
+                        node.targetKey(), node.mode(), node.timeoutEnabled(), node.timeoutHours(),
+                        node.timeoutAction())).toList());
+        var response = approvalEngineService.updateProcessDraftAgent(
+                context.userId(), command.processId(), request);
         return new ProcessDraftResult(response.id(), response.processKey(), response.status(),
                 response.version(), response.updatedAt());
     }

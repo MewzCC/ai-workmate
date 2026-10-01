@@ -9,6 +9,7 @@ import com.aiworkmate.dto.ApprovalFormAgentDraftUpdateRequest;
 import com.aiworkmate.dto.ApprovalFormResponse;
 import com.aiworkmate.dto.ApprovalProcessRequest;
 import com.aiworkmate.dto.ApprovalProcessAgentDraftRequest;
+import com.aiworkmate.dto.ApprovalProcessAgentDraftUpdateRequest;
 import com.aiworkmate.dto.ApprovalProcessResponse;
 import com.aiworkmate.dto.ApprovalRuleRequest;
 import com.aiworkmate.dto.ApprovalRuleResponse;
@@ -373,6 +374,43 @@ public class ApprovalEngineServiceImpl implements ApprovalEngineService {
 
     @Override
     @Transactional
+    public ApprovalProcessResponse updateProcessDraftAgent(Long userId, Long id,
+                                                            ApprovalProcessAgentDraftUpdateRequest request) {
+        requireAgentProcessDraft(request);
+        if (id == null || id < 1 || request.version() == null || request.version() < 1) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        ResolvedUserAccess actor = requirePermission(userId, "approval:manage");
+        ApprovalProcess process = requireProcess(actor.tenantId(), id);
+        if (!"DISABLED".equals(process.getStatus())) {
+            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID);
+        }
+        Long formId = requireFormRef(actor.tenantId(), request.formId());
+        String nodeJson = agentProcessNodes(request.nodes());
+        LocalDateTime now = LocalDateTime.now();
+        int updated = processMapper.update(null, new LambdaUpdateWrapper<ApprovalProcess>()
+                .eq(ApprovalProcess::getId, id)
+                .eq(ApprovalProcess::getTenantId, actor.tenantId())
+                .eq(ApprovalProcess::getDeleted, false)
+                .eq(ApprovalProcess::getStatus, "DISABLED")
+                .eq(ApprovalProcess::getVersion, request.version())
+                .set(ApprovalProcess::getProcessName, request.processName().trim())
+                .set(ApprovalProcess::getDescription, trim(request.description()))
+                .set(ApprovalProcess::getFormId, formId)
+                .set(ApprovalProcess::getNodeJson, nodeJson)
+                .set(ApprovalProcess::getUpdatedAt, now)
+                .setSql("version = version + 1"));
+        if (updated != 1) {
+            throw new BusinessException(ErrorCode.VERSION_CONFLICT);
+        }
+        auditService.record(actor.tenantId(), actor.userId(), RESOURCE_PROCESS,
+                id.toString(), "UPDATE", "SUCCESS", "Agent 更新审批流程草稿");
+        return toProcessResponse(processMapper.selectById(id), formNameOf(actor.tenantId(), formId),
+                singleUserName(process.getCreatedBy()), true);
+    }
+
+    @Override
+    @Transactional
     public ApprovalProcessResponse updateProcess(Long userId, Long id,
                                                  ApprovalProcessRequest request) {
         ResolvedUserAccess actor = requirePermission(userId, "approval:manage");
@@ -654,6 +692,22 @@ public class ApprovalEngineServiceImpl implements ApprovalEngineService {
                     && (!approveTypes.contains(node.approveType()) || !modes.contains(node.mode()))) {
                 throw new BusinessException(ErrorCode.REQUEST_INVALID);
             }
+        }
+    }
+
+    private void requireAgentProcessDraft(ApprovalProcessAgentDraftUpdateRequest request) {
+        requireAgentProcessDraft(request == null ? null : new ApprovalProcessAgentDraftRequest(
+                "agent-update", request.processName(), request.description(), request.formId(),
+                request.nodes().stream().map(node -> new ApprovalProcessAgentDraftRequest.Node(
+                        node.nodeType(), node.nodeName(), node.approveType(), node.targetKey(), node.mode(),
+                        node.timeoutEnabled(), node.timeoutHours(), node.timeoutAction())).toList()));
+    }
+
+    private String agentProcessNodes(List<ApprovalProcessAgentDraftUpdateRequest.Node> nodes) {
+        try {
+            return objectMapper.writeValueAsString(nodes);
+        } catch (JsonProcessingException exception) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.approval.json.invalid");
         }
     }
 

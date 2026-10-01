@@ -9,6 +9,7 @@ public interface ApprovalConfigurationToolPort {
     FormDraftResult createFormDraft(ToolActorContext context, FormDraft command);
     FormDraftResult updateFormDraft(ToolActorContext context, FormDraftUpdate command);
     ProcessDraftResult createProcessDraft(ToolActorContext context, ProcessDraft command);
+    ProcessDraftResult updateProcessDraft(ToolActorContext context, ProcessDraftUpdate command);
 
     enum Resource { FORM, PROCESS, RULE }
 
@@ -42,6 +43,11 @@ public interface ApprovalConfigurationToolPort {
     record ProcessDraft(String processKey, String processName, String description, Long formId,
                         List<ProcessNode> nodes) {
         public ProcessDraft { nodes = List.copyOf(nodes); }
+    }
+
+    record ProcessDraftUpdate(long processId, int version, String processName, String description,
+                              Long formId, List<ProcessNode> nodes) {
+        public ProcessDraftUpdate { nodes = List.copyOf(nodes); }
     }
 
     record ProcessNode(String nodeType, String nodeName, String approveType, String targetKey,

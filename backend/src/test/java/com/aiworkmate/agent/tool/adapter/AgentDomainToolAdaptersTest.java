@@ -197,6 +197,28 @@ class AgentDomainToolAdaptersTest {
     }
 
     @Test
+    void updatesOnlyVersionBoundDisabledApprovalProcessDraft() {
+        LocalDateTime now = LocalDateTime.of(2026, 10, 1, 23, 10);
+        var command = new ApprovalConfigurationToolPort.ProcessDraftUpdate(
+                41L, 2, "出差审批（新版）", "更新说明", 31L, List.of(
+                new ApprovalConfigurationToolPort.ProcessNode("START", "开始", null, null, null, null, null, null),
+                new ApprovalConfigurationToolPort.ProcessNode("APPROVAL", "主管审批", "DIRECT_MANAGER", "", "OR_SIGN", false, 48, "REMIND"),
+                new ApprovalConfigurationToolPort.ProcessNode("END", "结束", null, null, null, null, null, null)));
+        when(approvalEngineService.updateProcessDraftAgent(eq(7L), eq(41L), any())).thenReturn(
+                new ApprovalProcessResponse(41L, "travel", "出差审批（新版）", "更新说明", 31L, "出差申请",
+                        "[{hidden}]", "DISABLED", 3, "管理员", now.minusDays(1), now, true, true));
+
+        var result = approvalConfigurationAdapter.updateProcessDraft(context, command);
+
+        assertThat(result.version()).isEqualTo(3);
+        var request = org.mockito.ArgumentCaptor.forClass(
+                com.aiworkmate.dto.ApprovalProcessAgentDraftUpdateRequest.class);
+        verify(approvalEngineService).updateProcessDraftAgent(eq(7L), eq(41L), request.capture());
+        assertThat(request.getValue().version()).isEqualTo(2);
+        assertThat(request.getValue().nodes()).hasSize(3);
+    }
+
+    @Test
     void forwardsTenantApprovalQueryAndDropsInternalIdentityFields() {
         LocalDateTime from = LocalDateTime.of(2026, 9, 1, 0, 0);
         LocalDateTime to = LocalDateTime.of(2026, 9, 30, 23, 59);
