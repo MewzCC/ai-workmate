@@ -8,6 +8,7 @@ import com.aiworkmate.dto.ApprovalProcessResponse;
 import com.aiworkmate.dto.ApprovalProcessAgentDraftRequest;
 import com.aiworkmate.dto.ApprovalProcessAgentDraftUpdateRequest;
 import com.aiworkmate.dto.ApprovalRuleResponse;
+import com.aiworkmate.dto.ApprovalRuleAgentDraftRequest;
 import com.aiworkmate.entity.ApprovalForm;
 import com.aiworkmate.entity.ApprovalProcess;
 import com.aiworkmate.entity.ApprovalRule;
@@ -263,6 +264,29 @@ class ApprovalEngineServiceImplTest {
                         new ApprovalProcessAgentDraftUpdateRequest.Node("END", "结束", null, null, null, null, null, null)))))
                 .isInstanceOf(com.aiworkmate.common.BusinessException.class);
         org.mockito.Mockito.verify(processMapper, org.mockito.Mockito.never()).update(any(), any());
+    }
+
+    @Test
+    void agentCreatesOnlyDisabledRuleFromSemanticConditions() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(readerAccess());
+        when(ruleMapper.selectOne(any())).thenReturn(null);
+        doAnswer(invocation -> {
+            ApprovalRule inserted = invocation.getArgument(0);
+            inserted.setId(51L);
+            return 1;
+        }).when(ruleMapper).insert(any(ApprovalRule.class));
+
+        var response = service.createRuleDraftAgent(USER_ID, new ApprovalRuleAgentDraftRequest(
+                "large-expense", "大额费用复核", "AMOUNT_THRESHOLD", 10, null, "AND",
+                List.of(new ApprovalRuleAgentDraftRequest.Condition("amount", "gte", "5000")),
+                new ApprovalRuleAgentDraftRequest.Action("FINANCE_REVIEW", true, "OR_SIGN")));
+
+        assertThat(response.status()).isEqualTo("DISABLED");
+        var rule = org.mockito.ArgumentCaptor.forClass(ApprovalRule.class);
+        verify(ruleMapper).insert(rule.capture());
+        assertThat(rule.getValue().getConditionJson()).contains("\"field\":\"amount\"");
+        assertThat(rule.getValue().getActionJson()).contains("FINANCE_REVIEW");
+        assertThat(rule.getValue().getStatus()).isEqualTo("DISABLED");
     }
 
     private ApprovalForm form(Long createdBy) {

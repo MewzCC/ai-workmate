@@ -74,6 +74,9 @@ class PageCapabilityCatalogTest {
                 .extracting(PageToolReference::code)
                 .containsExactly(ToolCode.APPROVAL_PROCESS_CREATE_DRAFT,
                         ToolCode.APPROVAL_PROCESS_UPDATE_DRAFT);
+        assertThat(catalog.find("approval-rules").orElseThrow().writeTools())
+                .extracting(PageToolReference::code)
+                .containsExactly(ToolCode.APPROVAL_RULE_CREATE_DRAFT);
     }
 
     @Test

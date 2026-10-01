@@ -1251,6 +1251,18 @@ class P1PostgresMigrationIT {
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM agent_tool
                     WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='SINGLE_WRITE'
+                      AND code='approval.rule.createDraft'
+                      AND schema_hash='sha256:847518614624e4e86c659cf1656265ae7e76786a006538d58f2277276c5acc11'
+                      AND risk_level='L1' AND data_scope_policy='TENANT_SCOPED'
+                      AND retry_policy='NEVER' AND confirmation_policy='EXPLICIT'
+                    """)).as("审批规则必须具备未启用规则受控创建工具").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code='agent:tool:approval.rule.createDraft'
+                    """)).as("审批规则草稿创建工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='SINGLE_WRITE'
                       AND code='knowledge.base.update'
                       AND schema_hash='sha256:79f873ae75d3b83b062efa802cfd1aa22708fd41d7fdde6f373ad400457c66f2'
                       AND risk_level='L1' AND data_scope_policy='FIXED_RESOURCE'

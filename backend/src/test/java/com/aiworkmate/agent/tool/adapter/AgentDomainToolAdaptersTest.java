@@ -219,6 +219,26 @@ class AgentDomainToolAdaptersTest {
     }
 
     @Test
+    void createsOnlyDisabledApprovalRuleDraftFromSemanticConditions() {
+        LocalDateTime now = LocalDateTime.of(2026, 10, 1, 23, 30);
+        var command = new ApprovalConfigurationToolPort.RuleDraft(
+                "large-expense", "大额费用复核", "AMOUNT_THRESHOLD", 10, null, "AND",
+                List.of(new ApprovalConfigurationToolPort.RuleCondition("amount", "gte", "5000")),
+                new ApprovalConfigurationToolPort.RuleAction("FINANCE_REVIEW", true, "OR_SIGN"));
+        when(approvalEngineService.createRuleDraftAgent(eq(7L), any())).thenReturn(
+                new com.aiworkmate.dto.ApprovalRuleResponse(51L, "large-expense", "大额费用复核",
+                        "AMOUNT_THRESHOLD", 10, "{hidden}", "{hidden}", null, "DISABLED", 1,
+                        "管理员", now, now, true, true));
+
+        var result = approvalConfigurationAdapter.createRuleDraft(context, command);
+
+        assertThat(result.status()).isEqualTo("DISABLED");
+        var request = org.mockito.ArgumentCaptor.forClass(com.aiworkmate.dto.ApprovalRuleAgentDraftRequest.class);
+        verify(approvalEngineService).createRuleDraftAgent(eq(7L), request.capture());
+        assertThat(request.getValue().conditions()).hasSize(1);
+    }
+
+    @Test
     void forwardsTenantApprovalQueryAndDropsInternalIdentityFields() {
         LocalDateTime from = LocalDateTime.of(2026, 9, 1, 0, 0);
         LocalDateTime to = LocalDateTime.of(2026, 9, 30, 23, 59);

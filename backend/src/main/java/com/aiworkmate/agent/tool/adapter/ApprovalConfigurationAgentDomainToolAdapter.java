@@ -6,6 +6,7 @@ import com.aiworkmate.dto.ApprovalFormAgentDraftRequest;
 import com.aiworkmate.dto.ApprovalFormAgentDraftUpdateRequest;
 import com.aiworkmate.dto.ApprovalProcessAgentDraftRequest;
 import com.aiworkmate.dto.ApprovalProcessAgentDraftUpdateRequest;
+import com.aiworkmate.dto.ApprovalRuleAgentDraftRequest;
 import com.aiworkmate.service.ApprovalEngineService;
 import lombok.RequiredArgsConstructor;
 
@@ -88,6 +89,19 @@ public final class ApprovalConfigurationAgentDomainToolAdapter implements Approv
         var response = approvalEngineService.updateProcessDraftAgent(
                 context.userId(), command.processId(), request);
         return new ProcessDraftResult(response.id(), response.processKey(), response.status(),
+                response.version(), response.updatedAt());
+    }
+
+    @Override
+    public RuleDraftResult createRuleDraft(ToolActorContext context, RuleDraft command) {
+        var request = new ApprovalRuleAgentDraftRequest(command.ruleKey(), command.ruleName(), command.ruleType(),
+                command.priority(), command.description(), command.logic(), command.conditions().stream().map(condition ->
+                new ApprovalRuleAgentDraftRequest.Condition(condition.field(), condition.operator(),
+                        condition.value())).toList(),
+                new ApprovalRuleAgentDraftRequest.Action(command.action().appendNode(),
+                        command.action().enabled(), command.action().mode()));
+        var response = approvalEngineService.createRuleDraftAgent(context.userId(), request);
+        return new RuleDraftResult(response.id(), response.ruleKey(), response.status(),
                 response.version(), response.updatedAt());
     }
 }

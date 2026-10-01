@@ -114,4 +114,27 @@ class AgentApprovalConfigurationWriteToolDefinitionsTest {
                 {"processId":41,"version":2,"processName":"出差审批","status":"ENABLED","nodeJson":"[]","nodes":[]}
                 """))).isFalse();
     }
+    @Test
+    void createRuleAcceptsSemanticConditionsButNotRawJsonOrEnableStatus() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        ToolDefinition definition = new AgentApprovalConfigurationWriteToolDefinitions()
+                .approvalRuleCreateDraftToolDefinition(mapper);
+        ToolSchemaValidator validator = new ToolSchemaValidator();
+
+        assertThat(definition.schemaHash()).isEqualTo(
+                "sha256:847518614624e4e86c659cf1656265ae7e76786a006538d58f2277276c5acc11");
+        assertThat(definition.ownershipPolicy()).isEqualTo(OwnershipPolicy.TENANT_SCOPED);
+        assertThat(definition.retryPolicy()).isEqualTo(RetryPolicy.NEVER);
+        assertThat(definition.confirmationPolicy()).isEqualTo(ConfirmationPolicy.EXPLICIT);
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree("""
+                {"ruleKey":"large-expense","ruleName":"大额费用复核","ruleType":"AMOUNT_THRESHOLD",
+                 "priority":10,"logic":"AND","conditions":[{"field":"amount","operator":"gte","value":"5000"}],
+                 "action":{"appendNode":"FINANCE_REVIEW","enabled":true,"mode":"OR_SIGN"}}
+                """))).isTrue();
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree("""
+                {"ruleKey":"large-expense","ruleName":"大额费用复核","ruleType":"AMOUNT_THRESHOLD",
+                 "priority":10,"logic":"AND","conditions":[],"conditionJson":"{}","actionJson":"{}","status":"ENABLED",
+                 "action":{"appendNode":"FINANCE_REVIEW","enabled":true,"mode":"OR_SIGN"}}
+                """))).isFalse();
+    }
 }

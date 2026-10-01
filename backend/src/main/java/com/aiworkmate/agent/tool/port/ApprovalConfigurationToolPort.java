@@ -10,6 +10,7 @@ public interface ApprovalConfigurationToolPort {
     FormDraftResult updateFormDraft(ToolActorContext context, FormDraftUpdate command);
     ProcessDraftResult createProcessDraft(ToolActorContext context, ProcessDraft command);
     ProcessDraftResult updateProcessDraft(ToolActorContext context, ProcessDraftUpdate command);
+    RuleDraftResult createRuleDraft(ToolActorContext context, RuleDraft command);
 
     enum Resource { FORM, PROCESS, RULE }
 
@@ -55,4 +56,17 @@ public interface ApprovalConfigurationToolPort {
 
     record ProcessDraftResult(long processId, String processKey, String status, int version,
                               LocalDateTime updatedAt) implements ToolWriteReceipt { }
+
+    record RuleDraft(String ruleKey, String ruleName, String ruleType, int priority,
+                     String description, String logic, List<RuleCondition> conditions,
+                     RuleAction action) {
+        public RuleDraft { conditions = List.copyOf(conditions); }
+    }
+
+    record RuleCondition(String field, String operator, String value) { }
+
+    record RuleAction(String appendNode, boolean enabled, String mode) { }
+
+    record RuleDraftResult(long ruleId, String ruleKey, String status, int version,
+                           LocalDateTime updatedAt) implements ToolWriteReceipt { }
 }

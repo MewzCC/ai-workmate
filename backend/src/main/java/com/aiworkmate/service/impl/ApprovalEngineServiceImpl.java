@@ -12,6 +12,7 @@ import com.aiworkmate.dto.ApprovalProcessAgentDraftRequest;
 import com.aiworkmate.dto.ApprovalProcessAgentDraftUpdateRequest;
 import com.aiworkmate.dto.ApprovalProcessResponse;
 import com.aiworkmate.dto.ApprovalRuleRequest;
+import com.aiworkmate.dto.ApprovalRuleAgentDraftRequest;
 import com.aiworkmate.dto.ApprovalRuleResponse;
 import com.aiworkmate.entity.ApprovalForm;
 import com.aiworkmate.entity.ApprovalProcess;
@@ -562,6 +563,32 @@ public class ApprovalEngineServiceImpl implements ApprovalEngineService {
 
     @Override
     @Transactional
+    public ApprovalRuleResponse createRuleDraftAgent(Long userId, ApprovalRuleAgentDraftRequest request) {
+        requireAgentRuleDraft(request);
+        String conditionJson;
+        String actionJson;
+        try {
+            List<Map<String, String>> conditions = request.conditions().stream()
+                    .map(condition -> Map.of("field", condition.field(), "op", condition.operator(),
+                            "value", condition.value())).toList();
+            Object conditionDocument = conditions.size() == 1
+                    ? conditions.get(0)
+                    : Map.of("logic", request.logic(), "conditions", conditions);
+            conditionJson = objectMapper.writeValueAsString(conditionDocument);
+            actionJson = objectMapper.writeValueAsString(Map.of(
+                    "appendNode", request.action().appendNode(),
+                    "enabled", request.action().enabled(),
+                    "mode", request.action().mode()));
+        } catch (JsonProcessingException exception) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.approval.json.invalid");
+        }
+        return createRule(userId, new ApprovalRuleRequest(request.ruleKey(), request.ruleName(),
+                request.ruleType(), request.priority(), conditionJson, actionJson,
+                request.description(), "DISABLED", null));
+    }
+
+    @Override
+    @Transactional
     public ApprovalRuleResponse updateRule(Long userId, Long id, ApprovalRuleRequest request) {
         ResolvedUserAccess actor = requirePermission(userId, "approval:manage");
         requireVersion(request.version());
@@ -701,6 +728,33 @@ public class ApprovalEngineServiceImpl implements ApprovalEngineService {
                 request.nodes().stream().map(node -> new ApprovalProcessAgentDraftRequest.Node(
                         node.nodeType(), node.nodeName(), node.approveType(), node.targetKey(), node.mode(),
                         node.timeoutEnabled(), node.timeoutHours(), node.timeoutAction())).toList()));
+    }
+
+    private void requireAgentRuleDraft(ApprovalRuleAgentDraftRequest request) {
+        Set<String> ruleTypes = Set.of("AMOUNT_THRESHOLD", "LEAVE_TYPE", "EMPLOYEE_LEVEL", "LIMIT_OVERRIDE");
+        Set<String> fields = Set.of("amount", "durationDays", "department", "employeeLevel", "leaveType");
+        Set<String> operators = Set.of("eq", "ne", "gt", "gte", "lt", "lte", "in");
+        Set<String> nodes = Set.of("DEPARTMENT_HEAD", "FINANCE_REVIEW", "DIRECT_MANAGER");
+        Set<String> modes = Set.of("COUNTERSIGN", "OR_SIGN", "SEQUENTIAL");
+        if (request == null || request.ruleKey() == null
+                || !request.ruleKey().matches("^[a-z][a-z0-9_-]{0,63}$")
+                || request.ruleName() == null || request.ruleName().isBlank() || request.ruleName().length() > 120
+                || !ruleTypes.contains(request.ruleType()) || request.priority() == null
+                || request.priority() < 0 || request.priority() > 10000
+                || request.description() != null && request.description().length() > 500
+                || !("AND".equals(request.logic()) || "OR".equals(request.logic()))
+                || request.conditions() == null || request.conditions().isEmpty() || request.conditions().size() > 10
+                || request.action() == null || !nodes.contains(request.action().appendNode())
+                || !modes.contains(request.action().mode())) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        for (ApprovalRuleAgentDraftRequest.Condition condition : request.conditions()) {
+            if (condition == null || !fields.contains(condition.field())
+                    || !operators.contains(condition.operator()) || condition.value() == null
+                    || condition.value().isBlank() || condition.value().length() > 120) {
+                throw new BusinessException(ErrorCode.REQUEST_INVALID);
+            }
+        }
     }
 
     private String agentProcessNodes(List<ApprovalProcessAgentDraftUpdateRequest.Node> nodes) {
