@@ -164,8 +164,25 @@ public class DataDictionaryServiceImpl implements DataDictionaryService {
     public DictionaryItemPageResponse listItems(Long userId, Long typeId, String keyword, String status, int page, int size) {
         ResolvedUserAccess actor = requireRead(userId);
         requireType(actor, typeId);
+        return listItems(actor, typeId, keyword, status, page, size, 100);
+    }
+
+    @Override
+    public DictionaryItemPageResponse listItemsAgent(
+            Long userId, String typeCode, String keyword, String status, int page, int size) {
+        if (!StringUtils.hasText(typeCode) || !TYPE_CODE_PATTERN.matcher(typeCode.trim()).matches()) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        ResolvedUserAccess actor = requireRead(userId);
+        DataDictionaryType type = requireType(actor, typeCode.trim());
+        return listItems(actor, type.getId(), keyword, status, page, size, 50);
+    }
+
+    private DictionaryItemPageResponse listItems(
+            ResolvedUserAccess actor, Long typeId, String keyword, String status,
+            int page, int size, int maximumSize) {
         int safePage = Math.max(1, page);
-        int safeSize = Math.min(100, Math.max(1, size));
+        int safeSize = Math.min(maximumSize, Math.max(1, size));
         String normalizedStatus = normalizeOptionalStatus(status);
         LambdaQueryWrapper<DataDictionaryItem> query = itemQuery(actor.tenantId(), typeId)
                 .eq(StringUtils.hasText(normalizedStatus), DataDictionaryItem::getStatus, normalizedStatus)

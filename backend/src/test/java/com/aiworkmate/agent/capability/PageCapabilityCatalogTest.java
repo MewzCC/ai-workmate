@@ -275,7 +275,8 @@ class PageCapabilityCatalogTest {
     void bindsOperationalGovernancePagesToNarrowReadTools() {
         assertThat(catalog.find("audit-center").orElseThrow().readTools()).extracting(PageToolReference::code).containsExactly(ToolCode.AUDIT_QUERY);
         assertThat(catalog.find("tenant-config").orElseThrow().readTools()).extracting(PageToolReference::code).containsExactly(ToolCode.TENANT_CONFIGURATION_QUERY);
-        assertThat(catalog.find("dictionary").orElseThrow().readTools()).extracting(PageToolReference::code).containsExactly(ToolCode.DICTIONARY_QUERY);
+        assertThat(catalog.find("dictionary").orElseThrow().readTools()).extracting(PageToolReference::code)
+                .containsExactly(ToolCode.DICTIONARY_QUERY, ToolCode.DICTIONARY_ITEM_QUERY);
         assertThat(catalog.find("dictionary").orElseThrow().writeTools()).extracting(PageToolReference::code)
                 .containsExactly(ToolCode.DICTIONARY_TYPE_CREATE, ToolCode.DICTIONARY_TYPE_UPDATE,
                         ToolCode.DICTIONARY_ITEM_CREATE);

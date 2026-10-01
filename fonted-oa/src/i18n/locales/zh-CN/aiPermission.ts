@@ -139,6 +139,7 @@ const aiPermission = {
     audit_query: { name: '查询审计记录', description: '返回租户审计元数据，不暴露身份、资源标识、链路或摘要。' },
     tenantConfiguration_query: { name: '查询租户配置', description: '返回当前租户获授权的业务和安全策略摘要。' },
     dictionary_query: { name: '查询数据字典', description: '返回字典类型摘要，不暴露内部 ID 或字典项值。' },
+    dictionary_item_query: { name: '查询字典项', description: '按字典类型编码分页返回当前租户的字典项及版本，不暴露数据库内部 ID。' },
     dictionary_type_create: { name: '创建字典类型', description: '经二次确认后创建一个租户内启用的字典类型，不创建字典项、不删除或批量修改。' },
     dictionary_type_update: { name: '修改字典类型', description: '经确认后按不可变编码修改一个字典类型的名称、描述或排序，使用版本号防止并发覆盖。' },
     dictionary_item_create: { name: '创建字典项', description: '经二次确认后在一个启用的字典类型中创建单个启用项，不修改状态、删除或批量导入。' },

@@ -7,6 +7,7 @@ import com.aiworkmate.dto.DictionaryTypeResponse;
 import com.aiworkmate.dto.DictionaryTypeAgentUpdateRequest;
 import com.aiworkmate.dto.DictionaryItemAgentCreateRequest;
 import com.aiworkmate.dto.DictionaryItemResponse;
+import com.aiworkmate.dto.DictionaryItemPageResponse;
 import com.aiworkmate.service.DataDictionaryService;
 import org.junit.jupiter.api.Test;
 
@@ -35,6 +36,25 @@ class DictionaryAgentDomainToolAdapterTest {
         assertThat(result.records()).singleElement().satisfies(type -> {
             assertThat(type.code()).isEqualTo("EMPLOYEE_STATUS");
             assertThat(type.toString()).doesNotContain("81");
+        });
+    }
+
+    @Test
+    void mapsDictionaryItemsWithoutInternalIdentifiers() {
+        var updatedAt = LocalDateTime.of(2026, 10, 2, 2, 5);
+        when(service.listItemsAgent(2L, "PROJECT_STAGE", "progress", "ACTIVE", 1, 20))
+                .thenReturn(new DictionaryItemPageResponse(List.of(
+                        new DictionaryItemResponse(101L, 91L, "IN_PROGRESS", "进行中", null,
+                                "ACTIVE", 10, 2L, 3, updatedAt, true, false)), 1, 1, 20, true));
+
+        var result = adapter.dictionaryItems(actor, new DictionaryToolPort.DictionaryItemQuery(
+                "PROJECT_STAGE", "progress", "ACTIVE", 1, 20));
+
+        assertThat(result.typeCode()).isEqualTo("PROJECT_STAGE");
+        assertThat(result.records()).singleElement().satisfies(item -> {
+            assertThat(item.value()).isEqualTo("IN_PROGRESS");
+            assertThat(item.version()).isEqualTo(3);
+            assertThat(item.toString()).doesNotContain("101", "91");
         });
     }
 

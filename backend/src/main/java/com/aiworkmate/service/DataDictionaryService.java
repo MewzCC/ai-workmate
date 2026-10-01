@@ -22,6 +22,7 @@ public interface DataDictionaryService {
     DictionaryTypeResponse updateTypeStatus(Long userId, Long id, DictionaryStatusRequest request);
     void deleteType(Long userId, Long id, Integer version);
     DictionaryItemPageResponse listItems(Long userId, Long typeId, String keyword, String status, int page, int size);
+    DictionaryItemPageResponse listItemsAgent(Long userId, String typeCode, String keyword, String status, int page, int size);
     DictionaryItemResponse createItem(Long userId, Long typeId, DictionaryItemRequest request);
     DictionaryItemResponse createItemAgent(Long userId, String typeCode, DictionaryItemAgentCreateRequest request);
     DictionaryItemResponse updateItem(Long userId, Long typeId, Long itemId, DictionaryItemRequest request);

@@ -23,6 +23,16 @@ public class DictionaryAgentDomainToolAdapter implements DictionaryToolPort {
     }
 
     @Override
+    public DictionaryItems dictionaryItems(ToolActorContext context, DictionaryItemQuery query) {
+        var response = dictionaryService.listItemsAgent(context.userId(), query.typeCode(), query.keyword(),
+                query.status(), query.page(), query.size());
+        return new DictionaryItems(query.typeCode(), response.records().stream()
+                .map(item -> new DictionaryItem(item.value(), item.label(), item.description(), item.status(),
+                        item.sortOrder(), item.usageCount(), item.version(), item.updatedAt()))
+                .toList(), response.total(), response.page(), response.size(), response.canManage());
+    }
+
+    @Override
     public CreateTypeResult createType(ToolActorContext context, CreateTypeCommand command) {
         var response = dictionaryService.createTypeAgent(context.userId(),
                 new DictionaryTypeRequest(command.code(), command.name(), command.description(),

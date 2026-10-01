@@ -139,6 +139,7 @@ const aiPermission = {
     audit_query: { name: 'Query audit records', description: 'Returns tenant audit metadata without identities, resource identifiers, traces, or summaries.' },
     tenantConfiguration_query: { name: 'Query tenant configuration', description: 'Returns authorized business and security policy summaries for the current tenant.' },
     dictionary_query: { name: 'Query data dictionary', description: 'Returns dictionary type summaries without internal IDs or item values.' },
+    dictionary_item_query: { name: 'Query dictionary items', description: 'Returns a bounded page of tenant dictionary items and versions by type code without internal database IDs.' },
     dictionary_type_create: { name: 'Create dictionary type', description: 'Creates one active tenant dictionary type after secondary confirmation, without item creation, deletion, or batch changes.' },
     dictionary_type_update: { name: 'Update dictionary type', description: 'Updates one dictionary type name, description, or sort order by immutable code after confirmation, with optimistic version checks.' },
     dictionary_item_create: { name: 'Create dictionary item', description: 'Creates one active item in an active dictionary type after secondary confirmation, without status changes, deletion, or batch import.' },

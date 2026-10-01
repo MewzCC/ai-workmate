@@ -9,6 +9,7 @@ import com.aiworkmate.entity.DataDictionaryType;
 import com.aiworkmate.mapper.DataDictionaryItemMapper;
 import com.aiworkmate.mapper.DataDictionaryItemUsageMapper;
 import com.aiworkmate.mapper.DataDictionaryTypeMapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.aiworkmate.service.BusinessAuditService;
 import com.aiworkmate.service.UserAccessService;
 import com.aiworkmate.service.model.ResolvedUserAccess;
@@ -139,6 +140,39 @@ class DataDictionaryServiceImplTest {
     void shouldRejectInvalidAgentItemBeforeResolvingActor() {
         assertThatThrownBy(() -> service.createItemAgent(1001L, "PROJECT_STAGE",
                 new DictionaryItemAgentCreateRequest("bad value", "进行中", null, 10)))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("REQUEST_INVALID");
+        verifyNoInteractions(userAccessService, typeMapper, itemMapper, usageMapper, auditService);
+    }
+
+    @Test
+    void shouldListAgentItemsByTenantTypeCodeWithBoundedPage() {
+        when(userAccessService.resolveActiveUser(1001L)).thenReturn(access(List.of("route:dictionary")));
+        when(typeMapper.selectOne(any())).thenReturn(dictionaryType("PROJECT_STAGE", "项目阶段", null, 20, 1));
+        DataDictionaryItem item = new DataDictionaryItem();
+        item.setId(101L); item.setTenantId(9L); item.setDictionaryTypeId(81L);
+        item.setValue("IN_PROGRESS"); item.setLabel("进行中"); item.setStatus("ACTIVE");
+        item.setSortOrder(10); item.setVersion(3); item.setDeleted(false);
+        when(itemMapper.selectPage(any(Page.class), any())).thenAnswer(invocation -> {
+            Page<DataDictionaryItem> page = invocation.getArgument(0);
+            page.setRecords(List.of(item)); page.setTotal(1);
+            return page;
+        });
+        when(usageMapper.selectCount(any())).thenReturn(2L);
+
+        var response = service.listItemsAgent(1001L, "PROJECT_STAGE", "progress", "ACTIVE", 1, 500);
+
+        assertThat(response.size()).isEqualTo(50);
+        assertThat(response.records()).singleElement().satisfies(value -> {
+            assertThat(value.value()).isEqualTo("IN_PROGRESS");
+            assertThat(value.version()).isEqualTo(3);
+            assertThat(value.usageCount()).isEqualTo(2L);
+        });
+    }
+
+    @Test
+    void shouldRejectInvalidAgentItemQueryBeforeResolvingActor() {
+        assertThatThrownBy(() -> service.listItemsAgent(1001L, "bad-code", null, null, 1, 20))
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode").isEqualTo("REQUEST_INVALID");
         verifyNoInteractions(userAccessService, typeMapper, itemMapper, usageMapper, auditService);

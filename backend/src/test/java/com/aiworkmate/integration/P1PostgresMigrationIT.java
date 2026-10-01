@@ -1346,6 +1346,18 @@ class P1PostgresMigrationIT {
                     """)).as("字典项创建工具必须具备独立实时权限").isOne();
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='NONE'
+                      AND code='dictionary.item.query'
+                      AND schema_hash='sha256:a292013677a883e78f42ffe1c2c99c99896f45f354d7d8d9780a0168543520c5'
+                      AND risk_level='L0' AND data_scope_policy='TENANT_SCOPED'
+                      AND retry_policy='READ_ONLY_SAFE' AND confirmation_policy='NONE'
+                    """)).as("数据字典必须具备不暴露内部标识的字典项分页查询工具").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code='agent:tool:dictionary.item.query'
+                    """)).as("字典项查询工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
                     WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='SINGLE_WRITE'
                       AND code='knowledge.base.update'
                       AND schema_hash='sha256:79f873ae75d3b83b062efa802cfd1aa22708fd41d7fdde6f373ad400457c66f2'
