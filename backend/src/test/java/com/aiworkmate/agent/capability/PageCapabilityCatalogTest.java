@@ -53,6 +53,9 @@ class PageCapabilityCatalogTest {
         assertThat(catalog.find("dashboard").orElseThrow().readTools())
                 .extracting(PageToolReference::code)
                 .contains(ToolCode.USER_PERMISSION_MINE_QUERY);
+        assertThat(catalog.find("dashboard").orElseThrow().writeTools())
+                .extracting(PageToolReference::code)
+                .containsExactly(ToolCode.DASHBOARD_PREFERENCES_UPDATE);
         assertThat(catalog.find("ai-workspace").orElseThrow().readTools())
                 .extracting(PageToolReference::code)
                 .contains(ToolCode.USER_PERMISSION_MINE_QUERY);

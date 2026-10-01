@@ -56,6 +56,7 @@ const aiPermission = {
     attendance_reissue_decide: { name: 'Decide attendance correction', description: 'After secondary confirmation, approves or rejects one pending correction assigned to the current user.' },
     attendance_settings_update: { name: 'Update attendance settings', description: 'After secondary confirmation and version validation, updates work hours and flex rules for the current tenant.' },
     userSettings_update: { name: 'Update personal system settings', description: 'After explicit confirmation, updates the current user\'s model, context, streaming, and OCR preferences.' },
+    dashboard_preferences_update: { name: 'Adjust dashboard metrics', description: 'After explicit confirmation, selects and orders dashboard metrics visible to the current user.' },
     approval_application_createDraft: { name: 'Create general application draft', description: 'Saves only a draft owned by the current user without starting approval.' },
     approval_application_submitDraft: { name: 'Submit general application draft', description: 'Submits an owned, version-matched draft and starts approval.' },
     approval_application_withdraw: { name: 'Withdraw general application', description: 'Withdraws only a pending application owned by the current user.' },

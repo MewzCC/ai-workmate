@@ -630,6 +630,20 @@ class P1PostgresMigrationIT {
                     """)).as("个人系统设置工具必须具备业务与工具两层实时权限").isEqualTo(2);
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'dashboard.preferences.update'
+                      AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:bdfa0ed9774119150ea82446ad14fdebdfd5f88e21652a3bf82511301c8e9a96'
+                      AND risk_level = 'L1' AND data_scope_policy = 'SELF'
+                      AND required_permissions = '["dashboard:read"]'::jsonb
+                      AND retry_policy = 'NEVER' AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'EXPLICIT' AND enabled = TRUE
+                    """)).as("驾驶舱指标偏好工具必须以本人原子写契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code = 'agent:tool:dashboard.preferences.update'
+                    """)).as("驾驶舱指标偏好工具必须具备独立实时工具权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
                     WHERE tenant_id IS NULL AND code = 'approval.application.createDraft'
                       AND handler_version = '1.0.0'
                       AND schema_hash = 'sha256:0b91ec92030a3bdb99baac22dce2b1e7c3a239829740fe9ad174b24ecf340424'
