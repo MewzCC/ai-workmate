@@ -4,6 +4,7 @@ import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.common.ErrorCode;
 import com.aiworkmate.config.EmbeddingProperties;
 import com.aiworkmate.dto.KnowledgeBaseCreateRequest;
+import com.aiworkmate.dto.KnowledgeBaseUpdateRequest;
 import com.aiworkmate.entity.KnowledgeBase;
 import com.aiworkmate.mapper.KnowledgeBaseMapper;
 import com.aiworkmate.service.EmbeddingService;
@@ -82,6 +83,33 @@ class KnowledgeBaseServiceImplTest {
                         .isEqualTo(ErrorCode.PERMISSION_DENIED.getErrorCode()));
 
         verifyNoInteractions(embeddingService, mapper);
+    }
+
+    @Test
+    void agentUpdateRequiresPermissionAndOwnedKnowledgeBase() {
+        when(accessService.resolveActiveUser(7L)).thenReturn(access(List.of("knowledge:search")));
+        when(mapper.selectOne(any())).thenReturn(ownedBase());
+
+        var result = service.updateAgent(7L, 42L,
+                new KnowledgeBaseUpdateRequest("研发规范", null, null, 1200, 100, 8, 4));
+
+        assertThat(result.name()).isEqualTo("研发规范");
+        assertThat(result.chunkSize()).isEqualTo(1200);
+        verify(mapper).updateById(argThat((KnowledgeBase base) -> base.getTenantId().equals(99L)
+                && base.getUserId().equals(7L) && base.getId().equals(42L)));
+    }
+
+    @Test
+    void agentUpdateFailsClosedBeforeOwnershipLookupWhenPermissionWasRevoked() {
+        when(accessService.resolveActiveUser(7L)).thenReturn(access(List.of()));
+
+        assertThatThrownBy(() -> service.updateAgent(7L, 42L,
+                new KnowledgeBaseUpdateRequest("研发规范", null, null, null, null, null, null)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
+                        .isEqualTo(ErrorCode.PERMISSION_DENIED.getErrorCode()));
+
+        verifyNoInteractions(mapper, embeddingService);
     }
 
     private ResolvedUserAccess access(List<String> permissions) {

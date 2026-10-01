@@ -61,7 +61,8 @@ class PageCapabilityCatalogTest {
                 .contains(ToolCode.USER_PERMISSION_MINE_QUERY);
         assertThat(catalog.find("knowledge-base").orElseThrow().writeTools())
                 .extracting(PageToolReference::code)
-                .containsExactly(ToolCode.KNOWLEDGE_BASE_CREATE, ToolCode.KNOWLEDGE_DOCUMENT_CREATE_TEXT);
+                .containsExactly(ToolCode.KNOWLEDGE_BASE_CREATE, ToolCode.KNOWLEDGE_BASE_UPDATE,
+                        ToolCode.KNOWLEDGE_DOCUMENT_CREATE_TEXT);
         assertThat(catalog.find("knowledge-base").orElseThrow().readTools())
                 .extracting(PageToolReference::code)
                 .containsExactly(ToolCode.KNOWLEDGE_SEARCH, ToolCode.KNOWLEDGE_BASE_QUERY);

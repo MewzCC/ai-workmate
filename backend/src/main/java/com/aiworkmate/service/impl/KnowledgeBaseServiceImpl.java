@@ -105,6 +105,16 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     @Transactional
     public KnowledgeBaseResponse update(Long userId, Long kbId, KnowledgeBaseUpdateRequest request) {
         ResolvedUserAccess access = requireAccess(userId);
+        return update(access, kbId, request);
+    }
+
+    @Override
+    @Transactional
+    public KnowledgeBaseResponse updateAgent(Long userId, Long kbId, KnowledgeBaseUpdateRequest request) {
+        return update(requireAgentAccess(userId), kbId, request);
+    }
+
+    private KnowledgeBaseResponse update(ResolvedUserAccess access, Long kbId, KnowledgeBaseUpdateRequest request) {
         KnowledgeBase knowledgeBase = requireOwned(access, kbId);
         boolean changed = false;
         if (request.name() != null && !request.name().isBlank() && !request.name().strip().equals(knowledgeBase.getName())) {

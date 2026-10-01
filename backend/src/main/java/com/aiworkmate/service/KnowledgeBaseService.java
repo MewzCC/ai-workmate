@@ -20,5 +20,7 @@ public interface KnowledgeBaseService {
 
     KnowledgeBaseResponse update(Long userId, Long kbId, KnowledgeBaseUpdateRequest request);
 
+    KnowledgeBaseResponse updateAgent(Long userId, Long kbId, KnowledgeBaseUpdateRequest request);
+
     void delete(Long userId, Long kbId);
 }

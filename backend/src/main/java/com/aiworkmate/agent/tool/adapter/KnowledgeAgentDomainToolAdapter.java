@@ -5,6 +5,7 @@ import com.aiworkmate.agent.tool.port.ToolActorContext;
 import com.aiworkmate.dto.KnowledgeBaseCreateRequest;
 import com.aiworkmate.dto.KnowledgeDocumentCreateRequest;
 import com.aiworkmate.dto.KnowledgeSearchRequest;
+import com.aiworkmate.dto.KnowledgeBaseUpdateRequest;
 import com.aiworkmate.service.KnowledgeBaseService;
 import com.aiworkmate.service.KnowledgeService;
 import lombok.RequiredArgsConstructor;
@@ -39,6 +40,16 @@ public class KnowledgeAgentDomainToolAdapter implements KnowledgeToolPort {
                 new KnowledgeBaseCreateRequest(command.name(), command.icon(), command.description()));
         return new CreateBaseResult(response.id(), response.name(), response.icon(), response.description(),
                 response.docCount(), response.chunkCount(), response.createdAt());
+    }
+
+    @Override
+    public UpdateBaseResult updateBase(ToolActorContext context, UpdateBaseCommand command) {
+        var response = knowledgeBaseService.updateAgent(context.userId(), command.kbId(),
+                new KnowledgeBaseUpdateRequest(command.name(), command.icon(), command.description(),
+                        command.chunkSize(), command.chunkOverlap(), command.denseTopK(), command.sparseTopK()));
+        return new UpdateBaseResult(response.id(), response.name(), response.icon(), response.description(),
+                response.docCount(), response.chunkCount(), response.chunkSize(), response.chunkOverlap(),
+                response.denseTopK(), response.sparseTopK(), response.updatedAt());
     }
 
     @Override

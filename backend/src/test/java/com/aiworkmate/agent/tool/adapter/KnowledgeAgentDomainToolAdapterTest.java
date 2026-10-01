@@ -4,6 +4,7 @@ import com.aiworkmate.agent.tool.port.KnowledgeToolPort;
 import com.aiworkmate.agent.tool.port.ToolActorContext;
 import com.aiworkmate.dto.KnowledgeBaseCreateRequest;
 import com.aiworkmate.dto.KnowledgeBaseResponse;
+import com.aiworkmate.dto.KnowledgeBaseUpdateRequest;
 import com.aiworkmate.dto.KnowledgeDocumentCreateRequest;
 import com.aiworkmate.dto.KnowledgeDocumentResponse;
 import com.aiworkmate.service.KnowledgeBaseService;
@@ -50,6 +51,25 @@ class KnowledgeAgentDomainToolAdapterTest {
         assertThat(adapter.createBase(actor, command)).isEqualTo(
                 new KnowledgeToolPort.CreateBaseResult(42L, "研发制度", "book", "团队制度资料", 0, 0, createdAt));
         verify(baseService).createAgent(7L, request);
+        verifyNoMoreInteractions(service, baseService);
+    }
+
+    @Test
+    void delegatesBaseUpdateAndRemovesEmbeddingInternals() {
+        var command = new KnowledgeToolPort.UpdateBaseCommand(
+                42, "研发规范", "policy", "更新说明", 1200, 100, 8, 4);
+        var request = new KnowledgeBaseUpdateRequest(
+                "研发规范", "policy", "更新说明", 1200, 100, 8, 4);
+        var updatedAt = LocalDateTime.of(2026, 10, 1, 21, 0);
+        var response = new KnowledgeBaseResponse(42L, "研发规范", "policy", "更新说明",
+                2, 8, "internal-provider", "internal-model", "internal-reranker",
+                1200, 100, 8, 4, updatedAt.minusHours(1), updatedAt);
+        when(baseService.updateAgent(7L, 42L, request)).thenReturn(response);
+
+        assertThat(adapter.updateBase(actor, command)).isEqualTo(
+                new KnowledgeToolPort.UpdateBaseResult(42L, "研发规范", "policy", "更新说明",
+                        2, 8, 1200, 100, 8, 4, updatedAt));
+        verify(baseService).updateAgent(7L, 42L, request);
         verifyNoMoreInteractions(service, baseService);
     }
 

@@ -15,6 +15,12 @@ public class AgentKnowledgeWriteToolDefinitions {
     static final String CREATE_BASE_OUTPUT = """
             {"type":"object","additionalProperties":false,"required":["knowledgeBaseId","name","icon","documentCount","chunkCount","createdAt"],"properties":{"knowledgeBaseId":{"type":"integer","minimum":1},"name":{"type":"string","maxLength":80},"icon":{"type":"string","maxLength":40},"description":{"type":["string","null"],"maxLength":500},"documentCount":{"type":"integer","minimum":0},"chunkCount":{"type":"integer","minimum":0},"createdAt":{"type":"string","format":"date-time"}}}
             """.strip();
+    static final String UPDATE_BASE_INPUT = """
+            {"type":"object","additionalProperties":false,"minProperties":2,"required":["kbId"],"properties":{"kbId":{"type":"integer","minimum":1},"name":{"type":"string","minLength":1,"maxLength":80},"icon":{"type":"string","maxLength":40},"description":{"type":"string","maxLength":500},"chunkSize":{"type":"integer","minimum":100,"maximum":8000},"chunkOverlap":{"type":"integer","minimum":0,"maximum":4000},"denseTopK":{"type":"integer","minimum":1,"maximum":50},"sparseTopK":{"type":"integer","minimum":0,"maximum":50}}}
+            """.strip();
+    static final String UPDATE_BASE_OUTPUT = """
+            {"type":"object","additionalProperties":false,"required":["knowledgeBaseId","name","icon","documentCount","chunkCount","chunkSize","chunkOverlap","denseTopK","sparseTopK","updatedAt"],"properties":{"knowledgeBaseId":{"type":"integer","minimum":1},"name":{"type":"string","maxLength":80},"icon":{"type":"string","maxLength":40},"description":{"type":["string","null"],"maxLength":500},"documentCount":{"type":"integer","minimum":0},"chunkCount":{"type":"integer","minimum":0},"chunkSize":{"type":"integer","minimum":100,"maximum":8000},"chunkOverlap":{"type":"integer","minimum":0,"maximum":4000},"denseTopK":{"type":"integer","minimum":1,"maximum":50},"sparseTopK":{"type":"integer","minimum":0,"maximum":50},"updatedAt":{"type":"string","format":"date-time"}}}
+            """.strip();
     static final String CREATE_TEXT_INPUT = """
             {"type":"object","additionalProperties":false,"required":["kbId","filename","content"],"properties":{"kbId":{"type":"integer","minimum":1},"filename":{"type":"string","minLength":1,"maxLength":255},"content":{"type":"string","minLength":1,"maxLength":12000}}}
             """.strip();
@@ -30,6 +36,17 @@ public class AgentKnowledgeWriteToolDefinitions {
                 "Create one confirmed personal knowledge base without delete, batch or security configuration access.",
                 mapper.readTree(CREATE_BASE_INPUT), mapper.readTree(CREATE_BASE_OUTPUT),
                 ToolWriteProfile.NON_RETRYABLE_L1, Set.of("knowledge:search"), OwnershipPolicy.SELF,
+                1, 8192, 10000);
+    }
+
+    @Bean
+    ToolDefinition knowledgeBaseUpdateToolDefinition(ObjectMapper mapper) throws JsonProcessingException {
+        return ToolDefinitionFactory.singleWrite(ToolCode.KNOWLEDGE_BASE_UPDATE,
+                "Update one knowledge base",
+                "Updates bounded metadata and retrieval settings on one knowledge base owned by the authenticated user.",
+                "Update one confirmed personal knowledge base without provider, model, delete, batch or security access.",
+                mapper.readTree(UPDATE_BASE_INPUT), mapper.readTree(UPDATE_BASE_OUTPUT),
+                ToolWriteProfile.NON_RETRYABLE_L1, Set.of("knowledge:search"), OwnershipPolicy.FIXED_RESOURCE,
                 1, 8192, 10000);
     }
 

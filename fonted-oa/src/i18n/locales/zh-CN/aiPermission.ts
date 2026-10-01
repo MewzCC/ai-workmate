@@ -32,6 +32,7 @@ const aiPermission = {
     knowledge_search: { name: '检索授权知识', description: '仅检索当前用户有权访问的知识片段并保留引用。' },
     knowledge_base_query: { name: '查询本人知识库', description: '读取当前用户自己的知识库列表或一个指定知识库的安全摘要。' },
     knowledge_base_create: { name: '创建本人知识库', description: '经明确确认后创建一个归当前用户所有的知识库。' },
+    knowledge_base_update: { name: '更新本人知识库', description: '经明确确认后修改本人一个知识库的元数据与检索参数。' },
     knowledge_document_createText: { name: '创建知识库文本资料', description: '经明确确认后在本人已有知识库中创建一篇受限长度的文本资料。' },
     notification_mine: { name: '查询本人通知', description: '只读取当前用户自己的站内消息。' },
     userPermission_mine_query: { name: '查询本人权限', description: '实时读取当前用户自己的角色、数据范围和权限码，不接受其他用户身份。' },

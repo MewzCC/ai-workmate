@@ -23,6 +23,23 @@ class AgentKnowledgeWriteToolDefinitionsTest {
     }
 
     @Test
+    void exposesOnlyBoundedConfirmedOwnedKnowledgeBaseUpdate() throws Exception {
+        var tool = new AgentKnowledgeWriteToolDefinitions()
+                .knowledgeBaseUpdateToolDefinition(new ObjectMapper());
+        assertThat(tool.ownershipPolicy()).isEqualTo(OwnershipPolicy.FIXED_RESOURCE);
+        assertThat(tool.sideEffect()).isEqualTo(SideEffect.SINGLE_WRITE);
+        assertThat(tool.riskLevel()).isEqualTo(RiskLevel.L1);
+        assertThat(tool.confirmationPolicy()).isEqualTo(ConfirmationPolicy.EXPLICIT);
+        assertThat(tool.retryPolicy()).isEqualTo(RetryPolicy.NEVER);
+        assertThat(tool.requiredPermissions()).containsExactly("knowledge:search");
+        assertThat(tool.inputSchema().toString()).doesNotContain(
+                "\"provider\"", "\"model\"", "\"file\"", "\"url\"", "\"path\"",
+                "\"userId\"", "\"tenantId\"", "\"delete\"");
+        assertThat(tool.schemaHash()).isEqualTo(
+                "sha256:79f873ae75d3b83b062efa802cfd1aa22708fd41d7fdde6f373ad400457c66f2");
+    }
+
+    @Test
     void exposesOnlyBoundedConfirmedTextCreation() throws Exception {
         var tool = new AgentKnowledgeWriteToolDefinitions()
                 .knowledgeDocumentCreateTextToolDefinition(new ObjectMapper());

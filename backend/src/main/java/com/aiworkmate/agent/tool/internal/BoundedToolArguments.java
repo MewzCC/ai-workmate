@@ -34,6 +34,13 @@ final class BoundedToolArguments {
         return text.isEmpty() ? null : text;
     }
 
+    static String optionalTextPreservingEmpty(JsonNode arguments, String field) {
+        JsonNode value = arguments.get(field);
+        if (value == null || value.isNull()) return null;
+        if (!value.isTextual()) throw invalid();
+        return value.asText().strip();
+    }
+
     static String requiredText(JsonNode arguments, String field) {
         String value = optionalText(arguments, field);
         if (value == null) throw invalid();
