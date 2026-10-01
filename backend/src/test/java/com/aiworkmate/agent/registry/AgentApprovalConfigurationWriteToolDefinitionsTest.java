@@ -36,4 +36,32 @@ class AgentApprovalConfigurationWriteToolDefinitionsTest {
                 {"formKey":"travel","formName":"出差申请","schemaJson":"{}","fields":[]}
                 """))).isFalse();
     }
+
+    @Test
+    void updateFormIsOneVersionBoundUnpublishedResourceWrite() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        ToolDefinition definition = new AgentApprovalConfigurationWriteToolDefinitions()
+                .approvalFormUpdateDraftToolDefinition(mapper);
+        ToolSchemaValidator validator = new ToolSchemaValidator();
+
+        assertThat(definition.schemaHash()).isEqualTo(
+                "sha256:e7466382448ff0ccc7ed0fea44a49b95ac4016b70da63497a017d70e8712546a");
+        assertThat(definition.requiredPermissions()).containsExactly("approval:manage");
+        assertThat(definition.riskLevel()).isEqualTo(RiskLevel.L1);
+        assertThat(definition.sideEffect()).isEqualTo(SideEffect.SINGLE_WRITE);
+        assertThat(definition.retryPolicy()).isEqualTo(RetryPolicy.NEVER);
+        assertThat(definition.confirmationPolicy()).isEqualTo(ConfirmationPolicy.EXPLICIT);
+        assertThat(definition.ownershipPolicy()).isEqualTo(OwnershipPolicy.FIXED_RESOURCE);
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree("""
+                {"formId":31,"version":2,"formName":"出差申请","fields":[
+                  {"name":"reason","label":"出差事由","type":"textarea","required":true,"width":"full"}
+                ]}
+                """))).isTrue();
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree("""
+                {"formId":31,"version":2,"formName":"出差申请","status":"ENABLED","fields":[]}
+                """))).isFalse();
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree("""
+                {"formId":31,"version":2,"formKey":"changed","formName":"出差申请","fields":[]}
+                """))).isFalse();
+    }
 }

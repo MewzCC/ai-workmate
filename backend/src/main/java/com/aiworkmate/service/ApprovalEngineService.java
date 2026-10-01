@@ -3,6 +3,7 @@ package com.aiworkmate.service;
 import com.aiworkmate.common.PageResponse;
 import com.aiworkmate.dto.ApprovalFormRequest;
 import com.aiworkmate.dto.ApprovalFormAgentDraftRequest;
+import com.aiworkmate.dto.ApprovalFormAgentDraftUpdateRequest;
 import com.aiworkmate.dto.ApprovalFormResponse;
 import com.aiworkmate.dto.ApprovalProcessRequest;
 import com.aiworkmate.dto.ApprovalProcessResponse;
@@ -28,6 +29,9 @@ public interface ApprovalEngineService {
     ApprovalFormResponse createForm(Long userId, ApprovalFormRequest request);
 
     ApprovalFormResponse createFormDraftAgent(Long userId, ApprovalFormAgentDraftRequest request);
+
+    ApprovalFormResponse updateFormDraftAgent(Long userId, Long id,
+                                              ApprovalFormAgentDraftUpdateRequest request);
 
     ApprovalFormResponse updateForm(Long userId, Long id, ApprovalFormRequest request);
 

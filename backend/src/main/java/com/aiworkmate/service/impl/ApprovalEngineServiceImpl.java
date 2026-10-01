@@ -5,6 +5,7 @@ import com.aiworkmate.common.ErrorCode;
 import com.aiworkmate.common.PageResponse;
 import com.aiworkmate.dto.ApprovalFormRequest;
 import com.aiworkmate.dto.ApprovalFormAgentDraftRequest;
+import com.aiworkmate.dto.ApprovalFormAgentDraftUpdateRequest;
 import com.aiworkmate.dto.ApprovalFormResponse;
 import com.aiworkmate.dto.ApprovalProcessRequest;
 import com.aiworkmate.dto.ApprovalProcessResponse;
@@ -157,15 +158,52 @@ public class ApprovalEngineServiceImpl implements ApprovalEngineService {
     @Override
     @Transactional
     public ApprovalFormResponse createFormDraftAgent(Long userId, ApprovalFormAgentDraftRequest request) {
-        requireAgentFormDraft(request);
-        String schemaJson;
-        try {
-            schemaJson = objectMapper.writeValueAsString(Map.of("fields", request.fields()));
-        } catch (JsonProcessingException exception) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.approval.json.invalid");
-        }
+        List<AgentFormField> fields = request == null ? null : request.fields().stream()
+                .map(field -> new AgentFormField(field.name(), field.label(), field.type(), field.required(),
+                        field.placeholder(), field.options(), field.width())).toList();
+        requireAgentFormDraft(request == null ? null : request.formKey(), request == null ? null : request.formName(),
+                request == null ? null : request.description(), fields, true);
+        String schemaJson = agentFormSchema(fields);
         return createForm(userId, new ApprovalFormRequest(request.formKey(), request.formName(),
                 request.description(), schemaJson, "DISABLED", null));
+    }
+
+    @Override
+    @Transactional
+    public ApprovalFormResponse updateFormDraftAgent(Long userId, Long id,
+                                                     ApprovalFormAgentDraftUpdateRequest request) {
+        List<AgentFormField> fields = request == null ? null : request.fields().stream()
+                .map(field -> new AgentFormField(field.name(), field.label(), field.type(), field.required(),
+                        field.placeholder(), field.options(), field.width())).toList();
+        requireAgentFormDraft(null, request == null ? null : request.formName(),
+                request == null ? null : request.description(), fields, false);
+        if (id == null || id < 1 || request.version() == null || request.version() < 1) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        ResolvedUserAccess actor = requirePermission(userId, "approval:manage");
+        ApprovalForm form = requireForm(actor.tenantId(), id);
+        if (!"DISABLED".equals(form.getStatus())) {
+            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID);
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        int updated = formMapper.update(null, new LambdaUpdateWrapper<ApprovalForm>()
+                .eq(ApprovalForm::getId, id)
+                .eq(ApprovalForm::getTenantId, actor.tenantId())
+                .eq(ApprovalForm::getDeleted, false)
+                .eq(ApprovalForm::getStatus, "DISABLED")
+                .eq(ApprovalForm::getVersion, request.version())
+                .set(ApprovalForm::getFormName, request.formName().trim())
+                .set(ApprovalForm::getDescription, trim(request.description()))
+                .set(ApprovalForm::getSchemaJson, agentFormSchema(fields))
+                .set(ApprovalForm::getUpdatedAt, now)
+                .setSql("version = version + 1"));
+        if (updated != 1) {
+            throw new BusinessException(ErrorCode.VERSION_CONFLICT);
+        }
+        auditService.record(actor.tenantId(), actor.userId(), RESOURCE_FORM,
+                id.toString(), "UPDATE", "SUCCESS", "Agent 更新审批表单草稿");
+        return toFormResponse(formMapper.selectById(id), singleUserName(form.getCreatedBy()), true);
     }
 
     @Override
@@ -534,20 +572,18 @@ public class ApprovalEngineServiceImpl implements ApprovalEngineService {
         return access;
     }
 
-    private void requireAgentFormDraft(ApprovalFormAgentDraftRequest request) {
+    private void requireAgentFormDraft(String formKey, String formName, String description,
+                                       List<AgentFormField> fields, boolean requireKey) {
         Set<String> types = Set.of("text", "textarea", "number", "money", "date", "dateRange", "time",
                 "radio", "checkbox", "select", "user", "department", "file", "image", "table", "divider");
-        if (request == null || request.formKey() == null
-                || !request.formKey().matches("^[a-z][a-z0-9_-]{0,63}$")
-                || request.formName() == null || request.formName().isBlank()
-                || request.formName().length() > 120
-                || request.description() != null && request.description().length() > 500
-                || request.fields() == null || request.fields().isEmpty()
-                || request.fields().size() > 20) {
+        if ((requireKey && (formKey == null || !formKey.matches("^[a-z][a-z0-9_-]{0,63}$")))
+                || formName == null || formName.isBlank() || formName.length() > 120
+                || description != null && description.length() > 500
+                || fields == null || fields.isEmpty() || fields.size() > 20) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID);
         }
         Set<String> names = new HashSet<>();
-        for (ApprovalFormAgentDraftRequest.Field field : request.fields()) {
+        for (AgentFormField field : fields) {
             if (field == null || field.name() == null
                     || !field.name().matches("^[a-z][A-Za-z0-9_-]{0,39}$") || !names.add(field.name())
                     || field.label() == null || field.label().isBlank() || field.label().length() > 40
@@ -560,6 +596,17 @@ public class ApprovalEngineServiceImpl implements ApprovalEngineService {
             }
         }
     }
+
+    private String agentFormSchema(List<AgentFormField> fields) {
+        try {
+            return objectMapper.writeValueAsString(Map.of("fields", fields));
+        } catch (JsonProcessingException exception) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.approval.json.invalid");
+        }
+    }
+
+    private record AgentFormField(String name, String label, String type, boolean required,
+                                  String placeholder, List<String> options, String width) { }
 
     private void requireVersion(Integer version) {
         if (version == null) {

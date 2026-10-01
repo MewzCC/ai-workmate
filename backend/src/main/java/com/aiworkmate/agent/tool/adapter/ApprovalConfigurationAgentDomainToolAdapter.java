@@ -3,6 +3,7 @@ package com.aiworkmate.agent.tool.adapter;
 import com.aiworkmate.agent.tool.port.ApprovalConfigurationToolPort;
 import com.aiworkmate.agent.tool.port.ToolActorContext;
 import com.aiworkmate.dto.ApprovalFormAgentDraftRequest;
+import com.aiworkmate.dto.ApprovalFormAgentDraftUpdateRequest;
 import com.aiworkmate.service.ApprovalEngineService;
 import lombok.RequiredArgsConstructor;
 
@@ -48,6 +49,17 @@ public final class ApprovalConfigurationAgentDomainToolAdapter implements Approv
                 new ApprovalFormAgentDraftRequest.Field(field.name(), field.label(), field.type(),
                         field.required(), field.placeholder(), field.options(), field.width())).toList());
         var response = approvalEngineService.createFormDraftAgent(context.userId(), request);
+        return new FormDraftResult(response.id(), response.formKey(), response.status(),
+                response.version(), response.updatedAt());
+    }
+
+    @Override
+    public FormDraftResult updateFormDraft(ToolActorContext context, FormDraftUpdate command) {
+        var request = new ApprovalFormAgentDraftUpdateRequest(command.version(), command.formName(),
+                command.description(), command.fields().stream().map(field ->
+                new ApprovalFormAgentDraftUpdateRequest.Field(field.name(), field.label(), field.type(),
+                        field.required(), field.placeholder(), field.options(), field.width())).toList());
+        var response = approvalEngineService.updateFormDraftAgent(context.userId(), command.formId(), request);
         return new FormDraftResult(response.id(), response.formKey(), response.status(),
                 response.version(), response.updatedAt());
     }

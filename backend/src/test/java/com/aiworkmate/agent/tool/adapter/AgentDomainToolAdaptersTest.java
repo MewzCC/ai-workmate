@@ -151,6 +151,30 @@ class AgentDomainToolAdaptersTest {
     }
 
     @Test
+    void updatesOnlyVersionBoundDisabledApprovalFormDraft() {
+        LocalDateTime now = LocalDateTime.of(2026, 10, 1, 22, 30);
+        var command = new ApprovalConfigurationToolPort.FormDraftUpdate(
+                31L, 2, "出差申请（新版）", "更新说明", List.of(
+                new ApprovalConfigurationToolPort.FormField(
+                        "reason", "出差事由", "textarea", true, "请输入", List.of(), "full")));
+        when(approvalEngineService.updateFormDraftAgent(eq(7L), eq(31L), any())).thenReturn(
+                new ApprovalFormResponse(31L, "travel", "出差申请（新版）", "更新说明", "{hidden}",
+                        "DISABLED", 3, "管理员", now.minusDays(1), now, true, true));
+
+        var result = approvalConfigurationAdapter.updateFormDraft(context, command);
+
+        assertThat(result).isEqualTo(new ApprovalConfigurationToolPort.FormDraftResult(
+                31L, "travel", "DISABLED", 3, now));
+        var request = org.mockito.ArgumentCaptor.forClass(
+                com.aiworkmate.dto.ApprovalFormAgentDraftUpdateRequest.class);
+        verify(approvalEngineService).updateFormDraftAgent(eq(7L), eq(31L), request.capture());
+        assertThat(request.getValue().version()).isEqualTo(2);
+        assertThat(request.getValue().fields())
+                .extracting(com.aiworkmate.dto.ApprovalFormAgentDraftUpdateRequest.Field::name)
+                .containsExactly("reason");
+    }
+
+    @Test
     void forwardsTenantApprovalQueryAndDropsInternalIdentityFields() {
         LocalDateTime from = LocalDateTime.of(2026, 9, 1, 0, 0);
         LocalDateTime to = LocalDateTime.of(2026, 9, 30, 23, 59);

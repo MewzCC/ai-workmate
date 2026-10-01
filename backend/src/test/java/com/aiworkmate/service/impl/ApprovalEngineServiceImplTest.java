@@ -3,6 +3,7 @@ package com.aiworkmate.service.impl;
 import com.aiworkmate.common.PageResponse;
 import com.aiworkmate.dto.ApprovalFormResponse;
 import com.aiworkmate.dto.ApprovalFormAgentDraftRequest;
+import com.aiworkmate.dto.ApprovalFormAgentDraftUpdateRequest;
 import com.aiworkmate.dto.ApprovalProcessResponse;
 import com.aiworkmate.dto.ApprovalRuleResponse;
 import com.aiworkmate.entity.ApprovalForm;
@@ -155,6 +156,46 @@ class ApprovalEngineServiceImplTest {
                         List.of(duplicate, duplicate))))
                 .isInstanceOf(com.aiworkmate.common.BusinessException.class);
         org.mockito.Mockito.verifyNoInteractions(formMapper, userAccessService);
+    }
+
+    @Test
+    void agentUpdatesOnlyDisabledFormAtExpectedVersion() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(readerAccess());
+        ApprovalForm existing = form(USER_ID);
+        existing.setStatus("DISABLED");
+        existing.setVersion(2);
+        ApprovalForm updated = form(USER_ID);
+        updated.setFormName("出差申请（新版）");
+        updated.setStatus("DISABLED");
+        updated.setVersion(3);
+        when(formMapper.selectById(31L)).thenReturn(existing, updated);
+        when(formMapper.update(any(), any())).thenReturn(1);
+
+        var response = service.updateFormDraftAgent(USER_ID, 31L,
+                new ApprovalFormAgentDraftUpdateRequest(2, "出差申请（新版）", null,
+                        List.of(new ApprovalFormAgentDraftUpdateRequest.Field(
+                                "reason", "出差事由", "textarea", true, null, List.of(), "full"))));
+
+        assertThat(response.status()).isEqualTo("DISABLED");
+        assertThat(response.version()).isEqualTo(3);
+        verify(formMapper).update(org.mockito.ArgumentMatchers.isNull(), any());
+        verify(auditService).record(TENANT_ID, USER_ID, "APPROVAL_FORM", "31",
+                "UPDATE", "SUCCESS", "Agent 更新审批表单草稿");
+    }
+
+    @Test
+    void agentRejectsUpdatingEnabledFormBeforeWriting() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(readerAccess());
+        ApprovalForm enabled = form(USER_ID);
+        enabled.setStatus("ENABLED");
+        when(formMapper.selectById(31L)).thenReturn(enabled);
+
+        assertThatThrownBy(() -> service.updateFormDraftAgent(USER_ID, 31L,
+                new ApprovalFormAgentDraftUpdateRequest(2, "已发布表单", null,
+                        List.of(new ApprovalFormAgentDraftUpdateRequest.Field(
+                                "reason", "事由", "text", true, null, List.of(), "full")))))
+                .isInstanceOf(com.aiworkmate.common.BusinessException.class);
+        org.mockito.Mockito.verify(formMapper, org.mockito.Mockito.never()).update(any(), any());
     }
 
     private ApprovalForm form(Long createdBy) {
