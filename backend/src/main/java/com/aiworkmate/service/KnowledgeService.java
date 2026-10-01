@@ -16,6 +16,8 @@ public interface KnowledgeService {
 
     KnowledgeDocumentResponse create(Long userId, KnowledgeDocumentCreateRequest request);
 
+    KnowledgeDocumentResponse createAgent(Long userId, KnowledgeDocumentCreateRequest request);
+
     KnowledgeDocumentResponse upload(Long userId, Long kbId, MultipartFile file);
 
     KnowledgeDocumentResponse reindex(Long userId, Long documentId);

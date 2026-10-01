@@ -105,6 +105,13 @@ public class KnowledgeServiceImpl implements KnowledgeService {
 
     @Override
     @Transactional
+    public KnowledgeDocumentResponse createAgent(Long userId, KnowledgeDocumentCreateRequest request) {
+        requireSearchAccess(userId);
+        return create(userId, request);
+    }
+
+    @Override
+    @Transactional
     public KnowledgeDocumentResponse upload(Long userId, Long kbId, MultipartFile file) {
         validateUploadFile(file);
         Path tempFile = createTempFile(file);

@@ -59,6 +59,9 @@ class PageCapabilityCatalogTest {
         assertThat(catalog.find("ai-workspace").orElseThrow().readTools())
                 .extracting(PageToolReference::code)
                 .contains(ToolCode.USER_PERMISSION_MINE_QUERY);
+        assertThat(catalog.find("knowledge-base").orElseThrow().writeTools())
+                .extracting(PageToolReference::code)
+                .containsExactly(ToolCode.KNOWLEDGE_DOCUMENT_CREATE_TEXT);
     }
 
     @Test

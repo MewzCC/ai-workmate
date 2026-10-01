@@ -2,6 +2,7 @@ package com.aiworkmate.agent.tool.adapter;
 
 import com.aiworkmate.agent.tool.port.KnowledgeToolPort;
 import com.aiworkmate.agent.tool.port.ToolActorContext;
+import com.aiworkmate.dto.KnowledgeDocumentCreateRequest;
 import com.aiworkmate.dto.KnowledgeSearchRequest;
 import com.aiworkmate.service.KnowledgeService;
 import lombok.RequiredArgsConstructor;
@@ -18,5 +19,13 @@ public class KnowledgeAgentDomainToolAdapter implements KnowledgeToolPort {
         return new KnowledgeToolPort.Result(response.records().stream().map(item -> new KnowledgeToolPort.Item(
                 item.content(), item.score(), item.matchType(), item.docId(), item.chunkId(),
                 item.filename(), item.chunkIndex())).toList());
+    }
+
+    @Override
+    public CreateTextResult createText(ToolActorContext context, CreateTextCommand command) {
+        var response = knowledgeService.createAgent(context.userId(),
+                new KnowledgeDocumentCreateRequest(command.kbId(), command.filename(), command.content()));
+        return new CreateTextResult(response.id(), command.kbId(), response.filename(), response.status(),
+                response.chunkCount(), response.createdAt());
     }
 }

@@ -30,6 +30,7 @@ const aiPermission = {
     todo_query: { name: '查询本人待办', description: '只读取分配给当前用户的审批待办。' },
     leave_mine: { name: '查询本人请假', description: '读取当前用户自己的请假申请与状态。' },
     knowledge_search: { name: '检索授权知识', description: '仅检索当前用户有权访问的知识片段并保留引用。' },
+    knowledge_document_createText: { name: '创建知识库文本资料', description: '经明确确认后在本人已有知识库中创建一篇受限长度的文本资料。' },
     notification_mine: { name: '查询本人通知', description: '只读取当前用户自己的站内消息。' },
     userPermission_mine_query: { name: '查询本人权限', description: '实时读取当前用户自己的角色、数据范围和权限码，不接受其他用户身份。' },
     notification_markRead: { name: '标记本人通知已读', description: '仅将当前用户的一条通知标记为已读。' },
