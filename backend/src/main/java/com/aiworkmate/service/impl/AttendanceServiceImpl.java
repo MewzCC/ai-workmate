@@ -408,7 +408,8 @@ public class AttendanceServiceImpl implements AttendanceService {
         AttendanceSetting row = attendanceSettingMapper.selectOne(new LambdaQueryWrapper<AttendanceSetting>()
                 .eq(AttendanceSetting::getTenantId, actor.tenantId()));
         return new AttendanceSettingsResponse(actor.tenantId(), wh.start(), wh.end(),
-                wh.startFlex(), wh.endFlex(), wh.linked(), row != null ? row.getUpdatedAt() : null);
+                wh.startFlex(), wh.endFlex(), wh.linked(), row != null ? nullToZero(row.getVersion()) : 0,
+                row != null ? row.getUpdatedAt() : null);
     }
 
     @Override
@@ -424,10 +425,13 @@ public class AttendanceServiceImpl implements AttendanceService {
         if (request.flexLinked() == null) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.attendance.flexLinked.required");
         }
+        if (request.version() == null || request.version() < 0) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.version.invalid");
+        }
         if (!request.workStartTime().isBefore(request.workEndTime())) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.attendance.workHoursOrder.invalid");
         }
-        if (!isManager(actor)) {
+        if (!actor.permissions().contains("attendance:settings:manage")) {
             throw new BusinessException(ErrorCode.PERMISSION_DENIED);
         }
 
@@ -438,6 +442,7 @@ public class AttendanceServiceImpl implements AttendanceService {
             row = new AttendanceSetting();
             row.setTenantId(actor.tenantId());
             row.setCreatedAt(now);
+            row.setVersion(0);
         }
         row.setWorkStartTime(request.workStartTime());
         row.setWorkEndTime(request.workEndTime());
@@ -446,14 +451,34 @@ public class AttendanceServiceImpl implements AttendanceService {
         row.setFlexLinked(request.flexLinked());
         row.setUpdatedBy(actor.userId());
         row.setUpdatedAt(now);
+        int currentVersion = nullToZero(row.getVersion());
+        if (request.version() != currentVersion) {
+            throw new BusinessException(ErrorCode.VERSION_CONFLICT);
+        }
         if (row.getId() == null) {
+            row.setVersion(1);
             attendanceSettingMapper.insert(row);
         } else {
-            attendanceSettingMapper.updateById(row);
+            int updated = attendanceSettingMapper.update(null, new LambdaUpdateWrapper<AttendanceSetting>()
+                    .eq(AttendanceSetting::getId, row.getId())
+                    .eq(AttendanceSetting::getTenantId, actor.tenantId())
+                    .eq(AttendanceSetting::getVersion, currentVersion)
+                    .set(AttendanceSetting::getWorkStartTime, request.workStartTime())
+                    .set(AttendanceSetting::getWorkEndTime, request.workEndTime())
+                    .set(AttendanceSetting::getStartFlexMinutes, request.startFlexMinutes())
+                    .set(AttendanceSetting::getEndFlexMinutes, request.endFlexMinutes())
+                    .set(AttendanceSetting::getFlexLinked, request.flexLinked())
+                    .set(AttendanceSetting::getUpdatedBy, actor.userId())
+                    .set(AttendanceSetting::getUpdatedAt, now)
+                    .set(AttendanceSetting::getVersion, currentVersion + 1));
+            if (updated != 1) throw new BusinessException(ErrorCode.VERSION_CONFLICT);
+            row.setVersion(currentVersion + 1);
         }
+        auditService.recordTransactional(actor.tenantId(), actor.userId(), "ATTENDANCE_SETTING",
+                actor.tenantId().toString(), "UPDATE", "SUCCESS", "Updated tenant attendance settings");
         return new AttendanceSettingsResponse(actor.tenantId(), row.getWorkStartTime(), row.getWorkEndTime(),
                 nullToZero(row.getStartFlexMinutes()), nullToZero(row.getEndFlexMinutes()),
-                Boolean.TRUE.equals(row.getFlexLinked()), row.getUpdatedAt());
+                Boolean.TRUE.equals(row.getFlexLinked()), row.getVersion(), row.getUpdatedAt());
     }
 
     // ==================== 辅助方法 ====================

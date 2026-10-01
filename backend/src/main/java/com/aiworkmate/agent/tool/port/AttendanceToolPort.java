@@ -12,6 +12,7 @@ public interface AttendanceToolPort {
     ReissueWriteResult submitReissue(
             ToolActorContext context, ReissueCommand command, ToolOperationKey operationKey);
     ReissueDecisionResult decideReissue(ToolActorContext context, ReissueDecisionCommand command);
+    SettingsUpdateResult updateSettings(ToolActorContext context, SettingsUpdateCommand command);
 
     enum Resource { TODAY, RECORDS, EXCEPTIONS, MY_REISSUES, PENDING_REISSUES, STATISTICS, SETTINGS }
 
@@ -21,6 +22,11 @@ public interface AttendanceToolPort {
     record ReissueDecisionCommand(long reissueId, int version, String decision, String comment) { }
     record ReissueDecisionResult(long reissueId, String status, int version,
                                  LocalDateTime decidedAt) implements ToolWriteReceipt { }
+    record SettingsUpdateCommand(int version, LocalTime workStartTime, LocalTime workEndTime,
+                                 int startFlexMinutes, int endFlexMinutes, boolean flexLinked) { }
+    record SettingsUpdateResult(int version, LocalTime workStartTime, LocalTime workEndTime,
+                                int startFlexMinutes, int endFlexMinutes, boolean flexLinked,
+                                LocalDateTime updatedAt) implements ToolWriteReceipt { }
     record ReissueWriteResult(long reissueId, String status, LocalDate clockDate,
                               String clockType, LocalDateTime submittedAt)
             implements ToolWriteReceipt { }
@@ -61,5 +67,5 @@ public interface AttendanceToolPort {
                      int lateDays, int earlyLeaveDays, int missingDays) { }
 
     record Settings(LocalTime workStartTime, LocalTime workEndTime, Integer startFlexMinutes,
-                    Integer endFlexMinutes, Boolean flexLinked, LocalDateTime updatedAt) { }
+                    Integer endFlexMinutes, Boolean flexLinked, Integer version, LocalDateTime updatedAt) { }
 }

@@ -202,7 +202,7 @@ public class PageCapabilityCatalog {
                 page(OaPage.ATTENDANCE_STATISTICS, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         context(text("resource"), number("year"), number("month")), tool(ATTENDANCE_QUERY)),
                 page(OaPage.ATTENDANCE_SETTINGS, OwnershipPolicy.TENANT_SCOPED, READ_COMMANDS,
-                        context(text("resource")), tool(ATTENDANCE_QUERY)),
+                        context(text("resource")), tool(ATTENDANCE_QUERY), tool(ATTENDANCE_SETTINGS_UPDATE)),
 
                 page(OaPage.ACCESS_CONTROL, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         context(text("filterCode")), tool(ACCESS_GOVERNANCE_QUERY)),

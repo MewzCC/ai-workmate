@@ -65,6 +65,9 @@ class AttendanceServiceImplTest {
         TableInfoHelper.initTableInfo(
                 new MapperBuilderAssistant(new MybatisConfiguration(), "attendance-test"),
                 AttendanceReissue.class);
+        TableInfoHelper.initTableInfo(
+                new MapperBuilderAssistant(new MybatisConfiguration(), "attendance-setting-test"),
+                AttendanceSetting.class);
     }
 
     @Mock
@@ -304,6 +307,7 @@ class AttendanceServiceImplTest {
         assertThat(response.startFlexMinutes()).isZero();
         assertThat(response.endFlexMinutes()).isZero();
         assertThat(response.flexLinked()).isFalse();
+        assertThat(response.version()).isZero();
     }
 
     @Test
@@ -312,7 +316,7 @@ class AttendanceServiceImplTest {
                 new ResolvedUserAccess(USER_ID, "alice", "EMPLOYEE", List.of("route:attendance-clock")));
 
         assertThatThrownBy(() -> attendanceService.updateSettings(USER_ID,
-                new AttendanceSettingsRequest(LocalTime.of(8, 30), LocalTime.of(17, 30), 30, 15, true)))
+                new AttendanceSettingsRequest(0, LocalTime.of(8, 30), LocalTime.of(17, 30), 30, 15, true)))
                 .isInstanceOfSatisfying(BusinessException.class, ex ->
                         assertThat(ex.getErrorCode())
                                 .isEqualTo(ErrorCode.PERMISSION_DENIED.getErrorCode()));
@@ -321,21 +325,21 @@ class AttendanceServiceImplTest {
     @Test
     void updateSettings_shouldRejectEndNotAfterStart() {
         when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(
-                new ResolvedUserAccess(USER_ID, "admin", "SYSTEM_ADMIN", List.of("route:attendance-clock")));
+                new ResolvedUserAccess(USER_ID, "admin", "SYSTEM_ADMIN", List.of("attendance:settings:manage")));
 
         assertThatThrownBy(() -> attendanceService.updateSettings(USER_ID,
-                new AttendanceSettingsRequest(LocalTime.of(9, 0), LocalTime.of(9, 0), 0, 0, false)))
+                new AttendanceSettingsRequest(0, LocalTime.of(9, 0), LocalTime.of(9, 0), 0, 0, false)))
                 .isInstanceOf(BusinessException.class);
     }
 
     @Test
     void updateSettings_shouldInsertConfiguredSettingsForTenant() {
         when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(
-                new ResolvedUserAccess(USER_ID, "admin", "SYSTEM_ADMIN", List.of("route:attendance-clock")));
+                new ResolvedUserAccess(USER_ID, "admin", "SYSTEM_ADMIN", List.of("attendance:settings:manage")));
         when(attendanceSettingMapper.selectOne(any())).thenReturn(null);
 
         AttendanceSettingsResponse response = attendanceService.updateSettings(USER_ID,
-                new AttendanceSettingsRequest(LocalTime.of(8, 30), LocalTime.of(17, 30), 30, 15, true));
+                new AttendanceSettingsRequest(0, LocalTime.of(8, 30), LocalTime.of(17, 30), 30, 15, true));
 
         ArgumentCaptor<AttendanceSetting> captor =
                 ArgumentCaptor.forClass(AttendanceSetting.class);
@@ -350,9 +354,51 @@ class AttendanceServiceImplTest {
         assertThat(inserted.getFlexLinked()).isTrue();
         assertThat(inserted.getCreatedAt()).isNotNull();
         assertThat(inserted.getUpdatedAt()).isNotNull();
+        assertThat(inserted.getVersion()).isEqualTo(1);
         assertThat(response.workStartTime()).isEqualTo(LocalTime.of(8, 30));
         assertThat(response.startFlexMinutes()).isEqualTo(30);
         assertThat(response.flexLinked()).isTrue();
+        assertThat(response.version()).isEqualTo(1);
+        verify(auditService).recordTransactional(1L, USER_ID, "ATTENDANCE_SETTING", "1",
+                "UPDATE", "SUCCESS", "Updated tenant attendance settings");
+    }
+
+    @Test
+    void updateSettings_shouldUseTenantAndVersionBoundAtomicUpdate() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(
+                new ResolvedUserAccess(USER_ID, "admin", "EMPLOYEE", List.of("attendance:settings:manage")));
+        AttendanceSetting row = new AttendanceSetting();
+        row.setId(9L);
+        row.setTenantId(1L);
+        row.setVersion(2);
+        when(attendanceSettingMapper.selectOne(any())).thenReturn(row);
+        when(attendanceSettingMapper.update(eq(null), any())).thenReturn(1);
+
+        AttendanceSettingsResponse response = attendanceService.updateSettings(USER_ID,
+                new AttendanceSettingsRequest(2, LocalTime.of(8, 30), LocalTime.of(17, 30), 20, 10, true));
+
+        assertThat(response.version()).isEqualTo(3);
+        assertThat(response.workStartTime()).isEqualTo(LocalTime.of(8, 30));
+        verify(attendanceSettingMapper).update(eq(null), any());
+        verify(auditService).recordTransactional(1L, USER_ID, "ATTENDANCE_SETTING", "1",
+                "UPDATE", "SUCCESS", "Updated tenant attendance settings");
+    }
+
+    @Test
+    void updateSettings_shouldRejectStaleVersionBeforeWriting() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(
+                new ResolvedUserAccess(USER_ID, "admin", "EMPLOYEE", List.of("attendance:settings:manage")));
+        AttendanceSetting row = new AttendanceSetting();
+        row.setId(9L);
+        row.setTenantId(1L);
+        row.setVersion(3);
+        when(attendanceSettingMapper.selectOne(any())).thenReturn(row);
+
+        assertThatThrownBy(() -> attendanceService.updateSettings(USER_ID,
+                new AttendanceSettingsRequest(2, LocalTime.of(8, 30), LocalTime.of(17, 30), 20, 10, true)))
+                .isInstanceOfSatisfying(BusinessException.class, ex ->
+                        assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.VERSION_CONFLICT.getErrorCode()));
+        verifyNoInteractions(auditService);
     }
 
     private AttendanceRecord recordWithClockIn() {

@@ -8,7 +8,7 @@ import type { ColumnsType } from 'antd/es/table';
 import { message } from '@/lib/antdMessage';
 import { attendanceApi } from '@/lib/attendanceApi';
 import { formatOaApiError } from '@/lib/oaApi';
-import { useAuth } from '@/components/auth/AuthProvider';
+import { usePermission } from '@/hooks/usePermission';
 import AttendancePageShell from './AttendancePageShell';
 import ResponsiveTable from './ResponsiveTable';
 
@@ -81,11 +81,11 @@ const NOTE_COLOR: Record<SampleRow['note'], string> = {
 
 export default function AttendanceSettingsPage() {
   const { t } = useTranslation();
-  const { user } = useAuth();
-  const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'SYSTEM_ADMIN';
+  const { allowed: canManage } = usePermission('attendance:settings:manage');
   const [form] = Form.useForm<SettingsFormValues>();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [version, setVersion] = useState(0);
 
   const start = Form.useWatch('workStartTime', form);
   const end = Form.useWatch('workEndTime', form);
@@ -107,6 +107,7 @@ export default function AttendanceSettingsPage() {
           endFlexMinutes: settings.endFlexMinutes,
           flexLinked: settings.flexLinked,
         });
+        setVersion(settings.version);
       })
       .catch((err) => {
         if (!cancelled) message.error(formatOaApiError(err));
@@ -132,13 +133,15 @@ export default function AttendanceSettingsPage() {
     }
     setSaving(true);
     try {
-      await attendanceApi.updateSettings({
+      const updated = await attendanceApi.updateSettings({
+        version,
         workStartTime: values.workStartTime.format('HH:mm'),
         workEndTime: values.workEndTime.format('HH:mm'),
         startFlexMinutes: values.startFlexMinutes,
         endFlexMinutes: values.endFlexMinutes,
         flexLinked: values.flexLinked,
       });
+      setVersion(updated.version);
       message.success(t('attendance.settings.saveSuccess'));
     } catch (err) {
       message.error(formatOaApiError(err));
@@ -195,7 +198,7 @@ export default function AttendanceSettingsPage() {
       <Spin spinning={loading}>
         <div className="oa-attendance-stack">
           <Card className="oa-attendance-card" title={t('attendance.settings.editTitle')} variant="outlined">
-            {!isAdmin && (
+            {!canManage && (
               <Alert type="warning" showIcon style={{ marginBottom: 16 }} message={t('attendance.settings.adminOnly')} />
             )}
             <Form form={form} layout="vertical">
@@ -205,14 +208,14 @@ export default function AttendanceSettingsPage() {
                   label={t('attendance.settings.workStartTime')}
                   rules={[{ required: true, message: t('attendance.settings.workStartTimeRequired') }]}
                 >
-                  <TimePicker format="HH:mm" minuteStep={5} disabled={!isAdmin} />
+                  <TimePicker format="HH:mm" minuteStep={5} disabled={!canManage} />
                 </Form.Item>
                 <Form.Item
                   name="workEndTime"
                   label={t('attendance.settings.workEndTime')}
                   rules={[{ required: true, message: t('attendance.settings.workEndTimeRequired') }]}
                 >
-                  <TimePicker format="HH:mm" minuteStep={5} disabled={!isAdmin} />
+                  <TimePicker format="HH:mm" minuteStep={5} disabled={!canManage} />
                 </Form.Item>
               </Space>
               <Space size="large" wrap>
@@ -222,7 +225,7 @@ export default function AttendanceSettingsPage() {
                   tooltip={t('attendance.settings.startFlexHint')}
                   rules={[{ required: true, message: t('attendance.settings.flexRequired') }]}
                 >
-                  <InputNumber min={0} max={480} step={5} disabled={!isAdmin} addonAfter={t('attendance.common.minute')} />
+                  <InputNumber min={0} max={480} step={5} disabled={!canManage} addonAfter={t('attendance.common.minute')} />
                 </Form.Item>
                 <Form.Item
                   name="endFlexMinutes"
@@ -230,7 +233,7 @@ export default function AttendanceSettingsPage() {
                   tooltip={t('attendance.settings.endFlexHint')}
                   rules={[{ required: true, message: t('attendance.settings.flexRequired') }]}
                 >
-                  <InputNumber min={0} max={480} step={5} disabled={!isAdmin} addonAfter={t('attendance.common.minute')} />
+                  <InputNumber min={0} max={480} step={5} disabled={!canManage} addonAfter={t('attendance.common.minute')} />
                 </Form.Item>
                 <Form.Item
                   name="flexLinked"
@@ -238,15 +241,15 @@ export default function AttendanceSettingsPage() {
                   valuePropName="checked"
                   tooltip={t('attendance.settings.linkedFlexHint')}
                 >
-                  <Switch disabled={!isAdmin} />
+                  <Switch disabled={!canManage} />
                 </Form.Item>
               </Space>
             </Form>
             <Space style={{ marginTop: 8 }}>
-              <Button type="primary" loading={saving} disabled={!isAdmin} onClick={() => void handleSave()}>
+              <Button type="primary" loading={saving} disabled={!canManage} onClick={() => void handleSave()}>
                 {t('attendance.settings.save')}
               </Button>
-              <Button disabled={!isAdmin} onClick={() => form.resetFields()}>
+              <Button disabled={!canManage} onClick={() => form.resetFields()}>
                 {t('common.reset')}
               </Button>
             </Space>

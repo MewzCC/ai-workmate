@@ -10,6 +10,10 @@ import java.time.LocalTime;
  * 考勤上下班时间配置请求。
  */
 public record AttendanceSettingsRequest(
+        @NotNull(message = "{validation.version.required}")
+        @Min(value = 0, message = "{validation.version.invalid}")
+        Integer version,
+
         @NotNull(message = "{validation.attendance.workStartTime.required}")
         LocalTime workStartTime,
 

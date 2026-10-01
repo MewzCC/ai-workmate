@@ -6,6 +6,7 @@ import com.aiworkmate.agent.tool.port.ToolOperationKey;
 import com.aiworkmate.dto.AttendanceReissueDecisionRequest;
 import com.aiworkmate.dto.AttendanceReissueRequest;
 import com.aiworkmate.dto.AttendanceClockRequest;
+import com.aiworkmate.dto.AttendanceSettingsRequest;
 import com.aiworkmate.service.AttendanceService;
 import lombok.RequiredArgsConstructor;
 
@@ -50,6 +51,15 @@ public final class AttendanceAgentDomainToolAdapter implements AttendanceToolPor
         var item = attendanceService.decideReissue(context.userId(), command.reissueId(),
                 new AttendanceReissueDecisionRequest(command.version(), command.decision(), command.comment()));
         return new ReissueDecisionResult(item.id(), item.status(), item.version(), item.decidedAt());
+    }
+
+    @Override
+    public SettingsUpdateResult updateSettings(ToolActorContext context, SettingsUpdateCommand command) {
+        var item = attendanceService.updateSettings(context.userId(), new AttendanceSettingsRequest(
+                command.version(), command.workStartTime(), command.workEndTime(), command.startFlexMinutes(),
+                command.endFlexMinutes(), command.flexLinked()));
+        return new SettingsUpdateResult(item.version(), item.workStartTime(), item.workEndTime(),
+                item.startFlexMinutes(), item.endFlexMinutes(), item.flexLinked(), item.updatedAt());
     }
 
     private Result today(ToolActorContext context, Query query) {
@@ -100,7 +110,7 @@ public final class AttendanceAgentDomainToolAdapter implements AttendanceToolPor
     private Result settings(ToolActorContext context, Query query) {
         var item = attendanceService.getSettings(context.userId());
         var settings = new Settings(item.workStartTime(), item.workEndTime(), item.startFlexMinutes(),
-                item.endFlexMinutes(), item.flexLinked(), item.updatedAt());
+                item.endFlexMinutes(), item.flexLinked(), item.version(), item.updatedAt());
         return result(query, null, List.of(), List.of(), null, settings, 1);
     }
 

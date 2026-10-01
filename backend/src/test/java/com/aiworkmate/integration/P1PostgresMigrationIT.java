@@ -597,6 +597,25 @@ class P1PostgresMigrationIT {
                     """)).as("补卡审批必须持久化非空乐观锁版本").isOne();
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'attendance.settings.update'
+                      AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:643217d55767222ce1f6aaee5fd923866924842409883215ab15305d52bb4cfd'
+                      AND risk_level = 'L2' AND data_scope_policy = 'TENANT_SCOPED'
+                      AND required_permissions = '["attendance:settings:manage"]'::jsonb
+                      AND retry_policy = 'NEVER' AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'SECONDARY' AND enabled = TRUE
+                    """)).as("考勤设置更新工具必须以冻结的租户原子写契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code IN ('attendance:settings:manage', 'agent:tool:attendance.settings.update')
+                    """)).as("考勤设置工具必须具备业务与工具两层实时权限").isEqualTo(2);
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM information_schema.columns
+                    WHERE table_schema = current_schema() AND table_name = 'attendance_setting'
+                      AND column_name = 'version' AND data_type = 'integer' AND is_nullable = 'NO'
+                    """)).as("考勤设置必须持久化非空乐观锁版本").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
                     WHERE tenant_id IS NULL AND code = 'approval.application.createDraft'
                       AND handler_version = '1.0.0'
                       AND schema_hash = 'sha256:0b91ec92030a3bdb99baac22dce2b1e7c3a239829740fe9ad174b24ecf340424'

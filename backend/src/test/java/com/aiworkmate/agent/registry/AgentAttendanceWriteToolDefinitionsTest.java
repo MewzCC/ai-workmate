@@ -72,4 +72,26 @@ class AgentAttendanceWriteToolDefinitionsTest {
                 {"reissueId":31,"version":0,"decision":"APPROVED","userId":99}
                 """))).isFalse();
     }
+
+    @Test
+    void settingsUpdateRequiresSecondaryConfirmationAndRejectsTenantInjection() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        var definition = new AgentAttendanceWriteToolDefinitions()
+                .attendanceSettingsUpdateToolDefinition(mapper);
+        var validator = new ToolSchemaValidator();
+
+        assertThat(definition.schemaHash()).isEqualTo(
+                "sha256:643217d55767222ce1f6aaee5fd923866924842409883215ab15305d52bb4cfd");
+        assertThat(definition.requiredPermissions()).containsExactly("attendance:settings:manage");
+        assertThat(definition.riskLevel()).isEqualTo(RiskLevel.L2);
+        assertThat(definition.retryPolicy()).isEqualTo(RetryPolicy.NEVER);
+        assertThat(definition.confirmationPolicy()).isEqualTo(ConfirmationPolicy.SECONDARY);
+        assertThat(definition.ownershipPolicy()).isEqualTo(OwnershipPolicy.TENANT_SCOPED);
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree("""
+                {"version":2,"workStartTime":"09:00","workEndTime":"18:00","startFlexMinutes":15,"endFlexMinutes":10,"flexLinked":true}
+                """))).isTrue();
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree("""
+                {"version":2,"workStartTime":"09:00","workEndTime":"18:00","startFlexMinutes":15,"endFlexMinutes":10,"flexLinked":true,"tenantId":2}
+                """))).isFalse();
+    }
 }

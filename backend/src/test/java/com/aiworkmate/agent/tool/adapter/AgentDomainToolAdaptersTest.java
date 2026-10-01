@@ -36,6 +36,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -232,6 +233,24 @@ class AgentDomainToolAdaptersTest {
                         81L, day, clockIn, null, "NORMAL", 0, 0));
         verify(attendanceService).clock(
                 7L, new com.aiworkmate.dto.AttendanceClockRequest("CLOCK_IN"), null);
+    }
+
+    @Test
+    void mapsAttendanceSettingsUpdateWithoutAcceptingTenantIdentity() {
+        LocalDateTime updatedAt = LocalDateTime.of(2026, 10, 1, 18, 10);
+        var command = new AttendanceToolPort.SettingsUpdateCommand(
+                2, LocalTime.of(8, 30), LocalTime.of(17, 30), 20, 10, true);
+        when(attendanceService.updateSettings(eq(7L), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(new com.aiworkmate.dto.AttendanceSettingsResponse(
+                        1L, LocalTime.of(8, 30), LocalTime.of(17, 30), 20, 10, true, 3, updatedAt));
+
+        assertThat(attendanceAdapter.updateSettings(context, command)).isEqualTo(
+                new AttendanceToolPort.SettingsUpdateResult(
+                        3, LocalTime.of(8, 30), LocalTime.of(17, 30), 20, 10, true, updatedAt));
+        var request = ArgumentCaptor.forClass(com.aiworkmate.dto.AttendanceSettingsRequest.class);
+        verify(attendanceService).updateSettings(eq(7L), request.capture());
+        assertThat(request.getValue()).isEqualTo(new com.aiworkmate.dto.AttendanceSettingsRequest(
+                2, LocalTime.of(8, 30), LocalTime.of(17, 30), 20, 10, true));
     }
 
     @Test

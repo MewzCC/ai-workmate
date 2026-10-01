@@ -27,6 +27,12 @@ public class AgentAttendanceWriteToolDefinitions {
     public static final String REISSUE_DECISION_OUTPUT_SCHEMA = """
             {"type":"object","additionalProperties":false,"required":["reissueId","status","version","decidedAt"],"properties":{"reissueId":{"type":"integer","minimum":1},"status":{"type":"string","enum":["APPROVED","REJECTED"]},"version":{"type":"integer","minimum":1},"decidedAt":{"type":"string","format":"date-time"}}}
             """.strip();
+    public static final String SETTINGS_UPDATE_INPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["version","workStartTime","workEndTime","startFlexMinutes","endFlexMinutes","flexLinked"],"properties":{"version":{"type":"integer","minimum":0},"workStartTime":{"type":"string","pattern":"^(?:[01]\\\\d|2[0-3]):[0-5]\\\\d$"},"workEndTime":{"type":"string","pattern":"^(?:[01]\\\\d|2[0-3]):[0-5]\\\\d$"},"startFlexMinutes":{"type":"integer","minimum":0,"maximum":480},"endFlexMinutes":{"type":"integer","minimum":0,"maximum":480},"flexLinked":{"type":"boolean"}}}
+            """.strip();
+    public static final String SETTINGS_UPDATE_OUTPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["version","workStartTime","workEndTime","startFlexMinutes","endFlexMinutes","flexLinked","updatedAt"],"properties":{"version":{"type":"integer","minimum":1},"workStartTime":{"type":"string"},"workEndTime":{"type":"string"},"startFlexMinutes":{"type":"integer","minimum":0,"maximum":480},"endFlexMinutes":{"type":"integer","minimum":0,"maximum":480},"flexLinked":{"type":"boolean"},"updatedAt":{"type":"string","format":"date-time"}}}
+            """.strip();
 
     @Bean
     public ToolDefinition attendanceClockToolDefinition(ObjectMapper objectMapper)
@@ -63,6 +69,19 @@ public class AgentAttendanceWriteToolDefinitions {
                 objectMapper.readTree(REISSUE_DECISION_INPUT_SCHEMA),
                 objectMapper.readTree(REISSUE_DECISION_OUTPUT_SCHEMA), ToolWriteProfile.SECONDARY_L2,
                 Set.of("attendance:reissue:decide"), OwnershipPolicy.ASSIGNED_TO_SELF,
+                1, 4096, 10000);
+    }
+
+    @Bean
+    public ToolDefinition attendanceSettingsUpdateToolDefinition(ObjectMapper objectMapper)
+            throws JsonProcessingException {
+        return ToolDefinitionFactory.singleWrite(
+                ToolCode.ATTENDANCE_SETTINGS_UPDATE, "Update tenant attendance settings",
+                "Updates one tenant's work hours and flex rules using the current configuration version.",
+                "Require secondary confirmation and the current version; never accept a tenant or user identity.",
+                objectMapper.readTree(SETTINGS_UPDATE_INPUT_SCHEMA),
+                objectMapper.readTree(SETTINGS_UPDATE_OUTPUT_SCHEMA), ToolWriteProfile.SECONDARY_L2,
+                Set.of("attendance:settings:manage"), OwnershipPolicy.TENANT_SCOPED,
                 1, 4096, 10000);
     }
 }

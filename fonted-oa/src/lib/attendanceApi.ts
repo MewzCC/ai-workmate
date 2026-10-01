@@ -115,10 +115,12 @@ export interface AttendanceSettings {
   startFlexMinutes: number;
   endFlexMinutes: number;
   flexLinked: boolean;
+  version: number;
   updatedAt?: string | null;
 }
 
 export interface AttendanceSettingsPayload {
+  version: number;
   workStartTime: string;
   workEndTime: string;
   startFlexMinutes: number;

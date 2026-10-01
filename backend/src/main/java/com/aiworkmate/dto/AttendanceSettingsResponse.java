@@ -13,6 +13,7 @@ public record AttendanceSettingsResponse(
         Integer startFlexMinutes,
         Integer endFlexMinutes,
         Boolean flexLinked,
+        Integer version,
         LocalDateTime updatedAt
 ) {
 }
