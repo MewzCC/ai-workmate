@@ -9,6 +9,7 @@ import com.aiworkmate.dto.DictionaryItemAgentCreateRequest;
 import com.aiworkmate.dto.DictionaryItemAgentUpdateRequest;
 import com.aiworkmate.dto.DictionaryItemResponse;
 import com.aiworkmate.dto.DictionaryItemPageResponse;
+import com.aiworkmate.dto.DictionaryStatusRequest;
 import com.aiworkmate.service.DataDictionaryService;
 import org.junit.jupiter.api.Test;
 
@@ -127,5 +128,23 @@ class DictionaryAgentDomainToolAdapterTest {
         assertThat(result.version()).isEqualTo(4);
         verify(service).updateItemAgent(2L, "PROJECT_STAGE", "IN_PROGRESS",
                 new DictionaryItemAgentUpdateRequest(3, "处理中", "执行中", 20));
+    }
+
+    @Test
+    void mapsImmutableTypeCodeAndVersionForStatusChange() {
+        var updatedAt = LocalDateTime.of(2026, 10, 2, 2, 45);
+        when(service.updateTypeStatusAgent(2L, "PROJECT_STAGE",
+                new DictionaryStatusRequest("DISABLED", 4)))
+                .thenReturn(new DictionaryTypeResponse(91L, "PROJECT_STAGE", "项目阶段", null,
+                        "DISABLED", 20, 2, 0, 5, updatedAt, true));
+
+        var result = adapter.updateTypeStatus(actor, new DictionaryToolPort.UpdateTypeStatusCommand(
+                "PROJECT_STAGE", 4, "DISABLED"));
+
+        assertThat(result.dictionaryTypeId()).isEqualTo(91L);
+        assertThat(result.status()).isEqualTo("DISABLED");
+        assertThat(result.version()).isEqualTo(5);
+        verify(service).updateTypeStatusAgent(2L, "PROJECT_STAGE",
+                new DictionaryStatusRequest("DISABLED", 4));
     }
 }

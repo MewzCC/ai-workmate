@@ -144,6 +144,7 @@ const aiPermission = {
     dictionary_type_update: { name: '修改字典类型', description: '经确认后按不可变编码修改一个字典类型的名称、描述或排序，使用版本号防止并发覆盖。' },
     dictionary_item_create: { name: '创建字典项', description: '经二次确认后在一个启用的字典类型中创建单个启用项，不修改状态、删除或批量导入。' },
     dictionary_item_update: { name: '修改字典项', description: '经确认后按类型编码、不可变字典值和版本号修改单个字典项的名称、描述或排序。' },
+    dictionary_type_updateStatus: { name: '启停字典类型', description: '经二次确认和版本校验后启用或停用单个字典类型，不修改字典项或执行删除。' },
     systemCapability_query: { name: '查询系统能力', description: '只返回能力状态，不暴露密钥、地址、连接串或堆栈。' },
     agentTask_mine_query: { name: '查询本人 Agent 任务', description: '只读取当前用户自己的 Agent 任务摘要。' },
     agentTask_cancel: { name: '取消本人 Agent 任务', description: '经明确确认后取消当前用户自己的一条可取消 Agent 任务。' },

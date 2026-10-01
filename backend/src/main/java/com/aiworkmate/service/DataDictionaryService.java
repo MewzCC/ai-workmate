@@ -19,6 +19,7 @@ public interface DataDictionaryService {
     DictionaryTypeResponse createType(Long userId, DictionaryTypeRequest request);
     DictionaryTypeResponse createTypeAgent(Long userId, DictionaryTypeRequest request);
     DictionaryTypeResponse updateTypeAgent(Long userId, String code, DictionaryTypeAgentUpdateRequest request);
+    DictionaryTypeResponse updateTypeStatusAgent(Long userId, String code, DictionaryStatusRequest request);
     DictionaryTypeResponse updateType(Long userId, Long id, DictionaryTypeRequest request);
     DictionaryTypeResponse updateTypeStatus(Long userId, Long id, DictionaryStatusRequest request);
     void deleteType(Long userId, Long id, Integer version);

@@ -33,6 +33,12 @@ public class AgentDictionaryWriteToolDefinitions {
     static final String UPDATE_ITEM_OUTPUT = """
             {"type":"object","additionalProperties":false,"required":["dictionaryItemId","typeCode","value","label","status","sortOrder","usageCount","version","updatedAt"],"properties":{"dictionaryItemId":{"type":"integer","minimum":1},"typeCode":{"type":"string","maxLength":64},"value":{"type":"string","maxLength":128},"label":{"type":"string","maxLength":160},"description":{"type":["string","null"],"maxLength":500},"status":{"type":"string","enum":["ACTIVE","DISABLED"]},"sortOrder":{"type":"integer","minimum":0,"maximum":9999},"usageCount":{"type":"integer","minimum":0},"version":{"type":"integer","minimum":1},"updatedAt":{"type":"string","format":"date-time"}}}
             """.strip();
+    static final String UPDATE_TYPE_STATUS_INPUT = """
+            {"type":"object","additionalProperties":false,"required":["code","version","status"],"properties":{"code":{"type":"string","pattern":"^[A-Z][A-Z0-9_]{1,63}$","maxLength":64},"version":{"type":"integer","minimum":0,"maximum":2147483646},"status":{"type":"string","enum":["ACTIVE","DISABLED"]}}}
+            """.strip();
+    static final String UPDATE_TYPE_STATUS_OUTPUT = """
+            {"type":"object","additionalProperties":false,"required":["dictionaryTypeId","code","name","status","sortOrder","version","updatedAt"],"properties":{"dictionaryTypeId":{"type":"integer","minimum":1},"code":{"type":"string","maxLength":64},"name":{"type":"string","maxLength":120},"description":{"type":["string","null"],"maxLength":500},"status":{"type":"string","enum":["ACTIVE","DISABLED"]},"sortOrder":{"type":"integer","minimum":0,"maximum":9999},"version":{"type":"integer","minimum":1},"updatedAt":{"type":"string","format":"date-time"}}}
+            """.strip();
 
     @Bean
     ToolDefinition dictionaryTypeCreateToolDefinition(ObjectMapper mapper) throws JsonProcessingException {
@@ -75,6 +81,17 @@ public class AgentDictionaryWriteToolDefinitions {
                 "Update one confirmed dictionary item with optimistic locking, without value or status changes, deletion, batch import or security configuration access.",
                 mapper.readTree(UPDATE_ITEM_INPUT), mapper.readTree(UPDATE_ITEM_OUTPUT),
                 ToolWriteProfile.NON_RETRYABLE_L1, Set.of("dictionary:manage"), OwnershipPolicy.FIXED_RESOURCE,
+                1, 8192, 10000);
+    }
+
+    @Bean
+    ToolDefinition dictionaryTypeUpdateStatusToolDefinition(ObjectMapper mapper) throws JsonProcessingException {
+        return ToolDefinitionFactory.singleWrite(ToolCode.DICTIONARY_TYPE_UPDATE_STATUS,
+                "Update one dictionary type status",
+                "Activates or disables one tenant dictionary type selected by immutable code and version.",
+                "Change only one dictionary type status after secondary confirmation, without metadata or item changes, deletion, batch or security configuration access.",
+                mapper.readTree(UPDATE_TYPE_STATUS_INPUT), mapper.readTree(UPDATE_TYPE_STATUS_OUTPUT),
+                ToolWriteProfile.SECONDARY_L2, Set.of("dictionary:manage"), OwnershipPolicy.FIXED_RESOURCE,
                 1, 8192, 10000);
     }
 }

@@ -5,6 +5,7 @@ import com.aiworkmate.dto.DictionaryTypeRequest;
 import com.aiworkmate.dto.DictionaryTypeAgentUpdateRequest;
 import com.aiworkmate.dto.DictionaryItemAgentCreateRequest;
 import com.aiworkmate.dto.DictionaryItemAgentUpdateRequest;
+import com.aiworkmate.dto.DictionaryStatusRequest;
 import com.aiworkmate.entity.DataDictionaryItem;
 import com.aiworkmate.entity.DataDictionaryType;
 import com.aiworkmate.mapper.DataDictionaryItemMapper;
@@ -112,6 +113,36 @@ class DataDictionaryServiceImplTest {
     void shouldRejectAgentTypeUpdateWithoutChangeBeforeResolvingActor() {
         assertThatThrownBy(() -> service.updateTypeAgent(1001L, "PROJECT_STAGE",
                 new DictionaryTypeAgentUpdateRequest(2, null, null, null)))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("REQUEST_INVALID");
+        verifyNoInteractions(userAccessService, typeMapper, itemMapper, usageMapper, auditService);
+    }
+
+    @Test
+    void shouldChangeAgentTypeStatusByImmutableCodeAndVersion() {
+        when(userAccessService.resolveActiveUser(1001L)).thenReturn(
+                access(List.of("route:dictionary", "dictionary:manage")));
+        DataDictionaryType existing = dictionaryType("PROJECT_STAGE", "项目阶段", null, 20, 4);
+        DataDictionaryType updated = dictionaryType("PROJECT_STAGE", "项目阶段", null, 20, 5);
+        updated.setStatus("DISABLED");
+        when(typeMapper.selectOne(any())).thenReturn(existing, updated);
+        when(typeMapper.update(any(), any())).thenReturn(1);
+        when(itemMapper.selectCount(any())).thenReturn(2L, 2L);
+
+        var response = service.updateTypeStatusAgent(1001L, "PROJECT_STAGE",
+                new DictionaryStatusRequest("DISABLED", 4));
+
+        assertThat(response.status()).isEqualTo("DISABLED");
+        assertThat(response.version()).isEqualTo(5);
+        verify(auditService).recordTransactional(
+                9L, 1001L, "DICTIONARY_TYPE", "81", "SET_STATUS", "SUCCESS",
+                "PROJECT_STAGE:DISABLED");
+    }
+
+    @Test
+    void shouldRejectInvalidAgentTypeStatusBeforeResolvingActor() {
+        assertThatThrownBy(() -> service.updateTypeStatusAgent(1001L, "PROJECT_STAGE",
+                new DictionaryStatusRequest("UNKNOWN", 4)))
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode").isEqualTo("REQUEST_INVALID");
         verifyNoInteractions(userAccessService, typeMapper, itemMapper, usageMapper, auditService);

@@ -230,7 +230,7 @@ public class PageCapabilityCatalog {
                         context(text("keyword"), text("status")), tool(DICTIONARY_QUERY),
                         tool(DICTIONARY_ITEM_QUERY), tool(DICTIONARY_TYPE_CREATE),
                         tool(DICTIONARY_TYPE_UPDATE), tool(DICTIONARY_ITEM_CREATE),
-                        tool(DICTIONARY_ITEM_UPDATE)),
+                        tool(DICTIONARY_ITEM_UPDATE), tool(DICTIONARY_TYPE_UPDATE_STATUS)),
                 page(OaPage.SYSTEM_CONFIG, OwnershipPolicy.SELF, READ_COMMANDS,
                         context(), tool(SYSTEM_CAPABILITY_QUERY), tool(USER_SETTINGS_UPDATE))
         );

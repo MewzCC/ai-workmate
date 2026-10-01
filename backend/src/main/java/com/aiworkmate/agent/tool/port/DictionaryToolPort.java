@@ -17,6 +17,8 @@ public interface DictionaryToolPort {
 
     UpdateItemResult updateItem(ToolActorContext context, UpdateItemCommand command);
 
+    UpdateTypeResult updateTypeStatus(ToolActorContext context, UpdateTypeStatusCommand command);
+
     record DictionaryQuery(String keyword, String status) { }
 
     record DictionaryOverview(List<DictionaryType> records, boolean canManage) {
@@ -61,4 +63,6 @@ public interface DictionaryToolPort {
     record UpdateItemResult(long dictionaryItemId, String typeCode, String value, String label,
                             String description, String status, int sortOrder, long usageCount,
                             int version, LocalDateTime updatedAt) implements ToolWriteReceipt { }
+
+    record UpdateTypeStatusCommand(String code, int version, String status) { }
 }

@@ -48,6 +48,11 @@ class DictionaryToolHandlerTest {
         when(port.updateItem(context.actor(), updateItemCommand)).thenReturn(new DictionaryToolPort.UpdateItemResult(
                 101L, "PROJECT_STAGE", "IN_PROGRESS", "处理中", "执行中",
                 "ACTIVE", 20, 2, 1, createdAt));
+        var updateTypeStatusCommand = new DictionaryToolPort.UpdateTypeStatusCommand(
+                "PROJECT_STAGE", 1, "DISABLED");
+        when(port.updateTypeStatus(context.actor(), updateTypeStatusCommand))
+                .thenReturn(new DictionaryToolPort.UpdateTypeResult(
+                        91L, "PROJECT_STAGE", "项目阶段新版", null, "DISABLED", 30, 2, createdAt));
 
         var query = new DictionaryQueryToolHandler(port, mapper);
         var itemQuery = new DictionaryItemQueryToolHandler(port, mapper);
@@ -55,6 +60,7 @@ class DictionaryToolHandlerTest {
         var update = new DictionaryTypeUpdateToolHandler(port, mapper);
         var createItem = new DictionaryItemCreateToolHandler(port, mapper);
         var updateItem = new DictionaryItemUpdateToolHandler(port, mapper);
+        var updateTypeStatus = new DictionaryTypeUpdateStatusToolHandler(port, mapper);
         var result = create.execute(context, mapper.readTree("""
                 {"code":"PROJECT_STAGE","name":"项目阶段","description":"项目阶段字典","sortOrder":20}
                 """));
@@ -69,6 +75,9 @@ class DictionaryToolHandlerTest {
                 """));
         var updatedItem = updateItem.execute(context, mapper.readTree("""
                 {"typeCode":"PROJECT_STAGE","value":"IN_PROGRESS","version":0,"label":"处理中","description":"执行中","sortOrder":20}
+                """));
+        var updatedTypeStatus = updateTypeStatus.execute(context, mapper.readTree("""
+                {"code":"PROJECT_STAGE","version":1,"status":"DISABLED"}
                 """));
 
         assertThat(query.toolCode()).isEqualTo(ToolCode.DICTIONARY_QUERY.code());
@@ -86,10 +95,13 @@ class DictionaryToolHandlerTest {
         assertThat(updateItem.toolCode()).isEqualTo(ToolCode.DICTIONARY_ITEM_UPDATE.code());
         assertThat(updateItem.executionTemplate()).isEqualTo(ToolExecutionTemplate.DIRECT_WRITE);
         assertThat(updatedItem.path("version").asInt()).isEqualTo(1);
+        assertThat(updateTypeStatus.toolCode()).isEqualTo(ToolCode.DICTIONARY_TYPE_UPDATE_STATUS.code());
+        assertThat(updatedTypeStatus.path("status").asText()).isEqualTo("DISABLED");
         verify(port).createType(context.actor(), command);
         verify(port).updateType(context.actor(), updateCommand);
         verify(port).createItem(context.actor(), createItemCommand);
         verify(port).updateItem(context.actor(), updateItemCommand);
+        verify(port).updateTypeStatus(context.actor(), updateTypeStatusCommand);
         verify(port).dictionaries(context.actor(), new DictionaryToolPort.DictionaryQuery(null, null));
         verify(port).dictionaryItems(context.actor(), itemQueryCommand);
     }

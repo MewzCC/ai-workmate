@@ -146,6 +146,25 @@ public class DataDictionaryServiceImpl implements DataDictionaryService {
 
     @Override
     @Transactional
+    public DictionaryTypeResponse updateTypeStatusAgent(
+            Long userId, String code, DictionaryStatusRequest request) {
+        validateAgentTypeStatus(code, request);
+        ResolvedUserAccess actor = requireManage(userId);
+        DataDictionaryType existing = requireType(actor, code.trim());
+        requireVersion(request.version(), existing.getVersion());
+        if (request.status().equals(existing.getStatus())) {
+            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID);
+        }
+        DataDictionaryType changed = new DataDictionaryType();
+        changed.setStatus(request.status());
+        updateTypeWithVersion(actor, existing, changed);
+        audit(actor, "DICTIONARY_TYPE", existing.getId(), "SET_STATUS",
+                existing.getCode() + ":" + request.status());
+        return typeResponse(actor, requireType(actor, existing.getId()), true);
+    }
+
+    @Override
+    @Transactional
     public void deleteType(Long userId, Long id, Integer version) {
         ResolvedUserAccess actor = requireManage(userId);
         DataDictionaryType existing = requireType(actor, id);
@@ -450,6 +469,15 @@ public class DataDictionaryServiceImpl implements DataDictionaryService {
                 || request.name().trim().length() > 120))
                 || (request.description() != null && request.description().trim().length() > 500)
                 || (request.sortOrder() != null && (request.sortOrder() < 0 || request.sortOrder() > 9999))) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+    }
+    private void validateAgentTypeStatus(String code, DictionaryStatusRequest request) {
+        if (!StringUtils.hasText(code) || !TYPE_CODE_PATTERN.matcher(code.trim()).matches()
+                || request == null || request.version() == null || request.version() < 0
+                || request.version() == Integer.MAX_VALUE
+                || !StringUtils.hasText(request.status())
+                || (!"ACTIVE".equals(request.status()) && !"DISABLED".equals(request.status()))) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID);
         }
     }
