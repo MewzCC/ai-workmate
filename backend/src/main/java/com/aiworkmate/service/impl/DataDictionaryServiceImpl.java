@@ -5,6 +5,7 @@ import com.aiworkmate.common.ErrorCode;
 import com.aiworkmate.dto.DictionaryItemPageResponse;
 import com.aiworkmate.dto.DictionaryItemRequest;
 import com.aiworkmate.dto.DictionaryItemAgentCreateRequest;
+import com.aiworkmate.dto.DictionaryItemAgentUpdateRequest;
 import com.aiworkmate.dto.DictionaryItemResponse;
 import com.aiworkmate.dto.DictionaryOptionResponse;
 import com.aiworkmate.dto.DictionaryStatusRequest;
@@ -253,6 +254,25 @@ public class DataDictionaryServiceImpl implements DataDictionaryService {
 
     @Override
     @Transactional
+    public DictionaryItemResponse updateItemAgent(
+            Long userId, String typeCode, String value, DictionaryItemAgentUpdateRequest request) {
+        validateAgentItemUpdate(typeCode, value, request);
+        ResolvedUserAccess actor = requireManage(userId);
+        DataDictionaryType type = requireType(actor, typeCode.trim());
+        DataDictionaryItem existing = requireItem(actor, type.getId(), value.trim());
+        requireVersion(request.version(), existing.getVersion());
+
+        DataDictionaryItem changed = new DataDictionaryItem();
+        if (request.label() != null) changed.setLabel(request.label().trim());
+        if (request.description() != null) changed.setDescription(trimToNull(request.description()));
+        if (request.sortOrder() != null) changed.setSortOrder(request.sortOrder());
+        updateItemWithVersion(actor, existing, changed);
+        audit(actor, "DICTIONARY_ITEM", existing.getId(), "UPDATE", existing.getValue());
+        return itemResponse(actor, requireItem(actor, type.getId(), existing.getId()), true);
+    }
+
+    @Override
+    @Transactional
     public DictionaryItemResponse updateItemStatus(Long userId, Long typeId, Long itemId, DictionaryStatusRequest request) {
         ResolvedUserAccess actor = requireManage(userId);
         DataDictionaryItem existing = requireItem(actor, typeId, itemId);
@@ -385,6 +405,13 @@ public class DataDictionaryServiceImpl implements DataDictionaryService {
         return item;
     }
 
+    private DataDictionaryItem requireItem(ResolvedUserAccess actor, Long typeId, String value) {
+        DataDictionaryItem item = itemMapper.selectOne(itemQuery(actor.tenantId(), typeId)
+                .eq(DataDictionaryItem::getValue, value));
+        if (item == null) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        return item;
+    }
+
     private ResolvedUserAccess requireRead(Long userId) {
         ResolvedUserAccess actor = requireAccess(userId);
         if (!actor.permissions().contains(READ_PERMISSION)) throw new BusinessException(ErrorCode.PERMISSION_DENIED);
@@ -431,6 +458,20 @@ public class DataDictionaryServiceImpl implements DataDictionaryService {
                 || request == null || !StringUtils.hasText(request.value())
                 || !ITEM_VALUE_PATTERN.matcher(request.value().trim()).matches()
                 || !StringUtils.hasText(request.label()) || request.label().trim().length() > 160
+                || (request.description() != null && request.description().trim().length() > 500)
+                || (request.sortOrder() != null && (request.sortOrder() < 0 || request.sortOrder() > 9999))) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+    }
+    private void validateAgentItemUpdate(
+            String typeCode, String value, DictionaryItemAgentUpdateRequest request) {
+        if (!StringUtils.hasText(typeCode) || !TYPE_CODE_PATTERN.matcher(typeCode.trim()).matches()
+                || !StringUtils.hasText(value) || !ITEM_VALUE_PATTERN.matcher(value.trim()).matches()
+                || request == null || request.version() == null || request.version() < 0
+                || request.version() == Integer.MAX_VALUE
+                || (request.label() == null && request.description() == null && request.sortOrder() == null)
+                || (request.label() != null && (!StringUtils.hasText(request.label())
+                || request.label().trim().length() > 160))
                 || (request.description() != null && request.description().trim().length() > 500)
                 || (request.sortOrder() != null && (request.sortOrder() < 0 || request.sortOrder() > 9999))) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID);

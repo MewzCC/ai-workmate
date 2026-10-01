@@ -27,6 +27,12 @@ public class AgentDictionaryWriteToolDefinitions {
     static final String CREATE_ITEM_OUTPUT = """
             {"type":"object","additionalProperties":false,"required":["dictionaryItemId","typeCode","value","label","status","sortOrder","usageCount","version","updatedAt"],"properties":{"dictionaryItemId":{"type":"integer","minimum":1},"typeCode":{"type":"string","maxLength":64},"value":{"type":"string","maxLength":128},"label":{"type":"string","maxLength":160},"description":{"type":["string","null"],"maxLength":500},"status":{"type":"string","const":"ACTIVE"},"sortOrder":{"type":"integer","minimum":0,"maximum":9999},"usageCount":{"type":"integer","const":0},"version":{"type":"integer","const":0},"updatedAt":{"type":"string","format":"date-time"}}}
             """.strip();
+    static final String UPDATE_ITEM_INPUT = """
+            {"type":"object","additionalProperties":false,"minProperties":4,"required":["typeCode","value","version"],"properties":{"typeCode":{"type":"string","pattern":"^[A-Z][A-Z0-9_]{1,63}$","maxLength":64},"value":{"type":"string","pattern":"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$","maxLength":128},"version":{"type":"integer","minimum":0,"maximum":2147483646},"label":{"type":"string","minLength":1,"maxLength":160},"description":{"type":"string","maxLength":500},"sortOrder":{"type":"integer","minimum":0,"maximum":9999}}}
+            """.strip();
+    static final String UPDATE_ITEM_OUTPUT = """
+            {"type":"object","additionalProperties":false,"required":["dictionaryItemId","typeCode","value","label","status","sortOrder","usageCount","version","updatedAt"],"properties":{"dictionaryItemId":{"type":"integer","minimum":1},"typeCode":{"type":"string","maxLength":64},"value":{"type":"string","maxLength":128},"label":{"type":"string","maxLength":160},"description":{"type":["string","null"],"maxLength":500},"status":{"type":"string","enum":["ACTIVE","DISABLED"]},"sortOrder":{"type":"integer","minimum":0,"maximum":9999},"usageCount":{"type":"integer","minimum":0},"version":{"type":"integer","minimum":1},"updatedAt":{"type":"string","format":"date-time"}}}
+            """.strip();
 
     @Bean
     ToolDefinition dictionaryTypeCreateToolDefinition(ObjectMapper mapper) throws JsonProcessingException {
@@ -58,6 +64,17 @@ public class AgentDictionaryWriteToolDefinitions {
                 "Create one confirmed dictionary item without update, status changes, deletion, batch import or security configuration access.",
                 mapper.readTree(CREATE_ITEM_INPUT), mapper.readTree(CREATE_ITEM_OUTPUT),
                 ToolWriteProfile.SECONDARY_L2, Set.of("dictionary:manage"), OwnershipPolicy.FIXED_RESOURCE,
+                1, 8192, 10000);
+    }
+
+    @Bean
+    ToolDefinition dictionaryItemUpdateToolDefinition(ObjectMapper mapper) throws JsonProcessingException {
+        return ToolDefinitionFactory.singleWrite(ToolCode.DICTIONARY_ITEM_UPDATE,
+                "Update one dictionary item",
+                "Updates bounded metadata on one tenant dictionary item selected by immutable type code and value.",
+                "Update one confirmed dictionary item with optimistic locking, without value or status changes, deletion, batch import or security configuration access.",
+                mapper.readTree(UPDATE_ITEM_INPUT), mapper.readTree(UPDATE_ITEM_OUTPUT),
+                ToolWriteProfile.NON_RETRYABLE_L1, Set.of("dictionary:manage"), OwnershipPolicy.FIXED_RESOURCE,
                 1, 8192, 10000);
     }
 }

@@ -6,6 +6,7 @@ import com.aiworkmate.dto.DictionaryTypeListResponse;
 import com.aiworkmate.dto.DictionaryTypeResponse;
 import com.aiworkmate.dto.DictionaryTypeAgentUpdateRequest;
 import com.aiworkmate.dto.DictionaryItemAgentCreateRequest;
+import com.aiworkmate.dto.DictionaryItemAgentUpdateRequest;
 import com.aiworkmate.dto.DictionaryItemResponse;
 import com.aiworkmate.dto.DictionaryItemPageResponse;
 import com.aiworkmate.service.DataDictionaryService;
@@ -107,5 +108,24 @@ class DictionaryAgentDomainToolAdapterTest {
         assertThat(result.typeCode()).isEqualTo("PROJECT_STAGE");
         verify(service).createItemAgent(2L, "PROJECT_STAGE",
                 new DictionaryItemAgentCreateRequest("IN_PROGRESS", "进行中", "处理中", 10));
+    }
+
+    @Test
+    void mapsImmutableTypeCodeValueAndOptimisticVersionForItemUpdate() {
+        var updatedAt = LocalDateTime.of(2026, 10, 2, 2, 25);
+        when(service.updateItemAgent(2L, "PROJECT_STAGE", "IN_PROGRESS",
+                new DictionaryItemAgentUpdateRequest(3, "处理中", "执行中", 20)))
+                .thenReturn(new DictionaryItemResponse(101L, 91L, "IN_PROGRESS", "处理中", "执行中",
+                        "ACTIVE", 20, 2L, 4, updatedAt, true, false));
+
+        var result = adapter.updateItem(actor, new DictionaryToolPort.UpdateItemCommand(
+                "PROJECT_STAGE", "IN_PROGRESS", 3, "处理中", "执行中", 20));
+
+        assertThat(result.dictionaryItemId()).isEqualTo(101L);
+        assertThat(result.typeCode()).isEqualTo("PROJECT_STAGE");
+        assertThat(result.value()).isEqualTo("IN_PROGRESS");
+        assertThat(result.version()).isEqualTo(4);
+        verify(service).updateItemAgent(2L, "PROJECT_STAGE", "IN_PROGRESS",
+                new DictionaryItemAgentUpdateRequest(3, "处理中", "执行中", 20));
     }
 }

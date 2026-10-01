@@ -5,6 +5,7 @@ import com.aiworkmate.agent.tool.port.ToolActorContext;
 import com.aiworkmate.dto.DictionaryTypeRequest;
 import com.aiworkmate.dto.DictionaryTypeAgentUpdateRequest;
 import com.aiworkmate.dto.DictionaryItemAgentCreateRequest;
+import com.aiworkmate.dto.DictionaryItemAgentUpdateRequest;
 import com.aiworkmate.service.DataDictionaryService;
 import lombok.RequiredArgsConstructor;
 
@@ -56,6 +57,16 @@ public class DictionaryAgentDomainToolAdapter implements DictionaryToolPort {
                 new DictionaryItemAgentCreateRequest(command.value(), command.label(),
                         command.description(), command.sortOrder()));
         return new CreateItemResult(response.id(), command.typeCode(), response.value(), response.label(),
+                response.description(), response.status(), response.sortOrder(), response.usageCount(),
+                response.version(), response.updatedAt());
+    }
+
+    @Override
+    public UpdateItemResult updateItem(ToolActorContext context, UpdateItemCommand command) {
+        var response = dictionaryService.updateItemAgent(context.userId(), command.typeCode(), command.value(),
+                new DictionaryItemAgentUpdateRequest(command.version(), command.label(),
+                        command.description(), command.sortOrder()));
+        return new UpdateItemResult(response.id(), command.typeCode(), response.value(), response.label(),
                 response.description(), response.status(), response.sortOrder(), response.usageCount(),
                 response.version(), response.updatedAt());
     }

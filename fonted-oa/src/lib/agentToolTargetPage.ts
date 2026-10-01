@@ -50,6 +50,7 @@ const EXACT_TARGETS: Record<string, string> = {
   'dictionary.type.create': 'dictionary',
   'dictionary.type.update': 'dictionary',
   'dictionary.item.create': 'dictionary',
+  'dictionary.item.update': 'dictionary',
   'systemCapability.query': 'system-config',
   'userSettings.update': 'system-config',
 };

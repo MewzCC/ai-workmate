@@ -4,6 +4,7 @@ import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.dto.DictionaryTypeRequest;
 import com.aiworkmate.dto.DictionaryTypeAgentUpdateRequest;
 import com.aiworkmate.dto.DictionaryItemAgentCreateRequest;
+import com.aiworkmate.dto.DictionaryItemAgentUpdateRequest;
 import com.aiworkmate.entity.DataDictionaryItem;
 import com.aiworkmate.entity.DataDictionaryType;
 import com.aiworkmate.mapper.DataDictionaryItemMapper;
@@ -146,6 +147,37 @@ class DataDictionaryServiceImplTest {
     }
 
     @Test
+    void shouldUpdateAgentItemByImmutableCoordinatesWithOptimisticVersion() {
+        when(userAccessService.resolveActiveUser(1001L)).thenReturn(
+                access(List.of("route:dictionary", "dictionary:manage")));
+        when(typeMapper.selectOne(any())).thenReturn(
+                dictionaryType("PROJECT_STAGE", "项目阶段", null, 20, 1));
+        DataDictionaryItem existing = dictionaryItem("IN_PROGRESS", "进行中", "处理中", 10, 3);
+        DataDictionaryItem updated = dictionaryItem("IN_PROGRESS", "处理中", "执行中", 20, 4);
+        when(itemMapper.selectOne(any())).thenReturn(existing, updated);
+        when(itemMapper.update(any(), any())).thenReturn(1);
+        when(usageMapper.selectCount(any())).thenReturn(2L);
+
+        var response = service.updateItemAgent(1001L, "PROJECT_STAGE", "IN_PROGRESS",
+                new DictionaryItemAgentUpdateRequest(3, "处理中", "执行中", 20));
+
+        assertThat(response.label()).isEqualTo("处理中");
+        assertThat(response.description()).isEqualTo("执行中");
+        assertThat(response.version()).isEqualTo(4);
+        verify(auditService).recordTransactional(
+                9L, 1001L, "DICTIONARY_ITEM", "101", "UPDATE", "SUCCESS", "IN_PROGRESS");
+    }
+
+    @Test
+    void shouldRejectAgentItemUpdateWithoutChangeBeforeResolvingActor() {
+        assertThatThrownBy(() -> service.updateItemAgent(1001L, "PROJECT_STAGE", "IN_PROGRESS",
+                new DictionaryItemAgentUpdateRequest(3, null, null, null)))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("REQUEST_INVALID");
+        verifyNoInteractions(userAccessService, typeMapper, itemMapper, usageMapper, auditService);
+    }
+
+    @Test
     void shouldListAgentItemsByTenantTypeCodeWithBoundedPage() {
         when(userAccessService.resolveActiveUser(1001L)).thenReturn(access(List.of("route:dictionary")));
         when(typeMapper.selectOne(any())).thenReturn(dictionaryType("PROJECT_STAGE", "项目阶段", null, 20, 1));
@@ -216,6 +248,15 @@ class DataDictionaryServiceImplTest {
         type.setDescription(description); type.setSortOrder(sortOrder); type.setStatus("ACTIVE");
         type.setVersion(version); type.setDeleted(false);
         return type;
+    }
+
+    private DataDictionaryItem dictionaryItem(
+            String value, String label, String description, int sortOrder, int version) {
+        DataDictionaryItem item = new DataDictionaryItem();
+        item.setId(101L); item.setTenantId(9L); item.setDictionaryTypeId(81L); item.setValue(value);
+        item.setLabel(label); item.setDescription(description); item.setSortOrder(sortOrder); item.setStatus("ACTIVE");
+        item.setVersion(version); item.setDeleted(false);
+        return item;
     }
 
     private ResolvedUserAccess access(List<String> permissions) {
