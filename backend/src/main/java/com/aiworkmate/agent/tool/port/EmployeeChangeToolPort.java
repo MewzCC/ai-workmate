@@ -10,6 +10,9 @@ public interface EmployeeChangeToolPort {
             ToolActorContext context, ApplicationCommand command, ToolOperationKey operationKey);
     ToolWriteVerification<ApplicationResult> findApplication(
             ToolActorContext context, ApplicationCommand command, ToolOperationKey operationKey);
+    ChangeActionResult approve(ToolActorContext context, DecisionCommand command);
+    ChangeActionResult reject(ToolActorContext context, DecisionCommand command);
+    ChangeActionResult withdraw(ToolActorContext context, VersionedCommand command);
 
     record Query(String status, String changeType, String keyword, int page, int size) {}
     record ApplicationCommand(
@@ -18,6 +21,9 @@ public interface EmployeeChangeToolPort {
             long reviewApproverUserId, String reason) {}
     record ApplicationResult(long changeId, String status, int version, LocalDateTime submittedAt)
             implements ToolWriteReceipt {}
+    record DecisionCommand(long changeId, int expectedVersion, String comment) {}
+    record VersionedCommand(long changeId, int expectedVersion) {}
+    record ChangeActionResult(long changeId, String status, int version) implements ToolWriteReceipt {}
     record Page(List<Item> items, long total, int page, int size) {
         public Page { items = List.copyOf(items); }
     }

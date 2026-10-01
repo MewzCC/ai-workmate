@@ -6,6 +6,9 @@ import com.aiworkmate.agent.tool.port.ToolOperationKey;
 import com.aiworkmate.agent.tool.port.ToolWriteVerification;
 import com.aiworkmate.service.EmployeeChangeService;
 import com.aiworkmate.service.model.EmployeeChangeAgentApplicationReceipt;
+import com.aiworkmate.dto.EmployeeChangeDecisionRequest;
+import com.aiworkmate.dto.EmployeeChangeResponse;
+import com.aiworkmate.dto.VersionRequest;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
@@ -53,5 +56,25 @@ class EmployeeChangeAgentDomainToolAdapterTest {
         assertThat(adapter.findApplication(context, command, key)).isEqualTo(
                 ToolWriteVerification.observed(new EmployeeChangeToolPort.ApplicationResult(
                         41L, "PENDING", 0, submittedAt)));
+    }
+
+    @Test
+    void delegatesDecisionsAndWithdrawalToTheExistingDomainGuards() {
+        EmployeeChangeResponse response = mock(EmployeeChangeResponse.class);
+        when(response.id()).thenReturn(41L);
+        when(response.status()).thenReturn("APPROVED", "REJECTED", "WITHDRAWN");
+        when(response.version()).thenReturn(1);
+        var decision = new EmployeeChangeToolPort.DecisionCommand(41L, 0, "意见");
+        var versioned = new EmployeeChangeToolPort.VersionedCommand(41L, 0);
+        when(service.approve(7L, 41L, new EmployeeChangeDecisionRequest(0, "意见"))).thenReturn(response);
+        when(service.reject(7L, 41L, new EmployeeChangeDecisionRequest(0, "意见"))).thenReturn(response);
+        when(service.withdraw(7L, 41L, new VersionRequest(0))).thenReturn(response);
+
+        assertThat(adapter.approve(context, decision).status()).isEqualTo("APPROVED");
+        assertThat(adapter.reject(context, decision).status()).isEqualTo("REJECTED");
+        assertThat(adapter.withdraw(context, versioned).status()).isEqualTo("WITHDRAWN");
+        verify(service).approve(7L, 41L, new EmployeeChangeDecisionRequest(0, "意见"));
+        verify(service).reject(7L, 41L, new EmployeeChangeDecisionRequest(0, "意见"));
+        verify(service).withdraw(7L, 41L, new VersionRequest(0));
     }
 }

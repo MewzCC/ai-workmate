@@ -659,6 +659,30 @@ class P1PostgresMigrationIT {
                     """)).as("平台观测个人偏好工具必须具备独立实时工具权限").isEqualTo(2);
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL
+                      AND code IN ('hr.change.approve', 'hr.change.reject')
+                      AND handler_version = '1.0.0' AND risk_level = 'L2'
+                      AND data_scope_policy = 'ASSIGNED_TO_SELF'
+                      AND required_permissions = '["hr:manage"]'::jsonb
+                      AND retry_policy = 'NEVER' AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'SECONDARY' AND enabled = TRUE
+                    """)).as("员工变动审批工具必须以指派本人二次确认契约存在").isEqualTo(2);
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'hr.change.withdraw'
+                      AND handler_version = '1.0.0' AND risk_level = 'L1'
+                      AND data_scope_policy = 'SELF'
+                      AND required_permissions = '["hr:manage"]'::jsonb
+                      AND retry_policy = 'NEVER' AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'EXPLICIT' AND enabled = TRUE
+                    """)).as("员工变动撤回工具必须以本人显式确认契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code IN ('agent:tool:hr.change.approve', 'agent:tool:hr.change.reject',
+                                   'agent:tool:hr.change.withdraw')
+                    """)).as("员工变动决策工具必须具备独立实时工具权限").isEqualTo(3);
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
                     WHERE tenant_id IS NULL AND code = 'approval.application.createDraft'
                       AND handler_version = '1.0.0'
                       AND schema_hash = 'sha256:0b91ec92030a3bdb99baac22dce2b1e7c3a239829740fe9ad174b24ecf340424'

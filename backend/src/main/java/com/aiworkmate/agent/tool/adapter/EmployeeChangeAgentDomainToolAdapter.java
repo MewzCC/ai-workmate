@@ -5,6 +5,9 @@ import com.aiworkmate.agent.tool.port.ToolActorContext;
 import com.aiworkmate.agent.tool.port.ToolOperationKey;
 import com.aiworkmate.agent.tool.port.ToolWriteVerification;
 import com.aiworkmate.service.EmployeeChangeService;
+import com.aiworkmate.dto.EmployeeChangeDecisionRequest;
+import com.aiworkmate.dto.EmployeeChangeResponse;
+import com.aiworkmate.dto.VersionRequest;
 import com.aiworkmate.service.model.EmployeeChangeAgentApplicationCommand;
 import lombok.RequiredArgsConstructor;
 
@@ -43,6 +46,28 @@ public final class EmployeeChangeAgentDomainToolAdapter implements EmployeeChang
                         context.userId(), toDomain(command), operationKey.value()),
                 result -> new ApplicationResult(
                         result.changeId(), result.status(), result.version(), result.submittedAt()));
+    }
+
+    @Override
+    public ChangeActionResult approve(ToolActorContext context, DecisionCommand command) {
+        return action(employeeChangeService.approve(context.userId(), command.changeId(),
+                new EmployeeChangeDecisionRequest(command.expectedVersion(), command.comment())));
+    }
+
+    @Override
+    public ChangeActionResult reject(ToolActorContext context, DecisionCommand command) {
+        return action(employeeChangeService.reject(context.userId(), command.changeId(),
+                new EmployeeChangeDecisionRequest(command.expectedVersion(), command.comment())));
+    }
+
+    @Override
+    public ChangeActionResult withdraw(ToolActorContext context, VersionedCommand command) {
+        return action(employeeChangeService.withdraw(context.userId(), command.changeId(),
+                new VersionRequest(command.expectedVersion())));
+    }
+
+    private ChangeActionResult action(EmployeeChangeResponse response) {
+        return new ChangeActionResult(response.id(), response.status(), response.version());
     }
 
     private EmployeeChangeAgentApplicationCommand toDomain(ApplicationCommand command) {

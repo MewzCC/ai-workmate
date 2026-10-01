@@ -223,7 +223,8 @@ class PageCapabilityCatalogTest {
         assertThat(page.readTools()).extracting(PageToolReference::code)
                 .containsExactly(ToolCode.HR_CHANGE_QUERY);
         assertThat(page.writeTools()).extracting(PageToolReference::code)
-                .containsExactly(ToolCode.HR_CHANGE_APPLY);
+                .containsExactly(ToolCode.HR_CHANGE_APPLY, ToolCode.HR_CHANGE_APPROVE,
+                        ToolCode.HR_CHANGE_REJECT, ToolCode.HR_CHANGE_WITHDRAW);
     }
 
     @Test

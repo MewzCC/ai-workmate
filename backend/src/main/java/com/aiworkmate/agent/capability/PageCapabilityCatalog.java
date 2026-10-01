@@ -137,7 +137,8 @@ public class PageCapabilityCatalog {
                         context(number("employeeId")), tool(HR_ORGANIZATION_QUERY), tool(HR_EMPLOYEE_QUERY)),
                 page(OaPage.EMPLOYEE_CHANGE, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         context(text("status"), text("changeType"), text("keyword"), number("page"), number("size")),
-                        tool(HR_CHANGE_QUERY), tool(HR_CHANGE_APPLY)),
+                        tool(HR_CHANGE_QUERY), tool(HR_CHANGE_APPLY), tool(HR_CHANGE_APPROVE),
+                        tool(HR_CHANGE_REJECT), tool(HR_CHANGE_WITHDRAW)),
 
                 page(OaPage.ASSET_LEDGER, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         context(text("keyword"), text("category"), text("status"), number("page"), number("size")),
