@@ -1,5 +1,6 @@
 const EXACT_TARGETS: Record<string, string> = {
   'agentTask.mine.query': 'ai-tasks',
+  'agentTask.cancel': 'ai-tasks',
   'todo.query': 'todo',
   'dashboard.preferences.update': 'dashboard',
   'knowledge.search': 'knowledge-base',

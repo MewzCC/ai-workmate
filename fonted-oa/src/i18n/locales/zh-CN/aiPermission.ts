@@ -126,6 +126,7 @@ const aiPermission = {
     dictionary_query: { name: '查询数据字典', description: '返回字典类型摘要，不暴露内部 ID 或字典项值。' },
     systemCapability_query: { name: '查询系统能力', description: '只返回能力状态，不暴露密钥、地址、连接串或堆栈。' },
     agentTask_mine_query: { name: '查询本人 Agent 任务', description: '只读取当前用户自己的 Agent 任务摘要。' },
+    agentTask_cancel: { name: '取消本人 Agent 任务', description: '经明确确认后取消当前用户自己的一条可取消 Agent 任务。' },
   },
 };
 

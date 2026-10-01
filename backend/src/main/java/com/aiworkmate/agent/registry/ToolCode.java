@@ -108,7 +108,8 @@ public enum ToolCode {
     DICTIONARY_QUERY("dictionary.query"),
     SYSTEM_CAPABILITY_QUERY("systemCapability.query"),
     USER_SETTINGS_UPDATE("userSettings.update", SideEffect.SINGLE_WRITE),
-    AGENT_TASK_MINE_QUERY("agentTask.mine.query");
+    AGENT_TASK_MINE_QUERY("agentTask.mine.query"),
+    AGENT_TASK_CANCEL("agentTask.cancel", SideEffect.SINGLE_WRITE);
 
     private static final Map<String, ToolCode> BY_CODE;
     private static final Set<String> CODES;

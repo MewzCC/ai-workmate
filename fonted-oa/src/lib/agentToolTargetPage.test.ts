@@ -21,7 +21,7 @@ describe('Agent tool business navigation', () => {
   it('assigns every registered business tool to an explicit page', () => {
     const pages = backendOaPages();
     for (const toolCode of backendToolCodes()) {
-      if (toolCode === 'agentTask.mine.query') continue;
+      if (toolCode.startsWith('agentTask.')) continue;
       const targetPage = agentToolTargetPage(toolCode);
       expect(targetPage, toolCode).not.toBe('ai-tasks');
       expect(pages.has(targetPage), `${toolCode} -> ${targetPage}`).toBe(true);
@@ -31,6 +31,7 @@ describe('Agent tool business navigation', () => {
   it('uses task center only for task inspection or unknown historical tools', () => {
     expect(agentToolTargetPage('attendance.clock')).toBe('attendance-clock');
     expect(agentToolTargetPage('agentTask.mine.query')).toBe('ai-tasks');
+    expect(agentToolTargetPage('agentTask.cancel')).toBe('ai-tasks');
     expect(agentToolTargetPage('legacy.unknown')).toBe('ai-tasks');
   });
 });

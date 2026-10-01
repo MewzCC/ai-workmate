@@ -126,6 +126,7 @@ const aiPermission = {
     dictionary_query: { name: 'Query data dictionary', description: 'Returns dictionary type summaries without internal IDs or item values.' },
     systemCapability_query: { name: 'Query system capabilities', description: 'Returns only capability status without keys, addresses, connection strings, or stacks.' },
     agentTask_mine_query: { name: 'Query my Agent tasks', description: 'Reads only Agent task summaries owned by the current user.' },
+    agentTask_cancel: { name: 'Cancel my Agent task', description: 'Cancels one cancellable Agent task owned by the current user after explicit confirmation.' },
   },
 };
 

@@ -67,6 +67,8 @@ class PageCapabilityCatalogTest {
                 assertThat(page.tools()).as(page.pageId()).isNotEmpty());
         assertThat(catalog.find("ai-tasks").orElseThrow().readTools())
                 .extracting(PageToolReference::code).containsExactly(ToolCode.AGENT_TASK_MINE_QUERY);
+        assertThat(catalog.find("ai-tasks").orElseThrow().writeTools())
+                .extracting(PageToolReference::code).containsExactly(ToolCode.AGENT_TASK_CANCEL);
         assertThat(catalog.find("leave-application").orElseThrow().tools())
                 .extracting(PageToolReference::code)
                 .containsExactlyInAnyOrder(ToolCode.LEAVE_MINE, ToolCode.LEAVE_CREATE_DRAFT,

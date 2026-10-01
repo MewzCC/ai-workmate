@@ -93,7 +93,7 @@ public class PageCapabilityCatalog {
                         allTools()),
                 page(OaPage.AI_TASKS, OwnershipPolicy.SELF, LIST_COMMANDS,
                         context(text("status"), text("from"), text("to"), number("page"), number("size")),
-                        tool(AGENT_TASK_MINE_QUERY)),
+                        tool(AGENT_TASK_MINE_QUERY), tool(AGENT_TASK_CANCEL)),
                 page(OaPage.TODO, OwnershipPolicy.ASSIGNED_TO_SELF, LIST_COMMANDS,
                         context(text("status"), text("from"), text("to"), number("page"), number("size")),
                         tool(TODO_QUERY)),

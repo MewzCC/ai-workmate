@@ -1129,6 +1129,18 @@ class P1PostgresMigrationIT {
                     """)).as("AI 任务中心工具必须具备业务与工具两层实时权限").isEqualTo(2);
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='SINGLE_WRITE'
+                      AND code='agentTask.cancel'
+                      AND schema_hash='sha256:69904eabce7fcee590879e4aef10104ae960cc6141e32b175145f4e95c325ff2'
+                      AND risk_level='L1' AND data_scope_policy='SELF'
+                      AND retry_policy='NEVER' AND confirmation_policy='EXPLICIT'
+                    """)).as("AI 任务中心必须具备本人单任务受控取消工具").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code='agent:tool:agentTask.cancel'
+                    """)).as("AI 任务取消工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
                     WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='NONE'
                       AND code='userPermission.mine.query'
                       AND schema_hash='sha256:3a7a57d10e446b40d09a32d49c9a94bd017872d9e2f823b1890802d6f1e11128'

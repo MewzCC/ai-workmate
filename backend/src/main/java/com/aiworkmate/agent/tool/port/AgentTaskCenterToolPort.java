@@ -6,8 +6,11 @@ import java.util.List;
 /** Typed boundary for a future remotely hosted Agent task query service. */
 public interface AgentTaskCenterToolPort {
     TaskPage mine(ToolActorContext context, TaskQuery query);
+    CancelResult cancel(ToolActorContext context, CancelCommand command);
 
     record TaskQuery(String status, LocalDateTime from, LocalDateTime to, int page, int size) { }
+    record CancelCommand(String taskId) { }
+    record CancelResult(String taskId, String status, LocalDateTime updatedAt) implements ToolWriteReceipt { }
     record TaskPage(List<Task> records, long total, int page, int size) {
         public TaskPage { records = List.copyOf(records); }
     }
