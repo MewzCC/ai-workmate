@@ -135,6 +135,27 @@ class AgentApprovalConfigurationWriteToolDefinitionsTest {
                 {"processId":41,"version":2,"processName":"出差审批","status":"ENABLED","nodeJson":"[]","nodes":[]}
                 """))).isFalse();
     }
+
+    @Test
+    void publishProcessRequiresSecondaryConfirmationAndCannotEditNodes() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        ToolDefinition definition = new AgentApprovalConfigurationWriteToolDefinitions()
+                .approvalProcessPublishDraftToolDefinition(mapper);
+        ToolSchemaValidator validator = new ToolSchemaValidator();
+
+        assertThat(definition.schemaHash()).isEqualTo(
+                "sha256:3be228efd5386ea292967cb9bf6e027e051798b2ee67b2c8dbff6b0af5fd1113");
+        assertThat(definition.requiredPermissions()).containsExactly("approval:manage");
+        assertThat(definition.riskLevel()).isEqualTo(RiskLevel.L2);
+        assertThat(definition.sideEffect()).isEqualTo(SideEffect.SINGLE_WRITE);
+        assertThat(definition.retryPolicy()).isEqualTo(RetryPolicy.NEVER);
+        assertThat(definition.confirmationPolicy()).isEqualTo(ConfirmationPolicy.SECONDARY);
+        assertThat(definition.ownershipPolicy()).isEqualTo(OwnershipPolicy.FIXED_RESOURCE);
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree(
+                "{\"processId\":41,\"version\":2}"))).isTrue();
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree(
+                "{\"processId\":41,\"version\":2,\"status\":\"ENABLED\",\"nodeJson\":\"[]\"}"))).isFalse();
+    }
     @Test
     void createRuleAcceptsSemanticConditionsButNotRawJsonOrEnableStatus() throws Exception {
         ObjectMapper mapper = new ObjectMapper();

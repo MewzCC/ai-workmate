@@ -57,6 +57,8 @@ public interface ApprovalEngineService {
     ApprovalProcessResponse updateProcessDraftAgent(Long userId, Long id,
                                                      ApprovalProcessAgentDraftUpdateRequest request);
 
+    ApprovalProcessResponse publishProcessDraftAgent(Long userId, Long id, Integer version);
+
     ApprovalProcessResponse updateProcess(Long userId, Long id, ApprovalProcessRequest request);
 
     void deleteProcess(Long userId, Long id);

@@ -51,6 +51,7 @@ const aiPermission = {
     approval_form_publishDraft: { name: 'Publish approval form draft', description: 'Publishes one validated approval form draft after secondary confirmation and version validation.' },
     approval_process_createDraft: { name: 'Create approval process draft', description: 'Creates one unpublished approval process from bounded semantic nodes after explicit confirmation.' },
     approval_process_updateDraft: { name: 'Update approval process draft', description: 'Updates one unpublished approval process after explicit confirmation and version validation.' },
+    approval_process_publishDraft: { name: 'Publish approval process draft', description: 'Publishes one validated approval process draft after secondary confirmation and version validation.' },
     approval_rule_createDraft: { name: 'Create approval rule draft', description: 'Creates one disabled approval rule from bounded conditions and action after explicit confirmation.' },
     approval_rule_updateDraft: { name: 'Update approval rule draft', description: 'Updates one disabled approval rule draft with version control after explicit confirmation.' },
     approval_task_query: { name: 'Query tenant approval tasks', description: 'Reads approval task summaries under live permissions and data scope.' },

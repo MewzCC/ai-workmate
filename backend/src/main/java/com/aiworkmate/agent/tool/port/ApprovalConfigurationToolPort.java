@@ -11,6 +11,7 @@ public interface ApprovalConfigurationToolPort {
     FormDraftResult publishFormDraft(ToolActorContext context, VersionedForm command);
     ProcessDraftResult createProcessDraft(ToolActorContext context, ProcessDraft command);
     ProcessDraftResult updateProcessDraft(ToolActorContext context, ProcessDraftUpdate command);
+    ProcessDraftResult publishProcessDraft(ToolActorContext context, VersionedProcess command);
     RuleDraftResult createRuleDraft(ToolActorContext context, RuleDraft command);
     RuleDraftResult updateRuleDraft(ToolActorContext context, RuleDraftUpdate command);
 
@@ -60,6 +61,8 @@ public interface ApprovalConfigurationToolPort {
 
     record ProcessDraftResult(long processId, String processKey, String status, int version,
                               LocalDateTime updatedAt) implements ToolWriteReceipt { }
+
+    record VersionedProcess(long processId, int version) { }
 
     record RuleDraft(String ruleKey, String ruleName, String ruleType, int priority,
                      String description, String logic, List<RuleCondition> conditions,

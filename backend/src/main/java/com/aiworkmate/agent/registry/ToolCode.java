@@ -35,6 +35,7 @@ public enum ToolCode {
     APPROVAL_FORM_PUBLISH_DRAFT("approval.form.publishDraft", SideEffect.SINGLE_WRITE),
     APPROVAL_PROCESS_CREATE_DRAFT("approval.process.createDraft", SideEffect.SINGLE_WRITE),
     APPROVAL_PROCESS_UPDATE_DRAFT("approval.process.updateDraft", SideEffect.SINGLE_WRITE),
+    APPROVAL_PROCESS_PUBLISH_DRAFT("approval.process.publishDraft", SideEffect.SINGLE_WRITE),
     APPROVAL_RULE_CREATE_DRAFT("approval.rule.createDraft", SideEffect.SINGLE_WRITE),
     APPROVAL_RULE_UPDATE_DRAFT("approval.rule.updateDraft", SideEffect.SINGLE_WRITE),
     APPROVAL_TASK_QUERY("approval.task.query"),

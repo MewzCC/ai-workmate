@@ -1263,6 +1263,18 @@ class P1PostgresMigrationIT {
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM agent_tool
                     WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='SINGLE_WRITE'
+                      AND code='approval.process.publishDraft'
+                      AND schema_hash='sha256:3be228efd5386ea292967cb9bf6e027e051798b2ee67b2c8dbff6b0af5fd1113'
+                      AND risk_level='L2' AND data_scope_policy='FIXED_RESOURCE'
+                      AND retry_policy='NEVER' AND confirmation_policy='SECONDARY'
+                    """)).as("流程配置必须具备草稿受控发布工具").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code='agent:tool:approval.process.publishDraft'
+                    """)).as("审批流程草稿发布工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='SINGLE_WRITE'
                       AND code='approval.rule.createDraft'
                       AND schema_hash='sha256:847518614624e4e86c659cf1656265ae7e76786a006538d58f2277276c5acc11'
                       AND risk_level='L1' AND data_scope_policy='TENANT_SCOPED'

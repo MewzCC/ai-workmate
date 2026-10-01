@@ -443,6 +443,44 @@ public class ApprovalEngineServiceImpl implements ApprovalEngineService {
 
     @Override
     @Transactional
+    public ApprovalProcessResponse publishProcessDraftAgent(Long userId, Long id, Integer version) {
+        if (id == null || id < 1 || version == null || version < 1) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        ResolvedUserAccess actor = requirePermission(userId, "approval:manage");
+        ApprovalProcess process = requireProcess(actor.tenantId(), id);
+        if (!"DISABLED".equals(process.getStatus())) {
+            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID);
+        }
+        requirePublishableProcess(process);
+        if (process.getFormId() != null) {
+            ApprovalForm form = requireForm(actor.tenantId(), process.getFormId());
+            if (!"ENABLED".equals(form.getStatus())) {
+                throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID);
+            }
+        }
+        LocalDateTime now = LocalDateTime.now();
+        int updated = processMapper.update(null, new LambdaUpdateWrapper<ApprovalProcess>()
+                .eq(ApprovalProcess::getId, id)
+                .eq(ApprovalProcess::getTenantId, actor.tenantId())
+                .eq(ApprovalProcess::getDeleted, false)
+                .eq(ApprovalProcess::getStatus, "DISABLED")
+                .eq(ApprovalProcess::getVersion, version)
+                .set(ApprovalProcess::getStatus, "ENABLED")
+                .set(ApprovalProcess::getUpdatedAt, now)
+                .setSql("version = version + 1"));
+        if (updated != 1) {
+            throw new BusinessException(ErrorCode.VERSION_CONFLICT);
+        }
+        auditService.record(actor.tenantId(), actor.userId(), RESOURCE_PROCESS,
+                id.toString(), "PUBLISH", "SUCCESS", "Agent 发布审批流程草稿");
+        return toProcessResponse(processMapper.selectById(id),
+                formNameOf(actor.tenantId(), process.getFormId()),
+                singleUserName(process.getCreatedBy()), true);
+    }
+
+    @Override
+    @Transactional
     public ApprovalProcessResponse updateProcess(Long userId, Long id,
                                                  ApprovalProcessRequest request) {
         ResolvedUserAccess actor = requirePermission(userId, "approval:manage");
@@ -864,6 +902,54 @@ public class ApprovalEngineServiceImpl implements ApprovalEngineService {
                 request.nodes().stream().map(node -> new ApprovalProcessAgentDraftRequest.Node(
                         node.nodeType(), node.nodeName(), node.approveType(), node.targetKey(), node.mode(),
                         node.timeoutEnabled(), node.timeoutHours(), node.timeoutAction())).toList()));
+    }
+
+    private void requirePublishableProcess(ApprovalProcess process) {
+        if (process.getNodeJson() == null || process.getNodeJson().isBlank()) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.approval.json.invalid");
+        }
+        try {
+            JsonNode nodesJson = objectMapper.readTree(process.getNodeJson());
+            if (nodesJson == null || !nodesJson.isArray()) {
+                throw new BusinessException(ErrorCode.REQUEST_INVALID,
+                        "validation.approval.json.invalid");
+            }
+            List<ApprovalProcessAgentDraftRequest.Node> nodes = new java.util.ArrayList<>(nodesJson.size());
+            for (JsonNode node : nodesJson) {
+                if (!node.isObject()) {
+                    throw new BusinessException(ErrorCode.REQUEST_INVALID,
+                            "validation.approval.json.invalid");
+                }
+                nodes.add(new ApprovalProcessAgentDraftRequest.Node(
+                        textValue(node, "nodeType"), textValue(node, "nodeName"),
+                        nullableTextValue(node, "approveType"), nullableTextValue(node, "targetKey"),
+                        nullableTextValue(node, "mode"), nullableBooleanValue(node, "timeoutEnabled"),
+                        nullableIntegerValue(node, "timeoutHours"), nullableTextValue(node, "timeoutAction")));
+            }
+            requireAgentProcessDraft(new ApprovalProcessAgentDraftRequest(
+                    process.getProcessKey(), process.getProcessName(), process.getDescription(),
+                    process.getFormId(), List.copyOf(nodes)));
+        } catch (JsonProcessingException exception) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.approval.json.invalid");
+        }
+    }
+
+    private Boolean nullableBooleanValue(JsonNode object, String field) {
+        JsonNode value = object.get(field);
+        if (value == null || value.isNull()) return null;
+        if (!value.isBoolean()) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.approval.json.invalid");
+        }
+        return value.booleanValue();
+    }
+
+    private Integer nullableIntegerValue(JsonNode object, String field) {
+        JsonNode value = object.get(field);
+        if (value == null || value.isNull()) return null;
+        if (!value.isIntegralNumber() || !value.canConvertToInt()) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.approval.json.invalid");
+        }
+        return value.intValue();
     }
 
     private void requireAgentRuleDraft(ApprovalRuleAgentDraftRequest request) {

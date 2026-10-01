@@ -323,6 +323,81 @@ class ApprovalEngineServiceImplTest {
     }
 
     @Test
+    void agentPublishesOnlyDisabledProcessAtExpectedVersion() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(readerAccess());
+        ApprovalProcess existing = process(USER_ID, null);
+        existing.setStatus("DISABLED");
+        existing.setVersion(2);
+        existing.setNodeJson("""
+                [{"nodeType":"START","nodeName":"开始"},
+                 {"nodeType":"APPROVAL","nodeName":"主管审批","approveType":"DIRECT_MANAGER",
+                  "targetKey":"","mode":"OR_SIGN","timeoutEnabled":false,"timeoutHours":48,"timeoutAction":"REMIND"},
+                 {"nodeType":"END","nodeName":"结束"}]
+                """);
+        ApprovalProcess published = process(USER_ID, null);
+        published.setStatus("ENABLED");
+        published.setVersion(3);
+        when(processMapper.selectById(41L)).thenReturn(existing, published);
+        when(processMapper.update(any(), any())).thenReturn(1);
+
+        var response = service.publishProcessDraftAgent(USER_ID, 41L, 2);
+
+        assertThat(response.status()).isEqualTo("ENABLED");
+        assertThat(response.version()).isEqualTo(3);
+        verify(processMapper).update(org.mockito.ArgumentMatchers.isNull(), any());
+        verify(auditService).record(TENANT_ID, USER_ID, "APPROVAL_PROCESS", "41",
+                "PUBLISH", "SUCCESS", "Agent 发布审批流程草稿");
+    }
+
+    @Test
+    void agentRejectsPublishingAnAlreadyEnabledProcess() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(readerAccess());
+        ApprovalProcess enabled = process(USER_ID, null);
+        enabled.setStatus("ENABLED");
+        when(processMapper.selectById(41L)).thenReturn(enabled);
+
+        assertThatThrownBy(() -> service.publishProcessDraftAgent(USER_ID, 41L, 2))
+                .isInstanceOf(com.aiworkmate.common.BusinessException.class);
+        org.mockito.Mockito.verify(processMapper, org.mockito.Mockito.never()).update(any(), any());
+    }
+
+    @Test
+    void agentRejectsPublishingMalformedStoredProcessNodes() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(readerAccess());
+        ApprovalProcess invalid = process(USER_ID, null);
+        invalid.setStatus("DISABLED");
+        invalid.setVersion(2);
+        invalid.setNodeJson("[]");
+        when(processMapper.selectById(41L)).thenReturn(invalid);
+
+        assertThatThrownBy(() -> service.publishProcessDraftAgent(USER_ID, 41L, 2))
+                .isInstanceOf(com.aiworkmate.common.BusinessException.class);
+        org.mockito.Mockito.verify(processMapper, org.mockito.Mockito.never()).update(any(), any());
+    }
+
+    @Test
+    void agentRejectsPublishingProcessBoundToDisabledForm() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(readerAccess());
+        ApprovalProcess existing = process(USER_ID, 31L);
+        existing.setStatus("DISABLED");
+        existing.setVersion(2);
+        existing.setNodeJson("""
+                [{"nodeType":"START","nodeName":"开始"},
+                 {"nodeType":"APPROVAL","nodeName":"主管审批","approveType":"DIRECT_MANAGER","mode":"OR_SIGN"},
+                 {"nodeType":"END","nodeName":"结束"}]
+                """);
+        ApprovalForm disabledForm = form(USER_ID);
+        disabledForm.setId(31L);
+        disabledForm.setStatus("DISABLED");
+        when(processMapper.selectById(41L)).thenReturn(existing);
+        when(formMapper.selectById(31L)).thenReturn(disabledForm);
+
+        assertThatThrownBy(() -> service.publishProcessDraftAgent(USER_ID, 41L, 2))
+                .isInstanceOf(com.aiworkmate.common.BusinessException.class);
+        org.mockito.Mockito.verify(processMapper, org.mockito.Mockito.never()).update(any(), any());
+    }
+
+    @Test
     void agentCreatesOnlyDisabledRuleFromSemanticConditions() {
         when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(readerAccess());
         when(ruleMapper.selectOne(any())).thenReturn(null);

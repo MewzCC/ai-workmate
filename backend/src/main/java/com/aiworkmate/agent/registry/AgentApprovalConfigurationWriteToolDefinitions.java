@@ -33,6 +33,12 @@ public class AgentApprovalConfigurationWriteToolDefinitions {
     static final String UPDATE_PROCESS_DRAFT_INPUT = """
             {"type":"object","additionalProperties":false,"required":["processId","version","processName","nodes"],"properties":{"processId":{"type":"integer","minimum":1},"version":{"type":"integer","minimum":1},"processName":{"type":"string","minLength":1,"maxLength":120},"description":{"type":"string","maxLength":500},"formId":{"type":"integer","minimum":1},"nodes":{"type":"array","minItems":3,"maxItems":20,"items":{"type":"object","additionalProperties":false,"required":["nodeType","nodeName"],"properties":{"nodeType":{"type":"string","enum":["START","APPROVAL","CONDITION","CC","DELAY","END"]},"nodeName":{"type":"string","minLength":1,"maxLength":80},"approveType":{"type":"string","enum":["DIRECT_MANAGER","ROLE","DEPARTMENT","USER","SELF","MULTI_LEVEL"]},"targetKey":{"type":"string","maxLength":80},"mode":{"type":"string","enum":["COUNTERSIGN","OR_SIGN","SEQUENTIAL"]},"timeoutEnabled":{"type":"boolean"},"timeoutHours":{"type":"integer","minimum":1,"maximum":720},"timeoutAction":{"type":"string","enum":["REMIND","TRANSFER","AUTO_APPROVE"]}}}}}}
             """.strip();
+    static final String PUBLISH_PROCESS_DRAFT_INPUT = """
+            {"type":"object","additionalProperties":false,"required":["processId","version"],"properties":{"processId":{"type":"integer","minimum":1},"version":{"type":"integer","minimum":1}}}
+            """.strip();
+    static final String PUBLISH_PROCESS_DRAFT_OUTPUT = """
+            {"type":"object","additionalProperties":false,"required":["processId","processKey","status","version","updatedAt"],"properties":{"processId":{"type":"integer","minimum":1},"processKey":{"type":"string","maxLength":64},"status":{"type":"string","const":"ENABLED"},"version":{"type":"integer","minimum":2},"updatedAt":{"type":"string","format":"date-time"}}}
+            """.strip();
     static final String CREATE_RULE_DRAFT_INPUT = """
             {"type":"object","additionalProperties":false,"required":["ruleKey","ruleName","ruleType","priority","logic","conditions","action"],"properties":{"ruleKey":{"type":"string","pattern":"^[a-z][a-z0-9_-]{0,63}$"},"ruleName":{"type":"string","minLength":1,"maxLength":120},"ruleType":{"type":"string","enum":["AMOUNT_THRESHOLD","LEAVE_TYPE","EMPLOYEE_LEVEL","LIMIT_OVERRIDE"]},"priority":{"type":"integer","minimum":0,"maximum":10000},"description":{"type":"string","maxLength":500},"logic":{"type":"string","enum":["AND","OR"]},"conditions":{"type":"array","minItems":1,"maxItems":10,"items":{"type":"object","additionalProperties":false,"required":["field","operator","value"],"properties":{"field":{"type":"string","enum":["amount","durationDays","department","employeeLevel","leaveType"]},"operator":{"type":"string","enum":["eq","ne","gt","gte","lt","lte","in"]},"value":{"type":"string","minLength":1,"maxLength":120}}}},"action":{"type":"object","additionalProperties":false,"required":["appendNode","enabled","mode"],"properties":{"appendNode":{"type":"string","enum":["DEPARTMENT_HEAD","FINANCE_REVIEW","DIRECT_MANAGER"]},"enabled":{"type":"boolean"},"mode":{"type":"string","enum":["COUNTERSIGN","OR_SIGN","SEQUENTIAL"]}}}}}
             """.strip();
@@ -101,6 +107,18 @@ public class AgentApprovalConfigurationWriteToolDefinitions {
                 mapper.readTree(UPDATE_PROCESS_DRAFT_INPUT), mapper.readTree(CREATE_PROCESS_DRAFT_OUTPUT),
                 ToolWriteProfile.NON_RETRYABLE_L1, Set.of("approval:manage"),
                 OwnershipPolicy.FIXED_RESOURCE, 1, 16384, 15000);
+    }
+
+    @Bean
+    ToolDefinition approvalProcessPublishDraftToolDefinition(ObjectMapper mapper)
+            throws JsonProcessingException {
+        return ToolDefinitionFactory.singleWrite(ToolCode.APPROVAL_PROCESS_PUBLISH_DRAFT,
+                "Publish an approval process draft",
+                "Publishes one disabled tenant approval process using an expected version.",
+                "Publish one validated disabled process only after secondary confirmation; never delete or edit nodes.",
+                mapper.readTree(PUBLISH_PROCESS_DRAFT_INPUT), mapper.readTree(PUBLISH_PROCESS_DRAFT_OUTPUT),
+                ToolWriteProfile.SECONDARY_L2, Set.of("approval:manage"),
+                OwnershipPolicy.FIXED_RESOURCE, 1, 4096, 15000);
     }
 
     @Bean
