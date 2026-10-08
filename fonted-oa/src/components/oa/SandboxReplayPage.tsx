@@ -31,6 +31,7 @@ import {
   type SandboxReplayRecord,
   type SandboxReplayStatus,
 } from '@/lib/sandboxReplayApi';
+import { uuid } from '@/lib/uuid';
 import ResponsiveTable from './ResponsiveTable';
 
 type ReplayFormValue = { sourceInvocationId: number; reason: string };
@@ -131,7 +132,7 @@ export default function SandboxReplayPage() {
       const result = await sandboxReplayApi.execute({
         sourceInvocationId: value.sourceInvocationId,
         reason: value.reason.trim(),
-        idempotencyKey: crypto.randomUUID(),
+        idempotencyKey: uuid(),
       });
       message.success(t('sandboxReplay.messages.completed'));
       setEditorOpen(false);
