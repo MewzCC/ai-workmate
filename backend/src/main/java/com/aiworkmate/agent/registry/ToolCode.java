@@ -110,6 +110,7 @@ public enum ToolCode {
     SUPPLIER_UPDATE_DRAFT("supplier.updateDraft", SideEffect.SINGLE_WRITE),
     SUPPLIER_UPDATE_STATUS("supplier.updateStatus", SideEffect.SINGLE_WRITE),
     INTEGRATION_ENDPOINT_QUERY("integration.endpoint.query"),
+    INTEGRATION_ENDPOINT_CREATE_DRAFT("integration.endpoint.createDraft", SideEffect.SINGLE_WRITE),
     PAGE_ACTION_QUERY("pageAction.query"),
     RUNTIME_LOG_QUERY("runtimeLog.query"),
     OBSERVABILITY_PREFERENCES_UPDATE("observability.preferences.update", SideEffect.SINGLE_WRITE),

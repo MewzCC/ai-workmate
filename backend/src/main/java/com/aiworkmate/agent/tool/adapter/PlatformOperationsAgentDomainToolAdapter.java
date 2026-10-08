@@ -3,6 +3,7 @@ package com.aiworkmate.agent.tool.adapter;
 import com.aiworkmate.agent.tool.port.PlatformOperationsToolPort;
 import com.aiworkmate.agent.tool.port.ToolActorContext;
 import com.aiworkmate.dto.PageActionOverviewResponse;
+import com.aiworkmate.dto.IntegrationEndpointRequest;
 import com.aiworkmate.service.IntegrationEndpointService;
 import com.aiworkmate.service.PageActionPolicyService;
 import com.aiworkmate.service.RuntimeLogService;
@@ -42,6 +43,14 @@ public class PlatformOperationsAgentDomainToolAdapter implements PlatformOperati
         if (q.replayId() != null) return new Page<>(List.of(replay(replayService.detail(c.userId(), q.replayId()))), 1, 1, 1);
         var result = replayService.list(c.userId(), q.keyword(), q.status(), q.page(), q.size());
         return new Page<>(result.records().stream().map(this::replay).toList(), result.total(), result.page(), result.size());
+    }
+    @Override public CreateEndpointResult createEndpointDraft(ToolActorContext c, CreateEndpointCommand command) {
+        var result = endpointService.createAgent(c.userId(), new IntegrationEndpointRequest(
+                command.code(), command.name(), command.upstreamCode(), command.method(),
+                command.relativePath(), command.requestTemplate(), command.description(), null));
+        return new CreateEndpointResult(result.id(), result.code(), result.name(), result.upstreamCode(),
+                result.method(), result.relativePath(), result.description(), result.status(), result.version(),
+                result.updatedAt());
     }
     private Endpoint endpoint(com.aiworkmate.dto.IntegrationEndpointResponse x) { return new Endpoint(x.id(), x.code(), x.name(), x.upstreamCode(), x.method(), x.relativePath(), x.description(), x.status(), x.version(), x.updatedAt(), x.canManage(), x.canExecute(), List.copyOf(x.allowedTransitions())); }
     private PageAction pageAction(PageActionOverviewResponse.Action x) { return new PageAction(x.pageId(), x.toolCode(), x.name(), x.description(), x.riskLevel(), x.sideEffect(), x.confirmationPolicy(), List.copyOf(x.requiredPermissions()), x.enabled(), x.explicitlyConfigured(), x.version()); }

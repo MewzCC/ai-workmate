@@ -130,6 +130,7 @@ const aiPermission = {
     supplier_updateDraft: { name: 'Update supplier draft', description: 'Updates a version-matched supplier draft without changing its enabled status.' },
     supplier_updateStatus: { name: 'Update supplier status', description: 'Activates, suspends, restores, or blacklists one supplier after secondary confirmation.' },
     integration_endpoint_query: { name: 'Query integration endpoints', description: 'Returns controlled endpoint metadata without request templates or response payloads.' },
+    integration_endpoint_createDraft: { name: 'Create endpoint draft', description: 'Creates one endpoint draft from a server-registered upstream and relative path after secondary confirmation, without activation or network execution.' },
     pageAction_query: { name: 'Query page actions', description: 'Returns the code-owned page action catalog and tenant enablement status.' },
     runtimeLog_query: { name: 'Query runtime logs', description: 'Returns bounded runtime metadata without payload previews or fingerprints.' },
     sandboxReplay_query: { name: 'Query sandbox replays', description: 'Returns replay results without baseline or response payloads.' },

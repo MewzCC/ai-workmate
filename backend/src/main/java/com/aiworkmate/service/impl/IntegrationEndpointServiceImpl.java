@@ -39,6 +39,10 @@ public class IntegrationEndpointServiceImpl implements IntegrationEndpointServic
     private static final Set<String> SENSITIVE_KEYS = Set.of("authorization", "cookie", "password", "passwd", "secret", "token", "apikey", "api_key", "accesskey", "privatekey");
     private static final Map<String,List<String>> TRANSITIONS = Map.of("DRAFT",List.of("ACTIVE","DISABLED"),"ACTIVE",List.of("DISABLED"),"DISABLED",List.of("ACTIVE"));
     private static final Duration EXECUTION_COOLDOWN = Duration.ofSeconds(3);
+    private static final java.util.regex.Pattern ENDPOINT_CODE_PATTERN =
+            java.util.regex.Pattern.compile("^[A-Za-z0-9][A-Za-z0-9_-]{1,63}$");
+    private static final java.util.regex.Pattern UPSTREAM_CODE_PATTERN =
+            java.util.regex.Pattern.compile("^[a-z][a-z0-9-]{1,39}$");
 
     private final IntegrationEndpointMapper endpointMapper;
     private final IntegrationInvocationMapper invocationMapper;
@@ -77,6 +81,12 @@ public class IntegrationEndpointServiceImpl implements IntegrationEndpointServic
         audit(actor,endpoint,"CREATE");return response(endpoint,true,canExecute(actor));}
 
     @Override @Transactional
+    public IntegrationEndpointResponse createAgent(Long userId, IntegrationEndpointRequest request) {
+        validateAgentCreate(request);
+        return create(userId, request);
+    }
+
+    @Override @Transactional
     public IntegrationEndpointResponse update(Long userId,Long id,IntegrationEndpointRequest request){ResolvedUserAccess actor=requireManage(userId);IntegrationEndpoint old=requireEndpoint(actor,id);requireVersion(request.version(),old.getVersion());
         if("ACTIVE".equals(old.getStatus()))throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID,"validation.integration.edit.active");
         if(!old.getEndpointCode().equals(code(request.code())))throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID,"validation.integration.code.immutable");validate(request);
@@ -97,6 +107,20 @@ public class IntegrationEndpointServiceImpl implements IntegrationEndpointServic
         IntegrationInvocation invocation=new IntegrationInvocation();invocation.setTenantId(actor.tenantId());invocation.setEndpointId(id);invocation.setRequestHash(payloadSecurity.requestHash(endpoint.getHttpMethod(),endpoint.getRelativePath(),endpoint.getRequestTemplate()));invocation.setOutcome(call.outcome());invocation.setHttpStatus(call.httpStatus());invocation.setDurationMs(call.durationMs());invocation.setResponsePreview(payloadSecurity.sanitizeResponsePreview(call.responsePreview()));invocation.setErrorCode(call.errorCode());invocation.setTraceId(StringUtils.hasText(TraceContext.traceId())?TraceContext.traceId():UUID.randomUUID().toString().replace("-",""));invocation.setOperatorId(actor.userId());invocation.setOperatorLabel(actor.username());invocation.setCreatedAt(LocalDateTime.now());invocationMapper.insert(invocation);audit(actor,endpoint,"EXECUTE_"+call.outcome());return invocationResponse(invocation);}
 
     private void validate(IntegrationEndpointRequest request){if(!sandboxClient.isRegistered(request.upstreamCode()))throw new BusinessException(ErrorCode.REQUEST_INVALID,"validation.integration.upstream.invalid");validatePath(request.relativePath());String body=trim(request.requestTemplate());if(("GET".equals(request.method())||"DELETE".equals(request.method()))&&body!=null)throw new BusinessException(ErrorCode.REQUEST_INVALID,"validation.integration.body.notAllowed");if(body!=null){try{JsonNode node=objectMapper.readTree(body);if(!node.isObject()||containsSensitive(node))throw new BusinessException(ErrorCode.REQUEST_INVALID,"validation.integration.template.sensitive");}catch(BusinessException ex){throw ex;}catch(Exception ex){throw new BusinessException(ErrorCode.REQUEST_INVALID,"validation.integration.template.invalid");}}}
+    private void validateAgentCreate(IntegrationEndpointRequest request) {
+        if (request == null || !StringUtils.hasText(request.code())
+                || !ENDPOINT_CODE_PATTERN.matcher(request.code().trim()).matches()
+                || !StringUtils.hasText(request.name()) || request.name().trim().length() > 160
+                || !StringUtils.hasText(request.upstreamCode())
+                || !UPSTREAM_CODE_PATTERN.matcher(request.upstreamCode().trim()).matches()
+                || !Set.of("GET", "POST", "PUT", "PATCH", "DELETE").contains(request.method())
+                || !StringUtils.hasText(request.relativePath()) || request.relativePath().length() > 500
+                || (request.requestTemplate() != null && request.requestTemplate().length() > 16000)
+                || (request.description() != null && request.description().trim().length() > 2000)
+                || request.version() != null) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+    }
     private void validatePath(String path){String lower=path.toLowerCase(Locale.ROOT);if(!path.startsWith("/")||path.startsWith("//")||path.contains("\\")||path.contains("\r")||path.contains("\n")||lower.contains("://")||lower.contains("..")||lower.contains("%2e")||lower.contains("@"))throw new BusinessException(ErrorCode.REQUEST_INVALID,"validation.integration.path.invalid");}
     private boolean containsSensitive(JsonNode node){Iterator<String> names=node.fieldNames();while(names.hasNext())if(isSensitiveKey(names.next()))return true;for(JsonNode child:node)if(child.isContainerNode()&&containsSensitive(child))return true;return false;}
     private boolean isSensitiveKey(String name){String normalized=name.replace("-","").replace("_","").toLowerCase(Locale.ROOT);return SENSITIVE_KEYS.stream().map(key->key.replace("_","")).anyMatch(normalized::equals);}

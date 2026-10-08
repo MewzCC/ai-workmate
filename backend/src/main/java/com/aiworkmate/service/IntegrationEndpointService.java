@@ -5,6 +5,7 @@ public interface IntegrationEndpointService {
  IntegrationDetailResponse detail(Long userId,Long id);
  IntegrationOptionsResponse options(Long userId);
  IntegrationEndpointResponse create(Long userId,IntegrationEndpointRequest request);
+ IntegrationEndpointResponse createAgent(Long userId,IntegrationEndpointRequest request);
  IntegrationEndpointResponse update(Long userId,Long id,IntegrationEndpointRequest request);
  IntegrationEndpointResponse updateStatus(Long userId,Long id,IntegrationStatusRequest request);
  IntegrationInvocationResponse execute(Long userId,Long id,Integer version);

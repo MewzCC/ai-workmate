@@ -130,6 +130,7 @@ const aiPermission = {
     supplier_updateDraft: { name: '更新供应商草稿', description: '更新版本匹配的供应商草稿，不改变启用状态。' },
     supplier_updateStatus: { name: '变更供应商状态', description: '经二次确认后启用、暂停、恢复或拉黑一条供应商记录。' },
     integration_endpoint_query: { name: '查询接口端点', description: '返回受控端点元数据，不包含请求模板或响应载荷。' },
+    integration_endpoint_createDraft: { name: '创建接口端点草稿', description: '经二次确认后基于服务端已注册上游和相对路径创建单个端点草稿，不激活或执行网络调用。' },
     pageAction_query: { name: '查询页面操作', description: '返回代码拥有的页面操作目录及租户启用状态。' },
     runtimeLog_query: { name: '查询运行日志', description: '返回有界运行元数据，不包含载荷预览或指纹。' },
     sandboxReplay_query: { name: '查询沙箱回放', description: '返回回放结果，不包含基线或响应载荷。' },
