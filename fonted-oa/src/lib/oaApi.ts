@@ -10,6 +10,7 @@ import type {
   PageCapability,
 } from '@/types/oa';
 import { buildApiHeaders } from '@/lib/apiHeaders';
+import { uuid } from '@/lib/uuid';
 import i18n from '@/i18n';
 import { notifyAuthResponseStatus } from '@/lib/authEvents';
 import { requirePageUiCommandCodes } from '@/lib/pageUiCommands';
@@ -117,7 +118,7 @@ export async function getPageCapabilities(pageId: string): Promise<PageCapabilit
 }
 
 export function createIdempotencyKey(): string {
-  return crypto.randomUUID();
+  return uuid();
 }
 
 export async function planAiTask(

@@ -1,4 +1,5 @@
 import i18n from '@/i18n';
+import { uuid } from '@/lib/uuid';
 
 /**
  * 构造请求头，统一注入 Accept-Language 与 X-Request-Id。
@@ -8,7 +9,7 @@ import i18n from '@/i18n';
  */
 export function buildApiHeaders(json = true, extra?: HeadersInit): HeadersInit {
   const result: Record<string, string> = {
-    'X-Request-Id': crypto.randomUUID().replaceAll('-', ''),
+    'X-Request-Id': uuid().replaceAll('-', ''),
     'Accept-Language': i18n.language || 'zh-CN',
   };
   if (json) result['Content-Type'] = 'application/json';
