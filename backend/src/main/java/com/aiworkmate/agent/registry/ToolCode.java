@@ -127,6 +127,7 @@ public enum ToolCode {
     DICTIONARY_ITEM_CREATE("dictionary.item.create", SideEffect.SINGLE_WRITE),
     DICTIONARY_ITEM_UPDATE("dictionary.item.update", SideEffect.SINGLE_WRITE),
     DICTIONARY_TYPE_UPDATE_STATUS("dictionary.type.updateStatus", SideEffect.SINGLE_WRITE),
+    DICTIONARY_ITEM_UPDATE_STATUS("dictionary.item.updateStatus", SideEffect.SINGLE_WRITE),
     SYSTEM_CAPABILITY_QUERY("systemCapability.query"),
     USER_SETTINGS_UPDATE("userSettings.update", SideEffect.SINGLE_WRITE),
     AGENT_TASK_MINE_QUERY("agentTask.mine.query"),

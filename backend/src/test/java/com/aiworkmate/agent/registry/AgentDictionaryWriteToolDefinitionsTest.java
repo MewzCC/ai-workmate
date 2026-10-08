@@ -71,5 +71,16 @@ class AgentDictionaryWriteToolDefinitionsTest {
         assertThat(updateTypeStatus.ownershipPolicy()).isEqualTo(OwnershipPolicy.FIXED_RESOURCE);
         assertThat(updateTypeStatus.inputSchema().path("required")).extracting(JsonNode::asText)
                 .containsExactly("code", "version", "status");
+
+        var updateItemStatus = definitions.dictionaryItemUpdateStatusToolDefinition(new ObjectMapper());
+        assertThat(updateItemStatus.code()).isEqualTo("dictionary.item.updateStatus");
+        assertThat(updateItemStatus.schemaHash()).isEqualTo(
+                "sha256:a427c5f87244f9808d49c39e3f35905928e36cc0933bb6c34dfacef16dc12acd");
+        assertThat(updateItemStatus.riskLevel()).isEqualTo(RiskLevel.L2);
+        assertThat(updateItemStatus.retryPolicy()).isEqualTo(RetryPolicy.NEVER);
+        assertThat(updateItemStatus.confirmationPolicy()).isEqualTo(ConfirmationPolicy.SECONDARY);
+        assertThat(updateItemStatus.ownershipPolicy()).isEqualTo(OwnershipPolicy.FIXED_RESOURCE);
+        assertThat(updateItemStatus.inputSchema().path("required")).extracting(JsonNode::asText)
+                .containsExactly("typeCode", "value", "version", "status");
     }
 }

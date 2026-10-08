@@ -145,6 +145,7 @@ const aiPermission = {
     dictionary_item_create: { name: 'Create dictionary item', description: 'Creates one active item in an active dictionary type after secondary confirmation, without status changes, deletion, or batch import.' },
     dictionary_item_update: { name: 'Update dictionary item', description: 'Updates one item label, description, or order by type code, immutable value, and optimistic version after confirmation.' },
     dictionary_type_updateStatus: { name: 'Change dictionary type status', description: 'Activates or disables one dictionary type after secondary confirmation and version validation, without changing items or deleting data.' },
+    dictionary_item_updateStatus: { name: 'Change dictionary item status', description: 'Activates or disables one dictionary item by type code and immutable value after secondary confirmation and version validation, without content changes or deletion.' },
     systemCapability_query: { name: 'Query system capabilities', description: 'Returns only capability status without keys, addresses, connection strings, or stacks.' },
     agentTask_mine_query: { name: 'Query my Agent tasks', description: 'Reads only Agent task summaries owned by the current user.' },
     agentTask_cancel: { name: 'Cancel my Agent task', description: 'Cancels one cancellable Agent task owned by the current user after explicit confirmation.' },

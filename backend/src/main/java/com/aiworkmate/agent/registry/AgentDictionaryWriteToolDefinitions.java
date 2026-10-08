@@ -39,6 +39,10 @@ public class AgentDictionaryWriteToolDefinitions {
     static final String UPDATE_TYPE_STATUS_OUTPUT = """
             {"type":"object","additionalProperties":false,"required":["dictionaryTypeId","code","name","status","sortOrder","version","updatedAt"],"properties":{"dictionaryTypeId":{"type":"integer","minimum":1},"code":{"type":"string","maxLength":64},"name":{"type":"string","maxLength":120},"description":{"type":["string","null"],"maxLength":500},"status":{"type":"string","enum":["ACTIVE","DISABLED"]},"sortOrder":{"type":"integer","minimum":0,"maximum":9999},"version":{"type":"integer","minimum":1},"updatedAt":{"type":"string","format":"date-time"}}}
             """.strip();
+    static final String UPDATE_ITEM_STATUS_INPUT = """
+            {"type":"object","additionalProperties":false,"required":["typeCode","value","version","status"],"properties":{"typeCode":{"type":"string","pattern":"^[A-Z][A-Z0-9_]{1,63}$","maxLength":64},"value":{"type":"string","pattern":"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$","maxLength":128},"version":{"type":"integer","minimum":0,"maximum":2147483646},"status":{"type":"string","enum":["ACTIVE","DISABLED"]}}}
+            """.strip();
+    static final String UPDATE_ITEM_STATUS_OUTPUT = UPDATE_ITEM_OUTPUT;
 
     @Bean
     ToolDefinition dictionaryTypeCreateToolDefinition(ObjectMapper mapper) throws JsonProcessingException {
@@ -91,6 +95,17 @@ public class AgentDictionaryWriteToolDefinitions {
                 "Activates or disables one tenant dictionary type selected by immutable code and version.",
                 "Change only one dictionary type status after secondary confirmation, without metadata or item changes, deletion, batch or security configuration access.",
                 mapper.readTree(UPDATE_TYPE_STATUS_INPUT), mapper.readTree(UPDATE_TYPE_STATUS_OUTPUT),
+                ToolWriteProfile.SECONDARY_L2, Set.of("dictionary:manage"), OwnershipPolicy.FIXED_RESOURCE,
+                1, 8192, 10000);
+    }
+
+    @Bean
+    ToolDefinition dictionaryItemUpdateStatusToolDefinition(ObjectMapper mapper) throws JsonProcessingException {
+        return ToolDefinitionFactory.singleWrite(ToolCode.DICTIONARY_ITEM_UPDATE_STATUS,
+                "Update one dictionary item status",
+                "Activates or disables one tenant dictionary item selected by immutable type code, value and version.",
+                "Change only one dictionary item status after secondary confirmation, without metadata changes, deletion, batch or security configuration access.",
+                mapper.readTree(UPDATE_ITEM_STATUS_INPUT), mapper.readTree(UPDATE_ITEM_STATUS_OUTPUT),
                 ToolWriteProfile.SECONDARY_L2, Set.of("dictionary:manage"), OwnershipPolicy.FIXED_RESOURCE,
                 1, 8192, 10000);
     }

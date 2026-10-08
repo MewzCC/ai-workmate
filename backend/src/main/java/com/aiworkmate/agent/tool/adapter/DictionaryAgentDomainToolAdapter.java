@@ -79,4 +79,13 @@ public class DictionaryAgentDomainToolAdapter implements DictionaryToolPort {
         return new UpdateTypeResult(response.id(), response.code(), response.name(), response.description(),
                 response.status(), response.sortOrder(), response.version(), response.updatedAt());
     }
+
+    @Override
+    public UpdateItemResult updateItemStatus(ToolActorContext context, UpdateItemStatusCommand command) {
+        var response = dictionaryService.updateItemStatusAgent(context.userId(), command.typeCode(), command.value(),
+                new DictionaryStatusRequest(command.status(), command.version()));
+        return new UpdateItemResult(response.id(), command.typeCode(), response.value(), response.label(),
+                response.description(), response.status(), response.sortOrder(), response.usageCount(),
+                response.version(), response.updatedAt());
+    }
 }

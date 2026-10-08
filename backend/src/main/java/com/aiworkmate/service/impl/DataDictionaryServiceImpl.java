@@ -305,6 +305,26 @@ public class DataDictionaryServiceImpl implements DataDictionaryService {
 
     @Override
     @Transactional
+    public DictionaryItemResponse updateItemStatusAgent(
+            Long userId, String typeCode, String value, DictionaryStatusRequest request) {
+        validateAgentItemStatus(typeCode, value, request);
+        ResolvedUserAccess actor = requireManage(userId);
+        DataDictionaryType type = requireType(actor, typeCode.trim());
+        DataDictionaryItem existing = requireItem(actor, type.getId(), value.trim());
+        requireVersion(request.version(), existing.getVersion());
+        if (request.status().equals(existing.getStatus())) {
+            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID);
+        }
+        DataDictionaryItem changed = new DataDictionaryItem();
+        changed.setStatus(request.status());
+        updateItemWithVersion(actor, existing, changed);
+        audit(actor, "DICTIONARY_ITEM", existing.getId(), "SET_STATUS",
+                existing.getValue() + ":" + request.status());
+        return itemResponse(actor, requireItem(actor, type.getId(), existing.getId()), true);
+    }
+
+    @Override
+    @Transactional
     public void deleteItem(Long userId, Long typeId, Long itemId, Integer version) {
         ResolvedUserAccess actor = requireManage(userId);
         DataDictionaryItem existing = requireItem(actor, typeId, itemId);
@@ -488,6 +508,16 @@ public class DataDictionaryServiceImpl implements DataDictionaryService {
                 || !StringUtils.hasText(request.label()) || request.label().trim().length() > 160
                 || (request.description() != null && request.description().trim().length() > 500)
                 || (request.sortOrder() != null && (request.sortOrder() < 0 || request.sortOrder() > 9999))) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+    }
+    private void validateAgentItemStatus(String typeCode, String value, DictionaryStatusRequest request) {
+        if (!StringUtils.hasText(typeCode) || !TYPE_CODE_PATTERN.matcher(typeCode.trim()).matches()
+                || !StringUtils.hasText(value) || !ITEM_VALUE_PATTERN.matcher(value.trim()).matches()
+                || request == null || request.version() == null || request.version() < 0
+                || request.version() == Integer.MAX_VALUE
+                || !StringUtils.hasText(request.status())
+                || (!"ACTIVE".equals(request.status()) && !"DISABLED".equals(request.status()))) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID);
         }
     }

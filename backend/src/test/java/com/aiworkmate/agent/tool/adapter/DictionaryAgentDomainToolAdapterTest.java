@@ -147,4 +147,24 @@ class DictionaryAgentDomainToolAdapterTest {
         verify(service).updateTypeStatusAgent(2L, "PROJECT_STAGE",
                 new DictionaryStatusRequest("DISABLED", 4));
     }
+
+    @Test
+    void mapsImmutableItemCoordinatesAndVersionForStatusChange() {
+        var updatedAt = LocalDateTime.of(2026, 10, 2, 3, 5);
+        when(service.updateItemStatusAgent(2L, "PROJECT_STAGE", "IN_PROGRESS",
+                new DictionaryStatusRequest("DISABLED", 4)))
+                .thenReturn(new DictionaryItemResponse(101L, 91L, "IN_PROGRESS", "进行中", null,
+                        "DISABLED", 20, 2L, 5, updatedAt, true, false));
+
+        var result = adapter.updateItemStatus(actor, new DictionaryToolPort.UpdateItemStatusCommand(
+                "PROJECT_STAGE", "IN_PROGRESS", 4, "DISABLED"));
+
+        assertThat(result.dictionaryItemId()).isEqualTo(101L);
+        assertThat(result.typeCode()).isEqualTo("PROJECT_STAGE");
+        assertThat(result.value()).isEqualTo("IN_PROGRESS");
+        assertThat(result.status()).isEqualTo("DISABLED");
+        assertThat(result.version()).isEqualTo(5);
+        verify(service).updateItemStatusAgent(2L, "PROJECT_STAGE", "IN_PROGRESS",
+                new DictionaryStatusRequest("DISABLED", 4));
+    }
 }

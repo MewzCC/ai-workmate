@@ -209,6 +209,55 @@ class DataDictionaryServiceImplTest {
     }
 
     @Test
+    void shouldChangeAgentItemStatusByImmutableCoordinatesAndVersion() {
+        when(userAccessService.resolveActiveUser(1001L)).thenReturn(
+                access(List.of("route:dictionary", "dictionary:manage")));
+        when(typeMapper.selectOne(any())).thenReturn(
+                dictionaryType("PROJECT_STAGE", "项目阶段", null, 20, 1));
+        DataDictionaryItem existing = dictionaryItem("IN_PROGRESS", "进行中", null, 20, 4);
+        DataDictionaryItem updated = dictionaryItem("IN_PROGRESS", "进行中", null, 20, 5);
+        updated.setStatus("DISABLED");
+        when(itemMapper.selectOne(any())).thenReturn(existing, updated);
+        when(itemMapper.update(any(), any())).thenReturn(1);
+        when(usageMapper.selectCount(any())).thenReturn(2L);
+
+        var response = service.updateItemStatusAgent(1001L, "PROJECT_STAGE", "IN_PROGRESS",
+                new DictionaryStatusRequest("DISABLED", 4));
+
+        assertThat(response.status()).isEqualTo("DISABLED");
+        assertThat(response.version()).isEqualTo(5);
+        verify(auditService).recordTransactional(
+                9L, 1001L, "DICTIONARY_ITEM", "101", "SET_STATUS", "SUCCESS",
+                "IN_PROGRESS:DISABLED");
+    }
+
+    @Test
+    void shouldRejectInvalidAgentItemStatusBeforeResolvingActor() {
+        assertThatThrownBy(() -> service.updateItemStatusAgent(1001L, "PROJECT_STAGE", "IN_PROGRESS",
+                new DictionaryStatusRequest("UNKNOWN", 4)))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("REQUEST_INVALID");
+        verifyNoInteractions(userAccessService, typeMapper, itemMapper, usageMapper, auditService);
+    }
+
+    @Test
+    void shouldRejectAgentItemStatusNoOpWithoutWritingOrAuditing() {
+        when(userAccessService.resolveActiveUser(1001L)).thenReturn(
+                access(List.of("route:dictionary", "dictionary:manage")));
+        when(typeMapper.selectOne(any())).thenReturn(
+                dictionaryType("PROJECT_STAGE", "项目阶段", null, 20, 1));
+        when(itemMapper.selectOne(any())).thenReturn(
+                dictionaryItem("IN_PROGRESS", "进行中", null, 20, 4));
+
+        assertThatThrownBy(() -> service.updateItemStatusAgent(1001L, "PROJECT_STAGE", "IN_PROGRESS",
+                new DictionaryStatusRequest("ACTIVE", 4)))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("BUSINESS_STATE_INVALID");
+        verify(itemMapper, org.mockito.Mockito.never()).update(any(), any());
+        verifyNoInteractions(usageMapper, auditService);
+    }
+
+    @Test
     void shouldListAgentItemsByTenantTypeCodeWithBoundedPage() {
         when(userAccessService.resolveActiveUser(1001L)).thenReturn(access(List.of("route:dictionary")));
         when(typeMapper.selectOne(any())).thenReturn(dictionaryType("PROJECT_STAGE", "项目阶段", null, 20, 1));

@@ -280,7 +280,7 @@ class PageCapabilityCatalogTest {
         assertThat(catalog.find("dictionary").orElseThrow().writeTools()).extracting(PageToolReference::code)
                 .containsExactly(ToolCode.DICTIONARY_TYPE_CREATE, ToolCode.DICTIONARY_TYPE_UPDATE,
                         ToolCode.DICTIONARY_ITEM_CREATE, ToolCode.DICTIONARY_ITEM_UPDATE,
-                        ToolCode.DICTIONARY_TYPE_UPDATE_STATUS);
+                        ToolCode.DICTIONARY_TYPE_UPDATE_STATUS, ToolCode.DICTIONARY_ITEM_UPDATE_STATUS);
         assertThat(catalog.find("system-config").orElseThrow().readTools()).extracting(PageToolReference::code).containsExactly(ToolCode.SYSTEM_CAPABILITY_QUERY);
         assertThat(catalog.find("system-config").orElseThrow().writeTools()).extracting(PageToolReference::code).containsExactly(ToolCode.USER_SETTINGS_UPDATE);
     }
