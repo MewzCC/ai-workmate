@@ -87,11 +87,17 @@ public class IntegrationEndpointServiceImpl implements IntegrationEndpointServic
     }
 
     @Override @Transactional
-    public IntegrationEndpointResponse update(Long userId,Long id,IntegrationEndpointRequest request){ResolvedUserAccess actor=requireManage(userId);IntegrationEndpoint old=requireEndpoint(actor,id);requireVersion(request.version(),old.getVersion());
+    public IntegrationEndpointResponse update(Long userId,Long id,IntegrationEndpointRequest request){ResolvedUserAccess actor=requireManage(userId);IntegrationEndpoint old=requireEndpoint(actor,id);return update(actor,old,request);}
+
+    @Override @Transactional
+    public IntegrationEndpointResponse updateAgentDraft(Long userId,Long id,IntegrationEndpointRequest request){validateAgentUpdate(id,request);ResolvedUserAccess actor=requireManage(userId);IntegrationEndpoint old=requireEndpoint(actor,id);
+        if(!"DRAFT".equals(old.getStatus()))throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID);return update(actor,old,request);}
+
+    private IntegrationEndpointResponse update(ResolvedUserAccess actor,IntegrationEndpoint old,IntegrationEndpointRequest request){requireVersion(request.version(),old.getVersion());
         if("ACTIVE".equals(old.getStatus()))throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID,"validation.integration.edit.active");
         if(!old.getEndpointCode().equals(code(request.code())))throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID,"validation.integration.code.immutable");validate(request);
         IntegrationEndpoint changed=new IntegrationEndpoint();apply(changed,request);changed.setUpdatedBy(actor.userId());changed.setUpdatedAt(LocalDateTime.now());changed.setVersion(old.getVersion()+1);
-        int updated;try{updated=endpointMapper.update(changed,update(actor,old));}catch(DuplicateKeyException ex){throw new BusinessException(ErrorCode.REQUEST_INVALID,"validation.integration.duplicate");}if(updated!=1)conflict();audit(actor,old,"UPDATE");return response(requireEndpoint(actor,id),true,canExecute(actor));}
+        int updated;try{updated=endpointMapper.update(changed,update(actor,old));}catch(DuplicateKeyException ex){throw new BusinessException(ErrorCode.REQUEST_INVALID,"validation.integration.duplicate");}if(updated!=1)conflict();audit(actor,old,"UPDATE");return response(requireEndpoint(actor,old.getId()),true,canExecute(actor));}
 
     @Override @Transactional
     public IntegrationEndpointResponse updateStatus(Long userId,Long id,IntegrationStatusRequest request){ResolvedUserAccess actor=requireManage(userId);IntegrationEndpoint old=requireEndpoint(actor,id);requireVersion(request.version(),old.getVersion());String target=normalizeStatus(request.status());
@@ -108,7 +114,20 @@ public class IntegrationEndpointServiceImpl implements IntegrationEndpointServic
 
     private void validate(IntegrationEndpointRequest request){if(!sandboxClient.isRegistered(request.upstreamCode()))throw new BusinessException(ErrorCode.REQUEST_INVALID,"validation.integration.upstream.invalid");validatePath(request.relativePath());String body=trim(request.requestTemplate());if(("GET".equals(request.method())||"DELETE".equals(request.method()))&&body!=null)throw new BusinessException(ErrorCode.REQUEST_INVALID,"validation.integration.body.notAllowed");if(body!=null){try{JsonNode node=objectMapper.readTree(body);if(!node.isObject()||containsSensitive(node))throw new BusinessException(ErrorCode.REQUEST_INVALID,"validation.integration.template.sensitive");}catch(BusinessException ex){throw ex;}catch(Exception ex){throw new BusinessException(ErrorCode.REQUEST_INVALID,"validation.integration.template.invalid");}}}
     private void validateAgentCreate(IntegrationEndpointRequest request) {
-        if (request == null || !StringUtils.hasText(request.code())
+        if (request == null || request.version() != null) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        validateAgentFields(request);
+    }
+    private void validateAgentUpdate(Long id, IntegrationEndpointRequest request) {
+        if (id == null || id < 1 || request == null || request.version() == null
+                || request.version() < 0 || request.version() == Integer.MAX_VALUE) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        validateAgentFields(request);
+    }
+    private void validateAgentFields(IntegrationEndpointRequest request) {
+        if (!StringUtils.hasText(request.code())
                 || !ENDPOINT_CODE_PATTERN.matcher(request.code().trim()).matches()
                 || !StringUtils.hasText(request.name()) || request.name().trim().length() > 160
                 || !StringUtils.hasText(request.upstreamCode())
@@ -116,8 +135,7 @@ public class IntegrationEndpointServiceImpl implements IntegrationEndpointServic
                 || !Set.of("GET", "POST", "PUT", "PATCH", "DELETE").contains(request.method())
                 || !StringUtils.hasText(request.relativePath()) || request.relativePath().length() > 500
                 || (request.requestTemplate() != null && request.requestTemplate().length() > 16000)
-                || (request.description() != null && request.description().trim().length() > 2000)
-                || request.version() != null) {
+                || (request.description() != null && request.description().trim().length() > 2000)) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID);
         }
     }

@@ -36,6 +36,7 @@ const EXACT_TARGETS: Record<string, string> = {
   'attendance.settings.update': 'attendance-settings',
   'integration.endpoint.query': 'api-center',
   'integration.endpoint.createDraft': 'api-center',
+  'integration.endpoint.updateDraft': 'api-center',
   'pageAction.query': 'page-actions',
   'runtimeLog.query': 'runtime-logs',
   'observability.preferences.update': 'platform-observability',

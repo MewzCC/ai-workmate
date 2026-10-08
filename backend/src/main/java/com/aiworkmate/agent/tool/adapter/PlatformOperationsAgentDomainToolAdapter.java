@@ -52,6 +52,15 @@ public class PlatformOperationsAgentDomainToolAdapter implements PlatformOperati
                 result.method(), result.relativePath(), result.description(), result.status(), result.version(),
                 result.updatedAt());
     }
+    @Override public CreateEndpointResult updateEndpointDraft(ToolActorContext c, UpdateEndpointCommand command) {
+        var result = endpointService.updateAgentDraft(c.userId(), command.endpointId(),
+                new IntegrationEndpointRequest(command.code(), command.name(), command.upstreamCode(),
+                        command.method(), command.relativePath(), command.requestTemplate(),
+                        command.description(), command.version()));
+        return new CreateEndpointResult(result.id(), result.code(), result.name(), result.upstreamCode(),
+                result.method(), result.relativePath(), result.description(), result.status(), result.version(),
+                result.updatedAt());
+    }
     private Endpoint endpoint(com.aiworkmate.dto.IntegrationEndpointResponse x) { return new Endpoint(x.id(), x.code(), x.name(), x.upstreamCode(), x.method(), x.relativePath(), x.description(), x.status(), x.version(), x.updatedAt(), x.canManage(), x.canExecute(), List.copyOf(x.allowedTransitions())); }
     private PageAction pageAction(PageActionOverviewResponse.Action x) { return new PageAction(x.pageId(), x.toolCode(), x.name(), x.description(), x.riskLevel(), x.sideEffect(), x.confirmationPolicy(), List.copyOf(x.requiredPermissions()), x.enabled(), x.explicitlyConfigured(), x.version()); }
     private RuntimeLog runtimeLog(com.aiworkmate.dto.RuntimeLogRecordResponse x) { return new RuntimeLog(x.source(), x.id(), x.referenceCode(), x.operation(), x.outcome(), x.decision(), x.statusCode(), x.durationMs(), x.operatorLabel(), x.errorCode(), null, null, null, x.startedAt(), x.completedAt()); }

@@ -10,6 +10,7 @@ public interface PlatformOperationsToolPort {
     Page<RuntimeLog> runtimeLogs(ToolActorContext context, RuntimeLogQuery query);
     Page<Replay> replays(ToolActorContext context, ReplayQuery query);
     CreateEndpointResult createEndpointDraft(ToolActorContext context, CreateEndpointCommand command);
+    CreateEndpointResult updateEndpointDraft(ToolActorContext context, UpdateEndpointCommand command);
 
     record EndpointQuery(Long endpointId, String keyword, String status, int page, int size) { }
     record PageActionQuery(String targetPageId, Boolean enabled, int page, int size) { }
@@ -39,6 +40,9 @@ public interface PlatformOperationsToolPort {
                   String requestedByLabel, LocalDateTime startedAt, LocalDateTime completedAt) { }
     record CreateEndpointCommand(String code, String name, String upstreamCode, String method,
                                  String relativePath, String requestTemplate, String description) { }
+    record UpdateEndpointCommand(long endpointId, int version, String code, String name,
+                                 String upstreamCode, String method, String relativePath,
+                                 String requestTemplate, String description) { }
     record CreateEndpointResult(long endpointId, String code, String name, String upstreamCode,
                                 String method, String relativePath, String description, String status,
                                 int version, LocalDateTime updatedAt) implements ToolWriteReceipt { }
