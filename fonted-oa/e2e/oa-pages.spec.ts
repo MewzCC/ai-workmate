@@ -29,8 +29,8 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
-test('41 个启用页面在真实浏览器中均可进入且接口失败时不白屏', async ({ page }) => {
-  expect(enabledOaRoutes).toHaveLength(41);
+test('42 个启用页面在真实浏览器中均可进入且接口失败时不白屏', async ({ page }) => {
+  expect(enabledOaRoutes).toHaveLength(42);
   expect(new Set(enabledOaRoutes.map((route) => route.componentKey)))
     .toEqual(new Set(ENABLED_PAGE_COMPONENT_KEYS));
   await mockOaBackend(page);
