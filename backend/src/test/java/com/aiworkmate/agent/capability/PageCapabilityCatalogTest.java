@@ -85,6 +85,8 @@ class PageCapabilityCatalogTest {
 
     @Test
     void everyProductionPageHasAtLeastOneControlledTool() {
+        assertThat(catalog.find("platform-observability").orElseThrow().readTools())
+                .extracting(PageToolReference::code).contains(ToolCode.OBSERVABILITY_OVERVIEW_QUERY);
         assertThat(catalog.all()).allSatisfy(page ->
                 assertThat(page.tools()).as(page.pageId()).isNotEmpty());
         assertThat(catalog.find("ai-tasks").orElseThrow().readTools())
@@ -263,7 +265,8 @@ class PageCapabilityCatalogTest {
         assertThat(catalog.find("runtime-logs").orElseThrow().readTools()).extracting(PageToolReference::code).containsExactly(ToolCode.RUNTIME_LOG_QUERY);
         assertThat(catalog.find("sandbox-replay").orElseThrow().readTools()).extracting(PageToolReference::code).containsExactly(ToolCode.SANDBOX_REPLAY_QUERY);
         assertThat(catalog.find("platform-observability").orElseThrow().readTools())
-                .extracting(PageToolReference::code).containsExactly(ToolCode.RUNTIME_LOG_QUERY);
+                .extracting(PageToolReference::code).containsExactly(ToolCode.RUNTIME_LOG_QUERY,
+                        ToolCode.OBSERVABILITY_OVERVIEW_QUERY);
         assertThat(catalog.find("platform-observability").orElseThrow().writeTools())
                 .extracting(PageToolReference::code).containsExactly(
                         ToolCode.OBSERVABILITY_PREFERENCES_UPDATE, ToolCode.OBSERVABILITY_THRESHOLDS_UPDATE);

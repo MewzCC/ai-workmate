@@ -47,6 +47,24 @@ class AgentReadResultPresenterTest {
     }
 
     @Test
+    void observabilityComputesRealFailureRateAndNeverClaimsHealthyFromNoSamples() throws Exception {
+        org.springframework.context.i18n.LocaleContextHolder.setLocale(java.util.Locale.US);
+        try {
+            String answer = AgentReadResultPresenter.present("observability.overview.query", mapper.readTree("""
+                    {"from":"2026-10-02T10:00:00","to":"2026-10-09T10:00:00",
+                     "stats":{"total":3,"succeeded":2,"failed":1,"blocked":0},"p95DurationMs":140}
+                    """));
+            assertThat(answer).contains("Calls: 3", "failure rate: 33.33%", "P95: 140 ms");
+            String empty = AgentReadResultPresenter.present("observability.overview.query", mapper.readTree("""
+                    {"from":"2026-10-02T10:00:00","to":"2026-10-09T10:00:00","stats":{"total":0},"p95DurationMs":0}
+                    """));
+            assertThat(empty).contains("No calls", "cannot be inferred").doesNotContain("0%", "P95: 0");
+        } finally {
+            org.springframework.context.i18n.LocaleContextHolder.resetLocaleContext();
+        }
+    }
+
+    @Test
     void rejectsMalformedToolResult() throws Exception {
         assertThatThrownBy(() -> AgentReadResultPresenter.todo(mapper.readTree("{\"total\":0}")))
                 .isInstanceOf(BusinessException.class);

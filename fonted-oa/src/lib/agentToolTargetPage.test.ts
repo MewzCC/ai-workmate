@@ -31,6 +31,7 @@ describe('Agent tool business navigation', () => {
   it('uses task center only for task inspection or unknown historical tools', () => {
     expect(agentToolTargetPage('attendance.clock')).toBe('attendance-clock');
     expect(agentToolTargetPage('dashboard.overview.query')).toBe('dashboard');
+    expect(agentToolTargetPage('observability.overview.query')).toBe('platform-observability');
     expect(agentToolTargetPage('agentTask.mine.query')).toBe('ai-tasks');
     expect(agentToolTargetPage('agentTask.cancel')).toBe('ai-tasks');
     expect(agentToolTargetPage('legacy.unknown')).toBe('ai-tasks');

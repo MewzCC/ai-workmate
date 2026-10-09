@@ -41,6 +41,7 @@ const EXACT_TARGETS: Record<string, string> = {
   'integration.endpoint.updateStatus': 'api-center',
   'pageAction.query': 'page-actions',
   'runtimeLog.query': 'runtime-logs',
+  'observability.overview.query': 'platform-observability',
   'observability.preferences.update': 'platform-observability',
   'observability.thresholds.update': 'platform-observability',
   'sandboxReplay.query': 'sandbox-replay',

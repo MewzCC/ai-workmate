@@ -76,6 +76,7 @@ const aiPermission = {
     userSettings_update: { name: '更新个人系统设置', description: '经明确确认后，更新当前用户的模型、上下文、流式输出与 OCR 偏好。' },
     dashboard_preferences_update: { name: '调整驾驶舱指标', description: '经明确确认后，选择并排序当前用户有权查看的驾驶舱指标。' },
     dashboard_overview_query: { name: '查询我的驾驶舱', description: '读取本人指标、近 1–30 天申请趋势和业务分布，不读取租户汇总或敏感明细。' },
+    observability_overview_query: { name: '查询平台观测看板', description: '读取当前租户近 24 小时、7 天或 30 天调用统计、时延和完整聚合趋势，不返回身份或请求内容。' },
     observability_preferences_update: { name: '调整平台观测图表', description: '经明确确认后，调整当前用户的平台观测图表、内容、布局和时间粒度。' },
     observability_thresholds_update: { name: '调整平台观测视觉阈值', description: '经明确确认后，调整当前用户的视觉提示阈值，不创建真实告警或通知。' },
     approval_application_createDraft: { name: '创建通用申请草稿', description: '仅保存本人草稿，不启动审批。' },

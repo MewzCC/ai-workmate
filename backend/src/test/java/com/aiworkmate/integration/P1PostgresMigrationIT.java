@@ -91,6 +91,8 @@ class P1PostgresMigrationIT {
                 databaseUrl, databaseUsername, databasePassword, emptySchema);
         PlatformOperationLogPostgresVerifier.verify(
                 databaseUrl, databaseUsername, databasePassword, emptySchema);
+        ObservabilityOverviewPostgresVerifier.verify(
+                databaseUrl, databaseUsername, databasePassword, emptySchema);
         Flyway restartedEmpty = flyway(emptySchema, null);
         assertThat(restartedEmpty.migrate().migrationsExecuted).isZero();
         assertThat(restartedEmpty.validateWithResult().validationSuccessful).isTrue();
@@ -114,6 +116,8 @@ class P1PostgresMigrationIT {
         assertP1Schema(upgradeSchema);
         assertChatAgentResultSchema(upgradeSchema);
         PlatformOperationLogPostgresVerifier.verify(
+                databaseUrl, databaseUsername, databasePassword, upgradeSchema);
+        ObservabilityOverviewPostgresVerifier.verify(
                 databaseUrl, databaseUsername, databasePassword, upgradeSchema);
         assertThat(queryCount(upgradeSchema, """
                 SELECT COUNT(*) FROM supplier
@@ -1438,6 +1442,16 @@ class P1PostgresMigrationIT {
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM rbac_permission WHERE code='agent:tool:dashboard.overview.query'
                     """)).as("驾驶舱聚合工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND enabled=TRUE AND code='observability.overview.query'
+                      AND schema_hash='sha256:e2b4272f1feb67c26f738a8ed15c84cf52eee23f58c2df2cfa87953d484f171b'
+                      AND risk_level='L0' AND data_scope_policy='TENANT_SCOPED' AND side_effect='NONE'
+                      AND retry_policy='READ_ONLY_SAFE' AND confirmation_policy='NONE'
+                    """)).as("平台观测必须具备本租户只读聚合工具").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission WHERE code='agent:tool:observability.overview.query'
+                    """)).as("平台观测聚合工具必须具备独立实时权限").isOne();
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM agent_tool
                     WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='SINGLE_WRITE'

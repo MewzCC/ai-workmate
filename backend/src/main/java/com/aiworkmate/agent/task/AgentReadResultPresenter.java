@@ -22,6 +22,7 @@ public final class AgentReadResultPresenter {
     public static String present(String toolCode, JsonNode result) {
         if ("todo.query".equals(toolCode)) return todo(result);
         if ("dashboard.overview.query".equals(toolCode)) return dashboard(result);
+        if ("observability.overview.query".equals(toolCode)) return observability(result);
         if (toolCode == null || toolCode.isBlank() || result == null || (!result.isObject() && !result.isArray())) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID);
         }
@@ -79,6 +80,31 @@ public final class AgentReadResultPresenter {
         }
         if (total > shown) answer.append('\n').append(MessageUtils.resolve("agent.todo.more", total - shown));
         return answer.toString();
+    }
+
+    private static String observability(JsonNode result) {
+        if (result == null || !result.isObject() || !result.path("stats").isObject()
+                || !result.path("stats").path("total").canConvertToLong()) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        var stats = result.path("stats");
+        long total = stats.path("total").asLong();
+        StringBuilder answer = new StringBuilder(MessageUtils.resolve("agent.observability.window",
+                plain(result.path("from").asText()), plain(result.path("to").asText())));
+        if (total == 0) return answer.append('\n').append(MessageUtils.resolve("agent.observability.empty")).toString();
+        long failed = stats.path("failed").asLong();
+        String rate = BigDecimal.valueOf(failed).multiply(BigDecimal.valueOf(100))
+                .divide(BigDecimal.valueOf(total), 2, java.math.RoundingMode.HALF_UP).toPlainString();
+        answer.append('\n').append(MessageUtils.resolve("agent.observability.counts", total,
+                stats.path("succeeded").asLong(), failed, stats.path("blocked").asLong(), rate));
+        if (result.path("p95DurationMs").canConvertToLong() && result.path("p95DurationMs").asLong() > 0) {
+            answer.append('\n').append(MessageUtils.resolve("agent.observability.latency",
+                    result.path("p95DurationMs").asLong()));
+        }
+        if (result.path("categoriesTruncated").asBoolean()) {
+            answer.append('\n').append(MessageUtils.resolve("agent.observability.truncated"));
+        }
+        return answer.substring(0, Math.min(MAX_LENGTH, answer.length()));
     }
 
     private static String dashboard(JsonNode result) {
