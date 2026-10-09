@@ -22,11 +22,30 @@ public final class ApprovalApplicationAgentDomainToolAdapter implements Approval
     @Override
     public com.aiworkmate.agent.tool.port.ToolPage<Summary> mine(ToolActorContext context, Query query) {
         var page = approvalService.mineForAgent(context.userId(), query.status(), query.formKey(), query.page(), query.size());
-        return new com.aiworkmate.agent.tool.port.ToolPage<>(page.records().stream().map(value -> new Summary(
+        return new com.aiworkmate.agent.tool.port.ToolPage<>(page.records().stream().map(this::summary).toList(),
+                page.total(), page.page(), page.size());
+    }
+
+    @Override
+    public Detail detailMine(ToolActorContext context, DetailQuery query) {
+        var value = approvalService.detailMineForAgent(context.userId(), query.applicationId(), query.fieldPage());
+        var application = value.application();
+        var summary = new Summary(application.applicationId(), application.formKey(), application.formName(),
+                application.status(), application.version(), timestamp(application.submittedAt()),
+                timestamp(application.completedAt()), timestamp(application.createdAt()), application.overdue(),
+                application.reminderCount(), application.canWithdraw(), application.canEditDraft(),
+                application.canCancel(), application.canRemind());
+        return new Detail(summary, value.schemaSource(), value.formVersion(),
+                value.fields().stream().map(field -> new DetailField(field.name(), field.label(), field.type(),
+                        field.values(), field.redacted())).toList(), value.fieldsTotal(), value.fieldPage());
+    }
+
+    private Summary summary(ApprovalApplicationResponse value) {
+        return new Summary(
                 value.id(), value.formKey(), value.formName(), value.status(), value.version(),
                 timestamp(value.submittedAt()), timestamp(value.completedAt()), timestamp(value.createdAt()),
                 value.overdue(), value.reminderCount(), value.canWithdraw(), value.canEditDraft(),
-                value.canCancel(), value.canRemind())).toList(), page.total(), page.page(), page.size());
+                value.canCancel(), value.canRemind());
     }
 
     private String timestamp(java.time.LocalDateTime value) {

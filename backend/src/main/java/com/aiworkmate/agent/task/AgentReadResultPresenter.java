@@ -24,6 +24,7 @@ public final class AgentReadResultPresenter {
         if ("dashboard.overview.query".equals(toolCode)) return dashboard(result);
         if ("observability.overview.query".equals(toolCode)) return observability(result);
         if ("approval.application.mine.query".equals(toolCode)) return myApplications(result);
+        if ("approval.application.detail.query".equals(toolCode)) return applicationDetail(result);
         if (toolCode == null || toolCode.isBlank() || result == null || (!result.isObject() && !result.isArray())) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID);
         }
@@ -81,6 +82,33 @@ public final class AgentReadResultPresenter {
         }
         if (total > shown) answer.append('\n').append(MessageUtils.resolve("agent.todo.more", total - shown));
         return answer.toString();
+    }
+
+    private static String applicationDetail(JsonNode result) {
+        if (result == null || !result.path("application").isObject() || !result.path("fields").isArray()) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        JsonNode application = result.path("application");
+        StringBuilder answer = new StringBuilder(MessageUtils.resolve("agent.application.item",
+                application.path("applicationId").asLong(), plain(application.path("formName").asText()),
+                MessageUtils.resolve("agent.application.status." + application.path("status").asText()),
+                application.path("version").asInt()));
+        answer.append('\n').append(MessageUtils.resolve("agent.application.schema." + result.path("schemaSource").asText()));
+        int shown = 0;
+        for (JsonNode field : result.path("fields")) {
+            if (shown >= MAX_ITEMS || answer.length() > 750) break;
+            shown++;
+            List<String> values = new ArrayList<>();
+            field.path("values").forEach(value -> values.add(plain(value.asText())));
+            answer.append('\n').append(plain(field.path("label").asText())).append(": ")
+                    .append(field.path("redacted").asBoolean() ? MessageUtils.resolve("agent.application.redacted")
+                            : values.isEmpty() ? MessageUtils.resolve("agent.application.unfilled") : String.join(" · ", values));
+        }
+        if (result.path("fields").size() > shown || answer.length() > MAX_LENGTH) {
+            answer.setLength(Math.min(answer.length(), 900));
+            answer.append('\n').append(MessageUtils.resolve("agent.application.detailMore"));
+        }
+        return answer.substring(0, Math.min(MAX_LENGTH, answer.length()));
     }
 
     private static String myApplications(JsonNode result) {

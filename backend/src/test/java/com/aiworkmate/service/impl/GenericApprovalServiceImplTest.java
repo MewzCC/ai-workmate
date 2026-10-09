@@ -597,6 +597,61 @@ class GenericApprovalServiceImplTest {
                 TENANT_ID, USER_ID, "PENDING", "expense-application");
     }
 
+    @Test
+    void agentDetailUsesFrozenSchemaWithoutReadingCurrentConfiguration() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(new ResolvedUserAccess(USER_ID, "applicant", TENANT_ID,
+                "EMPLOYEE", List.of("EMPLOYEE"), List.of("approval:mine:read", "route:approval-start"), List.of("SELF"), 1L));
+        when(applicationMapper.selectView(TENANT_ID, 10L)).thenReturn(view("PENDING", 2));
+        var result = service.detailMineForAgent(USER_ID, 10L, 1);
+        assertThat(result.schemaSource()).isEqualTo("SNAPSHOT");
+        assertThat(result.formVersion()).isEqualTo(7);
+        assertThat(result.fields()).anySatisfy(field -> assertThat(field.values()).contains("客户拜访"));
+        org.mockito.Mockito.verifyNoInteractions(formMapper, processMapper, ruleMapper, actionLogMapper);
+    }
+
+    @Test
+    void agentDetailCannotUseAuditorPermissionToReadAnotherApplicant() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(new ResolvedUserAccess(USER_ID, "applicant", TENANT_ID,
+                "SYSTEM_ADMIN", List.of("SYSTEM_ADMIN"), List.of("approval:mine:read", "route:approval-start", "audit:read"), List.of("TENANT"), 1L));
+        var other = org.mockito.Mockito.mock(ApprovalApplicationView.class);
+        when(other.applicantUserId()).thenReturn(9999L);
+        when(applicationMapper.selectView(TENANT_ID, 10L)).thenReturn(other);
+        assertThatThrownBy(() -> service.detailMineForAgent(USER_ID, 10L, 1)).isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("RESOURCE_FORBIDDEN");
+        org.mockito.Mockito.verifyNoInteractions(formMapper, actionLogMapper);
+    }
+
+    @Test
+    void agentDetailPagesLargeFrozenFormsWithoutLosingLaterFields() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(new ResolvedUserAccess(USER_ID, "applicant", TENANT_ID,
+                "EMPLOYEE", List.of("EMPLOYEE"), List.of("approval:mine:read", "route:approval-start"), List.of("SELF"), 1L));
+        var view = org.mockito.Mockito.mock(ApprovalApplicationView.class);
+        when(view.id()).thenReturn(10L);
+        when(view.version()).thenReturn(0);
+        when(view.applicantUserId()).thenReturn(USER_ID);
+        when(view.status()).thenReturn("APPROVED");
+        when(view.dataJson()).thenReturn("{}");
+        String fields = java.util.stream.IntStream.range(0, 60)
+                .mapToObj(index -> "{\"name\":\"field" + index + "\",\"type\":\"text\"}")
+                .collect(java.util.stream.Collectors.joining(","));
+        when(view.formSchemaSnapshot()).thenReturn("{\"fields\":[" + fields + "]}");
+        when(applicationMapper.selectView(TENANT_ID, 10L)).thenReturn(view);
+        var first = service.detailMineForAgent(USER_ID, 10L, 1);
+        var second = service.detailMineForAgent(USER_ID, 10L, 2);
+        assertThat(first.fields()).hasSize(50);
+        assertThat(second.fields()).hasSize(10);
+        assertThat(second.fields().get(0).name()).isEqualTo("field50");
+        assertThat(second.fieldsTotal()).isEqualTo(60);
+        assertThat(second.fieldPage()).isEqualTo(2);
+    }
+
+    @Test
+    void agentDetailMissingBusinessPermissionFailsBeforeResourceRead() {
+        assertThatThrownBy(() -> service.detailMineForAgent(USER_ID, 10L, 1)).isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("PERMISSION_DENIED");
+        org.mockito.Mockito.verifyNoInteractions(applicationMapper);
+    }
+
     private ResolvedUserAccess access() {
         return new ResolvedUserAccess(USER_ID, "applicant", TENANT_ID, "EMPLOYEE",
                 List.of("EMPLOYEE"),

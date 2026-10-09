@@ -79,6 +79,7 @@ const aiPermission = {
     observability_overview_query: { name: '查询平台观测看板', description: '读取当前租户近 24 小时、7 天或 30 天调用统计、时延和完整聚合趋势，不返回身份或请求内容。' },
     observability_preferences_update: { name: '调整平台观测图表', description: '经明确确认后，调整当前用户的平台观测图表、内容、布局和时间粒度。' },
     observability_thresholds_update: { name: '调整平台观测视觉阈值', description: '经明确确认后，调整当前用户的视觉提示阈值，不创建真实告警或通知。' },
+    approval_application_detail_query: { name: '读取本人通用申请详情', description: '按历史表单快照读取本人一条申请，隐藏敏感字段和附件，不读取他人记录。' },
     approval_application_mine_query: { name: '查询本人通用申请', description: '分页查询本人通用表单申请与草稿，不返回表单原始值、人员身份或跨租户记录。' },
     approval_application_createDraft: { name: '创建通用申请草稿', description: '仅保存本人草稿，不启动审批。' },
     approval_application_submitDraft: { name: '提交通用申请草稿', description: '提交本人且版本匹配的草稿并启动审批。' },

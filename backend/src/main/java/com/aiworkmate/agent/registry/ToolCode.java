@@ -59,6 +59,7 @@ public enum ToolCode {
     ATTENDANCE_REISSUE_DECIDE("attendance.reissue.decide", SideEffect.SINGLE_WRITE),
     ATTENDANCE_SETTINGS_UPDATE("attendance.settings.update", SideEffect.SINGLE_WRITE),
     APPROVAL_APPLICATION_MINE_QUERY("approval.application.mine.query", SideEffect.NONE),
+    APPROVAL_APPLICATION_DETAIL_QUERY("approval.application.detail.query", SideEffect.NONE),
     APPROVAL_APPLICATION_CREATE_DRAFT("approval.application.createDraft", SideEffect.SINGLE_WRITE),
     APPROVAL_APPLICATION_UPDATE_DRAFT("approval.application.updateDraft", SideEffect.SINGLE_WRITE),
     APPROVAL_APPLICATION_SUBMIT_DRAFT("approval.application.submitDraft", SideEffect.SINGLE_WRITE),

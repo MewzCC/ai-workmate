@@ -1464,6 +1464,13 @@ class P1PostgresMigrationIT {
                       AND required_permissions='["approval:mine:read"]'::jsonb
                     """)).as("本人通用申请工具必须保持只读本人范围").isOne();
             assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool WHERE tenant_id IS NULL AND enabled=TRUE
+                      AND code='approval.application.detail.query'
+                      AND schema_hash='sha256:ac5b12b6c1316ba942c2b8816ad1991d92f51aecb1fddd46bff79803bb456777'
+                      AND risk_level='L0' AND data_scope_policy='SELF' AND side_effect='NONE'
+                      AND required_permissions='["approval:mine:read"]'::jsonb
+                    """)).as("通用申请详情工具必须保持只读本人范围").isOne();
+            assertThat(count(statement, """
                     SELECT COUNT(*) FROM agent_tool
                     WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='SINGLE_WRITE'
                       AND code='knowledge.base.update'

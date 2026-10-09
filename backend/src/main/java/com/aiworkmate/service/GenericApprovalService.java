@@ -67,4 +67,6 @@ public interface GenericApprovalService {
 
     /** 申请详情：申请人、当前待办受理人或具备审计权限者可读。 */
     ApprovalApplicationResponse detail(Long userId, Long id);
+
+    com.aiworkmate.dto.ApprovalApplicationAgentDetailResponse detailMineForAgent(Long userId, Long id, int fieldPage);
 }

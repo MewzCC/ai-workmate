@@ -41,6 +41,7 @@ final class ApprovalApplicationMinePostgresVerifier {
         var configuration = new MybatisConfiguration();
         configuration.setMapUnderscoreToCamelCase(true);
         configuration.addMapper(ApprovalApplicationMapper.class);
+        configuration.addMapper(ApprovalFormMapper.class);
         var factory = new MybatisSqlSessionFactoryBean();
         factory.setDataSource(datasource);
         factory.setConfiguration(configuration);
@@ -49,7 +50,8 @@ final class ApprovalApplicationMinePostgresVerifier {
         var access = mock(UserAccessService.class);
         when(access.resolveActiveUser(user)).thenReturn(new ResolvedUserAccess(user, "test", tenant, "EMPLOYEE",
                 List.of("EMPLOYEE"), List.of("route:approval-start", "approval:mine:read"), List.of("SELF"), 1L));
-        var domain = new GenericApprovalServiceImpl(mapper, mock(ApprovalFormMapper.class),
+        var formMapper = new SqlSessionTemplate(factory.getObject()).getMapper(ApprovalFormMapper.class);
+        var domain = new GenericApprovalServiceImpl(mapper, formMapper,
                 mock(ApprovalProcessMapper.class), mock(ApprovalRuleMapper.class), mock(LeaveApplicationMapper.class),
                 mock(UserMapper.class), mock(WorkflowInstanceMapper.class), mock(WorkflowTaskMapper.class),
                 mock(WorkflowActionLogMapper.class), access, mock(BusinessAuditService.class),
@@ -64,10 +66,37 @@ final class ApprovalApplicationMinePostgresVerifier {
         assertThat(drafts.total()).isEqualTo(1);
         assertThat(drafts.items().get(0).canEditDraft()).isTrue();
         assertThat(adapter.mine(actor, new ApprovalApplicationToolPort.Query(null, "missing", 1, 20)).total()).isZero();
+        jdbc.update("""
+                UPDATE approval_application SET form_schema_snapshot=?, form_version_snapshot=7,
+                data_json=? WHERE tenant_id=? AND applicant_user_id=?
+                """, "{\"fields\":[{\"name\":\"reason\",\"label\":\"Historic reason\",\"type\":\"text\"},{\"name\":\"api_key\",\"type\":\"text\"}]}",
+                "{\"reason\":\"Client visit\",\"api_key\":\"PRIVATE SECRET\"}", tenant, user);
+        jdbc.update("UPDATE approval_form SET schema_json=?,version=8 WHERE id=?",
+                "{\"fields\":[{\"name\":\"reason\",\"label\":\"Current reason\",\"type\":\"text\"}]}", form);
+        Long submitted = jdbc.queryForObject("SELECT id FROM approval_application WHERE tenant_id=? AND applicant_user_id=? AND status='APPROVED'", Long.class, tenant, user);
+        var detail = adapter.detailMine(actor, new ApprovalApplicationToolPort.DetailQuery(submitted, 1));
+        assertThat(detail.schemaSource()).isEqualTo("SNAPSHOT");
+        assertThat(detail.formVersion()).isEqualTo(7);
+        assertThat(detail.fields().get(0).label()).isEqualTo("Historic reason");
+        assertThat(detail.fields().get(0).values()).containsExactly("Client visit");
+        assertThat(detail.fields().get(1).redacted()).isTrue();
+        assertThat(detail.toString()).doesNotContain("PRIVATE SECRET", "Current reason");
+        var draftDetail = adapter.detailMine(actor, new ApprovalApplicationToolPort.DetailQuery(drafts.items().get(0).applicationId(), 1));
+        assertThat(draftDetail.schemaSource()).isEqualTo("CURRENT_DRAFT");
+        assertThat(draftDetail.formVersion()).isEqualTo(8);
+        assertThat(draftDetail.fields().get(0).label()).isEqualTo("Current reason");
+        Long otherId = jdbc.queryForObject("SELECT id FROM approval_application WHERE applicant_user_id=?", Long.class, colleague);
+        Long foreignId = jdbc.queryForObject("SELECT id FROM approval_application WHERE applicant_user_id=?", Long.class, foreign);
+        assertThatThrownBy(() -> adapter.detailMine(actor, new ApprovalApplicationToolPort.DetailQuery(otherId, 1))).isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("RESOURCE_FORBIDDEN");
+        assertThatThrownBy(() -> adapter.detailMine(actor, new ApprovalApplicationToolPort.DetailQuery(foreignId, 1))).isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("RESOURCE_NOT_FOUND");
         when(access.resolveActiveUser(user)).thenReturn(new ResolvedUserAccess(user, "test", tenant, "EMPLOYEE",
                 List.of("EMPLOYEE"), List.of("route:approval-start"), List.of("SELF"), 2L));
         assertThatThrownBy(() -> adapter.mine(actor, new ApprovalApplicationToolPort.Query(null, null, 1, 20)))
                 .isInstanceOf(BusinessException.class).extracting("errorCode").isEqualTo("PERMISSION_DENIED");
+        assertThatThrownBy(() -> adapter.detailMine(actor, new ApprovalApplicationToolPort.DetailQuery(submitted, 1))).isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("PERMISSION_DENIED");
     }
     private static Long user(JdbcTemplate jdbc, Long tenant, String name) {
         return jdbc.queryForObject("INSERT INTO app_user(username,password,email,tenant_id) VALUES (?,'test-only',?,?) RETURNING id",

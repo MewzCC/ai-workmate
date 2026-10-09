@@ -6,6 +6,18 @@ import java.util.List;
 public interface ApprovalApplicationToolPort {
     ToolPage<Summary> mine(ToolActorContext context, Query query);
 
+    Detail detailMine(ToolActorContext context, DetailQuery query);
+
+    record DetailQuery(long applicationId, int fieldPage) { }
+
+    record Detail(Summary application, String schemaSource, Integer formVersion, List<DetailField> fields,
+                  int fieldsTotal, int fieldPage) {
+        public Detail { fields = List.copyOf(fields); }
+    }
+    record DetailField(String name, String label, String type, List<String> values, boolean redacted) {
+        public DetailField { values = List.copyOf(values); }
+    }
+
     record Query(String status, String formKey, int page, int size) { }
 
     /** No raw form data, schema, employee identities or workflow internals. */

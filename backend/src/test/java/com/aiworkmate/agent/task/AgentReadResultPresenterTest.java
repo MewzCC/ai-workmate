@@ -25,6 +25,20 @@ class AgentReadResultPresenterTest {
         }
     }
 
+    @Test
+    void applicationDetailShowsActualValuesAndExplainsRedaction() throws Exception {
+        org.springframework.context.i18n.LocaleContextHolder.setLocale(java.util.Locale.US);
+        try {
+            assertThat(AgentReadResultPresenter.present("approval.application.detail.query", mapper.readTree("""
+                    {"application":{"applicationId":17,"formName":"Travel","status":"PENDING","version":3},
+                     "schemaSource":"SNAPSHOT","fields":[{"label":"Reason","values":["Client visit"]},
+                     {"label":"Credential","values":[],"redacted":true}]}
+                    """))).contains("17", "Client visit", "Redacted", "submission snapshot");
+        } finally {
+            org.springframework.context.i18n.LocaleContextHolder.resetLocaleContext();
+        }
+    }
+
     @BeforeEach
     void messages() {
         ResourceBundleMessageSource source = new ResourceBundleMessageSource();
