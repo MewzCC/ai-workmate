@@ -93,6 +93,8 @@ class P1PostgresMigrationIT {
                 databaseUrl, databaseUsername, databasePassword, emptySchema);
         ObservabilityOverviewPostgresVerifier.verify(
                 databaseUrl, databaseUsername, databasePassword, emptySchema);
+        ApprovalApplicationMinePostgresVerifier.verify(
+                databaseUrl, databaseUsername, databasePassword, emptySchema);
         Flyway restartedEmpty = flyway(emptySchema, null);
         assertThat(restartedEmpty.migrate().migrationsExecuted).isZero();
         assertThat(restartedEmpty.validateWithResult().validationSuccessful).isTrue();
@@ -118,6 +120,8 @@ class P1PostgresMigrationIT {
         PlatformOperationLogPostgresVerifier.verify(
                 databaseUrl, databaseUsername, databasePassword, upgradeSchema);
         ObservabilityOverviewPostgresVerifier.verify(
+                databaseUrl, databaseUsername, databasePassword, upgradeSchema);
+        ApprovalApplicationMinePostgresVerifier.verify(
                 databaseUrl, databaseUsername, databasePassword, upgradeSchema);
         assertThat(queryCount(upgradeSchema, """
                 SELECT COUNT(*) FROM supplier
@@ -1452,6 +1456,13 @@ class P1PostgresMigrationIT {
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM rbac_permission WHERE code='agent:tool:observability.overview.query'
                     """)).as("平台观测聚合工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool WHERE tenant_id IS NULL AND enabled=TRUE
+                      AND code='approval.application.mine.query'
+                      AND schema_hash='sha256:f0f343b67ee165583e7d62914ac9037fa659fe2dd470b1fb7c7c27fb2328af74'
+                      AND risk_level='L0' AND data_scope_policy='SELF' AND side_effect='NONE'
+                      AND required_permissions='["approval:mine:read"]'::jsonb
+                    """)).as("本人通用申请工具必须保持只读本人范围").isOne();
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM agent_tool
                     WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='SINGLE_WRITE'

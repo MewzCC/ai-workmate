@@ -650,6 +650,14 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
 
     @Override
     @Transactional(readOnly = true)
+    public PageResponse<ApprovalApplicationResponse> mineForAgent(
+            Long userId, String status, String formKey, int page, int size) {
+        requirePermission(userId, "approval:mine:read");
+        return mine(userId, status, formKey, page, size);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public ApprovalApplicationResponse detail(Long userId, Long id) {
         ResolvedUserAccess actor = requireAccess(userId);
         ApprovalApplicationView view = applicationMapper.selectView(actor.tenantId(), id);

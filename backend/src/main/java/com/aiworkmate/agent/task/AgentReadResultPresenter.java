@@ -23,6 +23,7 @@ public final class AgentReadResultPresenter {
         if ("todo.query".equals(toolCode)) return todo(result);
         if ("dashboard.overview.query".equals(toolCode)) return dashboard(result);
         if ("observability.overview.query".equals(toolCode)) return observability(result);
+        if ("approval.application.mine.query".equals(toolCode)) return myApplications(result);
         if (toolCode == null || toolCode.isBlank() || result == null || (!result.isObject() && !result.isArray())) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID);
         }
@@ -80,6 +81,27 @@ public final class AgentReadResultPresenter {
         }
         if (total > shown) answer.append('\n').append(MessageUtils.resolve("agent.todo.more", total - shown));
         return answer.toString();
+    }
+
+    private static String myApplications(JsonNode result) {
+        if (result == null || !result.path("items").isArray() || !result.path("total").canConvertToLong()) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        StringBuilder answer = new StringBuilder(MessageUtils.resolve("agent.application.count", result.path("total").asLong()));
+        int shown = 0;
+        for (JsonNode item : result.path("items")) {
+            if (shown >= MAX_ITEMS || answer.length() >= MAX_LENGTH) break;
+            shown++;
+            String status = item.path("status").asText();
+            if (!List.of("DRAFT", "PENDING", "APPROVED", "REJECTED", "WITHDRAWN", "CANCELLED").contains(status)) {
+                throw new BusinessException(ErrorCode.REQUEST_INVALID);
+            }
+            answer.append('\n').append(MessageUtils.resolve("agent.application.item", item.path("applicationId").asLong(),
+                    plain(item.path("formName").asText()), MessageUtils.resolve("agent.application.status." + status),
+                    item.path("version").asInt()));
+        }
+        if (result.path("total").asLong() > shown) answer.append('\n').append(MessageUtils.resolve("agent.result.more", result.path("total").asLong() - shown));
+        return answer.substring(0, Math.min(MAX_LENGTH, answer.length()));
     }
 
     private static String observability(JsonNode result) {

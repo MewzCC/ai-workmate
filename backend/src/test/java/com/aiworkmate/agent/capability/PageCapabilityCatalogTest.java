@@ -129,6 +129,8 @@ class PageCapabilityCatalogTest {
 
     @Test
     void genericApprovalEntryPagesShareAtomicDraftLifecycleTools() {
+        assertThat(catalog.find("my-applications").orElseThrow().readTools())
+                .extracting(PageToolReference::code).contains(ToolCode.APPROVAL_APPLICATION_MINE_QUERY);
         assertThat(Set.of("approval-start", "approval-form", "my-applications")).allSatisfy(pageId ->
                 assertThat(catalog.find(pageId).orElseThrow().writeTools())
                         .extracting(PageToolReference::code)

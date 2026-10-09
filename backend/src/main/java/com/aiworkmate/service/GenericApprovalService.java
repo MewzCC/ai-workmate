@@ -62,6 +62,9 @@ public interface GenericApprovalService {
     /** 当前用户提交过的通用申请分页。 */
     PageResponse<ApprovalApplicationResponse> mine(Long userId, String status, String formKey, int page, int size);
 
+    /** Agent requires an explicit self-query business permission in addition to page access. */
+    PageResponse<ApprovalApplicationResponse> mineForAgent(Long userId, String status, String formKey, int page, int size);
+
     /** 申请详情：申请人、当前待办受理人或具备审计权限者可读。 */
     ApprovalApplicationResponse detail(Long userId, Long id);
 }

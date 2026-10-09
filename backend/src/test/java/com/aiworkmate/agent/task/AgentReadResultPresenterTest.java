@@ -13,6 +13,18 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class AgentReadResultPresenterTest {
     private final ObjectMapper mapper = new ObjectMapper();
 
+    @Test
+    void genericApplicationsPresentActualFormStatusAndVersion() throws Exception {
+        org.springframework.context.i18n.LocaleContextHolder.setLocale(java.util.Locale.US);
+        try {
+            assertThat(AgentReadResultPresenter.present("approval.application.mine.query", mapper.readTree("""
+                    {"total":12,"items":[{"applicationId":17,"formName":"Travel","status":"DRAFT","version":3}]}
+                    """))).contains("12", "17", "Travel", "Draft", "3").doesNotContain("formName:", "status:");
+        } finally {
+            org.springframework.context.i18n.LocaleContextHolder.resetLocaleContext();
+        }
+    }
+
     @BeforeEach
     void messages() {
         ResourceBundleMessageSource source = new ResourceBundleMessageSource();

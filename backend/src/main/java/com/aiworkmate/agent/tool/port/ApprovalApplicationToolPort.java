@@ -2,8 +2,18 @@ package com.aiworkmate.agent.tool.port;
 
 import java.util.List;
 
-/** Transport-neutral boundary for self-owned generic approval application writes. */
+/** Transport-neutral boundary for self-owned generic approval applications. */
 public interface ApprovalApplicationToolPort {
+    ToolPage<Summary> mine(ToolActorContext context, Query query);
+
+    record Query(String status, String formKey, int page, int size) { }
+
+    /** No raw form data, schema, employee identities or workflow internals. */
+    record Summary(long applicationId, String formKey, String formName, String status, int version,
+                   String submittedAt, String completedAt, String createdAt, boolean overdue,
+                   int reminderCount, boolean canWithdraw, boolean canEditDraft, boolean canCancel,
+                   boolean canRemind) { }
+
     WriteResult createDraft(ToolActorContext context, Draft command, ToolOperationKey operationKey);
 
     WriteResult updateDraft(ToolActorContext context, long applicationId, int version, DraftUpdate command);

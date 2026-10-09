@@ -79,6 +79,7 @@ const aiPermission = {
     observability_overview_query: { name: 'Query platform observability', description: 'Reads current-tenant call counts, latency and complete aggregate trends for 24 hours, 7 days or 30 days without identities or request content.' },
     observability_preferences_update: { name: 'Adjust observability charts', description: 'After explicit confirmation, adjusts the current user\'s observability charts, content, layout, and granularity.' },
     observability_thresholds_update: { name: 'Adjust observability visual thresholds', description: 'After explicit confirmation, adjusts personal visual cues without creating real alerts or notifications.' },
+    approval_application_mine_query: { name: 'Query my general applications', description: 'Pages through my general applications and drafts without raw form values, personnel identities or cross-tenant records.' },
     approval_application_createDraft: { name: 'Create general application draft', description: 'Saves only a draft owned by the current user without starting approval.' },
     approval_application_submitDraft: { name: 'Submit general application draft', description: 'Submits an owned, version-matched draft and starts approval.' },
     approval_application_withdraw: { name: 'Withdraw general application', description: 'Withdraws only a pending application owned by the current user.' },
