@@ -184,7 +184,7 @@ public class PageCapabilityCatalog {
                 page(OaPage.API_CENTER, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         context(number("endpointId"), text("keyword"), text("status"), number("page"), number("size")),
                         tool(INTEGRATION_ENDPOINT_QUERY), tool(INTEGRATION_ENDPOINT_CREATE_DRAFT),
-                        tool(INTEGRATION_ENDPOINT_UPDATE_DRAFT)),
+                        tool(INTEGRATION_ENDPOINT_UPDATE_DRAFT), tool(INTEGRATION_ENDPOINT_UPDATE_STATUS)),
                 page(OaPage.PAGE_ACTIONS, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         context(text("targetPageId"), text("enabled"), number("page"), number("size")),
                         tool(PAGE_ACTION_QUERY)),

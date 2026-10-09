@@ -65,4 +65,25 @@ class PlatformOperationsAgentDomainToolAdapterTest {
         assertThat(result.status()).isEqualTo("DRAFT");
         verify(endpointService).updateAgentDraft(2L, 12L, request);
     }
+
+    @Test
+    void mapsOneVersionedEndpointStatusTransition() {
+        var endpointService = mock(IntegrationEndpointService.class);
+        var adapter = new PlatformOperationsAgentDomainToolAdapter(endpointService,
+                mock(PageActionPolicyService.class), mock(RuntimeLogService.class),
+                mock(SandboxReplayService.class));
+        var actor = new ToolActorContext(1L, 2L, 3L, 4L, 0, "trace");
+        var request = new com.aiworkmate.dto.IntegrationStatusRequest("ACTIVE", 3);
+        when(endpointService.updateStatus(2L, 12L, request)).thenReturn(new IntegrationEndpointResponse(
+                12L, "HEALTH", "Health", "primary-sandbox", "GET", "/v1/health", null,
+                "check", "ACTIVE", 4, LocalDateTime.of(2026, 10, 8, 23, 59), true, true,
+                List.of("DISABLED")));
+
+        var result = adapter.updateEndpointStatus(actor,
+                new PlatformOperationsToolPort.EndpointStatusCommand(12L, 3, "ACTIVE"));
+
+        assertThat(result.status()).isEqualTo("ACTIVE");
+        assertThat(result.version()).isEqualTo(4);
+        verify(endpointService).updateStatus(2L, 12L, request);
+    }
 }

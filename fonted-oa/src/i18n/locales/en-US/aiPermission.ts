@@ -132,6 +132,7 @@ const aiPermission = {
     integration_endpoint_query: { name: 'Query integration endpoints', description: 'Returns controlled endpoint metadata without request templates or response payloads.' },
     integration_endpoint_createDraft: { name: 'Create endpoint draft', description: 'Creates one endpoint draft from a server-registered upstream and relative path after secondary confirmation, without activation or network execution.' },
     integration_endpoint_updateDraft: { name: 'Update endpoint draft', description: 'Updates one tenant endpoint draft after confirmation and version validation, without status changes or network execution.' },
+    integration_endpoint_updateStatus: { name: 'Change endpoint status', description: 'Activates or disables one endpoint after secondary confirmation, version and upstream availability checks, without executing it.' },
     pageAction_query: { name: 'Query page actions', description: 'Returns the code-owned page action catalog and tenant enablement status.' },
     runtimeLog_query: { name: 'Query runtime logs', description: 'Returns bounded runtime metadata without payload previews or fingerprints.' },
     sandboxReplay_query: { name: 'Query sandbox replays', description: 'Returns replay results without baseline or response payloads.' },

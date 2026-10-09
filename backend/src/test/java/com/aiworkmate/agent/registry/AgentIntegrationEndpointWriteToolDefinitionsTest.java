@@ -46,4 +46,22 @@ class AgentIntegrationEndpointWriteToolDefinitionsTest {
         assertThat(definition.inputSchema().path("properties").has("url")).isFalse();
         assertThat(definition.outputSchema().toString()).doesNotContain("requestTemplate");
     }
+
+    @Test
+    void definesSecondaryConfirmedEndpointStatusTransition() throws Exception {
+        var definition = new AgentIntegrationEndpointWriteToolDefinitions()
+                .integrationEndpointUpdateStatusToolDefinition(new ObjectMapper());
+
+        assertThat(definition.code()).isEqualTo("integration.endpoint.updateStatus");
+        assertThat(definition.schemaHash()).isEqualTo(
+                "sha256:48dd8ca12531584d28decdd30c84948c59e68fb08db1d32b1e393c517cdadba8");
+        assertThat(definition.riskLevel()).isEqualTo(RiskLevel.L2);
+        assertThat(definition.retryPolicy()).isEqualTo(RetryPolicy.NEVER);
+        assertThat(definition.confirmationPolicy()).isEqualTo(ConfirmationPolicy.SECONDARY);
+        assertThat(definition.ownershipPolicy()).isEqualTo(OwnershipPolicy.TENANT_SCOPED);
+        assertThat(definition.inputSchema().path("required")).extracting(JsonNode::asText)
+                .containsExactly("endpointId", "version", "status");
+        assertThat(definition.inputSchema().path("properties").path("status").path("enum"))
+                .extracting(JsonNode::asText).containsExactly("ACTIVE", "DISABLED");
+    }
 }

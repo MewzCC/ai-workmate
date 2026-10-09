@@ -257,7 +257,8 @@ class PageCapabilityCatalogTest {
                 .containsExactly(ToolCode.INTEGRATION_ENDPOINT_QUERY);
         assertThat(catalog.find("api-center").orElseThrow().writeTools()).extracting(PageToolReference::code)
                 .containsExactly(ToolCode.INTEGRATION_ENDPOINT_CREATE_DRAFT,
-                        ToolCode.INTEGRATION_ENDPOINT_UPDATE_DRAFT);
+                        ToolCode.INTEGRATION_ENDPOINT_UPDATE_DRAFT,
+                        ToolCode.INTEGRATION_ENDPOINT_UPDATE_STATUS);
         assertThat(catalog.find("page-actions").orElseThrow().readTools()).extracting(PageToolReference::code).containsExactly(ToolCode.PAGE_ACTION_QUERY);
         assertThat(catalog.find("runtime-logs").orElseThrow().readTools()).extracting(PageToolReference::code).containsExactly(ToolCode.RUNTIME_LOG_QUERY);
         assertThat(catalog.find("sandbox-replay").orElseThrow().readTools()).extracting(PageToolReference::code).containsExactly(ToolCode.SANDBOX_REPLAY_QUERY);

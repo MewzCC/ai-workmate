@@ -132,6 +132,7 @@ const aiPermission = {
     integration_endpoint_query: { name: '查询接口端点', description: '返回受控端点元数据，不包含请求模板或响应载荷。' },
     integration_endpoint_createDraft: { name: '创建接口端点草稿', description: '经二次确认后基于服务端已注册上游和相对路径创建单个端点草稿，不激活或执行网络调用。' },
     integration_endpoint_updateDraft: { name: '修改接口端点草稿', description: '经确认和版本校验后修改本租户单个端点草稿，不变更状态或执行网络调用。' },
+    integration_endpoint_updateStatus: { name: '启停接口端点', description: '经二次确认、版本和上游可用性校验后启用或停用单个端点，不执行端点请求。' },
     pageAction_query: { name: '查询页面操作', description: '返回代码拥有的页面操作目录及租户启用状态。' },
     runtimeLog_query: { name: '查询运行日志', description: '返回有界运行元数据，不包含载荷预览或指纹。' },
     sandboxReplay_query: { name: '查询沙箱回放', description: '返回回放结果，不包含基线或响应载荷。' },

@@ -4,6 +4,7 @@ import com.aiworkmate.agent.tool.port.PlatformOperationsToolPort;
 import com.aiworkmate.agent.tool.port.ToolActorContext;
 import com.aiworkmate.dto.PageActionOverviewResponse;
 import com.aiworkmate.dto.IntegrationEndpointRequest;
+import com.aiworkmate.dto.IntegrationStatusRequest;
 import com.aiworkmate.service.IntegrationEndpointService;
 import com.aiworkmate.service.PageActionPolicyService;
 import com.aiworkmate.service.RuntimeLogService;
@@ -59,6 +60,12 @@ public class PlatformOperationsAgentDomainToolAdapter implements PlatformOperati
                         command.description(), command.version()));
         return new CreateEndpointResult(result.id(), result.code(), result.name(), result.upstreamCode(),
                 result.method(), result.relativePath(), result.description(), result.status(), result.version(),
+                result.updatedAt());
+    }
+    @Override public EndpointStatusResult updateEndpointStatus(ToolActorContext c, EndpointStatusCommand command) {
+        var result = endpointService.updateStatus(c.userId(), command.endpointId(),
+                new IntegrationStatusRequest(command.status(), command.version()));
+        return new EndpointStatusResult(result.id(), result.code(), result.status(), result.version(),
                 result.updatedAt());
     }
     private Endpoint endpoint(com.aiworkmate.dto.IntegrationEndpointResponse x) { return new Endpoint(x.id(), x.code(), x.name(), x.upstreamCode(), x.method(), x.relativePath(), x.description(), x.status(), x.version(), x.updatedAt(), x.canManage(), x.canExecute(), List.copyOf(x.allowedTransitions())); }

@@ -21,6 +21,12 @@ public class AgentIntegrationEndpointWriteToolDefinitions {
     static final String UPDATE_DRAFT_OUTPUT = """
             {"type":"object","additionalProperties":false,"required":["endpointId","code","name","upstreamCode","method","relativePath","status","version","updatedAt"],"properties":{"endpointId":{"type":"integer","minimum":1},"code":{"type":"string","maxLength":64},"name":{"type":"string","maxLength":160},"upstreamCode":{"type":"string","maxLength":40},"method":{"type":"string","enum":["GET","POST","PUT","PATCH","DELETE"]},"relativePath":{"type":"string","maxLength":500},"description":{"type":["string","null"],"maxLength":2000},"status":{"type":"string","const":"DRAFT"},"version":{"type":"integer","minimum":1},"updatedAt":{"type":"string","format":"date-time"}}}
             """.strip();
+    static final String UPDATE_STATUS_INPUT = """
+            {"type":"object","additionalProperties":false,"required":["endpointId","version","status"],"properties":{"endpointId":{"type":"integer","minimum":1},"version":{"type":"integer","minimum":0,"maximum":2147483646},"status":{"type":"string","enum":["ACTIVE","DISABLED"]}}}
+            """.strip();
+    static final String UPDATE_STATUS_OUTPUT = """
+            {"type":"object","additionalProperties":false,"required":["endpointId","code","status","version","updatedAt"],"properties":{"endpointId":{"type":"integer","minimum":1},"code":{"type":"string","maxLength":64},"status":{"type":"string","enum":["ACTIVE","DISABLED"]},"version":{"type":"integer","minimum":1},"updatedAt":{"type":"string","format":"date-time"}}}
+            """.strip();
 
     @Bean
     ToolDefinition integrationEndpointCreateDraftToolDefinition(ObjectMapper mapper)
@@ -44,5 +50,17 @@ public class AgentIntegrationEndpointWriteToolDefinitions {
                 mapper.readTree(UPDATE_DRAFT_INPUT), mapper.readTree(UPDATE_DRAFT_OUTPUT),
                 ToolWriteProfile.NON_RETRYABLE_L1, Set.of("integration:endpoint:manage"),
                 OwnershipPolicy.TENANT_SCOPED, 1, 8192, 10000);
+    }
+
+    @Bean
+    ToolDefinition integrationEndpointUpdateStatusToolDefinition(ObjectMapper mapper)
+            throws JsonProcessingException {
+        return ToolDefinitionFactory.singleWrite(ToolCode.INTEGRATION_ENDPOINT_UPDATE_STATUS,
+                "Update one integration endpoint status",
+                "Applies one allowed status transition to one tenant-scoped endpoint with optimistic locking.",
+                "Activate or disable exactly one endpoint after secondary confirmation and upstream availability checks, without executing, deleting or changing its definition.",
+                mapper.readTree(UPDATE_STATUS_INPUT), mapper.readTree(UPDATE_STATUS_OUTPUT),
+                ToolWriteProfile.SECONDARY_L2, Set.of("integration:endpoint:manage"),
+                OwnershipPolicy.TENANT_SCOPED, 1, 4096, 10000);
     }
 }

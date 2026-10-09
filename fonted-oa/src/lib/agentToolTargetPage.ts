@@ -37,6 +37,7 @@ const EXACT_TARGETS: Record<string, string> = {
   'integration.endpoint.query': 'api-center',
   'integration.endpoint.createDraft': 'api-center',
   'integration.endpoint.updateDraft': 'api-center',
+  'integration.endpoint.updateStatus': 'api-center',
   'pageAction.query': 'page-actions',
   'runtimeLog.query': 'runtime-logs',
   'observability.preferences.update': 'platform-observability',

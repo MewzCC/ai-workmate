@@ -1419,6 +1419,18 @@ class P1PostgresMigrationIT {
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM agent_tool
                     WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='SINGLE_WRITE'
+                      AND code='integration.endpoint.updateStatus'
+                      AND schema_hash='sha256:48dd8ca12531584d28decdd30c84948c59e68fb08db1d32b1e393c517cdadba8'
+                      AND risk_level='L2' AND data_scope_policy='TENANT_SCOPED'
+                      AND retry_policy='NEVER' AND confirmation_policy='SECONDARY'
+                    """)).as("接口联调中心必须具备版本受控且不执行端点请求的启停工具").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code='agent:tool:integration.endpoint.updateStatus'
+                    """)).as("接口端点启停工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='SINGLE_WRITE'
                       AND code='knowledge.base.update'
                       AND schema_hash='sha256:79f873ae75d3b83b062efa802cfd1aa22708fd41d7fdde6f373ad400457c66f2'
                       AND risk_level='L1' AND data_scope_policy='FIXED_RESOURCE'
