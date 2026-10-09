@@ -2,6 +2,7 @@ const EXACT_TARGETS: Record<string, string> = {
   'agentTask.mine.query': 'ai-tasks',
   'agentTask.cancel': 'ai-tasks',
   'todo.query': 'todo',
+  'dashboard.overview.query': 'dashboard',
   'dashboard.preferences.update': 'dashboard',
   'knowledge.search': 'knowledge-base',
   'knowledge.base.query': 'knowledge-base',

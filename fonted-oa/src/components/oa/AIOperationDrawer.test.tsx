@@ -205,6 +205,32 @@ describe('AIOperationDrawer', () => {
     expect(document.querySelector('.oa-ai-result-json')).toBeNull();
   });
 
+  it('shows a non-todo business result in the conversation and navigates once', async () => {
+    api.planAiTask.mockResolvedValue(basePlan);
+    api.executeAiTask.mockResolvedValue({ taskId: basePlan.taskId, status: 'QUEUED', statusUrl: '/status', eventsUrl: '/events' });
+    api.agentTaskApi.detail.mockResolvedValue({ taskId: basePlan.taskId, status: 'SUCCEEDED', steps: [
+      { sequence: 1, toolCode: 'dashboard.overview.query', status: 'SUCCEEDED', arguments: { days: 7 },
+        resultSummary: '本人驾驶舱：待处理事项 3 条，未读消息 8 条。', result: { metrics: [{ code: 'PENDING_TODOS', value: 3 }] } },
+    ], errorCode: null });
+    const navigate = vi.fn(() => true);
+    renderDrawer(vi.fn(), undefined, navigate);
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: '查询我的驾驶舱' } });
+    fireEvent.click(screen.getByRole('button', { name: /发送 \/ 生成计划/ }));
+    await waitFor(() => expect(screen.getAllByText(basePlan.summary)).toHaveLength(2));
+    fireEvent.click(screen.getByRole('button', { name: '执行计划' }));
+    await waitFor(() => expect(api.subscribeAiTaskEvents).toHaveBeenCalledTimes(1));
+    const subscription = api.subscribeAiTaskEvents.mock.calls[0][1] as {
+      onEvent: (event: { id: string; type: string; data: Record<string, unknown> }) => void;
+    };
+    act(() => {
+      subscription.onEvent({ id: 'dashboard-completed', type: 'task-completed', data: { status: 'SUCCEEDED' } });
+      subscription.onEvent({ id: 'dashboard-completed', type: 'task-completed', data: { status: 'SUCCEEDED' } });
+    });
+    await waitFor(() => expect(navigate).toHaveBeenCalledOnce());
+    expect(navigate).toHaveBeenCalledWith('dashboard');
+    expect(screen.getAllByText('本人驾驶舱：待处理事项 3 条，未读消息 8 条。')).toHaveLength(2);
+  });
+
   it('keeps the prompt when planning fails and does not erase a newer draft', async () => {
     let resolvePlan: (value: typeof basePlan) => void = () => undefined;
     api.planAiTask.mockImplementation(() => new Promise((resolve) => { resolvePlan = resolve; }));

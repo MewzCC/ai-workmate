@@ -1430,6 +1430,16 @@ class P1PostgresMigrationIT {
                     """)).as("接口端点启停工具必须具备独立实时权限").isOne();
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND enabled=TRUE AND code='dashboard.overview.query'
+                      AND schema_hash='sha256:e27a8ab9413f2ef431e93ede1a0a0055dc3c683b3cc71f648c7c8bd383135282'
+                      AND risk_level='L0' AND data_scope_policy='SELF' AND side_effect='NONE'
+                      AND retry_policy='READ_ONLY_SAFE' AND confirmation_policy='NONE'
+                    """)).as("驾驶舱必须具备本人范围的只读聚合工具").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission WHERE code='agent:tool:dashboard.overview.query'
+                    """)).as("驾驶舱聚合工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
                     WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='SINGLE_WRITE'
                       AND code='knowledge.base.update'
                       AND schema_hash='sha256:79f873ae75d3b83b062efa802cfd1aa22708fd41d7fdde6f373ad400457c66f2'

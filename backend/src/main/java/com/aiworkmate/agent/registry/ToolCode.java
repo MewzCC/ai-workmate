@@ -11,6 +11,7 @@ import java.util.Set;
  */
 public enum ToolCode {
     TODO_QUERY("todo.query"),
+    DASHBOARD_OVERVIEW_QUERY("dashboard.overview.query"),
     DASHBOARD_PREFERENCES_UPDATE("dashboard.preferences.update", SideEffect.SINGLE_WRITE),
     LEAVE_MINE("leave.mine"),
     KNOWLEDGE_SEARCH("knowledge.search"),

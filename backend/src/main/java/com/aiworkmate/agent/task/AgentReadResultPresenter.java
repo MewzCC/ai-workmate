@@ -21,6 +21,7 @@ public final class AgentReadResultPresenter {
 
     public static String present(String toolCode, JsonNode result) {
         if ("todo.query".equals(toolCode)) return todo(result);
+        if ("dashboard.overview.query".equals(toolCode)) return dashboard(result);
         if (toolCode == null || toolCode.isBlank() || result == null || (!result.isObject() && !result.isArray())) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID);
         }
@@ -78,6 +79,35 @@ public final class AgentReadResultPresenter {
         }
         if (total > shown) answer.append('\n').append(MessageUtils.resolve("agent.todo.more", total - shown));
         return answer.toString();
+    }
+
+    private static String dashboard(JsonNode result) {
+        if (result == null || !result.isObject() || !result.path("metrics").isArray()
+                || !result.path("trends").isArray() || !result.path("days").canConvertToInt()) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        StringBuilder answer = new StringBuilder(MessageUtils.resolve(
+                "agent.dashboard.overview", result.path("days").asInt()));
+        for (JsonNode metric : result.path("metrics")) {
+            String code = metric.path("code").asText();
+            if (!List.of("PENDING_TODOS", "OVERDUE_TODOS", "MY_APPLICATIONS", "UNREAD_MESSAGES").contains(code)
+                    || !metric.path("value").canConvertToLong()) {
+                throw new BusinessException(ErrorCode.REQUEST_INVALID);
+            }
+            answer.append('\n').append(MessageUtils.resolve("agent.dashboard.metric." + code,
+                    metric.path("value").asLong()));
+        }
+        long submitted = 0;
+        long completed = 0;
+        for (JsonNode trend : result.path("trends")) {
+            submitted += trend.path("submitted").asLong();
+            completed += trend.path("completed").asLong();
+        }
+        answer.append('\n').append(MessageUtils.resolve("agent.dashboard.trend", submitted, completed));
+        if (result.path("distributionTruncated").asBoolean()) {
+            answer.append('\n').append(MessageUtils.resolve("agent.dashboard.distributionTruncated"));
+        }
+        return answer.substring(0, Math.min(MAX_LENGTH, answer.length()));
     }
 
     private static String plain(String value) {

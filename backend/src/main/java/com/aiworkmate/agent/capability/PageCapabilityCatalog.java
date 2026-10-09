@@ -88,7 +88,7 @@ public class PageCapabilityCatalog {
                 page(OaPage.DASHBOARD, OwnershipPolicy.SELF, LIST_COMMANDS,
                         context(text("status"), number("page"), number("size")),
                         tool(TODO_QUERY), tool(NOTIFICATION_MINE), tool(USER_PERMISSION_MINE_QUERY),
-                        tool(DASHBOARD_PREFERENCES_UPDATE)),
+                        tool(DASHBOARD_OVERVIEW_QUERY), tool(DASHBOARD_PREFERENCES_UPDATE)),
                 page(OaPage.AI_WORKSPACE, OwnershipPolicy.SELF, READ_COMMANDS, PageContextSchema.empty(),
                         allTools()),
                 page(OaPage.AI_TASKS, OwnershipPolicy.SELF, LIST_COMMANDS,

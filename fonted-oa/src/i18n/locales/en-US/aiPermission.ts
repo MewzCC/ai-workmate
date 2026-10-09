@@ -75,6 +75,7 @@ const aiPermission = {
     attendance_settings_update: { name: 'Update attendance settings', description: 'After secondary confirmation and version validation, updates work hours and flex rules for the current tenant.' },
     userSettings_update: { name: 'Update personal system settings', description: 'After explicit confirmation, updates the current user\'s model, context, streaming, and OCR preferences.' },
     dashboard_preferences_update: { name: 'Adjust dashboard metrics', description: 'After explicit confirmation, selects and orders dashboard metrics visible to the current user.' },
+    dashboard_overview_query: { name: 'Query my dashboard', description: 'Reads personal metrics, application trends and business distribution for 1–30 days, without tenant totals or sensitive details.' },
     observability_preferences_update: { name: 'Adjust observability charts', description: 'After explicit confirmation, adjusts the current user\'s observability charts, content, layout, and granularity.' },
     observability_thresholds_update: { name: 'Adjust observability visual thresholds', description: 'After explicit confirmation, adjusts personal visual cues without creating real alerts or notifications.' },
     approval_application_createDraft: { name: 'Create general application draft', description: 'Saves only a draft owned by the current user without starting approval.' },

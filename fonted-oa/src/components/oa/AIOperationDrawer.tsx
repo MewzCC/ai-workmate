@@ -9,6 +9,7 @@ import PageAgentCapabilityPanel from './PageAgentCapabilityPanel';
 import { agentTaskApi, executeAiTask, formatOaApiError, getPageCapabilities, issueAiTaskConfirmation, OaApiError, planAiTask, subscribeAiTaskEvents } from '@/lib/oaApi';
 import { OaIcon } from '@/components/OaIcon';
 import AgentPlanPreview from './AgentPlanPreview';
+import { agentToolTargetPage } from '@/lib/agentToolTargetPage';
 
 interface AIOperationDrawerProps {
   open: boolean;
@@ -147,15 +148,22 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageC
       }
       setResultDetail(detail);
       setTaskStatus(detail.status);
-      const todoStep = detail.status === 'SUCCEEDED'
-        ? detail.steps.find((step) => step.toolCode === 'todo.query' && step.status === 'SUCCEEDED')
-        : null;
-      if (todoStep?.resultSummary && answeredTaskRef.current !== taskId) {
+      const successfulSteps = detail.status === 'SUCCEEDED'
+        ? detail.steps.filter((step) => step.status === 'SUCCEEDED' && step.resultSummary)
+        : [];
+      if (successfulSteps.length > 0 && answeredTaskRef.current !== taskId) {
         answeredTaskRef.current = taskId;
-        setMessages((previous) => [...previous, { role: 'assistant', content: todoStep.resultSummary! }]);
-        if ((todoStep.arguments?.status == null || todoStep.arguments.status === 'PENDING')
-            && todoStep.arguments?.from == null && todoStep.arguments?.to == null) {
-          onNavigatePage?.('todo');
+        setMessages((previous) => [...previous, {
+          role: 'assistant', content: successfulSteps.map((step) => step.resultSummary).join('\n\n'),
+        }]);
+        const lastStep = successfulSteps[successfulSteps.length - 1];
+        // A filtered todo query cannot be represented by an unfiltered page navigation.
+        const filteredTodo = lastStep.toolCode === 'todo.query'
+          && ((lastStep.arguments?.status != null && lastStep.arguments.status !== 'PENDING')
+            || lastStep.arguments?.from != null || lastStep.arguments?.to != null);
+        if (!filteredTodo) {
+          // The layout callback applies current navigation permissions; tool output is not a URL.
+          onNavigatePage?.(agentToolTargetPage(lastStep.toolCode));
         }
       }
     } catch (error) {

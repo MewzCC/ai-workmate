@@ -33,6 +33,20 @@ class AgentReadResultPresenterTest {
     }
 
     @Test
+    void dashboardPresentsActualMetricValuesRatherThanArrayCounts() throws Exception {
+        org.springframework.context.i18n.LocaleContextHolder.setLocale(java.util.Locale.SIMPLIFIED_CHINESE);
+        try {
+            String answer = AgentReadResultPresenter.present("dashboard.overview.query", mapper.readTree("""
+                    {"days":7,"metrics":[{"code":"PENDING_TODOS","value":3},{"code":"UNREAD_MESSAGES","value":8}],
+                    "trends":[{"submitted":2,"completed":1},{"submitted":1,"completed":0}],"distributionTruncated":true}
+                    """));
+            assertThat(answer).contains("待处理事项：3", "未读消息：8", "提交申请 3 次", "完成申请 1 次", "前 16 类");
+        } finally {
+            org.springframework.context.i18n.LocaleContextHolder.resetLocaleContext();
+        }
+    }
+
+    @Test
     void rejectsMalformedToolResult() throws Exception {
         assertThatThrownBy(() -> AgentReadResultPresenter.todo(mapper.readTree("{\"total\":0}")))
                 .isInstanceOf(BusinessException.class);

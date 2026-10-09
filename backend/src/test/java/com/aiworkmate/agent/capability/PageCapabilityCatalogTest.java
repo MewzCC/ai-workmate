@@ -52,7 +52,7 @@ class PageCapabilityCatalogTest {
                 .containsExactly(ToolCode.TODO_QUERY);
         assertThat(catalog.find("dashboard").orElseThrow().readTools())
                 .extracting(PageToolReference::code)
-                .contains(ToolCode.USER_PERMISSION_MINE_QUERY);
+                .contains(ToolCode.USER_PERMISSION_MINE_QUERY, ToolCode.DASHBOARD_OVERVIEW_QUERY);
         assertThat(catalog.find("dashboard").orElseThrow().writeTools())
                 .extracting(PageToolReference::code)
                 .containsExactly(ToolCode.DASHBOARD_PREFERENCES_UPDATE);
