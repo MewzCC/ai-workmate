@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { App } from 'antd';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { MeetingRoom } from '@/lib/adminAssetsApi';
+import { PageAgentContextProvider, usePageAgentContextSnapshot } from './PageAgentContext';
 
 const api = vi.hoisted(() => ({ listMeetingRooms: vi.fn(), updateMeetingRoom: vi.fn() }));
 vi.mock('@/lib/adminAssetsApi', async (load) => ({
@@ -21,6 +22,20 @@ beforeEach(() => {
   api.updateMeetingRoom.mockResolvedValue({ ...room, version: 8 });
 });
 afterEach(cleanup);
+
+function ContextSnapshot() {
+  return <output aria-label="agent-context">{JSON.stringify(usePageAgentContextSnapshot())}</output>;
+}
+
+it('publishes only the currently edited room and removes the selection when editing closes', async () => {
+  render(<App><PageAgentContextProvider pageId="meeting-room"><MeetingRoomPage /><ContextSnapshot /></PageAgentContextProvider></App>);
+  fireEvent.click(await screen.findByRole('button', { name: '编辑' }));
+  await waitFor(() => expect(JSON.parse(screen.getByLabelText('agent-context').textContent || '{}'))
+    .toMatchObject({ roomId: 19, version: 7 }));
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /Cancel|取\s*消/ }));
+  await waitFor(() => expect(JSON.parse(screen.getByLabelText('agent-context').textContent || '{}'))
+    .not.toHaveProperty('roomId'));
+});
 
 it('submits the version of the room that was opened for editing', async () => {
   render(<App><MeetingRoomPage /></App>);

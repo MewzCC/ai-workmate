@@ -25,6 +25,8 @@ public final class AgentReadResultPresenter {
         if ("observability.overview.query".equals(toolCode)) return observability(result);
         if ("approval.application.mine.query".equals(toolCode)) return myApplications(result);
         if ("approval.application.detail.query".equals(toolCode)) return applicationDetail(result);
+        if ("meeting.room.query".equals(toolCode)) return meetingRooms(result);
+        if ("meeting.room.create".equals(toolCode) || "meeting.room.update".equals(toolCode)) return meetingRoom(result, true);
         if (toolCode == null || toolCode.isBlank() || result == null || (!result.isObject() && !result.isArray())) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID);
         }
@@ -49,6 +51,31 @@ public final class AgentReadResultPresenter {
             if (!description.isBlank()) answer.append('\n').append(description);
         }
         return answer.substring(0, Math.min(MAX_LENGTH, answer.length()));
+    }
+
+    private static String meetingRooms(JsonNode result) {
+        if (result == null || !result.path("items").isArray() || !result.path("total").canConvertToLong()) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        StringBuilder answer = new StringBuilder(MessageUtils.resolve("agent.meeting.rooms", result.path("total").asLong()));
+        int shown = 0;
+        for (JsonNode room : result.path("items")) {
+            if (shown >= MAX_ITEMS || answer.length() > 750) break;
+            answer.append('\n').append(meetingRoom(room, false));
+            shown++;
+        }
+        if (result.path("total").asLong() > shown) answer.append('\n').append(MessageUtils.resolve("agent.result.more", result.path("total").asLong() - shown));
+        return answer.substring(0, Math.min(MAX_LENGTH, answer.length()));
+    }
+
+    private static String meetingRoom(JsonNode room, boolean saved) {
+        if (room == null || room.path("roomId").asLong() < 1 || !room.path("version").canConvertToInt()
+                || !List.of("OPEN", "CLOSED").contains(room.path("status").asText())) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        String status = MessageUtils.resolve("agent.meeting.status." + room.path("status").asText());
+        return saved ? MessageUtils.resolve("agent.meeting.saved", room.path("roomId").asLong(),
+                plain(room.path("name").asText()), plain(room.path("code").asText()), status, room.path("version").asInt())
+                : MessageUtils.resolve("agent.meeting.room", room.path("roomId").asLong(), plain(room.path("name").asText()),
+                plain(room.path("code").asText()), room.path("capacity").asInt(), status, room.path("version").asInt());
     }
 
     public static String todo(JsonNode result) {

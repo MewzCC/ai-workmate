@@ -13,6 +13,17 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class AgentReadResultPresenterTest {
     private final ObjectMapper mapper = new ObjectMapper();
 
+    @Test void roomResultsShowActualNamesVersionsAndSavedIdentity() throws Exception {
+        org.springframework.context.i18n.LocaleContextHolder.setLocale(java.util.Locale.US);
+        try {
+            var receipt = mapper.readTree("{\"roomId\":17,\"code\":\"R1\",\"name\":\"Boardroom\",\"status\":\"OPEN\",\"version\":3}");
+            assertThat(AgentReadResultPresenter.present("meeting.room.update", receipt)).contains("Saved room #17", "Boardroom", "R1", "Open", "Version 3");
+            assertThat(AgentReadResultPresenter.present("meeting.room.query", mapper.readTree("""
+                    {"total":1,"items":[{"roomId":17,"code":"R1","name":"Boardroom","capacity":8,"status":"OPEN","version":3}]}
+                    """))).contains("1 meeting rooms", "Boardroom", "Capacity 8", "Version 3");
+        } finally { org.springframework.context.i18n.LocaleContextHolder.resetLocaleContext(); }
+    }
+
     @Test
     void genericApplicationsPresentActualFormStatusAndVersion() throws Exception {
         org.springframework.context.i18n.LocaleContextHolder.setLocale(java.util.Locale.US);

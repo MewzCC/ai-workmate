@@ -106,6 +106,11 @@ public interface AdminAssetsService {
 
     MeetingRoomResponse updateMeetingRoom(Long userId, Long id, MeetingRoomRequest request);
 
+    MeetingRoomResponse createMeetingRoomAgent(Long userId, com.aiworkmate.service.model.MeetingRoomAgentFields fields);
+
+    MeetingRoomResponse updateMeetingRoomAgent(Long userId, Long id, int version,
+            com.aiworkmate.service.model.MeetingRoomAgentFields fields);
+
     void deleteMeetingRoom(Long userId, Long id);
 
     // ---------- 访客预约 ----------

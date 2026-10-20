@@ -587,7 +587,7 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
         String kw = normalize(keyword);
 
         LambdaQueryWrapper<MeetingRoom> q = meetingListWrapper(actor.tenantId(), kw, status);
-        q.orderByDesc(MeetingRoom::getCreatedAt).last("LIMIT " + safeSize + " OFFSET " + offset);
+        q.orderByDesc(MeetingRoom::getCreatedAt, MeetingRoom::getId).last("LIMIT " + safeSize + " OFFSET " + offset);
         List<MeetingRoom> rows = meetingRoomMapper.selectList(q);
         long total = meetingRoomMapper.selectCount(meetingListWrapper(actor.tenantId(), kw, status));
         boolean canWrite = actor.permissions().contains("meeting:write");
@@ -678,6 +678,53 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
         auditService.recordTransactional(actor.tenantId(), actor.userId(), "MEETING_ROOM",
                 id.toString(), "UPDATE", "SUCCESS", "更新会议室");
         return toMeetingRoomResponse(requireMeetingRoom(actor.tenantId(), id), true);
+    }
+
+    @Override
+    @Transactional
+    public MeetingRoomResponse createMeetingRoomAgent(Long userId, com.aiworkmate.service.model.MeetingRoomAgentFields fields) {
+        requirePermission(userId, "meeting:write");
+        validateAgentRoomFields(fields);
+        if (fields.code() == null || fields.name() == null || fields.capacity() == null || fields.status() == null) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        return createMeetingRoom(userId, new MeetingRoomRequest(fields.code(), fields.name(), fields.location(),
+                fields.capacity(), fields.facilities(), fields.status(), fields.remark(), null));
+    }
+
+    @Override
+    @Transactional
+    public MeetingRoomResponse updateMeetingRoomAgent(Long userId, Long id, int version,
+            com.aiworkmate.service.model.MeetingRoomAgentFields fields) {
+        ResolvedUserAccess actor = requirePermission(userId, "meeting:write");
+        validateAgentRoomFields(fields);
+        if (id == null || id < 1 || version < 0 || version == Integer.MAX_VALUE) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        MeetingRoom current = meetingRoomMapper.lockForBooking(actor.tenantId(), id);
+        if (current == null) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        if (!Objects.equals(current.getVersion(), version)) throw new BusinessException(ErrorCode.VERSION_CONFLICT);
+        // Merge while holding the same transaction/row lock as the versioned domain update.
+        return updateMeetingRoom(userId, id, new MeetingRoomRequest(
+                fields.code() == null ? current.getCode() : fields.code(),
+                fields.name() == null ? current.getName() : fields.name(),
+                fields.location() == null ? current.getLocation() : fields.location(),
+                fields.capacity() == null ? current.getCapacity() : fields.capacity(),
+                fields.facilities() == null ? current.getFacilities() : fields.facilities(),
+                fields.status() == null ? current.getStatus() : fields.status(),
+                fields.remark() == null ? current.getRemark() : fields.remark(), version));
+    }
+
+    private void validateAgentRoomFields(com.aiworkmate.service.model.MeetingRoomAgentFields fields) {
+        if (fields == null || (fields.code() == null && fields.name() == null && fields.location() == null
+                && fields.capacity() == null && fields.facilities() == null && fields.status() == null && fields.remark() == null)
+                || (fields.code() != null && (fields.code().isBlank() || fields.code().length() > 64))
+                || (fields.name() != null && (fields.name().isBlank() || fields.name().length() > 120))
+                || (fields.location() != null && fields.location().length() > 200)
+                || (fields.facilities() != null && fields.facilities().length() > 200)
+                || (fields.remark() != null && fields.remark().length() > 500)
+                || (fields.capacity() != null && (fields.capacity() < 0 || fields.capacity() > 10000))
+                || (fields.status() != null && !Set.of("OPEN", "CLOSED").contains(fields.status()))) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
     }
 
     @Override

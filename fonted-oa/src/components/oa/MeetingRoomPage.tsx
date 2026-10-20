@@ -44,16 +44,18 @@ export default function MeetingRoomPage() {
   const [size, setSize] = useState(10);
   const [keyword, setKeyword] = useState('');
   const [status, setStatus] = useState<string | undefined>(undefined);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editing, setEditing] = useState<MeetingRoom | null>(null);
 
   usePublishPageAgentContext({
+    roomId: editOpen ? editing?.id : undefined,
+    version: editOpen ? editing?.version : undefined,
     keyword: keyword || undefined,
     roomStatus: status,
     page,
     size,
   });
 
-  const [editOpen, setEditOpen] = useState(false);
-  const [editing, setEditing] = useState<MeetingRoom | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [form] = Form.useForm<MeetingRoomPayload>();
   const canManage = data.some((room) => room.canEdit);

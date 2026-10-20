@@ -65,6 +65,7 @@ class P1PostgresMigrationIT {
         assertThat(emptyResult.migrationsExecuted).isGreaterThan(0);
         assertThat(empty.validateWithResult().validationSuccessful).isTrue();
         assertP1Schema(emptySchema);
+        assertMeetingRoomToolRegistration(emptySchema);
         assertChatAgentResultSchema(emptySchema);
         MeetingBookingPostgresVerifier.verify(databaseUrl, databaseUsername, databasePassword, emptySchema);
         AttendanceReissuePostgresVerifier.verify(databaseUrl, databaseUsername, databasePassword, emptySchema);
@@ -124,6 +125,7 @@ class P1PostgresMigrationIT {
         assertThat(upgraded.migrate().migrationsExecuted).isGreaterThan(0);
         assertThat(upgraded.validateWithResult().validationSuccessful).isTrue();
         assertP1Schema(upgradeSchema);
+        assertMeetingRoomToolRegistration(upgradeSchema);
         assertChatAgentResultSchema(upgradeSchema);
         assertThat(queryCount(upgradeSchema, """
                 SELECT COUNT(*) FROM meeting_room
@@ -160,6 +162,28 @@ class P1PostgresMigrationIT {
         assertThat(restartedUpgrade.migrate().migrationsExecuted).isZero();
         assertThat(restartedUpgrade.validateWithResult().validationSuccessful).isTrue();
         assertNoDuplicateMigrationVersions(upgradeSchema);
+    }
+
+    private static void assertMeetingRoomToolRegistration(String schema) throws Exception {
+        assertThat(queryCount(schema, """
+                SELECT COUNT(*) FROM agent_tool WHERE tenant_id IS NULL
+                AND code IN ('meeting.room.query','meeting.room.create','meeting.room.update')
+                AND data_scope_policy='TENANT_SCOPED'
+                AND schema_hash = CASE code
+                  WHEN 'meeting.room.query' THEN 'sha256:45bc82f82e3dab815be1eb58da17701d69d5ea5266af20f829099968b057d114'
+                  WHEN 'meeting.room.create' THEN 'sha256:eb0a73f37a5acd02ff01ba4465f9c768a54d69d543dbbb63c8f0fb52fcb65539'
+                  WHEN 'meeting.room.update' THEN 'sha256:b4778abcb5352b23af844b4f466e619414ea72d9a818c5371830eb3c4fcde84b' END
+                """)).isEqualTo(3);
+        assertThat(queryCount(schema, """
+                SELECT COUNT(*) FROM agent_tool WHERE tenant_id IS NULL
+                AND code IN ('meeting.room.create','meeting.room.update')
+                AND risk_level='L1' AND side_effect='SINGLE_WRITE' AND retry_policy='NEVER'
+                AND confirmation_policy='EXPLICIT' AND enabled=FALSE
+                """)).isEqualTo(2);
+        assertThat(queryCount(schema, """
+                SELECT COUNT(*) FROM agent_tool WHERE tenant_id IS NULL AND code='meeting.room.query'
+                AND permission_mode='ANY' AND enabled=TRUE AND side_effect='NONE' AND risk_level='L0'
+                """)).isOne();
     }
 
     private static Flyway flyway(String schema, MigrationVersion target) {

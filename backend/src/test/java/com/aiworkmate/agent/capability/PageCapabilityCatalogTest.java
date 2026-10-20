@@ -111,9 +111,10 @@ class PageCapabilityCatalogTest {
     void meetingPageOffersReadAndConfirmedAtomicWrites() {
         var page = catalog.find("meeting-room").orElseThrow();
         assertThat(page.readTools()).extracting(PageToolReference::code)
-                .containsExactly(ToolCode.MEETING_QUERY);
+                .containsExactly(ToolCode.MEETING_QUERY, ToolCode.MEETING_ROOM_QUERY);
         assertThat(page.writeTools()).extracting(PageToolReference::code)
-                .containsExactly(ToolCode.MEETING_BOOK, ToolCode.MEETING_CANCEL);
+                .containsExactly(ToolCode.MEETING_BOOK, ToolCode.MEETING_CANCEL,
+                        ToolCode.MEETING_ROOM_CREATE, ToolCode.MEETING_ROOM_UPDATE);
     }
 
     @Test

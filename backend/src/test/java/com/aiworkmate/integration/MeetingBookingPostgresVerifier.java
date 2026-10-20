@@ -166,6 +166,7 @@ final class MeetingBookingPostgresVerifier {
         var original = access.resolveActiveUser(user);
         when(access.resolveActiveUser(user)).thenReturn(writer);
         var service = roomService(rooms, bookings, access, audit);
+        verifyAgentRoomOperations(jdbc, service, access, audit, rooms, bookings, tx, user, tenant, writer);
         var created = tx.execute(status -> service.createMeetingRoom(user, roomRequest("Versioned room", null)));
         assertThat(created.version()).isZero();
         var updated = tx.execute(status -> service.updateMeetingRoom(user, created.id(), roomRequest("First update", 0)));
@@ -232,6 +233,61 @@ final class MeetingBookingPostgresVerifier {
                 .isInstanceOf(com.aiworkmate.common.BusinessException.class)
                 .extracting("errorCode").isEqualTo("PERMISSION_DENIED");
         when(access.resolveActiveUser(user)).thenReturn(original);
+    }
+
+    private static void verifyAgentRoomOperations(JdbcTemplate jdbc, AdminAssetsServiceImpl service,
+            UserAccessService access, BusinessAuditService audit, MeetingRoomMapper rooms, MeetingBookingMapper bookings,
+            TransactionTemplate tx, Long user, Long tenant, ResolvedUserAccess writer) {
+        var adapter = new com.aiworkmate.agent.tool.adapter.MeetingRoomAgentDomainToolAdapter(service);
+        var actor = new com.aiworkmate.agent.tool.port.ToolActorContext(tenant, user, 3, 4, 0, "trace");
+        var fields = new com.aiworkmate.agent.tool.port.MeetingRoomToolPort.Fields("MR-AGENT", "Agent room", "Floor 2", 8, "Projector", "OPEN", "Keep me");
+        var receipt = tx.execute(status -> adapter.create(actor, fields));
+        assertThat(receipt.version()).isZero();
+        assertThatThrownBy(() -> tx.execute(status -> adapter.create(actor, fields)))
+                .isInstanceOf(com.aiworkmate.common.BusinessException.class)
+                .extracting("errorCode").isEqualTo("BUSINESS_STATE_INVALID");
+        var query = new com.aiworkmate.agent.tool.port.MeetingRoomToolPort.Query("MR-AGENT", "OPEN", 1, 10);
+        var initial = tx.execute(status -> adapter.query(actor, query));
+        assertThat(initial.total()).isOne();
+        assertThat(initial.items().get(0).version()).isZero();
+        var patch = new com.aiworkmate.agent.tool.port.MeetingRoomToolPort.Fields(null, "Renamed", null, null, null, null, null);
+        var updated = tx.execute(status -> adapter.update(actor, new com.aiworkmate.agent.tool.port.MeetingRoomToolPort.Update(receipt.roomId(), 0, patch)));
+        assertThat(updated.version()).isEqualTo(1);
+        var current = tx.execute(status -> adapter.query(actor, query)).items().get(0);
+        assertThat(current.name()).isEqualTo("Renamed");
+        assertThat(current.location()).isEqualTo("Floor 2");
+        assertThat(current.facilities()).isEqualTo("Projector");
+        assertThat(current.remark()).isEqualTo("Keep me");
+        assertThat(current.capacity()).isEqualTo(8);
+        assertThatThrownBy(() -> tx.execute(status -> adapter.update(actor,
+                new com.aiworkmate.agent.tool.port.MeetingRoomToolPort.Update(receipt.roomId(), 0, patch))))
+                .isInstanceOf(com.aiworkmate.common.BusinessException.class).extracting("errorCode").isEqualTo("VERSION_CONFLICT");
+        var clear = new com.aiworkmate.agent.tool.port.MeetingRoomToolPort.Fields(null, null, null, null, null, null, "");
+        tx.execute(status -> adapter.update(actor, new com.aiworkmate.agent.tool.port.MeetingRoomToolPort.Update(receipt.roomId(), 1, clear)));
+        assertThat(tx.execute(status -> adapter.query(actor, query)).items().get(0).remark()).isEmpty();
+        BusinessAuditService failing = mock(BusinessAuditService.class);
+        doThrow(new IllegalStateException("audit unavailable")).when(failing).recordTransactional(any(), any(), any(), any(), any(), any(), any());
+        var failingAdapter = new com.aiworkmate.agent.tool.adapter.MeetingRoomAgentDomainToolAdapter(roomService(rooms, bookings, access, failing));
+        assertThatThrownBy(() -> tx.execute(status -> failingAdapter.update(actor,
+                new com.aiworkmate.agent.tool.port.MeetingRoomToolPort.Update(receipt.roomId(), 2, patch)))).isInstanceOf(IllegalStateException.class);
+        assertThat(jdbc.queryForObject("SELECT version FROM meeting_room WHERE id=?", Integer.class, receipt.roomId())).isEqualTo(2);
+        var invalid = new com.aiworkmate.agent.tool.port.MeetingRoomToolPort.Fields(null, "Too long".repeat(30), null, null, null, null, null);
+        assertThatThrownBy(() -> tx.execute(status -> adapter.update(actor,
+                new com.aiworkmate.agent.tool.port.MeetingRoomToolPort.Update(receipt.roomId(), 2, invalid))))
+                .isInstanceOf(com.aiworkmate.common.BusinessException.class).extracting("errorCode").isEqualTo("REQUEST_INVALID");
+        when(access.resolveActiveUser(user)).thenReturn(new ResolvedUserAccess(user, "test", tenant, "EMPLOYEE", List.of("EMPLOYEE"),
+                List.of("meeting:read:self"), List.of("SELF"), 1L));
+        assertThat(tx.execute(status -> adapter.query(actor, query)).total()).isOne();
+        assertThatThrownBy(() -> tx.execute(status -> adapter.update(actor,
+                new com.aiworkmate.agent.tool.port.MeetingRoomToolPort.Update(receipt.roomId(), 2, patch))))
+                .isInstanceOf(com.aiworkmate.common.BusinessException.class).extracting("errorCode").isEqualTo("PERMISSION_DENIED");
+        when(access.resolveActiveUser(user)).thenReturn(new ResolvedUserAccess(user, "test", tenant + 100000, "ADMIN", List.of("ADMIN"),
+                List.of("assets:read", "meeting:write"), List.of("TENANT"), 1L));
+        assertThat(tx.execute(status -> adapter.query(actor, query)).total()).isZero();
+        assertThatThrownBy(() -> tx.execute(status -> adapter.update(actor,
+                new com.aiworkmate.agent.tool.port.MeetingRoomToolPort.Update(receipt.roomId(), 2, patch))))
+                .isInstanceOf(com.aiworkmate.common.BusinessException.class).extracting("errorCode").isEqualTo("RESOURCE_NOT_FOUND");
+        when(access.resolveActiveUser(user)).thenReturn(writer);
     }
 
     private static MeetingRoomRequest roomRequest(String name, Integer version) {
