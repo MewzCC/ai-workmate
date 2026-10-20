@@ -17,6 +17,7 @@ public record MeetingRoomRequest(
         @Pattern(regexp = "OPEN|CLOSED",
                 message = "{validation.meeting.status.invalid}")
         String status,
-        @Size(max = 500) String remark
+        @Size(max = 500) String remark,
+        @Min(0) Integer version
 ) {
 }

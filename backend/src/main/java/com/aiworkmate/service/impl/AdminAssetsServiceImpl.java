@@ -625,11 +625,12 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
         m.setFacilities(trim(request.facilities()));
         m.setStatus(request.status() == null ? "OPEN" : request.status());
         m.setRemark(trim(request.remark()));
+        m.setVersion(0);
         m.setDeleted(false);
         m.setCreatedAt(now);
         m.setUpdatedAt(now);
         meetingRoomMapper.insert(m);
-        auditService.record(actor.tenantId(), actor.userId(), "MEETING_ROOM",
+        auditService.recordTransactional(actor.tenantId(), actor.userId(), "MEETING_ROOM",
                 m.getId().toString(), "CREATE", "SUCCESS", "新增会议室");
         return toMeetingRoomResponse(m, true);
     }
@@ -638,7 +639,12 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
     @Transactional
     public MeetingRoomResponse updateMeetingRoom(Long userId, Long id, MeetingRoomRequest request) {
         ResolvedUserAccess actor = requirePermission(userId, "meeting:write");
-        MeetingRoom current = requireMeetingRoom(actor.tenantId(), id);
+        if (request.version() == null || request.version() < 0) {
+            throw new BusinessException(ErrorCode.VERSION_CONFLICT);
+        }
+        // Share the booking lock so closing a room cannot race a new reservation.
+        MeetingRoom current = meetingRoomMapper.lockForBooking(actor.tenantId(), id);
+        if (current == null) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
         String targetStatus = request.status() == null ? "OPEN" : request.status();
         if (!"CLOSED".equals(current.getStatus()) && "CLOSED".equals(targetStatus)
                 && hasActiveMeetingBooking(actor.tenantId(), id)) {
@@ -656,6 +662,7 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
                 .eq(MeetingRoom::getId, id)
                 .eq(MeetingRoom::getTenantId, actor.tenantId())
                 .eq(MeetingRoom::getDeleted, false)
+                .eq(MeetingRoom::getVersion, request.version())
                 .set(MeetingRoom::getCode, request.code().trim())
                 .set(MeetingRoom::getName, request.name().trim())
                 .set(MeetingRoom::getLocation, trim(request.location()))
@@ -663,11 +670,12 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
                 .set(MeetingRoom::getFacilities, trim(request.facilities()))
                 .set(MeetingRoom::getStatus, targetStatus)
                 .set(MeetingRoom::getRemark, trim(request.remark()))
+                .setSql("version = version + 1")
                 .set(MeetingRoom::getUpdatedAt, LocalDateTime.now()));
         if (updated != 1) {
             throw new BusinessException(ErrorCode.VERSION_CONFLICT);
         }
-        auditService.record(actor.tenantId(), actor.userId(), "MEETING_ROOM",
+        auditService.recordTransactional(actor.tenantId(), actor.userId(), "MEETING_ROOM",
                 id.toString(), "UPDATE", "SUCCESS", "更新会议室");
         return toMeetingRoomResponse(requireMeetingRoom(actor.tenantId(), id), true);
     }
@@ -2165,7 +2173,7 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
     private MeetingRoomResponse toMeetingRoomResponse(MeetingRoom m, boolean canWrite) {
         return new MeetingRoomResponse(
                 m.getId(), m.getCode(), m.getName(), m.getLocation(), m.getCapacity(),
-                m.getFacilities(), m.getStatus(), m.getRemark(),
+                m.getFacilities(), m.getStatus(), m.getRemark(), m.getVersion(),
                 m.getCreatedAt(), m.getUpdatedAt(), canWrite, canWrite);
     }
 

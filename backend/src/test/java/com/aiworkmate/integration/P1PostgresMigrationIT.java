@@ -111,12 +111,24 @@ class P1PostgresMigrationIT {
         Flyway beforeSupplier = flyway(upgradeSchema, MigrationVersion.fromVersion("202609101100"));
         assertThat(beforeSupplier.migrate().migrationsExecuted).isGreaterThan(0);
         insertLegacySupplierRecord(upgradeSchema);
+        try (Connection connection = DriverManager.getConnection(databaseUrl, databaseUsername, databasePassword);
+             Statement statement = connection.createStatement()) {
+            statement.execute("SET search_path TO \"" + upgradeSchema + "\"");
+            statement.executeUpdate("""
+                    INSERT INTO meeting_room(tenant_id, code, name, capacity, status, deleted)
+                    SELECT id, 'MR-LEGACY-VERSION', 'Legacy room', 8, 'OPEN', FALSE FROM tenant WHERE code='DEFAULT'
+                    """);
+        }
 
         Flyway upgraded = flyway(upgradeSchema, null);
         assertThat(upgraded.migrate().migrationsExecuted).isGreaterThan(0);
         assertThat(upgraded.validateWithResult().validationSuccessful).isTrue();
         assertP1Schema(upgradeSchema);
         assertChatAgentResultSchema(upgradeSchema);
+        assertThat(queryCount(upgradeSchema, """
+                SELECT COUNT(*) FROM meeting_room
+                WHERE code='MR-LEGACY-VERSION' AND version=0 AND name='Legacy room'
+                """)).isOne();
         PlatformOperationLogPostgresVerifier.verify(
                 databaseUrl, databaseUsername, databasePassword, upgradeSchema);
         ObservabilityOverviewPostgresVerifier.verify(

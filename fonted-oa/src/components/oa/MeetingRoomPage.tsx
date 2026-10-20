@@ -111,7 +111,7 @@ export default function MeetingRoomPage() {
       const values = await form.validateFields();
       setSubmitting(true);
       if (editing) {
-        await adminAssetsApi.updateMeetingRoom(editing.id, values);
+        await adminAssetsApi.updateMeetingRoom(editing.id, { ...values, version: editing.version });
         message.success(t('adminAssets.meeting.updateSuccess'));
       } else {
         await adminAssetsApi.createMeetingRoom(values);

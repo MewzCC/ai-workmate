@@ -2,12 +2,14 @@ package com.aiworkmate.integration;
 
 import com.aiworkmate.dto.MeetingBookingRequest;
 import com.aiworkmate.dto.MeetingBookingCancelRequest;
+import com.aiworkmate.dto.MeetingRoomRequest;
 import com.aiworkmate.entity.MeetingRoom;
 import com.aiworkmate.mapper.*;
 import com.aiworkmate.service.BusinessAuditService;
 import com.aiworkmate.service.UserAccessService;
 import com.aiworkmate.service.impl.BusinessAuditServiceImpl;
 import com.aiworkmate.service.impl.MeetingBookingServiceImpl;
+import com.aiworkmate.service.impl.AdminAssetsServiceImpl;
 import com.aiworkmate.service.model.ResolvedUserAccess;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.extension.spring.MybatisSqlSessionFactoryBean;
@@ -56,6 +58,7 @@ final class MeetingBookingPostgresVerifier {
                 "EMPLOYEE", List.of("EMPLOYEE"), List.of("meeting:book", "meeting:cancel"), List.of("SELF"), 1L));
         var tx = new TransactionTemplate(new DataSourceTransactionManager(datasource));
         var service = new MeetingBookingServiceImpl(bookings, rooms, users, access, audit);
+        verifyRoomVersions(jdbc, rooms, bookings, access, audit, tx, user, tenant);
         var room = new MeetingRoom();
         room.setTenantId(tenant); room.setCode("MR-VERIFY"); room.setName("Test room");
         room.setCapacity(10); room.setStatus("OPEN"); room.setDeleted(false);
@@ -155,5 +158,91 @@ final class MeetingBookingPostgresVerifier {
                 observed.orElseThrow().id(), new MeetingBookingCancelRequest(0, "changed"), "same-cancellation")))
                 .isInstanceOf(com.aiworkmate.common.BusinessException.class)
                 .extracting("errorCode").isEqualTo("PERMISSION_DENIED");
+    }
+    private static void verifyRoomVersions(JdbcTemplate jdbc, MeetingRoomMapper rooms, MeetingBookingMapper bookings, UserAccessService access,
+            BusinessAuditService audit, TransactionTemplate tx, Long user, Long tenant) throws Exception {
+        var writer = new ResolvedUserAccess(user, "test", tenant, "ADMIN", List.of("ADMIN"),
+                List.of("meeting:write", "assets:read"), List.of("TENANT"), 1L);
+        var original = access.resolveActiveUser(user);
+        when(access.resolveActiveUser(user)).thenReturn(writer);
+        var service = roomService(rooms, bookings, access, audit);
+        var created = tx.execute(status -> service.createMeetingRoom(user, roomRequest("Versioned room", null)));
+        assertThat(created.version()).isZero();
+        var updated = tx.execute(status -> service.updateMeetingRoom(user, created.id(), roomRequest("First update", 0)));
+        assertThat(updated.version()).isEqualTo(1);
+        assertThat(updated.name()).isEqualTo("First update");
+        assertThatThrownBy(() -> tx.execute(status -> service.updateMeetingRoom(user, created.id(), roomRequest("Stale", 0))))
+                .isInstanceOf(com.aiworkmate.common.BusinessException.class)
+                .extracting("errorCode").isEqualTo("VERSION_CONFLICT");
+        assertThatThrownBy(() -> tx.execute(status -> service.updateMeetingRoom(user, created.id(), roomRequest("Missing", null))))
+                .isInstanceOf(com.aiworkmate.common.BusinessException.class)
+                .extracting("errorCode").isEqualTo("VERSION_CONFLICT");
+        assertThatThrownBy(() -> tx.execute(status -> service.updateMeetingRoom(user, created.id(), roomRequest("Negative", -1))))
+                .isInstanceOf(com.aiworkmate.common.BusinessException.class)
+                .extracting("errorCode").isEqualTo("VERSION_CONFLICT");
+        var executor = Executors.newFixedThreadPool(2);
+        try {
+            var barrier = new CyclicBarrier(2);
+            Callable<Boolean> update = () -> {
+                barrier.await(10, TimeUnit.SECONDS);
+                try {
+                    tx.execute(status -> service.updateMeetingRoom(user, created.id(), roomRequest("Concurrent", 1)));
+                    return true;
+                } catch (com.aiworkmate.common.BusinessException exception) {
+                    assertThat(exception.getErrorCode()).isEqualTo("VERSION_CONFLICT");
+                    return false;
+                }
+            };
+            var first = executor.submit(update); var second = executor.submit(update);
+            assertThat(List.of(first.get(20, TimeUnit.SECONDS), second.get(20, TimeUnit.SECONDS)))
+                    .containsExactlyInAnyOrder(true, false);
+        } finally { executor.shutdownNow(); }
+        assertThat(jdbc.queryForObject("SELECT version FROM meeting_room WHERE id=?", Integer.class, created.id())).isEqualTo(2);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM business_audit_log WHERE resource_type='MEETING_ROOM' AND resource_id=? AND action='UPDATE'",
+                Integer.class, created.id().toString())).isEqualTo(2);
+        BusinessAuditService failingAudit = mock(BusinessAuditService.class);
+        doThrow(new IllegalStateException("audit unavailable")).when(failingAudit)
+                .recordTransactional(any(), any(), any(), any(), any(), any(), any());
+        var failingService = roomService(rooms, bookings, access, failingAudit);
+        assertThatThrownBy(() -> tx.execute(status -> failingService.updateMeetingRoom(user, created.id(), roomRequest("Rollback", 2))))
+                .isInstanceOf(IllegalStateException.class);
+        assertThat(jdbc.queryForObject("SELECT name FROM meeting_room WHERE id=?", String.class, created.id())).isEqualTo("Concurrent");
+        assertThat(jdbc.queryForObject("SELECT version FROM meeting_room WHERE id=?", Integer.class, created.id())).isEqualTo(2);
+        assertThatThrownBy(() -> tx.execute(status -> failingService.createMeetingRoom(user,
+                new MeetingRoomRequest("MR-AUDIT-ROLLBACK", "Rollback", null, 8, null, "OPEN", null, null))))
+                .isInstanceOf(IllegalStateException.class);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM meeting_room WHERE code='MR-AUDIT-ROLLBACK'", Integer.class)).isZero();
+        jdbc.update("""
+                INSERT INTO meeting_booking(tenant_id,room_id,organizer_user_id,title,start_at,end_at)
+                VALUES (?,?,?,'Active booking',CURRENT_TIMESTAMP + INTERVAL '1 day',CURRENT_TIMESTAMP + INTERVAL '2 days')
+                """, tenant, created.id(), user);
+        assertThatThrownBy(() -> tx.execute(status -> service.updateMeetingRoom(user, created.id(),
+                new MeetingRoomRequest("MR-VERSION", "Closed", null, 8, null, "CLOSED", null, 2))))
+                .isInstanceOf(com.aiworkmate.common.BusinessException.class)
+                .extracting("errorCode").isEqualTo("BUSINESS_STATE_INVALID");
+        assertThat(jdbc.queryForObject("SELECT status FROM meeting_room WHERE id=?", String.class, created.id())).isEqualTo("OPEN");
+        when(access.resolveActiveUser(user)).thenReturn(new ResolvedUserAccess(user, "test", tenant + 100000,
+                "ADMIN", List.of("ADMIN"), List.of("meeting:write"), List.of("TENANT"), 1L));
+        assertThatThrownBy(() -> tx.execute(status -> service.updateMeetingRoom(user, created.id(), roomRequest("Foreign", 2))))
+                .isInstanceOf(com.aiworkmate.common.BusinessException.class)
+                .extracting("errorCode").isEqualTo("RESOURCE_NOT_FOUND");
+        when(access.resolveActiveUser(user)).thenReturn(new ResolvedUserAccess(user, "test", tenant,
+                "ADMIN", List.of("ADMIN"), List.of(), List.of("TENANT"), 1L));
+        assertThatThrownBy(() -> tx.execute(status -> service.updateMeetingRoom(user, created.id(), roomRequest("Revoked", 2))))
+                .isInstanceOf(com.aiworkmate.common.BusinessException.class)
+                .extracting("errorCode").isEqualTo("PERMISSION_DENIED");
+        when(access.resolveActiveUser(user)).thenReturn(original);
+    }
+
+    private static MeetingRoomRequest roomRequest(String name, Integer version) {
+        return new MeetingRoomRequest("MR-VERSION", name, "Floor 1", 10, null, "OPEN", null, version);
+    }
+
+    private static AdminAssetsServiceImpl roomService(MeetingRoomMapper rooms, MeetingBookingMapper bookings, UserAccessService access, BusinessAuditService audit) {
+        return new AdminAssetsServiceImpl(mock(AssetLedgerMapper.class), mock(AssetOperationMapper.class),
+                mock(AccessControlMapper.class), rooms, bookings, mock(VisitorBookingMapper.class),
+                mock(SealUsageMapper.class), mock(UserMapper.class), mock(WorkflowInstanceMapper.class),
+                mock(WorkflowTaskMapper.class), mock(WorkflowActionLogMapper.class), access, audit,
+                mock(com.aiworkmate.service.NotificationService.class));
     }
 }
