@@ -25,6 +25,7 @@ import {
   type MeetingRoomStatus,
 } from '@/lib/adminAssetsApi';
 import { formatOaApiError } from '@/lib/oaApi';
+import { usePermission } from '@/hooks/usePermission';
 import AdminAssetsPageShell from './AdminAssetsPageShell';
 import MeetingBookingPanel from './MeetingBookingPanel';
 import ResponsiveTable from './ResponsiveTable';
@@ -37,6 +38,7 @@ const STATUS_TAG_COLOR: Record<MeetingRoomStatus, string> = {
 
 export default function MeetingRoomPage() {
   const { t } = useTranslation();
+  const { allowed: canManage, permissionVersion } = usePermission('meeting:write');
   const [data, setData] = useState<MeetingRoom[]>([]);
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
@@ -58,7 +60,6 @@ export default function MeetingRoomPage() {
 
   const [submitting, setSubmitting] = useState(false);
   const [form] = Form.useForm<MeetingRoomPayload>();
-  const canManage = data.some((room) => room.canEdit);
 
   const load = useCallback(async (p = page, s = size) => {
     setLoading(true);
@@ -79,9 +80,10 @@ export default function MeetingRoomPage() {
   }, [keyword, status, page, size]);
 
   useEffect(() => {
+    setPage(1);
     load(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [permissionVersion]);
 
   const handleSearch = () => {
     setPage(1);
@@ -109,6 +111,7 @@ export default function MeetingRoomPage() {
   };
 
   const handleSubmit = async () => {
+    if (!canManage) return;
     try {
       const values = await form.validateFields();
       setSubmitting(true);
@@ -130,6 +133,7 @@ export default function MeetingRoomPage() {
   };
 
   const handleDelete = async (id: number) => {
+    if (!canManage) return;
     try {
       await adminAssetsApi.deleteMeetingRoom(id);
       message.success(t('adminAssets.meeting.deleteSuccess'));
@@ -174,7 +178,7 @@ export default function MeetingRoomPage() {
       title: t('adminAssets.common.action'),
       key: 'action',
       render: (_: unknown, record: MeetingRoom) =>
-        record.canEdit ? (
+        canManage && record.canEdit ? (
           <Space>
             <Button type="link" onClick={() => openEdit(record)}>
               {t('adminAssets.common.edit')}
@@ -262,6 +266,7 @@ export default function MeetingRoomPage() {
         open={editOpen}
         onCancel={() => setEditOpen(false)}
         onOk={handleSubmit}
+        okButtonProps={{ disabled: !canManage }}
         confirmLoading={submitting}
         okText={t('adminAssets.common.save')}
         destroyOnClose

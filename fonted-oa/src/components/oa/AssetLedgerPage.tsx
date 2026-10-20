@@ -34,6 +34,7 @@ import {
 } from '@/lib/adminAssetsApi';
 import { hrApi, type OrganizationOverview } from '@/lib/hrApi';
 import { formatOaApiError } from '@/lib/oaApi';
+import { usePermission } from '@/hooks/usePermission';
 import AdminAssetsPageShell from './AdminAssetsPageShell';
 import ResponsiveTable from './ResponsiveTable';
 
@@ -57,6 +58,7 @@ type OperationFormValues = Omit<AssetOperationPayload, 'version'> & {
 
 export default function AssetLedgerPage() {
   const { t } = useTranslation();
+  const { allowed: canManage, permissionVersion } = usePermission('asset:write');
   const [data, setData] = useState<AssetLedger[]>([]);
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
@@ -100,10 +102,11 @@ export default function AssetLedgerPage() {
   }, [keyword, category, status, page, size]);
 
   useEffect(() => {
+    setPage(1);
     load(1);
     hrApi.overview().then(setOverview).catch(() => undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [permissionVersion]);
 
   const handleSearch = () => {
     setPage(1);
@@ -158,7 +161,7 @@ export default function AssetLedgerPage() {
   };
 
   const handleOperation = async () => {
-    if (!detail || !operationType) return;
+    if (!canManage || !detail || !operationType) return;
     try {
       const values = await operationForm.validateFields();
       setOperating(true);
@@ -199,6 +202,7 @@ export default function AssetLedgerPage() {
   };
 
   const handleSubmit = async () => {
+    if (!canManage) return;
     try {
       const values = await form.validateFields();
       setSubmitting(true);
@@ -225,6 +229,7 @@ export default function AssetLedgerPage() {
   };
 
   const handleDelete = async (id: number) => {
+    if (!canManage) return;
     try {
       await adminAssetsApi.deleteAsset(id);
       message.success(t('adminAssets.asset.deleteSuccess'));
@@ -264,7 +269,7 @@ export default function AssetLedgerPage() {
       title: t('adminAssets.common.action'),
       key: 'action',
       render: (_: unknown, record: AssetLedger) =>
-        record.canEdit ? (
+        canManage && record.canEdit ? (
           <Space>
             <Button type="link" onClick={() => void openDetail(record)}>
               {t('adminAssets.asset.detail')}
@@ -294,11 +299,11 @@ export default function AssetLedgerPage() {
       eyebrow={t('adminAssets.eyebrow')}
       title={t('adminAssets.asset.title')}
       description={t('adminAssets.asset.description')}
-      actions={
+      actions={canManage ? (
         <Button type="primary" onClick={openCreate}>
           {t('adminAssets.asset.create')}
         </Button>
-      }
+      ) : null}
     >
       <Spin spinning={loading}>
         <Card className="oa-admin-assets-card oa-admin-assets-card--fill" variant="outlined">
@@ -364,6 +369,7 @@ export default function AssetLedgerPage() {
         open={editOpen}
         onCancel={() => setEditOpen(false)}
         onOk={handleSubmit}
+        okButtonProps={{ disabled: !canManage }}
         confirmLoading={submitting}
         okText={t('adminAssets.common.save')}
         destroyOnClose
@@ -439,7 +445,7 @@ export default function AssetLedgerPage() {
                   {detail.specification || '-'}
                 </Descriptions.Item>
               </Descriptions>
-              {detail.canEdit && (
+              {canManage && detail.canEdit && (
                 <Space wrap>
                   <Button type="primary" disabled={detail.status !== 'IDLE'} onClick={() => openOperation('CLAIM')}>
                     {t('adminAssets.asset.operation.CLAIM.action')}
@@ -512,6 +518,7 @@ export default function AssetLedgerPage() {
         open={operationType !== undefined}
         onCancel={() => setOperationType(undefined)}
         onOk={() => void handleOperation()}
+        okButtonProps={{ disabled: !canManage }}
         confirmLoading={operating}
         destroyOnClose
       >
