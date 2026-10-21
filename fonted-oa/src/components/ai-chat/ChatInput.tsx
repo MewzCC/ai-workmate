@@ -6,7 +6,7 @@ import type { TFunction } from 'i18next';
 import { Button, Input, Progress, Segmented, Space, Tooltip, Typography, Upload } from 'antd';
 import { LoadingOutlined } from '@ant-design/icons';
 import { message } from '@/lib/antdMessage';
-import type { ChatAttachment } from '@/types/chat';
+import type { ChatAttachment, ChatComposerMode } from '@/types/chat';
 import type { UploadProgressItem } from '@/store/aiChatStore';
 import AttachmentPreview from './AttachmentPreview';
 import { OaIcon } from '@/components/OaIcon';
@@ -23,8 +23,8 @@ interface ChatInputProps {
   pending: ChatAttachment[];
   uploading: UploadProgressItem[];
   generating: boolean;
-  mode: 'chat' | 'operation';
-  onModeChange: (mode: 'chat' | 'operation') => void;
+  mode: ChatComposerMode;
+  onModeChange: (mode: ChatComposerMode) => void;
   onUpload: (files: File[]) => void;
   onRemoveAttachment: (id: number) => void;
   onSend: (content: string) => void;
@@ -75,20 +75,25 @@ export default function ChatInput({ pending, uploading, generating, mode, onMode
           {pending.map((item) => <AttachmentPreview key={item.id} attachment={item} removable onRemove={() => onRemoveAttachment(item.id)} />)}
         </div>
       )}
-      <Segmented<'chat' | 'operation'>
+      <Segmented<ChatComposerMode>
         className="ai-composer-mode"
         value={mode}
         disabled={generating}
         options={[
+          { value: 'auto', label: t('chat.autoMode'), icon: <OaIcon name="ai" /> },
           { value: 'chat', label: t('chat.chatMode'), icon: <OaIcon name="messages" /> },
           { value: 'operation', label: t('chat.operationMode'), icon: <OaIcon name="ai" /> },
         ]}
         onChange={onModeChange}
       />
+      {mode === 'auto' && <Typography.Text type="secondary" style={{ display: 'block', fontSize: 12 }}>
+        {t('chat.autoModeHint')}
+      </Typography.Text>}
       <Input.TextArea
         value={value}
         autoSize={{ minRows: 1, maxRows: 7 }}
-        placeholder={t(mode === 'operation' ? 'chat.operationInputPlaceholder' : 'chat.inputPlaceholder')}
+        placeholder={t(mode === 'auto' ? 'chat.autoInputPlaceholder'
+          : mode === 'operation' ? 'chat.operationInputPlaceholder' : 'chat.inputPlaceholder')}
         onChange={(event) => setValue(event.target.value)}
         onPaste={(event) => {
           const files = Array.from(event.clipboardData.files);

@@ -6,13 +6,13 @@ import {
   appendAgentResult, createConversation, deleteConversation, listConversations, listMessages,
   renameConversation, sendChat, streamChat, uploadAttachment,
 } from '@/lib/chatApi';
-import type { ChatAttachment, ChatConversation, ChatMessage, ChatMessageCitation, ChatSettings } from '@/types/chat';
+import type { ChatAttachment, ChatComposerMode, ChatConversation, ChatMessage, ChatMessageCitation, ChatSettings } from '@/types/chat';
 import { DEFAULT_AI_MODEL, normalizeAiModel } from '@/config/aiModels';
 import { StreamTypewriter } from '@/lib/StreamTypewriter';
 import { uuid } from '@/lib/uuid';
 import i18n from '@/i18n';
 import { getChatPreferences, updateChatPreferences } from '@/lib/userSettingsApi';
-import { agentTaskApi, executeAiTask, issueAiTaskConfirmation, planAiTask } from '@/lib/oaApi';
+import { agentTaskApi, classifyAiIntent, executeAiTask, issueAiTaskConfirmation, planAiTask } from '@/lib/oaApi';
 import type { AiTaskPlanResponse } from '@/types/oa';
 
 const SETTINGS_KEY = 'workmeta-ai-chat-settings';
@@ -30,7 +30,7 @@ export interface UploadProgressItem {
 }
 
 interface AiChatState {
-  composerMode: 'chat' | 'operation';
+  composerMode: ChatComposerMode;
   pendingPlans: Record<number, AiTaskPlanResponse>;
   conversations: ChatConversation[];
   activeId: number | null;
@@ -51,7 +51,7 @@ interface AiChatState {
   upload: (files: File[]) => Promise<void>;
   removePendingAttachment: (id: number) => void;
   send: (content: string) => Promise<void>;
-  setComposerMode: (mode: 'chat' | 'operation') => void;
+  setComposerMode: (mode: ChatComposerMode) => void;
   confirmOperation: (conversationId: number) => Promise<void>;
   discardOperation: (conversationId: number) => Promise<void>;
   stop: (id: number) => void;
@@ -62,12 +62,6 @@ interface AiChatState {
 }
 
 const defaultSettings: ChatSettings = { model: DEFAULT_AI_MODEL, kbId: null, maxContextRounds: 10, stream: true };
-
-/** A narrow read-intent route. All planning, execution and ownership checks remain server-side. */
-export function isMyTodoQuery(content: string): boolean {
-  const normalized = content.trim().replace(/[？?。！!，,\s]/g, '');
-  return /^(?:请|帮我|给我|能否|可以)?(?:查(?:一?下|询|看)?|看(?:一?下)?|搜索|列出|显示)?(?:我(?:的)?|本人)(?:待办|待处理(?:事项|任务)?)(?:有(?:哪(?:些|几条))?|列表|事项|任务|情况)?$/.test(normalized);
-}
 
 async function waitForAgentTask(taskId: string, signal: AbortSignal): Promise<void> {
   for (let attempt = 0; attempt < 60; attempt += 1) {
@@ -89,7 +83,7 @@ async function waitForAgentTask(taskId: string, signal: AbortSignal): Promise<vo
 
 export const useAiChatStore = create<AiChatState>((set, get) => ({
   conversations: [],
-  composerMode: 'chat',
+  composerMode: 'auto',
   pendingPlans: {},
   activeId: null,
   draftMode: false,
@@ -286,9 +280,7 @@ export const useAiChatStore = create<AiChatState>((set, get) => ({
     }
     const attachments = state.pendingAttachments[conversationId] || [];
     const content = rawContent.trim() || i18n.t('chat.defaultAttachmentPrompt');
-    const operationRequest = state.composerMode === 'operation'
-      || (attachments.length === 0 && isMyTodoQuery(content));
-    if (operationRequest && attachments.length > 0) {
+    if (state.composerMode === 'operation' && attachments.length > 0) {
       antMessage.error(i18n.t('chat.operationAttachmentsUnsupported'));
       return;
     }
@@ -302,7 +294,16 @@ export const useAiChatStore = create<AiChatState>((set, get) => ({
 
     const controller = new AbortController();
     controllers.set(conversationId, controller);
+    let classifying = false;
     try {
+      let operationRequest = state.composerMode === 'operation';
+      if (state.composerMode === 'auto' && attachments.length === 0) {
+        classifying = true;
+        const intent = await classifyAiIntent(content, controller.signal);
+        if (controller.signal.aborted) throw new DOMException('Aborted', 'AbortError');
+        classifying = false;
+        operationRequest = intent === 'OPERATION';
+      }
       if (operationRequest) {
         const plan = await planAiTask({ input: content, pageId: 'ai-workspace' });
         if (controller.signal.aborted) throw new DOMException('Aborted', 'AbortError');
@@ -361,9 +362,11 @@ export const useAiChatStore = create<AiChatState>((set, get) => ({
       } else {
         await typewriter?.finish();
       }
-      if (!controller.signal.aborted) antMessage.error(error instanceof Error ? error.message : i18n.t('chat.aiReplyFailed'));
+      const reason = error instanceof Error ? error.message : i18n.t('chat.aiReplyFailed');
+      const failure = classifying ? i18n.t('chat.autoRoutingFailed', { reason }) : reason;
+      if (!controller.signal.aborted) antMessage.error(failure);
       updateMessage(set, conversationId, assistantId, {
-        status: 'failed', content: error instanceof Error && !controller.signal.aborted ? error.message : i18n.t('chat.aiReplyFailed'),
+        status: 'failed', content: !controller.signal.aborted ? failure : i18n.t('chat.aiReplyFailed'),
       });
     } finally {
       controllers.delete(conversationId);

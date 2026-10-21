@@ -1,6 +1,8 @@
 import type { AiModelId } from '@/config/aiModels';
 
 export type ChatRole = 'user' | 'assistant' | 'system';
+export type ChatComposerMode = 'auto' | 'chat' | 'operation';
+export type AiChatIntent = 'CHAT' | 'OPERATION';
 export type MessageStatus = 'sending' | 'success' | 'failed';
 export type MessageFeedback = 'like' | 'dislike' | null;
 

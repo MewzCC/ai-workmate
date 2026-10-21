@@ -6,7 +6,7 @@ import { Button, Select, Space, Tag, Typography } from 'antd';
 import { DatabaseOutlined, MenuOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
 import { AI_MODEL_OPTIONS, type AiModelId } from '@/config/aiModels';
 import type { KnowledgeBase } from '@/lib/knowledgeApi';
-import type { ChatAttachment, ChatMessage } from '@/types/chat';
+import type { ChatAttachment, ChatComposerMode, ChatMessage } from '@/types/chat';
 import ChatInput from './ChatInput';
 import MessageList from './MessageList';
 import type { UploadProgressItem } from '@/store/aiChatStore';
@@ -22,7 +22,7 @@ interface ChatWindowProps {
   pending: ChatAttachment[];
   uploading: UploadProgressItem[];
   generating: boolean;
-  mode: 'chat' | 'operation';
+  mode: ChatComposerMode;
   pendingPlan?: AiTaskPlanResponse;
   operationCapability: PageCapability | null;
   onOpenSessions: () => void;
@@ -30,7 +30,7 @@ interface ChatWindowProps {
   onRemoveAttachment: (id: number) => void;
   onSend: (content: string) => void;
   onStop: () => void;
-  onModeChange: (mode: 'chat' | 'operation') => void;
+  onModeChange: (mode: ChatComposerMode) => void;
   onConfirmOperation: () => Promise<void>;
   onDiscardOperation: () => Promise<void>;
   onModelChange: (model: AiModelId) => void;

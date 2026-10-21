@@ -120,6 +120,15 @@ export function createIdempotencyKey(): string {
   return crypto.randomUUID();
 }
 
+export async function classifyAiIntent(input: string, signal?: AbortSignal): Promise<import('@/types/chat').AiChatIntent> {
+  const result = await request<unknown>('/ai/intents', { method: 'POST', body: JSON.stringify({ input }), signal });
+  if (!result || typeof result !== 'object' || Array.isArray(result) || Object.keys(result).length !== 1
+      || !('intent' in result) || (result.intent !== 'CHAT' && result.intent !== 'OPERATION')) {
+    throw new OaApiError(i18n.t('chat.intentInvalid'), 502, 'SCHEMA_INVALID');
+  }
+  return result.intent;
+}
+
 export async function planAiTask(
   payload: AiTaskPlanRequest,
   idempotencyKey = createIdempotencyKey(),
