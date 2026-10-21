@@ -14,6 +14,7 @@ import com.aiworkmate.service.EmployeeDocumentService;
 import com.aiworkmate.service.FileParserService;
 import com.aiworkmate.service.ObjectStorageService;
 import com.aiworkmate.service.UserAccessService;
+import com.aiworkmate.service.DataPermissionService;
 import com.aiworkmate.service.model.EmployeeDocumentContent;
 import com.aiworkmate.service.model.ParsedFile;
 import com.aiworkmate.service.model.ResolvedUserAccess;
@@ -48,6 +49,7 @@ public class EmployeeDocumentServiceImpl implements EmployeeDocumentService {
     private final ObjectStorageService objectStorageService;
     private final UploadProperties uploadProperties;
     private final BusinessAuditService auditService;
+    private final DataPermissionService dataPermissionService;
 
     @Override
     @Transactional(readOnly = true)
@@ -68,6 +70,7 @@ public class EmployeeDocumentServiceImpl implements EmployeeDocumentService {
     public EmployeeDocumentResponse upload(AuthenticatedUser actor, Long employeeUserId,
                                            String documentType, MultipartFile file) {
         ResolvedUserAccess access = requirePermission(actor, "hr:manage");
+        requireVisibleEmployee(access, employeeUserId);
         requireEmployee(access.tenantId(), employeeUserId);
         if (!DOCUMENT_TYPES.contains(documentType)) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID, "oa.employeeDocument.typeInvalid");
@@ -146,7 +149,16 @@ public class EmployeeDocumentServiceImpl implements EmployeeDocumentService {
         if (!access.userId().equals(employeeUserId) && !access.permissions().contains("hr:read")) {
             throw new BusinessException(ErrorCode.PERMISSION_DENIED);
         }
+        requireVisibleEmployee(access, employeeUserId);
         return access;
+    }
+
+    private void requireVisibleEmployee(ResolvedUserAccess access, Long employeeUserId) {
+        // Self-service remains available without hr:read; other employees follow live data scope.
+        if (!access.userId().equals(employeeUserId)
+                && !dataPermissionService.resolve(access.tenantId(), access.userId()).visibleUserIds().contains(employeeUserId)) {
+            throw new BusinessException(ErrorCode.RESOURCE_FORBIDDEN);
+        }
     }
 
     private ResolvedUserAccess requirePermission(AuthenticatedUser actor, String permission) {

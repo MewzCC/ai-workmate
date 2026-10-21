@@ -28,6 +28,7 @@ public final class AgentReadResultPresenter {
         if ("meeting.room.query".equals(toolCode)) return meetingRooms(result);
         if ("meeting.room.create".equals(toolCode) || "meeting.room.update".equals(toolCode)) return meetingRoom(result, true);
         if ("asset.create".equals(toolCode) || "asset.update".equals(toolCode)) return assetMetadata(result);
+        if ("hr.employee.query".equals(toolCode)) return employee(result);
         if (toolCode == null || toolCode.isBlank() || result == null || (!result.isObject() && !result.isArray())) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID);
         }
@@ -51,6 +52,36 @@ public final class AgentReadResultPresenter {
             String description = describe(result);
             if (!description.isBlank()) answer.append('\n').append(description);
         }
+        return answer.substring(0, Math.min(MAX_LENGTH, answer.length()));
+    }
+
+    private static String employee(JsonNode result) {
+        if (result == null || result.path("id").asLong() < 1 || !result.path("attendance").isObject()
+                || !result.path("employmentHistory").isArray() || !result.path("recentActivities").isArray()
+                || !result.path("status").isIntegralNumber() || result.path("status").asInt() < 0
+                || result.path("status").asInt() > 1) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        String absent = MessageUtils.resolve("agent.employee.notSet");
+        StringBuilder answer = new StringBuilder(MessageUtils.resolve("agent.employee.profile", result.path("id").asLong(),
+                plain(result.path("name").asText()), MessageUtils.resolve("agent.employee.status." + result.path("status").asInt()),
+                plain(result.path("departmentName").asText(absent)), plain(result.path("positionName").asText(absent)),
+                plain(result.path("approverName").asText(absent))));
+        JsonNode attendance = result.path("attendance");
+        answer.append('\n').append(MessageUtils.resolve("agent.employee.attendance", attendance.path("totalDays").asInt(),
+                attendance.path("normalDays").asInt(), attendance.path("lateDays").asInt(), attendance.path("earlyLeaveDays").asInt(),
+                attendance.path("lateAndEarlyDays").asInt(), attendance.path("missingClockDays").asInt()));
+        int shown = 0;
+        for (JsonNode history : result.path("employmentHistory")) {
+            if (shown >= 3 || answer.length() > 650) break;
+            String type = history.path("changeType").asText();
+            String label = List.of("ONBOARDING", "REGULARIZATION", "TRANSFER", "OFFBOARDING").contains(type)
+                    ? MessageUtils.resolve("agent.employee.change." + type) : plain(type);
+            answer.append('\n').append(MessageUtils.resolve("agent.employee.history", label,
+                    plain(history.path("effectiveDate").asText()), plain(history.path("targetDepartmentName").asText(absent)),
+                    plain(history.path("targetPositionName").asText(absent))));
+            shown++;
+        }
+        if (result.path("employmentHistory").size() > shown) answer.append('\n').append(MessageUtils.resolve("agent.result.more", result.path("employmentHistory").size() - shown));
+        answer.append('\n').append(MessageUtils.resolve("agent.employee.recentCount", result.path("recentActivities").size()));
         return answer.substring(0, Math.min(MAX_LENGTH, answer.length()));
     }
 

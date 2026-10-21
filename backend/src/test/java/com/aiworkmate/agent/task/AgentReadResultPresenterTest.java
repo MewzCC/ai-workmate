@@ -13,6 +13,33 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class AgentReadResultPresenterTest {
     private final ObjectMapper mapper = new ObjectMapper();
 
+    @Test void employeeResultShowsActualOrganizationAttendanceAndHistoryWithoutContacts() throws Exception {
+        org.springframework.context.i18n.LocaleContextHolder.setLocale(java.util.Locale.US);
+        try {
+            String answer = AgentReadResultPresenter.present("hr.employee.query", mapper.readTree("""
+                    {"id":2,"name":"Beta","role":"EMPLOYEE","status":1,"departmentName":"R&D","positionName":"Engineer","approverName":"Lead",
+                     "attendance":{"totalDays":5,"normalDays":4,"lateDays":1,"earlyLeaveDays":0,"lateAndEarlyDays":0,"missingClockDays":0},
+                     "employmentHistory":[{"id":8,"changeType":"TRANSFER","effectiveDate":"2026-10-20","targetDepartmentName":"R&D","targetPositionName":"Engineer"}],
+                     "recentActivities":[],"email":"must-not-render@example.invalid","contentUrl":"/private/document"}
+                    """));
+            assertThat(answer).contains("Employee #2", "Beta", "Active", "R&D", "Engineer", "Lead", "Attendance: 5 days", "Late: 1", "Transfer", "2026-10-20")
+                    .doesNotContain("email", "contentUrl", "must-not-render", "/private/document");
+        } finally { org.springframework.context.i18n.LocaleContextHolder.resetLocaleContext(); }
+    }
+
+    @Test void employeeSummaryUsesChineseAndBoundsHistoryWithoutRenderingInjectedMarkup() throws Exception {
+        org.springframework.context.i18n.LocaleContextHolder.setLocale(java.util.Locale.SIMPLIFIED_CHINESE);
+        try {
+            var result = mapper.readTree("{\"id\":2,\"name\":\"<b>员工</b>\",\"status\":0,\"attendance\":{\"totalDays\":0},\"employmentHistory\":[],\"recentActivities\":[]}");
+            for (int i = 0; i < 10; i++) ((com.fasterxml.jackson.databind.node.ArrayNode) result.path("employmentHistory"))
+                    .add(mapper.readTree("{\"changeType\":\"TRANSFER\",\"effectiveDate\":\"2026-10-20\"}"));
+            String answer = AgentReadResultPresenter.present("hr.employee.query", result);
+            assertThat(answer).contains("停用", "打卡 0 天", "未设置").doesNotContain("<b>", "</b>");
+            assertThat(answer.length()).isLessThanOrEqualTo(1000);
+            assertThat(answer.split("任职变动：", -1)).hasSize(4);
+        } finally { org.springframework.context.i18n.LocaleContextHolder.resetLocaleContext(); }
+    }
+
     @Test void assetMetadataReceiptIncludesSavedNameCodeStatusAndVersion() throws Exception {
         org.springframework.context.i18n.LocaleContextHolder.setLocale(java.util.Locale.US);
         try {
