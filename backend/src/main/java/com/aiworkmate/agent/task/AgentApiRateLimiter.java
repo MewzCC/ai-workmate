@@ -20,6 +20,10 @@ public class AgentApiRateLimiter {
         check("PLAN", tenantId, userId, PLAN_PER_MINUTE);
     }
 
+    public void checkIntent(long tenantId, long userId) {
+        check("INTENT", tenantId, userId, 30);
+    }
+
     public void checkExecute(long tenantId, long userId) {
         check("EXECUTE", tenantId, userId, EXECUTE_PER_MINUTE);
     }

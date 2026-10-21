@@ -11,6 +11,19 @@ class ToolGatewayArchitectureTest {
     private final JavaClasses classes = new ClassFileImporter().importPackages("com.aiworkmate");
 
     @Test
+    void intentClassificationCannotAcquireToolOrTaskExecutionDependencies() {
+        noClasses().that().haveSimpleName("AiIntentServiceImpl")
+                .or().haveSimpleName("AiIntentController")
+                .should().dependOnClassesThat().resideInAnyPackage(
+                        "..agent.gateway..", "..agent.registry..", "..agent.tool..", "..mapper..")
+                .check(classes);
+        noClasses().that().haveSimpleName("AiIntentServiceImpl")
+                .or().haveSimpleName("AiIntentController")
+                .should().dependOnClassesThat().areAssignableTo(com.aiworkmate.service.AiTaskService.class)
+                .check(classes);
+    }
+
+    @Test
     void onlyGatewayMayDependOnInternalToolHandlers() {
         ArchRule rule = noClasses()
                 .that().resideOutsideOfPackages("..agent.gateway..", "..agent.tool.internal..")
