@@ -15,6 +15,7 @@ vi.mock('@/lib/adminAssetsApi', async (load) => ({
 }));
 vi.mock('@/lib/hrApi', () => ({ hrApi: { overview: vi.fn().mockResolvedValue({ departments: [], positions: [], employees: [] }) } }));
 import AssetLedgerPage from './AssetLedgerPage';
+import { PageAgentContextProvider, usePageAgentContextSnapshot } from './PageAgentContext';
 
 const asset: AssetLedger = { id: 9, assetCode: 'A1', name: 'Test asset', category: 'Device', status: 'IDLE', version: 0,
   history: [], createdAt: '2026-10-20T09:00:00', updatedAt: '2026-10-20T09:00:00', canEdit: true, canDelete: true };
@@ -30,6 +31,15 @@ beforeEach(() => {
   api.listAssets.mockResolvedValue({ records: [asset], total: 1, page: 1, size: 10 });
 });
 afterEach(cleanup);
+
+function ContextSnapshot() { return <output aria-label="asset-context">{JSON.stringify(usePageAgentContextSnapshot())}</output>; }
+it('publishes the selected asset version only while the editor is open', async () => {
+  render(<AuthProvider><App><PageAgentContextProvider pageId="asset-ledger"><AssetLedgerPage /><ContextSnapshot /></PageAgentContextProvider></App></AuthProvider>);
+  fireEvent.click(await screen.findByRole('button', { name: '编辑' }));
+  await waitFor(() => expect(JSON.parse(screen.getByLabelText('asset-context').textContent || '{}')).toMatchObject({ assetId: 9, version: 0 }));
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /Cancel|取\s*消/ }));
+  await waitFor(() => expect(JSON.parse(screen.getByLabelText('asset-context').textContent || '{}')).not.toHaveProperty('assetId'));
+});
 
 it('lets a writer create the first asset without requiring an editable data row', async () => {
   api.listAssets.mockResolvedValue({ records: [], total: 0, page: 1, size: 10 });

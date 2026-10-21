@@ -20,6 +20,26 @@ public final class AssetAgentDomainToolAdapter implements AssetToolPort {
     private final AdminAssetsService adminAssetsService;
 
     @Override
+    public MetadataReceipt create(ToolActorContext context, Create command) {
+        return metadata(adminAssetsService.createAssetAgent(context.userId(), fields(command.fields()), command.departmentId()));
+    }
+
+    @Override
+    public MetadataReceipt update(ToolActorContext context, Update command) {
+        return metadata(adminAssetsService.updateAssetAgent(context.userId(), command.assetId(), command.version(),
+                fields(command.fields()), command.clearPurchaseDate()));
+    }
+
+    private com.aiworkmate.service.model.AssetAgentMetadataFields fields(Fields fields) {
+        return new com.aiworkmate.service.model.AssetAgentMetadataFields(fields.assetCode(), fields.name(), fields.category(),
+                fields.specification(), fields.purchaseDate(), fields.originalValue(), fields.remark());
+    }
+
+    private MetadataReceipt metadata(com.aiworkmate.service.model.AssetAgentMetadataReceipt receipt) {
+        return new MetadataReceipt(receipt.assetId(), receipt.assetCode(), receipt.name(), receipt.status(), receipt.version());
+    }
+
+    @Override
     public Page query(ToolActorContext context, Query query) {
         var result = adminAssetsService.listAssets(
                 context.userId(), query.keyword(), query.category(), query.status(), query.page(), query.size());

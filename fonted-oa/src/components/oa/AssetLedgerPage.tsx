@@ -37,6 +37,7 @@ import { formatOaApiError } from '@/lib/oaApi';
 import { usePermission } from '@/hooks/usePermission';
 import AdminAssetsPageShell from './AdminAssetsPageShell';
 import ResponsiveTable from './ResponsiveTable';
+import { usePublishPageAgentContext } from './PageAgentContext';
 
 const STATUS_TAG_COLOR: Record<AssetStatus, string> = {
   IN_USE: 'success',
@@ -81,6 +82,17 @@ export default function AssetLedgerPage() {
   const targetDepartmentId = Form.useWatch('targetDepartmentId', operationForm);
   const actualDepartmentId = Form.useWatch('actualDepartmentId', operationForm);
   const inventoryResult = Form.useWatch('inventoryResult', operationForm);
+
+  const selectedAsset = editOpen ? editing : detail;
+  usePublishPageAgentContext({
+    assetId: selectedAsset?.id,
+    version: selectedAsset?.version,
+    keyword: keyword || undefined,
+    category,
+    status,
+    page,
+    size,
+  });
 
   const load = useCallback(async (p = page, s = size) => {
     setLoading(true);

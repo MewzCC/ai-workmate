@@ -13,6 +13,15 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class AgentReadResultPresenterTest {
     private final ObjectMapper mapper = new ObjectMapper();
 
+    @Test void assetMetadataReceiptIncludesSavedNameCodeStatusAndVersion() throws Exception {
+        org.springframework.context.i18n.LocaleContextHolder.setLocale(java.util.Locale.US);
+        try {
+            var receipt = mapper.readTree("{\"assetId\":17,\"assetCode\":\"A1\",\"name\":\"Laptop\",\"status\":\"IDLE\",\"version\":3}");
+            assertThat(AgentReadResultPresenter.present("asset.update", receipt))
+                    .contains("Saved asset #17", "Laptop", "A1", "Idle", "Version 3");
+        } finally { org.springframework.context.i18n.LocaleContextHolder.resetLocaleContext(); }
+    }
+
     @Test void roomResultsShowActualNamesVersionsAndSavedIdentity() throws Exception {
         org.springframework.context.i18n.LocaleContextHolder.setLocale(java.util.Locale.US);
         try {

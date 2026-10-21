@@ -98,6 +98,8 @@ const aiPermission = {
     asset_scrap: { name: 'Scrap one asset', description: 'After secondary confirmation, irreversibly marks one eligible asset as scrapped while preserving history.' },
     meeting_query: { name: 'Query rooms and my bookings', description: 'Reads meeting room availability and bookings owned by the current user.' },
     meeting_room_query: { name: 'Query room metadata', description: 'Pages through tenant room metadata and current versions without bookings or identities.' },
+    asset_create: { name: 'Create asset metadata', description: 'Creates one idle unassigned asset after confirmation. Department must belong to the current tenant. Disabled by default; never retried automatically.' },
+    asset_update: { name: 'Update asset metadata', description: 'Changes supplied metadata at the expected version after confirmation. Other fields stay unchanged; no department, custodian or lifecycle changes.' },
     meeting_room_create: { name: 'Create a meeting room', description: 'Creates one room after confirmation, not a booking. Disabled by default and never retried automatically.' },
     meeting_room_update: { name: 'Update a meeting room', description: 'Changes supplied fields at the expected version after confirmation. Other fields stay unchanged; active bookings prevent closure.' },
     meeting_book: { name: 'Book meeting room', description: 'Creates one non-conflicting meeting room booking for the current user.' },

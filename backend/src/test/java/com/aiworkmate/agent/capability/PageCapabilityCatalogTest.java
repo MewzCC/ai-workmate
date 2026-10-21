@@ -122,10 +122,9 @@ class PageCapabilityCatalogTest {
         var page = catalog.find("asset-ledger").orElseThrow();
         assertThat(page.readTools()).extracting(PageToolReference::code)
                 .containsExactly(ToolCode.ASSET_QUERY);
-        assertThat(page.writeTools()).extracting(PageToolReference::code)
-                .containsExactly(ToolCode.ASSET_CLAIM, ToolCode.ASSET_RETURN, ToolCode.ASSET_REPAIR_START,
-                        ToolCode.ASSET_TRANSFER, ToolCode.ASSET_REPAIR_COMPLETE, ToolCode.ASSET_INVENTORY,
-                        ToolCode.ASSET_SCRAP);
+        assertThat(page.writeTools()).extracting(tool -> tool.code().code())
+                .containsExactly("asset.create", "asset.update", "asset.claim", "asset.return", "asset.repair.start",
+                        "asset.transfer", "asset.repair.complete", "asset.inventory", "asset.scrap");
     }
 
     @Test

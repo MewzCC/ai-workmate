@@ -166,6 +166,14 @@ class P1PostgresMigrationIT {
 
     private static void assertMeetingRoomToolRegistration(String schema) throws Exception {
         assertThat(queryCount(schema, """
+                SELECT count(*) FROM agent_tool WHERE tenant_id IS NULL AND code IN ('asset.create','asset.update')
+                AND data_scope_policy='TENANT_SCOPED' AND risk_level='L1' AND side_effect='SINGLE_WRITE'
+                AND retry_policy='NEVER' AND confirmation_policy='EXPLICIT' AND enabled=FALSE
+                AND schema_hash=CASE code
+                  WHEN 'asset.create' THEN 'sha256:de7519ee9fd9f0c13b082e4754f2cd96435b0fdada088d70e2fa4f5933f14e5e'
+                  WHEN 'asset.update' THEN 'sha256:84879740ee0225517991384a90bf2794fcdcf6675de9b8b551d4c3018c6717cc' END
+                """)).isEqualTo(2);
+        assertThat(queryCount(schema, """
                 SELECT COUNT(*) FROM agent_tool WHERE tenant_id IS NULL
                 AND code IN ('meeting.room.query','meeting.room.create','meeting.room.update')
                 AND data_scope_policy='TENANT_SCOPED'

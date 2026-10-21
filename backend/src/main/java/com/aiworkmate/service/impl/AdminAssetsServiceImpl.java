@@ -186,6 +186,12 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
     @Transactional
     public AssetLedgerResponse createAsset(Long userId, AssetLedgerRequest request) {
         ResolvedUserAccess actor = requirePermission(userId, "asset:write");
+        return assetDetail(actor, createAssetRecord(actor, request));
+    }
+
+    private AssetLedger createAssetRecord(ResolvedUserAccess actor, AssetLedgerRequest request) {
+        validateAssetMetadataFields(assetFields(request), true);
+        if (request.departmentId() != null) requireDepartment(actor.tenantId(), request.departmentId());
         if (assetMapper.exists(new LambdaQueryWrapper<AssetLedger>()
                 .eq(AssetLedger::getTenantId, actor.tenantId())
                 .eq(AssetLedger::getAssetCode, request.assetCode().trim())
@@ -210,18 +216,29 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
         a.setDeleted(false);
         a.setCreatedAt(now);
         a.setUpdatedAt(now);
-        assetMapper.insert(a);
-        auditService.record(actor.tenantId(), actor.userId(), "ASSET_LEDGER",
+        try {
+            assetMapper.insert(a);
+        } catch (org.springframework.dao.DuplicateKeyException exception) {
+            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID, "validation.asset.code.duplicate");
+        }
+        auditService.recordTransactional(actor.tenantId(), actor.userId(), "ASSET_LEDGER",
                 a.getId().toString(), "CREATE", "SUCCESS", "新增资产台账");
-        return assetDetail(actor, a);
+        return a;
     }
 
     @Override
     @Transactional
     public AssetLedgerResponse updateAsset(Long userId, Long id, AssetLedgerRequest request) {
         ResolvedUserAccess actor = requirePermission(userId, "asset:write");
-        AssetLedger a = requireAsset(actor.tenantId(), id);
-        if (request.version() == null) {
+        if (request == null) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        requireAsset(actor.tenantId(), id);
+        BigDecimal value = request.originalValue() == null ? BigDecimal.ZERO : request.originalValue();
+        return assetDetail(actor, updateAssetRecord(actor, id, request, value));
+    }
+
+    private AssetLedger updateAssetRecord(ResolvedUserAccess actor, Long id, AssetLedgerRequest request, BigDecimal value) {
+        validateAssetMetadataFields(assetFields(request), true);
+        if (request.version() == null || request.version() < 0 || request.version() == Integer.MAX_VALUE) {
             throw new BusinessException(ErrorCode.VERSION_CONFLICT);
         }
         if (assetMapper.exists(new LambdaQueryWrapper<AssetLedger>()
@@ -232,7 +249,9 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
             throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID,
                     "validation.asset.code.duplicate");
         }
-        int updated = assetMapper.update(null, new LambdaUpdateWrapper<AssetLedger>()
+        int updated;
+        try {
+            updated = assetMapper.update(null, new LambdaUpdateWrapper<AssetLedger>()
                 .eq(AssetLedger::getId, id)
                 .eq(AssetLedger::getTenantId, actor.tenantId())
                 .eq(AssetLedger::getDeleted, false)
@@ -242,17 +261,82 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
                 .set(AssetLedger::getCategory, request.category().trim())
                 .set(AssetLedger::getSpecification, trim(request.specification()))
                 .set(AssetLedger::getPurchaseDate, request.purchaseDate())
-                .set(AssetLedger::getOriginalValue,
-                        request.originalValue() == null ? BigDecimal.ZERO : request.originalValue())
+                .set(AssetLedger::getOriginalValue, value)
                 .set(AssetLedger::getRemark, trim(request.remark()))
                 .set(AssetLedger::getUpdatedAt, LocalDateTime.now())
                 .setSql("version = version + 1"));
+        } catch (org.springframework.dao.DuplicateKeyException exception) {
+            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID, "validation.asset.code.duplicate");
+        }
         if (updated != 1) {
             throw new BusinessException(ErrorCode.VERSION_CONFLICT);
         }
-        auditService.record(actor.tenantId(), actor.userId(), "ASSET_LEDGER",
+        auditService.recordTransactional(actor.tenantId(), actor.userId(), "ASSET_LEDGER",
                 id.toString(), "UPDATE", "SUCCESS", "更新资产台账");
-        return assetDetail(actor, requireAsset(actor.tenantId(), id));
+        return assetMapper.selectOne(new LambdaQueryWrapper<AssetLedger>().eq(AssetLedger::getTenantId, actor.tenantId())
+                .eq(AssetLedger::getId, id).eq(AssetLedger::getDeleted, false));
+    }
+
+    @Override
+    @Transactional
+    public com.aiworkmate.service.model.AssetAgentMetadataReceipt createAssetAgent(Long userId,
+            com.aiworkmate.service.model.AssetAgentMetadataFields fields, Long departmentId) {
+        ResolvedUserAccess actor = requirePermission(userId, "asset:write");
+        validateAssetMetadataFields(fields, true);
+        if (departmentId != null && departmentId < 1) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        var record = createAssetRecord(actor, new AssetLedgerRequest(fields.assetCode(), fields.name(), fields.category(),
+                fields.specification(), null, departmentId, null, fields.purchaseDate(), fields.originalValue(), fields.remark(), null));
+        return assetMetadataReceipt(record);
+    }
+
+    @Override
+    @Transactional
+    public com.aiworkmate.service.model.AssetAgentMetadataReceipt updateAssetAgent(Long userId, Long id, int version,
+            com.aiworkmate.service.model.AssetAgentMetadataFields fields, boolean clearPurchaseDate) {
+        ResolvedUserAccess actor = requirePermission(userId, "asset:write");
+        validateAssetMetadataFields(fields, false);
+        if (id == null || id < 1 || version < 0 || version == Integer.MAX_VALUE
+                || (clearPurchaseDate && fields.purchaseDate() != null)
+                || (!clearPurchaseDate && fields.assetCode() == null && fields.name() == null && fields.category() == null
+                    && fields.specification() == null && fields.purchaseDate() == null && fields.originalValue() == null && fields.remark() == null)) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        AssetLedger current = assetMapper.lockMetadata(actor.tenantId(), id);
+        if (current == null) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        if (!Objects.equals(current.getVersion(), version)) throw new BusinessException(ErrorCode.VERSION_CONFLICT);
+        var merged = new AssetLedgerRequest(fields.assetCode() == null ? current.getAssetCode() : fields.assetCode(),
+                fields.name() == null ? current.getName() : fields.name(),
+                fields.category() == null ? current.getCategory() : fields.category(),
+                fields.specification() == null ? current.getSpecification() : fields.specification(), null, null, null,
+                clearPurchaseDate ? null : fields.purchaseDate() == null ? current.getPurchaseDate() : fields.purchaseDate(),
+                fields.originalValue() == null ? current.getOriginalValue() : fields.originalValue(),
+                fields.remark() == null ? current.getRemark() : fields.remark(), version);
+        // Unlike a full HTTP replacement, an omitted Agent value must preserve a legacy NULL rather than coerce it to zero.
+        return assetMetadataReceipt(updateAssetRecord(actor, id, merged, merged.originalValue()));
+    }
+
+    private com.aiworkmate.service.model.AssetAgentMetadataFields assetFields(AssetLedgerRequest request) {
+        if (request == null) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        return new com.aiworkmate.service.model.AssetAgentMetadataFields(request.assetCode(), request.name(), request.category(),
+                request.specification(), request.purchaseDate(), request.originalValue(), request.remark());
+    }
+
+    private void validateAssetMetadataFields(com.aiworkmate.service.model.AssetAgentMetadataFields fields, boolean required) {
+        if (fields == null || (required && (fields.assetCode() == null || fields.name() == null || fields.category() == null))
+                || (fields.assetCode() != null && (fields.assetCode().isBlank() || fields.assetCode().length() > 64))
+                || (fields.name() != null && (fields.name().isBlank() || fields.name().length() > 120))
+                || (fields.category() != null && (fields.category().isBlank() || fields.category().length() > 40))
+                || (fields.specification() != null && fields.specification().length() > 120)
+                || (fields.remark() != null && fields.remark().length() > 500)
+                || (fields.originalValue() != null && (fields.originalValue().signum() < 0
+                    || fields.originalValue().stripTrailingZeros().scale() > 2
+                    || fields.originalValue().compareTo(new BigDecimal("999999999999.99")) > 0))) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+    }
+
+    private com.aiworkmate.service.model.AssetAgentMetadataReceipt assetMetadataReceipt(AssetLedger record) {
+        return new com.aiworkmate.service.model.AssetAgentMetadataReceipt(record.getId(), record.getAssetCode(), record.getName(), record.getStatus(), record.getVersion());
     }
 
     @Override

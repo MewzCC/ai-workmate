@@ -98,6 +98,8 @@ const aiPermission = {
     asset_scrap: { name: '报废单个资产', description: '二次确认后将一项符合状态的资产不可逆标记为报废，但保留历史。' },
     meeting_query: { name: '查询会议室与本人预约', description: '读取会议室可用情况和本人预约。' },
     meeting_room_query: { name: '查询会议室资料', description: '分页查询本租户会议室资料及当前版本，不包含预约或身份资料。' },
+    asset_create: { name: '创建资产资料', description: '确认后创建单件空闲且未领用的资产；部门必须属于当前租户，默认关闭，不自动重试。' },
+    asset_update: { name: '修改资产资料', description: '确认后按版本修改单件资产指定资料；未提供字段保留，不更改部门、保管人或生命周期状态。' },
     meeting_room_create: { name: '创建会议室资料', description: '经确认后创建单个会议室，不创建预约；写工具默认关闭，不自动重试。' },
     meeting_room_update: { name: '修改会议室资料', description: '经确认后按版本修改单个会议室指定字段，保留未提供字段；有有效预约时禁止关停。' },
     meeting_book: { name: '预约会议室', description: '创建一条时间不冲突的本人会议室预约。' },

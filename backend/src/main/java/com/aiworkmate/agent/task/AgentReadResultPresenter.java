@@ -27,6 +27,7 @@ public final class AgentReadResultPresenter {
         if ("approval.application.detail.query".equals(toolCode)) return applicationDetail(result);
         if ("meeting.room.query".equals(toolCode)) return meetingRooms(result);
         if ("meeting.room.create".equals(toolCode) || "meeting.room.update".equals(toolCode)) return meetingRoom(result, true);
+        if ("asset.create".equals(toolCode) || "asset.update".equals(toolCode)) return assetMetadata(result);
         if (toolCode == null || toolCode.isBlank() || result == null || (!result.isObject() && !result.isArray())) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID);
         }
@@ -51,6 +52,16 @@ public final class AgentReadResultPresenter {
             if (!description.isBlank()) answer.append('\n').append(description);
         }
         return answer.substring(0, Math.min(MAX_LENGTH, answer.length()));
+    }
+
+    private static String assetMetadata(JsonNode result) {
+        if (result == null || result.path("assetId").asLong() < 1 || !result.path("version").canConvertToInt()
+                || !List.of("IDLE", "IN_USE", "REPAIRING", "SCRAPPED").contains(result.path("status").asText())) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        return MessageUtils.resolve("agent.asset.saved", result.path("assetId").asLong(), plain(result.path("name").asText()),
+                plain(result.path("assetCode").asText()), MessageUtils.resolve("agent.asset.status." + result.path("status").asText()),
+                result.path("version").asInt());
     }
 
     private static String meetingRooms(JsonNode result) {

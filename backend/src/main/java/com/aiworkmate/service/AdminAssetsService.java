@@ -61,6 +61,12 @@ public interface AdminAssetsService {
 
     AssetLedgerResponse updateAsset(Long userId, Long id, AssetLedgerRequest request);
 
+    com.aiworkmate.service.model.AssetAgentMetadataReceipt createAssetAgent(Long userId,
+            com.aiworkmate.service.model.AssetAgentMetadataFields fields, Long departmentId);
+
+    com.aiworkmate.service.model.AssetAgentMetadataReceipt updateAssetAgent(Long userId, Long id, int version,
+            com.aiworkmate.service.model.AssetAgentMetadataFields fields, boolean clearPurchaseDate);
+
     void deleteAsset(Long userId, Long id);
 
     AssetLedgerResponse claimAsset(Long userId, Long id, AssetOperationRequest request);

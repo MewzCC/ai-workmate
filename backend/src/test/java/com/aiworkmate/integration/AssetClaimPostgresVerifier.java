@@ -240,6 +240,87 @@ final class AssetClaimPostgresVerifier {
                 operator, command, "asset-claim-operation")))
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode").isEqualTo("PERMISSION_DENIED");
+        verifyMetadataBoundary(jdbc, service, failingService, access, tx, operator, tenant, department);
+    }
+
+    private static void verifyMetadataBoundary(JdbcTemplate jdbc, AdminAssetsServiceImpl service,
+            AdminAssetsServiceImpl failingService, UserAccessService access, TransactionTemplate tx,
+            Long user, Long tenant, Long department) throws Exception {
+        when(access.resolveActiveUser(user)).thenReturn(new ResolvedUserAccess(user, "operator", tenant,
+                "SYSTEM_ADMIN", List.of("SYSTEM_ADMIN"), List.of("asset:write", "assets:read"), List.of("TENANT"), 1L));
+        Long foreignTenant = jdbc.queryForObject("INSERT INTO tenant(code,name) VALUES ('ASSET_META_FOREIGN','Foreign') RETURNING id", Long.class);
+        Long foreignDepartment = jdbc.queryForObject("INSERT INTO department(tenant_id,code,name,status) VALUES (?,'FOREIGN','Foreign',1) RETURNING id", Long.class, foreignTenant);
+        var foreign = new com.aiworkmate.dto.AssetLedgerRequest("A-META-FOREIGN", "Test asset", "IT", null,
+                null, foreignDepartment, null, null, BigDecimal.ZERO, null, null);
+        assertThatThrownBy(() -> tx.execute(status -> service.createAsset(user, foreign)))
+                .isInstanceOf(BusinessException.class).extracting("errorCode").isEqualTo("RESOURCE_NOT_FOUND");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM asset_ledger WHERE asset_code='A-META-FOREIGN'", Integer.class)).isZero();
+
+        var adapter = new com.aiworkmate.agent.tool.adapter.AssetAgentDomainToolAdapter(service);
+        var actor = new com.aiworkmate.agent.tool.port.ToolActorContext(tenant, user, 1, 1, 0, "metadata-test");
+        var fields = new com.aiworkmate.agent.tool.port.AssetToolPort.Fields("A-META-OK", "Laptop", "IT", "Spec",
+                java.time.LocalDate.of(2026, 1, 2), new BigDecimal("1200.50"), "Keep");
+        var receipt = tx.execute(status -> adapter.create(actor,
+                new com.aiworkmate.agent.tool.port.AssetToolPort.Create(fields, department)));
+        assertThat(receipt.status()).isEqualTo("IDLE");
+        assertThat(receipt.version()).isZero();
+        long id = receipt.assetId();
+        assertThat(jdbc.queryForObject("SELECT owner_user_id FROM asset_ledger WHERE id=?", Long.class, id)).isNull();
+        var patchFields = new com.aiworkmate.agent.tool.port.AssetToolPort.Fields(null, "Renamed", null, null, null, null, "");
+        var patch = new com.aiworkmate.agent.tool.port.AssetToolPort.Update(id, 0, patchFields, false);
+        var updated = tx.execute(status -> adapter.update(actor, patch));
+        assertThat(updated.name()).isEqualTo("Renamed");
+        assertThat(updated.version()).isOne();
+        var row = jdbc.queryForMap("SELECT * FROM asset_ledger WHERE id=?", id);
+        assertThat(row.get("department_id")).isEqualTo(department);
+        assertThat(row.get("specification")).isEqualTo("Spec");
+        assertThat(row.get("original_value")).isEqualTo(new BigDecimal("1200.50"));
+        assertThat(row.get("purchase_date")).isEqualTo(java.sql.Date.valueOf("2026-01-02"));
+        assertThat(row.get("remark")).isEqualTo("");
+        assertThatThrownBy(() -> tx.execute(status -> adapter.update(actor, patch)))
+                .isInstanceOf(BusinessException.class).extracting("errorCode").isEqualTo("VERSION_CONFLICT");
+        assertThatThrownBy(() -> tx.execute(status -> adapter.create(actor,
+                new com.aiworkmate.agent.tool.port.AssetToolPort.Create(fields, department))))
+                .isInstanceOf(BusinessException.class).extracting("errorCode").isEqualTo("BUSINESS_STATE_INVALID");
+        jdbc.update("UPDATE asset_ledger SET original_value=NULL WHERE id=?", id);
+        var rename = new com.aiworkmate.service.model.AssetAgentMetadataFields(null, "Final name", null, null, null, null, null);
+        tx.execute(status -> service.updateAssetAgent(user, id, 1, rename, true));
+        assertThat(jdbc.queryForObject("SELECT original_value FROM asset_ledger WHERE id=?", BigDecimal.class, id)).isNull();
+        assertThat(jdbc.queryForObject("SELECT purchase_date FROM asset_ledger WHERE id=?", java.sql.Date.class, id)).isNull();
+        assertThatThrownBy(() -> tx.execute(status -> failingService.updateAssetAgent(user, id, 2, rename, false)))
+                .isInstanceOf(IllegalStateException.class);
+        assertThat(jdbc.queryForObject("SELECT version FROM asset_ledger WHERE id=?", Integer.class, id)).isEqualTo(2);
+        assertThatThrownBy(() -> tx.execute(status -> failingService.createAssetAgent(user,
+                new com.aiworkmate.service.model.AssetAgentMetadataFields("A-META-ROLLBACK", "X", "IT", null, null, null, null), department)))
+                .isInstanceOf(IllegalStateException.class);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM asset_ledger WHERE asset_code='A-META-ROLLBACK'", Integer.class)).isZero();
+        for (BigDecimal price : List.of(new BigDecimal("-1"), new BigDecimal("1.001"), new BigDecimal("1000000000000"))) {
+            assertThatThrownBy(() -> tx.execute(status -> service.updateAssetAgent(user, id, 2,
+                    new com.aiworkmate.service.model.AssetAgentMetadataFields(null, null, null, null, null, price, null), false)))
+                    .isInstanceOf(BusinessException.class).extracting("errorCode").isEqualTo("REQUEST_INVALID");
+        }
+        var barrier = new CyclicBarrier(2);
+        var executor = Executors.newFixedThreadPool(2);
+        try {
+            Callable<String> update = () -> {
+                barrier.await(10, TimeUnit.SECONDS);
+                try { tx.execute(status -> service.updateAssetAgent(user, id, 2, rename, false)); return "SUCCESS"; }
+                catch (BusinessException exception) { return exception.getErrorCode(); }
+            };
+            var first = executor.submit(update); var second = executor.submit(update);
+            assertThat(List.of(first.get(15, TimeUnit.SECONDS), second.get(15, TimeUnit.SECONDS)))
+                    .containsExactlyInAnyOrder("SUCCESS", "VERSION_CONFLICT");
+        } finally { executor.shutdownNow(); }
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM business_audit_log WHERE resource_type='ASSET_LEDGER' AND resource_id=? AND action='UPDATE'",
+                Integer.class, Long.toString(id))).isEqualTo(3);
+        when(access.resolveActiveUser(user)).thenReturn(new ResolvedUserAccess(user, "operator", foreignTenant,
+                "SYSTEM_ADMIN", List.of("SYSTEM_ADMIN"), List.of("asset:write"), List.of("TENANT"), 1L));
+        assertThatThrownBy(() -> tx.execute(status -> service.updateAssetAgent(user, id, 3, rename, false)))
+                .isInstanceOf(BusinessException.class).extracting("errorCode").isEqualTo("RESOURCE_NOT_FOUND");
+        when(access.resolveActiveUser(user)).thenReturn(new ResolvedUserAccess(user, "operator", tenant,
+                "SYSTEM_ADMIN", List.of("SYSTEM_ADMIN"), List.of(), List.of("TENANT"), 1L));
+        assertThatThrownBy(() -> tx.execute(status -> service.updateAssetAgent(user, id, 3, rename, false)))
+                .isInstanceOf(BusinessException.class).extracting("errorCode").isEqualTo("PERMISSION_DENIED");
     }
 
     private static ResolvedUserAccess actor(long userId, long tenantId) {

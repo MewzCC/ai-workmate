@@ -7,6 +7,14 @@ import java.util.List;
 
 public interface AssetToolPort {
     Page query(ToolActorContext context, Query query);
+    MetadataReceipt create(ToolActorContext context, Create command);
+    MetadataReceipt update(ToolActorContext context, Update command);
+    record Fields(String assetCode, String name, String category, String specification,
+                  LocalDate purchaseDate, BigDecimal originalValue, String remark) {}
+    record Create(Fields fields, Long departmentId) {}
+    record Update(long assetId, int version, Fields fields, boolean clearPurchaseDate) {}
+    record MetadataReceipt(long assetId, String assetCode, String name, String status, int version)
+            implements ToolWriteReceipt {}
     ClaimResult claim(ToolActorContext context, ClaimCommand command, ToolOperationKey operationKey);
     ToolWriteVerification<ClaimResult> findClaim(
             ToolActorContext context, ClaimCommand command, ToolOperationKey operationKey);
