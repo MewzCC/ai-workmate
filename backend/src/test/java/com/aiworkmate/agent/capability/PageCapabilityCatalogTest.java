@@ -14,6 +14,30 @@ class PageCapabilityCatalogTest {
     private final PageCapabilityCatalog catalog = new PageCapabilityCatalog();
 
     @Test
+    void workspaceRequiresBothEntryAndAssociatedBusinessPagePermissions() {
+        assertThat(catalog.allowsTool("ai-workspace", "meeting.book",
+                Set.of("route:ai-workspace", "route:meeting-room"))).isTrue();
+        assertThat(catalog.allowsTool("ai-workspace", "meeting.book", Set.of("route:ai-workspace"))).isFalse();
+        assertThat(catalog.allowsTool("ai-workspace", "meeting.book", Set.of("route:meeting-room"))).isFalse();
+    }
+
+    @Test
+    void pageAccessCannotAuthorizeUnboundToolsAndUnknownContextsFailClosed() {
+        var permissions = Set.of("route:todo", "route:meeting-room", "route:ai-workspace");
+        assertThat(catalog.allowsTool("todo", "meeting.book", permissions)).isFalse();
+        assertThat(catalog.allowsTool("missing", "todo.query", permissions)).isFalse();
+        assertThat(catalog.allowsTool(null, "todo.query", permissions)).isFalse();
+        assertThat(catalog.allowsTool("todo", "missing", permissions)).isFalse();
+        assertThat(catalog.allowsTool("todo", "todo.query", null)).isFalse();
+    }
+
+    @Test
+    void legacyContextAliasesRequireCanonicalPagePermissions() {
+        assertThat(catalog.allowsTool("todo-list", "todo.query", Set.of("route:todo"))).isTrue();
+        assertThat(catalog.allowsTool("todo-list", "todo.query", Set.of("route:todo-list"))).isFalse();
+    }
+
+    @Test
     void registersAllEnabledPagesWithUniqueComponents() {
         assertThat(catalog.all()).hasSize(OaPage.values().length);
         assertThat(catalog.all()).extracting(PageCapabilityDefinition::pageId).doesNotHaveDuplicates();

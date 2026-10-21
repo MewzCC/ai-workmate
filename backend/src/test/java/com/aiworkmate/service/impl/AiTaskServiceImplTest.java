@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
@@ -66,6 +67,20 @@ class AiTaskServiceImplTest {
         when(taskMapper.finalizePlan(eq(88L), eq(1L), anyString(), anyString(), eq("L0"), eq("PLAN_READY"),
                 anyString(), anyString(), anyLong(), eq(1))).thenReturn(1);
         when(stepMapper.insertPending(any(AgentTaskStep.class))).thenReturn(1);
+    }
+
+    @Test
+    void revokedPageAccessStopsReadEnqueueBeforeIdempotencyAndQueueWrites() {
+        var task = new AgentTask();
+        task.setId(88L); task.setTaskNo("revoked-read"); task.setPlanVersion(1);
+        task.setPlanHash("sha256:read"); task.setMaxRiskLevel("L0"); task.setStatus("PLAN_READY");
+        when(taskMapper.selectOwned(1L, 7L, task.getTaskNo())).thenReturn(task);
+        doThrow(new com.aiworkmate.common.BusinessException(com.aiworkmate.common.ErrorCode.PERMISSION_DENIED))
+                .when(taskApiService).requireCurrentToolAccess(user(), task);
+        assertThatThrownBy(() -> service.execute(task.getTaskNo(), new AiTaskExecuteRequest(1, task.getPlanHash(), null),
+                "revoked-read-key", user())).isInstanceOf(com.aiworkmate.common.BusinessException.class);
+        verifyNoInteractions(idempotency);
+        verify(taskMapper, never()).queuePlanReady(anyLong(), anyLong(), anyLong(), anyInt(), anyString(), any());
     }
 
     @Test

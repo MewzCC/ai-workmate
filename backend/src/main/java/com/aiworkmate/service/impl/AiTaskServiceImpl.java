@@ -115,6 +115,7 @@ public class AiTaskServiceImpl implements AiTaskService {
         if (task == null) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
         if (!request.planVersion().equals(task.getPlanVersion()) || !request.planHash().equals(task.getPlanHash()))
             throw new BusinessException(ErrorCode.GATEWAY_STALE);
+        taskApiService.requireCurrentToolAccess(user, task);
         ObjectNode hashInput = objectMapper.createObjectNode().put("taskId", taskNo)
                 .put("planVersion", request.planVersion()).put("planHash", request.planHash());
         if (StringUtils.hasText(request.confirmationToken()))

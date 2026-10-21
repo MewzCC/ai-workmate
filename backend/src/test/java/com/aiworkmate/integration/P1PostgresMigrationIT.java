@@ -67,6 +67,7 @@ class P1PostgresMigrationIT {
         assertP1Schema(emptySchema);
         assertMeetingRoomToolRegistration(emptySchema);
         assertChatAgentResultSchema(emptySchema);
+        GatewayPageAccessPostgresVerifier.verify(databaseUrl, databaseUsername, databasePassword, emptySchema);
         MeetingBookingPostgresVerifier.verify(databaseUrl, databaseUsername, databasePassword, emptySchema);
         AttendanceReissuePostgresVerifier.verify(databaseUrl, databaseUsername, databasePassword, emptySchema);
         NotificationMarkReadPostgresVerifier.verify(databaseUrl, databaseUsername, databasePassword, emptySchema);
@@ -137,6 +138,7 @@ class P1PostgresMigrationIT {
                 databaseUrl, databaseUsername, databasePassword, upgradeSchema);
         ApprovalApplicationMinePostgresVerifier.verify(
                 databaseUrl, databaseUsername, databasePassword, upgradeSchema);
+        GatewayPageAccessPostgresVerifier.verify(databaseUrl, databaseUsername, databasePassword, upgradeSchema);
         assertThat(queryCount(upgradeSchema, """
                 SELECT COUNT(*) FROM supplier
                 WHERE supplier_code = 'LEGACY-SUP-001' AND status = 'ACTIVE'

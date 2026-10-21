@@ -42,7 +42,7 @@ class DatabaseBackedToolRegistryTest {
         registry = new DatabaseBackedToolRegistry(
                 properties, new MybatisToolPolicySource(toolMapper, tenantPolicyMapper),
                 new ToolCatalog(List.of(definition)),
-                pageActionPolicyResolver, objectMapper
+                pageActionPolicyResolver, objectMapper, new com.aiworkmate.agent.capability.PageCapabilityCatalog()
         );
         AgentTenantPolicy policy = new AgentTenantPolicy();
         policy.setTenantId(1L);
@@ -53,12 +53,33 @@ class DatabaseBackedToolRegistryTest {
     }
 
     @Test
+    void workspaceCannotPlanBusinessToolsWithoutAnAccessibleBusinessPage() {
+        when(toolMapper.selectPlatformTools()).thenReturn(List.of(row("L0", true)));
+        when(toolMapper.selectTenantTools(1L)).thenReturn(List.of());
+        when(pageActionPolicyResolver.enabledToolCodes(1L, "ai-workspace")).thenReturn(Set.of("todo.query"));
+        var access = new ResolvedUserAccess(7L, "employee", 1L, "EMPLOYEE", List.of("EMPLOYEE"),
+                List.of("route:ai-workspace", "todo:read", "agent:tool:todo.query"), List.of("SELF"), 2L);
+        assertThat(registry.resolveAllowedTools(access, "ai-workspace")).isEmpty();
+    }
+
+    @Test
+    void workspaceCanPlanTheSameToolWhenBothPagePermissionsRemainGranted() {
+        when(toolMapper.selectPlatformTools()).thenReturn(List.of(row("L0", true)));
+        when(toolMapper.selectTenantTools(1L)).thenReturn(List.of());
+        when(pageActionPolicyResolver.enabledToolCodes(1L, "ai-workspace")).thenReturn(Set.of("todo.query"));
+        var access = new ResolvedUserAccess(7L, "employee", 1L, "EMPLOYEE", List.of("EMPLOYEE"),
+                List.of("route:ai-workspace", "route:todo", "todo:read", "agent:tool:todo.query"), List.of("SELF"), 2L);
+        assertThat(registry.resolveAllowedTools(access, "ai-workspace")).extracting(ToolDefinition::code)
+                .containsExactly("todo.query");
+    }
+
+    @Test
     void shouldResolveOnlyCodeAndDatabaseApprovedPageTool() {
         when(toolMapper.selectPlatformTools()).thenReturn(List.of(row("L0", true)));
         when(toolMapper.selectTenantTools(1L)).thenReturn(List.of());
         ResolvedUserAccess access = new ResolvedUserAccess(
                 7L, "employee", 1L, "EMPLOYEE", List.of("EMPLOYEE"),
-                List.of("todo:read", "agent:tool:todo.query"), List.of("SELF"), 2L
+                List.of("route:todo", "todo:read", "agent:tool:todo.query"), List.of("SELF"), 2L
         );
 
         assertThat(registry.resolveAllowedTools(access, "todo-list"))
@@ -190,7 +211,7 @@ class DatabaseBackedToolRegistryTest {
         registry = new DatabaseBackedToolRegistry(
                 properties, new MybatisToolPolicySource(toolMapper, tenantPolicyMapper),
                 new ToolCatalog(List.of(definition)),
-                pageActionPolicyResolver, objectMapper);
+                pageActionPolicyResolver, objectMapper, new com.aiworkmate.agent.capability.PageCapabilityCatalog());
         AgentTenantPolicy policy = new AgentTenantPolicy();
         policy.setTenantId(1L);
         policy.setEnabled(true);

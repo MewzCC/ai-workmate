@@ -77,7 +77,7 @@ class DefaultToolGatewayPolicyTest {
         when(toolRegistry.resolveExecutableTool(1L, "todo.query")).thenReturn(Optional.of(definition));
         when(userAccessService.resolveActiveUser(7L)).thenReturn(new ResolvedUserAccess(
                 7L, "user", 1L, "EMPLOYEE", List.of("EMPLOYEE"),
-                List.of("todo:read", "agent:tool:todo.query"), List.of("SELF"), 1L
+                List.of("route:ai-workspace", "route:todo", "todo:read", "agent:tool:todo.query"), List.of("SELF"), 1L
         ));
         when(auditWriter.record(any(), any(), anyString(), anyBoolean())).thenReturn("decision-1");
         when(handler.execute(any(), any())).thenReturn(objectMapper.readTree("{\"items\":[]}"));
@@ -88,6 +88,33 @@ class DefaultToolGatewayPolicyTest {
     @AfterAll
     static void stopExecutor() {
         TOOL_EXECUTOR.shutdownNow();
+    }
+
+    @Test
+    void businessRouteRevocationDeniesExecutionBeforeTheHandler() {
+        when(userAccessService.resolveActiveUser(7L)).thenReturn(new ResolvedUserAccess(
+                7L, "user", 1L, "EMPLOYEE", List.of("EMPLOYEE"),
+                List.of("route:ai-workspace", "todo:read", "agent:tool:todo.query"), List.of("SELF"), 2L));
+        ToolGatewayResult result = execute();
+        assertThat(result.decision()).isEqualTo(GatewayDecision.DENY);
+        verify(handler, never()).execute(any(), any());
+        verify(auditWriter).record(snapshot, GatewayDecision.DENY, "REALTIME_PERMISSION_DENIED", false);
+    }
+
+    @Test
+    void unknownPersistedPageCannotBeUsedAsAnExecutionContext() {
+        snapshot.setPageId("unknown-page");
+        assertThat(execute().decision()).isEqualTo(GatewayDecision.DENY);
+        verify(handler, never()).execute(any(), any());
+    }
+
+    @Test
+    void revokedWorkspaceEntryBlocksExecutionDespiteRetainedBusinessAccess() {
+        when(userAccessService.resolveActiveUser(7L)).thenReturn(new ResolvedUserAccess(
+                7L, "user", 1L, "EMPLOYEE", List.of("EMPLOYEE"),
+                List.of("route:todo", "todo:read", "agent:tool:todo.query"), List.of("SELF"), 2L));
+        assertThat(execute().decision()).isEqualTo(GatewayDecision.DENY);
+        verify(handler, never()).execute(any(), any());
     }
 
     @Test
@@ -338,7 +365,7 @@ class DefaultToolGatewayPolicyTest {
         when(toolRegistry.resolveExecutableTool(1L, definition.code())).thenReturn(Optional.of(definition));
         when(userAccessService.resolveActiveUser(7L)).thenReturn(new ResolvedUserAccess(
                 7L, "user", 1L, "EMPLOYEE", List.of("EMPLOYEE"),
-                List.of("todo:read", "agent:tool:" + definition.code()), List.of("SELF"), 1L
+                List.of("route:ai-workspace", "route:leave-application", "todo:read", "agent:tool:" + definition.code()), List.of("SELF"), 1L
         ));
         rebuildGateway();
     }
@@ -406,6 +433,7 @@ class DefaultToolGatewayPolicyTest {
         value.setPlan(plan);
         value.setPlanHash(hashing.hash(objectMapper.readTree(plan)));
         value.setPlanVersion(1);
+        value.setPageId("ai-workspace");
         value.setTaskRiskLevel(definition.riskLevel().name());
         value.setToolCallCount(0);
         value.setToolCode(definition.code());
@@ -422,7 +450,7 @@ class DefaultToolGatewayPolicyTest {
         gateway = new DefaultToolGateway(
                 properties, snapshotMapper, toolRegistry, userAccessService, hashing,
                 new ToolSchemaValidator(), new ToolOutputGuard(), new HandlerResolver(List.of(handler)),
-                auditWriter, objectMapper, TOOL_EXECUTOR
+                auditWriter, objectMapper, TOOL_EXECUTOR, new com.aiworkmate.agent.capability.PageCapabilityCatalog()
         );
     }
 }

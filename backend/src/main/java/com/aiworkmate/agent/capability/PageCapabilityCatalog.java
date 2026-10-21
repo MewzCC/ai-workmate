@@ -59,6 +59,18 @@ public class PageCapabilityCatalog {
         return definitions.values();
     }
 
+    /** Page context narrows tool access; the conversational entry never grants business access. */
+    public boolean allowsTool(String pageId, String toolCode, Collection<String> permissions) {
+        if (pageId == null) return false;
+        PageCapabilityDefinition page = find(pageId).orElse(null);
+        if (page == null || permissions == null || !permissions.containsAll(page.requiredPermissions())
+                || page.tools().stream().noneMatch(tool -> tool.toolCode().equals(toolCode))) {
+            return false;
+        }
+        return !OaPage.AI_WORKSPACE.routeKey().equals(page.pageId())
+                || businessPageIdsForTool(toolCode).stream().anyMatch(target -> permissions.contains("route:" + target));
+    }
+
     /** Returns real business pages for a tool, excluding the global conversational entry. */
     public Set<String> businessPageIdsForTool(String toolCode) {
         if (toolCode == null) return Set.of();

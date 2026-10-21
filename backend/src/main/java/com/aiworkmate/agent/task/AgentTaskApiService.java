@@ -1,6 +1,7 @@
 package com.aiworkmate.agent.task;
 
 import com.aiworkmate.agent.config.AgentRuntimeProperties;
+import com.aiworkmate.agent.capability.PageCapabilityCatalog;
 import com.aiworkmate.agent.registry.PermissionMode;
 import com.aiworkmate.agent.registry.ToolDefinition;
 import com.aiworkmate.agent.registry.ToolRegistry;
@@ -45,6 +46,7 @@ public class AgentTaskApiService {
     private final AgentRuntimeProperties properties;
     private final AgentTaskEventService eventService;
     private final ObjectMapper objectMapper;
+    private final PageCapabilityCatalog pageCapabilities;
     private final SecureRandom secureRandom = new SecureRandom();
     private final Map<String, ArrayDeque<Instant>> confirmationAttempts = new ConcurrentHashMap<>();
     private final AgentTaskStateMachine stateMachine = new AgentTaskStateMachine();
@@ -176,13 +178,17 @@ public class AgentTaskApiService {
         return task;
     }
 
-    private void requireCurrentToolAccess(AuthenticatedUser user, AgentTask task) {
+    public void requireCurrentToolAccess(AuthenticatedUser user, AgentTask task) {
+        if (!user.tenantId().equals(task.getTenantId()) || !user.userId().equals(task.getUserId())) {
+            throw new BusinessException(ErrorCode.PERMISSION_DENIED);
+        }
         List<AgentTaskStep> steps = stepMapper.selectByTaskId(task.getId());
         if (steps.isEmpty()) throw new BusinessException(ErrorCode.PERMISSION_DENIED);
         for (AgentTaskStep step : steps) {
             ToolDefinition definition = toolRegistry.resolveExecutableTool(
                     user.tenantId(), step.getToolCode()).orElse(null);
             boolean permitted = definition != null
+                    && pageCapabilities.allowsTool(task.getPageId(), definition.code(), user.permissions())
                     && definition.handlerVersion().equals(step.getToolVersion())
                     && definition.schemaHash().equals(step.getSchemaHash())
                     && definition.riskLevel().name().equals(step.getRiskLevel())

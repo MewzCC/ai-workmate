@@ -1,6 +1,7 @@
 package com.aiworkmate.agent.gateway;
 
 import com.aiworkmate.agent.config.AgentRuntimeProperties;
+import com.aiworkmate.agent.capability.PageCapabilityCatalog;
 import com.aiworkmate.agent.registry.PermissionMode;
 import com.aiworkmate.agent.registry.RiskLevel;
 import com.aiworkmate.agent.registry.SideEffect;
@@ -41,6 +42,7 @@ public class DefaultToolGateway implements ToolGateway {
     private final GatewayAuditWriter auditWriter;
     private final ObjectMapper objectMapper;
     private final ExecutorService toolExecutor;
+    private final PageCapabilityCatalog pageCapabilities;
     private final ToolFailureClassifier failureClassifier = new ToolFailureClassifier();
 
     public DefaultToolGateway(AgentRuntimeProperties runtimeProperties,
@@ -53,7 +55,8 @@ public class DefaultToolGateway implements ToolGateway {
                               HandlerResolver handlerResolver,
                               GatewayAuditWriter auditWriter,
                               ObjectMapper objectMapper,
-                              @Qualifier("agentToolExecutor") ExecutorService toolExecutor) {
+                              @Qualifier("agentToolExecutor") ExecutorService toolExecutor,
+                              PageCapabilityCatalog pageCapabilities) {
         this.runtimeProperties = runtimeProperties;
         this.snapshotMapper = snapshotMapper;
         this.toolRegistry = toolRegistry;
@@ -65,6 +68,7 @@ public class DefaultToolGateway implements ToolGateway {
         this.auditWriter = auditWriter;
         this.objectMapper = objectMapper;
         this.toolExecutor = toolExecutor;
+        this.pageCapabilities = pageCapabilities;
     }
 
     @Override
@@ -300,7 +304,8 @@ public class DefaultToolGateway implements ToolGateway {
                                 ToolDefinition definition,
                                 ResolvedUserAccess access) {
         if (access == null || !snapshot.getTenantId().equals(access.tenantId())
-                || !snapshot.getUserId().equals(access.userId())) {
+                || !snapshot.getUserId().equals(access.userId())
+                || !pageCapabilities.allowsTool(snapshot.getPageId(), definition.code(), access.permissions())) {
             return false;
         }
         return definition.permissionMode() == PermissionMode.ALL
