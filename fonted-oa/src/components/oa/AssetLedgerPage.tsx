@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Button,
   Card,
@@ -35,6 +35,7 @@ import {
 import { hrApi, type OrganizationOverview } from '@/lib/hrApi';
 import { formatOaApiError } from '@/lib/oaApi';
 import { usePermission } from '@/hooks/usePermission';
+import { useRouter, useSearchParams } from '@/lib/nextCompat';
 import AdminAssetsPageShell from './AdminAssetsPageShell';
 import ResponsiveTable from './ResponsiveTable';
 import { usePublishPageAgentContext } from './PageAgentContext';
@@ -60,6 +61,9 @@ type OperationFormValues = Omit<AssetOperationPayload, 'version'> & {
 export default function AssetLedgerPage() {
   const { t } = useTranslation();
   const { allowed: canManage, permissionVersion } = usePermission('asset:write');
+  const router = useRouter();
+  const requestedId = useSearchParams().get('id');
+  const detailRequest = useRef(0);
   const [data, setData] = useState<AssetLedger[]>([]);
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
@@ -147,16 +151,38 @@ export default function AssetLedgerPage() {
     setEditOpen(true);
   };
 
-  const openDetail = async (record: AssetLedger) => {
-    setDetail(record);
+  const loadDetail = useCallback(async (id: number) => {
+    const request = ++detailRequest.current;
+    setDetail(null);
+    setOperationType(undefined);
     setDetailLoading(true);
     try {
-      setDetail(await adminAssetsApi.getAsset(record.id));
+      const result = await adminAssetsApi.getAsset(id);
+      if (request === detailRequest.current) setDetail(result);
     } catch (err) {
-      message.error(formatOaApiError(err));
+      if (request === detailRequest.current) message.error(formatOaApiError(err));
     } finally {
-      setDetailLoading(false);
+      if (request === detailRequest.current) setDetailLoading(false);
     }
+  }, []);
+
+  useEffect(() => {
+    const sequence = detailRequest;
+    const id = Number(requestedId);
+    setDetail(null);
+    setDetailLoading(false);
+    if (requestedId && Number.isSafeInteger(id) && id > 0) void loadDetail(id);
+    return () => { ++sequence.current; };
+  }, [requestedId, permissionVersion, loadDetail]);
+
+  const openDetail = (record: AssetLedger) => loadDetail(record.id);
+
+  const closeDetail = () => {
+    ++detailRequest.current;
+    setDetail(null);
+    setDetailLoading(false);
+    setOperationType(undefined);
+    if (requestedId) router.replace('/oa/asset-ledger');
   };
 
   const openOperation = (type: AssetOperationType) => {
@@ -174,8 +200,10 @@ export default function AssetLedgerPage() {
 
   const handleOperation = async () => {
     if (!canManage || !detail || !operationType) return;
+    const request = detailRequest.current;
     try {
       const values = await operationForm.validateFields();
+      if (request !== detailRequest.current) return;
       setOperating(true);
       const payload = { ...values, version: detail.version };
       let updated: AssetLedger;
@@ -201,9 +229,11 @@ export default function AssetLedgerPage() {
           version: detail.version, reason: values.reason || '',
         }); break;
       }
-      setDetail(updated);
-      setData((current) => current.map((item) => item.id === updated.id ? updated : item));
-      setOperationType(undefined);
+      if (request === detailRequest.current) {
+        setDetail(updated);
+        setData((current) => current.map((item) => item.id === updated.id ? updated : item));
+        setOperationType(undefined);
+      }
       message.success(t(`adminAssets.asset.operation.${operationType}.success`));
     } catch (err) {
       if (err instanceof Error && err.name === 'ValidationError') return;
@@ -433,8 +463,8 @@ export default function AssetLedgerPage() {
 
       <Drawer
         title={detail ? `${detail.assetCode} · ${detail.name}` : t('adminAssets.asset.detail')}
-        open={detail !== null}
-        onClose={() => setDetail(null)}
+        open={detail !== null || detailLoading}
+        onClose={closeDetail}
         width={680}
       >
         <Spin spinning={detailLoading}>

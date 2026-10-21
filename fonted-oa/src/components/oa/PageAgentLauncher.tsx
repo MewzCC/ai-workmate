@@ -12,6 +12,7 @@ import type { OaRole } from '@/types/oa';
 import AIOperationDrawer from './AIOperationDrawer';
 import AiMiniPanel from './AiMiniPanel';
 import type { PageAgentContextSnapshot } from './PageAgentContext';
+import type { AgentPageNavigator } from '@/lib/agentToolTargetPage';
 
 const AGENT_WORKSPACE_PAGE_ID = 'ai-workspace';
 
@@ -26,7 +27,7 @@ interface PageAgentLauncherProps {
   pageContext?: PageAgentContextSnapshot;
   miniEnabled: boolean;
   onPageRefresh?: () => void;
-  onNavigatePage?: (pageId: string) => boolean;
+  onNavigatePage?: AgentPageNavigator;
 }
 
 /**

@@ -7,6 +7,7 @@ import { ConfigProvider, Layout, Spin, theme as antdTheme } from 'antd';
 import { message } from '@/lib/antdMessage';
 import type { OaMenuItem, OaRole, OaTheme } from '@/types/oa';
 import { findMenu, firstPage, flattenPages } from '@/lib/navigationTree';
+import { resolveAgentToolTargetPath } from '@/lib/agentToolTargetPage';
 import SidebarMenu from './SidebarMenu';
 import Topbar from './Topbar';
 import AppearanceDrawer from './AppearanceDrawer';
@@ -558,10 +559,10 @@ export default function AdminLayout() {
             pageContext={agentPageContext?.pageId === selectedMenu.id ? agentPageContext.snapshot : undefined}
             miniEnabled={aiMiniEnabled}
             onPageRefresh={() => setPageRevision((revision) => revision + 1)}
-            onNavigatePage={(pageId) => {
-              const target = findMenu(pageId, menus);
-              if (!target || target.type !== 'page') return false;
-              navigateToPage(toPageTab(target));
+            onNavigatePage={(pageId, recordId) => {
+              const path = resolveAgentToolTargetPath(pageId, recordId, menus);
+              if (!path) return false;
+              router.push(path);
               return true;
             }}
           />

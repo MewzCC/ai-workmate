@@ -1,3 +1,8 @@
+import type { OaMenuItem } from '@/types/oa';
+import { findMenu } from './navigationTree';
+
+export type AgentPageNavigator = (pageId: string, recordId?: number) => boolean;
+
 const EXACT_TARGETS: Record<string, string> = {
   'agentTask.mine.query': 'ai-tasks',
   'agentTask.cancel': 'ai-tasks',
@@ -83,4 +88,32 @@ export function agentToolTargetPage(toolCode?: string | null): string {
   const exact = EXACT_TARGETS[toolCode];
   if (exact) return exact;
   return PREFIX_TARGETS.find(([prefix]) => toolCode.startsWith(prefix))?.[1] ?? 'ai-tasks';
+}
+
+const ASSET_RECEIPT_TOOLS = new Set([
+  'asset.create', 'asset.update', 'asset.claim', 'asset.return', 'asset.transfer',
+  'asset.repair.start', 'asset.repair.complete', 'asset.inventory', 'asset.scrap',
+]);
+
+/** Selection comes from the completed result, never model arguments or a supplied URL. */
+export function agentToolTargetRecordId(toolCode: string, result: unknown): number | undefined {
+  if (!result || typeof result !== 'object' || Array.isArray(result)) return undefined;
+  const field = toolCode === 'hr.employee.query' ? 'id' : ASSET_RECEIPT_TOOLS.has(toolCode) ? 'assetId' : undefined;
+  if (!field) return undefined;
+  const id = (result as Record<string, unknown>)[field];
+  return typeof id === 'number' && Number.isSafeInteger(id) && id > 0 ? id : undefined;
+}
+
+/** Both navigation authorization and URL construction stay in code-owned boundaries. */
+export function resolveAgentToolTargetPath(pageId: string, recordId: number | undefined, menus: OaMenuItem[]): string | null {
+  const target = findMenu(pageId, menus);
+  if (!target || target.type !== 'page' || !target.visible) return null;
+  if (recordId !== undefined) {
+    if (!Number.isSafeInteger(recordId) || recordId <= 0) return null;
+    if (pageId === 'employee-files') return `/oa/employee-files?id=${recordId}`;
+    if (pageId === 'asset-ledger') return `/oa/asset-ledger?id=${recordId}`;
+    return null;
+  }
+  const path = target.path || `/oa/${target.id}`;
+  return /^\/oa(?:\/[a-z][a-z0-9-]*)?$/.test(path) ? path : null;
 }

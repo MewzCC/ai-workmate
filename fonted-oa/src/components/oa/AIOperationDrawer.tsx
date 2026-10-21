@@ -9,7 +9,7 @@ import PageAgentCapabilityPanel from './PageAgentCapabilityPanel';
 import { agentTaskApi, executeAiTask, formatOaApiError, getPageCapabilities, issueAiTaskConfirmation, OaApiError, planAiTask, subscribeAiTaskEvents } from '@/lib/oaApi';
 import { OaIcon } from '@/components/OaIcon';
 import AgentPlanPreview from './AgentPlanPreview';
-import { agentToolTargetPage } from '@/lib/agentToolTargetPage';
+import { agentToolTargetPage, agentToolTargetRecordId, type AgentPageNavigator } from '@/lib/agentToolTargetPage';
 
 interface AIOperationDrawerProps {
   open: boolean;
@@ -21,7 +21,7 @@ interface AIOperationDrawerProps {
   onClose: () => void;
   onOpenChangeComplete?: (open: boolean) => void;
   onExecutionCompleted?: () => void;
-  onNavigatePage?: (pageId: string) => boolean;
+  onNavigatePage?: AgentPageNavigator;
 }
 
 interface ChatLine { role: 'user' | 'assistant'; content: string }
@@ -163,7 +163,9 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageC
             || lastStep.arguments?.from != null || lastStep.arguments?.to != null);
         if (!filteredTodo) {
           // The layout callback applies current navigation permissions; tool output is not a URL.
-          onNavigatePage?.(agentToolTargetPage(lastStep.toolCode));
+          const recordId = agentToolTargetRecordId(lastStep.toolCode, lastStep.result);
+          if (recordId === undefined) onNavigatePage?.(agentToolTargetPage(lastStep.toolCode));
+          else onNavigatePage?.(agentToolTargetPage(lastStep.toolCode), recordId);
         }
       }
     } catch (error) {

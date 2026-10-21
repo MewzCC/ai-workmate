@@ -231,6 +231,25 @@ describe('AIOperationDrawer', () => {
     expect(screen.getAllByText('本人驾驶舱：待处理事项 3 条，未读消息 8 条。')).toHaveLength(2);
   });
 
+  it('locates the employee returned by the successful tool instead of opening the default employee', async () => {
+    api.planAiTask.mockResolvedValue(basePlan);
+    api.executeAiTask.mockResolvedValue({ taskId: basePlan.taskId, status: 'QUEUED' });
+    api.agentTaskApi.detail.mockResolvedValue({ taskId: basePlan.taskId, status: 'SUCCEEDED', steps: [
+      { sequence: 1, toolCode: 'hr.employee.query', status: 'SUCCEEDED', arguments: { employeeId: 999 },
+        resultSummary: '员工 #23：员工乙。', result: { id: 23, name: '员工乙', url: 'https://invalid.example' } },
+    ], errorCode: null });
+    const navigate = vi.fn(() => true);
+    renderDrawer(vi.fn(), undefined, navigate);
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: '查询员工乙档案' } });
+    fireEvent.click(screen.getByRole('button', { name: /发送 \/ 生成计划/ }));
+    await waitFor(() => expect(screen.getAllByText(basePlan.summary)).toHaveLength(2));
+    fireEvent.click(screen.getByRole('button', { name: '执行计划' }));
+    await waitFor(() => expect(api.subscribeAiTaskEvents).toHaveBeenCalledOnce());
+    act(() => api.subscribeAiTaskEvents.mock.calls[0][1].onEvent({ id: 'employee-complete', type: 'task-completed', data: { status: 'SUCCEEDED' } }));
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith('employee-files', 23));
+    expect(navigate).toHaveBeenCalledOnce();
+  });
+
   it('keeps the prompt when planning fails and does not erase a newer draft', async () => {
     let resolvePlan: (value: typeof basePlan) => void = () => undefined;
     api.planAiTask.mockImplementation(() => new Promise((resolve) => { resolvePlan = resolve; }));

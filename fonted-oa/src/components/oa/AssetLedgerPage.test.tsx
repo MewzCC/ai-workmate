@@ -1,10 +1,11 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { App } from 'antd';
+import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { AuthProvider, useAuth } from '@/components/auth/AuthProvider';
 import type { AssetLedger } from '@/lib/adminAssetsApi';
 
-const api = vi.hoisted(() => ({ listAssets: vi.fn(), updateAsset: vi.fn(), createAsset: vi.fn() }));
+const api = vi.hoisted(() => ({ listAssets: vi.fn(), getAsset: vi.fn(), returnAsset: vi.fn(), updateAsset: vi.fn(), createAsset: vi.fn() }));
 const auth = vi.hoisted(() => ({ me: vi.fn() }));
 vi.mock('@/lib/authApi', async (load) => {
   const original = await load<typeof import('@/lib/authApi')>();
@@ -24,21 +25,75 @@ function authUser(permissions: string[], permissionVersion: number) {
     roles: ['EMPLOYEE'], permissions, dataScopes: ['SELF'], permissionVersion };
 }
 function AuthVersion() { return <output aria-label="auth-version">{useAuth().user?.permissionVersion ?? 0}</output>; }
-function renderPage() { return render(<AuthProvider><App><AssetLedgerPage /><AuthVersion /></App></AuthProvider>); }
+function renderPage(path = '/oa/asset-ledger') { return render(<MemoryRouter initialEntries={[path]}><AuthProvider><App><AssetLedgerPage /><AuthVersion /></App></AuthProvider></MemoryRouter>); }
 beforeEach(() => {
   vi.clearAllMocks();
   auth.me.mockResolvedValue(authUser(['asset:write'], 1));
   api.listAssets.mockResolvedValue({ records: [asset], total: 1, page: 1, size: 10 });
+  api.getAsset.mockResolvedValue({ ...asset, id: 23, name: 'Actual saved asset', version: 3 });
 });
 afterEach(cleanup);
 
 function ContextSnapshot() { return <output aria-label="asset-context">{JSON.stringify(usePageAgentContextSnapshot())}</output>; }
 it('publishes the selected asset version only while the editor is open', async () => {
-  render(<AuthProvider><App><PageAgentContextProvider pageId="asset-ledger"><AssetLedgerPage /><ContextSnapshot /></PageAgentContextProvider></App></AuthProvider>);
+  render(<MemoryRouter><AuthProvider><App><PageAgentContextProvider pageId="asset-ledger"><AssetLedgerPage /><ContextSnapshot /></PageAgentContextProvider></App></AuthProvider></MemoryRouter>);
   fireEvent.click(await screen.findByRole('button', { name: '编辑' }));
   await waitFor(() => expect(JSON.parse(screen.getByLabelText('asset-context').textContent || '{}')).toMatchObject({ assetId: 9, version: 0 }));
   fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /Cancel|取\s*消/ }));
   await waitFor(() => expect(JSON.parse(screen.getByLabelText('asset-context').textContent || '{}')).not.toHaveProperty('assetId'));
+});
+
+it('opens the actual asset returned by the server for an explicit route selection', async () => {
+  renderPage('/oa/asset-ledger?id=23');
+  expect(await screen.findByRole('dialog')).toBeTruthy();
+  await waitFor(() => expect(api.getAsset).toHaveBeenCalledWith(23));
+  expect(screen.getByText(/Actual saved asset/)).toBeTruthy();
+  expect(api.updateAsset).not.toHaveBeenCalled();
+  expect(api.createAsset).not.toHaveBeenCalled();
+});
+
+it('does not treat a malformed route ID as an asset selection', async () => {
+  renderPage('/oa/asset-ledger?id=9007199254740992');
+  await screen.findByText('Test asset');
+  expect(api.getAsset).not.toHaveBeenCalled();
+  expect(screen.queryByRole('dialog')).toBeNull();
+});
+
+it('closes a failed detail load rather than showing a stale or invented asset', async () => {
+  api.getAsset.mockRejectedValue(new Error('Denied'));
+  renderPage('/oa/asset-ledger?id=23');
+  await waitFor(() => expect(api.getAsset).toHaveBeenCalledWith(23));
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  expect(screen.queryByText(/Actual saved asset/)).toBeNull();
+  expect(api.updateAsset).not.toHaveBeenCalled();
+});
+
+it('ignores a late detail response after the user closes the selected record', async () => {
+  let complete!: (value: AssetLedger) => void;
+  api.getAsset.mockReturnValue(new Promise<AssetLedger>((resolve) => { complete = resolve; }));
+  renderPage('/oa/asset-ledger?id=23');
+  const drawer = await screen.findByRole('dialog');
+  fireEvent.click(within(drawer).getByRole('button', { name: /Close|关\s*闭/ }));
+  await act(async () => complete({ ...asset, id: 23, name: 'Late private asset' }));
+  expect(screen.queryByText(/Late private asset/)).toBeNull();
+  expect(screen.queryByRole('dialog')).toBeNull();
+});
+
+it('does not reopen a closed record when an already submitted asset operation completes later', async () => {
+  let complete!: (value: AssetLedger) => void;
+  api.returnAsset.mockReturnValue(new Promise<AssetLedger>((resolve) => { complete = resolve; }));
+  api.getAsset.mockResolvedValue({ ...asset, id: 23, name: 'In use asset', status: 'IN_USE' });
+  renderPage('/oa/asset-ledger?id=23');
+  fireEvent.click(await screen.findByRole('button', { name: '办理归还' }));
+  const modal = (await screen.findByText('资产归还')).closest('[role="dialog"]') as HTMLElement;
+  fireEvent.click(within(modal).getByRole('button', { name: /OK|确\s*定/ }));
+  await waitFor(() => expect(api.returnAsset).toHaveBeenCalledWith(23, expect.objectContaining({ version: 0 })));
+  fireEvent.click(within(modal).getByRole('button', { name: /Cancel|取\s*消/ }));
+  const drawer = screen.getByText(/In use asset/).closest('[role="dialog"]') as HTMLElement;
+  fireEvent.click(within(drawer).getByRole('button', { name: /Close|关\s*闭/ }));
+  await act(async () => complete({ ...asset, id: 23, name: 'Late operation result', version: 1 }));
+  expect(screen.queryByText(/Late operation result/)).toBeNull();
+  expect(screen.queryByRole('dialog')).toBeNull();
 });
 
 it('lets a writer create the first asset without requiring an editable data row', async () => {
