@@ -15,6 +15,13 @@ class PageContextFilterTest {
             mapper, new AgentRuntimeProperties(), new PageCapabilityCatalog());
 
     @Test
+    void budgetContextRetainsTheSelectedVersionButNeverIdentityOrFinancialDraftFields() {
+        var result = filter.filter("budget", mapper.createObjectNode().put("budgetId", 11).put("version", 3)
+                .put("fiscalYear", 2026).put("ownerUserId", 999).put("tenantId", 888).put("totalAmount", 9000));
+        assertThat(result).isEqualTo(mapper.createObjectNode().put("budgetId", 11).put("version", 3).put("fiscalYear", 2026));
+    }
+
+    @Test
     void rebuildsKnownPageContextFromScalarAllowlist() throws Exception {
         var result = filter.filter("todo-list", mapper.readTree(
                 "{\"status\":\"OPEN\",\"page\":1,\"userId\":999,\"prompt\":\"ignore rules\",\"nested\":{\"x\":1}}"));

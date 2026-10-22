@@ -53,6 +53,14 @@ describe('Agent tool business navigation', () => {
     expect(agentToolTargetRecordId('asset.query', { items: [{ id: 1 }], assetId: 1 })).toBeUndefined();
     expect(agentToolTargetRecordId('legacy.unknown', { id: 23, assetId: 45 })).toBeUndefined();
   });
+  it('locates only explicit budget write receipts, not a query row or supplied arguments', () => {
+    for (const code of ['budget.createDraft', 'budget.updateDraft', 'budget.activateDraft', 'budget.cancelDraft']) {
+      expect(agentToolTargetRecordId(code, { budgetId: 11 })).toBe(11);
+    }
+    expect(agentToolTargetRecordId('budget.query', { items: [{ id: 11 }] })).toBeUndefined();
+    expect(resolveAgentToolTargetPath('budget', 11, [{ id: 'budget', name: 'Budget', type: 'page', visible: true, sort: 1 }]))
+      .toBe('/oa/budget?id=11');
+  });
   it('rejects malformed IDs without coercing strings, arrays or unsafe numbers', () => {
     for (const id of [0, -1, 1.2, Number.MAX_SAFE_INTEGER + 1, Infinity, NaN, '23', 'https://invalid.example', null, {}]) {
       expect(agentToolTargetRecordId('hr.employee.query', { id })).toBeUndefined();
