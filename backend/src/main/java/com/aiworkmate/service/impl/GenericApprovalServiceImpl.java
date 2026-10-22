@@ -333,7 +333,7 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
         if (updated != 1) {
             throw new BusinessException(ErrorCode.VERSION_CONFLICT);
         }
-        auditService.record(actor.tenantId(), actor.userId(), BUSINESS_TYPE,
+        auditService.recordTransactional(actor.tenantId(), actor.userId(), BUSINESS_TYPE,
                 id.toString(), "DRAFT_CANCEL", "SUCCESS", "取消通用表单草稿");
         return response(actor, requireView(actor.tenantId(), id), null);
     }

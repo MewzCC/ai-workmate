@@ -247,6 +247,8 @@ class GenericApprovalServiceImplTest {
         assertThat(response.status()).isEqualTo("CANCELLED");
         assertThat(response.canEditDraft()).isFalse();
         verify(instanceMapper, never()).insert(any(WorkflowInstance.class));
+        verify(auditService).recordTransactional(TENANT_ID, USER_ID,
+                "GENERIC_APPROVAL", "10", "DRAFT_CANCEL", "SUCCESS", "取消通用表单草稿");
     }
 
     @Test
@@ -257,6 +259,21 @@ class GenericApprovalServiceImplTest {
 
         assertThat(service.cancelAgentDraft(USER_ID, 10L, new VersionRequest(2)).status())
                 .isEqualTo("CANCELLED");
+        verify(auditService).recordTransactional(TENANT_ID, USER_ID,
+                "GENERIC_APPROVAL", "10", "DRAFT_CANCEL", "SUCCESS", "取消通用表单草稿");
+    }
+
+    @Test
+    void cancellationPropagatesTransactionalAuditFailureInsteadOfReturningSuccess() {
+        when(applicationMapper.selectOne(any())).thenReturn(application("DRAFT", 2));
+        when(applicationMapper.update(any(), any())).thenReturn(1);
+        org.mockito.Mockito.doThrow(new IllegalStateException("test-only audit failure"))
+                .when(auditService).recordTransactional(any(), any(), any(), any(), any(), any(), any());
+
+        assertThatThrownBy(() -> service.cancelAgentDraft(USER_ID, 10L, new VersionRequest(2)))
+                .isInstanceOf(IllegalStateException.class);
+        verify(applicationMapper).update(any(), any());
+        verify(applicationMapper, never()).selectView(any(), any());
     }
 
     @Test

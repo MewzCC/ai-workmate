@@ -1,6 +1,7 @@
 package com.aiworkmate.integration;
 
 import com.aiworkmate.common.BusinessException;
+import com.aiworkmate.dto.VersionRequest;
 import com.aiworkmate.mapper.ApprovalApplicationMapper;
 import com.aiworkmate.mapper.ApprovalFormMapper;
 import com.aiworkmate.mapper.ApprovalProcessMapper;
@@ -23,11 +24,14 @@ import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.extension.spring.MybatisSqlSessionFactoryBean;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.mybatis.spring.SqlSessionTemplate;
+import org.springframework.aop.framework.ProxyFactory;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.transaction.annotation.AnnotationTransactionAttributeSource;
+import org.springframework.transaction.interceptor.TransactionInterceptor;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -83,6 +87,7 @@ final class ExpenseDraftPostgresVerifier {
         var audit = new BusinessAuditServiceImpl(session.getMapper(BusinessAuditLogMapper.class));
         var service = service(session, access, audit);
         var tx = new TransactionTemplate(new DataSourceTransactionManager(datasource));
+        verifyCancellationTransaction(jdbc, session, access, audit, tx, applicant, tenant);
         var command = new ExpenseAgentDraftCommand(
                 new BigDecimal("88.50"), "TRAVEL", LocalDate.now().minusDays(1),
                 "INV-AGENT-1", "客户拜访");
@@ -298,7 +303,13 @@ final class ExpenseDraftPostgresVerifier {
     private static ExpenseApplicationServiceImpl service(
             SqlSessionTemplate session, UserAccessService access, BusinessAuditService audit) {
         ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
-        var generic = new GenericApprovalServiceImpl(
+        return new ExpenseApplicationServiceImpl(
+                approvalService(session, access, audit), session.getMapper(ApprovalApplicationMapper.class), access, objectMapper);
+    }
+
+    private static GenericApprovalServiceImpl approvalService(
+            SqlSessionTemplate session, UserAccessService access, BusinessAuditService audit) {
+        return new GenericApprovalServiceImpl(
                 session.getMapper(ApprovalApplicationMapper.class),
                 session.getMapper(ApprovalFormMapper.class),
                 session.getMapper(ApprovalProcessMapper.class),
@@ -308,15 +319,82 @@ final class ExpenseDraftPostgresVerifier {
                 session.getMapper(WorkflowInstanceMapper.class),
                 session.getMapper(WorkflowTaskMapper.class),
                 session.getMapper(WorkflowActionLogMapper.class),
-                access, audit, mock(NotificationService.class), objectMapper);
-        return new ExpenseApplicationServiceImpl(
-                generic, session.getMapper(ApprovalApplicationMapper.class), access, objectMapper);
+                access, audit, mock(NotificationService.class), new ObjectMapper().findAndRegisterModules());
+    }
+
+    private static void verifyCancellationTransaction(JdbcTemplate jdbc, SqlSessionTemplate session,
+            UserAccessService access, BusinessAuditService audit, TransactionTemplate tx, long applicant, long tenant) throws Exception {
+        // Directly constructed services do not apply audit propagation; use the actual Spring transaction advice.
+        var proxy = new ProxyFactory(audit);
+        proxy.setInterfaces(BusinessAuditService.class);
+        proxy.addAdvice(new TransactionInterceptor(tx.getTransactionManager(), new AnnotationTransactionAttributeSource()));
+        var transactionalAudit = (BusinessAuditService) proxy.getProxy();
+        var generic = approvalService(session, access, transactionalAudit);
+        var expense = service(session, access, transactionalAudit);
+        var draft = tx.execute(status -> expense.createAgentDraft(applicant,
+                new ExpenseAgentDraftCommand(null, null, null, null, "测试取消事务"), "cancel-transaction-probe"));
+        long id = draft.applicationId();
+        var failingAudit = mock(BusinessAuditService.class);
+        doThrow(new IllegalStateException("test-only cancellation audit unavailable")).when(failingAudit)
+                .recordTransactional(any(), any(), any(), any(), any(), any(), any());
+        var failing = approvalService(session, access, failingAudit);
+        assertThatThrownBy(() -> tx.execute(status -> failing.cancelAgentDraft(applicant, id, new VersionRequest(0))))
+                .isInstanceOf(IllegalStateException.class);
+        assertThat(jdbc.queryForObject("SELECT status FROM approval_application WHERE id=?", String.class, id)).isEqualTo("DRAFT");
+        assertThat(jdbc.queryForObject("SELECT version FROM approval_application WHERE id=?", Integer.class, id)).isZero();
+        assertThatThrownBy(() -> tx.executeWithoutResult(status -> {
+            generic.cancelAgentDraft(applicant, id, new VersionRequest(0));
+            throw new IllegalStateException("test-only outer failure after audit");
+        })).isInstanceOf(IllegalStateException.class);
+        assertThat(jdbc.queryForObject("SELECT status FROM approval_application WHERE id=?", String.class, id)).isEqualTo("DRAFT");
+        assertThat(jdbc.queryForObject("SELECT version FROM approval_application WHERE id=?", Integer.class, id)).isZero();
+        assertThat(jdbc.queryForObject("SELECT completed_at IS NULL FROM approval_application WHERE id=?", Boolean.class, id)).isTrue();
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM business_audit_log
+                WHERE tenant_id=? AND resource_type='GENERIC_APPROVAL' AND resource_id=? AND action='DRAFT_CANCEL'
+                """, Integer.class, tenant, Long.toString(id))).isZero();
+
+        var result = tx.execute(status -> generic.cancelAgentDraft(applicant, id, new VersionRequest(0)));
+        assertThat(result.status()).isEqualTo("CANCELLED");
+        assertThat(result.version()).isOne();
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM business_audit_log
+                WHERE tenant_id=? AND resource_type='GENERIC_APPROVAL' AND resource_id=? AND action='DRAFT_CANCEL'
+                """, Integer.class, tenant, Long.toString(id))).isOne();
+        assertThatThrownBy(() -> tx.execute(status -> generic.cancelAgentDraft(applicant, id, new VersionRequest(0))))
+                .isInstanceOf(BusinessException.class).extracting("errorCode").isEqualTo("BUSINESS_STATE_INVALID");
+
+        long concurrentId = tx.execute(status -> expense.createAgentDraft(applicant,
+                new ExpenseAgentDraftCommand(null, null, null, null, "测试并发取消"), "cancel-concurrent-probe")).applicationId();
+        var executor = Executors.newFixedThreadPool(2);
+        try {
+            var barrier = new CyclicBarrier(2);
+            Callable<Boolean> cancel = () -> {
+                barrier.await(10, TimeUnit.SECONDS);
+                try {
+                    tx.execute(status -> generic.cancelAgentDraft(applicant, concurrentId, new VersionRequest(0)));
+                    return true;
+                } catch (BusinessException error) {
+                    assertThat(error.getErrorCode()).isIn("VERSION_CONFLICT", "BUSINESS_STATE_INVALID");
+                    return false;
+                }
+            };
+            var first = executor.submit(cancel); var second = executor.submit(cancel);
+            assertThat(List.of(first.get(20, TimeUnit.SECONDS), second.get(20, TimeUnit.SECONDS)))
+                    .containsExactlyInAnyOrder(true, false);
+        } finally { executor.shutdownNow(); }
+        assertThat(jdbc.queryForObject("SELECT version FROM approval_application WHERE id=?", Integer.class, concurrentId)).isOne();
+        assertThat(jdbc.queryForObject("SELECT status FROM approval_application WHERE id=?", String.class, concurrentId)).isEqualTo("CANCELLED");
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM business_audit_log
+                WHERE tenant_id=? AND resource_type='GENERIC_APPROVAL' AND resource_id=? AND action='DRAFT_CANCEL'
+                """, Integer.class, tenant, Long.toString(concurrentId))).isOne();
     }
 
     private static ResolvedUserAccess actor(long userId, long tenantId, long version) {
         return new ResolvedUserAccess(
                 userId, "expense-user", tenantId, "EMPLOYEE", List.of("EMPLOYEE"),
-                List.of("route:approval-start", "approval:create", "approval:withdraw", "approval:reopen"),
+                List.of("route:approval-start", "approval:create", "approval:withdraw", "approval:reopen", "approval:cancel"),
                 List.of("SELF"), version);
     }
 
