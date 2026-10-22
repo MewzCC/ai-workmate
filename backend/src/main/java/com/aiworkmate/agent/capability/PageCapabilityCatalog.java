@@ -185,7 +185,7 @@ public class PageCapabilityCatalog {
                                 number("page"), number("size")), tool(BUDGET_QUERY), tool(BUDGET_CREATE_DRAFT),
                         tool(BUDGET_UPDATE_DRAFT), tool(BUDGET_ACTIVATE_DRAFT), tool(BUDGET_CANCEL_DRAFT)),
                 page(OaPage.CONTRACTS, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
-                        context(number("contractId"), text("keyword"), text("status"), text("contractType"),
+                        context(number("contractId"), number("version"), text("keyword"), text("status"), text("contractType"),
                                 text("expiryState"), number("page"), number("size")),
                         tool(CONTRACT_QUERY), tool(CONTRACT_CREATE_DRAFT), tool(CONTRACT_UPDATE_DRAFT),
                         tool(CONTRACT_UPDATE_STATUS), tool(CONTRACT_UPDATE_FULFILLMENT),

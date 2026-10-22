@@ -12,10 +12,12 @@
 | budget.createDraft/updateDraft/activateDraft/cancelDraft | 成功回执的 budgetId | 预算中心受保护详情 |
 | supplier.createDraft/updateDraft/updateStatus | 成功回执的 supplierId | 供应商受保护详情 |
 | expense.createDraft/updateDraft/submitDraft/withdraw/reopen | 成功回执的 applicationId | 本人费用报销详情 |
+| contract.createDraft/updateDraft/updateStatus/updateFulfillment/recordPayment/remind | 成功回执的 contractId | 合同受保护详情 |
 
 预算详情的上下文、版本与失败边界见[预算页面对接](agent-budget-page-context.md)。
 供应商的选择、版本与联系信息边界见[供应商页面对接](agent-supplier-page-context.md)。
 费用申请的本人/表单核验与部分保存失败边界见[费用页面对接](agent-expense-page-context.md)。
+合同的选择、版本及写后刷新边界见[合同页面对接](agent-contract-page-context.md)。
 
 列表查询不会默认取第一行作为选中记录。其他模块保留现有模块导航，本节点不宣称它们已完成单资源定位。
 不修改工具 Schema、数据库、服务端执行或写工具开关。

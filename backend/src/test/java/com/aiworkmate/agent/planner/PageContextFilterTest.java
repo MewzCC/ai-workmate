@@ -15,6 +15,14 @@ class PageContextFilterTest {
             mapper, new AgentRuntimeProperties(), new PageCapabilityCatalog());
 
     @Test
+    void contractContextRetainsSelectedVersionButNotCommercialOrIdentityFields() {
+        var result = filter.filter("contracts", mapper.createObjectNode().put("contractId", 11).put("version", 3)
+                .put("contractType", "SERVICE").put("ownerUserId", 7).put("amount", 1000)
+                .put("summary", "private").put("counterpartyName", "private").put("tenantId", 999));
+        assertThat(result).isEqualTo(mapper.createObjectNode().put("contractId", 11).put("version", 3).put("contractType", "SERVICE"));
+    }
+
+    @Test
     void expenseContextRetainsSelectedVersionButNotInvoiceOrApplicantData() {
         var result = filter.filter("expense", mapper.createObjectNode().put("applicationId", 11).put("version", 3)
                 .put("page", 1).put("applicantUserId", 7).put("amount", 100).put("invoiceNumber", "FIXTURE-11")

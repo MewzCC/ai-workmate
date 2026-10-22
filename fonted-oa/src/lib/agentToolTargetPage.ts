@@ -117,6 +117,8 @@ const RECORD_ID_FIELDS: ReadonlyMap<string, string> = new Map([
     .map((code): [string, string] => [code, 'supplierId']),
   ...['expense.createDraft', 'expense.updateDraft', 'expense.submitDraft', 'expense.withdraw', 'expense.reopen']
     .map((code): [string, string] => [code, 'applicationId']),
+  ...['contract.createDraft', 'contract.updateDraft', 'contract.updateStatus', 'contract.updateFulfillment',
+    'contract.recordPayment', 'contract.remind'].map((code): [string, string] => [code, 'contractId']),
 ]);
 
 /** Selection comes from the completed result, never model arguments or a supplied URL. */
@@ -139,6 +141,7 @@ export function resolveAgentToolTargetPath(pageId: string, recordId: number | un
     if (pageId === 'budget') return `/oa/budget?id=${recordId}`;
     if (pageId === 'suppliers') return `/oa/suppliers?id=${recordId}`;
     if (pageId === 'expense') return `/oa/expense?id=${recordId}`;
+    if (pageId === 'contracts') return `/oa/contracts?id=${recordId}`;
     return null;
   }
   const path = target.path || `/oa/${target.id}`;

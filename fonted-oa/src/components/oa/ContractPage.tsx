@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import dayjs, { type Dayjs } from 'dayjs';
 import {
@@ -12,6 +12,11 @@ import { OaIcon } from '@/components/OaIcon';
 import ResponsiveTable from '@/components/oa/ResponsiveTable';
 import { message } from '@/lib/antdMessage';
 import { formatOaApiError } from '@/lib/oaApi';
+import { useAuth } from '@/components/auth/AuthProvider';
+import { usePermission } from '@/hooks/usePermission';
+import { useRouter, useSearchParams } from '@/lib/nextCompat';
+import { parseRecordId } from '@/lib/recordSelection';
+import { usePublishPageAgentContext } from './PageAgentContext';
 import {
   contractApi, type BusinessContract, type ContractCurrency, type ContractDetail,
   type ContractExpiryState, type ContractOption, type ContractPayload, type ContractStatus,
@@ -26,6 +31,8 @@ type PaymentValues = { amount: number; paymentDate: Dayjs; reference: string; no
 const STATUSES: ContractStatus[] = ['DRAFT', 'ACTIVE', 'COMPLETED', 'TERMINATED'];
 const TYPES: ContractType[] = ['PURCHASE', 'SALES', 'SERVICE', 'LEASE', 'OTHER'];
 const CURRENCIES: ContractCurrency[] = ['CNY', 'USD', 'EUR', 'HKD'];
+const EMPTY_STATS = { total: 0, active: 0, expiring: 0, expired: 0, outstandingAmount: 0 };
+const EMPTY_OPTIONS = { owners: [] as ContractOption[], suppliers: [] as ContractOption[] };
 const STATUS_COLORS: Record<ContractStatus, string> = {
   DRAFT: 'default', ACTIVE: 'blue', COMPLETED: 'green', TERMINATED: 'red',
 };
@@ -39,13 +46,21 @@ const EXPIRY_COLORS: Record<ContractExpiryState, string> = {
 export default function ContractPage() {
   const { t, i18n } = useTranslation();
   const { modal } = App.useApp();
+  const { user } = useAuth();
+  const { allowed: liveManage, permissionVersion } = usePermission('contract:manage');
+  const router = useRouter(); const requestedId = useSearchParams().get('id');
+  const scope = `${user?.id}:${user?.tenantId}:${permissionVersion}:${liveManage}`;
+  const [dataScope, setDataScope] = useState(scope);
   const [form] = Form.useForm<ContractFormValues>();
   const [paymentForm] = Form.useForm<PaymentValues>();
-  const [records, setRecords] = useState<BusinessContract[]>([]);
-  const [stats, setStats] = useState({ total: 0, active: 0, expiring: 0, expired: 0, outstandingAmount: 0 });
-  const [options, setOptions] = useState<{ owners: ContractOption[]; suppliers: ContractOption[] }>({ owners: [], suppliers: [] });
+  const [storedRecords, setRecords] = useState<BusinessContract[]>([]);
+  const [storedStats, setStats] = useState(EMPTY_STATS);
+  const [options, setOptions] = useState(EMPTY_OPTIONS);
+  const records = dataScope === scope ? storedRecords : [];
+  const stats = dataScope === scope ? storedStats : EMPTY_STATS;
   const [total, setTotal] = useState(0);
-  const [canManage, setCanManage] = useState(false);
+  const [serverCanManage, setCanManage] = useState(false);
+  const canManage = liveManage && serverCanManage && dataScope === scope;
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [keywordInput, setKeywordInput] = useState('');
@@ -62,6 +77,23 @@ export default function ContractPage() {
   const [detail, setDetail] = useState<ContractDetail>();
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [paymentContract, setPaymentContract] = useState<BusinessContract>();
+  const listRequest = useRef(0); const detailRequest = useRef(0); const editorRequest = useRef(0);
+  const optionsRequest = useRef(0); const paymentRequest = useRef(0); const scopeRequest = useRef(0);
+  const selected = dataScope !== scope ? undefined : paymentOpen ? paymentContract : editorOpen ? editing : detailOpen ? detail?.contract : undefined;
+  usePublishPageAgentContext({ contractId: selected?.id, version: selected?.version,
+    keyword: keyword || undefined, status, contractType, expiryState, page, size });
+
+  useEffect(() => {
+    scopeRequest.current += 1; listRequest.current += 1; detailRequest.current += 1;
+    editorRequest.current += 1; optionsRequest.current += 1; paymentRequest.current += 1;
+    setRecords([]); setStats(EMPTY_STATS); setTotal(0); setCanManage(false); setOptions(EMPTY_OPTIONS);
+    setDetail(undefined); setDetailOpen(false); setDetailLoading(false);
+    setEditing(undefined); setEditorOpen(false); setPaymentContract(undefined); setPaymentOpen(false); setSaving(false);
+    return () => {
+      scopeRequest.current += 1; listRequest.current += 1; detailRequest.current += 1;
+      editorRequest.current += 1; optionsRequest.current += 1; paymentRequest.current += 1;
+    };
+  }, [scope]);
 
   const statusOptions = useMemo(() => STATUSES.map((value) => ({ value, label: t(`contract.status.${value}`) })), [t]);
   const typeOptions = useMemo(() => TYPES.map((value) => ({ value, label: t(`contract.type.${value}`) })), [t]);
@@ -79,42 +111,83 @@ export default function ContractPage() {
   }).format(new Date(value)), [i18n.language]);
 
   const load = useCallback(async () => {
+    const request = ++listRequest.current;
     setLoading(true);
     try {
       const result = await contractApi.list({ keyword, status, contractType, expiryState, page, size });
+      if (request !== listRequest.current) return;
+      setDataScope(scope);
       setRecords(result.records); setTotal(result.total); setStats(result.stats); setCanManage(result.canManage);
     } catch (error) {
-      message.error(formatOaApiError(error));
+      if (request === listRequest.current) {
+        setRecords([]); setStats(EMPTY_STATS); setTotal(0); setCanManage(false); message.error(formatOaApiError(error));
+      }
     } finally {
-      setLoading(false);
+      if (request === listRequest.current) setLoading(false);
     }
-  }, [contractType, expiryState, keyword, page, size, status]);
+  }, [contractType, expiryState, keyword, page, size, status, scope]);
+  const latestLoad = useRef(load);
+  useEffect(() => { latestLoad.current = load; }, [load]);
 
-  const loadOptions = useCallback(async () => {
-    try { setOptions(await contractApi.options()); } catch (error) { message.error(formatOaApiError(error)); }
-  }, []);
+  useEffect(() => {
+    const request = ++optionsRequest.current; setOptions(EMPTY_OPTIONS);
+    if (editorOpen && canManage) {
+      void contractApi.options().then((result) => {
+        if (request === optionsRequest.current) setOptions(result);
+      }).catch((error) => { if (request === optionsRequest.current) message.error(formatOaApiError(error)); });
+    }
+    return () => { optionsRequest.current += 1; };
+  }, [editorOpen, canManage, scope]);
 
   const loadDetail = useCallback(async (id: number) => {
+    const request = ++detailRequest.current;
+    setDetail(undefined); setDetailOpen(true);
     setDetailLoading(true);
     try {
-      const result = await contractApi.detail(id); setDetail(result); return result;
+      const result = await contractApi.detail(id);
+      if (request !== detailRequest.current) return undefined;
+      if (result.contract.id !== id) throw new Error('RESOURCE_MISMATCH');
+      setDetail(result); return result;
     } catch (error) {
-      message.error(formatOaApiError(error)); return undefined;
-    } finally { setDetailLoading(false); }
+      if (request === detailRequest.current) { setDetail(undefined); setDetailOpen(false); message.error(formatOaApiError(error)); }
+      return undefined;
+    } finally { if (request === detailRequest.current) setDetailLoading(false); }
   }, []);
 
   useEffect(() => { void load(); }, [load]);
-  useEffect(() => { void loadOptions(); }, [loadOptions]);
+  useEffect(() => {
+    detailRequest.current += 1; editorRequest.current += 1; paymentRequest.current += 1;
+    setDetail(undefined); setDetailOpen(false); setEditing(undefined); setEditorOpen(false);
+    setPaymentContract(undefined); setPaymentOpen(false); setSaving(false);
+    const id = parseRecordId(requestedId); if (id !== undefined) void loadDetail(id);
+    return () => { detailRequest.current += 1; };
+  }, [requestedId, scope, loadDetail]);
+
+  const clearDetail = () => { detailRequest.current += 1; setDetail(undefined); setDetailOpen(false); setDetailLoading(false); };
+  const closeEditor = () => { editorRequest.current += 1; setEditing(undefined); setEditorOpen(false); setSaving(false); };
+  const closePayment = () => { paymentRequest.current += 1; setPaymentContract(undefined); setPaymentOpen(false); setSaving(false); };
+  const closeDetail = () => { clearDetail(); closePayment(); if (requestedId) router.replace('/oa/contracts'); };
+  const refreshAfterWrite = async (identity: number, target?: { id: number; request: number }) => {
+    if (identity !== scopeRequest.current) return;
+    await latestLoad.current();
+    if (identity === scopeRequest.current && target && target.request === detailRequest.current) await loadDetail(target.id);
+  };
 
   const openDetail = (record: BusinessContract) => {
-    setDetail(undefined); setDetailOpen(true); void loadDetail(record.id);
+    closeEditor(); closePayment();
+    if (requestedId === String(record.id)) void loadDetail(record.id);
+    else router.push(`/oa/contracts?id=${record.id}`);
   };
   const openCreate = () => {
+    if (!canManage) return;
+    editorRequest.current += 1; clearDetail(); closePayment();
     setEditing(undefined); form.resetFields();
     form.setFieldsValue({ contractType: 'PURCHASE', currency: 'CNY' });
     setEditorOpen(true);
   };
   const openEdit = (record: BusinessContract) => {
+    if (!canManage || !record.canManage || !['DRAFT', 'ACTIVE'].includes(record.status)) return;
+    editorRequest.current += 1; clearDetail(); closePayment();
     setDetailOpen(false); setEditing(record);
     form.setFieldsValue({
       code: record.code, name: record.name, contractType: record.contractType,
@@ -126,19 +199,29 @@ export default function ContractPage() {
     setEditorOpen(true);
   };
   const save = async () => {
-    const values = await form.validateFields(); setSaving(true);
-    const payload: ContractPayload = {
-      ...values, signedDate: values.signedDate?.format('YYYY-MM-DD'),
-      startDate: values.startDate.format('YYYY-MM-DD'), endDate: values.endDate.format('YYYY-MM-DD'),
-      version: editing?.version,
-    };
+    if (!canManage || saving || (editing && !editing.canManage)) return;
+    const target = editing; const request = editorRequest.current; const identity = scopeRequest.current;
     try {
-      if (editing) await contractApi.update(editing.id, payload); else await contractApi.create(payload);
-      setEditorOpen(false); message.success(t('contract.saveSuccess')); await load();
-    } catch (error) { message.error(formatOaApiError(error)); } finally { setSaving(false); }
+      const values = await form.validateFields();
+      if (request !== editorRequest.current || identity !== scopeRequest.current) return;
+      setSaving(true);
+      const payload: ContractPayload = { ...values, signedDate: values.signedDate?.format('YYYY-MM-DD'),
+        startDate: values.startDate.format('YYYY-MM-DD'), endDate: values.endDate.format('YYYY-MM-DD'), version: target?.version };
+      if (target) await contractApi.update(target.id, payload); else await contractApi.create(payload);
+      if (identity !== scopeRequest.current) return;
+      if (request === editorRequest.current) { closeEditor(); message.success(t('contract.saveSuccess')); }
+      await refreshAfterWrite(identity);
+    } catch (error) {
+      if (request === editorRequest.current && identity === scopeRequest.current
+        && !(error && typeof error === 'object' && 'errorFields' in error)) message.error(formatOaApiError(error));
+    } finally { if (request === editorRequest.current && identity === scopeRequest.current) setSaving(false); }
   };
 
   const confirmChange = (record: BusinessContract, target: ContractStatus | FulfillmentStatus, kind: 'status' | 'fulfillment') => {
+    const allowed = kind === 'status' ? record.allowedTransitions.includes(target as ContractStatus)
+      : record.allowedFulfillmentStatuses.includes(target as FulfillmentStatus);
+    if (!canManage || !record.canManage || !allowed) return;
+    const identity = scopeRequest.current; const request = detailRequest.current;
     const needsReason = target === 'TERMINATED' || target === 'BREACHED';
     let reason = '';
     modal.confirm({
@@ -154,41 +237,60 @@ export default function ContractPage() {
       okText: t(`contract.actions.${target}`), cancelText: t('common.cancel'),
       okButtonProps: { danger: target === 'TERMINATED' || target === 'BREACHED' },
       onOk: async () => {
+        if (identity !== scopeRequest.current || request !== detailRequest.current) return;
         if (needsReason && !reason.trim()) { message.warning(t('contract.dialog.reasonRequired')); return Promise.reject(); }
         try {
           if (kind === 'status') await contractApi.updateStatus(record.id, target as ContractStatus, record.version, reason.trim() || undefined);
           else await contractApi.updateFulfillment(record.id, target as FulfillmentStatus, record.version, reason.trim() || undefined);
+          if (identity !== scopeRequest.current) return;
           message.success(t(kind === 'status' ? 'contract.statusSuccess' : 'contract.fulfillmentSuccess'));
-          await load(); if (detailOpen) await loadDetail(record.id);
-        } catch (error) { message.error(formatOaApiError(error)); return Promise.reject(error); }
+          await refreshAfterWrite(identity, { id: record.id, request });
+        } catch (error) { if (identity === scopeRequest.current) message.error(formatOaApiError(error)); return Promise.reject(error); }
       },
     });
   };
 
   const openPayment = (record: BusinessContract) => {
+    if (!canManage || !record.canManage || !record.canRecordPayment) return;
+    closeEditor(); paymentRequest.current += 1;
     setPaymentContract(record); paymentForm.resetFields(); paymentForm.setFieldsValue({ paymentDate: dayjs() }); setPaymentOpen(true);
   };
   const savePayment = async () => {
-    if (!paymentContract) return;
-    const values = await paymentForm.validateFields(); setSaving(true);
+    if (!canManage || !paymentContract?.canManage || !paymentContract.canRecordPayment || saving) return;
+    const target = paymentContract; const request = paymentRequest.current;
+    const identity = scopeRequest.current; const detailTicket = detailRequest.current;
     try {
-      await contractApi.recordPayment(paymentContract.id, values.amount, values.paymentDate.format('YYYY-MM-DD'),
-        values.reference, paymentContract.version, values.note);
-      setPaymentOpen(false); message.success(t('contract.paymentSuccess')); await load();
-      if (detailOpen) await loadDetail(paymentContract.id);
-    } catch (error) { message.error(formatOaApiError(error)); } finally { setSaving(false); }
+      const values = await paymentForm.validateFields();
+      if (request !== paymentRequest.current || identity !== scopeRequest.current) return;
+      setSaving(true);
+      await contractApi.recordPayment(target.id, values.amount, values.paymentDate.format('YYYY-MM-DD'),
+        values.reference, target.version, values.note);
+      if (identity !== scopeRequest.current) return;
+      if (request === paymentRequest.current) { closePayment(); message.success(t('contract.paymentSuccess')); }
+      await refreshAfterWrite(identity, { id: target.id, request: detailTicket });
+    } catch (error) {
+      if (request === paymentRequest.current && identity === scopeRequest.current
+        && !(error && typeof error === 'object' && 'errorFields' in error)) message.error(formatOaApiError(error));
+    } finally { if (request === paymentRequest.current && identity === scopeRequest.current) setSaving(false); }
   };
-  const remind = (record: BusinessContract) => modal.confirm({
+  const remind = (record: BusinessContract) => {
+    if (!canManage || !record.canManage || !record.canRemind) return;
+    const identity = scopeRequest.current; const request = detailRequest.current;
+    modal.confirm({
     title: t('contract.reminder.title'),
     content: t('contract.reminder.content', { owner: record.ownerLabel }),
     okText: t('contract.actions.remind'), cancelText: t('common.cancel'),
     onOk: async () => {
+      if (identity !== scopeRequest.current || request !== detailRequest.current) return;
       try {
-        await contractApi.remind(record.id, record.version); message.success(t('contract.reminderSuccess'));
-        await load(); if (detailOpen) await loadDetail(record.id);
-      } catch (error) { message.error(formatOaApiError(error)); return Promise.reject(error); }
+        await contractApi.remind(record.id, record.version);
+        if (identity !== scopeRequest.current) return;
+        message.success(t('contract.reminderSuccess'));
+        await refreshAfterWrite(identity, { id: record.id, request });
+      } catch (error) { if (identity === scopeRequest.current) message.error(formatOaApiError(error)); return Promise.reject(error); }
     },
-  });
+    });
+  };
 
   const expiryLabel = (record: BusinessContract) => record.expiryState === 'EXPIRED'
     ? t('contract.expiry.overdue', { count: Math.abs(record.daysUntilExpiry) })
@@ -212,7 +314,7 @@ export default function ContractPage() {
     { title: t('contract.columns.fulfillment'), dataIndex: 'fulfillmentStatus', width: 115, render: (value: FulfillmentStatus) => <Tag color={FULFILLMENT_COLORS[value]}>{t(`contract.fulfillment.${value}`)}</Tag> },
     { title: t('contract.columns.actions'), key: 'actions', width: canManage ? 132 : 70, fixed: 'right', render: (_, record) => <Space size={2} onClick={(event) => event.stopPropagation()}>
       <Button type="link" size="small" onClick={() => openDetail(record)}>{t('contract.actions.view')}</Button>
-      {canManage && (record.status === 'DRAFT' || record.status === 'ACTIVE') && <Button type="link" size="small" onClick={() => openEdit(record)}>{t('contract.actions.edit')}</Button>}
+      {canManage && record.canManage && (record.status === 'DRAFT' || record.status === 'ACTIVE') && <Button type="link" size="small" onClick={() => openEdit(record)}>{t('contract.actions.edit')}</Button>}
     </Space> },
   ];
 
@@ -252,24 +354,24 @@ export default function ContractPage() {
           showTotal: (count) => t('common.total', { count }), onChange: (next, nextSize) => { setPage(next); setSize(nextSize); } }} />
     </Card>
 
-    <Drawer width="min(760px, 100vw)" open={editorOpen} title={t(editing ? 'contract.form.editTitle' : 'contract.form.createTitle')}
-      onClose={() => setEditorOpen(false)} extra={<Button type="primary" loading={saving} onClick={() => void save()}>{t('common.save')}</Button>}>
-      <ContractForm form={form} editing={Boolean(editing)} typeOptions={typeOptions} ownerOptions={ownerOptions} supplierOptions={supplierOptions} />
+    <Drawer width="min(760px, 100vw)" open={editorOpen && dataScope === scope} title={t(editing ? 'contract.form.editTitle' : 'contract.form.createTitle')}
+      onClose={closeEditor} extra={<Button type="primary" disabled={!canManage} loading={saving} onClick={() => void save()}>{t('common.save')}</Button>}>
+      <ContractForm form={form} disabled={!canManage} editing={Boolean(editing)} typeOptions={typeOptions} ownerOptions={ownerOptions} supplierOptions={supplierOptions} />
     </Drawer>
 
-    <Drawer width="min(820px, 100vw)" open={detailOpen} loading={detailLoading} title={t('contract.detail.title')}
-      onClose={() => setDetailOpen(false)} extra={detail?.contract.canManage && (detail.contract.status === 'DRAFT' || detail.contract.status === 'ACTIVE')
+    <Drawer width="min(820px, 100vw)" open={detailOpen && dataScope === scope} loading={detailLoading} title={t('contract.detail.title')}
+      onClose={closeDetail} extra={canManage && detail?.contract.canManage && (detail.contract.status === 'DRAFT' || detail.contract.status === 'ACTIVE')
         ? <Button icon={<OaIcon name="edit" />} onClick={() => openEdit(detail.contract)}>{t('contract.actions.edit')}</Button> : undefined}>
-      {detail ? <ContractDetailView detail={detail} money={money} date={date} dateTime={dateTime}
+      {detail && dataScope === scope ? <ContractDetailView detail={detail} canManage={canManage} money={money} date={date} dateTime={dateTime}
         expiryLabel={expiryLabel} onChange={confirmChange} onPayment={openPayment} onRemind={remind} /> : <Empty description={t('contract.empty')} />}
     </Drawer>
 
-    <Modal open={paymentOpen} title={t('contract.payment.title')} confirmLoading={saving} onCancel={() => setPaymentOpen(false)}
+    <Modal open={paymentOpen && dataScope === scope} title={t('contract.payment.title')} confirmLoading={saving} onCancel={closePayment} okButtonProps={{ disabled: !canManage }}
       okText={t('common.confirm')} cancelText={t('common.cancel')} onOk={() => void savePayment()}>
       {paymentContract && <Typography.Paragraph>{t('contract.payment.remaining', {
         amount: money(Number(paymentContract.amount) - Number(paymentContract.paidAmount), paymentContract.currency),
       })}</Typography.Paragraph>}
-      <Form form={paymentForm} layout="vertical">
+      <Form form={paymentForm} disabled={!canManage} layout="vertical">
         <Form.Item name="amount" label={t('contract.payment.amount')} rules={[{ required: true, message: t('contract.form.required') }]}>
           <InputNumber min={0.01} precision={2} max={paymentContract ? Number(paymentContract.amount) - Number(paymentContract.paidAmount) : undefined} className="oa-contract-full-control" />
         </Form.Item>
@@ -281,13 +383,13 @@ export default function ContractPage() {
   </section>;
 }
 
-function ContractForm({ form, editing, typeOptions, ownerOptions, supplierOptions }: {
-  form: ReturnType<typeof Form.useForm<ContractFormValues>>[0]; editing: boolean;
+function ContractForm({ form, editing, disabled, typeOptions, ownerOptions, supplierOptions }: {
+  form: ReturnType<typeof Form.useForm<ContractFormValues>>[0]; editing: boolean; disabled: boolean;
   typeOptions: Array<{ value: ContractType; label: string }>; ownerOptions: Array<{ value: number; label: string }>;
   supplierOptions: Array<{ value: number; label: string }>;
 }) {
   const { t } = useTranslation();
-  return <Form form={form} layout="vertical" requiredMark="optional" className="oa-contract-form">
+  return <Form form={form} disabled={disabled} layout="vertical" requiredMark="optional" className="oa-contract-form">
     <Typography.Title level={5}>{t('contract.form.identity')}</Typography.Title><div className="oa-contract-form-grid">
       <Form.Item name="code" label={t('contract.form.code')} rules={[{ required: true, message: t('contract.form.required') }]}><Input disabled={editing} maxLength={64} placeholder={t('contract.form.codePlaceholder')} /></Form.Item>
       <Form.Item name="name" label={t('contract.form.name')} rules={[{ required: true, message: t('contract.form.required') }]}><Input maxLength={160} placeholder={t('contract.form.namePlaceholder')} /></Form.Item>
@@ -312,8 +414,8 @@ function ContractForm({ form, editing, typeOptions, ownerOptions, supplierOption
   </Form>;
 }
 
-function ContractDetailView({ detail, money, date, dateTime, expiryLabel, onChange, onPayment, onRemind }: {
-  detail: ContractDetail; money: (value: number, currency: string) => string;
+function ContractDetailView({ detail, canManage, money, date, dateTime, expiryLabel, onChange, onPayment, onRemind }: {
+  detail: ContractDetail; canManage: boolean; money: (value: number, currency: string) => string;
   date: (value?: string) => string; dateTime: (value: string) => string; expiryLabel: (record: BusinessContract) => string;
   onChange: (record: BusinessContract, target: ContractStatus | FulfillmentStatus, kind: 'status' | 'fulfillment') => void;
   onPayment: (record: BusinessContract) => void; onRemind: (record: BusinessContract) => void;
@@ -329,7 +431,7 @@ function ContractDetailView({ detail, money, date, dateTime, expiryLabel, onChan
     <div className="oa-contract-detail-heading"><span><OaIcon name="contracts" size={26} /></span><div><Typography.Title level={4}>{record.name}</Typography.Title>
       <Space wrap><Typography.Text code>{record.code}</Typography.Text><Tag color={STATUS_COLORS[record.status]}>{t(`contract.status.${record.status}`)}</Tag>
         <Tag color={EXPIRY_COLORS[record.expiryState]}>{expiryLabel(record)}</Tag></Space></div></div>
-    {record.canManage && <div className="oa-contract-detail-actions">
+    {canManage && record.canManage && <div className="oa-contract-detail-actions">
       {record.allowedTransitions.map((target) => <Button key={target} type={target === 'ACTIVE' || target === 'COMPLETED' ? 'primary' : 'default'} danger={target === 'TERMINATED'} onClick={() => onChange(record, target, 'status')}>{t(`contract.actions.${target}`)}</Button>)}
       {record.allowedFulfillmentStatuses.map((target) => <Button key={target} danger={target === 'BREACHED'} onClick={() => onChange(record, target, 'fulfillment')}>{t(`contract.actions.${target}`)}</Button>)}
       {record.canRecordPayment && <Button onClick={() => onPayment(record)}>{t('contract.actions.payment')}</Button>}

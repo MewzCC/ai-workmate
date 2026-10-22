@@ -79,6 +79,16 @@ describe('Agent tool business navigation', () => {
       .toBe('/oa/expense?id=11');
     expect(resolveAgentToolTargetPath('expense', 11, [])).toBeNull();
   });
+  it('locates actual contract write receipts, never the first query row', () => {
+    for (const code of ['contract.createDraft', 'contract.updateDraft', 'contract.updateStatus',
+      'contract.updateFulfillment', 'contract.recordPayment', 'contract.remind']) {
+      expect(agentToolTargetRecordId(code, { contractId: 11 })).toBe(11);
+    }
+    expect(agentToolTargetRecordId('contract.query', { items: [{ id: 11 }] })).toBeUndefined();
+    expect(resolveAgentToolTargetPath('contracts', 11, [{ id: 'contracts', name: 'Contracts', type: 'page', visible: true, sort: 1 }]))
+      .toBe('/oa/contracts?id=11');
+    expect(resolveAgentToolTargetPath('contracts', 11, [])).toBeNull();
+  });
   it('rejects malformed IDs without coercing strings, arrays or unsafe numbers', () => {
     for (const id of [0, -1, 1.2, Number.MAX_SAFE_INTEGER + 1, Infinity, NaN, '23', 'https://invalid.example', null, {}]) {
       expect(agentToolTargetRecordId('hr.employee.query', { id })).toBeUndefined();
