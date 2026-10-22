@@ -135,6 +135,7 @@ export default {
   todoPlanUnavailable: '当前未能生成受控的待办查询计划，未执行任何查询。',
   openMyTodo: '前往我的待办',
   openBusinessPage: '前往对应业务页面',
+  businessTargetUnavailable: '暂时无法定位业务结果，可能是任务未成功、页面不可访问或筛选尚不支持；请重试或在任务中心核对。',
   operationPlanTitle: '待确认的 OA 操作计划',
   operationAwaitingConfirmation: '计划尚未执行',
   operationGatewayHint: '确认后仍会由服务端重新校验账号、租户、实时权限、业务状态和操作范围。',

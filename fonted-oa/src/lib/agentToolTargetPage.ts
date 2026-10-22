@@ -1,7 +1,24 @@
-import type { OaMenuItem } from '@/types/oa';
+import type { AgentTaskDetail, OaMenuItem } from '@/types/oa';
 import { findMenu } from './navigationTree';
 
 export type AgentPageNavigator = (pageId: string, recordId?: number) => boolean;
+
+/** Only completed results select a page; arguments and output URLs never select records. */
+export function agentTaskNavigationTarget(detail: Pick<AgentTaskDetail, 'status' | 'steps'>): { pageId: string; recordId?: number } | null {
+  if (detail.status !== 'SUCCEEDED' || !detail.steps.length
+      || detail.steps.some((step) => step.status !== 'SUCCEEDED' || step.result == null)) return null;
+  const last = detail.steps[detail.steps.length - 1];
+  // The todo page cannot yet reproduce historical-status or date-filtered queries.
+  if (last.toolCode === 'todo.query' && ((last.arguments?.status != null && last.arguments.status !== 'PENDING')
+      || last.arguments?.from != null || last.arguments?.to != null)) return null;
+  return { pageId: agentToolTargetPage(last.toolCode), recordId: agentToolTargetRecordId(last.toolCode, last.result) };
+}
+
+export function resolveAgentTaskTargetPath(taskId: string, detail: AgentTaskDetail, menus: OaMenuItem[]): string | null {
+  if (detail.taskId !== taskId) return null;
+  const target = agentTaskNavigationTarget(detail);
+  return target ? resolveAgentToolTargetPath(target.pageId, target.recordId, menus) : null;
+}
 
 const EXACT_TARGETS: Record<string, string> = {
   'agentTask.mine.query': 'ai-tasks',

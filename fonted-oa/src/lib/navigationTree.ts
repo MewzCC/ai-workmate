@@ -1,4 +1,15 @@
 import type { OaMenuItem } from '@/types/oa';
+import type { NavigationRoute } from './navigationApi';
+
+export function toMenuItem(route: NavigationRoute): OaMenuItem {
+  return {
+    id: route.routeKey, parentId: route.parentKey, name: route.name,
+    type: route.routeType.toLowerCase() as OaMenuItem['type'],
+    icon: route.icon, path: route.path, componentKey: route.componentKey,
+    permissionCode: route.permissionCode, sort: route.sortOrder, visible: true,
+    children: route.children?.length ? route.children.map(toMenuItem) : undefined,
+  };
+}
 
 export function findMenu(menuId: string, menus: OaMenuItem[]): OaMenuItem | undefined {
   for (const menu of menus) {

@@ -135,6 +135,7 @@ export default {
   todoPlanUnavailable: 'A controlled task-query plan could not be created; no query was run.',
   openMyTodo: 'Open My Tasks',
   openBusinessPage: 'Open related business page',
+  businessTargetUnavailable: 'The business result cannot be located. The task may be incomplete, the page unavailable, or its filters unsupported. Retry or check the task center.',
   operationPlanTitle: 'OA action awaiting confirmation',
   operationAwaitingConfirmation: 'This plan has not been executed',
   operationGatewayHint: 'The server rechecks identity, tenant, live permissions, business state, and scope after confirmation.',

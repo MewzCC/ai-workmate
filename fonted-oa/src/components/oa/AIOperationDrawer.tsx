@@ -9,7 +9,7 @@ import PageAgentCapabilityPanel from './PageAgentCapabilityPanel';
 import { agentTaskApi, executeAiTask, formatOaApiError, getPageCapabilities, issueAiTaskConfirmation, OaApiError, planAiTask, subscribeAiTaskEvents } from '@/lib/oaApi';
 import { OaIcon } from '@/components/OaIcon';
 import AgentPlanPreview from './AgentPlanPreview';
-import { agentToolTargetPage, agentToolTargetRecordId, type AgentPageNavigator } from '@/lib/agentToolTargetPage';
+import { agentTaskNavigationTarget, type AgentPageNavigator } from '@/lib/agentToolTargetPage';
 
 interface AIOperationDrawerProps {
   open: boolean;
@@ -156,16 +156,11 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageC
         setMessages((previous) => [...previous, {
           role: 'assistant', content: successfulSteps.map((step) => step.resultSummary).join('\n\n'),
         }]);
-        const lastStep = successfulSteps[successfulSteps.length - 1];
-        // A filtered todo query cannot be represented by an unfiltered page navigation.
-        const filteredTodo = lastStep.toolCode === 'todo.query'
-          && ((lastStep.arguments?.status != null && lastStep.arguments.status !== 'PENDING')
-            || lastStep.arguments?.from != null || lastStep.arguments?.to != null);
-        if (!filteredTodo) {
+        const target = agentTaskNavigationTarget(detail);
+        if (target) {
           // The layout callback applies current navigation permissions; tool output is not a URL.
-          const recordId = agentToolTargetRecordId(lastStep.toolCode, lastStep.result);
-          if (recordId === undefined) onNavigatePage?.(agentToolTargetPage(lastStep.toolCode));
-          else onNavigatePage?.(agentToolTargetPage(lastStep.toolCode), recordId);
+          if (target.recordId === undefined) onNavigatePage?.(target.pageId);
+          else onNavigatePage?.(target.pageId, target.recordId);
         }
       }
     } catch (error) {

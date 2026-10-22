@@ -6,14 +6,14 @@ import { usePathname, useRouter } from '@/lib/nextCompat';
 import { ConfigProvider, Layout, Spin, theme as antdTheme } from 'antd';
 import { message } from '@/lib/antdMessage';
 import type { OaMenuItem, OaRole, OaTheme } from '@/types/oa';
-import { findMenu, firstPage, flattenPages } from '@/lib/navigationTree';
+import { findMenu, firstPage, flattenPages, toMenuItem } from '@/lib/navigationTree';
 import { resolveAgentToolTargetPath } from '@/lib/agentToolTargetPage';
 import SidebarMenu from './SidebarMenu';
 import Topbar from './Topbar';
 import AppearanceDrawer from './AppearanceDrawer';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { OA_MOBILE_MEDIA_QUERY } from '@/hooks/useIsMobile';
-import { getNavigation, type NavigationRoute } from '@/lib/navigationApi';
+import { getNavigation } from '@/lib/navigationApi';
 import { profileApi } from '@/lib/profileApi';
 import PageTabBar, { type OaPageTab } from './PageTabBar';
 import ApprovalDetailPage from './ApprovalDetailPage';
@@ -586,22 +586,6 @@ export default function AdminLayout() {
         </div>
     </ConfigProvider>
   );
-}
-
-function toMenuItem(route: NavigationRoute): OaMenuItem {
-  return {
-    id: route.routeKey,
-    parentId: route.parentKey,
-    name: route.name,
-    type: route.routeType.toLowerCase() as OaMenuItem['type'],
-    icon: route.icon,
-    path: route.path,
-    componentKey: route.componentKey,
-    permissionCode: route.permissionCode,
-    sort: route.sortOrder,
-    visible: true,
-    children: route.children?.length ? route.children.map(toMenuItem) : undefined,
-  };
 }
 
 function toPageTab(menu: OaMenuItem): OaPageTab {
