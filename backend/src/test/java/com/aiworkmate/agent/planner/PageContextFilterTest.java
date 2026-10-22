@@ -15,6 +15,14 @@ class PageContextFilterTest {
             mapper, new AgentRuntimeProperties(), new PageCapabilityCatalog());
 
     @Test
+    void expenseContextRetainsSelectedVersionButNotInvoiceOrApplicantData() {
+        var result = filter.filter("expense", mapper.createObjectNode().put("applicationId", 11).put("version", 3)
+                .put("page", 1).put("applicantUserId", 7).put("amount", 100).put("invoiceNumber", "FIXTURE-11")
+                .put("reason", "private").put("tenantId", 999));
+        assertThat(result).isEqualTo(mapper.createObjectNode().put("applicationId", 11).put("version", 3).put("page", 1));
+    }
+
+    @Test
     void supplierContextKeepsTheSelectedVersionWithoutLeakingContactOrRiskData() {
         var result = filter.filter("suppliers", mapper.createObjectNode().put("supplierId", 11).put("version", 3)
                 .put("category", "SERVICE").put("contactEmail", "fixture@example.invalid").put("riskNote", "private")

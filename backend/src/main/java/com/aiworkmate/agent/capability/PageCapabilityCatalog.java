@@ -177,7 +177,7 @@ public class PageCapabilityCatalog {
                         tool(SEAL_WITHDRAW), tool(SEAL_RETURN)),
 
                 page(OaPage.EXPENSE, OwnershipPolicy.SELF, FORM_COMMANDS,
-                        context(number("applicationId"), text("status"), number("page"), number("size")),
+                        context(number("applicationId"), number("version"), text("status"), number("page"), number("size")),
                         tool(EXPENSE_QUERY), tool(EXPENSE_CREATE_DRAFT), tool(EXPENSE_UPDATE_DRAFT),
                         tool(EXPENSE_SUBMIT_DRAFT), tool(EXPENSE_WITHDRAW), tool(EXPENSE_REOPEN)),
                 page(OaPage.BUDGET, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,

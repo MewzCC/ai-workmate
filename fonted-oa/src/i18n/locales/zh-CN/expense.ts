@@ -12,7 +12,7 @@ const expense = {
   status: { DRAFT: '草稿', PENDING: '审批中', APPROVED: '已通过', REJECTED: '已驳回', WITHDRAWN: '已撤回', CANCELLED: '已取消' },
   form: { createTitle: '新建费用报销', editTitle: '编辑费用报销', amount: '报销金额', category: '费用类型', expenseDate: '费用日期', invoiceNumber: '发票号码', invoicePlaceholder: '填写发票号码或凭证编号', reason: '报销事由', reasonPlaceholder: '说明费用用途与业务背景', required: '此项必填' },
   detail: { title: '报销详情', overview: '申请信息', process: '审批进度', applicant: '申请人', currentApprover: '当前审批人', dueAt: '处理期限', createdAt: '创建时间', submittedAt: '提交时间', noTimeline: '草稿尚未产生审批记录' },
-  dialog: { submitTitle: '确认提交报销申请？', submitContent: '提交后将进入审批流程，审批中不可直接修改。', withdrawTitle: '确认撤回申请？', cancelTitle: '确认取消草稿？', remindTitle: '确认催办当前审批人？' },
+  dialog: { submitTitle: '确认提交报销申请？', submitContent: '提交后将进入审批流程，审批中不可直接修改。', withdrawTitle: '确认撤回申请？', cancelTitle: '确认取消草稿？', reopenTitle: '确认恢复为报销草稿？', remindTitle: '确认催办当前审批人？' },
 };
 
 export default expense;
