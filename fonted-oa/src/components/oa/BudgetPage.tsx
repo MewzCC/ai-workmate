@@ -13,6 +13,7 @@ import { useAuth } from '@/components/auth/AuthProvider';
 import { usePermission } from '@/hooks/usePermission';
 import { useRouter, useSearchParams } from '@/lib/nextCompat';
 import { usePublishPageAgentContext } from './PageAgentContext';
+import { parseRecordId } from '@/lib/recordSelection';
 
 const statuses:BudgetStatus[]=['DRAFT','ACTIVE','CLOSED','CANCELLED'];
 const operations:BudgetOperation[]=['OCCUPY','RELEASE','SPEND'];
@@ -54,7 +55,7 @@ export default function BudgetPage(){
  useEffect(()=>{
   detailRequest.current+=1;selectedId.current=undefined;setDetail(undefined);setDetailOpen(false);
   editorRequest.current+=1;setEditor(false);setEditing(undefined);setOperation(undefined);setSaving(false);
-  if(requestedId&&/^[1-9]\d*$/.test(requestedId)&&Number.isSafeInteger(Number(requestedId)))void loadDetail(Number(requestedId));
+  const id=parseRecordId(requestedId);if(id!==undefined)void loadDetail(id);
   return()=>{detailRequest.current+=1;selectedId.current=undefined};
  },[requestedId,scope,loadDetail]);
  const closeDetail=()=>{detailRequest.current+=1;selectedId.current=undefined;setDetail(undefined);setDetailOpen(false);setDetailLoading(false);if(requestedId)router.replace('/oa/budget')};

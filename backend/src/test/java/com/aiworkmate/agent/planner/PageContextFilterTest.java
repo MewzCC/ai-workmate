@@ -15,6 +15,14 @@ class PageContextFilterTest {
             mapper, new AgentRuntimeProperties(), new PageCapabilityCatalog());
 
     @Test
+    void supplierContextKeepsTheSelectedVersionWithoutLeakingContactOrRiskData() {
+        var result = filter.filter("suppliers", mapper.createObjectNode().put("supplierId", 11).put("version", 3)
+                .put("category", "SERVICE").put("contactEmail", "fixture@example.invalid").put("riskNote", "private")
+                .put("tenantId", 999).put("paymentTerms", "private"));
+        assertThat(result).isEqualTo(mapper.createObjectNode().put("supplierId", 11).put("version", 3).put("category", "SERVICE"));
+    }
+
+    @Test
     void budgetContextRetainsTheSelectedVersionButNeverIdentityOrFinancialDraftFields() {
         var result = filter.filter("budget", mapper.createObjectNode().put("budgetId", 11).put("version", 3)
                 .put("fiscalYear", 2026).put("ownerUserId", 999).put("tenantId", 888).put("totalAmount", 9000));

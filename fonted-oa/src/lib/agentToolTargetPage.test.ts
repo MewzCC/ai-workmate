@@ -61,6 +61,15 @@ describe('Agent tool business navigation', () => {
     expect(resolveAgentToolTargetPath('budget', 11, [{ id: 'budget', name: 'Budget', type: 'page', visible: true, sort: 1 }]))
       .toBe('/oa/budget?id=11');
   });
+  it('locates only explicit supplier write receipts after page authorization', () => {
+    for (const code of ['supplier.createDraft', 'supplier.updateDraft', 'supplier.updateStatus']) {
+      expect(agentToolTargetRecordId(code, { supplierId: 11, url: 'https://invalid.example' })).toBe(11);
+    }
+    expect(agentToolTargetRecordId('supplier.query', { items: [{ id: 11 }] })).toBeUndefined();
+    expect(resolveAgentToolTargetPath('suppliers', 11, [{ id: 'suppliers', name: 'Supplier', type: 'page', visible: true, sort: 1 }]))
+      .toBe('/oa/suppliers?id=11');
+    expect(resolveAgentToolTargetPath('suppliers', 11, [])).toBeNull();
+  });
   it('rejects malformed IDs without coercing strings, arrays or unsafe numbers', () => {
     for (const id of [0, -1, 1.2, Number.MAX_SAFE_INTEGER + 1, Infinity, NaN, '23', 'https://invalid.example', null, {}]) {
       expect(agentToolTargetRecordId('hr.employee.query', { id })).toBeUndefined();

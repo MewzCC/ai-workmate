@@ -107,17 +107,20 @@ export function agentToolTargetPage(toolCode?: string | null): string {
   return PREFIX_TARGETS.find(([prefix]) => toolCode.startsWith(prefix))?.[1] ?? 'ai-tasks';
 }
 
-const ASSET_RECEIPT_TOOLS = new Set([
-  'asset.create', 'asset.update', 'asset.claim', 'asset.return', 'asset.transfer',
-  'asset.repair.start', 'asset.repair.complete', 'asset.inventory', 'asset.scrap',
+const RECORD_ID_FIELDS: ReadonlyMap<string, string> = new Map([
+  ['hr.employee.query', 'id'],
+  ...['asset.create', 'asset.update', 'asset.claim', 'asset.return', 'asset.transfer',
+    'asset.repair.start', 'asset.repair.complete', 'asset.inventory', 'asset.scrap'].map((code): [string, string] => [code, 'assetId']),
+  ...['budget.createDraft', 'budget.updateDraft', 'budget.activateDraft', 'budget.cancelDraft']
+    .map((code): [string, string] => [code, 'budgetId']),
+  ...['supplier.createDraft', 'supplier.updateDraft', 'supplier.updateStatus']
+    .map((code): [string, string] => [code, 'supplierId']),
 ]);
-const BUDGET_RECEIPT_TOOLS = new Set(['budget.createDraft', 'budget.updateDraft', 'budget.activateDraft', 'budget.cancelDraft']);
 
 /** Selection comes from the completed result, never model arguments or a supplied URL. */
 export function agentToolTargetRecordId(toolCode: string, result: unknown): number | undefined {
   if (!result || typeof result !== 'object' || Array.isArray(result)) return undefined;
-  const field = toolCode === 'hr.employee.query' ? 'id' : ASSET_RECEIPT_TOOLS.has(toolCode) ? 'assetId'
-    : BUDGET_RECEIPT_TOOLS.has(toolCode) ? 'budgetId' : undefined;
+  const field = RECORD_ID_FIELDS.get(toolCode);
   if (!field) return undefined;
   const id = (result as Record<string, unknown>)[field];
   return typeof id === 'number' && Number.isSafeInteger(id) && id > 0 ? id : undefined;
@@ -132,6 +135,7 @@ export function resolveAgentToolTargetPath(pageId: string, recordId: number | un
     if (pageId === 'employee-files') return `/oa/employee-files?id=${recordId}`;
     if (pageId === 'asset-ledger') return `/oa/asset-ledger?id=${recordId}`;
     if (pageId === 'budget') return `/oa/budget?id=${recordId}`;
+    if (pageId === 'suppliers') return `/oa/suppliers?id=${recordId}`;
     return null;
   }
   const path = target.path || `/oa/${target.id}`;

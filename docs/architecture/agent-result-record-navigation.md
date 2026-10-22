@@ -10,8 +10,10 @@
 | hr.employee.query | 成功结果的 id | 员工档案页的当前可见员工选择 |
 | asset.create/update/claim/return/transfer/repair.start/repair.complete/inventory/scrap | 成功回执的 assetId | 资产台账的只读详情抽屉 |
 | budget.createDraft/updateDraft/activateDraft/cancelDraft | 成功回执的 budgetId | 预算中心受保护详情 |
+| supplier.createDraft/updateDraft/updateStatus | 成功回执的 supplierId | 供应商受保护详情 |
 
 预算详情的上下文、版本与失败边界见[预算页面对接](agent-budget-page-context.md)。
+供应商的选择、版本与联系信息边界见[供应商页面对接](agent-supplier-page-context.md)。
 
 列表查询不会默认取第一行作为选中记录。其他模块保留现有模块导航，本节点不宣称它们已完成单资源定位。
 不修改工具 Schema、数据库、服务端执行或写工具开关。
