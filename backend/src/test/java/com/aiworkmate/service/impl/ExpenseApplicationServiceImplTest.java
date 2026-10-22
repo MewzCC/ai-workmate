@@ -38,6 +38,36 @@ class ExpenseApplicationServiceImplTest {
 
     private ExpenseApplicationServiceImpl service;
 
+    @Test
+    void cancelsOnlyAnOwnedExpenseThroughTheSharedVersionedApprovalTransaction() {
+        when(userAccessService.resolveActiveUser(7L)).thenReturn(new ResolvedUserAccess(
+                7L, "user", 1L, "EMPLOYEE", List.of("EMPLOYEE"),
+                List.of("route:approval-start", "approval:cancel"), List.of("SELF"), 1L));
+        when(applicationMapper.selectOne(org.mockito.ArgumentMatchers.any())).thenReturn(existing("{}"));
+        var response = org.mockito.Mockito.mock(ApprovalApplicationResponse.class);
+        when(response.id()).thenReturn(51L); when(response.formKey()).thenReturn("expense-application");
+        when(response.status()).thenReturn("CANCELLED"); when(response.version()).thenReturn(1);
+        when(approvalService.cancelAgentDraft(7L, 51L, new VersionRequest(0))).thenReturn(response);
+        var receipt = service.cancelAgentDraft(7L, 51L, 0);
+        assertThat(receipt.status()).isEqualTo("CANCELLED"); assertThat(receipt.version()).isOne();
+        verify(approvalService).cancelAgentDraft(7L, 51L, new VersionRequest(0));
+        verify(applicationMapper, never()).selectById(org.mockito.ArgumentMatchers.anyLong());
+    }
+
+    @Test
+    void cancellationDeniesRevokedPermissionAndMissingScopedExpenseBeforeMutation() {
+        when(userAccessService.resolveActiveUser(7L)).thenReturn(access());
+        assertThatThrownBy(() -> service.cancelAgentDraft(7L, 51L, 0)).isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("PERMISSION_DENIED");
+        when(userAccessService.resolveActiveUser(7L)).thenReturn(new ResolvedUserAccess(
+                7L, "user", 1L, "EMPLOYEE", List.of("EMPLOYEE"),
+                List.of("route:approval-start", "approval:cancel"), List.of("SELF"), 2L));
+        assertThatThrownBy(() -> service.cancelAgentDraft(7L, 51L, 0)).isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("RESOURCE_NOT_FOUND");
+        verify(approvalService, never()).cancelAgentDraft(org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+    }
+
     @BeforeEach
     void setUp() {
         service = new ExpenseApplicationServiceImpl(

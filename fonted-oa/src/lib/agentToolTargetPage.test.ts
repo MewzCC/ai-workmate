@@ -71,7 +71,7 @@ describe('Agent tool business navigation', () => {
     expect(resolveAgentToolTargetPath('suppliers', 11, [])).toBeNull();
   });
   it('locates actual expense receipts without choosing the first query result', () => {
-    for (const code of ['expense.createDraft', 'expense.updateDraft', 'expense.submitDraft', 'expense.withdraw', 'expense.reopen']) {
+    for (const code of ['expense.createDraft', 'expense.updateDraft', 'expense.submitDraft', 'expense.withdraw', 'expense.reopen', 'expense.cancelDraft']) {
       expect(agentToolTargetRecordId(code, { applicationId: 11 })).toBe(11);
     }
     expect(agentToolTargetRecordId('expense.query', { items: [{ id: 11 }] })).toBeUndefined();

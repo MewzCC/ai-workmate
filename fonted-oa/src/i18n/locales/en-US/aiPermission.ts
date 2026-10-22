@@ -122,6 +122,7 @@ const aiPermission = {
     expense_submitDraft: { name: 'Submit my expense draft', description: 'Submits an owned, version-matched expense draft for approval.' },
     expense_withdraw: { name: 'Withdraw my expense application', description: 'Withdraws an owned expense application in pending approval.' },
     expense_reopen: { name: 'Reopen my expense draft', description: 'Restores an owned rejected or withdrawn expense application to draft.' },
+    expense_cancelDraft: { name: 'Cancel my expense draft', description: 'Cancels one owned expense draft after confirmation; never deletes records or withdraws a pending application.' },
     budget_query: { name: 'Query budgets', description: 'Reads budget summaries under live finance permissions.' },
     budget_createDraft: { name: 'Create budget draft', description: 'Creates one tenant-scoped budget draft.' },
     budget_updateDraft: { name: 'Update budget draft', description: 'Updates one version-matched budget draft.' },

@@ -247,7 +247,7 @@ class PageCapabilityCatalogTest {
                 .extracting(PageToolReference::code).containsExactly(
                         ToolCode.EXPENSE_CREATE_DRAFT, ToolCode.EXPENSE_UPDATE_DRAFT,
                         ToolCode.EXPENSE_SUBMIT_DRAFT, ToolCode.EXPENSE_WITHDRAW,
-                        ToolCode.EXPENSE_REOPEN);
+                        ToolCode.EXPENSE_REOPEN, ToolCode.EXPENSE_CANCEL_DRAFT);
         var budget = catalog.find("budget").orElseThrow();
         assertThat(budget.readTools())
                 .extracting(PageToolReference::code).containsExactly(ToolCode.BUDGET_QUERY);

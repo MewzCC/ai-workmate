@@ -122,6 +122,7 @@ const aiPermission = {
     expense_submitDraft: { name: '提交本人费用草稿', description: '提交本人且版本匹配的费用草稿进入审批。' },
     expense_withdraw: { name: '撤回本人费用申请', description: '撤回本人处于待审批状态的费用申请。' },
     expense_reopen: { name: '恢复本人费用草稿', description: '将本人已驳回或撤回的费用申请恢复为草稿。' },
+    expense_cancelDraft: { name: '取消本人费用草稿', description: '确认后仅取消一份本人费用草稿，不删除记录、不撤回审批中的申请。' },
     budget_query: { name: '查询预算', description: '按实时财务权限读取预算摘要。' },
     budget_createDraft: { name: '创建预算草稿', description: '仅创建一份租户范围预算草稿。' },
     budget_updateDraft: { name: '更新预算草稿', description: '更新一份版本匹配的预算草稿。' },

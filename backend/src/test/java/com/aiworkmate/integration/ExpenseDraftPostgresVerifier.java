@@ -337,8 +337,8 @@ final class ExpenseDraftPostgresVerifier {
         var failingAudit = mock(BusinessAuditService.class);
         doThrow(new IllegalStateException("test-only cancellation audit unavailable")).when(failingAudit)
                 .recordTransactional(any(), any(), any(), any(), any(), any(), any());
-        var failing = approvalService(session, access, failingAudit);
-        assertThatThrownBy(() -> tx.execute(status -> failing.cancelAgentDraft(applicant, id, new VersionRequest(0))))
+        var failing = service(session, access, failingAudit);
+        assertThatThrownBy(() -> tx.execute(status -> failing.cancelAgentDraft(applicant, id, 0)))
                 .isInstanceOf(IllegalStateException.class);
         assertThat(jdbc.queryForObject("SELECT status FROM approval_application WHERE id=?", String.class, id)).isEqualTo("DRAFT");
         assertThat(jdbc.queryForObject("SELECT version FROM approval_application WHERE id=?", Integer.class, id)).isZero();
@@ -354,14 +354,16 @@ final class ExpenseDraftPostgresVerifier {
                 WHERE tenant_id=? AND resource_type='GENERIC_APPROVAL' AND resource_id=? AND action='DRAFT_CANCEL'
                 """, Integer.class, tenant, Long.toString(id))).isZero();
 
-        var result = tx.execute(status -> generic.cancelAgentDraft(applicant, id, new VersionRequest(0)));
+        assertThatThrownBy(() -> tx.execute(status -> expense.cancelAgentDraft(applicant, id, 1)))
+                .isInstanceOf(BusinessException.class).extracting("errorCode").isEqualTo("VERSION_CONFLICT");
+        var result = tx.execute(status -> expense.cancelAgentDraft(applicant, id, 0));
         assertThat(result.status()).isEqualTo("CANCELLED");
         assertThat(result.version()).isOne();
         assertThat(jdbc.queryForObject("""
                 SELECT count(*) FROM business_audit_log
                 WHERE tenant_id=? AND resource_type='GENERIC_APPROVAL' AND resource_id=? AND action='DRAFT_CANCEL'
                 """, Integer.class, tenant, Long.toString(id))).isOne();
-        assertThatThrownBy(() -> tx.execute(status -> generic.cancelAgentDraft(applicant, id, new VersionRequest(0))))
+        assertThatThrownBy(() -> tx.execute(status -> expense.cancelAgentDraft(applicant, id, 0)))
                 .isInstanceOf(BusinessException.class).extracting("errorCode").isEqualTo("BUSINESS_STATE_INVALID");
 
         long concurrentId = tx.execute(status -> expense.createAgentDraft(applicant,
@@ -372,7 +374,7 @@ final class ExpenseDraftPostgresVerifier {
             Callable<Boolean> cancel = () -> {
                 barrier.await(10, TimeUnit.SECONDS);
                 try {
-                    tx.execute(status -> generic.cancelAgentDraft(applicant, concurrentId, new VersionRequest(0)));
+                    tx.execute(status -> expense.cancelAgentDraft(applicant, concurrentId, 0));
                     return true;
                 } catch (BusinessException error) {
                     assertThat(error.getErrorCode()).isIn("VERSION_CONFLICT", "BUSINESS_STATE_INVALID");
@@ -389,6 +391,37 @@ final class ExpenseDraftPostgresVerifier {
                 SELECT count(*) FROM business_audit_log
                 WHERE tenant_id=? AND resource_type='GENERIC_APPROVAL' AND resource_id=? AND action='DRAFT_CANCEL'
                 """, Integer.class, tenant, Long.toString(concurrentId))).isOne();
+
+        long protectedId = tx.execute(status -> expense.createAgentDraft(applicant,
+                new ExpenseAgentDraftCommand(null, null, null, null, "测试归属限制"), "cancel-scoped-probe")).applicationId();
+        long otherUser = applicant + 100000;
+        when(access.resolveActiveUser(otherUser)).thenReturn(actor(otherUser, tenant, 1));
+        assertThatThrownBy(() -> tx.execute(status -> expense.cancelAgentDraft(otherUser, protectedId, 0)))
+                .isInstanceOf(BusinessException.class).extracting("errorCode").isEqualTo("RESOURCE_NOT_FOUND");
+        when(access.resolveActiveUser(applicant)).thenReturn(actor(applicant, tenant + 100000, 2));
+        assertThatThrownBy(() -> tx.execute(status -> expense.cancelAgentDraft(applicant, protectedId, 0)))
+                .isInstanceOf(BusinessException.class).extracting("errorCode").isEqualTo("RESOURCE_NOT_FOUND");
+        when(access.resolveActiveUser(applicant)).thenReturn(new ResolvedUserAccess(
+                applicant, "expense-user", tenant, "EMPLOYEE", List.of("EMPLOYEE"),
+                List.of("route:approval-start"), List.of("SELF"), 3L));
+        assertThatThrownBy(() -> tx.execute(status -> expense.cancelAgentDraft(applicant, protectedId, 0)))
+                .isInstanceOf(BusinessException.class).extracting("errorCode").isEqualTo("PERMISSION_DENIED");
+        when(access.resolveActiveUser(applicant)).thenReturn(actor(applicant, tenant, 4));
+        jdbc.update("UPDATE approval_application SET form_key='test-other-form' WHERE id=?", protectedId);
+        assertThatThrownBy(() -> tx.execute(status -> expense.cancelAgentDraft(applicant, protectedId, 0)))
+                .isInstanceOf(BusinessException.class).extracting("errorCode").isEqualTo("RESOURCE_NOT_FOUND");
+        assertThat(jdbc.queryForObject("SELECT status FROM approval_application WHERE id=?", String.class, protectedId)).isEqualTo("DRAFT");
+        assertThat(jdbc.queryForObject("SELECT version FROM approval_application WHERE id=?", Integer.class, protectedId)).isZero();
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM business_audit_log WHERE resource_type='GENERIC_APPROVAL'
+                AND resource_id=? AND action='DRAFT_CANCEL'
+                """, Integer.class, Long.toString(protectedId))).isZero();
+        long pendingId = pendingExpense(jdbc, tenant, applicant, "cancel-pending-probe");
+        assertThatThrownBy(() -> tx.execute(status -> expense.cancelAgentDraft(applicant, pendingId, 0)))
+                .isInstanceOf(BusinessException.class).extracting("errorCode").isEqualTo("BUSINESS_STATE_INVALID");
+        assertThat(jdbc.queryForObject("SELECT status FROM approval_application WHERE id=?", String.class, pendingId)).isEqualTo("PENDING");
+        assertThat(jdbc.queryForObject("SELECT status FROM workflow_task WHERE business_type='GENERIC_APPROVAL' AND business_id=?",
+                String.class, pendingId)).isEqualTo("PENDING");
     }
 
     private static ResolvedUserAccess actor(long userId, long tenantId, long version) {

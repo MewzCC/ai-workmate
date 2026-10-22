@@ -42,6 +42,16 @@ class FinanceAgentDomainToolAdapterTest {
     private final ToolActorContext actor = new ToolActorContext(1L, 7L, 3L, 4L, 1, "trace");
 
     @Test
+    void cancelsExpenseOnlyThroughTheTypedOwnedDraftBoundary() {
+        when(expenseApplications.cancelAgentDraft(7L, 51L, 0))
+                .thenReturn(new ExpenseAgentLifecycleReceipt(51, "expense-application", "CANCELLED", 1));
+        assertThat(expenseAdapter.cancelExpenseDraft(actor, 51, 0)).isEqualTo(
+                new ExpenseToolPort.ExpenseLifecycleResult(51, "expense-application", "CANCELLED", 1));
+        verify(expenseApplications).cancelAgentDraft(7L, 51L, 0);
+        verifyNoInteractions(expenses);
+    }
+
+    @Test
     void mapsTypedExpenseWithoutRawApprovalJson() {
         var now = LocalDateTime.of(2026, 9, 14, 9, 0);
         when(expenses.mine(7L, "PENDING", 1, 20)).thenReturn(PageResponse.of(List.of(
