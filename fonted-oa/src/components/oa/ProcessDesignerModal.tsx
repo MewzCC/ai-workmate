@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Button,
@@ -18,7 +18,7 @@ import { ArrowDownOutlined, ArrowUpOutlined, DeleteOutlined } from '@ant-design/
 import { message } from '@/lib/antdMessage';
 import { useTranslation } from 'react-i18next';
 import {
-  approvalEngineApi,
+  type ApprovalProcessPayload,
   type ApprovalConfigStatus,
   type ApprovalForm,
   type ApprovalProcess,
@@ -143,23 +143,27 @@ export default function ProcessDesignerModal({
   open,
   editing,
   forms,
+  loading,
   onClose,
-  onSaved,
+  onSubmit,
 }: {
   open: boolean;
   editing: ApprovalProcess | null;
   forms: ApprovalForm[];
+  loading: boolean;
   onClose: () => void;
-  onSaved: () => void;
+  onSubmit: (payload: ApprovalProcessPayload) => Promise<void>;
 }) {
   const { t } = useTranslation();
   const [metaForm] = Form.useForm<ProcessFormValues>();
   const [nodes, setNodes] = useState<DesignerNode[]>(defaultNodes());
   const [selectedId, setSelectedId] = useState<string>();
   const [submitting, setSubmitting] = useState(false);
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || loading) return;
     if (editing) {
       metaForm.setFieldsValue({
         processKey: editing.processKey,
@@ -176,7 +180,7 @@ export default function ProcessDesignerModal({
     }
     setSelectedId(undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, editing]);
+  }, [open, editing, loading]);
 
   const selected = useMemo(
     () => nodes.find((node) => node.id === selectedId),
@@ -232,8 +236,10 @@ export default function ProcessDesignerModal({
   };
 
   const handleSave = async (publish: boolean) => {
+    if (!open || loading || submitting) return;
     try {
       const values = await metaForm.validateFields();
+      if (!mounted.current) return;
       if (approvalCount === 0) {
         message.warning(t('approval.designer.needApprovalNode'));
         return;
@@ -248,19 +254,12 @@ export default function ProcessDesignerModal({
         nodeJson: JSON.stringify(nodes.map(stripNodeId)),
         status,
       };
-      if (editing) {
-        await approvalEngineApi.updateProcess(editing.id, { ...payload, version: editing.version });
-        message.success(t(publish ? 'approval.designer.publishSuccess' : 'approval.designer.draftSuccess'));
-      } else {
-        await approvalEngineApi.createProcess(payload);
-        message.success(t(publish ? 'approval.designer.publishSuccess' : 'approval.designer.draftSuccess'));
-      }
-      onSaved();
+      await onSubmit(payload);
     } catch (err) {
-      if (err instanceof Error && err.name === 'ValidationError') return;
+      if (!mounted.current || (err && typeof err === 'object' && 'errorFields' in err)) return;
       message.error(formatOaApiError(err));
     } finally {
-      setSubmitting(false);
+      if (mounted.current) setSubmitting(false);
     }
   };
 
@@ -269,16 +268,17 @@ export default function ProcessDesignerModal({
       className="process-designer-modal"
       title={editing ? t('approval.designer.editTitle') : t('approval.designer.createTitle')}
       open={open}
+      loading={loading}
       onCancel={onClose}
       width={1180}
       destroyOnClose
       footer={
         <Space>
           <Button onClick={onClose}>{t('common.cancel')}</Button>
-          <Button loading={submitting} icon={<OaIcon name="save" />} onClick={() => void handleSave(false)}>
+          <Button disabled={loading} loading={submitting} icon={<OaIcon name="save" />} onClick={() => void handleSave(false)}>
             {t('approval.designer.saveDraft')}
           </Button>
-          <Button type="primary" loading={submitting} icon={<OaIcon name="send" />} onClick={() => void handleSave(true)}>
+          <Button disabled={loading} type="primary" loading={submitting} icon={<OaIcon name="send" />} onClick={() => void handleSave(true)}>
             {t('approval.designer.publish')}
           </Button>
         </Space>
@@ -384,7 +384,11 @@ export default function ProcessDesignerModal({
               <Select
                 allowClear
                 placeholder={t('approval.config.process.formPlaceholder')}
-                options={forms.map((f) => ({ value: f.id, label: f.formName }))}
+                options={[
+                  ...(editing?.formId && editing.formName && !forms.some(form => form.id === editing.formId)
+                    ? [{ value: editing.formId, label: editing.formName }] : []),
+                  ...forms.map((f) => ({ value: f.id, label: f.formName })),
+                ]}
               />
             </Form.Item>
             <Form.Item name="description" label={t('approval.config.process.descriptionLabel')}>

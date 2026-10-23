@@ -20,6 +20,14 @@ function backendOaPages(): Set<string> {
 }
 
 describe('Agent tool business navigation', () => {
+  it('locates process write receipts rather than configuration query rows', () => {
+    for (const code of ['approval.process.createDraft', 'approval.process.updateDraft', 'approval.process.publishDraft']) {
+      expect(agentToolTargetRecordId(code, { processId: 11 })).toBe(11);
+    }
+    expect(agentToolTargetRecordId('approval.configuration.query', { items: [{ id: 11 }] })).toBeUndefined();
+    expect(resolveAgentToolTargetPath('process-config', 11, [{ id: 'process-config', name: '流程', type: 'page', visible: true, sort: 1 }]))
+      .toBe('/oa/process-config?id=11');
+  });
   const completed: AgentTaskDetailStep = { sequence: 1, toolCode: 'todo.query', status: 'SUCCEEDED', riskLevel: 'L0',
     arguments: {}, result: { items: [], total: 0 }, resultSummary: '真实空结果', errorCode: null, startedAt: null, finishedAt: null };
   it('distinguishes dictionary parent and child receipts without trusting output URLs or arguments', () => {

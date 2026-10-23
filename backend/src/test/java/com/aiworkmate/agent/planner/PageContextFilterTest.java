@@ -10,6 +10,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class PageContextFilterTest {
+    @Test
+    void processSelectionDoesNotExposeNodesFormsOrDraftContent() {
+        assertThat(filter.filter("process-config", mapper.createObjectNode().put("processId", 11).put("version", 3)
+                .put("page", 1).put("size", 20).put("keyword", "fixture").put("status", "DISABLED")
+                .put("nodeJson", "private").put("description", "private").put("formId", 5).put("tenantId", 999)))
+                .isEqualTo(mapper.createObjectNode().put("processId", 11).put("version", 3).put("page", 1)
+                        .put("size", 20).put("keyword", "fixture").put("status", "DISABLED"));
+    }
     private final ObjectMapper mapper = new ObjectMapper();
     private final PageContextFilter filter = new PageContextFilter(
             mapper, new AgentRuntimeProperties(), new PageCapabilityCatalog());

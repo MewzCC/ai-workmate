@@ -311,6 +311,7 @@ export default {
       fieldsCount: '{{count}} 个字段',
     },
     process: {
+      detailTitle: '流程详情',
       title: '流程列表',
       description: '维护审批流程定义：在流程设计器中编排审批节点、审批人与超时策略，发布后供发起审批选用。',
       columnKey: '流程标识',

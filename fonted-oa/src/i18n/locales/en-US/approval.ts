@@ -311,6 +311,7 @@ export default {
       fieldsCount: '{{count}} field(s)',
     },
     process: {
+      detailTitle: 'Process details',
       title: 'Process List',
       description: 'Manage approval process definitions: arrange approval nodes, approvers and timeout policies in the Process Designer, and publish for use.',
       columnKey: 'Process Key',

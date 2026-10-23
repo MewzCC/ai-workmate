@@ -199,6 +199,7 @@ export const approvalEngineApi = {
     request<void>(`/approval-config/forms/${id}`, { method: 'DELETE' }),
 
   // ---------- 流程定义 ----------
+  getProcess: (id: number) => request<ApprovalProcess>(`/approval-config/processes/${id}`),
   listProcesses: (params: {
     keyword?: string;
     status?: ApprovalConfigStatus;

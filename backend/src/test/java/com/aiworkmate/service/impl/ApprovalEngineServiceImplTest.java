@@ -86,6 +86,25 @@ class ApprovalEngineServiceImplTest {
     }
 
     @Test
+    void processDetailDoesNotExposeAnAccidentalForeignTenantFormReference() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(readerAccess());
+        when(processMapper.selectById(2L)).thenReturn(process(null, 1L));
+        ApprovalForm foreign = form(null); foreign.setTenantId(2L); foreign.setFormName("foreign-private-name");
+        when(formMapper.selectById(1L)).thenReturn(foreign);
+        assertThat(service.getProcess(USER_ID, 2L).formName()).isNull();
+    }
+
+    @Test
+    void processListDoesNotExposeForeignFormNamesFromBatchReferences() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(readerAccess());
+        when(processMapper.selectList(any())).thenReturn(List.of(process(null, 1L)));
+        when(processMapper.selectCount(any())).thenReturn(1L);
+        ApprovalForm foreign = form(null); foreign.setTenantId(2L); foreign.setFormName("foreign-private-name");
+        when(formMapper.selectBatchIds(any())).thenReturn(List.of(foreign));
+        assertThat(service.listProcesses(USER_ID, null, null, 1, 20).records().get(0).formName()).isNull();
+    }
+
+    @Test
     void listFormsShouldTolerateNullCreatedBy() {
         when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(readerAccess());
         ApprovalForm seeded = form(null);

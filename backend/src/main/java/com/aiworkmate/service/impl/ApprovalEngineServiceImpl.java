@@ -311,7 +311,7 @@ public class ApprovalEngineServiceImpl implements ApprovalEngineService {
         long total = processMapper.selectCount(baseProcessQuery(actor.tenantId(), kw, status));
 
         boolean canManage = actor.permissions().contains("approval:manage");
-        Map<Long, String> formNames = formNames(rows.stream()
+        Map<Long, String> formNames = formNames(actor.tenantId(), rows.stream()
                 .map(ApprovalProcess::getFormId)
                 .filter(java.util.Objects::nonNull)
                 .toList());
@@ -1201,13 +1201,13 @@ public class ApprovalEngineServiceImpl implements ApprovalEngineService {
         return q;
     }
 
-    private Map<Long, String> formNames(List<Long> ids) {
+    private Map<Long, String> formNames(Long tenantId, List<Long> ids) {
         if (ids.isEmpty()) {
             return Map.of();
         }
         List<ApprovalForm> forms = formMapper.selectBatchIds(ids);
         return forms.stream()
-                .filter(f -> !Boolean.TRUE.equals(f.getDeleted()))
+                .filter(f -> tenantId.equals(f.getTenantId()) && !Boolean.TRUE.equals(f.getDeleted()))
                 .collect(Collectors.toMap(ApprovalForm::getId, ApprovalForm::getFormName,
                         (a, b) -> a));
     }
@@ -1217,7 +1217,7 @@ public class ApprovalEngineServiceImpl implements ApprovalEngineService {
             return null;
         }
         ApprovalForm form = formMapper.selectById(formId);
-        return form == null || Boolean.TRUE.equals(form.getDeleted()) ? null : form.getFormName();
+        return form == null || !tenantId.equals(form.getTenantId()) || Boolean.TRUE.equals(form.getDeleted()) ? null : form.getFormName();
     }
 
     private Map<Long, String> batchCreatorNames(List<Long> ids) {

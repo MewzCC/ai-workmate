@@ -87,6 +87,8 @@ class P1PostgresMigrationIT {
                 databaseUrl, databaseUsername, databasePassword, emptySchema);
         DictionaryDetailPostgresVerifier.verify(
                 databaseUrl, databaseUsername, databasePassword, emptySchema);
+        ApprovalProcessReferencePostgresVerifier.verify(
+                databaseUrl, databaseUsername, databasePassword, emptySchema);
         BudgetDraftPostgresVerifier.verify(
                 databaseUrl, databaseUsername, databasePassword, emptySchema);
         ContractDraftPostgresVerifier.verify(
