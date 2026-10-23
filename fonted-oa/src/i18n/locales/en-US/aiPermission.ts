@@ -49,6 +49,7 @@ const aiPermission = {
     approval_form_definition_query: { name: 'Read form field definitions', description: 'Reads the authorized fields and version of one tenant form, never application values or raw schema.' },
     approval_form_createDraft: { name: 'Create approval form draft', description: 'Creates one unpublished approval form definition after explicit confirmation.' },
     approval_form_updateDraft: { name: 'Update approval form draft', description: 'Updates one unpublished approval form definition after explicit confirmation and version validation.' },
+    approval_form_patchDraftField: { name: 'Patch a form draft field', description: 'After explicit confirmation and version validation, changes only one existing field label, required flag, placeholder or width; preserves other fields and constraints.' },
     approval_form_publishDraft: { name: 'Publish approval form draft', description: 'Publishes one validated approval form draft after secondary confirmation and version validation.' },
     approval_process_createDraft: { name: 'Create approval process draft', description: 'Creates one unpublished approval process from bounded semantic nodes after explicit confirmation.' },
     approval_process_updateDraft: { name: 'Update approval process draft', description: 'Updates one unpublished approval process after explicit confirmation and version validation.' },

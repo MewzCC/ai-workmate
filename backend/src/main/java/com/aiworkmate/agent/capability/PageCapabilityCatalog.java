@@ -140,7 +140,7 @@ public class PageCapabilityCatalog {
                 page(OaPage.FORM_ENGINE, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         context(number("formId"), number("version"), text("keyword"), text("status"), number("page"), number("size")),
                         tool(APPROVAL_CONFIGURATION_QUERY), tool(APPROVAL_FORM_DEFINITION_QUERY), tool(APPROVAL_FORM_CREATE_DRAFT),
-                        tool(APPROVAL_FORM_UPDATE_DRAFT), tool(APPROVAL_FORM_PUBLISH_DRAFT)),
+                        tool(APPROVAL_FORM_UPDATE_DRAFT), tool(APPROVAL_FORM_PATCH_DRAFT_FIELD), tool(APPROVAL_FORM_PUBLISH_DRAFT)),
                 page(OaPage.PROCESS_CONFIG, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         context(number("processId"), number("version"), text("keyword"), text("status"), number("page"), number("size")),
                         tool(APPROVAL_CONFIGURATION_QUERY), tool(APPROVAL_PROCESS_CREATE_DRAFT),

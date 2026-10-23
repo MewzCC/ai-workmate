@@ -20,6 +20,7 @@ public final class AgentReadResultPresenter {
     private AgentReadResultPresenter() { }
 
     public static String present(String toolCode, JsonNode result) {
+        if ("approval.form.patchDraftField".equals(toolCode)) return formFieldPatch(result);
         if ("approval.form.definition.query".equals(toolCode)) return formDefinition(result);
         if ("todo.query".equals(toolCode)) return todo(result);
         if ("dashboard.overview.query".equals(toolCode)) return dashboard(result);
@@ -53,6 +54,20 @@ public final class AgentReadResultPresenter {
             String description = describe(result);
             if (!description.isBlank()) answer.append('\n').append(description);
         }
+        return answer.substring(0, Math.min(MAX_LENGTH, answer.length()));
+    }
+
+    private static String formFieldPatch(JsonNode result) {
+        if (result == null || result.path("formId").asLong() < 1 || !result.path("required").isBoolean()
+                || !result.path("fieldName").isTextual() || !result.path("label").isTextual()
+                || !List.of("full", "half").contains(result.path("width").asText())) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        String placeholder = result.path("placeholder").asText();
+        String answer = MessageUtils.resolve("agent.formFieldPatch.result", result.path("formId").asLong(),
+                plain(result.path("formKey").asText()), result.path("version").asInt(), plain(result.path("label").asText()),
+                plain(result.path("fieldName").asText()), MessageUtils.resolve(result.path("required").asBoolean()
+                        ? "agent.formDefinition.required" : "agent.formDefinition.optional"),
+                MessageUtils.resolve("agent.formFieldPatch.width." + result.path("width").asText()),
+                placeholder.isEmpty() ? MessageUtils.resolve("agent.formFieldPatch.noPlaceholder") : plain(placeholder));
         return answer.substring(0, Math.min(MAX_LENGTH, answer.length()));
     }
 

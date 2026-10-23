@@ -17,7 +17,7 @@
 | dictionary.type.create/update/updateStatus | 成功回执的 dictionaryTypeId | 字典类型受保护详情 |
 | dictionary.item.create/update/updateStatus | 成功回执的 dictionaryItemId | 字典项与真实父级受保护详情 |
 | approval.process.createDraft/updateDraft/publishDraft | 成功回执的 processId | 流程配置受保护详情 |
-| approval.form.createDraft/updateDraft/publishDraft | 成功回执的 formId | 表单管理受保护详情 |
+| approval.form.createDraft/updateDraft/patchDraftField/publishDraft | 成功回执的 formId | 表单管理受保护详情 |
 | approval.form.definition.query | 实际字段读取结果的 formId | 表单管理受保护详情 |
 
 预算详情的上下文、版本与失败边界见[预算页面对接](agent-budget-page-context.md)。

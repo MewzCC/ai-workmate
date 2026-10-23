@@ -13,6 +13,17 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class AgentReadResultPresenterTest {
     private final ObjectMapper mapper = new ObjectMapper();
 
+    @Test void fieldPatchPresentsTheActualUpdatedFieldAndVersion() throws Exception {
+        org.springframework.context.i18n.LocaleContextHolder.setLocale(java.util.Locale.US);
+        try {
+            String answer = AgentReadResultPresenter.present("approval.form.patchDraftField", mapper.readTree("""
+                    {"formId":11,"formKey":"fixture","status":"DISABLED","version":4,"fieldName":"reason",
+                     "label":"Actual reason","required":true,"placeholder":"Please explain","width":"half"}
+                    """));
+            assertThat(answer).contains("Actual reason", "reason", "Version 4", "Required", "Please explain", "half");
+        } finally { org.springframework.context.i18n.LocaleContextHolder.resetLocaleContext(); }
+    }
+
     @Test void formDefinitionShowsActualFieldLabelsAndVersionInsteadOfOnlyAnArrayCount() throws Exception {
         org.springframework.context.i18n.LocaleContextHolder.setLocale(java.util.Locale.US);
         try {

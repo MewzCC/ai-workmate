@@ -2,6 +2,9 @@ package com.aiworkmate.integration;
 
 import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.dto.ApprovalFormFieldPatchRequest;
+import com.aiworkmate.agent.registry.AgentApprovalFormFieldPatchToolDefinitions;
+import com.aiworkmate.agent.registry.ToolDefinition;
+import com.aiworkmate.agent.gateway.ToolSchemaValidator;
 import com.aiworkmate.mapper.*;
 import com.aiworkmate.service.ApprovalEngineService;
 import com.aiworkmate.service.BusinessAuditService;
@@ -37,11 +40,27 @@ final class ApprovalFormFieldPatchPostgresVerifier {
         properties.setProperty("options", "-c lock_timeout=5000 -c statement_timeout=10000");
         datasource.setConnectionProperties(properties);
         var jdbc = new JdbcTemplate(datasource);
+        var mapper = new ObjectMapper(); ToolDefinition definition;
+        try (var beans = new org.springframework.context.annotation.AnnotationConfigApplicationContext()) {
+            beans.registerBean(ObjectMapper.class, () -> mapper); beans.register(AgentApprovalFormFieldPatchToolDefinitions.class); beans.refresh();
+            definition = beans.getBean(ToolDefinition.class);
+        }
+        var registration = jdbc.queryForMap("SELECT * FROM agent_tool WHERE tenant_id IS NULL AND code='approval.form.patchDraftField'");
+        assertThat(registration.get("enabled")).isEqualTo(false);
+        assertThat(registration.get("risk_level")).isEqualTo("L1");
+        assertThat(registration.get("side_effect")).isEqualTo("SINGLE_WRITE");
+        assertThat(registration.get("confirmation_policy")).isEqualTo("EXPLICIT");
+        assertThat(registration.get("retry_policy")).isEqualTo("NEVER");
+        assertThat(registration.get("schema_hash")).isEqualTo(definition.schemaHash())
+                .isEqualTo("sha256:2d7f9c12e2c7bc7a72f986c077ba8de9a5b81f69d23342f1e8408959f8369744");
+        assertThat(mapper.readTree(registration.get("parameters_schema").toString())).isEqualTo(definition.inputSchema());
+        assertThat(mapper.readTree(registration.get("output_schema").toString())).isEqualTo(definition.outputSchema());
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM rbac_role_permission p WHERE p.permission_code='agent:tool:approval.form.patchDraftField' AND NOT EXISTS (SELECT 1 FROM rbac_role_permission r WHERE r.tenant_id=p.tenant_id AND r.role_code=p.role_code AND r.permission_code='approval:manage')", Long.class)).isZero();
         long tenant = jdbc.queryForObject("INSERT INTO tenant(code,name) VALUES ('FORM_PATCH_A','Fixture') RETURNING id", Long.class);
         long otherTenant = jdbc.queryForObject("INSERT INTO tenant(code,name) VALUES ('FORM_PATCH_B','Fixture') RETURNING id", Long.class);
         long actor = jdbc.queryForObject("INSERT INTO app_user(username,password,email,tenant_id,status) VALUES ('form-patch-actor','test-only','form-patch@example.invalid',?,1) RETURNING id", Long.class, tenant);
-        String definition = "{\"fields\":[{\"name\":\"amount\",\"label\":\"Amount\",\"type\":\"money\",\"min\":0.123456789012345678901},{\"key\":\"reason\",\"label\":\"Reason\",\"type\":\"text\"}]}";
-        long form = form(jdbc, tenant, definition); long other = form(jdbc, otherTenant, definition);
+        String schemaJson = "{\"fields\":[{\"name\":\"amount\",\"label\":\"Amount\",\"type\":\"money\",\"min\":0.123456789012345678901},{\"key\":\"reason\",\"label\":\"Reason\",\"type\":\"text\"}]}";
+        long form = form(jdbc, tenant, schemaJson); long other = form(jdbc, otherTenant, schemaJson);
         var configuration = new MybatisConfiguration(); configuration.setMapUnderscoreToCamelCase(true);
         for (var type : List.of(ApprovalFormMapper.class, ApprovalProcessMapper.class, ApprovalRuleMapper.class, UserMapper.class, BusinessAuditLogMapper.class)) configuration.addMapper(type);
         var factory = new MybatisSqlSessionFactoryBean(); factory.setDataSource(datasource); factory.setConfiguration(configuration);
@@ -77,6 +96,12 @@ final class ApprovalFormFieldPatchPostgresVerifier {
         var service = (ApprovalEngineService) proxy.getProxy();
         var result = service.patchFormDraftFieldAgent(actor, tenant, form, patch(3, "New reason"));
         assertThat(result.version()).isEqualTo(4); assertThat(result.status()).isEqualTo("DISABLED");
+        assertThat(result.formId()).isEqualTo(form); assertThat(result.fieldName()).isEqualTo("reason");
+        assertThat(result.label()).isEqualTo("New reason"); assertThat(result.required()).isFalse();
+        assertThat(result.placeholder()).isEmpty(); assertThat(result.width()).isEqualTo("full");
+        var receipt = mapper.valueToTree(result);
+        assertThat(new ToolSchemaValidator().valid(definition.outputSchema(), receipt)).isTrue();
+        assertThat(receipt.toString()).doesNotContain("schemaJson", "creatorName", "description");
         var row = jdbc.queryForMap("SELECT * FROM approval_form WHERE id=?", form);
         String saved = row.get("schema_json").toString();
         assertThat(saved).contains("0.123456789012345678901", "\"key\":\"reason\"", "New reason").doesNotContain("\"options\"", "\"width\"");

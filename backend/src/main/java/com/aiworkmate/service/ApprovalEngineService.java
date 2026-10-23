@@ -7,6 +7,7 @@ import com.aiworkmate.dto.ApprovalFormAgentDraftUpdateRequest;
 import com.aiworkmate.dto.ApprovalFormResponse;
 import com.aiworkmate.dto.ApprovalFormDefinitionResponse;
 import com.aiworkmate.dto.ApprovalFormFieldPatchRequest;
+import com.aiworkmate.dto.ApprovalFormFieldPatchResponse;
 import com.aiworkmate.dto.ApprovalProcessRequest;
 import com.aiworkmate.dto.ApprovalProcessAgentDraftRequest;
 import com.aiworkmate.dto.ApprovalProcessAgentDraftUpdateRequest;
@@ -34,7 +35,7 @@ public interface ApprovalEngineService {
 
     ApprovalFormDefinitionResponse readFormDefinitionAgent(Long userId, Long expectedTenantId, Long id);
 
-    ApprovalFormResponse patchFormDraftFieldAgent(Long userId, Long expectedTenantId, Long id,
+    ApprovalFormFieldPatchResponse patchFormDraftFieldAgent(Long userId, Long expectedTenantId, Long id,
                                                  ApprovalFormFieldPatchRequest request);
 
     ApprovalFormResponse createForm(Long userId, ApprovalFormRequest request);

@@ -85,6 +85,15 @@ public final class ApprovalConfigurationAgentDomainToolAdapter implements Approv
     }
 
     @Override
+    public FormFieldPatchResult patchFormDraftField(ToolActorContext context, FormFieldPatch command) {
+        var result = approvalEngineService.patchFormDraftFieldAgent(context.userId(), context.tenantId(), command.formId(),
+                new com.aiworkmate.dto.ApprovalFormFieldPatchRequest(command.version(), command.fieldName(), command.label(),
+                        command.required(), command.placeholder(), command.width()));
+        return new FormFieldPatchResult(result.formId(), result.formKey(), result.status(), result.version(),
+                result.fieldName(), result.label(), result.required(), result.placeholder(), result.width());
+    }
+
+    @Override
     public ProcessDraftResult createProcessDraft(ToolActorContext context, ProcessDraft command) {
         var request = new ApprovalProcessAgentDraftRequest(command.processKey(), command.processName(),
                 command.description(), command.formId(), command.nodes().stream().map(node ->

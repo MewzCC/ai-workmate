@@ -25,7 +25,7 @@ describe('Agent tool business navigation', () => {
     expect(agentToolTargetRecordId('approval.form.definition.query', { formId: 11, fields: [] })).toBe(11);
   });
   it('locates form write receipts without trusting model arguments or a query first row', () => {
-    for (const code of ['approval.form.createDraft', 'approval.form.updateDraft', 'approval.form.publishDraft']) {
+    for (const code of ['approval.form.createDraft', 'approval.form.updateDraft', 'approval.form.publishDraft', 'approval.form.patchDraftField']) {
       expect(agentToolTargetRecordId(code, { formId: 11 })).toBe(11);
     }
     expect(agentToolTargetRecordId('approval.configuration.query', { items: [{ id: 11 }] })).toBeUndefined();

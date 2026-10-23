@@ -1,7 +1,7 @@
 package com.aiworkmate.service.impl;
 
 import com.aiworkmate.common.BusinessException;
-import com.aiworkmate.dto.ApprovalFormResponse;
+import com.aiworkmate.dto.ApprovalFormFieldPatchResponse;
 import com.aiworkmate.dto.ApprovalFormFieldPatchRequest;
 import com.aiworkmate.entity.ApprovalForm;
 import com.aiworkmate.mapper.*;
@@ -27,9 +27,10 @@ class ApprovalFormFieldPatchTest {
     private final ApprovalFormMapper forms = mock(ApprovalFormMapper.class);
     private final UserAccessService access = mock(UserAccessService.class);
     private final BusinessAuditService audit = mock(BusinessAuditService.class);
-    private final ObjectMapper mapper = new ObjectMapper();
+    private final UserMapper users = mock(UserMapper.class);
+    private final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
     private final ApprovalEngineServiceImpl service = new ApprovalEngineServiceImpl(forms,
-            mock(ApprovalProcessMapper.class), mock(ApprovalRuleMapper.class), mock(UserMapper.class), access, audit, mapper);
+            mock(ApprovalProcessMapper.class), mock(ApprovalRuleMapper.class), users, access, audit, mapper);
     private ApprovalForm form;
     private static final String SCHEMA = """
         {"fields":[{"name":"amount","label":"Amount","type":"money","min":0.123456789012345678901},
@@ -63,7 +64,7 @@ class ApprovalFormFieldPatchTest {
             return 1;
         });
         var result = patch(3, "reason", "New reason", true, null, null);
-        assertThat(result.id()).isEqualTo(11L); assertThat(result.version()).isEqualTo(4);
+        assertThat(result.formId()).isEqualTo(11L); assertThat(result.version()).isEqualTo(4);
         assertThat(result.status()).isEqualTo("DISABLED");
         verify(audit).recordTransactional(eq(99L), eq(7L), eq("APPROVAL_FORM"), eq("11"), eq("PATCH_FIELD"), eq("SUCCESS"), anyString());
         verify(forms, never()).selectById(any());
@@ -74,11 +75,33 @@ class ApprovalFormFieldPatchTest {
         assertThatThrownBy(() -> patch(3, "reason", "New", null, null, null)).isInstanceOf(BusinessException.class);
         verifyNoInteractions(forms, audit);
     }
+    @Test void returnsOnlyTheActualFieldReceiptWithoutResolvingCreatorOrExposingTheSchema() {
+        form.setCreatedBy(42L);
+        var foreignCreator = new com.aiworkmate.entity.User(); foreignCreator.setId(42L);
+        foreignCreator.setTenantId(100L); foreignCreator.setDisplayName("Foreign private creator");
+        when(users.selectById(42L)).thenReturn(foreignCreator);
+        when(forms.update(isNull(), any(LambdaUpdateWrapper.class))).thenReturn(1);
+        var result = mapper.valueToTree(patch(3, "reason", "New reason", true, "", "half"));
+        assertThat(result.toString()).doesNotContain("schemaJson", "creatorName", "description", "Foreign private creator");
+        assertThat(result.path("formId").asLong()).isEqualTo(11);
+        assertThat(result.path("fieldName").asText()).isEqualTo("reason");
+        assertThat(result.path("label").asText()).isEqualTo("New reason");
+        assertThat(result.path("required").asBoolean()).isTrue();
+        assertThat(result.path("placeholder").asText()).isEmpty();
+        assertThat(result.path("width").asText()).isEqualTo("half");
+        verifyNoInteractions(users);
+    }
     @Test void deniesRevokedManagePermission() {
         when(access.resolveActiveUser(7L)).thenReturn(new ResolvedUserAccess(7L, "fixture", 99L,
                 "EMPLOYEE", List.of("EMPLOYEE"), List.of("approval:read"), List.of("TENANT"), 1L));
         assertThatThrownBy(() -> patch(3, "reason", "New", null, null, null)).isInstanceOf(BusinessException.class);
         verifyNoInteractions(forms, audit);
+    }
+    @Test void refusesUnsupportedReceiptIdentityBeforeWriting() {
+        form.setFormKey("invalid identity");
+        when(forms.update(isNull(), any(LambdaUpdateWrapper.class))).thenReturn(1);
+        assertThatThrownBy(() -> patch(3, "reason", "New", null, null, null)).isInstanceOf(BusinessException.class);
+        verify(forms, never()).update(any(), any()); verifyNoInteractions(audit);
     }
     @Test void rejectsPublishedFormsWithoutUpdating() {
         form.setStatus("ENABLED");
@@ -110,8 +133,7 @@ class ApprovalFormFieldPatchTest {
         form.setSchemaJson(SCHEMA.replace("\"required\":false", "\"required\":true,\"placeholder\":\"Old hint\""));
         when(forms.update(isNull(), any(LambdaUpdateWrapper.class))).thenReturn(1);
         var result = patch(3, "reason", null, false, "", "half");
-        assertThat(result.schemaJson()).contains("\"required\":false", "\"placeholder\":\"\"", "\"width\":\"half\"");
-        assertThat(result.schemaJson()).contains("0.123456789012345678901");
+        assertThat(result.required()).isFalse(); assertThat(result.placeholder()).isEmpty(); assertThat(result.width()).isEqualTo("half");
     }
     @ParameterizedTest @ValueSource(strings = { "trailing", "duplicate" })
     void ambiguousHistoricalJsonCannotBeSilentlyRewritten(String kind) {
@@ -144,7 +166,7 @@ class ApprovalFormFieldPatchTest {
                 .extracting("errorCode").isEqualTo("VERSION_CONFLICT");
         verifyNoInteractions(audit);
     }
-    private ApprovalFormResponse patch(int version, String fieldName, String label, Boolean required, String placeholder, String width) {
+    private ApprovalFormFieldPatchResponse patch(int version, String fieldName, String label, Boolean required, String placeholder, String width) {
         return service.patchFormDraftFieldAgent(7L, 99L, 11L,
                 new ApprovalFormFieldPatchRequest(version, fieldName, label, required, placeholder, width));
     }

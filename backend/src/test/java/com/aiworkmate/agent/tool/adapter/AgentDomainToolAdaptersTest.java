@@ -50,6 +50,15 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class AgentDomainToolAdaptersTest {
+    @Test void forwardsFieldPatchWithTrustedTenantAndProjectsTheNarrowActualReceipt() {
+        var command = new ApprovalConfigurationToolPort.FormFieldPatch(11, 3, "reason", " Reason ", false, "", "half");
+        var request = new com.aiworkmate.dto.ApprovalFormFieldPatchRequest(3, "reason", " Reason ", false, "", "half");
+        when(approvalEngineService.patchFormDraftFieldAgent(7L, 91L, 11L, request)).thenReturn(
+                new com.aiworkmate.dto.ApprovalFormFieldPatchResponse(11, "fixture", "DISABLED", 4, "reason", "Reason", false, "", "half"));
+        assertThat(approvalConfigurationAdapter.patchFormDraftField(context, command)).isEqualTo(
+                new ApprovalConfigurationToolPort.FormFieldPatchResult(11, "fixture", "DISABLED", 4, "reason", "Reason", false, "", "half"));
+        verify(approvalEngineService).patchFormDraftFieldAgent(7L, 91L, 11L, request);
+    }
     @Mock private LeaveWorkflowService leaveWorkflowService;
     @Mock private KnowledgeService knowledgeService;
     @Mock private KnowledgeBaseService knowledgeBaseService;

@@ -9,6 +9,7 @@ public interface ApprovalConfigurationToolPort {
     FormDefinition readFormDefinition(ToolActorContext context, long formId);
     FormDraftResult createFormDraft(ToolActorContext context, FormDraft command);
     FormDraftResult updateFormDraft(ToolActorContext context, FormDraftUpdate command);
+    FormFieldPatchResult patchFormDraftField(ToolActorContext context, FormFieldPatch command);
     FormDraftResult publishFormDraft(ToolActorContext context, VersionedForm command);
     ProcessDraftResult createProcessDraft(ToolActorContext context, ProcessDraft command);
     ProcessDraftResult updateProcessDraft(ToolActorContext context, ProcessDraftUpdate command);
@@ -54,6 +55,12 @@ public interface ApprovalConfigurationToolPort {
 
     record FormDraftResult(long formId, String formKey, String status, int version,
                            LocalDateTime updatedAt) implements ToolWriteReceipt { }
+
+    record FormFieldPatch(long formId, int version, String fieldName, String label,
+                          Boolean required, String placeholder, String width) { }
+    record FormFieldPatchResult(long formId, String formKey, String status, int version,
+                                String fieldName, String label, boolean required,
+                                String placeholder, String width) implements ToolWriteReceipt { }
 
     record VersionedForm(long formId, int version) { }
 

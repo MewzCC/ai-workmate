@@ -9,6 +9,7 @@ import com.aiworkmate.dto.ApprovalFormAgentDraftUpdateRequest;
 import com.aiworkmate.dto.ApprovalFormResponse;
 import com.aiworkmate.dto.ApprovalFormDefinitionResponse;
 import com.aiworkmate.dto.ApprovalFormFieldPatchRequest;
+import com.aiworkmate.dto.ApprovalFormFieldPatchResponse;
 import com.aiworkmate.dto.ApprovalProcessRequest;
 import com.aiworkmate.dto.ApprovalProcessAgentDraftRequest;
 import com.aiworkmate.dto.ApprovalProcessAgentDraftUpdateRequest;
@@ -179,7 +180,7 @@ public class ApprovalEngineServiceImpl implements ApprovalEngineService {
 
     @Override
     @Transactional
-    public ApprovalFormResponse patchFormDraftFieldAgent(Long userId, Long expectedTenantId, Long id,
+    public ApprovalFormFieldPatchResponse patchFormDraftFieldAgent(Long userId, Long expectedTenantId, Long id,
                                                         ApprovalFormFieldPatchRequest request) {
         ResolvedUserAccess actor = requirePermission(userId, "approval:manage");
         if (!actor.tenantId().equals(expectedTenantId)) throw new BusinessException(ErrorCode.PERMISSION_DENIED);
@@ -198,6 +199,9 @@ public class ApprovalEngineServiceImpl implements ApprovalEngineService {
         if (form == null) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
         if (!"DISABLED".equals(form.getStatus())) throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID);
         if (!request.version().equals(form.getVersion())) throw new BusinessException(ErrorCode.VERSION_CONFLICT);
+        if (form.getFormKey() == null || !form.getFormKey().matches("^[a-z][a-z0-9_-]{0,63}$")) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
         normalizedAgentFormSchema(form.getSchemaJson());
         JsonNode root;
         try {
@@ -232,8 +236,9 @@ public class ApprovalEngineServiceImpl implements ApprovalEngineService {
         if (updated != 1) throw new BusinessException(ErrorCode.VERSION_CONFLICT);
         auditService.recordTransactional(actor.tenantId(), actor.userId(), RESOURCE_FORM,
                 id.toString(), "PATCH_FIELD", "SUCCESS", "Agent 局部修改审批表单草稿字段");
-        form.setSchemaJson(schemaJson); form.setUpdatedAt(now); form.setVersion(request.version() + 1);
-        return toFormResponse(form, singleUserName(form.getCreatedBy()), true);
+        return new ApprovalFormFieldPatchResponse(form.getId(), form.getFormKey(), form.getStatus(), request.version() + 1,
+                target.path("name").asText(target.path("key").asText()), target.path("label").asText(),
+                target.path("required").asBoolean(false), target.path("placeholder").asText(""), target.path("width").asText("full"));
     }
 
     @Override
