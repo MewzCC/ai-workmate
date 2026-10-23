@@ -22,6 +22,20 @@ function backendOaPages(): Set<string> {
 describe('Agent tool business navigation', () => {
   const completed: AgentTaskDetailStep = { sequence: 1, toolCode: 'todo.query', status: 'SUCCEEDED', riskLevel: 'L0',
     arguments: {}, result: { items: [], total: 0 }, resultSummary: '真实空结果', errorCode: null, startedAt: null, finishedAt: null };
+  it('distinguishes dictionary parent and child receipts without trusting output URLs or arguments', () => {
+    const menus: OaMenuItem[] = [{ id: 'dictionary', name: 'Dictionary', type: 'page', visible: true, sort: 1 }];
+    for (const kind of ['type', 'item']) for (const operation of ['create', 'update', 'updateStatus']) {
+      const step = { ...completed, toolCode: `dictionary.${kind}.${operation}`, arguments: { dictionaryTypeId: 999 },
+        result: { dictionaryTypeId: 11, dictionaryItemId: 21, url: 'https://invalid.example' } };
+      const target = agentTaskNavigationTarget({ status: 'SUCCEEDED', steps: [step] });
+      expect(target).toMatchObject({ pageId: 'dictionary', recordId: kind === 'type' ? 11 : 21, recordKind: `dictionary-${kind}` });
+      expect(resolveAgentToolTargetPath(target!.pageId, target!.recordId, menus, target!.recordKind))
+        .toBe(kind === 'type' ? '/oa/dictionary?typeId=11' : '/oa/dictionary?itemId=21');
+      expect(resolveAgentToolTargetPath(target!.pageId, target!.recordId, [], target!.recordKind)).toBeNull();
+    }
+    expect(resolveAgentToolTargetPath('dictionary', 11, menus)).toBeNull();
+    expect(agentToolTargetRecordId('dictionary.item.query', { items: [{ id: 21 }], dictionaryItemId: 21 })).toBeUndefined();
+  });
   it('does not turn incomplete, partial, empty or missing-result tasks into page navigation', () => {
     expect(agentTaskNavigationTarget({ status: 'PARTIALLY_SUCCEEDED', steps: [completed] })).toBeNull();
     expect(agentTaskNavigationTarget({ status: 'SUCCEEDED', steps: [] })).toBeNull();

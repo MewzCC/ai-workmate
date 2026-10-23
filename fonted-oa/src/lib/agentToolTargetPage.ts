@@ -1,23 +1,26 @@
 import type { AgentTaskDetail, OaMenuItem } from '@/types/oa';
 import { findMenu } from './navigationTree';
 
-export type AgentPageNavigator = (pageId: string, recordId?: number) => boolean;
+export type AgentRecordKind = 'dictionary-type' | 'dictionary-item';
+export type AgentPageNavigator = (pageId: string, recordId?: number, recordKind?: AgentRecordKind) => boolean;
 
 /** Only completed results select a page; arguments and output URLs never select records. */
-export function agentTaskNavigationTarget(detail: Pick<AgentTaskDetail, 'status' | 'steps'>): { pageId: string; recordId?: number } | null {
+export function agentTaskNavigationTarget(detail: Pick<AgentTaskDetail, 'status' | 'steps'>): { pageId: string; recordId?: number; recordKind?: AgentRecordKind } | null {
   if (detail.status !== 'SUCCEEDED' || !detail.steps.length
       || detail.steps.some((step) => step.status !== 'SUCCEEDED' || step.result == null)) return null;
   const last = detail.steps[detail.steps.length - 1];
   // The todo page cannot yet reproduce historical-status or date-filtered queries.
   if (last.toolCode === 'todo.query' && ((last.arguments?.status != null && last.arguments.status !== 'PENDING')
       || last.arguments?.from != null || last.arguments?.to != null)) return null;
-  return { pageId: agentToolTargetPage(last.toolCode), recordId: agentToolTargetRecordId(last.toolCode, last.result) };
+  const recordKind = DICTIONARY_RECORD_KINDS.get(last.toolCode);
+  return { pageId: agentToolTargetPage(last.toolCode), recordId: agentToolTargetRecordId(last.toolCode, last.result),
+    ...(recordKind ? { recordKind } : {}) };
 }
 
 export function resolveAgentTaskTargetPath(taskId: string, detail: AgentTaskDetail, menus: OaMenuItem[]): string | null {
   if (detail.taskId !== taskId) return null;
   const target = agentTaskNavigationTarget(detail);
-  return target ? resolveAgentToolTargetPath(target.pageId, target.recordId, menus) : null;
+  return target ? resolveAgentToolTargetPath(target.pageId, target.recordId, menus, target.recordKind) : null;
 }
 
 const EXACT_TARGETS: Record<string, string> = {
@@ -107,7 +110,13 @@ export function agentToolTargetPage(toolCode?: string | null): string {
   return PREFIX_TARGETS.find(([prefix]) => toolCode.startsWith(prefix))?.[1] ?? 'ai-tasks';
 }
 
+const DICTIONARY_RECORD_KINDS: ReadonlyMap<string, AgentRecordKind> = new Map(
+  (['type', 'item'] as const).flatMap((kind) => ['create', 'update', 'updateStatus']
+    .map((operation): [string, AgentRecordKind] => [`dictionary.${kind}.${operation}`, `dictionary-${kind}`])),
+);
 const RECORD_ID_FIELDS: ReadonlyMap<string, string> = new Map([
+  ...[...DICTIONARY_RECORD_KINDS].map(([code, kind]): [string, string] =>
+    [code, kind === 'dictionary-type' ? 'dictionaryTypeId' : 'dictionaryItemId']),
   ...['integration.endpoint.createDraft', 'integration.endpoint.updateDraft', 'integration.endpoint.updateStatus']
     .map((code): [string, string] => [code, 'endpointId']),
   ['hr.employee.query', 'id'],
@@ -133,11 +142,13 @@ export function agentToolTargetRecordId(toolCode: string, result: unknown): numb
 }
 
 /** Both navigation authorization and URL construction stay in code-owned boundaries. */
-export function resolveAgentToolTargetPath(pageId: string, recordId: number | undefined, menus: OaMenuItem[]): string | null {
+export function resolveAgentToolTargetPath(pageId: string, recordId: number | undefined, menus: OaMenuItem[], recordKind?: AgentRecordKind): string | null {
   const target = findMenu(pageId, menus);
   if (!target || target.type !== 'page' || !target.visible) return null;
+  if (recordKind && pageId !== 'dictionary') return null;
   if (recordId !== undefined) {
     if (!Number.isSafeInteger(recordId) || recordId <= 0) return null;
+    if (pageId === 'dictionary' && recordKind) return `/oa/dictionary?${recordKind === 'dictionary-type' ? 'typeId' : 'itemId'}=${recordId}`;
     if (pageId === 'employee-files') return `/oa/employee-files?id=${recordId}`;
     if (pageId === 'asset-ledger') return `/oa/asset-ledger?id=${recordId}`;
     if (pageId === 'budget') return `/oa/budget?id=${recordId}`;

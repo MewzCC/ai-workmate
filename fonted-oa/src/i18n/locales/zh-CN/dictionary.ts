@@ -5,6 +5,7 @@ const dictionary = {
   totalTypes: '字典类型', activeTypes: '启用类型', totalItems: '字典项', activeItems: '启用字典项',
   typeList: '字典类型', itemList: '字典项', addType: '新建类型', addItem: '新建字典项',
   editType: '编辑字典类型', editItem: '编辑字典项',
+  detailTitle: '字典详情',
   searchType: '搜索编码或名称', searchItem: '搜索项值或名称', allStatuses: '全部状态',
   code: '字典编码', name: '字典名称', value: '字典项值', label: '显示名称',
   descriptionField: '描述', sortOrder: '排序', status: '状态', usageCount: '引用数', updatedAt: '更新时间', actions: '操作',

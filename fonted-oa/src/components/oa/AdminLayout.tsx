@@ -559,8 +559,8 @@ export default function AdminLayout() {
             pageContext={agentPageContext?.pageId === selectedMenu.id ? agentPageContext.snapshot : undefined}
             miniEnabled={aiMiniEnabled}
             onPageRefresh={() => setPageRevision((revision) => revision + 1)}
-            onNavigatePage={(pageId, recordId) => {
-              const path = resolveAgentToolTargetPath(pageId, recordId, menus);
+            onNavigatePage={(pageId, recordId, recordKind) => {
+              const path = resolveAgentToolTargetPath(pageId, recordId, menus, recordKind);
               if (!path) return false;
               router.push(path);
               return true;

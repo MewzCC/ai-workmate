@@ -15,6 +15,17 @@ class PageContextFilterTest {
             mapper, new AgentRuntimeProperties(), new PageCapabilityCatalog());
 
     @Test
+    void dictionaryKeepsExplicitParentChildVersionsButNotDraftsOrIdentity() {
+        var result = filter.filter("dictionary", mapper.createObjectNode().put("dictionaryTypeId", 11).put("typeCode", "FIXTURE")
+                .put("typeVersion", 3).put("dictionaryItemId", 21).put("itemValue", "FIRST").put("version", 4)
+                .put("page", 1).put("size", 20).put("typeKeyword", "fixture").put("keyword", "first")
+                .put("description", "private").put("label", "private").put("tenantId", 999));
+        assertThat(result).isEqualTo(mapper.createObjectNode().put("dictionaryTypeId", 11).put("typeCode", "FIXTURE")
+                .put("typeVersion", 3).put("dictionaryItemId", 21).put("itemValue", "FIRST").put("version", 4)
+                .put("page", 1).put("size", 20).put("typeKeyword", "fixture").put("keyword", "first"));
+    }
+
+    @Test
     void integrationSelectionKeepsVersionButNotTargetsPayloadsOrInvocationContent() {
         var result = filter.filter("api-center", mapper.createObjectNode().put("endpointId", 11).put("version", 3)
                 .put("relativePath", "/fixture").put("upstreamCode", "sandbox").put("requestTemplate", "private")

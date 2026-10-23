@@ -4,6 +4,7 @@ const dictionary = {
   totalTypes: 'Dictionary types', activeTypes: 'Active types', totalItems: 'Items', activeItems: 'Active items',
   typeList: 'Dictionary types', itemList: 'Dictionary items', addType: 'New type', addItem: 'New item',
   editType: 'Edit dictionary type', editItem: 'Edit dictionary item', searchType: 'Search code or name',
+  detailTitle: 'Dictionary details',
   searchItem: 'Search value or label', allStatuses: 'All statuses', code: 'Dictionary code', name: 'Dictionary name',
   value: 'Item value', label: 'Display label', descriptionField: 'Description', sortOrder: 'Sort order',
   status: 'Status', usageCount: 'References', updatedAt: 'Updated', actions: 'Actions', active: 'Active', disabled: 'Disabled',

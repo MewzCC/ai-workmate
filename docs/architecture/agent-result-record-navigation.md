@@ -14,19 +14,22 @@
 | expense.createDraft/updateDraft/submitDraft/withdraw/reopen/cancelDraft/remind | 成功回执的 applicationId | 本人费用报销详情 |
 | contract.createDraft/updateDraft/updateStatus/updateFulfillment/recordPayment/remind | 成功回执的 contractId | 合同受保护详情 |
 | integration.endpoint.createDraft/updateDraft/updateStatus | 成功回执的 endpointId | 接口联调中心受保护详情 |
+| dictionary.type.create/update/updateStatus | 成功回执的 dictionaryTypeId | 字典类型受保护详情 |
+| dictionary.item.create/update/updateStatus | 成功回执的 dictionaryItemId | 字典项与真实父级受保护详情 |
 
 预算详情的上下文、版本与失败边界见[预算页面对接](agent-budget-page-context.md)。
 供应商的选择、版本与联系信息边界见[供应商页面对接](agent-supplier-page-context.md)。
 费用申请的本人/表单核验与部分保存失败边界见[费用页面对接](agent-expense-page-context.md)。
 合同的选择、版本及写后刷新边界见[合同页面对接](agent-contract-page-context.md)。
 接口端点的选择、版本及人工执行边界见[接口页面对接](agent-integration-page-context.md)。
+字典父子身份、独立版本和字典项维护标志见[字典页面对接](agent-dictionary-page-context.md)。
 
 列表查询不会默认取第一行作为选中记录。其他模块保留现有模块导航，本节点不宣称它们已完成单资源定位。
 不修改工具 Schema、数据库、服务端执行或写工具开关。
 
 ## 安全边界
 
-`AgentPageNavigator` 只传页面 ID 和可选数字记录 ID，不接受模型输出的 URL、路径、查询字符串或任意 UI 动作。
+`AgentPageNavigator` 只传页面 ID、可选数字记录 ID 和代码确定的可选字典父子类型，不接受模型输出的 URL、路径、查询字符串或任意 UI 动作。
 只有明确支持的工具读取约定的结果字段，ID 必须为正安全整数，不强制转换字符串或不安全 Long。
 数据来自已成功的终态结果，不从候选计划参数、摘要正文或第一行列表推断。
 

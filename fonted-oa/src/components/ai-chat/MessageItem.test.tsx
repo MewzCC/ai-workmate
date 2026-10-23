@@ -44,6 +44,18 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('verified business result navigation', () => {
+  it.each(['type', 'item'])('opens the actual dictionary %s receipt through the shared verified task path', async (kind) => {
+    auth.permissions = ['route:dictionary'];
+    const task = detail(); task.steps[0] = { ...task.steps[0], toolCode: `dictionary.${kind}.update`, riskLevel: 'L1',
+      arguments: { dictionaryTypeId: 999 }, result: { dictionaryTypeId: 11, dictionaryItemId: 21, url: 'https://invalid.example' } };
+    api.detail.mockResolvedValue(task);
+    api.navigation.mockResolvedValue([{ routeKey: 'dictionary', name: '字典', routeType: 'PAGE',
+      path: '/oa/dictionary', componentKey: 'DICTIONARY', sortOrder: 1, children: [] }]);
+    render(view({ ...reply, sourceToolCode: `dictionary.${kind}.update` }));
+    fireEvent.click(screen.getByRole('button', { name: '前往对应业务页面' }));
+    await waitFor(() => expect(screen.getByLabelText('location').textContent)
+      .toBe(kind === 'type' ? '/oa/dictionary?typeId=11' : '/oa/dictionary?itemId=21'));
+  });
   it('rechecks the task and live navigation before locating the actual returned record', async () => {
     render(view());
     fireEvent.click(screen.getByRole('button', { name: '前往对应业务页面' }));
