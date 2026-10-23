@@ -294,6 +294,7 @@ export default {
     },
     form: {
       title: 'Form Management',
+      detailTitle: 'Form Definition Details',
       description: 'Manage approval form definitions: drag and drop fields in the Form Builder, and publish to make them available when starting requests.',
       columnKey: 'Form Key',
       columnName: 'Form Name',

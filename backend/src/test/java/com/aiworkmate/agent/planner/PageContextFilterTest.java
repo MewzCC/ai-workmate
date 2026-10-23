@@ -11,6 +11,14 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class PageContextFilterTest {
     @Test
+    void formSelectionDoesNotExposeSchemaOrDesignerDrafts() {
+        assertThat(filter.filter("form-engine", mapper.createObjectNode().put("formId", 11).put("version", 7)
+                .put("page", 1).put("size", 20).put("keyword", "fixture").put("status", "DISABLED")
+                .put("schemaJson", "private").put("description", "private").put("formName", "private").put("tenantId", 999)))
+                .isEqualTo(mapper.createObjectNode().put("formId", 11).put("version", 7).put("page", 1)
+                        .put("size", 20).put("keyword", "fixture").put("status", "DISABLED"));
+    }
+    @Test
     void processSelectionDoesNotExposeNodesFormsOrDraftContent() {
         assertThat(filter.filter("process-config", mapper.createObjectNode().put("processId", 11).put("version", 3)
                 .put("page", 1).put("size", 20).put("keyword", "fixture").put("status", "DISABLED")

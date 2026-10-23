@@ -175,6 +175,7 @@ export interface ApprovalApplication {
 
 export const approvalEngineApi = {
   // ---------- 表单定义 ----------
+  getForm: (id: number) => request<ApprovalForm>(`/approval-config/forms/${id}`),
   listForms: (params: {
     keyword?: string;
     status?: ApprovalConfigStatus;

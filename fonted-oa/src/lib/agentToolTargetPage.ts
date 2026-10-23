@@ -115,6 +115,8 @@ const DICTIONARY_RECORD_KINDS: ReadonlyMap<string, AgentRecordKind> = new Map(
     .map((operation): [string, AgentRecordKind] => [`dictionary.${kind}.${operation}`, `dictionary-${kind}`])),
 );
 const RECORD_ID_FIELDS: ReadonlyMap<string, string> = new Map([
+  ...['approval.form.createDraft', 'approval.form.updateDraft', 'approval.form.publishDraft']
+    .map((code): [string, string] => [code, 'formId']),
   ...['approval.process.createDraft', 'approval.process.updateDraft', 'approval.process.publishDraft']
     .map((code): [string, string] => [code, 'processId']),
   ...[...DICTIONARY_RECORD_KINDS].map(([code, kind]): [string, string] =>
@@ -159,6 +161,7 @@ export function resolveAgentToolTargetPath(pageId: string, recordId: number | un
     if (pageId === 'contracts') return `/oa/contracts?id=${recordId}`;
     if (pageId === 'api-center') return `/oa/api-center?id=${recordId}`;
     if (pageId === 'process-config') return `/oa/process-config?id=${recordId}`;
+    if (pageId === 'form-engine') return `/oa/form-engine?id=${recordId}`;
     return null;
   }
   const path = target.path || `/oa/${target.id}`;

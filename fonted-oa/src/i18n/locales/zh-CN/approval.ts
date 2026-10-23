@@ -294,6 +294,7 @@ export default {
     },
     form: {
       title: '表单管理',
+      detailTitle: '表单定义详情',
       description: '维护审批表单定义：通过表单设计器拖拽配置字段结构，发布后可用于发起审批。',
       columnKey: '表单标识',
       columnName: '表单名称',

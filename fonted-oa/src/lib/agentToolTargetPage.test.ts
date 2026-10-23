@@ -20,6 +20,15 @@ function backendOaPages(): Set<string> {
 }
 
 describe('Agent tool business navigation', () => {
+  it('locates form write receipts without trusting model arguments or a query first row', () => {
+    for (const code of ['approval.form.createDraft', 'approval.form.updateDraft', 'approval.form.publishDraft']) {
+      expect(agentToolTargetRecordId(code, { formId: 11 })).toBe(11);
+    }
+    expect(agentToolTargetRecordId('approval.configuration.query', { items: [{ id: 11 }] })).toBeUndefined();
+    expect(resolveAgentToolTargetPath('form-engine', 11, [{ id: 'form-engine', name: '表单', type: 'page', visible: true, sort: 1 }]))
+      .toBe('/oa/form-engine?id=11');
+    expect(resolveAgentToolTargetPath('form-engine', 11, [])).toBeNull();
+  });
   it('locates process write receipts rather than configuration query rows', () => {
     for (const code of ['approval.process.createDraft', 'approval.process.updateDraft', 'approval.process.publishDraft']) {
       expect(agentToolTargetRecordId(code, { processId: 11 })).toBe(11);

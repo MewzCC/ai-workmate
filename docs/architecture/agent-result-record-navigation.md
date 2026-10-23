@@ -17,6 +17,7 @@
 | dictionary.type.create/update/updateStatus | 成功回执的 dictionaryTypeId | 字典类型受保护详情 |
 | dictionary.item.create/update/updateStatus | 成功回执的 dictionaryItemId | 字典项与真实父级受保护详情 |
 | approval.process.createDraft/updateDraft/publishDraft | 成功回执的 processId | 流程配置受保护详情 |
+| approval.form.createDraft/updateDraft/publishDraft | 成功回执的 formId | 表单管理受保护详情 |
 
 预算详情的上下文、版本与失败边界见[预算页面对接](agent-budget-page-context.md)。
 供应商的选择、版本与联系信息边界见[供应商页面对接](agent-supplier-page-context.md)。
@@ -25,6 +26,7 @@
 接口端点的选择、版本及人工执行边界见[接口页面对接](agent-integration-page-context.md)。
 字典父子身份、独立版本和字典项维护标志见[字典页面对接](agent-dictionary-page-context.md)。
 流程详情、设计器版本和关联名称隔离见[流程页面对接](agent-process-page-context.md)。
+表单管理、设计器字段标识及共享定义页生命周期见[表单页面对接](agent-form-page-context.md)。
 
 列表查询不会默认取第一行作为选中记录。其他模块保留现有模块导航，本节点不宣称它们已完成单资源定位。
 不修改工具 Schema、数据库、服务端执行或写工具开关。
