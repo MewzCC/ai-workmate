@@ -3,6 +3,7 @@ package com.aiworkmate.service;
 import com.aiworkmate.dto.DictionaryItemPageResponse;
 import com.aiworkmate.dto.DictionaryItemRequest;
 import com.aiworkmate.dto.DictionaryItemResponse;
+import com.aiworkmate.dto.DictionaryItemDetailResponse;
 import com.aiworkmate.dto.DictionaryOptionResponse;
 import com.aiworkmate.dto.DictionaryStatusRequest;
 import com.aiworkmate.dto.DictionaryTypeListResponse;
@@ -16,6 +17,8 @@ import java.util.List;
 
 public interface DataDictionaryService {
     DictionaryTypeListResponse listTypes(Long userId, String keyword, String status);
+    DictionaryTypeResponse typeDetail(Long userId, Long id);
+    DictionaryItemDetailResponse itemDetail(Long userId, Long itemId);
     DictionaryTypeResponse createType(Long userId, DictionaryTypeRequest request);
     DictionaryTypeResponse createTypeAgent(Long userId, DictionaryTypeRequest request);
     DictionaryTypeResponse updateTypeAgent(Long userId, String code, DictionaryTypeAgentUpdateRequest request);

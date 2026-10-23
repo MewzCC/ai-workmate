@@ -7,6 +7,7 @@ import com.aiworkmate.dto.DictionaryItemRequest;
 import com.aiworkmate.dto.DictionaryItemAgentCreateRequest;
 import com.aiworkmate.dto.DictionaryItemAgentUpdateRequest;
 import com.aiworkmate.dto.DictionaryItemResponse;
+import com.aiworkmate.dto.DictionaryItemDetailResponse;
 import com.aiworkmate.dto.DictionaryOptionResponse;
 import com.aiworkmate.dto.DictionaryStatusRequest;
 import com.aiworkmate.dto.DictionaryTypeListResponse;
@@ -65,6 +66,29 @@ public class DataDictionaryServiceImpl implements DataDictionaryService {
                 .orderByAsc(DataDictionaryType::getCode));
         boolean canManage = canManage(actor);
         return new DictionaryTypeListResponse(types.stream().map(type -> typeResponse(actor, type, canManage)).toList(), canManage);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public DictionaryTypeResponse typeDetail(Long userId, Long id) {
+        ResolvedUserAccess actor = requireRead(userId);
+        if (id == null || id <= 0) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        return typeResponse(actor, requireType(actor, id), canManage(actor));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public DictionaryItemDetailResponse itemDetail(Long userId, Long itemId) {
+        ResolvedUserAccess actor = requireRead(userId);
+        if (itemId == null || itemId <= 0) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        DataDictionaryItem item = itemMapper.selectOne(new LambdaQueryWrapper<DataDictionaryItem>()
+                .eq(DataDictionaryItem::getTenantId, actor.tenantId())
+                .eq(DataDictionaryItem::getDeleted, false)
+                .eq(DataDictionaryItem::getId, itemId));
+        if (item == null) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        DataDictionaryType type = requireType(actor, item.getDictionaryTypeId());
+        boolean manage = canManage(actor);
+        return new DictionaryItemDetailResponse(typeResponse(actor, type, manage), itemResponse(actor, item, manage));
     }
 
     @Override

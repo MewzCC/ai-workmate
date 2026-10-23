@@ -26,8 +26,10 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -39,6 +41,72 @@ class DataDictionaryServiceImplTest {
     @Mock private UserAccessService userAccessService;
     @Mock private BusinessAuditService auditService;
     @InjectMocks private DataDictionaryServiceImpl service;
+
+    @Test
+    void readonlyTypeDetailKeepsActualVersionWithoutGrantingManagement() {
+        when(userAccessService.resolveActiveUser(1001L)).thenReturn(access(List.of("route:dictionary")));
+        when(typeMapper.selectOne(any())).thenReturn(dictionaryType("FIXTURE", "类型", null, 0, 3));
+        when(itemMapper.selectCount(any())).thenReturn(2L, 1L);
+        var result = service.typeDetail(1001L, 81L);
+        assertThat(result.id()).isEqualTo(81L); assertThat(result.version()).isEqualTo(3);
+        assertThat(result.itemCount()).isEqualTo(2); assertThat(result.activeItemCount()).isOne();
+        assertThat(result.canManage()).isFalse(); verifyNoInteractions(auditService);
+    }
+
+    @Test
+    void itemDetailReturnsItsActualParentAndIndependentVersionsWithReadonlyFlags() {
+        when(userAccessService.resolveActiveUser(1001L)).thenReturn(access(List.of("route:dictionary")));
+        when(itemMapper.selectOne(any())).thenReturn(dictionaryItem("FIRST", "第一项", null, 0, 4));
+        when(typeMapper.selectOne(any())).thenReturn(dictionaryType("FIXTURE", "类型", null, 0, 3));
+        when(itemMapper.selectCount(any())).thenReturn(1L); when(usageMapper.selectCount(any())).thenReturn(2L);
+        var result = service.itemDetail(1001L, 101L);
+        assertThat(result.dictionaryType().id()).isEqualTo(81L);
+        assertThat(result.dictionaryType().version()).isEqualTo(3);
+        assertThat(result.item().id()).isEqualTo(101L); assertThat(result.item().version()).isEqualTo(4);
+        assertThat(result.item().dictionaryTypeId()).isEqualTo(81L);
+        assertThat(result.item().usageCount()).isEqualTo(2L);
+        assertThat(result.item().canManage()).isFalse(); assertThat(result.item().canDelete()).isFalse();
+        verifyNoInteractions(auditService);
+    }
+
+    @Test
+    void detailsRejectRevokedReadPermissionBeforeTouchingRecords() {
+        when(userAccessService.resolveActiveUser(1001L)).thenReturn(access(List.of("dictionary:manage")));
+        assertThatThrownBy(() -> service.typeDetail(1001L, 81L)).isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("PERMISSION_DENIED");
+        assertThatThrownBy(() -> service.itemDetail(1001L, 101L)).isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("PERMISSION_DENIED");
+        verifyNoInteractions(typeMapper, itemMapper, usageMapper, auditService);
+    }
+
+    @Test
+    void detailsRejectInvalidIdsWithoutReadingRecords() {
+        when(userAccessService.resolveActiveUser(1001L)).thenReturn(access(List.of("route:dictionary")));
+        for (Long id : new Long[] {null, 0L, -1L}) {
+            assertThatThrownBy(() -> service.typeDetail(1001L, id)).isInstanceOf(BusinessException.class)
+                    .extracting("errorCode").isEqualTo("REQUEST_INVALID");
+            assertThatThrownBy(() -> service.itemDetail(1001L, id)).isInstanceOf(BusinessException.class)
+                    .extracting("errorCode").isEqualTo("REQUEST_INVALID");
+        }
+        verifyNoInteractions(typeMapper, itemMapper, usageMapper, auditService);
+    }
+
+    @Test
+    void missingScopedItemNeverReadsAnotherParentOrFallsBackToAnUnscopedLookup() {
+        when(userAccessService.resolveActiveUser(1001L)).thenReturn(access(List.of("route:dictionary")));
+        assertThatThrownBy(() -> service.itemDetail(1001L, 101L)).isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("RESOURCE_NOT_FOUND");
+        verify(itemMapper, never()).selectById(anyLong()); verifyNoInteractions(typeMapper, usageMapper, auditService);
+    }
+
+    @Test
+    void missingScopedParentRejectsTheWholeItemDetail() {
+        when(userAccessService.resolveActiveUser(1001L)).thenReturn(access(List.of("route:dictionary")));
+        when(itemMapper.selectOne(any())).thenReturn(dictionaryItem("FIRST", "第一项", null, 0, 4));
+        assertThatThrownBy(() -> service.itemDetail(1001L, 101L)).isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("RESOURCE_NOT_FOUND");
+        verify(typeMapper, never()).selectById(anyLong()); verifyNoInteractions(usageMapper, auditService);
+    }
 
     @Test
     void shouldRequireDictionaryManagePermissionForMutation() {
