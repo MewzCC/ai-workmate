@@ -89,6 +89,15 @@ describe('Agent tool business navigation', () => {
       .toBe('/oa/contracts?id=11');
     expect(resolveAgentToolTargetPath('contracts', 11, [])).toBeNull();
   });
+  it('locates only actual integration metadata write receipts', () => {
+    for (const code of ['integration.endpoint.createDraft', 'integration.endpoint.updateDraft', 'integration.endpoint.updateStatus']) {
+      expect(agentToolTargetRecordId(code, { endpointId: 11 })).toBe(11);
+    }
+    expect(agentToolTargetRecordId('integration.endpoint.query', { items: [{ id: 11 }] })).toBeUndefined();
+    expect(resolveAgentToolTargetPath('api-center', 11, [{ id: 'api-center', name: 'API', type: 'page', visible: true, sort: 1 }]))
+      .toBe('/oa/api-center?id=11');
+    expect(resolveAgentToolTargetPath('api-center', 11, [])).toBeNull();
+  });
   it('rejects malformed IDs without coercing strings, arrays or unsafe numbers', () => {
     for (const id of [0, -1, 1.2, Number.MAX_SAFE_INTEGER + 1, Infinity, NaN, '23', 'https://invalid.example', null, {}]) {
       expect(agentToolTargetRecordId('hr.employee.query', { id })).toBeUndefined();

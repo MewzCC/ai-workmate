@@ -108,6 +108,8 @@ export function agentToolTargetPage(toolCode?: string | null): string {
 }
 
 const RECORD_ID_FIELDS: ReadonlyMap<string, string> = new Map([
+  ...['integration.endpoint.createDraft', 'integration.endpoint.updateDraft', 'integration.endpoint.updateStatus']
+    .map((code): [string, string] => [code, 'endpointId']),
   ['hr.employee.query', 'id'],
   ...['asset.create', 'asset.update', 'asset.claim', 'asset.return', 'asset.transfer',
     'asset.repair.start', 'asset.repair.complete', 'asset.inventory', 'asset.scrap'].map((code): [string, string] => [code, 'assetId']),
@@ -142,6 +144,7 @@ export function resolveAgentToolTargetPath(pageId: string, recordId: number | un
     if (pageId === 'suppliers') return `/oa/suppliers?id=${recordId}`;
     if (pageId === 'expense') return `/oa/expense?id=${recordId}`;
     if (pageId === 'contracts') return `/oa/contracts?id=${recordId}`;
+    if (pageId === 'api-center') return `/oa/api-center?id=${recordId}`;
     return null;
   }
   const path = target.path || `/oa/${target.id}`;

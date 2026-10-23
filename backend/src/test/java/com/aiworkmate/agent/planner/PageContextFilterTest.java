@@ -15,6 +15,14 @@ class PageContextFilterTest {
             mapper, new AgentRuntimeProperties(), new PageCapabilityCatalog());
 
     @Test
+    void integrationSelectionKeepsVersionButNotTargetsPayloadsOrInvocationContent() {
+        var result = filter.filter("api-center", mapper.createObjectNode().put("endpointId", 11).put("version", 3)
+                .put("relativePath", "/fixture").put("upstreamCode", "sandbox").put("requestTemplate", "private")
+                .put("responsePreview", "private").put("tenantId", 999));
+        assertThat(result).isEqualTo(mapper.createObjectNode().put("endpointId", 11).put("version", 3));
+    }
+
+    @Test
     void contractContextRetainsSelectedVersionButNotCommercialOrIdentityFields() {
         var result = filter.filter("contracts", mapper.createObjectNode().put("contractId", 11).put("version", 3)
                 .put("contractType", "SERVICE").put("ownerUserId", 7).put("amount", 1000)
