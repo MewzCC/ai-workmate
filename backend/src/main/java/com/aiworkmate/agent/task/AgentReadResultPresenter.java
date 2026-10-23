@@ -20,6 +20,7 @@ public final class AgentReadResultPresenter {
     private AgentReadResultPresenter() { }
 
     public static String present(String toolCode, JsonNode result) {
+        if ("approval.form.definition.query".equals(toolCode)) return formDefinition(result);
         if ("todo.query".equals(toolCode)) return todo(result);
         if ("dashboard.overview.query".equals(toolCode)) return dashboard(result);
         if ("observability.overview.query".equals(toolCode)) return observability(result);
@@ -52,6 +53,29 @@ public final class AgentReadResultPresenter {
             String description = describe(result);
             if (!description.isBlank()) answer.append('\n').append(description);
         }
+        return answer.substring(0, Math.min(MAX_LENGTH, answer.length()));
+    }
+
+    private static String formDefinition(JsonNode result) {
+        if (result == null || result.path("formId").asLong() < 1 || !result.path("fields").isArray()) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        JsonNode fields = result.path("fields");
+        StringBuilder answer = new StringBuilder(MessageUtils.resolve("agent.formDefinition.header",
+                result.path("formId").asLong(), plain(result.path("formName").asText()),
+                plain(result.path("formKey").asText()), result.path("version").asInt(), fields.size()));
+        int shown = 0;
+        for (JsonNode field : fields) {
+            String line = MessageUtils.resolve("agent.formDefinition.field", plain(field.path("label").asText()),
+                    plain(field.path("name").asText()), plain(field.path("type").asText()),
+                    MessageUtils.resolve(field.path("required").asBoolean()
+                            ? "agent.formDefinition.required" : "agent.formDefinition.optional"));
+            if (field.path("min").isNumber()) line += MessageUtils.resolve("agent.formDefinition.minimum",
+                    field.path("min").decimalValue().stripTrailingZeros().toPlainString());
+            if (shown >= MAX_ITEMS || answer.length() + line.length() > 900) break;
+            answer.append('\n').append(line); shown++;
+        }
+        if (shown < fields.size()) answer.append('\n').append(MessageUtils.resolve("agent.result.more", fields.size() - shown));
         return answer.substring(0, Math.min(MAX_LENGTH, answer.length()));
     }
 

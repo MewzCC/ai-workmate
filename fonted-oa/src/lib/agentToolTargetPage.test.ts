@@ -20,6 +20,10 @@ function backendOaPages(): Set<string> {
 }
 
 describe('Agent tool business navigation', () => {
+  it('locates a typed form definition read result on its protected form page', () => {
+    expect(agentToolTargetPage('approval.form.definition.query')).toBe('form-engine');
+    expect(agentToolTargetRecordId('approval.form.definition.query', { formId: 11, fields: [] })).toBe(11);
+  });
   it('locates form write receipts without trusting model arguments or a query first row', () => {
     for (const code of ['approval.form.createDraft', 'approval.form.updateDraft', 'approval.form.publishDraft']) {
       expect(agentToolTargetRecordId(code, { formId: 11 })).toBe(11);

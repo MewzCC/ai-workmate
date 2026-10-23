@@ -46,6 +46,7 @@ const aiPermission = {
     leave_updateDraft: { name: 'Update my leave draft', description: 'Updates one owned leave draft at its expected version without submitting it.' },
     leave_remind: { name: 'Remind my leave approver', description: 'Sends a rate-limited reminder for one owned pending leave application.' },
     approval_configuration_query: { name: 'Query approval configuration', description: 'Reads only accessible form, workflow, and rule summaries for the current tenant.' },
+    approval_form_definition_query: { name: 'Read form field definitions', description: 'Reads the authorized fields and version of one tenant form, never application values or raw schema.' },
     approval_form_createDraft: { name: 'Create approval form draft', description: 'Creates one unpublished approval form definition after explicit confirmation.' },
     approval_form_updateDraft: { name: 'Update approval form draft', description: 'Updates one unpublished approval form definition after explicit confirmation and version validation.' },
     approval_form_publishDraft: { name: 'Publish approval form draft', description: 'Publishes one validated approval form draft after secondary confirmation and version validation.' },

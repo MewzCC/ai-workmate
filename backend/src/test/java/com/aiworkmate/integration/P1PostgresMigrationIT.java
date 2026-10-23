@@ -67,6 +67,7 @@ class P1PostgresMigrationIT {
         assertP1Schema(emptySchema);
         assertMeetingRoomToolRegistration(emptySchema);
         assertChatAgentResultSchema(emptySchema);
+        ApprovalFormDefinitionPostgresVerifier.verify(databaseUrl, databaseUsername, databasePassword, emptySchema);
         GatewayPageAccessPostgresVerifier.verify(databaseUrl, databaseUsername, databasePassword, emptySchema);
         MeetingBookingPostgresVerifier.verify(databaseUrl, databaseUsername, databasePassword, emptySchema);
         AttendanceReissuePostgresVerifier.verify(databaseUrl, databaseUsername, databasePassword, emptySchema);
@@ -132,6 +133,7 @@ class P1PostgresMigrationIT {
         assertP1Schema(upgradeSchema);
         assertMeetingRoomToolRegistration(upgradeSchema);
         assertChatAgentResultSchema(upgradeSchema);
+        ApprovalFormDefinitionPostgresVerifier.verify(databaseUrl, databaseUsername, databasePassword, upgradeSchema);
         assertThat(queryCount(upgradeSchema, """
                 SELECT COUNT(*) FROM meeting_room
                 WHERE code='MR-LEGACY-VERSION' AND version=0 AND name='Legacy room'

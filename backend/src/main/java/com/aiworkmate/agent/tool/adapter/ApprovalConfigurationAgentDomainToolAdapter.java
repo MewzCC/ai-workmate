@@ -17,6 +17,14 @@ public final class ApprovalConfigurationAgentDomainToolAdapter implements Approv
     private final ApprovalEngineService approvalEngineService;
 
     @Override
+    public FormDefinition readFormDefinition(ToolActorContext context, long formId) {
+        var result = approvalEngineService.readFormDefinitionAgent(context.userId(), context.tenantId(), formId);
+        return new FormDefinition(result.formId(), result.formKey(), result.formName(), result.status(), result.version(),
+                result.fields().stream().map(field -> new FormDefinitionField(field.name(), field.label(), field.type(),
+                        field.required(), field.placeholder(), field.options(), field.width(), field.min())).toList());
+    }
+
+    @Override
     public Page query(ToolActorContext context, Query query) {
         return switch (query.resource()) {
             case FORM -> {

@@ -167,6 +167,24 @@ public class AgentReadToolDefinitions {
     }
 
     @Bean
+    ToolDefinition approvalFormDefinitionQueryToolDefinition(ObjectMapper mapper) throws JsonProcessingException {
+        var output = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.readTree("""
+                {"type":"object","additionalProperties":false,"required":["formId","formKey","formName","status","version","fields"],"properties":{"formId":{"type":"integer","minimum":1},"formKey":{"type":"string","maxLength":64},"formName":{"type":"string","maxLength":120},"status":{"type":"string","enum":["ENABLED","DISABLED"]},"version":{"type":"integer","minimum":0}}}
+                """);
+        // Reuse the frozen semantic field contract, not raw schema JSON or executable extensions.
+        ((com.fasterxml.jackson.databind.node.ObjectNode) output.get("properties")).set("fields",
+                mapper.readTree(AgentApprovalConfigurationWriteToolDefinitions.CREATE_FORM_DRAFT_INPUT)
+                        .path("properties").path("fields").deepCopy());
+        ((com.fasterxml.jackson.databind.node.ObjectNode) output.at("/properties/fields/items/properties"))
+                .set("min", mapper.readTree("{\"type\":\"number\",\"minimum\":-1000000000000000,\"maximum\":1000000000000000}"));
+        return ToolDefinitionFactory.read(ToolCode.APPROVAL_FORM_DEFINITION_QUERY, "Read an approval form definition",
+                "Returns one authorized tenant form definition as bounded semantic fields and its current version.",
+                "Read one form definition only; never raw schema JSON, application values, scripts, URLs or another tenant's form.",
+                mapper.readTree(ClosedToolSchemas.positiveIdInput("formId")), output, Set.of("approval:read"),
+                OwnershipPolicy.FIXED_RESOURCE, 20, 65536, 15000);
+    }
+
+    @Bean
     ToolDefinition approvalTaskQueryToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {
         return ToolDefinitionFactory.read(
                 ToolCode.APPROVAL_TASK_QUERY, "Query tenant approval tasks",

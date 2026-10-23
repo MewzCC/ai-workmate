@@ -6,6 +6,7 @@ import java.util.List;
 /** Tenant-scoped read boundary for approval forms, processes and rules. */
 public interface ApprovalConfigurationToolPort {
     Page query(ToolActorContext context, Query query);
+    FormDefinition readFormDefinition(ToolActorContext context, long formId);
     FormDraftResult createFormDraft(ToolActorContext context, FormDraft command);
     FormDraftResult updateFormDraft(ToolActorContext context, FormDraftUpdate command);
     FormDraftResult publishFormDraft(ToolActorContext context, VersionedForm command);
@@ -40,6 +41,15 @@ public interface ApprovalConfigurationToolPort {
     record FormField(String name, String label, String type, boolean required,
                      String placeholder, List<String> options, String width) {
         public FormField { options = List.copyOf(options); }
+    }
+
+    record FormDefinition(long formId, String formKey, String formName, String status, int version,
+                          List<FormDefinitionField> fields) {
+        public FormDefinition { fields = List.copyOf(fields); }
+    }
+    record FormDefinitionField(String name, String label, String type, boolean required,
+                               String placeholder, List<String> options, String width, java.math.BigDecimal min) {
+        public FormDefinitionField { options = List.copyOf(options); }
     }
 
     record FormDraftResult(long formId, String formKey, String status, int version,

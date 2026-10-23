@@ -13,6 +13,40 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class AgentReadResultPresenterTest {
     private final ObjectMapper mapper = new ObjectMapper();
 
+    @Test void formDefinitionShowsActualFieldLabelsAndVersionInsteadOfOnlyAnArrayCount() throws Exception {
+        org.springframework.context.i18n.LocaleContextHolder.setLocale(java.util.Locale.US);
+        try {
+            String answer = AgentReadResultPresenter.present("approval.form.definition.query", mapper.readTree("""
+                    {"formId":11,"formKey":"expense","formName":"Expense","status":"DISABLED","version":3,
+                     "fields":[{"name":"reason","label":"Reason","type":"text","required":true,"options":[],"width":"full"}]}
+                    """));
+            assertThat(answer).contains("Expense", "Version 3", "Reason", "reason", "Required");
+        } finally { org.springframework.context.i18n.LocaleContextHolder.resetLocaleContext(); }
+    }
+
+    @Test void formDefinitionChineseSummaryBoundsFieldsAndTreatsMarkupAsText() throws Exception {
+        org.springframework.context.i18n.LocaleContextHolder.setLocale(java.util.Locale.SIMPLIFIED_CHINESE);
+        try {
+            var result = mapper.readTree("{\"formId\":11,\"formKey\":\"fixture\",\"formName\":\"<b>测试</b>\",\"version\":3,\"fields\":[]}");
+            for (int i = 0; i < 20; i++) ((com.fasterxml.jackson.databind.node.ArrayNode) result.path("fields"))
+                    .add(mapper.createObjectNode().put("name", "field" + i).put("label", "字段名称".repeat(10)).put("type", "text").put("required", true));
+            String answer = AgentReadResultPresenter.present("approval.form.definition.query", result);
+            assertThat(answer).contains("表单 #11", "版本 3", "20 个字段", "必填").doesNotContain("<b>", "</b>");
+            assertThat(answer.length()).isLessThanOrEqualTo(1000);
+            assertThat(answer).doesNotContain("field19");
+        } finally { org.springframework.context.i18n.LocaleContextHolder.resetLocaleContext(); }
+    }
+    @Test void formDefinitionReportsTheActualNumericMinimum() throws Exception {
+        org.springframework.context.i18n.LocaleContextHolder.setLocale(java.util.Locale.US);
+        try {
+            String answer = AgentReadResultPresenter.present("approval.form.definition.query", mapper.readTree("""
+                    {"formId":11,"formKey":"expense","formName":"Expense","version":3,
+                     "fields":[{"name":"amount","label":"Amount","type":"number","required":true,"min":0.01}]}
+                    """));
+            assertThat(answer).contains("Minimum 0.01");
+        } finally { org.springframework.context.i18n.LocaleContextHolder.resetLocaleContext(); }
+    }
+
     @Test void employeeResultShowsActualOrganizationAttendanceAndHistoryWithoutContacts() throws Exception {
         org.springframework.context.i18n.LocaleContextHolder.setLocale(java.util.Locale.US);
         try {

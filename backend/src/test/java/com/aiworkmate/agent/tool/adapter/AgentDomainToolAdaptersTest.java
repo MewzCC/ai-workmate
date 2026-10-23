@@ -86,6 +86,19 @@ class AgentDomainToolAdaptersTest {
     }
 
     @Test
+    void mapsTypedFormFieldsUsingBothTrustedUserAndTenant() {
+        when(approvalEngineService.readFormDefinitionAgent(7L, 91L, 11L)).thenReturn(
+                new com.aiworkmate.dto.ApprovalFormDefinitionResponse(11L, "fixture", "Fixture", "DISABLED", 3,
+                        List.of(new com.aiworkmate.dto.ApprovalFormDefinitionResponse.Field(
+                                "reason", "Reason", "text", true, null, List.of(), "full", null))));
+        var result = approvalConfigurationAdapter.readFormDefinition(context, 11L);
+        assertThat(result.formId()).isEqualTo(11L); assertThat(result.version()).isEqualTo(3);
+        assertThat(result.fields()).containsExactly(new com.aiworkmate.agent.tool.port.ApprovalConfigurationToolPort.FormDefinitionField(
+                "reason", "Reason", "text", true, null, List.of(), "full", null));
+        verify(approvalEngineService).readFormDefinitionAgent(7L, 91L, 11L);
+    }
+
+    @Test
     void forwardsTrustedTodoQueryAndMapsOnlyPortFields() {
         LocalDateTime now = LocalDateTime.of(2026, 9, 12, 9, 0);
         when(leaveWorkflowService.todos(7L, "PENDING", now, now.plusDays(1), 2, 30))

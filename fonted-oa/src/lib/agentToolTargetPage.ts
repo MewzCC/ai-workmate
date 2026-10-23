@@ -39,6 +39,7 @@ const EXACT_TARGETS: Record<string, string> = {
   'userPermission.mine.query': 'dashboard',
   'approval.configuration.query': 'process-config',
   'approval.form.createDraft': 'form-engine',
+  'approval.form.definition.query': 'form-engine',
   'approval.form.updateDraft': 'form-engine',
   'approval.form.publishDraft': 'form-engine',
   'approval.process.createDraft': 'process-config',
@@ -115,7 +116,7 @@ const DICTIONARY_RECORD_KINDS: ReadonlyMap<string, AgentRecordKind> = new Map(
     .map((operation): [string, AgentRecordKind] => [`dictionary.${kind}.${operation}`, `dictionary-${kind}`])),
 );
 const RECORD_ID_FIELDS: ReadonlyMap<string, string> = new Map([
-  ...['approval.form.createDraft', 'approval.form.updateDraft', 'approval.form.publishDraft']
+  ...['approval.form.definition.query', 'approval.form.createDraft', 'approval.form.updateDraft', 'approval.form.publishDraft']
     .map((code): [string, string] => [code, 'formId']),
   ...['approval.process.createDraft', 'approval.process.updateDraft', 'approval.process.publishDraft']
     .map((code): [string, string] => [code, 'processId']),

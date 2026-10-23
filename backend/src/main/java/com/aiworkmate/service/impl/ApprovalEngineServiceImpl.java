@@ -7,6 +7,7 @@ import com.aiworkmate.dto.ApprovalFormRequest;
 import com.aiworkmate.dto.ApprovalFormAgentDraftRequest;
 import com.aiworkmate.dto.ApprovalFormAgentDraftUpdateRequest;
 import com.aiworkmate.dto.ApprovalFormResponse;
+import com.aiworkmate.dto.ApprovalFormDefinitionResponse;
 import com.aiworkmate.dto.ApprovalProcessRequest;
 import com.aiworkmate.dto.ApprovalProcessAgentDraftRequest;
 import com.aiworkmate.dto.ApprovalProcessAgentDraftUpdateRequest;
@@ -107,6 +108,65 @@ public class ApprovalEngineServiceImpl implements ApprovalEngineService {
         ApprovalForm form = requireForm(actor.tenantId(), id);
         return toFormResponse(form, singleUserName(form.getCreatedBy()),
                 actor.permissions().contains("approval:manage"));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ApprovalFormDefinitionResponse readFormDefinitionAgent(Long userId, Long expectedTenantId, Long id) {
+        ResolvedUserAccess actor = requirePermission(userId, "approval:read");
+        if (!actor.tenantId().equals(expectedTenantId)) throw new BusinessException(ErrorCode.PERMISSION_DENIED);
+        if (id == null || id < 1) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        ApprovalForm form = formMapper.selectOne(new LambdaQueryWrapper<ApprovalForm>()
+                .eq(ApprovalForm::getTenantId, actor.tenantId()).eq(ApprovalForm::getId, id)
+                .eq(ApprovalForm::getDeleted, false));
+        if (form == null) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        String json = form.getSchemaJson();
+        if (json == null || json.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 65536) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.approval.json.invalid");
+        }
+        JsonNode root;
+        try {
+            root = objectMapper.reader()
+                    .with(com.fasterxml.jackson.databind.DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS)
+                    .readTree(json);
+            if (root == null || !root.isObject() || root.size() != 1 || !root.path("fields").isArray()
+                    || root.path("fields").size() > 20) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+            Set<String> allowed = Set.of("name", "key", "label", "type", "required", "placeholder", "options", "width", "min");
+            for (JsonNode field : root.path("fields")) {
+                if (!field.isObject()) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+                var names = field.fieldNames();
+                while (names.hasNext()) {
+                    if (!allowed.contains(names.next())) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+                }
+                var normalized = (com.fasterxml.jackson.databind.node.ObjectNode) field;
+                if (field.has("key")) {
+                    if (field.has("name") && !field.get("name").equals(field.get("key"))) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+                    if (!field.has("name")) normalized.set("name", field.get("key"));
+                    normalized.remove("key");
+                }
+                if (!field.has("required")) normalized.put("required", false);
+                if (!field.has("options")) normalized.putArray("options");
+                if (!field.has("width")) normalized.put("width", "full");
+                if (field.has("min") && (!field.get("min").isNumber()
+                        || field.get("min").decimalValue().abs().compareTo(new java.math.BigDecimal("1000000000000000")) > 0
+                        || !Set.of("number", "money").contains(field.path("type").asText()))) {
+                    throw new BusinessException(ErrorCode.REQUEST_INVALID);
+                }
+            }
+        } catch (JsonProcessingException exception) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.approval.json.invalid");
+        }
+        List<AgentFormField> fields = requirePublishableFormSchema(root.toString());
+        requireAgentFormDraft(form.getFormKey(), form.getFormName(), null, fields, true);
+        List<ApprovalFormDefinitionResponse.Field> result = new java.util.ArrayList<>(fields.size());
+        for (int index = 0; index < fields.size(); index++) {
+            AgentFormField field = fields.get(index);
+            JsonNode min = root.path("fields").get(index).get("min");
+            result.add(new ApprovalFormDefinitionResponse.Field(field.name(), field.label(), field.type(), field.required(),
+                    field.placeholder(), field.options(), field.width(), min == null ? null : min.decimalValue()));
+        }
+        return new ApprovalFormDefinitionResponse(form.getId(), form.getFormKey(), form.getFormName(),
+                form.getStatus(), form.getVersion(), result);
     }
 
     @Override
@@ -841,7 +901,7 @@ public class ApprovalEngineServiceImpl implements ApprovalEngineService {
     private record AgentFormField(String name, String label, String type, boolean required,
                                   String placeholder, List<String> options, String width) { }
 
-    private void requirePublishableFormSchema(String schemaJson) {
+    private List<AgentFormField> requirePublishableFormSchema(String schemaJson) {
         try {
             JsonNode root = objectMapper.readTree(schemaJson);
             JsonNode fieldsNode = root == null ? null : root.get("fields");
@@ -871,6 +931,7 @@ public class ApprovalEngineServiceImpl implements ApprovalEngineService {
                         List.copyOf(optionValues), textValue(field, "width")));
             }
             requireAgentFormDraft(null, "publish", null, fields, false);
+            return List.copyOf(fields);
         } catch (JsonProcessingException exception) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.approval.json.invalid");
         }

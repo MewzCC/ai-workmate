@@ -74,6 +74,13 @@ it('preserves legacy designer field keys when converting them to canonical persi
   await waitFor(() => expect(api.updateForm).toHaveBeenCalled());
   expect(JSON.parse(api.updateForm.mock.calls[0][1].schemaJson).fields[0]).toMatchObject({ name: 'legacyReason' });
 });
+it('preserves an existing numeric minimum when saving through the designer', async () => {
+  api.getForm.mockResolvedValue({ ...form, schemaJson: '{"fields":[{"name":"amount","label":"金额","type":"number","required":true,"min":0.01}]}' });
+  render(view()); await screen.findByText('表单甲'); fireEvent.click(screen.getAllByRole('button', { name: /编\s*辑/ })[0]);
+  await screen.findByLabelText('表单名称'); fireEvent.click(screen.getByRole('button', { name: /保\s*存/ }));
+  await waitFor(() => expect(api.updateForm).toHaveBeenCalled());
+  expect(JSON.parse(api.updateForm.mock.calls[0][1].schemaJson).fields[0]).toMatchObject({ name: 'amount', min: 0.01 });
+});
 it.each(['0', '-1', '11tail', '9007199254740992'])('does not read an invalid form ID: %s', async id => {
   render(view(`/oa/form-engine?id=${id}`)); await screen.findByText('表单甲');
   expect(api.getForm).not.toHaveBeenCalled(); expect(context()).not.toHaveProperty('formId');

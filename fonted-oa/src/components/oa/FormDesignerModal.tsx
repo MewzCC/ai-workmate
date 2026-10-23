@@ -45,6 +45,7 @@ export type BuilderFieldType =
   | 'table' | 'divider';
 
 export interface BuilderField {
+  min?: number;
   /** 仅设计器内部使用，保存时剔除 */
   id: string;
   type: BuilderFieldType;
@@ -124,6 +125,7 @@ function upperFirst(value: string): string {
 }
 
 interface PersistedField {
+  min?: number;
   name?: string;
   key?: string;
   label?: string;
@@ -146,6 +148,7 @@ function parseSchemaFields(schemaJson: string): BuilderField[] {
           ? (f.type as BuilderFieldType)
           : 'text';
         return {
+          ...(typeof f.min === 'number' && Number.isFinite(f.min) ? { min: f.min } : {}),
           id: newId(name || String(index)),
           type,
           label: f.label || name || upperFirst(type),
