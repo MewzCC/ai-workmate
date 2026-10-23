@@ -8,6 +8,31 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class AgentExpenseWriteToolDefinitionsTest {
     @Test
+    void reminderAcceptsOnlyOneVersionedExpenseAndCannotChooseItsRecipient() throws Exception {
+        var mapper = new ObjectMapper();
+        var definition = new AgentExpenseWriteToolDefinitions().expenseRemindToolDefinition(mapper);
+        assertThat(definition.schemaHash()).isEqualTo("sha256:4a38437ed858eee879c9cadcf868a4f21e3ad0b70b17efa4dff6f1c73d5578d3");
+        var validator = new ToolSchemaValidator();
+        assertThat(definition.code()).isEqualTo("expense.remind");
+        assertThat(definition.requiredPermissions()).containsExactly("approval:remind");
+        assertThat(definition.sideEffect()).isEqualTo(SideEffect.SINGLE_WRITE);
+        assertThat(definition.riskLevel()).isEqualTo(RiskLevel.L1);
+        assertThat(definition.retryPolicy()).isEqualTo(RetryPolicy.NEVER);
+        assertThat(definition.confirmationPolicy()).isEqualTo(ConfirmationPolicy.EXPLICIT);
+        assertThat(definition.ownershipPolicy()).isEqualTo(OwnershipPolicy.SELF);
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree("{\"applicationId\":51,\"version\":2}"))).isTrue();
+        for (String invalid : new String[] {"{}", "{\"applicationId\":51,\"version\":-1}",
+                "{\"applicationId\":51,\"version\":2,\"recipientId\":7}",
+                "{\"applicationId\":51,\"version\":2,\"content\":\"arbitrary message\"}"}) {
+            assertThat(validator.valid(definition.inputSchema(), mapper.readTree(invalid))).isFalse();
+        }
+        assertThat(validator.valid(definition.outputSchema(), mapper.readTree(
+                "{\"applicationId\":51,\"formKey\":\"expense-application\",\"status\":\"PENDING\",\"version\":3}"))).isTrue();
+        assertThat(validator.valid(definition.outputSchema(), mapper.readTree(
+                "{\"applicationId\":51,\"formKey\":\"other\",\"status\":\"PENDING\",\"version\":3}"))).isFalse();
+    }
+
+    @Test
     void cancellationIsOneConfirmedSelfOwnedWriteWithClosedVersionedArguments() throws Exception {
         var mapper = new ObjectMapper();
         var definition = new AgentExpenseWriteToolDefinitions().expenseCancelDraftToolDefinition(mapper);

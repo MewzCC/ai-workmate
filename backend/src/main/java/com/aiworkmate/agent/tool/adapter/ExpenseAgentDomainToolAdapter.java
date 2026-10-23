@@ -70,6 +70,11 @@ public class ExpenseAgentDomainToolAdapter implements ExpenseToolPort {
         return lifecycleResult(expenseApplicationService.cancelAgentDraft(context.userId(), applicationId, version));
     }
 
+    @Override public ExpenseLifecycleResult remindExpense(
+            ToolActorContext context, long applicationId, int version) {
+        return lifecycleResult(expenseApplicationService.remindAgentApplication(context.userId(), applicationId, version));
+    }
+
     private Expense expense(com.aiworkmate.dto.ExpenseSummaryResponse item) {
         return new Expense(item.id(), item.title(), item.amount(), item.category(), item.expenseDate(),
                 item.invoiceNumber(), item.reason(), item.status(), item.version(), item.approverName(),

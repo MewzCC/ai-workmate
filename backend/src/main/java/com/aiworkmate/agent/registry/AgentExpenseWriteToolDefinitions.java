@@ -9,6 +9,19 @@ import java.util.Set;
 
 @Configuration(proxyBeanMethods = false)
 public class AgentExpenseWriteToolDefinitions {
+    public static final String REMIND_OUTPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["applicationId","formKey","status","version"],"properties":{"applicationId":{"type":"integer","minimum":1},"formKey":{"type":"string","const":"expense-application"},"status":{"type":"string","const":"PENDING"},"version":{"type":"integer","minimum":1}}}
+            """.strip();
+
+    @Bean
+    ToolDefinition expenseRemindToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {
+        return ToolDefinitionFactory.singleWrite(ToolCode.EXPENSE_REMIND, "Remind my expense approver",
+                "Sends one rate-limited internal reminder to the current approver of one owned pending expense application.",
+                "Remind only the existing assignee of a verified expense application; never select recipients or send external messages.",
+                objectMapper.readTree(SUBMIT_DRAFT_INPUT_SCHEMA), objectMapper.readTree(REMIND_OUTPUT_SCHEMA),
+                ToolWriteProfile.NON_RETRYABLE_L1, Set.of("approval:remind"), OwnershipPolicy.SELF, 1, 4096, 15000);
+    }
+
     public static final String CANCEL_DRAFT_OUTPUT_SCHEMA = """
             {"type":"object","additionalProperties":false,"required":["applicationId","formKey","status","version"],"properties":{"applicationId":{"type":"integer","minimum":1},"formKey":{"type":"string","const":"expense-application"},"status":{"type":"string","const":"CANCELLED"},"version":{"type":"integer","minimum":1}}}
             """.strip();

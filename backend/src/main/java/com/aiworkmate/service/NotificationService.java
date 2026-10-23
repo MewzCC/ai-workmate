@@ -18,6 +18,10 @@ public interface NotificationService {
     void publish(long tenantId, long userId, String type, String title, String content,
                  String bizType, Long bizId);
 
+    /** Persist a business notification in the caller's existing database transaction; never enqueue it. */
+    void publishTransactional(long tenantId, long userId, String type, String title, String content,
+                              String bizType, Long bizId);
+
     /** 消费：从 Redis 队列取出一条并落库；队列为空返回 false */
     boolean consumeOne();
 

@@ -42,6 +42,16 @@ class FinanceAgentDomainToolAdapterTest {
     private final ToolActorContext actor = new ToolActorContext(1L, 7L, 3L, 4L, 1, "trace");
 
     @Test
+    void remindsOnlyThroughTheExpenseBoundaryWithTrustedIdentity() {
+        when(expenseApplications.remindAgentApplication(7L, 51L, 2))
+                .thenReturn(new ExpenseAgentLifecycleReceipt(51, "expense-application", "PENDING", 3));
+        assertThat(expenseAdapter.remindExpense(actor, 51, 2)).isEqualTo(
+                new ExpenseToolPort.ExpenseLifecycleResult(51, "expense-application", "PENDING", 3));
+        verify(expenseApplications).remindAgentApplication(7L, 51L, 2);
+        verifyNoInteractions(expenses);
+    }
+
+    @Test
     void cancelsExpenseOnlyThroughTheTypedOwnedDraftBoundary() {
         when(expenseApplications.cancelAgentDraft(7L, 51L, 0))
                 .thenReturn(new ExpenseAgentLifecycleReceipt(51, "expense-application", "CANCELLED", 1));

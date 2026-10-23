@@ -168,6 +168,21 @@ class P1PostgresMigrationIT {
 
     private static void assertMeetingRoomToolRegistration(String schema) throws Exception {
         assertThat(queryCount(schema, """
+                SELECT count(*) FROM agent_tool WHERE tenant_id IS NULL AND code='expense.remind'
+                AND handler_version='1.0.0' AND data_scope_policy='SELF' AND risk_level='L1'
+                AND side_effect='SINGLE_WRITE' AND retry_policy='NEVER' AND confirmation_policy='EXPLICIT'
+                AND enabled=FALSE AND required_permissions='["approval:remind"]'::jsonb
+                AND schema_hash='sha256:4a38437ed858eee879c9cadcf868a4f21e3ad0b70b17efa4dff6f1c73d5578d3'
+                """)).isOne();
+        assertThat(queryCount(schema, "SELECT count(*) FROM rbac_permission WHERE code='agent:tool:expense.remind'")).isOne();
+        assertThat(queryCount(schema, """
+                SELECT count(*) FROM rbac_role_permission tool_grant
+                WHERE tool_grant.permission_code='agent:tool:expense.remind'
+                AND NOT EXISTS (SELECT 1 FROM rbac_role_permission business_grant
+                    WHERE business_grant.tenant_id=tool_grant.tenant_id
+                    AND business_grant.role_code=tool_grant.role_code AND business_grant.permission_code='approval:remind')
+                """)).isZero();
+        assertThat(queryCount(schema, """
                 SELECT count(*) FROM agent_tool WHERE tenant_id IS NULL AND code='expense.cancelDraft'
                 AND handler_version='1.0.0' AND data_scope_policy='SELF' AND risk_level='L1'
                 AND side_effect='SINGLE_WRITE' AND retry_policy='NEVER' AND confirmation_policy='EXPLICIT'

@@ -121,13 +121,25 @@ public class ExpenseApplicationServiceImpl implements ExpenseApplicationService 
     @Transactional
     public ExpenseAgentLifecycleReceipt cancelAgentDraft(Long userId, Long applicationId, int version) {
         ResolvedUserAccess actor = requireLifecycleAccess(userId, "approval:cancel");
+        requireScopedExpense(actor, applicationId);
+        return lifecycleReceipt(approvalService.cancelAgentDraft(userId, applicationId, new VersionRequest(version)));
+    }
+
+    @Override
+    @Transactional
+    public ExpenseAgentLifecycleReceipt remindAgentApplication(Long userId, Long applicationId, int version) {
+        ResolvedUserAccess actor = requireLifecycleAccess(userId, "approval:remind");
+        requireScopedExpense(actor, applicationId);
+        return lifecycleReceipt(approvalService.remind(userId, applicationId, new VersionRequest(version)));
+    }
+
+    private void requireScopedExpense(ResolvedUserAccess actor, Long applicationId) {
         ApprovalApplication expense = applicationMapper.selectOne(new LambdaQueryWrapper<ApprovalApplication>()
                 .eq(ApprovalApplication::getTenantId, actor.tenantId())
                 .eq(ApprovalApplication::getApplicantUserId, actor.userId())
                 .eq(ApprovalApplication::getFormKey, FORM_KEY)
                 .eq(ApprovalApplication::getId, applicationId));
         if (expense == null) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
-        return lifecycleReceipt(approvalService.cancelAgentDraft(userId, applicationId, new VersionRequest(version)));
     }
 
     private ApprovalDraftRequest request(ExpenseAgentDraftCommand command) {

@@ -54,6 +54,18 @@ class NotificationServiceImplTest {
     }
 
     @Test
+    void transactionalPublishInsertsTheBusinessNotificationWithoutUsingRedis() {
+        notificationService.publishTransactional(1L, 2L, "approval", "催办", "请处理申请", "generic-approval", 42L);
+        var notification = org.mockito.ArgumentCaptor.forClass(Notification.class);
+        verify(notificationMapper).insert(notification.capture());
+        assertThat(notification.getValue().getTenantId()).isEqualTo(1L);
+        assertThat(notification.getValue().getUserId()).isEqualTo(2L);
+        assertThat(notification.getValue().getBizId()).isEqualTo(42L);
+        assertThat(notification.getValue().getReadFlag()).isFalse();
+        verifyNoInteractions(redisTemplate);
+    }
+
+    @Test
     void publishShouldEnqueueToRedisQueue() {
         when(redisTemplate.opsForList()).thenReturn(listOps);
 

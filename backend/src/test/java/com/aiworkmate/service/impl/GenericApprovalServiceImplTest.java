@@ -46,6 +46,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -564,7 +565,9 @@ class GenericApprovalServiceImplTest {
 
         assertThat(response.status()).isEqualTo("PENDING");
         verify(actionLogMapper).insert(any(WorkflowActionLog.class));
-        verify(notificationService).publish(TENANT_ID, 2002L,
+        verify(auditService).recordTransactional(eq(TENANT_ID), eq(USER_ID), eq("GENERIC_APPROVAL"),
+                eq("10"), eq("REMIND"), eq("SUCCESS"), any());
+        verify(notificationService).publishTransactional(TENANT_ID, 2002L,
                 NotificationService.TYPE_APPROVAL, "审批催办提醒",
                 "申请人提醒你及时处理「费用报销」", "generic-approval", 10L);
     }

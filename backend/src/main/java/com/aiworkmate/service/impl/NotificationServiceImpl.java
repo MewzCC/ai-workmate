@@ -66,6 +66,16 @@ public class NotificationServiceImpl implements NotificationService {
     }
 
     @Override
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.MANDATORY)
+    public void publishTransactional(long tenantId, long userId, String type, String title, String content,
+                                     String bizType, Long bizId) {
+        if (content == null || content.isBlank()) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        insertDirect(new QueueMessage(tenantId, userId, type, title, content, bizType, bizId));
+    }
+
+    @Override
     public boolean consumeOne() {
         String raw;
         try {

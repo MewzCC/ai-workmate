@@ -472,9 +472,9 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
         }
         insertAction(actor, instance.getId(), task.getId(),
                 "REMIND", "PENDING", "PENDING", null);
-        auditService.record(actor.tenantId(), actor.userId(), BUSINESS_TYPE,
+        auditService.recordTransactional(actor.tenantId(), actor.userId(), BUSINESS_TYPE,
                 id.toString(), "REMIND", "SUCCESS", "催办通用审批待办");
-        notificationService.publish(actor.tenantId(), task.getAssigneeUserId(),
+        notificationService.publishTransactional(actor.tenantId(), task.getAssigneeUserId(),
                 NotificationService.TYPE_APPROVAL,
                 "审批催办提醒",
                 "申请人提醒你及时处理「" + application.getFormName() + "」",

@@ -24,4 +24,6 @@ public interface ExpenseApplicationService {
     ExpenseAgentLifecycleReceipt reopenAgentApplication(Long userId, Long applicationId, int version);
 
     ExpenseAgentLifecycleReceipt cancelAgentDraft(Long userId, Long applicationId, int version);
+
+    ExpenseAgentLifecycleReceipt remindAgentApplication(Long userId, Long applicationId, int version);
 }

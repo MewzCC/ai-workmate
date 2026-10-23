@@ -115,7 +115,7 @@ const RECORD_ID_FIELDS: ReadonlyMap<string, string> = new Map([
     .map((code): [string, string] => [code, 'budgetId']),
   ...['supplier.createDraft', 'supplier.updateDraft', 'supplier.updateStatus']
     .map((code): [string, string] => [code, 'supplierId']),
-  ...['expense.createDraft', 'expense.updateDraft', 'expense.submitDraft', 'expense.withdraw', 'expense.reopen', 'expense.cancelDraft']
+  ...['expense.createDraft', 'expense.updateDraft', 'expense.submitDraft', 'expense.withdraw', 'expense.reopen', 'expense.cancelDraft', 'expense.remind']
     .map((code): [string, string] => [code, 'applicationId']),
   ...['contract.createDraft', 'contract.updateDraft', 'contract.updateStatus', 'contract.updateFulfillment',
     'contract.recordPayment', 'contract.remind'].map((code): [string, string] => [code, 'contractId']),
