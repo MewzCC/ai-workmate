@@ -111,8 +111,14 @@ it('keeps the selected item and refreshes its actual new version after a success
   await waitFor(() => expect(context()).toMatchObject({ dictionaryItemId: 21, version: 4 }));
   fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /编\s*辑/ }));
   await screen.findByLabelText('显示名称');
+  const save = within(screen.getByRole('dialog')).getByRole('button', { name: /保\s*存/ });
+  await waitFor(() => {
+    expect(screen.getByLabelText('显示名称')).toHaveValue(item.label);
+    expect(save).toBeEnabled();
+    expect(context()).toMatchObject({ dictionaryItemId: 21, version: 4 });
+  });
   api.itemDetail.mockResolvedValue({ dictionaryType: type, item: { ...item, version: 5 } });
-  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /保\s*存/ }));
+  fireEvent.click(save);
   await waitFor(() => expect(api.updateItem).toHaveBeenCalledWith(11, 21, expect.objectContaining({ version: 4 })));
   await waitFor(() => expect(context()).toMatchObject({ dictionaryItemId: 21, version: 5 }));
 });

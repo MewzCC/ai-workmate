@@ -8,6 +8,7 @@ import com.aiworkmate.dto.ApprovalFormAgentDraftRequest;
 import com.aiworkmate.dto.ApprovalFormAgentDraftUpdateRequest;
 import com.aiworkmate.dto.ApprovalFormResponse;
 import com.aiworkmate.dto.ApprovalFormDefinitionResponse;
+import com.aiworkmate.dto.ApprovalFormFieldPatchRequest;
 import com.aiworkmate.dto.ApprovalProcessRequest;
 import com.aiworkmate.dto.ApprovalProcessAgentDraftRequest;
 import com.aiworkmate.dto.ApprovalProcessAgentDraftUpdateRequest;
@@ -120,7 +121,21 @@ public class ApprovalEngineServiceImpl implements ApprovalEngineService {
                 .eq(ApprovalForm::getTenantId, actor.tenantId()).eq(ApprovalForm::getId, id)
                 .eq(ApprovalForm::getDeleted, false));
         if (form == null) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
-        String json = form.getSchemaJson();
+        JsonNode root = normalizedAgentFormSchema(form.getSchemaJson());
+        List<AgentFormField> fields = requirePublishableFormSchema(root.toString());
+        requireAgentFormDraft(form.getFormKey(), form.getFormName(), null, fields, true);
+        List<ApprovalFormDefinitionResponse.Field> result = new java.util.ArrayList<>(fields.size());
+        for (int index = 0; index < fields.size(); index++) {
+            AgentFormField field = fields.get(index);
+            JsonNode min = root.path("fields").get(index).get("min");
+            result.add(new ApprovalFormDefinitionResponse.Field(field.name(), field.label(), field.type(), field.required(),
+                    field.placeholder(), field.options(), field.width(), min == null ? null : min.decimalValue()));
+        }
+        return new ApprovalFormDefinitionResponse(form.getId(), form.getFormKey(), form.getFormName(),
+                form.getStatus(), form.getVersion(), result);
+    }
+
+    private JsonNode normalizedAgentFormSchema(String json) {
         if (json == null || json.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 65536) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.approval.json.invalid");
         }
@@ -128,6 +143,8 @@ public class ApprovalEngineServiceImpl implements ApprovalEngineService {
         try {
             root = objectMapper.reader()
                     .with(com.fasterxml.jackson.databind.DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS)
+                    .with(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
+                    .with(com.fasterxml.jackson.core.JsonParser.Feature.STRICT_DUPLICATE_DETECTION)
                     .readTree(json);
             if (root == null || !root.isObject() || root.size() != 1 || !root.path("fields").isArray()
                     || root.path("fields").size() > 20) throw new BusinessException(ErrorCode.REQUEST_INVALID);
@@ -156,17 +173,67 @@ public class ApprovalEngineServiceImpl implements ApprovalEngineService {
         } catch (JsonProcessingException exception) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.approval.json.invalid");
         }
-        List<AgentFormField> fields = requirePublishableFormSchema(root.toString());
-        requireAgentFormDraft(form.getFormKey(), form.getFormName(), null, fields, true);
-        List<ApprovalFormDefinitionResponse.Field> result = new java.util.ArrayList<>(fields.size());
-        for (int index = 0; index < fields.size(); index++) {
-            AgentFormField field = fields.get(index);
-            JsonNode min = root.path("fields").get(index).get("min");
-            result.add(new ApprovalFormDefinitionResponse.Field(field.name(), field.label(), field.type(), field.required(),
-                    field.placeholder(), field.options(), field.width(), min == null ? null : min.decimalValue()));
+        requirePublishableFormSchema(root.toString());
+        return root;
+    }
+
+    @Override
+    @Transactional
+    public ApprovalFormResponse patchFormDraftFieldAgent(Long userId, Long expectedTenantId, Long id,
+                                                        ApprovalFormFieldPatchRequest request) {
+        ResolvedUserAccess actor = requirePermission(userId, "approval:manage");
+        if (!actor.tenantId().equals(expectedTenantId)) throw new BusinessException(ErrorCode.PERMISSION_DENIED);
+        if (id == null || id < 1 || request == null || request.version() == null
+                || request.version() < 1 || request.version() == Integer.MAX_VALUE
+                || request.fieldName() == null || !request.fieldName().matches("^[a-z][A-Za-z0-9_-]{0,39}$")
+                || request.label() != null && (request.label().isBlank() || request.label().length() > 40)
+                || request.placeholder() != null && request.placeholder().length() > 80
+                || request.width() != null && !Set.of("full", "half").contains(request.width())
+                || request.label() == null && request.required() == null && request.placeholder() == null && request.width() == null) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
         }
-        return new ApprovalFormDefinitionResponse(form.getId(), form.getFormKey(), form.getFormName(),
-                form.getStatus(), form.getVersion(), result);
+        ApprovalForm form = formMapper.selectOne(new LambdaQueryWrapper<ApprovalForm>()
+                .eq(ApprovalForm::getTenantId, actor.tenantId()).eq(ApprovalForm::getId, id)
+                .eq(ApprovalForm::getDeleted, false));
+        if (form == null) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        if (!"DISABLED".equals(form.getStatus())) throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID);
+        if (!request.version().equals(form.getVersion())) throw new BusinessException(ErrorCode.VERSION_CONFLICT);
+        normalizedAgentFormSchema(form.getSchemaJson());
+        JsonNode root;
+        try {
+            root = objectMapper.reader().with(com.fasterxml.jackson.databind.DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS)
+                    .readTree(form.getSchemaJson());
+        } catch (JsonProcessingException exception) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.approval.json.invalid");
+        }
+        com.fasterxml.jackson.databind.node.ObjectNode target = null;
+        for (JsonNode field : root.path("fields")) {
+            if (request.fieldName().equals(field.path("name").asText(field.path("key").asText()))) {
+                target = (com.fasterxml.jackson.databind.node.ObjectNode) field;
+                break;
+            }
+        }
+        if (target == null) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        JsonNode before = target.deepCopy();
+        if (request.label() != null) target.put("label", request.label().trim());
+        if (request.required() != null) target.put("required", request.required());
+        if (request.placeholder() != null) target.put("placeholder", request.placeholder());
+        if (request.width() != null) target.put("width", request.width());
+        if (target.equals(before)) throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID);
+        String schemaJson = root.toString();
+        normalizedAgentFormSchema(schemaJson);
+        LocalDateTime now = LocalDateTime.now();
+        int updated = formMapper.update(null, new LambdaUpdateWrapper<ApprovalForm>()
+                .eq(ApprovalForm::getTenantId, actor.tenantId()).eq(ApprovalForm::getId, id)
+                .eq(ApprovalForm::getDeleted, false).eq(ApprovalForm::getStatus, "DISABLED")
+                .eq(ApprovalForm::getVersion, request.version())
+                .set(ApprovalForm::getSchemaJson, schemaJson).set(ApprovalForm::getUpdatedAt, now)
+                .setSql("version = version + 1"));
+        if (updated != 1) throw new BusinessException(ErrorCode.VERSION_CONFLICT);
+        auditService.recordTransactional(actor.tenantId(), actor.userId(), RESOURCE_FORM,
+                id.toString(), "PATCH_FIELD", "SUCCESS", "Agent 局部修改审批表单草稿字段");
+        form.setSchemaJson(schemaJson); form.setUpdatedAt(now); form.setVersion(request.version() + 1);
+        return toFormResponse(form, singleUserName(form.getCreatedBy()), true);
     }
 
     @Override
