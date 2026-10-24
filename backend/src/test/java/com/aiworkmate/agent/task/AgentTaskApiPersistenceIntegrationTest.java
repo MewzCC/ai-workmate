@@ -1,5 +1,8 @@
 package com.aiworkmate.agent.task;
 
+import com.aiworkmate.integration.AbstractIsolatedAgentIntegrationTest;
+import com.aiworkmate.integration.AgentIntegrationEnvironment;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
@@ -20,7 +23,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
 @EnabledIfEnvironmentVariable(named = "AGENT_TEST_DB_URL", matches = "jdbc:postgresql:.*")
-class AgentTaskApiPersistenceIntegrationTest {
+class AgentTaskApiPersistenceIntegrationTest extends AbstractIsolatedAgentIntegrationTest {
+    private static final AgentIntegrationEnvironment ENVIRONMENT = new AgentIntegrationEnvironment();
+    @Override protected AgentIntegrationEnvironment environment() { return ENVIRONMENT; }
     private static final String PLAN_HASH = "sha256:" + "a".repeat(64);
 
     @Autowired
@@ -40,9 +45,7 @@ class AgentTaskApiPersistenceIntegrationTest {
 
     @DynamicPropertySource
     static void databaseProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", () -> System.getenv("AGENT_TEST_DB_URL"));
-        registry.add("spring.datasource.username", () -> System.getenv().getOrDefault("AGENT_TEST_DB_USERNAME", "postgres"));
-        registry.add("spring.datasource.password", () -> System.getenv().getOrDefault("AGENT_TEST_DB_PASSWORD", "postgres"));
+        ENVIRONMENT.register(registry);
     }
 
     @Test

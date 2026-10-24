@@ -1,5 +1,8 @@
 package com.aiworkmate.agent.worker;
 
+import com.aiworkmate.integration.AbstractIsolatedAgentIntegrationTest;
+import com.aiworkmate.integration.AgentIntegrationEnvironment;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,7 +20,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
 @EnabledIfEnvironmentVariable(named = "AGENT_TEST_DB_URL", matches = "jdbc:postgresql:.*")
-class AgentWorkerMapperPersistenceIntegrationTest {
+class AgentWorkerMapperPersistenceIntegrationTest extends AbstractIsolatedAgentIntegrationTest {
+    private static final AgentIntegrationEnvironment ENVIRONMENT = new AgentIntegrationEnvironment();
+    @Override protected AgentIntegrationEnvironment environment() { return ENVIRONMENT; }
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
@@ -26,11 +31,7 @@ class AgentWorkerMapperPersistenceIntegrationTest {
 
     @DynamicPropertySource
     static void databaseProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", () -> System.getenv("AGENT_TEST_DB_URL"));
-        registry.add("spring.datasource.username",
-                () -> System.getenv().getOrDefault("AGENT_TEST_DB_USERNAME", "postgres"));
-        registry.add("spring.datasource.password",
-                () -> System.getenv().getOrDefault("AGENT_TEST_DB_PASSWORD", "postgres"));
+        ENVIRONMENT.register(registry);
         registry.add("agent.enabled", () -> "false");
         registry.add("agent.execution-enabled", () -> "false");
     }
@@ -40,8 +41,7 @@ class AgentWorkerMapperPersistenceIntegrationTest {
     @Rollback
     void completesStepWithQualifiedOptimisticVersionOnPostgresql() {
         Long tenantId = jdbcTemplate.queryForObject("SELECT id FROM tenant ORDER BY id LIMIT 1", Long.class);
-        Long userId = jdbcTemplate.queryForObject(
-                "SELECT id FROM app_user WHERE tenant_id=? ORDER BY id LIMIT 1", Long.class, tenantId);
+        Long userId = createTestUser(tenantId);
         String workerId = "worker-sql-regression";
         String leaseHash = "sha256:" + "a".repeat(64);
         Long taskId = jdbcTemplate.queryForObject("""
@@ -72,8 +72,7 @@ class AgentWorkerMapperPersistenceIntegrationTest {
     @Rollback
     void closesUnknownWriteOutcomeWithoutRetryOnPostgresql() {
         Long tenantId = jdbcTemplate.queryForObject("SELECT id FROM tenant ORDER BY id LIMIT 1", Long.class);
-        Long userId = jdbcTemplate.queryForObject(
-                "SELECT id FROM app_user WHERE tenant_id=? ORDER BY id LIMIT 1", Long.class, tenantId);
+        Long userId = createTestUser(tenantId);
         String workerId = "worker-write-unknown";
         String leaseHash = "sha256:" + "b".repeat(64);
         Long taskId = jdbcTemplate.queryForObject("""
@@ -107,8 +106,7 @@ class AgentWorkerMapperPersistenceIntegrationTest {
     @Rollback
     void expiredWriteLeaseBecomesPartialInsteadOfBeingReplayedAfterRestart() {
         Long tenantId = jdbcTemplate.queryForObject("SELECT id FROM tenant ORDER BY id LIMIT 1", Long.class);
-        Long userId = jdbcTemplate.queryForObject(
-                "SELECT id FROM app_user WHERE tenant_id=? ORDER BY id LIMIT 1", Long.class, tenantId);
+        Long userId = createTestUser(tenantId);
         Long taskId = jdbcTemplate.queryForObject("""
                 INSERT INTO agent_task(
                     task_no, tenant_id, user_id, page_id, input, page_context, status,
@@ -134,5 +132,12 @@ class AgentWorkerMapperPersistenceIntegrationTest {
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT status FROM agent_task WHERE id=?", String.class, taskId))
                 .isEqualTo("PARTIALLY_SUCCEEDED");
+    }
+    private Long createTestUser(Long tenantId) {
+        String username = "agent-worker-it-" + UUID.randomUUID();
+        return jdbcTemplate.queryForObject("""
+                INSERT INTO app_user(username,password,email,tenant_id)
+                VALUES (?, 'not-a-real-secret', ?, ?) RETURNING id
+                """, Long.class, username, username + "@example.invalid", tenantId);
     }
 }
