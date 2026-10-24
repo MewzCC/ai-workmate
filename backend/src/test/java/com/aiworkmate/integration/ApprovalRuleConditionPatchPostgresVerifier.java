@@ -37,6 +37,24 @@ final class ApprovalRuleConditionPatchPostgresVerifier {
         properties.setProperty("options", "-c lock_timeout=5000 -c statement_timeout=10000");
         datasource.setConnectionProperties(properties);
         var jdbc = new JdbcTemplate(datasource);
+        com.aiworkmate.agent.registry.ToolDefinition definition;
+        var json = new com.fasterxml.jackson.databind.ObjectMapper();
+        try (var beans = new org.springframework.context.annotation.AnnotationConfigApplicationContext()) {
+            beans.registerBean(com.fasterxml.jackson.databind.ObjectMapper.class, () -> json);
+            beans.register(com.aiworkmate.agent.registry.AgentApprovalRuleConditionPatchToolDefinitions.class); beans.refresh();
+            definition = beans.getBean(com.aiworkmate.agent.registry.ToolDefinition.class);
+        }
+        var registration = jdbc.queryForMap("SELECT * FROM agent_tool WHERE tenant_id IS NULL AND code='approval.rule.patchDraftCondition'");
+        assertThat(registration.get("enabled")).isEqualTo(false);
+        assertThat(registration.get("risk_level")).isEqualTo("L1");
+        assertThat(registration.get("side_effect")).isEqualTo("SINGLE_WRITE");
+        assertThat(registration.get("confirmation_policy")).isEqualTo("EXPLICIT");
+        assertThat(registration.get("retry_policy")).isEqualTo("NEVER");
+        assertThat(registration.get("schema_hash")).isEqualTo(definition.schemaHash())
+                .isEqualTo("sha256:588a77eb3294d8955af4c31a203a16303a7c37f8ab54165375ef9403bf994b24");
+        assertThat(json.readTree(registration.get("parameters_schema").toString())).isEqualTo(definition.inputSchema());
+        assertThat(json.readTree(registration.get("output_schema").toString())).isEqualTo(definition.outputSchema());
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM rbac_role_permission p WHERE p.permission_code='agent:tool:approval.rule.patchDraftCondition' AND NOT EXISTS (SELECT 1 FROM rbac_role_permission r WHERE r.tenant_id=p.tenant_id AND r.role_code=p.role_code AND r.permission_code='approval:manage')", Long.class)).isZero();
         long tenant = tenant(jdbc, "RULE_PATCH_A"), otherTenant = tenant(jdbc, "RULE_PATCH_B");
         long actor = jdbc.queryForObject("INSERT INTO app_user(username,password,email,tenant_id,status) VALUES ('rule-patch-actor','test-only','rule-patch@example.invalid',?,1) RETURNING id", Long.class, tenant);
         long own = rule(jdbc, tenant), foreign = rule(jdbc, otherTenant);
@@ -71,6 +89,7 @@ final class ApprovalRuleConditionPatchPostgresVerifier {
         var result = service.patchRuleDraftConditionAgent(actor, tenant, own, patch(3, "ANNUAL"));
         assertThat(result.ruleId()).isEqualTo(own); assertThat(result.version()).isEqualTo(4);
         assertThat(result.conditionNumber()).isEqualTo(2); assertThat(result.value()).isEqualTo("ANNUAL");
+        assertThat(new com.aiworkmate.agent.gateway.ToolSchemaValidator().valid(definition.outputSchema(), json.valueToTree(result))).isTrue();
         String saved = condition(jdbc, own);
         assertThat(saved).contains("0.123456789012345678901", "ANNUAL", "\"logic\":\"OR\"");
         assertThat(jdbc.queryForMap("SELECT rule_key,rule_name,rule_type,priority,description,action_json,status FROM approval_rule WHERE id=?", own))

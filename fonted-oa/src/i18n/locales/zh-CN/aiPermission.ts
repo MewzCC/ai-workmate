@@ -57,6 +57,7 @@ const aiPermission = {
     approval_process_publishDraft: { name: '发布审批流程草稿', description: '经二次确认和版本校验后发布一个已校验的审批流程草稿。' },
     approval_rule_createDraft: { name: '创建审批规则草稿', description: '经明确确认后使用受控条件和动作创建一个未启用的审批规则草稿。' },
     approval_rule_updateDraft: { name: '修改审批规则草稿', description: '经明确确认后按版本修改一个未启用的审批规则草稿。' },
+    approval_rule_patchDraftCondition: { name: '局部修改规则条件值', description: '经明确确认和版本校验后，只修改一个未启用规则的一个条件值，保留其他条件、逻辑、动作和元数据。' },
     approval_rule_enableDraft: { name: '启用审批规则草稿', description: '经二次确认和版本校验后启用一个已校验的审批规则草稿。' },
     approval_task_query: { name: '查询租户审批任务', description: '按实时权限和数据范围读取审批任务摘要。' },
     approval_task_approve: { name: '通过单个审批待办', description: '二次确认后仅通过当前用户负责且版本匹配的一条待办。' },

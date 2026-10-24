@@ -148,7 +148,7 @@ public class PageCapabilityCatalog {
                 page(OaPage.APPROVAL_RULES, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         context(number("ruleId"), number("version"), text("keyword"), text("status"), number("page"), number("size")),
                         tool(APPROVAL_CONFIGURATION_QUERY), tool(APPROVAL_RULE_DEFINITION_QUERY), tool(APPROVAL_RULE_CREATE_DRAFT),
-                        tool(APPROVAL_RULE_UPDATE_DRAFT), tool(APPROVAL_RULE_ENABLE_DRAFT)),
+                        tool(APPROVAL_RULE_UPDATE_DRAFT), tool(APPROVAL_RULE_PATCH_DRAFT_CONDITION), tool(APPROVAL_RULE_ENABLE_DRAFT)),
 
                 page(OaPage.ORG_TREE, OwnershipPolicy.TENANT_SCOPED, READ_COMMANDS,
                         context(text("keyword"), number("limit")), tool(HR_ORGANIZATION_QUERY)),

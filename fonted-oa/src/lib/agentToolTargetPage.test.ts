@@ -25,7 +25,7 @@ describe('Agent tool business navigation', () => {
     expect(agentToolTargetRecordId('approval.rule.definition.query', { ruleId: 11, url: 'https://invalid.example' })).toBe(11);
   });
   it('locates the actual rule receipt without selecting a configuration query row', () => {
-    for (const code of ['approval.rule.createDraft', 'approval.rule.updateDraft', 'approval.rule.enableDraft']) {
+    for (const code of ['approval.rule.createDraft', 'approval.rule.updateDraft', 'approval.rule.patchDraftCondition', 'approval.rule.enableDraft']) {
       expect(agentToolTargetRecordId(code, { ruleId: 11 })).toBe(11);
     }
     expect(resolveAgentToolTargetPath('approval-rules', 11, [{ id: 'approval-rules', name: '规则', type: 'page', visible: true, sort: 1 }]))

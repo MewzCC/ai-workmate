@@ -50,6 +50,15 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class AgentDomainToolAdaptersTest {
+    @Test void forwardsRuleConditionPatchWithTrustedTenantAndReturnsTheNarrowActualReceipt() {
+        var command = new ApprovalConfigurationToolPort.RuleConditionPatch(11, 3, 2, " keep literal ");
+        var request = new com.aiworkmate.dto.ApprovalRuleConditionPatchRequest(3, 2, " keep literal ");
+        when(approvalEngineService.patchRuleDraftConditionAgent(7L, 91L, 11L, request)).thenReturn(
+                new com.aiworkmate.dto.ApprovalRuleConditionPatchResponse(11, 4, "DISABLED", 2, "leaveType", "eq", " keep literal "));
+        assertThat(approvalConfigurationAdapter.patchRuleDraftCondition(context, command)).isEqualTo(
+                new ApprovalConfigurationToolPort.RuleConditionPatchResult(11, 4, "DISABLED", 2, "leaveType", "eq", " keep literal "));
+        verify(approvalEngineService).patchRuleDraftConditionAgent(7L, 91L, 11L, request);
+    }
     @Test void forwardsFieldPatchWithTrustedTenantAndProjectsTheNarrowActualReceipt() {
         var command = new ApprovalConfigurationToolPort.FormFieldPatch(11, 3, "reason", " Reason ", false, "", "half");
         var request = new com.aiworkmate.dto.ApprovalFormFieldPatchRequest(3, "reason", " Reason ", false, "", "half");

@@ -17,6 +17,7 @@ public interface ApprovalConfigurationToolPort {
     ProcessDraftResult publishProcessDraft(ToolActorContext context, VersionedProcess command);
     RuleDraftResult createRuleDraft(ToolActorContext context, RuleDraft command);
     RuleDraftResult updateRuleDraft(ToolActorContext context, RuleDraftUpdate command);
+    RuleConditionPatchResult patchRuleDraftCondition(ToolActorContext context, RuleConditionPatch command);
     RuleDraftResult enableRuleDraft(ToolActorContext context, VersionedRule command);
 
     enum Resource { FORM, PROCESS, RULE }
@@ -108,4 +109,8 @@ public interface ApprovalConfigurationToolPort {
                            LocalDateTime updatedAt) implements ToolWriteReceipt { }
 
     record VersionedRule(long ruleId, int version) { }
+
+    record RuleConditionPatch(long ruleId, int version, int conditionNumber, String value) { }
+    record RuleConditionPatchResult(long ruleId, int version, String status, int conditionNumber,
+                                    String field, String operator, String value) implements ToolWriteReceipt { }
 }

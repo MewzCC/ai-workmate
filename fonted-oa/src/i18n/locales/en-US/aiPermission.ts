@@ -57,6 +57,7 @@ const aiPermission = {
     approval_process_publishDraft: { name: 'Publish approval process draft', description: 'Publishes one validated approval process draft after secondary confirmation and version validation.' },
     approval_rule_createDraft: { name: 'Create approval rule draft', description: 'Creates one disabled approval rule from bounded conditions and action after explicit confirmation.' },
     approval_rule_updateDraft: { name: 'Update approval rule draft', description: 'Updates one disabled approval rule draft with version control after explicit confirmation.' },
+    approval_rule_patchDraftCondition: { name: 'Patch a rule condition value', description: 'After explicit confirmation and version validation, changes one condition value in a disabled rule; preserves other conditions, logic, actions and metadata.' },
     approval_rule_enableDraft: { name: 'Enable approval rule draft', description: 'Enables one validated approval rule draft after secondary confirmation and version validation.' },
     approval_task_query: { name: 'Query tenant approval tasks', description: 'Reads approval task summaries under live permissions and data scope.' },
     approval_task_approve: { name: 'Approve one task', description: 'After secondary confirmation, approves one version-matched task assigned to the current user.' },

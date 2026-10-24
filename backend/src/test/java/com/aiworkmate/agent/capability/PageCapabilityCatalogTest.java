@@ -104,6 +104,7 @@ class PageCapabilityCatalogTest {
                 .extracting(PageToolReference::code)
                 .containsExactly(ToolCode.APPROVAL_RULE_CREATE_DRAFT,
                         ToolCode.APPROVAL_RULE_UPDATE_DRAFT,
+                        ToolCode.APPROVAL_RULE_PATCH_DRAFT_CONDITION,
                         ToolCode.APPROVAL_RULE_ENABLE_DRAFT);
     }
 

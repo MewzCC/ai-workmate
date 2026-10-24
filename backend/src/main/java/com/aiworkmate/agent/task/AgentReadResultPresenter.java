@@ -20,6 +20,7 @@ public final class AgentReadResultPresenter {
     private AgentReadResultPresenter() { }
 
     public static String present(String toolCode, JsonNode result) {
+        if ("approval.rule.patchDraftCondition".equals(toolCode)) return ruleConditionPatch(result);
         if ("approval.rule.definition.query".equals(toolCode)) return ruleDefinition(result);
         if ("approval.form.patchDraftField".equals(toolCode)) return formFieldPatch(result);
         if ("approval.form.definition.query".equals(toolCode)) return formDefinition(result);
@@ -56,6 +57,23 @@ public final class AgentReadResultPresenter {
             if (!description.isBlank()) answer.append('\n').append(description);
         }
         return answer.substring(0, Math.min(MAX_LENGTH, answer.length()));
+    }
+
+    private static String ruleConditionPatch(JsonNode result) {
+        if (result == null || !result.path("ruleId").isIntegralNumber() || !result.path("ruleId").canConvertToLong()
+                || result.path("ruleId").asLong() < 1 || !result.path("version").isIntegralNumber()
+                || !result.path("version").canConvertToInt() || result.path("version").asInt() < 2
+                || !"DISABLED".equals(result.path("status").asText()) || !result.path("conditionNumber").isIntegralNumber()
+                || !result.path("conditionNumber").canConvertToInt() || result.path("conditionNumber").asInt() < 1
+                || result.path("conditionNumber").asInt() > 10 || !result.path("value").isTextual()
+                || result.path("value").asText().isBlank() || result.path("value").asText().length() > 120
+                || !List.of("amount", "durationDays", "department", "employeeLevel", "leaveType").contains(result.path("field").asText())
+                || !List.of("eq", "ne", "gt", "gte", "lt", "lte", "in").contains(result.path("operator").asText())) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        return MessageUtils.resolve("agent.ruleConditionPatch.result", result.path("ruleId").asLong(),
+                result.path("version").asInt(), result.path("conditionNumber").asInt(),
+                result.path("field").asText(), result.path("operator").asText(), result.path("value").asText());
     }
 
     private static String ruleDefinition(JsonNode result) {

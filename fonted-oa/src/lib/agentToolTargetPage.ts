@@ -49,6 +49,7 @@ const EXACT_TARGETS: Record<string, string> = {
   'approval.rule.createDraft': 'approval-rules',
   'approval.rule.definition.query': 'approval-rules',
   'approval.rule.updateDraft': 'approval-rules',
+  'approval.rule.patchDraftCondition': 'approval-rules',
   'approval.rule.enableDraft': 'approval-rules',
   'approval.task.query': 'approval-list',
   'hr.organization.query': 'org-tree',
@@ -118,7 +119,7 @@ const DICTIONARY_RECORD_KINDS: ReadonlyMap<string, AgentRecordKind> = new Map(
     .map((operation): [string, AgentRecordKind] => [`dictionary.${kind}.${operation}`, `dictionary-${kind}`])),
 );
 const RECORD_ID_FIELDS: ReadonlyMap<string, string> = new Map([
-  ...['approval.rule.definition.query', 'approval.rule.createDraft', 'approval.rule.updateDraft', 'approval.rule.enableDraft']
+  ...['approval.rule.definition.query', 'approval.rule.createDraft', 'approval.rule.updateDraft', 'approval.rule.patchDraftCondition', 'approval.rule.enableDraft']
     .map((code): [string, string] => [code, 'ruleId']),
   ...['approval.form.definition.query', 'approval.form.createDraft', 'approval.form.updateDraft', 'approval.form.patchDraftField', 'approval.form.publishDraft']
     .map((code): [string, string] => [code, 'formId']),

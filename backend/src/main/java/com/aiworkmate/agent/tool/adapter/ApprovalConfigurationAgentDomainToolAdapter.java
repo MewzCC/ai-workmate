@@ -103,6 +103,14 @@ public final class ApprovalConfigurationAgentDomainToolAdapter implements Approv
     }
 
     @Override
+    public RuleConditionPatchResult patchRuleDraftCondition(ToolActorContext context, RuleConditionPatch command) {
+        var result = approvalEngineService.patchRuleDraftConditionAgent(context.userId(), context.tenantId(), command.ruleId(),
+                new com.aiworkmate.dto.ApprovalRuleConditionPatchRequest(command.version(), command.conditionNumber(), command.value()));
+        return new RuleConditionPatchResult(result.ruleId(), result.version(), result.status(), result.conditionNumber(),
+                result.field(), result.operator(), result.value());
+    }
+
+    @Override
     public ProcessDraftResult createProcessDraft(ToolActorContext context, ProcessDraft command) {
         var request = new ApprovalProcessAgentDraftRequest(command.processKey(), command.processName(),
                 command.description(), command.formId(), command.nodes().stream().map(node ->

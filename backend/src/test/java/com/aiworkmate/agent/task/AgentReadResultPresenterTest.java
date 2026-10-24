@@ -11,6 +11,28 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class AgentReadResultPresenterTest {
+    @Test void conditionPatchShowsTheActualNumberVersionAndUntruncatedLiteralValue() throws Exception {
+        org.springframework.context.i18n.LocaleContextHolder.setLocale(java.util.Locale.US);
+        try {
+            String literal = "[literal](https://example.invalid) " + "x".repeat(80);
+            var result = mapper.createObjectNode().put("ruleId", 11).put("version", 4).put("status", "DISABLED")
+                    .put("conditionNumber", 2).put("field", "leaveType").put("operator", "eq").put("value", literal);
+            String answer = AgentReadResultPresenter.present("approval.rule.patchDraftCondition", result);
+            assertThat(answer).contains("Rule #11", "Version 4", "Condition 2", "leaveType", "eq", literal, "disabled");
+        } finally { org.springframework.context.i18n.LocaleContextHolder.resetLocaleContext(); }
+    }
+    @Test void conditionPatchHasChineseFeedbackAndRejectsAnEnabledRuleReceipt() {
+        org.springframework.context.i18n.LocaleContextHolder.setLocale(java.util.Locale.SIMPLIFIED_CHINESE);
+        try {
+            var result = mapper.createObjectNode().put("ruleId", 11).put("version", 4).put("status", "DISABLED")
+                    .put("conditionNumber", 2).put("field", "amount").put("operator", "gte").put("value", "0.987654321098765432109");
+            assertThat(AgentReadResultPresenter.present("approval.rule.patchDraftCondition", result))
+                    .contains("已修改规则 #11", "版本 4", "条件 2", "0.987654321098765432109", "仍未启用");
+            result.put("status", "ENABLED");
+            assertThatThrownBy(() -> AgentReadResultPresenter.present("approval.rule.patchDraftCondition", result))
+                    .isInstanceOf(BusinessException.class);
+        } finally { org.springframework.context.i18n.LocaleContextHolder.resetLocaleContext(); }
+    }
     private final ObjectMapper mapper = new ObjectMapper();
 
     @Test void ruleDefinitionNeverSilentlyChangesLiteralConditionValues() throws Exception {
