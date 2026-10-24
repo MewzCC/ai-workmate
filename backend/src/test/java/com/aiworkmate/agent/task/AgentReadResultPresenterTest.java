@@ -13,6 +13,44 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class AgentReadResultPresenterTest {
     private final ObjectMapper mapper = new ObjectMapper();
 
+    @Test void ruleDefinitionNeverSilentlyChangesLiteralConditionValues() throws Exception {
+        var result = mapper.readTree("""
+                {"ruleId":11,"ruleKey":"fixture","ruleName":"Fixture","priority":20,"status":"DISABLED","version":3,
+                 "logic":"OR","conditions":[],"action":{"appendNode":"FINANCE_REVIEW","enabled":true,"mode":"OR_SIGN"}}
+                """);
+        String longValue = "9".repeat(101), markup = "<b>[raw]_value</b>";
+        for (String value : java.util.List.of("SICK_LEAVE", longValue, markup)) {
+            ((com.fasterxml.jackson.databind.node.ArrayNode) result.path("conditions")).addObject()
+                    .put("field", "leaveType").put("operator", "eq").put("value", value);
+        }
+        String summary = AgentReadResultPresenter.present("approval.rule.definition.query", result);
+        assertThat(summary).contains("SICK_LEAVE", longValue, markup);
+        assertThat(summary.length()).isLessThanOrEqualTo(1000);
+    }
+
+    @Test void ruleStatusIsSeparateFromTheActionSwitch() throws Exception {
+        org.springframework.context.i18n.LocaleContextHolder.setLocale(java.util.Locale.US);
+        try {
+            String summary = AgentReadResultPresenter.present("approval.rule.definition.query", mapper.readTree("""
+                    {"ruleId":11,"ruleKey":"fixture","ruleName":"Fixture","priority":20,"status":"DISABLED","version":3,
+                     "logic":"AND","conditions":[],"action":{"appendNode":"FINANCE_REVIEW","enabled":true,"mode":"OR_SIGN"}}
+                    """));
+            assertThat(summary).contains("Rule status: disabled", "Action: FINANCE_REVIEW", "enabled");
+        } finally { org.springframework.context.i18n.LocaleContextHolder.resetLocaleContext(); }
+    }
+
+    @Test void ruleDefinitionReportsActualConditionsActionsAndVersion() throws Exception {
+        org.springframework.context.i18n.LocaleContextHolder.setLocale(java.util.Locale.US);
+        try {
+            String answer = AgentReadResultPresenter.present("approval.rule.definition.query", mapper.readTree("""
+                    {"ruleId":11,"ruleKey":"fixture","ruleName":"Fixture","ruleType":"AMOUNT_THRESHOLD","priority":20,
+                     "status":"DISABLED","version":3,"logic":"OR","conditions":[{"field":"amount","operator":"gte","value":"5000"}],
+                     "action":{"appendNode":"FINANCE_REVIEW","enabled":false,"mode":"SEQUENTIAL"}}
+                    """));
+            assertThat(answer).contains("Fixture", "Version 3", "amount", "gte", "5000", "FINANCE_REVIEW", "SEQUENTIAL", "disabled", "OR");
+        } finally { org.springframework.context.i18n.LocaleContextHolder.resetLocaleContext(); }
+    }
+
     @Test void fieldPatchPresentsTheActualUpdatedFieldAndVersion() throws Exception {
         org.springframework.context.i18n.LocaleContextHolder.setLocale(java.util.Locale.US);
         try {

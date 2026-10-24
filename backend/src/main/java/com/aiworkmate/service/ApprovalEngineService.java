@@ -16,6 +16,7 @@ import com.aiworkmate.dto.ApprovalRuleRequest;
 import com.aiworkmate.dto.ApprovalRuleAgentDraftRequest;
 import com.aiworkmate.dto.ApprovalRuleAgentDraftUpdateRequest;
 import com.aiworkmate.dto.ApprovalRuleResponse;
+import com.aiworkmate.dto.ApprovalRuleDefinitionResponse;
 
 /**
  * 审批引擎配置服务：表单引擎 / 流程配置 / 审批规则。
@@ -77,6 +78,8 @@ public interface ApprovalEngineService {
                                                   int page, int size);
 
     ApprovalRuleResponse getRule(Long userId, Long id);
+
+    ApprovalRuleDefinitionResponse readRuleDefinitionAgent(Long userId, Long expectedTenantId, Long id);
 
     ApprovalRuleResponse createRule(Long userId, ApprovalRuleRequest request);
 

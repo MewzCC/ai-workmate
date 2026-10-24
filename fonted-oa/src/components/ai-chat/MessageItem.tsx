@@ -117,7 +117,7 @@ export default function MessageItem({ item, onRetry }: MessageItemProps) {
           </div>
         )}
         <div className={`ai-message-content ${isAssistant && item.status === 'sending' ? 'ai-message-content-streaming' : ''}`}>
-          {isAssistant ? (
+          {isAssistant && !item.sourceTaskNo && !item.sourceToolCode ? (
             <MarkdownRenderer
               content={item.content || (item.status === 'sending' ? t('chat.thinking') : '')}
               citations={item.citations || []}

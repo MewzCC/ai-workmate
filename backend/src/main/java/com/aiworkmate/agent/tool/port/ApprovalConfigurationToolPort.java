@@ -7,6 +7,7 @@ import java.util.List;
 public interface ApprovalConfigurationToolPort {
     Page query(ToolActorContext context, Query query);
     FormDefinition readFormDefinition(ToolActorContext context, long formId);
+    RuleDefinition readRuleDefinition(ToolActorContext context, long ruleId);
     FormDraftResult createFormDraft(ToolActorContext context, FormDraft command);
     FormDraftResult updateFormDraft(ToolActorContext context, FormDraftUpdate command);
     FormFieldPatchResult patchFormDraftField(ToolActorContext context, FormFieldPatch command);
@@ -19,6 +20,11 @@ public interface ApprovalConfigurationToolPort {
     RuleDraftResult enableRuleDraft(ToolActorContext context, VersionedRule command);
 
     enum Resource { FORM, PROCESS, RULE }
+
+    record RuleDefinition(long ruleId, String ruleKey, String ruleName, String ruleType, int priority,
+                          String status, int version, String logic, List<RuleCondition> conditions, RuleAction action) {
+        public RuleDefinition { conditions = List.copyOf(conditions); }
+    }
 
     record Query(Resource resource, String keyword, String status, int page, int size) { }
 

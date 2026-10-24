@@ -354,7 +354,7 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageC
             {resultDetail.errorCode && <Alert type="error" showIcon title={t('oa.ai.executionFailed')} description={resultDetail.errorCode} />}
             {resultDetail.steps.map((step) => <div className="oa-ai-result-step" key={step.sequence}>
               <div className="oa-ai-result-step-heading"><Typography.Text strong>{t('oa.ai.resultStep', { sequence: step.sequence })} · {plan?.steps.find((item) => item.sequence === step.sequence)?.title ?? step.toolCode}</Typography.Text><Tag color={step.status === 'SUCCEEDED' ? 'success' : 'error'}>{step.status === 'SUCCEEDED' ? t('oa.ai.status.SUCCEEDED') : t('oa.ai.status.FAILED')}</Tag></div>
-              {step.resultSummary && <Typography.Paragraph>{step.resultSummary}</Typography.Paragraph>}
+              {step.resultSummary && <Typography.Paragraph className="ai-message-user-text">{step.resultSummary}</Typography.Paragraph>}
               {resultPage(step.result) && <Typography.Paragraph type="secondary">{t('oa.ai.resultCount', { count: resultPage(step.result)?.total })}</Typography.Paragraph>}
               {resultPage(step.result)?.empty && <Empty description={t('oa.ai.resultEmpty')} image={Empty.PRESENTED_IMAGE_SIMPLE} />}
               {step.result != null && !step.resultSummary && !resultPage(step.result)?.empty && <pre className="oa-ai-result-json">{JSON.stringify(step.result, null, 2)}</pre>}

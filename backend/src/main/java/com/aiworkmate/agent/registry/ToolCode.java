@@ -32,6 +32,7 @@ public enum ToolCode {
     LEAVE_REMIND("leave.remind", SideEffect.SINGLE_WRITE),
     APPROVAL_CONFIGURATION_QUERY("approval.configuration.query"),
     APPROVAL_FORM_DEFINITION_QUERY("approval.form.definition.query"),
+    APPROVAL_RULE_DEFINITION_QUERY("approval.rule.definition.query"),
     APPROVAL_FORM_CREATE_DRAFT("approval.form.createDraft", SideEffect.SINGLE_WRITE),
     APPROVAL_FORM_UPDATE_DRAFT("approval.form.updateDraft", SideEffect.SINGLE_WRITE),
     APPROVAL_FORM_PATCH_DRAFT_FIELD("approval.form.patchDraftField", SideEffect.SINGLE_WRITE),

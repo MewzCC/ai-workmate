@@ -47,6 +47,7 @@ const aiPermission = {
     leave_remind: { name: 'Remind my leave approver', description: 'Sends a rate-limited reminder for one owned pending leave application.' },
     approval_configuration_query: { name: 'Query approval configuration', description: 'Reads only accessible form, workflow, and rule summaries for the current tenant.' },
     approval_form_definition_query: { name: 'Read form field definitions', description: 'Reads the authorized fields and version of one tenant form, never application values or raw schema.' },
+    approval_rule_definition_query: { name: 'Read approval rule definition', description: 'Reads bounded conditions, actions and the current version of one authorized tenant rule, never raw JSON or creator details.' },
     approval_form_createDraft: { name: 'Create approval form draft', description: 'Creates one unpublished approval form definition after explicit confirmation.' },
     approval_form_updateDraft: { name: 'Update approval form draft', description: 'Updates one unpublished approval form definition after explicit confirmation and version validation.' },
     approval_form_patchDraftField: { name: 'Patch a form draft field', description: 'After explicit confirmation and version validation, changes only one existing field label, required flag, placeholder or width; preserves other fields and constraints.' },

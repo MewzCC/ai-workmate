@@ -47,6 +47,7 @@ const aiPermission = {
     leave_remind: { name: '催办本人请假申请', description: '对本人一条待审批请假申请发起受频率限制的催办。' },
     approval_configuration_query: { name: '查询审批配置', description: '只读取当前租户有权查看的表单、流程和规则摘要。' },
     approval_form_definition_query: { name: '读取表单字段定义', description: '只读取当前租户有权查看的一份表单字段和版本，不读取申请值或原始结构。' },
+    approval_rule_definition_query: { name: '读取审批规则定义', description: '读取当前租户授权规则的有界条件、动作和实际版本，不返回原始 JSON 或创建人资料。' },
     approval_form_createDraft: { name: '创建审批表单草稿', description: '经明确确认后创建一个未发布的审批表单定义草稿。' },
     approval_form_updateDraft: { name: '更新审批表单草稿', description: '经明确确认和版本校验后更新一个未发布的审批表单定义草稿。' },
       approval_form_patchDraftField: { name: '局部修改表单草稿字段', description: '经明确确认和版本校验后，仅修改一个已有字段的标签、必填、占位或宽度，保留其他字段与约束。' },

@@ -20,6 +20,10 @@ function backendOaPages(): Set<string> {
 }
 
 describe('Agent tool business navigation', () => {
+  it('locates a typed rule definition result without trusting output URLs', () => {
+    expect(agentToolTargetPage('approval.rule.definition.query')).toBe('approval-rules');
+    expect(agentToolTargetRecordId('approval.rule.definition.query', { ruleId: 11, url: 'https://invalid.example' })).toBe(11);
+  });
   it('locates the actual rule receipt without selecting a configuration query row', () => {
     for (const code of ['approval.rule.createDraft', 'approval.rule.updateDraft', 'approval.rule.enableDraft']) {
       expect(agentToolTargetRecordId(code, { ruleId: 11 })).toBe(11);

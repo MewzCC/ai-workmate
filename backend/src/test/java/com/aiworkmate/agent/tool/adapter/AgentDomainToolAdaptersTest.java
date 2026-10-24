@@ -107,6 +107,18 @@ class AgentDomainToolAdaptersTest {
         verify(approvalEngineService).readFormDefinitionAgent(7L, 91L, 11L);
     }
 
+    @Test void mapsTypedRuleConditionsAndActionsWithBothTrustedIdentities() {
+        when(approvalEngineService.readRuleDefinitionAgent(7L, 91L, 11L)).thenReturn(
+                new com.aiworkmate.dto.ApprovalRuleDefinitionResponse(11L, "fixture", "Fixture", "AMOUNT_THRESHOLD", 20,
+                        "DISABLED", 3, "AND", List.of(new com.aiworkmate.dto.ApprovalRuleDefinitionResponse.Condition("amount", "gte", "5000")),
+                        new com.aiworkmate.dto.ApprovalRuleDefinitionResponse.Action("FINANCE_REVIEW", false, "OR_SIGN")));
+        var result = approvalConfigurationAdapter.readRuleDefinition(context, 11L);
+        assertThat(result.ruleId()).isEqualTo(11L); assertThat(result.version()).isEqualTo(3);
+        assertThat(result.conditions()).containsExactly(new com.aiworkmate.agent.tool.port.ApprovalConfigurationToolPort.RuleCondition("amount", "gte", "5000"));
+        assertThat(result.action().enabled()).isFalse();
+        verify(approvalEngineService).readRuleDefinitionAgent(7L, 91L, 11L);
+    }
+
     @Test
     void forwardsTrustedTodoQueryAndMapsOnlyPortFields() {
         LocalDateTime now = LocalDateTime.of(2026, 9, 12, 9, 0);

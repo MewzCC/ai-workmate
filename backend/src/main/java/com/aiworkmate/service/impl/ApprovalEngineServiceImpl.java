@@ -18,6 +18,7 @@ import com.aiworkmate.dto.ApprovalRuleRequest;
 import com.aiworkmate.dto.ApprovalRuleAgentDraftRequest;
 import com.aiworkmate.dto.ApprovalRuleAgentDraftUpdateRequest;
 import com.aiworkmate.dto.ApprovalRuleResponse;
+import com.aiworkmate.dto.ApprovalRuleDefinitionResponse;
 import com.aiworkmate.entity.ApprovalForm;
 import com.aiworkmate.entity.ApprovalProcess;
 import com.aiworkmate.entity.ApprovalRule;
@@ -1115,7 +1116,74 @@ public class ApprovalEngineServiceImpl implements ApprovalEngineService {
         return value.intValue();
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public ApprovalRuleDefinitionResponse readRuleDefinitionAgent(Long userId, Long expectedTenantId, Long id) {
+        ResolvedUserAccess actor = requirePermission(userId, "approval:read");
+        if (!actor.tenantId().equals(expectedTenantId)) throw new BusinessException(ErrorCode.PERMISSION_DENIED);
+        if (id == null || id < 1) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        ApprovalRule rule = ruleMapper.selectOne(new LambdaQueryWrapper<ApprovalRule>()
+                .eq(ApprovalRule::getTenantId, actor.tenantId()).eq(ApprovalRule::getId, id).eq(ApprovalRule::getDeleted, false));
+        if (rule == null) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        if (rule.getRuleType() == null || rule.getStatus() == null || !Set.of("ENABLED", "DISABLED").contains(rule.getStatus())
+                || rule.getVersion() == null || rule.getVersion() < 0) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        JsonNode condition = readAgentRuleObject(rule.getConditionJson());
+        JsonNode action = readAgentRuleObject(rule.getActionJson());
+        List<ApprovalRuleAgentDraftRequest.Condition> conditions = new java.util.ArrayList<>();
+        String logic = "AND";
+        if (condition.has("conditions")) {
+            requireAgentRuleKeys(condition, Set.of("logic", "conditions"));
+            logic = textValue(condition, "logic");
+            JsonNode rows = condition.get("conditions");
+            if (!rows.isArray() || rows.isEmpty() || rows.size() > 10) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+            for (JsonNode row : rows) {
+                requireAgentRuleKeys(row, Set.of("field", "op", "value"));
+                conditions.add(publishableRuleCondition(row));
+            }
+        } else {
+            requireAgentRuleKeys(condition, Set.of("field", "op", "value"));
+            conditions.add(publishableRuleCondition(condition));
+        }
+        requireAgentRuleKeys(action, Set.of("appendNode", "enabled", "mode"));
+        if (!action.path("enabled").isBoolean()) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        var typedAction = new ApprovalRuleAgentDraftRequest.Action(textValue(action, "appendNode"),
+                action.path("enabled").booleanValue(), action.has("mode") ? textValue(action, "mode") : "OR_SIGN");
+        requireAgentRuleShape(new ApprovalRuleAgentDraftRequest(rule.getRuleKey(), rule.getRuleName(), rule.getRuleType(),
+                rule.getPriority(), null, logic, conditions, typedAction));
+        return new ApprovalRuleDefinitionResponse(rule.getId(), rule.getRuleKey(), rule.getRuleName(),
+                rule.getRuleType(), rule.getPriority(), rule.getStatus(), rule.getVersion(), logic,
+                conditions.stream().map(row -> new ApprovalRuleDefinitionResponse.Condition(
+                        row.field(), row.operator(), row.value())).toList(),
+                new ApprovalRuleDefinitionResponse.Action(typedAction.appendNode(), typedAction.enabled(), typedAction.mode()));
+    }
+
+    private JsonNode readAgentRuleObject(String json) {
+        if (json == null || json.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 65536) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        try {
+            JsonNode root = objectMapper.reader().with(com.fasterxml.jackson.databind.DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS)
+                    .with(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
+                    .with(com.fasterxml.jackson.core.JsonParser.Feature.STRICT_DUPLICATE_DETECTION).readTree(json);
+            if (root == null || !root.isObject()) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+            return root;
+        } catch (JsonProcessingException exception) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.approval.json.invalid");
+        }
+    }
+
+    private void requireAgentRuleKeys(JsonNode object, Set<String> allowed) {
+        if (object == null || !object.isObject()) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        var names = object.fieldNames();
+        while (names.hasNext()) if (!allowed.contains(names.next())) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+    }
+
     private void requireAgentRuleDraft(ApprovalRuleAgentDraftRequest request) {
+        requireAgentRuleShape(request);
+        if (request.priority() > 10000) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+    }
+
+    private void requireAgentRuleShape(ApprovalRuleAgentDraftRequest request) {
         Set<String> ruleTypes = Set.of("AMOUNT_THRESHOLD", "LEAVE_TYPE", "EMPLOYEE_LEVEL", "LIMIT_OVERRIDE");
         Set<String> fields = Set.of("amount", "durationDays", "department", "employeeLevel", "leaveType");
         Set<String> operators = Set.of("eq", "ne", "gt", "gte", "lt", "lte", "in");
@@ -1125,7 +1193,7 @@ public class ApprovalEngineServiceImpl implements ApprovalEngineService {
                 || !request.ruleKey().matches("^[a-z][a-z0-9_-]{0,63}$")
                 || request.ruleName() == null || request.ruleName().isBlank() || request.ruleName().length() > 120
                 || !ruleTypes.contains(request.ruleType()) || request.priority() == null
-                || request.priority() < 0 || request.priority() > 10000
+                || request.priority() < 0
                 || request.description() != null && request.description().length() > 500
                 || !("AND".equals(request.logic()) || "OR".equals(request.logic()))
                 || request.conditions() == null || request.conditions().isEmpty() || request.conditions().size() > 10

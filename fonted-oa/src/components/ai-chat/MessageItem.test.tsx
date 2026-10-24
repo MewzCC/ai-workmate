@@ -44,6 +44,16 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('verified business result navigation', () => {
+  it('renders actual tool values as literal text without turning them into markup, links or images', () => {
+    const literal = 'SICK_LEAVE <b>[raw]_value</b> ![external](https://invalid.example/pixel)';
+    render(view({ ...reply, content: literal }));
+    const content = document.querySelector('.ai-message-content');
+    expect(content?.textContent).toBe(literal); expect(content?.querySelector('b,img,a')).toBeNull();
+  });
+  it('preserves Markdown formatting for ordinary chat without a tool source', () => {
+    render(view({ ...reply, content: '**正常加粗**', sourceTaskNo: null, sourceToolCode: null }));
+    expect(screen.getByText('正常加粗').tagName).toBe('STRONG');
+  });
   it.each(['type', 'item'])('opens the actual dictionary %s receipt through the shared verified task path', async (kind) => {
     auth.permissions = ['route:dictionary'];
     const task = detail(); task.steps[0] = { ...task.steps[0], toolCode: `dictionary.${kind}.update`, riskLevel: 'L1',

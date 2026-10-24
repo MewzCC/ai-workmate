@@ -10,6 +10,25 @@ import java.util.Set;
 @Configuration(proxyBeanMethods = false)
 public class AgentReadToolDefinitions {
 
+    @Bean
+    ToolDefinition approvalRuleDefinitionQueryToolDefinition(ObjectMapper mapper) throws JsonProcessingException {
+        var output = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.readTree(
+                AgentApprovalConfigurationWriteToolDefinitions.CREATE_RULE_DRAFT_INPUT);
+        var properties = (com.fasterxml.jackson.databind.node.ObjectNode) output.get("properties");
+        properties.remove("description");
+        ((com.fasterxml.jackson.databind.node.ObjectNode) properties.get("priority")).put("maximum", Integer.MAX_VALUE);
+        properties.set("ruleId", mapper.readTree("{\"type\":\"integer\",\"minimum\":1}"));
+        properties.set("status", mapper.readTree("{\"type\":\"string\",\"enum\":[\"ENABLED\",\"DISABLED\"]}"));
+        properties.set("version", mapper.readTree("{\"type\":\"integer\",\"minimum\":0}"));
+        var required = (com.fasterxml.jackson.databind.node.ArrayNode) output.get("required");
+        required.add("ruleId").add("status").add("version");
+        return ToolDefinitionFactory.read(ToolCode.APPROVAL_RULE_DEFINITION_QUERY, "Read an approval rule definition",
+                "Returns one authorized tenant rule as bounded conditions and actions with its actual version.",
+                "Read one rule only; never raw JSON, creator identities, executable extensions or another tenant's rule.",
+                mapper.readTree(ClosedToolSchemas.positiveIdInput("ruleId")), output, Set.of("approval:read"),
+                OwnershipPolicy.FIXED_RESOURCE, 10, 16384, 15000);
+    }
+
     public static final String VISITOR_QUERY_INPUT_SCHEMA = """
             {"type":"object","additionalProperties":false,"properties":{"bookingId":{"type":"integer","minimum":1},"queue":{"type":"string","enum":["MINE","PENDING"]},"status":{"type":"string","enum":["PENDING","APPROVED","REJECTED","WITHDRAWN","CHECKED_IN","VISITED","LEFT","NO_SHOW"]},"page":{"type":"integer","minimum":1,"maximum":10000},"size":{"type":"integer","minimum":1,"maximum":50}},"oneOf":[{"required":["bookingId"],"not":{"anyOf":[{"required":["queue"]},{"required":["status"]},{"required":["page"]},{"required":["size"]}]}},{"not":{"required":["bookingId"]}}]}
             """.strip();

@@ -20,6 +20,7 @@
 | approval.form.createDraft/updateDraft/patchDraftField/publishDraft | 成功回执的 formId | 表单管理受保护详情 |
 | approval.form.definition.query | 实际字段读取结果的 formId | 表单管理受保护详情 |
 | approval.rule.createDraft/updateDraft/enableDraft | 成功回执的 ruleId | 审批规则受保护详情 |
+| approval.rule.definition.query | 实际定义读取结果的 ruleId | 审批规则受保护详情 |
 
 预算详情的上下文、版本与失败边界见[预算页面对接](agent-budget-page-context.md)。
 供应商的选择、版本与联系信息边界见[供应商页面对接](agent-supplier-page-context.md)。

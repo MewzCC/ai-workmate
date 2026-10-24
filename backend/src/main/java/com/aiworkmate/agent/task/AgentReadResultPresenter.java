@@ -20,6 +20,7 @@ public final class AgentReadResultPresenter {
     private AgentReadResultPresenter() { }
 
     public static String present(String toolCode, JsonNode result) {
+        if ("approval.rule.definition.query".equals(toolCode)) return ruleDefinition(result);
         if ("approval.form.patchDraftField".equals(toolCode)) return formFieldPatch(result);
         if ("approval.form.definition.query".equals(toolCode)) return formDefinition(result);
         if ("todo.query".equals(toolCode)) return todo(result);
@@ -54,6 +55,32 @@ public final class AgentReadResultPresenter {
             String description = describe(result);
             if (!description.isBlank()) answer.append('\n').append(description);
         }
+        return answer.substring(0, Math.min(MAX_LENGTH, answer.length()));
+    }
+
+    private static String ruleDefinition(JsonNode result) {
+        if (result == null || result.path("ruleId").asLong() < 1 || !result.path("conditions").isArray()
+                || !result.at("/action/enabled").isBoolean()) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        String node = result.at("/action/appendNode").asText(), mode = result.at("/action/mode").asText();
+        String status = result.path("status").asText();
+        if (!List.of("ENABLED", "DISABLED").contains(status)) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        if (!node.matches("[A-Z_]{1,40}") || !mode.matches("[A-Z_]{1,40}")) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        JsonNode conditions = result.path("conditions");
+        StringBuilder answer = new StringBuilder(MessageUtils.resolve("agent.ruleDefinition.header", result.path("ruleId").asLong(),
+                result.path("ruleName").asText(), result.path("ruleKey").asText(), result.path("version").asInt(),
+                result.path("priority").asInt(), result.path("logic").asText(), conditions.size(),
+                MessageUtils.resolve("agent.ruleDefinition.status." + status)));
+        answer.append('\n').append(MessageUtils.resolve("agent.ruleDefinition.action", node, mode,
+                MessageUtils.resolve(result.at("/action/enabled").asBoolean() ? "agent.ruleDefinition.enabled" : "agent.ruleDefinition.disabled")));
+        int shown = 0;
+        for (JsonNode condition : conditions) {
+            // Both entry points render tool summaries as text: never alter a predicate's literal value.
+            String line = MessageUtils.resolve("agent.ruleDefinition.condition", condition.path("field").asText(),
+                    condition.path("operator").asText(), condition.path("value").asText());
+            if (shown >= MAX_ITEMS || answer.length() + line.length() > 900) break;
+            answer.append('\n').append(line); shown++;
+        }
+        if (shown < conditions.size()) answer.append('\n').append(MessageUtils.resolve("agent.result.more", conditions.size() - shown));
         return answer.substring(0, Math.min(MAX_LENGTH, answer.length()));
     }
 

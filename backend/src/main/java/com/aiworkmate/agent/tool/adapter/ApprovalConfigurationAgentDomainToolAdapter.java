@@ -17,6 +17,15 @@ public final class ApprovalConfigurationAgentDomainToolAdapter implements Approv
     private final ApprovalEngineService approvalEngineService;
 
     @Override
+    public RuleDefinition readRuleDefinition(ToolActorContext context, long ruleId) {
+        var result = approvalEngineService.readRuleDefinitionAgent(context.userId(), context.tenantId(), ruleId);
+        return new RuleDefinition(result.ruleId(), result.ruleKey(), result.ruleName(), result.ruleType(), result.priority(),
+                result.status(), result.version(), result.logic(), result.conditions().stream().map(condition ->
+                new RuleCondition(condition.field(), condition.operator(), condition.value())).toList(),
+                new RuleAction(result.action().appendNode(), result.action().enabled(), result.action().mode()));
+    }
+
+    @Override
     public FormDefinition readFormDefinition(ToolActorContext context, long formId) {
         var result = approvalEngineService.readFormDefinitionAgent(context.userId(), context.tenantId(), formId);
         return new FormDefinition(result.formId(), result.formKey(), result.formName(), result.status(), result.version(),
