@@ -69,6 +69,7 @@ class P1PostgresMigrationIT {
         assertChatAgentResultSchema(emptySchema);
         ApprovalFormDefinitionPostgresVerifier.verify(databaseUrl, databaseUsername, databasePassword, emptySchema);
         ApprovalRuleDefinitionPostgresVerifier.verify(databaseUrl, databaseUsername, databasePassword, emptySchema);
+        ApprovalRuleConditionPatchPostgresVerifier.verify(databaseUrl, databaseUsername, databasePassword, emptySchema);
         ApprovalFormFieldPatchPostgresVerifier.verify(databaseUrl, databaseUsername, databasePassword, emptySchema);
         GatewayPageAccessPostgresVerifier.verify(databaseUrl, databaseUsername, databasePassword, emptySchema);
         MeetingBookingPostgresVerifier.verify(databaseUrl, databaseUsername, databasePassword, emptySchema);
@@ -137,6 +138,7 @@ class P1PostgresMigrationIT {
         assertChatAgentResultSchema(upgradeSchema);
         ApprovalFormDefinitionPostgresVerifier.verify(databaseUrl, databaseUsername, databasePassword, upgradeSchema);
         ApprovalRuleDefinitionPostgresVerifier.verify(databaseUrl, databaseUsername, databasePassword, upgradeSchema);
+        ApprovalRuleConditionPatchPostgresVerifier.verify(databaseUrl, databaseUsername, databasePassword, upgradeSchema);
         ApprovalFormFieldPatchPostgresVerifier.verify(databaseUrl, databaseUsername, databasePassword, upgradeSchema);
         assertThat(queryCount(upgradeSchema, """
                 SELECT COUNT(*) FROM meeting_room

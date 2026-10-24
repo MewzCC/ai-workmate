@@ -15,6 +15,8 @@ import com.aiworkmate.dto.ApprovalProcessAgentDraftRequest;
 import com.aiworkmate.dto.ApprovalProcessAgentDraftUpdateRequest;
 import com.aiworkmate.dto.ApprovalProcessResponse;
 import com.aiworkmate.dto.ApprovalRuleRequest;
+import com.aiworkmate.dto.ApprovalRuleConditionPatchRequest;
+import com.aiworkmate.dto.ApprovalRuleConditionPatchResponse;
 import com.aiworkmate.dto.ApprovalRuleAgentDraftRequest;
 import com.aiworkmate.dto.ApprovalRuleAgentDraftUpdateRequest;
 import com.aiworkmate.dto.ApprovalRuleResponse;
@@ -1125,6 +1127,64 @@ public class ApprovalEngineServiceImpl implements ApprovalEngineService {
         ApprovalRule rule = ruleMapper.selectOne(new LambdaQueryWrapper<ApprovalRule>()
                 .eq(ApprovalRule::getTenantId, actor.tenantId()).eq(ApprovalRule::getId, id).eq(ApprovalRule::getDeleted, false));
         if (rule == null) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        return agentRuleDefinition(rule);
+    }
+
+    @Override
+    @Transactional
+    public ApprovalRuleConditionPatchResponse patchRuleDraftConditionAgent(Long userId, Long expectedTenantId, Long id,
+                                                                          ApprovalRuleConditionPatchRequest request) {
+        ResolvedUserAccess actor = requirePermission(userId, "approval:manage");
+        if (!actor.tenantId().equals(expectedTenantId)) throw new BusinessException(ErrorCode.PERMISSION_DENIED);
+        if (id == null || id < 1 || request == null || request.version() == null || request.version() < 1
+                || request.version() == Integer.MAX_VALUE || request.conditionNumber() == null
+                || request.conditionNumber() < 1 || request.conditionNumber() > 10
+                || request.value() == null || request.value().isBlank() || request.value().length() > 120) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        ApprovalRule rule = ruleMapper.selectOne(new LambdaQueryWrapper<ApprovalRule>()
+                .eq(ApprovalRule::getTenantId, actor.tenantId()).eq(ApprovalRule::getId, id)
+                .eq(ApprovalRule::getDeleted, false));
+        if (rule == null) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        if (!"DISABLED".equals(rule.getStatus())) throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID);
+        if (!request.version().equals(rule.getVersion())) throw new BusinessException(ErrorCode.VERSION_CONFLICT);
+        var definition = agentRuleDefinition(rule);
+        if (request.conditionNumber() > definition.conditions().size()) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        JsonNode root = readAgentRuleObject(rule.getConditionJson());
+        var target = (com.fasterxml.jackson.databind.node.ObjectNode) (root.has("conditions")
+                ? root.path("conditions").get(request.conditionNumber() - 1) : root);
+        if (target.path("value").isNumber()) {
+            try {
+                if (!request.value().matches("-?(0|[1-9][0-9]*)(\\.[0-9]+)?([eE][+-]?[0-9]+)?")) {
+                    throw new NumberFormatException();
+                }
+                var value = new java.math.BigDecimal(request.value());
+                if (value.scale() < -120 || value.scale() > 120) throw new NumberFormatException();
+                target.put("value", value);
+            } catch (NumberFormatException exception) {
+                throw new BusinessException(ErrorCode.REQUEST_INVALID);
+            }
+        } else if (target.path("value").isBoolean()) {
+            if (!Set.of("true", "false").contains(request.value())) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+            target.put("value", Boolean.parseBoolean(request.value()));
+        } else {
+            target.put("value", request.value());
+        }
+        String actualValue = target.path("value").asText();
+        if (actualValue.length() > 120) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        int updated = ruleMapper.update(null, new LambdaUpdateWrapper<ApprovalRule>()
+                .eq(ApprovalRule::getTenantId, actor.tenantId()).eq(ApprovalRule::getId, id)
+                .eq(ApprovalRule::getDeleted, false).eq(ApprovalRule::getStatus, "DISABLED")
+                .eq(ApprovalRule::getVersion, request.version()).set(ApprovalRule::getConditionJson, root.toString())
+                .set(ApprovalRule::getUpdatedAt, LocalDateTime.now()).setSql("version = version + 1"));
+        if (updated != 1) throw new BusinessException(ErrorCode.VERSION_CONFLICT);
+        auditService.recordTransactional(actor.tenantId(), actor.userId(), RESOURCE_RULE, id.toString(),
+                "PATCH_CONDITION", "SUCCESS", "conditionNumber=" + request.conditionNumber());
+        return new ApprovalRuleConditionPatchResponse(id, request.version() + 1, "DISABLED", request.conditionNumber(),
+                target.path("field").asText(), target.path("op").asText(), actualValue);
+    }
+
+    private ApprovalRuleDefinitionResponse agentRuleDefinition(ApprovalRule rule) {
         if (rule.getRuleType() == null || rule.getStatus() == null || !Set.of("ENABLED", "DISABLED").contains(rule.getStatus())
                 || rule.getVersion() == null || rule.getVersion() < 0) throw new BusinessException(ErrorCode.REQUEST_INVALID);
         JsonNode condition = readAgentRuleObject(rule.getConditionJson());
