@@ -11,6 +11,12 @@ function result(data: unknown): Response {
 afterEach(() => vi.restoreAllMocks());
 
 describe('通用审批草稿接口', () => {
+  it('读取规则的受保护详情并携带认证请求', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(result({ id: 11, version: 7 }));
+    expect(await approvalEngineApi.getRule(11)).toMatchObject({ id: 11, version: 7 });
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/approval-config/rules/11');
+    expect(fetchMock.mock.calls[0][1]).toEqual(expect.objectContaining({ credentials: 'include', cache: 'no-store' }));
+  });
   it('读取受保护表单详情而不是从列表猜测记录', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(result({ id: 11, version: 7 }));
     expect(await approvalEngineApi.getForm(11)).toMatchObject({ id: 11, version: 7 });

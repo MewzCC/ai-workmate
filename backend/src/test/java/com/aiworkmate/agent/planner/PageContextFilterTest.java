@@ -11,6 +11,14 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class PageContextFilterTest {
     @Test
+    void ruleSelectionDoesNotExposeConditionsActionsOrEditorDrafts() {
+        assertThat(filter.filter("approval-rules", mapper.createObjectNode().put("ruleId", 11).put("version", 7)
+                .put("page", 1).put("size", 20).put("keyword", "fixture").put("status", "DISABLED")
+                .put("conditionJson", "private").put("actionJson", "private").put("description", "private").put("tenantId", 999)))
+                .isEqualTo(mapper.createObjectNode().put("ruleId", 11).put("version", 7).put("page", 1)
+                        .put("size", 20).put("keyword", "fixture").put("status", "DISABLED"));
+    }
+    @Test
     void formSelectionDoesNotExposeSchemaOrDesignerDrafts() {
         assertThat(filter.filter("form-engine", mapper.createObjectNode().put("formId", 11).put("version", 7)
                 .put("page", 1).put("size", 20).put("keyword", "fixture").put("status", "DISABLED")

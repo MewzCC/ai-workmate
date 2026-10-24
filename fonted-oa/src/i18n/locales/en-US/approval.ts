@@ -346,6 +346,7 @@ export default {
     },
     rule: {
       title: 'Approval Rules',
+      detailTitle: 'Rule Details',
       description: 'Manage approval rules: when a condition matches, the action runs (e.g. append approver, forward); smaller priority runs first.',
       columnKey: 'Rule Key',
       columnName: 'Rule Name',

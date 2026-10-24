@@ -146,6 +146,7 @@ public class PageCapabilityCatalog {
                         tool(APPROVAL_CONFIGURATION_QUERY), tool(APPROVAL_PROCESS_CREATE_DRAFT),
                         tool(APPROVAL_PROCESS_UPDATE_DRAFT), tool(APPROVAL_PROCESS_PUBLISH_DRAFT)),
                 page(OaPage.APPROVAL_RULES, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
+                        context(number("ruleId"), number("version"), text("keyword"), text("status"), number("page"), number("size")),
                         tool(APPROVAL_CONFIGURATION_QUERY), tool(APPROVAL_RULE_CREATE_DRAFT),
                         tool(APPROVAL_RULE_UPDATE_DRAFT), tool(APPROVAL_RULE_ENABLE_DRAFT)),
 

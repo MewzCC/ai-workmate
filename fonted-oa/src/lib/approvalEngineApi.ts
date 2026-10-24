@@ -233,6 +233,8 @@ export const approvalEngineApi = {
   } = {}) =>
     request<PageResponse<ApprovalRule>>(`/approval-config/rules${queryString(params)}`),
 
+  getRule: (id: number) => request<ApprovalRule>(`/approval-config/rules/${id}`),
+
   createRule: (payload: ApprovalRulePayload) =>
     request<ApprovalRule>('/approval-config/rules', {
       method: 'POST',

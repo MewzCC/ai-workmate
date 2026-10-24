@@ -25,11 +25,11 @@ interface DefinitionApi<T, P> {
 export function useApprovalDefinitionPage<T extends DefinitionRecord, P extends DefinitionPayload>({
   pageId, idField, api, loadForms, messages,
 }: {
-  pageId: 'form-engine' | 'process-config';
-  idField: 'formId' | 'processId';
+  pageId: 'form-engine' | 'process-config' | 'approval-rules';
+  idField: 'formId' | 'processId' | 'ruleId';
   api: DefinitionApi<T, P>;
   loadForms?: () => Promise<ApprovalForm[]>;
-  messages: { publish: string; create: string; update: string };
+  messages: { publish?: string; create: string; update: string };
 }) {
   const { t } = useTranslation();
   const { modal } = App.useApp();
@@ -164,7 +164,7 @@ export function useApprovalDefinitionPage<T extends DefinitionRecord, P extends 
       const result = editing ? await api.update(editing.id, { ...payload, version: editing.version }) : await api.create(payload);
       if (activeScope.current !== identity) return;
       if (request === editorRequest.current) {
-        message.success(t(payload.status === 'ENABLED' ? messages.publish : editing ? messages.update : messages.create));
+        message.success(t(payload.status === 'ENABLED' && messages.publish ? messages.publish : editing ? messages.update : messages.create));
         showDetail(result.id, true);
       }
       await latestLoad.current();

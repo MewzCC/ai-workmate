@@ -20,6 +20,15 @@ function backendOaPages(): Set<string> {
 }
 
 describe('Agent tool business navigation', () => {
+  it('locates the actual rule receipt without selecting a configuration query row', () => {
+    for (const code of ['approval.rule.createDraft', 'approval.rule.updateDraft', 'approval.rule.enableDraft']) {
+      expect(agentToolTargetRecordId(code, { ruleId: 11 })).toBe(11);
+    }
+    expect(resolveAgentToolTargetPath('approval-rules', 11, [{ id: 'approval-rules', name: '规则', type: 'page', visible: true, sort: 1 }]))
+      .toBe('/oa/approval-rules?id=11');
+    expect(resolveAgentToolTargetPath('approval-rules', 11, [])).toBeNull();
+    expect(agentToolTargetRecordId('approval.configuration.query', { items: [{ id: 11 }] })).toBeUndefined();
+  });
   it('locates a typed form definition read result on its protected form page', () => {
     expect(agentToolTargetPage('approval.form.definition.query')).toBe('form-engine');
     expect(agentToolTargetRecordId('approval.form.definition.query', { formId: 11, fields: [] })).toBe(11);

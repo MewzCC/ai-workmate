@@ -1,18 +1,20 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Button,
   Card,
+  Descriptions,
+  Drawer,
   Empty,
   Form,
   Input,
   InputNumber,
   Modal,
-  Popconfirm,
   Segmented,
   Select,
   Space,
+  Spin,
   Switch,
   Tag,
   Typography,
@@ -34,6 +36,7 @@ import { OaIcon } from '@/components/OaIcon';
 import ApprovalConfigShell from './ApprovalConfigShell';
 import { StatusTag } from './FormEnginePage';
 import ResponsiveTable from './ResponsiveTable';
+import { useApprovalDefinitionPage } from './useApprovalDefinitionPage';
 
 const RULE_TYPES: ApprovalRuleType[] = [
   'AMOUNT_THRESHOLD', 'LEAVE_TYPE', 'EMPLOYEE_LEVEL', 'LIMIT_OVERRIDE',
@@ -127,73 +130,47 @@ function serializeAction(action: RuleActionState): string {
   });
 }
 
+const api = { list: approvalEngineApi.listRules, get: approvalEngineApi.getRule, create: approvalEngineApi.createRule,
+  update: approvalEngineApi.updateRule, remove: approvalEngineApi.deleteRule };
+
 export default function ApprovalRulesPage() {
   const { t } = useTranslation();
-  const [data, setData] = useState<ApprovalRule[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
-  const [keyword, setKeyword] = useState('');
-  const [status, setStatus] = useState<ApprovalConfigStatus | undefined>(undefined);
-
-  const [editOpen, setEditOpen] = useState(false);
-  const [editing, setEditing] = useState<ApprovalRule | null>(null);
+  const state = useApprovalDefinitionPage({ pageId: 'approval-rules', idField: 'ruleId', api,
+    messages: { create: 'approval.config.common.createSuccess', update: 'approval.config.common.updateSuccess' } });
+  const { canManage, data, total, loading, page, setPage, search, setSearch, status, setStatus,
+    detail, detailOpen, detailLoading, designerOpen: editOpen, designerEditing: editing, editorLoading, editorTicket,
+    close, showDetail, openEditor, save, remove, refresh, applySearch } = state;
   const [submitting, setSubmitting] = useState(false);
   const [form] = Form.useForm<RuleFormValues>();
   const [condLogic, setCondLogic] = useState<'AND' | 'OR'>('AND');
   const [conditionRows, setConditionRows] = useState<ConditionRow[]>([]);
   const [action, setAction] = useState<RuleActionState>({ appendNode: 'DEPARTMENT_HEAD', enabled: true, mode: 'OR_SIGN' });
 
-  const load = useCallback(async (p = page) => {
-    setLoading(true);
-    try {
-      const res = await approvalEngineApi.listRules({
-        keyword: keyword || undefined,
-        status,
-        page: p,
-        size: 20,
-      });
-      setData(res.records);
-      setTotal(res.total);
-    } catch (err) {
-      message.error(formatOaApiError(err));
-    } finally {
-      setLoading(false);
-    }
-  }, [keyword, status, page]);
-
   useEffect(() => {
-    void load(1);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const openCreate = () => {
-    setEditing(null);
-    form.resetFields();
-    setCondLogic('AND');
-    setConditionRows([{ id: newConditionId(), field: 'amount', op: 'gte', value: '' }]);
-    setAction({ appendNode: 'DEPARTMENT_HEAD', enabled: true, mode: 'OR_SIGN' });
-    setEditOpen(true);
-  };
-
-  const openEdit = (record: ApprovalRule) => {
-    setEditing(record);
+    if (!editOpen || editorLoading) return;
+    if (!editing) {
+      form.resetFields();
+      setCondLogic('AND');
+      setConditionRows([{ id: newConditionId(), field: 'amount', op: 'gte', value: '' }]);
+      setAction({ appendNode: 'DEPARTMENT_HEAD', enabled: true, mode: 'OR_SIGN' });
+      return;
+    }
     form.setFieldsValue({
-      ruleKey: record.ruleKey,
-      ruleName: record.ruleName,
-      ruleType: record.ruleType,
-      priority: record.priority,
-      description: record.description || '',
-      status: record.status,
+      ruleKey: editing.ruleKey,
+      ruleName: editing.ruleName,
+      ruleType: editing.ruleType,
+      priority: editing.priority,
+      description: editing.description || '',
+      status: editing.status,
     });
-    const parsed = parseConditions(record.conditionJson);
+    const parsed = parseConditions(editing.conditionJson);
     setCondLogic(parsed.logic);
     setConditionRows(parsed.rows.length > 0 ? parsed.rows : [{ id: newConditionId(), field: 'amount', op: 'gte', value: '' }]);
-    setAction(parseAction(record.actionJson));
-    setEditOpen(true);
-  };
+    setAction(parseAction(editing.actionJson));
+  }, [editOpen, editorLoading, editing, editorTicket, form]);
 
   const handleSubmit = async () => {
+    const ticket = editorTicket;
     try {
       const values = await form.validateFields();
       setSubmitting(true);
@@ -203,30 +180,12 @@ export default function ApprovalRulesPage() {
         conditionJson: serializeConditions(condLogic, conditionRows),
         actionJson: serializeAction(action),
       };
-      if (editing) {
-        await approvalEngineApi.updateRule(editing.id, { ...payload, version: editing.version });
-        message.success(t('approval.config.common.updateSuccess'));
-      } else {
-        await approvalEngineApi.createRule(payload);
-        message.success(t('approval.config.common.createSuccess'));
-      }
-      setEditOpen(false);
-      await load(page);
+      await save(payload, ticket);
     } catch (err) {
       if (err instanceof Error && err.name === 'ValidationError') return;
       message.error(formatOaApiError(err));
     } finally {
       setSubmitting(false);
-    }
-  };
-
-  const handleDelete = async (id: number) => {
-    try {
-      await approvalEngineApi.deleteRule(id);
-      message.success(t('approval.config.common.deleteSuccess'));
-      await load(page);
-    } catch (err) {
-      message.error(formatOaApiError(err));
     }
   };
 
@@ -253,7 +212,7 @@ export default function ApprovalRulesPage() {
       title: t('approval.config.rule.columnKey'),
       dataIndex: 'ruleKey',
       key: 'ruleKey',
-      render: (v: string) => <Typography.Text code>{v}</Typography.Text>,
+      render: (v: string, record) => <Button type="link" onClick={() => showDetail(record.id)}>{v}</Button>,
     },
     {
       title: t('approval.config.rule.columnName'),
@@ -304,33 +263,25 @@ export default function ApprovalRulesPage() {
       width: 130,
       fixed: 'right',
       render: (_, record) =>
-        record.canEdit ? (
           <Space>
-            <Button type="link" size="small" onClick={() => openEdit(record)}>
+            <Button type="link" size="small" onClick={() => showDetail(record.id)}>{t('common.view')}</Button>
+            {canManage && record.canEdit && <Button type="link" size="small" onClick={() => void openEditor(record)}>
               {t('approval.config.common.edit')}
-            </Button>
-            <Popconfirm
-              title={t('approval.config.common.deleteConfirm')}
-              onConfirm={() => handleDelete(record.id)}
-            >
-              <Button type="link" size="small" danger disabled={!record.canDelete}>
+            </Button>}
+            {canManage && record.canDelete && <Button type="link" size="small" danger onClick={() => remove(record)}>
                 {t('approval.config.common.delete')}
-              </Button>
-            </Popconfirm>
-          </Space>
-        ) : (
-          '-'
-        ),
+              </Button>}
+          </Space>,
     },
   ];
 
   return (
     <ApprovalConfigShell
-      eyebrow="APPROVAL RULES"
+      eyebrow={t('approval.config.eyebrow')}
       title={t('approval.config.rule.title')}
       description={t('approval.config.rule.description')}
       actions={
-        <Button type="primary" onClick={openCreate}>
+        canManage && <Button type="primary" onClick={() => void openEditor()}>
           {t('approval.config.rule.create')}
         </Button>
       }
@@ -341,9 +292,9 @@ export default function ApprovalRulesPage() {
             placeholder={t('approval.config.common.searchPlaceholder')}
             allowClear
             style={{ width: 240 }}
-            value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
-            onSearch={() => { setPage(1); void load(1); }}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onSearch={applySearch}
           />
           <Space wrap>
             <Select
@@ -357,7 +308,7 @@ export default function ApprovalRulesPage() {
                 label: t(`approval.config.common.statusOption.${s}`, { defaultValue: s }),
               }))}
             />
-            <Button icon={<OaIcon name="reload" />} onClick={() => void load(page)}>
+            <Button icon={<OaIcon name="reload" />} onClick={() => void refresh()}>
               {t('common.refresh')}
             </Button>
           </Space>
@@ -375,22 +326,39 @@ export default function ApprovalRulesPage() {
             pageSize: 20,
             total,
             showSizeChanger: false,
-            onChange: (p) => { setPage(p); void load(p); },
+            onChange: setPage,
           }}
         />
       </Card>
 
+      <Drawer open={detailOpen} loading={detailLoading} onClose={close} width={600} title={t('approval.config.rule.detailTitle')}
+        extra={detail?.canEdit && canManage && <Button onClick={() => void openEditor(detail)}>{t('approval.config.common.edit')}</Button>}>
+        {detail && <Descriptions column={1} items={[
+          { key: 'key', label: t('approval.config.rule.ruleKey'), children: detail.ruleKey },
+          { key: 'name', label: t('approval.config.rule.ruleName'), children: detail.ruleName },
+          { key: 'type', label: t('approval.config.rule.columnType'), children: t(`approval.config.rule.ruleTypeOption.${detail.ruleType}`) },
+          { key: 'priority', label: t('approval.config.rule.priority'), children: detail.priority },
+          { key: 'version', label: t('approval.config.common.version'), children: detail.version },
+          { key: 'status', label: t('approval.config.common.status'), children: <StatusTag status={detail.status} /> },
+          { key: 'condition', label: t('approval.config.rule.conditionTitle'), children: <Input.TextArea readOnly autoSize={{ minRows: 2, maxRows: 8 }}
+            aria-label={t('approval.config.rule.conditionJson')} value={detail.conditionJson} /> },
+          { key: 'action', label: t('approval.config.rule.actionTitle'), children: <Input.TextArea readOnly autoSize={{ minRows: 2, maxRows: 8 }}
+            aria-label={t('approval.config.rule.actionJson')} value={detail.actionJson} /> },
+          { key: 'description', label: t('approval.config.rule.descriptionLabel'), children: detail.description || '-' },
+        ]} />}
+      </Drawer>
       <Modal
         title={editing ? t('approval.config.rule.editTitle') : t('approval.config.rule.createTitle')}
         open={editOpen}
-        onCancel={() => setEditOpen(false)}
+        onCancel={close}
         onOk={handleSubmit}
         confirmLoading={submitting}
+        okButtonProps={{ disabled: editorLoading || submitting }}
         okText={t('approval.config.common.save')}
         destroyOnClose
         width={640}
       >
-        <Form form={form} layout="vertical" initialValues={{ status: 'ENABLED', priority: 100 }}>
+        {editorLoading ? <Spin /> : <Form form={form} layout="vertical" initialValues={{ status: 'ENABLED', priority: 100 }}>
           <Form.Item
             name="ruleKey"
             label={t('approval.config.rule.ruleKey')}
@@ -529,7 +497,7 @@ export default function ApprovalRulesPage() {
               }))}
             />
           </Form.Item>
-        </Form>
+        </Form>}
       </Modal>
     </ApprovalConfigShell>
   );

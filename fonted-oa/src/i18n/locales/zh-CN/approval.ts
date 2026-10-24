@@ -346,6 +346,7 @@ export default {
     },
     rule: {
       title: '审批规则',
+      detailTitle: '规则详情',
       description: '维护审批规则：命中条件后按动作执行（如加签、转交），优先级数字越小越先执行。',
       columnKey: '规则标识',
       columnName: '规则名称',
