@@ -4,6 +4,7 @@ import com.aiworkmate.agent.registry.ToolCatalog;
 import com.aiworkmate.agent.task.AgentHashing;
 import com.aiworkmate.agent.task.AgentTaskEventService;
 import com.aiworkmate.integration.FrozenReadTaskFixture.Task;
+import com.aiworkmate.integration.AgentHttpTestFixture.Actor;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
@@ -19,7 +20,6 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
 import java.io.InputStream;
-import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -40,8 +40,7 @@ import static org.awaitility.Awaitility.await;
 class AgentHttpExecutionIntegrationTest extends AbstractIsolatedAgentIntegrationTest {
     private static final AgentIntegrationEnvironment ENVIRONMENT = new AgentIntegrationEnvironment();
     private static final String JWT_SECRET = UUID.randomUUID().toString() + UUID.randomUUID();
-    private static final HttpClient HTTP = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1)
-            .connectTimeout(Duration.ofSeconds(5)).build();
+    private static final HttpClient HTTP = AgentHttpTestFixture.client();
     @Override protected AgentIntegrationEnvironment environment() { return ENVIRONMENT; }
     @LocalServerPort private int port;
     @Autowired private JdbcTemplate jdbc;
@@ -52,6 +51,7 @@ class AgentHttpExecutionIntegrationTest extends AbstractIsolatedAgentIntegration
     @Autowired private AgentTaskEventService events;
     private long tenant;
     private Actor owner;
+    private AgentHttpTestFixture http;
 
     @DynamicPropertySource static void properties(DynamicPropertyRegistry registry) {
         ENVIRONMENT.register(registry);
@@ -67,6 +67,7 @@ class AgentHttpExecutionIntegrationTest extends AbstractIsolatedAgentIntegration
     }
 
     @BeforeEach void prepareActor() throws Exception {
+        http = new AgentHttpTestFixture(jdbc, json, passwords, port, "en-US");
         tenant = jdbc.queryForObject("SELECT id FROM tenant WHERE code='DEFAULT'", Long.class);
         jdbc.update("UPDATE agent_tenant_policy SET enabled=true,write_tools_enabled=false WHERE tenant_id=?", tenant);
         jdbc.update("UPDATE agent_tool SET enabled=true WHERE tenant_id IS NULL AND code='notification.mine'");
@@ -202,33 +203,11 @@ class AgentHttpExecutionIntegrationTest extends AbstractIsolatedAgentIntegration
     }
 
     private Actor loginNewActor(long tenantId) throws Exception {
-        String suffix = UUID.randomUUID().toString().replace("-", "");
-        String role = "HTTP_IT_" + suffix.substring(0, 24);
-        String email = "http-it-" + suffix + "@example.invalid";
-        String password = UUID.randomUUID().toString();
-        jdbc.update("INSERT INTO rbac_role(code,name,description,tenant_id,builtin) VALUES (?,'HTTP reader','isolated test',?,false)", role, tenantId);
-        long id = jdbc.queryForObject("INSERT INTO app_user(username,password,email,tenant_id,role) VALUES (?,?,?,?,?) RETURNING id", Long.class,
-                email, passwords.encode(password), email, tenantId, role);
-        for (String permission : List.of("route:messages", "notification:read:self", "agent:tool:notification.mine")) {
-            jdbc.update("INSERT INTO rbac_role_permission(tenant_id,role_code,permission_code) VALUES (?,?,?)", tenantId, role, permission);
-        }
-        String payload = json.createObjectNode().put("email", email).put("password", password).put("remember", false).toString();
-        var response = HTTP.send(request("POST", "/api/auth/login/password", null, null, payload).build(), HttpResponse.BodyHandlers.ofString());
-        assertThat(response.statusCode()).isEqualTo(200);
-        String setCookie = response.headers().firstValue("Set-Cookie").orElseThrow();
-        String cookie = setCookie.split(";", 2)[0];
-        assertThat(setCookie.substring(cookie.length())).contains("HttpOnly", "SameSite=Strict");
-        assertThat(json.readTree(response.body()).path("data").has("token")).isFalse();
-        return new Actor(id, role, cookie);
+        return http.createAndLogin(tenantId, List.of("route:messages", "notification:read:self", "agent:tool:notification.mine"));
     }
 
     private HttpRequest.Builder request(String method, String path, Actor actor, String key, String body) {
-        var builder = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + path))
-                .timeout(Duration.ofSeconds(10)).header("Accept-Language", "en-US");
-        if (actor != null) builder.header("Cookie", actor.cookie());
-        if (key != null) builder.header("Idempotency-Key", key);
-        if (body != null) builder.header("Content-Type", "application/json");
-        return builder.method(method, body == null ? HttpRequest.BodyPublishers.noBody() : HttpRequest.BodyPublishers.ofString(body));
+        return http.request(method, path, actor, key, body);
     }
 
     private HttpRequest executionRequest(Task task, Actor actor, String key) {
@@ -281,7 +260,4 @@ class AgentHttpExecutionIntegrationTest extends AbstractIsolatedAgentIntegration
         return Pattern.compile("(?m)^id:(\\d+)\\r?$").matcher(stream).results().map(match -> Long.parseLong(match.group(1))).toList();
     }
 
-    private record Actor(long id, String role, String cookie) {
-        @Override public String toString() { return "HTTP test actor " + id; }
-    }
 }
