@@ -59,6 +59,7 @@ function renderDrawer(
 
 describe('AIOperationDrawer', () => {
   beforeEach(() => {
+    api.executeAiTask.mockResolvedValue({ taskId: basePlan.taskId, status: 'QUEUED', statusUrl: '/status', eventsUrl: '/events' });
     api.getPageCapabilities.mockResolvedValue({
       pageId: 'todo',
       componentKey: 'TODO_LIST',
@@ -105,7 +106,7 @@ describe('AIOperationDrawer', () => {
     expect(api.getPageCapabilities).toHaveBeenCalledWith('todo-list');
   });
 
-  it('executes an L0 plan only after the user clicks and starts the cookie event stream', async () => {
+  it('automatically executes an allowed L0 read after one user request and starts the cookie event stream', async () => {
     api.planAiTask.mockResolvedValue(basePlan);
     api.executeAiTask.mockResolvedValue({
       taskId: basePlan.taskId,
@@ -118,14 +119,108 @@ describe('AIOperationDrawer', () => {
     fireEvent.click(screen.getByRole('button', { name: /发送 \/ 生成计划/ }));
     await waitFor(() => expect(screen.getAllByText(basePlan.summary)).toHaveLength(2));
 
-    expect(api.executeAiTask).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('button', { name: '执行计划' }));
     await waitFor(() => expect(api.executeAiTask).toHaveBeenCalledWith(basePlan.taskId, {
       planVersion: 1,
       planHash: 'sha256:plan',
     }));
     expect(api.issueAiTaskConfirmation).not.toHaveBeenCalled();
     expect(api.subscribeAiTaskEvents).toHaveBeenCalledWith(basePlan.taskId, expect.any(Object));
+    expect(api.executeAiTask).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    { status: 'WAITING_CONFIRMATION', riskLevel: 'L1', confirmationRequired: true },
+    { status: 'WAITING_CONFIRMATION', riskLevel: 'L2', confirmationRequired: true },
+    { status: 'PLAN_READY', riskLevel: 'L1', confirmationRequired: false },
+    { status: 'PLAN_READY', riskLevel: 'L0', confirmationRequired: true },
+  ])('does not automatically execute a plan with inconsistent or confirmed risk: $riskLevel / $confirmationRequired', async (risk) => {
+    api.planAiTask.mockResolvedValue({ ...basePlan, ...risk });
+    renderDrawer();
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: '处理当前任务' } });
+    fireEvent.click(screen.getByRole('button', { name: /发送 \/ 生成计划/ }));
+    await waitFor(() => expect(screen.getAllByText(basePlan.summary)).toHaveLength(2));
+    expect(api.executeAiTask).not.toHaveBeenCalled();
+    expect(api.issueAiTaskConfirmation).not.toHaveBeenCalled();
+  });
+
+  it('does not automatically execute a tool absent from live page capabilities', async () => {
+    api.planAiTask.mockResolvedValue({ ...basePlan, steps: [{ ...basePlan.steps[0], toolCode: 'unknown.query' }] });
+    renderDrawer();
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: '查询数据' } });
+    fireEvent.click(screen.getByRole('button', { name: /发送 \/ 生成计划/ }));
+    await waitFor(() => expect(screen.getAllByText(basePlan.summary)).toHaveLength(2));
+    expect(api.executeAiTask).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { sideEffect: 'SINGLE_WRITE' },
+    { riskLevel: 'L1' },
+    { confirmationPolicy: 'EXPLICIT' },
+  ])('does not automatically execute inconsistent live tool metadata: %j', async (metadata) => {
+    const capability = await api.getPageCapabilities('todo-list');
+    api.getPageCapabilities.mockResolvedValue({ ...capability, tools: [{ ...capability.tools[0], ...metadata }] });
+    api.planAiTask.mockResolvedValue(basePlan);
+    renderDrawer();
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: '查询我的待办' } });
+    fireEvent.click(screen.getByRole('button', { name: /发送 \/ 生成计划/ }));
+    await waitFor(() => expect(screen.getAllByText(basePlan.summary)).toHaveLength(2));
+    expect(api.executeAiTask).not.toHaveBeenCalled();
+  });
+
+  it('does not automatically execute when navigation precedes the planning response', async () => {
+    let resolve!: (value: typeof basePlan) => void;
+    api.planAiTask.mockReturnValue(new Promise<typeof basePlan>((done) => { resolve = done; }));
+    const drawer = (pageId: string) => <App><AIOperationDrawer open role="system_admin" pageId={pageId}
+      pageTitle={pageId} onClose={vi.fn()} /></App>;
+    const view = render(drawer('todo-list'));
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: '查询我的待办' } });
+    fireEvent.click(screen.getByRole('button', { name: /发送 \/ 生成计划/ }));
+    await waitFor(() => expect(api.planAiTask).toHaveBeenCalledOnce());
+    view.rerender(drawer('visitor-booking'));
+    await act(async () => resolve(basePlan));
+    expect(api.executeAiTask).not.toHaveBeenCalled();
+  });
+
+  it('keeps an accepted plan and does not invent success or retry when automatic enqueue fails', async () => {
+    api.planAiTask.mockResolvedValue(basePlan);
+    api.executeAiTask.mockRejectedValue(new Error('queue unavailable'));
+    renderDrawer();
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: '查询我的待办' } });
+    fireEvent.click(screen.getByRole('button', { name: /发送 \/ 生成计划/ }));
+    await waitFor(() => expect(screen.getByText('AI 能力调用失败')).toBeTruthy());
+    expect(screen.getAllByText(basePlan.summary)).toHaveLength(2);
+    expect(api.executeAiTask).toHaveBeenCalledOnce();
+    expect(api.subscribeAiTaskEvents).not.toHaveBeenCalled();
+    expect(screen.queryByText('实际执行结果')).toBeNull();
+  });
+
+  it('requires manual execution after leaving and returning before the original plan finishes', async () => {
+    let resolve!: (value: typeof basePlan) => void;
+    api.planAiTask.mockReturnValue(new Promise<typeof basePlan>((done) => { resolve = done; }));
+    const drawer = (pageId: string) => <App><AIOperationDrawer open role="system_admin" pageId={pageId}
+      pageTitle={pageId} onClose={vi.fn()} /></App>;
+    const view = render(drawer('todo-list'));
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: '查询我的待办' } });
+    fireEvent.click(screen.getByRole('button', { name: /发送 \/ 生成计划/ }));
+    await waitFor(() => expect(api.planAiTask).toHaveBeenCalledOnce());
+    view.rerender(drawer('visitor-booking'));
+    view.rerender(drawer('todo-list'));
+    await act(async () => resolve(basePlan));
+    expect(api.executeAiTask).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: '执行计划' }));
+    await waitFor(() => expect(api.executeAiTask).toHaveBeenCalledOnce());
+  });
+
+  it('does not execute a late plan after the permission-owned drawer is unmounted', async () => {
+    let resolve!: (value: typeof basePlan) => void;
+    api.planAiTask.mockReturnValue(new Promise<typeof basePlan>((done) => { resolve = done; }));
+    renderDrawer();
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: '查询我的待办' } });
+    fireEvent.click(screen.getByRole('button', { name: /发送 \/ 生成计划/ }));
+    await waitFor(() => expect(api.planAiTask).toHaveBeenCalledOnce());
+    cleanup();
+    await act(async () => resolve(basePlan));
+    expect(api.executeAiTask).not.toHaveBeenCalled();
   });
 
   it('sends the current bounded page context with the planning request', async () => {
@@ -163,7 +258,6 @@ describe('AIOperationDrawer', () => {
     fireEvent.click(screen.getByRole('button', { name: /发送 \/ 生成计划/ }));
     await waitFor(() => expect(screen.getAllByText(basePlan.summary)).toHaveLength(2));
     expect(input.value).toBe('');
-    fireEvent.click(screen.getByRole('button', { name: '执行计划' }));
     await waitFor(() => expect(api.subscribeAiTaskEvents).toHaveBeenCalledTimes(1));
 
     const subscription = api.subscribeAiTaskEvents.mock.calls[0][1] as {
@@ -193,7 +287,6 @@ describe('AIOperationDrawer', () => {
     fireEvent.change(screen.getByRole('textbox'), { target: { value: '查询我的待办' } });
     fireEvent.click(screen.getByRole('button', { name: /发送 \/ 生成计划/ }));
     await waitFor(() => expect(screen.getAllByText(basePlan.summary)).toHaveLength(2));
-    fireEvent.click(screen.getByRole('button', { name: '执行计划' }));
     await waitFor(() => expect(api.subscribeAiTaskEvents).toHaveBeenCalledTimes(1));
     const subscription = api.subscribeAiTaskEvents.mock.calls[0][1] as {
       onEvent: (event: { id: string; type: string; data: Record<string, unknown> }) => void;
@@ -217,7 +310,6 @@ describe('AIOperationDrawer', () => {
     fireEvent.change(screen.getByRole('textbox'), { target: { value: '查询我的驾驶舱' } });
     fireEvent.click(screen.getByRole('button', { name: /发送 \/ 生成计划/ }));
     await waitFor(() => expect(screen.getAllByText(basePlan.summary)).toHaveLength(2));
-    fireEvent.click(screen.getByRole('button', { name: '执行计划' }));
     await waitFor(() => expect(api.subscribeAiTaskEvents).toHaveBeenCalledTimes(1));
     const subscription = api.subscribeAiTaskEvents.mock.calls[0][1] as {
       onEvent: (event: { id: string; type: string; data: Record<string, unknown> }) => void;
@@ -243,7 +335,6 @@ describe('AIOperationDrawer', () => {
     fireEvent.change(screen.getByRole('textbox'), { target: { value: '查询员工乙档案' } });
     fireEvent.click(screen.getByRole('button', { name: /发送 \/ 生成计划/ }));
     await waitFor(() => expect(screen.getAllByText(basePlan.summary)).toHaveLength(2));
-    fireEvent.click(screen.getByRole('button', { name: '执行计划' }));
     await waitFor(() => expect(api.subscribeAiTaskEvents).toHaveBeenCalledOnce());
     act(() => api.subscribeAiTaskEvents.mock.calls[0][1].onEvent({ id: 'employee-complete', type: 'task-completed', data: { status: 'SUCCEEDED' } }));
     await waitFor(() => expect(navigate).toHaveBeenCalledWith('employee-files', 23));
@@ -258,6 +349,7 @@ describe('AIOperationDrawer', () => {
     fireEvent.change(input, { target: { value: '查询我的待办' } });
     fireEvent.click(screen.getByRole('button', { name: /发送 \/ 生成计划/ }));
     fireEvent.change(input, { target: { value: '下一条指令' } });
+    await waitFor(() => expect(api.planAiTask).toHaveBeenCalledOnce());
     await act(async () => resolvePlan(basePlan));
     expect(input.value).toBe('下一条指令');
   });
@@ -273,7 +365,7 @@ describe('AIOperationDrawer', () => {
   });
 
   it('preserves the plan across page changes but blocks execution outside its source page', async () => {
-    api.planAiTask.mockResolvedValue(basePlan);
+    api.planAiTask.mockResolvedValue({ ...basePlan, status: 'WAITING_CONFIRMATION', riskLevel: 'L1', confirmationRequired: true });
     const drawer = (pageId: string) => <App><AIOperationDrawer open role="system_admin" pageId={pageId}
       pageTitle={pageId === 'todo-list' ? '待办中心' : '访客预约'} onClose={vi.fn()} /></App>;
     const view = render(drawer('todo-list'));
@@ -283,11 +375,11 @@ describe('AIOperationDrawer', () => {
 
     view.rerender(drawer('visitor-booking'));
     expect(screen.getByText('该计划属于其他页面，请返回原页面后执行')).toBeTruthy();
-    expect((screen.getByRole('button', { name: '执行计划' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('button', { name: '确认并执行' }) as HTMLButtonElement).disabled).toBe(true);
     expect(api.executeAiTask).not.toHaveBeenCalled();
 
     view.rerender(drawer('todo-list'));
-    expect((screen.getByRole('button', { name: '执行计划' }) as HTMLButtonElement).disabled).toBe(false);
+    expect((screen.getByRole('button', { name: '确认并执行' }) as HTMLButtonElement).disabled).toBe(false);
   });
 
   it('keeps listening for the real result while the drawer is hidden during navigation', async () => {
@@ -302,7 +394,6 @@ describe('AIOperationDrawer', () => {
     fireEvent.change(screen.getByRole('textbox'), { target: { value: '查询我的待办' } });
     fireEvent.click(screen.getByRole('button', { name: /发送 \/ 生成计划/ }));
     await waitFor(() => expect(screen.getAllByText(basePlan.summary)).toHaveLength(2));
-    fireEvent.click(screen.getByRole('button', { name: '执行计划' }));
     await waitFor(() => expect(api.subscribeAiTaskEvents).toHaveBeenCalledTimes(1));
 
     view.rerender(drawer(false, 'ai-workspace'));
@@ -324,7 +415,6 @@ describe('AIOperationDrawer', () => {
     fireEvent.change(screen.getByRole('textbox'), { target: { value: '查询我的待办' } });
     fireEvent.click(screen.getByRole('button', { name: /发送 \/ 生成计划/ }));
     await waitFor(() => expect(screen.getAllByText(basePlan.summary)).toHaveLength(2));
-    fireEvent.click(screen.getByRole('button', { name: '执行计划' }));
     await waitFor(() => expect(api.subscribeAiTaskEvents).toHaveBeenCalledTimes(1));
     const subscription = api.subscribeAiTaskEvents.mock.calls[0][1] as {
       onEvent: (event: { id: string; type: string; data: Record<string, unknown> }) => void;

@@ -1,5 +1,6 @@
 param(
     [switch]$EnableLiveModel,
+    [switch]$Browser,
     [string]$EnvFile,
     [string]$DatabaseUrl = $env:AGENT_TEST_DB_URL,
     [string]$DatabaseUsername = $env:AGENT_TEST_DB_USERNAME,
@@ -44,12 +45,13 @@ try {
     Push-Location (Join-Path $repositoryPath 'backend')
     try {
         # Credentials remain environment variables, never JVM command-line properties or output.
-        & mvn '-Dtest=AgentLiveModelHttpIT' '-Dagent.test.live-model=true' '-Dlogging.level.root=OFF' `
+        $testClass = if ($Browser) { 'AgentLiveBrowserIT' } else { 'AgentLiveModelHttpIT' }
+        & mvn "-Dtest=$testClass" '-Dagent.test.live-model=true' '-Dlogging.level.root=OFF' `
             '-Dlogging.level.com.aiworkmate=OFF' '-Dlogging.level.com.aiworkmate.agent=OFF' `
             '-Dlogging.level.org.springframework.ai=OFF' test *> $logPath
         $verificationExit = $LASTEXITCODE
     } finally { Pop-Location }
-    Select-String -LiteralPath $logPath -Pattern '^Live model metadata:|^\[INFO\] Tests run:|^\[ERROR\] Tests run:|^\[INFO\] BUILD |^\[INFO\] Total time:' |
+    Select-String -LiteralPath $logPath -Pattern '^Browser acceptance:|^Live model metadata:|^\[INFO\] Tests run:|^\[ERROR\] Tests run:|^\[INFO\] BUILD |^\[INFO\] Total time:' |
         ForEach-Object { Write-Output $_.Line }
     Write-Output "Private verification log: $logPath"
     if ($verificationExit -ne 0) { throw 'Live model acceptance failed; inspect the private local test report without sharing credentials.' }

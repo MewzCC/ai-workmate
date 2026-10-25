@@ -82,10 +82,15 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageC
   const refreshedTaskRef = useRef<string | null>(null);
   const loadedResultTaskRef = useRef<string | null>(null);
   const resultRequestRef = useRef(0);
+  const planRequestRef = useRef(0);
   const resultCardRef = useRef<HTMLDivElement | null>(null);
   const answeredTaskRef = useRef<string | null>(null);
   const currentPageIdRef = useRef(pageId);
-  currentPageIdRef.current = pageId;
+  const pageGenerationRef = useRef(0);
+  if (currentPageIdRef.current !== pageId) {
+    currentPageIdRef.current = pageId;
+    pageGenerationRef.current += 1;
+  }
 
   const stopEventStream = () => {
     unsubscribeRef.current?.();
@@ -94,6 +99,7 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageC
 
   useEffect(() => () => stopEventStream(), []);
   useEffect(() => () => { resultRequestRef.current += 1; }, []);
+  useEffect(() => () => { planRequestRef.current += 1; }, []);
   useEffect(() => {
     if (resultDetail || resultError) resultCardRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'nearest' });
   }, [resultDetail, resultError]);
@@ -180,12 +186,18 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageC
       return;
     }
     resetExecution();
+    const request = ++planRequestRef.current;
+    const sourcePageGeneration = pageGenerationRef.current;
+    setPlan(null);
+    setPlanPage(null);
     setLoading(true);
     setOperationError(null);
     setMessages((previous) => [...previous, { role: 'user', content: value }]);
     try {
-      const safePageContext = pageContext && capability
-        ? sanitizePageAgentContext(pageContext, capability.contextSchema)
+      const sourceCapability = await getPageCapabilities(pageId);
+      if (request !== planRequestRef.current) return;
+      const safePageContext = pageContext
+        ? sanitizePageAgentContext(pageContext, sourceCapability.contextSchema)
         : undefined;
       const nextPlan = await planAiTask({
         input: value,
@@ -194,13 +206,25 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageC
           ? { pageContext: safePageContext }
           : {}),
       });
+      if (request !== planRequestRef.current) return;
       setPlan(nextPlan);
       setPlanPage({ id: pageId, title: pageTitle });
       setTaskStatus(nextPlan.status);
       setInput((current) => current.trim() === value ? '' : current);
       setMessages((previous) => [...previous, { role: 'assistant', content: nextPlan.summary }]);
       message.success(t('oa.ai.planGenerated'));
+      const automaticRead = sourcePageGeneration === pageGenerationRef.current
+        && nextPlan.status === 'PLAN_READY' && nextPlan.riskLevel === 'L0'
+        && nextPlan.confirmationRequired === false && nextPlan.steps.length > 0 && nextPlan.steps.length <= 3
+        && nextPlan.steps.every((step) => sourceCapability.tools.some((tool) => tool.code === step.toolCode
+          && tool.riskLevel === 'L0' && tool.sideEffect === 'NONE' && tool.confirmationPolicy === 'NONE'));
+      if (automaticRead) {
+        // Reuse the normal enqueue/event/result path; writes still require their existing confirmation.
+        // runPlan reports enqueue failures without discarding the successfully generated plan.
+        await runPlan(false, nextPlan, pageId).catch(() => undefined);
+      }
     } catch (error) {
+      if (request !== planRequestRef.current) return;
       const errorMessage = formatOaApiError(error);
       setPlan(null);
       setPlanPage(null);
@@ -208,7 +232,7 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageC
       setMessages((previous) => [...previous, { role: 'assistant', content: errorMessage }]);
       message.error(errorMessage);
     } finally {
-      setLoading(false);
+      if (request === planRequestRef.current) setLoading(false);
     }
   };
 
@@ -246,9 +270,9 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageC
     });
   };
 
-  const runPlan = async (withConfirmation: boolean) => {
-    if (!plan) return;
-    if (planPage?.id !== currentPageIdRef.current) {
+  const runPlan = async (withConfirmation: boolean, acceptedPlan = plan, sourcePageId = planPage?.id) => {
+    if (!acceptedPlan) return;
+    if (sourcePageId !== currentPageIdRef.current) {
       message.warning(t('oa.ai.planFromOtherPage'));
       return;
     }
@@ -256,12 +280,12 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageC
     setOperationError(null);
     try {
       if (withConfirmation) {
-        const credential = await issueAiTaskConfirmation(plan.taskId, { planVersion: plan.planVersion, planHash: plan.planHash });
+        const credential = await issueAiTaskConfirmation(acceptedPlan.taskId, { planVersion: acceptedPlan.planVersion, planHash: acceptedPlan.planHash });
         confirmationTokenRef.current = credential.token;
       }
-      const data = await executeAiTask(plan.taskId, {
-        planVersion: plan.planVersion,
-        planHash: plan.planHash,
+      const data = await executeAiTask(acceptedPlan.taskId, {
+        planVersion: acceptedPlan.planVersion,
+        planHash: acceptedPlan.planHash,
         ...(confirmationTokenRef.current ? { confirmationToken: confirmationTokenRef.current } : {}),
       });
       confirmationTokenRef.current = null;
@@ -315,6 +339,7 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageC
     <Drawer rootClassName="oa-ai-operation-drawer" title={t('oa.ai.panelTitle')} size="default" styles={{ wrapper: { width: 540 } }} open={open} onClose={closeDrawer} afterOpenChange={onOpenChangeComplete}
       footer={<Space orientation="vertical" size={10} className="oa-ai-composer">
         <Input.TextArea rows={4} maxLength={4096} showCount value={input} onChange={(event) => setInput(event.target.value)} placeholder={t('oa.ai.placeholder')} />
+        <Typography.Text type="secondary">{t('oa.ai.automaticReadHint')}</Typography.Text>
         <Space wrap>
           <Button type="primary" icon={<OaIcon name="send" />} loading={loading} disabled={executing} onClick={() => submitPlan()}>{t('oa.ai.send')}</Button>
           <Button icon={<OaIcon name="pause" />} disabled={loading} onClick={() => { resetExecution(); setPlan(null); setPlanPage(null); message.info(t('oa.ai.cancelledPlan')); }}>{t('oa.ai.cancelPlan')}</Button>
