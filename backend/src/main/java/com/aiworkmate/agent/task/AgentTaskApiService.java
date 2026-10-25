@@ -3,6 +3,7 @@ package com.aiworkmate.agent.task;
 import com.aiworkmate.agent.config.AgentRuntimeProperties;
 import com.aiworkmate.agent.capability.PageCapabilityCatalog;
 import com.aiworkmate.agent.registry.PermissionMode;
+import com.aiworkmate.agent.registry.PageActionPolicyResolver;
 import com.aiworkmate.agent.registry.ToolDefinition;
 import com.aiworkmate.agent.registry.ToolRegistry;
 import com.aiworkmate.common.BusinessException;
@@ -31,6 +32,7 @@ import java.util.ArrayDeque;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Service
@@ -47,6 +49,7 @@ public class AgentTaskApiService {
     private final AgentTaskEventService eventService;
     private final ObjectMapper objectMapper;
     private final PageCapabilityCatalog pageCapabilities;
+    private final PageActionPolicyResolver pageActionPolicies;
     private final SecureRandom secureRandom = new SecureRandom();
     private final Map<String, ArrayDeque<Instant>> confirmationAttempts = new ConcurrentHashMap<>();
     private final AgentTaskStateMachine stateMachine = new AgentTaskStateMachine();
@@ -184,10 +187,17 @@ public class AgentTaskApiService {
         }
         List<AgentTaskStep> steps = stepMapper.selectByTaskId(task.getId());
         if (steps.isEmpty()) throw new BusinessException(ErrorCode.PERMISSION_DENIED);
+        Set<String> enabledTools;
+        try {
+            enabledTools = pageActionPolicies.enabledToolCodes(user.tenantId(), task.getPageId());
+            if (enabledTools == null) throw new IllegalStateException("Page policy returned no result");
+        } catch (RuntimeException unavailable) {
+            throw new BusinessException(ErrorCode.AI_TASK_CAPABILITY_UNAVAILABLE);
+        }
         for (AgentTaskStep step : steps) {
             ToolDefinition definition = toolRegistry.resolveExecutableTool(
                     user.tenantId(), step.getToolCode()).orElse(null);
-            boolean permitted = definition != null
+            boolean permitted = definition != null && enabledTools.contains(step.getToolCode())
                     && pageCapabilities.allowsTool(task.getPageId(), definition.code(), user.permissions())
                     && definition.handlerVersion().equals(step.getToolVersion())
                     && definition.schemaHash().equals(step.getSchemaHash())

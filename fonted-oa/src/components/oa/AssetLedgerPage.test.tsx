@@ -84,7 +84,9 @@ it('does not reopen a closed record when an already submitted asset operation co
   api.returnAsset.mockReturnValue(new Promise<AssetLedger>((resolve) => { complete = resolve; }));
   api.getAsset.mockResolvedValue({ ...asset, id: 23, name: 'In use asset', status: 'IN_USE' });
   renderPage('/oa/asset-ledger?id=23');
-  fireEvent.click(await screen.findByRole('button', { name: '办理归还' }));
+  // Initial authentication refreshes the protected route detail before actions become available.
+  await waitFor(() => expect(screen.getByLabelText('auth-version').textContent).toBe('1'), { timeout: 3000 });
+  fireEvent.click(await screen.findByRole('button', { name: '办理归还' }, { timeout: 3000 }));
   const modal = (await screen.findByText('资产归还')).closest('[role="dialog"]') as HTMLElement;
   fireEvent.click(within(modal).getByRole('button', { name: /OK|确\s*定/ }));
   await waitFor(() => expect(api.returnAsset).toHaveBeenCalledWith(23, expect.objectContaining({ version: 0 })));

@@ -8,6 +8,7 @@ import com.aiworkmate.agent.worker.AgentTaskWorker;
 import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.security.AuthenticatedUser;
 import com.aiworkmate.service.UserAccessService;
+import com.aiworkmate.integration.FrozenReadTaskFixture.Task;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -21,7 +22,6 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
 import java.time.Duration;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -157,25 +157,8 @@ class AgentReadExecutionIntegrationTest extends AbstractIsolatedAgentIntegration
     }
 
     private Task queue(String page, String code, JsonNode arguments) {
-        var definition = catalog.find(code).orElseThrow();
-        var step = json.createObjectNode().put("sequence", 1).put("toolCode", code)
-                .put("toolVersion", definition.handlerVersion()).put("schemaHash", definition.schemaHash())
-                .put("argsHash", hashing.hash(arguments)).put("riskLevel", definition.riskLevel().name())
-                .put("sideEffect", definition.sideEffect().name()).put("confirmationPolicy", definition.confirmationPolicy().name());
-        var plan = json.createObjectNode().put("planVersion", 1);
-        plan.putArray("steps").add(step);
-        String number = UUID.randomUUID().toString();
-        Long id = jdbc.queryForObject("""
-                INSERT INTO agent_task(task_no,tenant_id,user_id,page_id,input,page_context,plan,plan_hash,
-                    status,timeout_at,trace_id)
-                VALUES (?,?,?,?, 'isolated read execution','{}'::jsonb,?::jsonb,?,'QUEUED',?,?) RETURNING id
-                """, Long.class, number, tenant, user, page, plan.toString(), hashing.hash(plan),
-                LocalDateTime.now().plusMinutes(2), "read-it-" + number);
-        jdbc.update("""
-                INSERT INTO agent_task_step(task_id,sequence_no,tool_code,tool_version,schema_hash,args,args_hash,risk_level,status,trace_id)
-                VALUES (?,1,?,?,?,?::jsonb,?,'L0','PENDING',?)
-                """, id, code, definition.handlerVersion(), definition.schemaHash(), arguments.toString(), hashing.hash(arguments), "read-it-" + number);
-        return new Task(id, number);
+        return new FrozenReadTaskFixture(jdbc, json, hashing, catalog)
+                .create(tenant, user, page, code, arguments, FrozenReadTaskFixture.State.QUEUED);
     }
 
     private long createUser(long tenantId, String roleCode) {
@@ -212,5 +195,4 @@ class AgentReadExecutionIntegrationTest extends AbstractIsolatedAgentIntegration
         return new AuthenticatedUser(id, resolved.username(), resolved.tenantId(), resolved.role(),
                 resolved.roles(), resolved.permissions(), resolved.dataScopes(), resolved.permissionVersion());
     }
-    private record Task(long id, String number) { }
 }
