@@ -4,6 +4,7 @@ import com.aiworkmate.agent.config.AgentRuntimeProperties;
 import com.aiworkmate.agent.registry.ConfirmationPolicy;
 import com.aiworkmate.agent.registry.OwnershipPolicy;
 import com.aiworkmate.agent.registry.PermissionMode;
+import com.aiworkmate.agent.registry.PageActionPolicyResolver;
 import com.aiworkmate.agent.registry.RetryPolicy;
 import com.aiworkmate.agent.registry.RiskLevel;
 import com.aiworkmate.agent.registry.SideEffect;
@@ -53,6 +54,7 @@ class DefaultToolGatewayPolicyTest {
     private final GatewayExecutionSnapshotMapper snapshotMapper = mock(GatewayExecutionSnapshotMapper.class);
     private final ToolRegistry toolRegistry = mock(ToolRegistry.class);
     private final UserAccessService userAccessService = mock(UserAccessService.class);
+    private final PageActionPolicyResolver pageActionPolicies = mock(PageActionPolicyResolver.class);
     private final GatewayAuditWriter auditWriter = mock(GatewayAuditWriter.class);
     private final ToolHandler handler = mock(ToolHandler.class);
     private final AgentRuntimeProperties properties = new AgentRuntimeProperties();
@@ -63,11 +65,13 @@ class DefaultToolGatewayPolicyTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        reset(snapshotMapper, toolRegistry, userAccessService, auditWriter, handler);
+        reset(snapshotMapper, toolRegistry, userAccessService, auditWriter, handler, pageActionPolicies);
         properties.setEnabled(true);
         properties.setExecutionEnabled(true);
         definition = definition();
         snapshot = snapshot();
+        when(pageActionPolicies.enabledToolCodes(1L, "ai-workspace"))
+                .thenAnswer(ignored -> Set.of(definition.code()));
 
         when(handler.toolCode()).thenReturn("todo.query");
         when(handler.handlerVersion()).thenReturn("1.0.0");
@@ -88,6 +92,24 @@ class DefaultToolGatewayPolicyTest {
     @AfterAll
     static void stopExecutor() {
         TOOL_EXECUTOR.shutdownNow();
+    }
+
+    @Test
+    void pageActionRevocationDeniesBeforeReservingBudgetOrInvokingHandler() {
+        when(pageActionPolicies.enabledToolCodes(1L, "ai-workspace")).thenReturn(Set.of());
+        assertThat(execute().decision()).isEqualTo(GatewayDecision.DENY);
+        verify(snapshotMapper, never()).reserveToolCall(anyLong(), anyLong(), anyString(), anyString(), anyInt(), anyInt());
+        verify(handler, never()).execute(any(), any());
+        verify(auditWriter).record(snapshot, GatewayDecision.DENY, "PAGE_ACTION_DISABLED", false);
+    }
+
+    @Test
+    void unavailablePagePolicyFailsClosedBeforeHandlerInvocation() {
+        when(pageActionPolicies.enabledToolCodes(1L, "ai-workspace")).thenThrow(new IllegalStateException("policy unavailable"));
+        assertThat(execute().decision()).isEqualTo(GatewayDecision.UNAVAILABLE);
+        verify(snapshotMapper, never()).reserveToolCall(anyLong(), anyLong(), anyString(), anyString(), anyInt(), anyInt());
+        verify(handler, never()).execute(any(), any());
+        verify(auditWriter).record(snapshot, GatewayDecision.UNAVAILABLE, "PAGE_POLICY_UNAVAILABLE", false);
     }
 
     @Test
@@ -450,7 +472,8 @@ class DefaultToolGatewayPolicyTest {
         gateway = new DefaultToolGateway(
                 properties, snapshotMapper, toolRegistry, userAccessService, hashing,
                 new ToolSchemaValidator(), new ToolOutputGuard(), new HandlerResolver(List.of(handler)),
-                auditWriter, objectMapper, TOOL_EXECUTOR, new com.aiworkmate.agent.capability.PageCapabilityCatalog()
+                auditWriter, objectMapper, TOOL_EXECUTOR, new com.aiworkmate.agent.capability.PageCapabilityCatalog(),
+                pageActionPolicies
         );
     }
 }

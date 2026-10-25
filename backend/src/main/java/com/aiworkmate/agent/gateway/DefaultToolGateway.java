@@ -3,6 +3,7 @@ package com.aiworkmate.agent.gateway;
 import com.aiworkmate.agent.config.AgentRuntimeProperties;
 import com.aiworkmate.agent.capability.PageCapabilityCatalog;
 import com.aiworkmate.agent.registry.PermissionMode;
+import com.aiworkmate.agent.registry.PageActionPolicyResolver;
 import com.aiworkmate.agent.registry.RiskLevel;
 import com.aiworkmate.agent.registry.SideEffect;
 import com.aiworkmate.agent.registry.ToolDefinition;
@@ -43,6 +44,7 @@ public class DefaultToolGateway implements ToolGateway {
     private final ObjectMapper objectMapper;
     private final ExecutorService toolExecutor;
     private final PageCapabilityCatalog pageCapabilities;
+    private final PageActionPolicyResolver pageActionPolicies;
     private final ToolFailureClassifier failureClassifier = new ToolFailureClassifier();
 
     public DefaultToolGateway(AgentRuntimeProperties runtimeProperties,
@@ -56,7 +58,8 @@ public class DefaultToolGateway implements ToolGateway {
                               GatewayAuditWriter auditWriter,
                               ObjectMapper objectMapper,
                               @Qualifier("agentToolExecutor") ExecutorService toolExecutor,
-                              PageCapabilityCatalog pageCapabilities) {
+                              PageCapabilityCatalog pageCapabilities,
+                              PageActionPolicyResolver pageActionPolicies) {
         this.runtimeProperties = runtimeProperties;
         this.snapshotMapper = snapshotMapper;
         this.toolRegistry = toolRegistry;
@@ -69,6 +72,7 @@ public class DefaultToolGateway implements ToolGateway {
         this.objectMapper = objectMapper;
         this.toolExecutor = toolExecutor;
         this.pageCapabilities = pageCapabilities;
+        this.pageActionPolicies = pageActionPolicies;
     }
 
     @Override
@@ -119,6 +123,16 @@ public class DefaultToolGateway implements ToolGateway {
         } catch (RuntimeException exception) {
             return auditedReject(snapshot, GatewayDecision.UNAVAILABLE, GatewayDecisionCode.GATEWAY_UNAVAILABLE,
                     "RBAC_RESULT_INVALID");
+        }
+        try {
+            if (!pageActionPolicies.enabledToolCodes(snapshot.getTenantId(), snapshot.getPageId())
+                    .contains(definition.code())) {
+                return auditedReject(snapshot, GatewayDecision.DENY, GatewayDecisionCode.GATEWAY_DENIED,
+                        "PAGE_ACTION_DISABLED");
+            }
+        } catch (RuntimeException exception) {
+            return auditedReject(snapshot, GatewayDecision.UNAVAILABLE, GatewayDecisionCode.GATEWAY_UNAVAILABLE,
+                    "PAGE_POLICY_UNAVAILABLE");
         }
         if (!validRiskAndConfirmation(snapshot, definition)) {
             return auditedReject(snapshot, GatewayDecision.DENY, GatewayDecisionCode.GATEWAY_DENIED, "RISK_OR_CONFIRMATION_DENIED");

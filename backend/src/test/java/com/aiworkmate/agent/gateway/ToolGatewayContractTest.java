@@ -38,7 +38,8 @@ class ToolGatewayContractTest {
                 mock(GatewayAuditWriter.class),
                 new ObjectMapper(),
                 mock(java.util.concurrent.ExecutorService.class),
-                new com.aiworkmate.agent.capability.PageCapabilityCatalog()
+                new com.aiworkmate.agent.capability.PageCapabilityCatalog(),
+                mock(com.aiworkmate.agent.registry.PageActionPolicyResolver.class)
         );
 
         ToolGatewayResult result = gateway.execute(
