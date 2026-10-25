@@ -125,6 +125,7 @@ class AgentHttpExecutionIntegrationTest extends AbstractIsolatedAgentIntegration
         assertThat(get(taskPath(task), null).statusCode()).isEqualTo(401);
         assertThat(execute(task, null, UUID.randomUUID().toString()).statusCode()).isEqualTo(401);
         assertThat(get(taskPath(task) + "/events", null).statusCode()).isEqualTo(401);
+        assertThat(cancel(task, null).statusCode()).isEqualTo(401);
         var invalid = HTTP.send(request("GET", taskPath(task), null, null, null)
                 .header("Cookie", "oa_http_it=invalid-token").build(), HttpResponse.BodyHandlers.ofString());
         assertThat(invalid.statusCode()).isEqualTo(401);
@@ -132,6 +133,7 @@ class AgentHttpExecutionIntegrationTest extends AbstractIsolatedAgentIntegration
         var invalidActor = new Actor(0, "invalid", "oa_http_it=invalid-token");
         assertThat(execute(task, invalidActor, UUID.randomUUID().toString()).statusCode()).isEqualTo(401);
         assertThat(get(taskPath(task) + "/events", invalidActor).statusCode()).isEqualTo(401);
+        assertThat(cancel(task, invalidActor).statusCode()).isEqualTo(401);
         assertUntouched(task);
     }
 
@@ -142,6 +144,7 @@ class AgentHttpExecutionIntegrationTest extends AbstractIsolatedAgentIntegration
         for (Actor stranger : List.of(loginNewActor(tenant), loginNewActor(otherTenant))) {
             assertThat(get(taskPath(task), stranger).statusCode()).isEqualTo(404);
             assertThat(execute(task, stranger, UUID.randomUUID().toString()).statusCode()).isEqualTo(404);
+            assertThat(cancel(task, stranger).statusCode()).isEqualTo(404);
             var stream = HTTP.send(request("GET", taskPath(task) + "/events", stranger, null, null).build(), HttpResponse.BodyHandlers.ofInputStream());
             try (InputStream body = stream.body()) {
                 String rejected = drain(body);
@@ -193,6 +196,58 @@ class AgentHttpExecutionIntegrationTest extends AbstractIsolatedAgentIntegration
         assertThat(rejected.statusCode()).isEqualTo(409);
         assertThat(json.readTree(rejected.body()).path("errorCode").asText()).isEqualTo("GATEWAY_STALE");
         assertUntouched(task);
+    }
+
+    @Test void cancellingReadyOrQueuedOwnedTasksStopsLaterExecutionAndSseReportsTheActualState() throws Exception {
+        for (var state : List.of(FrozenReadTaskFixture.State.PLAN_READY, FrozenReadTaskFixture.State.QUEUED)) {
+            Task task = new FrozenReadTaskFixture(jdbc, json, hashing, catalog)
+                    .create(tenant, owner.id(), "messages", "notification.mine", json.createObjectNode(), state);
+            var cancelled = cancel(task, owner);
+            assertThat(cancelled.statusCode()).isEqualTo(200);
+            JsonNode detail = json.readTree(cancelled.body()).path("data");
+            assertThat(detail.path("taskId").asText()).isEqualTo(task.number());
+            assertThat(detail.path("status").asText()).isEqualTo("CANCELLED");
+            assertThat(detail.path("steps").get(0).path("status").asText()).isEqualTo("CANCELLED");
+            assertThat(cancel(task, owner).statusCode()).isEqualTo(409);
+            assertThat(execute(task, owner, UUID.randomUUID().toString()).statusCode()).isEqualTo(409);
+            var stream = HTTP.send(request("GET", taskPath(task) + "/events", owner, null, null).build(), HttpResponse.BodyHandlers.ofInputStream());
+            try (InputStream body = stream.body()) { assertThat(drain(body)).contains("CANCELLED").doesNotContain("event:step-started"); }
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM agent_tool_invocation WHERE task_id=?", Long.class, task.id())).isZero();
+        }
+    }
+
+    @Test void anOwnerCanCancelAnUnexecutedTaskAfterItsBusinessPermissionIsRevoked() throws Exception {
+        Task task = plan();
+        jdbc.update("DELETE FROM rbac_role_permission WHERE tenant_id=? AND role_code=?", tenant, owner.role());
+        assertThat(cancel(task, owner).statusCode()).isEqualTo(200);
+        assertThat(jdbc.queryForObject("SELECT status FROM agent_task WHERE id=?", String.class, task.id())).isEqualTo("CANCELLED");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM agent_tool_invocation WHERE task_id=?", Long.class, task.id())).isZero();
+    }
+
+    @Test void cancellationCannotClaimToStopARealRunningWorkerOrItsCompletedTask() throws Exception {
+        Task task = plan();
+        try (var connection = java.util.Objects.requireNonNull(jdbc.getDataSource()).getConnection()) {
+            connection.setAutoCommit(false);
+            try {
+                try (var lock = connection.createStatement()) {
+                    lock.execute("SET LOCAL lock_timeout='3s'");
+                    lock.execute("LOCK TABLE notification IN ACCESS EXCLUSIVE MODE");
+                }
+                assertThat(execute(task, owner, UUID.randomUUID().toString()).statusCode()).isEqualTo(202);
+                await().atMost(Duration.ofSeconds(5)).untilAsserted(() -> assertThat(jdbc.queryForObject(
+                        "SELECT status FROM agent_task WHERE id=?", String.class, task.id())).isEqualTo("RUNNING"));
+                assertThat(cancel(task, owner).statusCode()).isEqualTo(409);
+                assertThat(jdbc.queryForObject("SELECT status FROM agent_task WHERE id=?", String.class, task.id())).isEqualTo("RUNNING");
+            } finally { connection.rollback(); }
+        }
+        awaitSuccess(task);
+        assertThat(cancel(task, owner).statusCode()).isEqualTo(409);
+        assertThat(jdbc.queryForObject("SELECT status FROM agent_task WHERE id=?", String.class, task.id())).isEqualTo("SUCCEEDED");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM agent_tool_invocation WHERE task_id=? AND handler_invoked AND outcome='SUCCEEDED'", Long.class, task.id())).isEqualTo(1);
+    }
+
+    private HttpResponse<String> cancel(Task task, Actor actor) throws Exception {
+        return HTTP.send(request("POST", taskPath(task) + "/cancel", actor, null, null).build(), HttpResponse.BodyHandlers.ofString());
     }
 
     private Task plan() {

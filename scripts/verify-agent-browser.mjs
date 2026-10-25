@@ -14,7 +14,8 @@ assert(Number.isInteger(apiPort) && apiPort > 0 && apiPort < 65536);
 const cookie = process.env.AGENT_BROWSER_COOKIE;
 const applicant = process.env.AGENT_BROWSER_APPLICANT;
 const notice = process.env.AGENT_BROWSER_NOTICE;
-assert(cookie?.startsWith('oa_browser_it=') && applicant && notice);
+const cancellableTask = process.env.AGENT_BROWSER_CANCELLABLE_TASK;
+assert(cookie?.startsWith('oa_browser_it=') && applicant && notice && /^[a-f0-9-]{36}$/.test(cancellableTask));
 const artifacts = path.join(repository, 'output', 'playwright', 'agent-read-browser');
 let server, browser, page, phase = 'startup';
 let pageErrors = 0;
@@ -41,8 +42,8 @@ try {
   page.on('pageerror', () => { pageErrors += 1; });
   page.on('response', (response) => {
     const url = new URL(response.url());
-    if (/^\/api\/ai\/(?:intents|tasks\/plan|tasks\/[^/]+\/execute)$/.test(url.pathname)) {
-      responses.push({ action: url.pathname.endsWith('/execute') ? 'execute' : url.pathname.endsWith('/plan') ? 'plan' : 'intent', status: response.status() });
+    if (/^\/api\/ai\/(?:intents|tasks\/plan|tasks\/[^/]+\/(?:execute|cancel))$/.test(url.pathname)) {
+      responses.push({ action: url.pathname.endsWith('/cancel') ? 'cancel' : url.pathname.endsWith('/execute') ? 'execute' : url.pathname.endsWith('/plan') ? 'plan' : 'intent', status: response.status() });
     }
   });
   await mkdir(artifacts, { recursive: true });
@@ -84,11 +85,22 @@ try {
   await page.screenshot({ path: path.join(artifacts, 'workspace-result.png') });
   await reply.getByRole('button', { name: '前往对应业务页面', exact: true }).click();
   await page.waitForURL('**/oa/messages');
+  phase = 'actual task cancellation';
+  await page.goto(`${base}/oa/ai-tasks`);
+  const row = page.locator(`tr[data-row-key="${cancellableTask}"]`);
+  await row.getByRole('button', { name: /取\s*消/, exact: true }).click();
+  await page.getByRole('button', { name: '确认取消', exact: true }).click();
+  await row.getByText('已取消', { exact: true }).waitFor();
+  await page.getByRole('button', { name: '确认取消', exact: true }).waitFor({ state: 'hidden' });
+  assert.equal(await row.getByRole('button', { name: /取\s*消/, exact: true }).count(), 0);
+  await page.screenshot({ path: path.join(artifacts, 'cancelled-task.png') });
   assert.equal(pageErrors, 0);
   assert.equal(responses.filter((item) => item.action === 'plan' && item.status === 200).length, 2);
   assert.equal(responses.filter((item) => item.action === 'execute' && item.status === 202).length, 2);
   assert.equal(responses.filter((item) => item.action === 'intent' && item.status === 200).length, 1);
+  assert.equal(responses.filter((item) => item.action === 'cancel' && item.status === 200).length, 1);
   console.log('Browser acceptance: workspace actual result, business link, cleared input and zero page errors passed');
+  console.log('Browser acceptance: task centre confirmed cancellation through the real owned API');
 } catch (error) {
   // Do not print exception payloads, cookies, response bodies, model settings or DOM dumps.
   if (page) await page.screenshot({ path: path.join(artifacts, 'failure.png') }).catch(() => undefined);

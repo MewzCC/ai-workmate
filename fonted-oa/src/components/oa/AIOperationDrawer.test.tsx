@@ -14,7 +14,7 @@ const api = vi.hoisted(() => ({
     },
   ) => vi.fn()),
   getPageCapabilities: vi.fn(),
-  agentTaskApi: { detail: vi.fn() },
+  agentTaskApi: { detail: vi.fn(), cancel: vi.fn() },
 }));
 
 vi.mock('@/lib/oaApi', async (importOriginal) => {
@@ -23,6 +23,7 @@ vi.mock('@/lib/oaApi', async (importOriginal) => {
 });
 
 import AIOperationDrawer from './AIOperationDrawer';
+import { OaApiError } from '@/lib/oaApi';
 
 const basePlan = {
   taskId: 'agt_4YpV7zqR2mK8nT1x',
@@ -126,6 +127,220 @@ describe('AIOperationDrawer', () => {
     expect(api.issueAiTaskConfirmation).not.toHaveBeenCalled();
     expect(api.subscribeAiTaskEvents).toHaveBeenCalledWith(basePlan.taskId, expect.any(Object));
     expect(api.executeAiTask).toHaveBeenCalledOnce();
+  });
+
+  it('waits for confirmed server cancellation and preserves the plan, history and unsent input', async () => {
+    let resolve!: (value: unknown) => void;
+    api.planAiTask.mockResolvedValue({ ...basePlan, status: 'WAITING_CONFIRMATION', riskLevel: 'L1', confirmationRequired: true });
+    api.agentTaskApi.cancel.mockReturnValue(new Promise((done) => { resolve = done; }));
+    renderDrawer();
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: '创建草稿' } });
+    fireEvent.click(screen.getByRole('button', { name: /发送 \/ 生成计划/ }));
+    await waitFor(() => expect(screen.getAllByText(basePlan.summary)).toHaveLength(2));
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: '下一条尚未发送' } });
+    fireEvent.click(screen.getByRole('button', { name: /取消计划/ }));
+    await waitFor(() => expect(api.agentTaskApi.cancel).toHaveBeenCalledWith(basePlan.taskId));
+    expect(screen.getAllByText(basePlan.summary)).toHaveLength(2);
+    expect(screen.queryByText('待执行步骤已取消；已完成的操作不会回滚。')).toBeNull();
+    expect(screen.getByRole('button', { name: /发送 \/ 生成计划/ })).toBeDisabled();
+    await act(async () => resolve({ taskId: basePlan.taskId, status: 'CANCELLED', steps: [
+      { sequence: 1, toolCode: 'todo.query', status: 'CANCELLED', result: null, resultSummary: null },
+    ] }));
+    expect(await screen.findByText('步骤已取消。')).toBeTruthy();
+    expect(screen.getByRole('textbox')).toHaveValue('下一条尚未发送');
+    expect(screen.getByRole('button', { name: '确认并执行' })).toBeDisabled();
+    expect(api.issueAiTaskConfirmation).not.toHaveBeenCalled();
+    expect(api.executeAiTask).not.toHaveBeenCalled();
+  });
+
+  it('preserves a denied cancellation and retries only when the user asks', async () => {
+    api.planAiTask.mockResolvedValue({ ...basePlan, status: 'WAITING_CONFIRMATION', riskLevel: 'L1', confirmationRequired: true });
+    api.agentTaskApi.cancel.mockRejectedValue(new OaApiError('没有权限', 403, 'PERMISSION_DENIED'));
+    renderDrawer();
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: '创建草稿' } });
+    fireEvent.click(screen.getByRole('button', { name: /发送 \/ 生成计划/ }));
+    await waitFor(() => expect(screen.getAllByText(basePlan.summary)).toHaveLength(2));
+    fireEvent.click(screen.getByRole('button', { name: /取消计划/ }));
+    expect(await screen.findByText('取消任务失败')).toBeTruthy();
+    expect(screen.getAllByText(basePlan.summary)).toHaveLength(2);
+    expect(api.agentTaskApi.cancel).toHaveBeenCalledOnce();
+    expect(api.agentTaskApi.detail).not.toHaveBeenCalled();
+    expect(screen.queryByText('待执行步骤已取消；已完成的操作不会回滚。')).toBeNull();
+    api.agentTaskApi.cancel.mockResolvedValue({ taskId: basePlan.taskId, status: 'CANCELLED', steps: [] });
+    fireEvent.click(screen.getByRole('button', { name: /重\s*试/ }));
+    await screen.findByText('待执行步骤已取消；已完成的操作不会回滚。');
+    expect(api.agentTaskApi.cancel).toHaveBeenCalledTimes(2);
+  });
+
+  it('continues listening while cancellation is pending and stops only after it is confirmed', async () => {
+    let resolve!: (value: unknown) => void;
+    api.planAiTask.mockResolvedValue(basePlan);
+    api.agentTaskApi.cancel.mockReturnValue(new Promise((done) => { resolve = done; }));
+    renderDrawer();
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: '查我的待办' } });
+    fireEvent.click(screen.getByRole('button', { name: /发送 \/ 生成计划/ }));
+    await waitFor(() => expect(api.subscribeAiTaskEvents).toHaveBeenCalledOnce());
+    fireEvent.click(screen.getByRole('button', { name: /取消计划/ }));
+    fireEvent.click(screen.getByRole('button', { name: /取消计划/ }));
+    expect(api.agentTaskApi.cancel).toHaveBeenCalledOnce();
+    expect(api.subscribeAiTaskEvents.mock.results[0].value).not.toHaveBeenCalled();
+    await act(async () => resolve({ taskId: basePlan.taskId, status: 'CANCELLED', steps: [] }));
+    expect(api.subscribeAiTaskEvents.mock.results[0].value).toHaveBeenCalledOnce();
+    expect(screen.getByRole('button', { name: /取消计划/ })).toBeDisabled();
+  });
+
+  it('shows the actual completed result rather than cancellation when execution wins the race', async () => {
+    api.planAiTask.mockResolvedValue(basePlan);
+    api.agentTaskApi.cancel.mockRejectedValue(new OaApiError('state changed', 409, 'INVALID_TASK_STATE'));
+    api.agentTaskApi.detail.mockResolvedValue({ taskId: basePlan.taskId, status: 'SUCCEEDED', steps: [
+      { sequence: 1, toolCode: 'todo.query', status: 'SUCCEEDED', resultSummary: '实际待办甲', result: { total: 1, items: [{ id: 1 }] } },
+    ] });
+    const navigate = vi.fn(() => true);
+    const refresh = vi.fn();
+    renderDrawer(refresh, undefined, navigate);
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: '查我的待办' } });
+    fireEvent.click(screen.getByRole('button', { name: /发送 \/ 生成计划/ }));
+    await waitFor(() => expect(api.subscribeAiTaskEvents).toHaveBeenCalledOnce());
+    fireEvent.click(screen.getByRole('button', { name: /取消计划/ }));
+    await waitFor(() => expect(screen.getAllByText('实际待办甲').length).toBeGreaterThan(0));
+    expect(navigate).toHaveBeenCalledWith('todo');
+    expect(refresh).toHaveBeenCalledOnce();
+    expect(screen.queryByText('待执行步骤已取消；已完成的操作不会回滚。')).toBeNull();
+    expect(screen.getByRole('button', { name: /取消计划/ })).toBeDisabled();
+  });
+
+  it.each([false, true])('ignores a late execute response after confirmed cancellation, including a newer plan: %s', async (newPlan) => {
+    let resolvePlan!: (value: typeof basePlan) => void;
+    let resolveExecute!: (value: unknown) => void;
+    api.planAiTask.mockReturnValue(new Promise((done) => { resolvePlan = done; }));
+    api.executeAiTask.mockReturnValue(new Promise((done) => { resolveExecute = done; }));
+    api.agentTaskApi.cancel.mockResolvedValue({ taskId: basePlan.taskId, status: 'CANCELLED', steps: [] });
+    const drawer = (pageId: string) => <App><AIOperationDrawer open role="system_admin" pageId={pageId}
+      pageTitle={pageId} onClose={vi.fn()} /></App>;
+    const view = render(drawer('todo-list'));
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: '查我的待办' } });
+    fireEvent.click(screen.getByRole('button', { name: /发送 \/ 生成计划/ }));
+    await waitFor(() => expect(api.planAiTask).toHaveBeenCalledOnce());
+    view.rerender(drawer('visitor-booking')); view.rerender(drawer('todo-list'));
+    await act(async () => resolvePlan(basePlan));
+    fireEvent.click(screen.getByRole('button', { name: '执行计划' }));
+    await waitFor(() => expect(api.executeAiTask).toHaveBeenCalledOnce());
+    fireEvent.click(screen.getByRole('button', { name: /取消计划/ }));
+    await screen.findByText('待执行步骤已取消；已完成的操作不会回滚。');
+    if (newPlan) {
+      api.planAiTask.mockResolvedValue({ ...basePlan, taskId: 'next-task', summary: '新任务计划',
+        status: 'WAITING_CONFIRMATION', riskLevel: 'L1', confirmationRequired: true });
+      fireEvent.change(screen.getByRole('textbox'), { target: { value: '创建草稿' } });
+      fireEvent.click(screen.getByRole('button', { name: /发送 \/ 生成计划/ }));
+      await screen.findAllByText('新任务计划');
+    }
+    await act(async () => resolveExecute({ taskId: basePlan.taskId, status: 'QUEUED', statusUrl: '/old', eventsUrl: '/old-events' }));
+    expect(api.subscribeAiTaskEvents).not.toHaveBeenCalled();
+    expect(document.querySelector('.oa-ai-progress-card')).toBeNull();
+    expect(screen.getByRole('button', { name: /取消计划/ })).toHaveProperty('disabled', !newPlan);
+  });
+
+  it('does not replace a newer terminal event with an older cancellation status read', async () => {
+    let resolveStale!: (value: unknown) => void;
+    const finished = { taskId: basePlan.taskId, status: 'SUCCEEDED', steps: [
+      { sequence: 1, toolCode: 'todo.query', status: 'SUCCEEDED', resultSummary: '实际待办乙', result: { total: 1, items: [{ id: 1 }] } },
+    ] };
+    api.planAiTask.mockResolvedValue(basePlan);
+    api.agentTaskApi.cancel.mockRejectedValue(new OaApiError('state changed', 409, 'INVALID_TASK_STATE'));
+    api.agentTaskApi.detail.mockImplementationOnce(() => new Promise((done) => { resolveStale = done; })).mockResolvedValue(finished);
+    renderDrawer();
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: '查我的待办' } });
+    fireEvent.click(screen.getByRole('button', { name: /发送 \/ 生成计划/ }));
+    await waitFor(() => expect(api.subscribeAiTaskEvents).toHaveBeenCalledOnce());
+    fireEvent.click(screen.getByRole('button', { name: /取消计划/ }));
+    await waitFor(() => expect(api.agentTaskApi.detail).toHaveBeenCalledOnce());
+    act(() => api.subscribeAiTaskEvents.mock.calls[0][1].onEvent({ id: 'done', type: 'task-completed', data: { status: 'SUCCEEDED' } }));
+    await screen.findAllByText('实际待办乙');
+    await act(async () => resolveStale({ ...finished, status: 'RUNNING', steps: [] }));
+    expect(document.querySelector('.oa-ai-progress-card')).toHaveTextContent('已成功');
+    expect(document.querySelector('.oa-ai-progress-card')).not.toHaveTextContent('执行中');
+  });
+
+  it('ignores already-delivered callbacks from a cancelled task stream after a new plan starts', async () => {
+    api.planAiTask.mockResolvedValue(basePlan);
+    api.agentTaskApi.cancel.mockResolvedValue({ taskId: basePlan.taskId, status: 'CANCELLED', steps: [] });
+    api.agentTaskApi.detail.mockResolvedValue({ taskId: basePlan.taskId, status: 'SUCCEEDED', steps: [
+      { sequence: 1, toolCode: 'todo.query', status: 'SUCCEEDED', resultSummary: '旧任务结果', result: { total: 0, items: [] } },
+    ] });
+    renderDrawer();
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: '查我的待办' } });
+    fireEvent.click(screen.getByRole('button', { name: /发送 \/ 生成计划/ }));
+    await waitFor(() => expect(api.subscribeAiTaskEvents).toHaveBeenCalledOnce());
+    const oldStream = api.subscribeAiTaskEvents.mock.calls[0][1];
+    fireEvent.click(screen.getByRole('button', { name: /取消计划/ }));
+    await screen.findByText('待执行步骤已取消；已完成的操作不会回滚。');
+    api.planAiTask.mockResolvedValue({ ...basePlan, taskId: 'next-task', summary: '新任务计划',
+      status: 'WAITING_CONFIRMATION', riskLevel: 'L1', confirmationRequired: true });
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: '创建草稿' } });
+    fireEvent.click(screen.getByRole('button', { name: /发送 \/ 生成计划/ }));
+    await screen.findAllByText('新任务计划');
+    act(() => {
+      oldStream.onEvent({ id: 'late', type: 'task-completed', data: { status: 'SUCCEEDED' } });
+      oldStream.onError?.(new OaApiError('late error', 503, 'UNAVAILABLE'));
+    });
+    await act(async () => undefined);
+    expect(api.agentTaskApi.detail).not.toHaveBeenCalled();
+    expect(screen.queryByText('旧任务结果')).toBeNull();
+    expect(screen.queryByText('AI 能力调用失败')).toBeNull();
+  });
+
+  it('ignores cancellation reconciliation after the permission-owned drawer unmounts', async () => {
+    let reject!: (reason: unknown) => void;
+    api.planAiTask.mockResolvedValue(basePlan);
+    api.agentTaskApi.cancel.mockReturnValue(new Promise((_done, fail) => { reject = fail; }));
+    api.agentTaskApi.detail.mockResolvedValue({ taskId: basePlan.taskId, status: 'SUCCEEDED', steps: [
+      { sequence: 1, toolCode: 'todo.query', status: 'SUCCEEDED', resultSummary: '迟到的结果', result: { total: 0, items: [] } },
+    ] });
+    const navigate = vi.fn(() => true);
+    renderDrawer(vi.fn(), undefined, navigate);
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: '查我的待办' } });
+    fireEvent.click(screen.getByRole('button', { name: /发送 \/ 生成计划/ }));
+    await waitFor(() => expect(api.subscribeAiTaskEvents).toHaveBeenCalledOnce());
+    fireEvent.click(screen.getByRole('button', { name: /取消计划/ }));
+    cleanup();
+    await act(async () => reject(new OaApiError('state changed', 409, 'INVALID_TASK_STATE')));
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it('does not execute when a confirmation credential arrives after unmount', async () => {
+    let resolveCredential!: (value: unknown) => void;
+    api.planAiTask.mockResolvedValue({ ...basePlan, status: 'WAITING_CONFIRMATION', riskLevel: 'L1', confirmationRequired: true });
+    api.issueAiTaskConfirmation.mockReturnValue(new Promise((done) => { resolveCredential = done; }));
+    const drawer = (visible: boolean) => <App>{visible && <AIOperationDrawer open role="system_admin" pageId="todo-list"
+      pageTitle="待办" onClose={vi.fn()} />}</App>;
+    const view = render(drawer(true));
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: '创建草稿' } });
+    fireEvent.click(screen.getByRole('button', { name: /发送 \/ 生成计划/ }));
+    await waitFor(() => expect(screen.getAllByText(basePlan.summary)).toHaveLength(2));
+    fireEvent.click(screen.getByRole('button', { name: '确认并执行' }));
+    fireEvent.click(await screen.findByRole('button', { name: '确认执行' }));
+    await waitFor(() => expect(api.issueAiTaskConfirmation).toHaveBeenCalledOnce());
+    view.rerender(drawer(false));
+    await act(async () => resolveCredential({ token: 'isolated-test-credential' }));
+    expect(api.executeAiTask).not.toHaveBeenCalled();
+  });
+
+  it('does not issue a credential from a confirmation modal left behind by an unmounted drawer', async () => {
+    api.planAiTask.mockResolvedValue({ ...basePlan, status: 'WAITING_CONFIRMATION', riskLevel: 'L1', confirmationRequired: true });
+    api.issueAiTaskConfirmation.mockResolvedValue({ token: 'isolated-test-credential' });
+    const drawer = (visible: boolean) => <App>{visible && <AIOperationDrawer open role="system_admin" pageId="todo-list"
+      pageTitle="待办" onClose={vi.fn()} />}</App>;
+    const view = render(drawer(true));
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: '创建草稿' } });
+    fireEvent.click(screen.getByRole('button', { name: /发送 \/ 生成计划/ }));
+    await waitFor(() => expect(screen.getAllByText(basePlan.summary)).toHaveLength(2));
+    fireEvent.click(screen.getByRole('button', { name: '确认并执行' }));
+    await screen.findByRole('button', { name: '确认执行' });
+    view.rerender(drawer(false));
+    fireEvent.click(screen.getByRole('button', { name: '确认执行' }));
+    await act(async () => undefined);
+    expect(api.issueAiTaskConfirmation).not.toHaveBeenCalled();
+    expect(api.executeAiTask).not.toHaveBeenCalled();
   });
 
   it.each([

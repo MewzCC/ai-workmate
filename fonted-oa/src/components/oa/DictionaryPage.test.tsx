@@ -101,8 +101,12 @@ it('uses the protected edit version instead of a stale row and preserves input o
   render(view('/oa/dictionary?typeId=11'));
   await waitFor(() => expect(context()).toMatchObject({ version: 7 }));
   fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /编\s*辑/ }));
-  const name = await screen.findByLabelText('字典名称'); fireEvent.change(name, { target: { value: '保留输入' } });
-  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /保\s*存/ }));
+  await screen.findByLabelText('字典名称');
+  const save = within(screen.getByRole('dialog')).getByRole('button', { name: /保\s*存/ });
+  await waitFor(() => { expect(screen.getByLabelText('字典名称')).toHaveValue(type.name); expect(save).toBeEnabled(); });
+  const name = screen.getByLabelText('字典名称');
+  fireEvent.change(name, { target: { value: '保留输入' } });
+  fireEvent.click(save);
   await waitFor(() => expect(api.updateType).toHaveBeenCalledWith(11, expect.objectContaining({ name: '保留输入', version: 7 })));
   expect(screen.getByLabelText('字典名称')).toHaveValue('保留输入'); expect(context()).toMatchObject({ version: 7 });
 });

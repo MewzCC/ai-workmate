@@ -1,6 +1,8 @@
 package com.aiworkmate.integration;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.aiworkmate.agent.registry.ToolCatalog;
+import com.aiworkmate.agent.task.AgentHashing;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -30,6 +32,8 @@ class AgentLiveBrowserIT extends AbstractIsolatedAgentIntegrationTest {
     @Autowired private JdbcTemplate jdbc;
     @Autowired private ObjectMapper json;
     @Autowired private PasswordEncoder passwords;
+    @Autowired private AgentHashing hashing;
+    @Autowired private ToolCatalog catalog;
 
     @DynamicPropertySource static void properties(DynamicPropertyRegistry properties) {
         LiveModelTestConfiguration.register(properties, ENVIRONMENT, "oa_browser_it");
@@ -41,7 +45,7 @@ class AgentLiveBrowserIT extends AbstractIsolatedAgentIntegrationTest {
         jdbc.update("UPDATE agent_tool SET enabled=true WHERE tenant_id IS NULL AND code IN ('notification.mine','todo.query')");
         jdbc.update("DELETE FROM agent_page_action_policy WHERE tenant_id=? AND page_id IN ('dashboard','todo','messages','ai-workspace')", tenant);
         var http = new AgentHttpTestFixture(jdbc, json, passwords, port, "zh-CN");
-        var owner = http.createAndLogin(tenant, List.of("route:dashboard", "route:ai-workspace", "route:messages", "route:todo",
+        var owner = http.createAndLogin(tenant, List.of("route:dashboard", "route:ai-workspace", "route:messages", "route:todo", "route:ai-tasks",
                 "notification:read:self", "todo:read", "agent:tool:notification.mine", "agent:tool:todo.query"));
         var applicant = http.createAndLogin(tenant, List.of());
         LeaveReadFixture.pending(jdbc, tenant, applicant.id(), owner.id());
@@ -49,6 +53,8 @@ class AgentLiveBrowserIT extends AbstractIsolatedAgentIntegrationTest {
         String applicantName = jdbc.queryForObject("SELECT username FROM app_user WHERE id=?", String.class, applicant.id());
         String notice = "browser-notice-" + UUID.randomUUID();
         jdbc.update("INSERT INTO notification(tenant_id,user_id,type,title,content) VALUES (?,?,'SYSTEM',?,'synthetic browser data')", tenant, owner.id(), notice);
+        var cancellable = new FrozenReadTaskFixture(jdbc, json, hashing, catalog)
+                .create(tenant, owner.id(), "messages", "notification.mine", json.createObjectNode(), FrozenReadTaskFixture.State.PLAN_READY);
         Path repository = Path.of("..").toAbsolutePath().normalize();
         Path log = Path.of("target", "agent-it", ENVIRONMENT.schema(), "browser.log").toAbsolutePath();
         Files.createDirectories(log.getParent());
@@ -65,6 +71,7 @@ class AgentLiveBrowserIT extends AbstractIsolatedAgentIntegrationTest {
         launcher.environment().put("AGENT_BROWSER_COOKIE", owner.cookie());
         launcher.environment().put("AGENT_BROWSER_APPLICANT", applicantName);
         launcher.environment().put("AGENT_BROWSER_NOTICE", notice);
+        launcher.environment().put("AGENT_BROWSER_CANCELLABLE_TASK", cancellable.number());
         Process browser = launcher.start();
         try {
             assertThat(browser.waitFor(210, TimeUnit.SECONDS)).as("owned browser completion budget").isTrue();
@@ -88,6 +95,8 @@ class AgentLiveBrowserIT extends AbstractIsolatedAgentIntegrationTest {
         }
         assertThat(jdbc.queryForObject("SELECT count(*) FROM agent_task WHERE user_id=? AND status='SUCCEEDED'", Long.class, owner.id())).isEqualTo(2);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM agent_tool_invocation WHERE user_id=? AND handler_invoked AND outcome='SUCCEEDED'", Long.class, owner.id())).isEqualTo(2);
+        assertThat(jdbc.queryForObject("SELECT status FROM agent_task WHERE id=?", String.class, cancellable.id())).isEqualTo("CANCELLED");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM agent_tool_invocation WHERE task_id=?", Long.class, cancellable.id())).isZero();
         assertThat(jdbc.queryForObject("SELECT write_tools_enabled FROM agent_tenant_policy WHERE tenant_id=?", Boolean.class, tenant)).isFalse();
     }
 }
