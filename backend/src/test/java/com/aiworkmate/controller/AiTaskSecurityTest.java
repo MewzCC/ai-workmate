@@ -5,6 +5,8 @@ import com.aiworkmate.common.ErrorCode;
 import com.aiworkmate.common.GlobalExceptionHandler;
 import com.aiworkmate.config.RequestTraceFilter;
 import com.aiworkmate.config.SecurityConfig;
+import com.aiworkmate.config.CorsConfig;
+import com.aiworkmate.config.LocaleConfig;
 import com.aiworkmate.security.JwtAuthenticationFilter;
 import com.aiworkmate.security.JwtValidationStatus;
 import com.aiworkmate.service.AiTaskService;
@@ -18,6 +20,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.http.MediaType;
 import jakarta.servlet.http.Cookie;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -37,7 +40,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 
 @WebMvcTest({AiTaskController.class, AiIntentController.class})
-@Import({SecurityConfig.class, JwtAuthenticationFilter.class, RequestTraceFilter.class, GlobalExceptionHandler.class})
+@Import({SecurityConfig.class, CorsConfig.class, LocaleConfig.class, JwtAuthenticationFilter.class, RequestTraceFilter.class, GlobalExceptionHandler.class})
+@TestPropertySource(properties = "app.cors.allowed-origins=http://localhost:3001")
 class AiTaskSecurityTest {
 
     private static final String TOKEN = "test-token";
@@ -64,6 +68,27 @@ class AiTaskSecurityTest {
         when(jwtUtil.getUserIdFromToken(TOKEN)).thenReturn(1001L);
         when(userAccessService.resolveActiveUser(1001L))
                 .thenReturn(new ResolvedUserAccess(1001L, "alice", "EMPLOYEE", java.util.List.of()));
+    }
+
+    @Test
+    void trustedOriginDoesNotGrantAuthenticationButCanReadTheUnauthorizedResponse() throws Exception {
+        mockMvc.perform(post("/api/ai/tasks/plan").header("Origin", "http://localhost:3001")
+                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:3001"))
+                .andExpect(jsonPath("$.errorCode").value("AUTH_REQUIRED"));
+        verifyNoInteractions(aiTaskService);
+    }
+
+    @Test
+    void untrustedOriginIsRejectedBeforeAuthenticatedPlanning() throws Exception {
+        mockMvc.perform(post("/api/ai/tasks/plan").header("Origin", "https://untrusted.example")
+                        .header("Authorization", "Bearer " + TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"input\":\"查询待办\",\"pageId\":\"dashboard\"}"))
+                .andExpect(status().isForbidden())
+                .andExpect(header().doesNotExist("Access-Control-Allow-Origin"))
+                .andExpect(jsonPath("$.errorCode").value("PERMISSION_DENIED"));
+        verifyNoInteractions(aiTaskService);
     }
 
     @Test

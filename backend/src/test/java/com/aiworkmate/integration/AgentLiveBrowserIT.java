@@ -14,6 +14,8 @@ import org.springframework.test.context.DynamicPropertySource;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.net.ServerSocket;
+import java.io.IOException;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.UUID;
@@ -27,6 +29,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class AgentLiveBrowserIT extends AbstractIsolatedAgentIntegrationTest {
     private static final AgentIntegrationEnvironment ENVIRONMENT = new AgentIntegrationEnvironment();
+    private static final int UI_PORT = reserveUiPort();
     @Override protected AgentIntegrationEnvironment environment() { return ENVIRONMENT; }
     @LocalServerPort private int port;
     @Autowired private JdbcTemplate jdbc;
@@ -37,6 +40,7 @@ class AgentLiveBrowserIT extends AbstractIsolatedAgentIntegrationTest {
 
     @DynamicPropertySource static void properties(DynamicPropertyRegistry properties) {
         LiveModelTestConfiguration.register(properties, ENVIRONMENT, "oa_browser_it");
+        properties.add("app.cors.allowed-origins", () -> "http://127.0.0.1:" + UI_PORT);
     }
 
     @Test void browserReadsActualResultsNavigatesAndPreservesTheDrawerAcrossRoutes() throws Exception {
@@ -68,6 +72,7 @@ class AgentLiveBrowserIT extends AbstractIsolatedAgentIntegrationTest {
             if (original.containsKey(name)) launcher.environment().put(name, original.get(name));
         }
         launcher.environment().put("AGENT_BROWSER_API_PORT", Integer.toString(port));
+        launcher.environment().put("AGENT_BROWSER_UI_PORT", Integer.toString(UI_PORT));
         launcher.environment().put("AGENT_BROWSER_COOKIE", owner.cookie());
         launcher.environment().put("AGENT_BROWSER_APPLICANT", applicantName);
         launcher.environment().put("AGENT_BROWSER_NOTICE", notice);
@@ -98,5 +103,13 @@ class AgentLiveBrowserIT extends AbstractIsolatedAgentIntegrationTest {
         assertThat(jdbc.queryForObject("SELECT status FROM agent_task WHERE id=?", String.class, cancellable.id())).isEqualTo("CANCELLED");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM agent_tool_invocation WHERE task_id=?", Long.class, cancellable.id())).isZero();
         assertThat(jdbc.queryForObject("SELECT write_tools_enabled FROM agent_tenant_policy WHERE tenant_id=?", Boolean.class, tenant)).isFalse();
+    }
+
+    private static int reserveUiPort() {
+        try (var reservation = new ServerSocket(0, 0, java.net.InetAddress.getLoopbackAddress())) {
+            return reservation.getLocalPort();
+        } catch (IOException unavailable) {
+            throw new IllegalStateException("Cannot reserve the owned browser test port");
+        }
     }
 }

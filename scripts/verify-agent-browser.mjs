@@ -11,6 +11,8 @@ const { chromium } = require('playwright');
 const { createServer } = require('vite');
 const apiPort = Number(process.env.AGENT_BROWSER_API_PORT);
 assert(Number.isInteger(apiPort) && apiPort > 0 && apiPort < 65536);
+const uiPort = Number(process.env.AGENT_BROWSER_UI_PORT);
+assert(Number.isInteger(uiPort) && uiPort > 0 && uiPort < 65536);
 const cookie = process.env.AGENT_BROWSER_COOKIE;
 const applicant = process.env.AGENT_BROWSER_APPLICANT;
 const notice = process.env.AGENT_BROWSER_NOTICE;
@@ -25,12 +27,13 @@ try {
     configFile: path.join(repository, 'fonted-oa', 'vite.config.ts'),
     root: path.join(repository, 'fonted-oa'),
     logLevel: 'silent',
-    server: { host: '127.0.0.1', port: 0, strictPort: true,
+    server: { host: '127.0.0.1', port: uiPort, strictPort: true,
       proxy: { '/api': { target: `http://127.0.0.1:${apiPort}` } } },
   });
   await server.listen();
   const address = server.httpServer.address();
   assert(address && typeof address !== 'string');
+  assert.equal(address.port, uiPort); // Exactly the origin whitelisted by this test's backend.
   const base = `http://127.0.0.1:${address.port}`;
   browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: 'zh-CN' });

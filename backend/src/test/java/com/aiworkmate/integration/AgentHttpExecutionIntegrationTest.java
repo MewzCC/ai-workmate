@@ -41,6 +41,7 @@ class AgentHttpExecutionIntegrationTest extends AbstractIsolatedAgentIntegration
     private static final AgentIntegrationEnvironment ENVIRONMENT = new AgentIntegrationEnvironment();
     private static final String JWT_SECRET = UUID.randomUUID().toString() + UUID.randomUUID();
     private static final HttpClient HTTP = AgentHttpTestFixture.client();
+    private static final String TRUSTED_ORIGIN = "http://127.0.0.1:3001";
     @Override protected AgentIntegrationEnvironment environment() { return ENVIRONMENT; }
     @LocalServerPort private int port;
     @Autowired private JdbcTemplate jdbc;
@@ -56,6 +57,7 @@ class AgentHttpExecutionIntegrationTest extends AbstractIsolatedAgentIntegration
     @DynamicPropertySource static void properties(DynamicPropertyRegistry registry) {
         ENVIRONMENT.register(registry);
         registry.add("server.address", () -> "127.0.0.1");
+        registry.add("app.cors.allowed-origins", () -> TRUSTED_ORIGIN);
         registry.add("jwt.secret", () -> JWT_SECRET);
         registry.add("app.auth.cookie-name", () -> "oa_http_it");
         registry.add("app.auth.cookie-secure", () -> "false");
@@ -80,6 +82,56 @@ class AgentHttpExecutionIntegrationTest extends AbstractIsolatedAgentIntegration
         jdbc.update("UPDATE agent_task SET status='CANCELLED' WHERE user_id=? AND status IN ('PLAN_READY','QUEUED')", owner.id());
         await().atMost(Duration.ofSeconds(20)).untilAsserted(() -> assertThat(jdbc.queryForObject(
                 "SELECT count(*) FROM agent_task WHERE user_id=? AND status='RUNNING'", Long.class, owner.id())).isZero());
+    }
+
+    @Test void untrustedOriginsCannotReadOrCancelAnOwnedTaskEvenWithARealCookie() throws Exception {
+        Task task = plan();
+        for (String origin : List.of("https://untrusted.example", "http://127.0.0.1:3002", "null")) {
+            for (String method : List.of("GET", "POST")) {
+                var rejected = HTTP.send(request(method, taskPath(task) + (method.equals("POST") ? "/cancel" : ""), owner, null, null)
+                        .header("Origin", origin).build(), HttpResponse.BodyHandlers.ofString());
+                assertThat(rejected.statusCode()).isEqualTo(403);
+                assertThat(rejected.headers().firstValue("Access-Control-Allow-Origin")).isEmpty();
+                assertThat(json.readTree(rejected.body()).path("errorCode").asText()).isEqualTo("PERMISSION_DENIED");
+                assertUntouched(task);
+            }
+        }
+    }
+
+    @Test void trustedPreflightNeedsNoCookieAndMissingOrInvalidCookiesStillFailAuthentication() throws Exception {
+        Task task = plan();
+        var preflight = HTTP.send(request("OPTIONS", taskPath(task) + "/cancel", null, null, null)
+                .header("Origin", TRUSTED_ORIGIN).header("Access-Control-Request-Method", "POST")
+                .header("Access-Control-Request-Headers", "Content-Type,Idempotency-Key,Last-Event-ID").build(), HttpResponse.BodyHandlers.ofString());
+        assertThat(preflight.statusCode()).isEqualTo(200);
+        assertThat(preflight.headers().firstValue("Access-Control-Allow-Origin")).contains(TRUSTED_ORIGIN);
+        for (String cookie : List.of("", "oa_http_it=invalid-token")) {
+            var builder = request("POST", taskPath(task) + "/cancel", null, null, null).header("Origin", TRUSTED_ORIGIN);
+            if (!cookie.isEmpty()) builder.header("Cookie", cookie);
+            var denied = HTTP.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+            assertThat(denied.statusCode()).isEqualTo(401);
+            assertThat(denied.headers().firstValue("Access-Control-Allow-Origin")).contains(TRUSTED_ORIGIN);
+        }
+        assertUntouched(task);
+    }
+
+    @Test void trustedOriginPreservesTenantBoundariesAndActualOwnedCancellation() throws Exception {
+        Task task = plan();
+        long otherTenant = jdbc.queryForObject("INSERT INTO tenant(code,name) VALUES (?,'CORS tenant') RETURNING id", Long.class,
+                "CORS_" + UUID.randomUUID().toString().replace("-", ""));
+        for (Actor stranger : List.of(loginNewActor(tenant), loginNewActor(otherTenant))) {
+            var denied = HTTP.send(request("POST", taskPath(task) + "/cancel", stranger, null, null)
+                    .header("Origin", TRUSTED_ORIGIN).build(), HttpResponse.BodyHandlers.ofString());
+            assertThat(denied.statusCode()).isEqualTo(404);
+            assertThat(denied.headers().firstValue("Access-Control-Allow-Origin")).contains(TRUSTED_ORIGIN);
+            assertUntouched(task);
+        }
+        var cancelled = HTTP.send(request("POST", taskPath(task) + "/cancel", owner, null, null)
+                .header("Origin", TRUSTED_ORIGIN).build(), HttpResponse.BodyHandlers.ofString());
+        assertThat(cancelled.statusCode()).isEqualTo(200);
+        assertThat(cancelled.headers().firstValue("Access-Control-Allow-Origin")).contains(TRUSTED_ORIGIN);
+        assertThat(json.readTree(cancelled.body()).path("data").path("status").asText()).isEqualTo("CANCELLED");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM agent_tool_invocation WHERE task_id=?", Long.class, task.id())).isZero();
     }
 
     @Test void loginExecuteDetailAndLiveSseDeliverActualOwnedResults() throws Exception {
