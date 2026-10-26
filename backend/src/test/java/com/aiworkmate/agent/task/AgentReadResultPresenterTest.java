@@ -11,6 +11,19 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class AgentReadResultPresenterTest {
+    @Test void governanceTruncationIsVisibleBeforeGenericFieldBudgetIsExhausted() {
+        var result = mapper.createObjectNode().put("toolCount",140).put("roleCount",61)
+                .put("toolsTruncated",true).put("rolesTruncated",true);
+        var tools = result.putArray("tools");
+        var roles = result.putArray("roles");
+        for(int i=0;i<50;i++){tools.addObject().put("code","tool."+i); roles.addObject().put("code","R"+i);}
+        try {
+            org.springframework.context.i18n.LocaleContextHolder.setLocale(java.util.Locale.US);
+            assertThat(AgentReadResultPresenter.present("aiPermission.query",result)).contains("50 of 140","50 of 61","truncated");
+            org.springframework.context.i18n.LocaleContextHolder.setLocale(java.util.Locale.SIMPLIFIED_CHINESE);
+            assertThat(AgentReadResultPresenter.present("aiPermission.query",result)).contains("工具 当前展示 50/140","角色 当前展示 50/61","截断");
+        } finally {org.springframework.context.i18n.LocaleContextHolder.resetLocaleContext();}
+    }
     @Test void showsConcreteCurrentPermissionCodesRatherThanOnlyArraySizes() throws Exception {
         var result = mapper.readTree("""
                 {"primaryRole":"HR_REVIEWER","roles":["HR_REVIEWER"],"dataScopes":["SELF"],"permissionVersion":12,

@@ -629,7 +629,7 @@ class P1PostgresMigrationIT {
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM agent_tool
                     WHERE tenant_id IS NULL AND code = 'attendance.query' AND handler_version = '1.0.0'
-                      AND schema_hash = 'sha256:4ff357d3836da753f0c32d3774ea04ba3cf83d1c6b8708de548e8ff711348d60'
+                      AND schema_hash = 'sha256:bbf04a579ddf4826587b5a21e662e25259ef69e41a93cb55e753d275195ce1b4'
                       AND risk_level = 'L0' AND data_scope_policy = 'TENANT_SCOPED'
                       AND side_effect = 'NONE' AND enabled = TRUE
                     """)).as("考勤 Agent 工具必须以冻结契约的只读租户范围种子存在").isOne();
@@ -842,7 +842,7 @@ class P1PostgresMigrationIT {
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM agent_tool
                     WHERE tenant_id IS NULL AND code = 'visitor.query' AND handler_version = '1.0.0'
-                      AND schema_hash = 'sha256:aa6f923d24734c45f3022026885641deb9b74abbe6e9061394234e5cc739a3aa'
+                      AND schema_hash = 'sha256:0ee54fb81f4e29f20108018ac3449c19f747fa481249a87b67d06d8e8479891e'
                       AND risk_level = 'L0' AND data_scope_policy = 'SELF'
                       AND required_permissions = '["visitor:read:self"]'::jsonb
                       AND side_effect = 'NONE' AND enabled = TRUE
@@ -1190,9 +1190,9 @@ class P1PostgresMigrationIT {
                     SELECT COUNT(*) FROM agent_tool
                     WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='NONE'
                       AND (code,schema_hash,data_scope_policy) IN (
-                        ('accessGovernance.query','sha256:d622f57307336098c25b779333ff842a874adcbf1880ae687c08276d3c6bbc61','TENANT_SCOPED'),
-                        ('dataPermission.query','sha256:858c22c5e8947762eda39892caf2fbf962282c21d94945491daf34ebde3f6c21','TENANT_SCOPED'),
-                        ('aiPermission.query','sha256:270d6da876eea0376fddf296219842f25f2bdc594ec61023ac365006cfc7ae87','TENANT_SCOPED'))
+                        ('accessGovernance.query','sha256:7286724aabd5e431fe911c9a9b3ec9f9984be9431fe9cf3dd436c4dea4a6b806','TENANT_SCOPED'),
+                        ('dataPermission.query','sha256:e4f18dfeab7b4995534312eeef5e2aa1fbf2590fd4aa17d5299b3070aaed8b51','TENANT_SCOPED'),
+                        ('aiPermission.query','sha256:d10931f47f7a8c029913766cb429a38e2caef5ad4c5d72e992ca8220632f6870','TENANT_SCOPED'))
                     """)).as("三个安全治理 Agent 工具必须以冻结契约存在").isEqualTo(3);
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM rbac_permission

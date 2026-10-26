@@ -59,6 +59,12 @@ public class PageCapabilityCatalog {
         return definitions.values();
     }
 
+    /** Preserve the generic approval domain's existing entry-route prerequisite independently of business permissions. */
+    public Set<String> prerequisitePageIdsForTool(String toolCode) {
+        return APPROVAL_APPLICATION_MINE_QUERY.code().equals(toolCode) || APPROVAL_APPLICATION_DETAIL_QUERY.code().equals(toolCode)
+                ? Set.of(OaPage.APPROVAL_START.routeKey()) : Set.of();
+    }
+
     /** Page context narrows tool access; the conversational entry never grants business access. */
     public boolean allowsTool(String pageId, String toolCode, Collection<String> permissions) {
         if (pageId == null) return false;
@@ -67,6 +73,7 @@ public class PageCapabilityCatalog {
                 || page.tools().stream().noneMatch(tool -> tool.toolCode().equals(toolCode))) {
             return false;
         }
+        if (prerequisitePageIdsForTool(toolCode).stream().anyMatch(required -> !permissions.contains("route:" + required))) return false;
         return !OaPage.AI_WORKSPACE.routeKey().equals(page.pageId())
                 || businessPageIdsForTool(toolCode).stream().anyMatch(target -> permissions.contains("route:" + target));
     }

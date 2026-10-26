@@ -16,9 +16,9 @@ class SecurityGovernanceQueryToolHandlerTest {
     void dispatchesThreeNarrowQueriesWithTrustedActor() throws Exception {
         var mapper = new ObjectMapper(); var port = mock(SecurityGovernanceToolPort.class);
         var context = new TrustedToolContext(1, 2, 3, 4, 0, "trace");
-        when(port.accessOverview(any(), any())).thenReturn(new SecurityGovernanceToolPort.AccessOverview(List.of(),0,0,0,0,0));
-        when(port.dataScopes(any(), any())).thenReturn(new SecurityGovernanceToolPort.DataScopeOverview(List.of(),0,0));
-        when(port.aiPolicies(any(), any())).thenReturn(new SecurityGovernanceToolPort.AiPolicyOverview(new SecurityGovernanceToolPort.RuntimeSwitches(false,false,false,false),new SecurityGovernanceToolPort.TenantSwitches(false,false),List.of(),List.of()));
+        when(port.accessOverview(any(), any())).thenReturn(new SecurityGovernanceToolPort.AccessOverview(List.of(),0,0,0,0,0,0,false));
+        when(port.dataScopes(any(), any())).thenReturn(new SecurityGovernanceToolPort.DataScopeOverview(List.of(),0,0,0,false));
+        when(port.aiPolicies(any(), any())).thenReturn(new SecurityGovernanceToolPort.AiPolicyOverview(new SecurityGovernanceToolPort.RuntimeSwitches(false,false,false,false),new SecurityGovernanceToolPort.TenantSwitches(false,false),List.of(),List.of(),0,0,false,false));
         var handlers = List.of(new AccessGovernanceQueryToolHandler(port, mapper), new DataPermissionQueryToolHandler(port, mapper), new AiPermissionQueryToolHandler(port, mapper));
         assertThat(handlers).extracting(ToolHandler::toolCode).containsExactly(ToolCode.ACCESS_GOVERNANCE_QUERY.code(), ToolCode.DATA_PERMISSION_QUERY.code(), ToolCode.AI_PERMISSION_QUERY.code());
         handlers.forEach(handler -> handler.execute(context, mapper.createObjectNode()));

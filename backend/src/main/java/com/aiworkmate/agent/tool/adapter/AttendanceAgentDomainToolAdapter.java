@@ -97,13 +97,14 @@ public final class AttendanceAgentDomainToolAdapter implements AttendanceToolPor
     private Result statistics(ToolActorContext context, Query query) {
         var item = attendanceService.getStatistics(context.userId(), query.year(), query.month());
         var personal = item.personal();
+        var team = item.team() == null ? List.<TeamStats>of() : item.team().stream().limit(50)
+                .map(member -> new TeamStats(member.userName(), member.departmentName(), member.totalDays(),
+                        member.normalDays(), member.lateDays(), member.earlyLeaveDays(), member.missingDays())).toList();
         var statistics = new Statistics(item.startDate(), item.endDate(),
                 new PersonalStats(personal.userName(), personal.totalDays(), personal.normalDays(),
                         personal.lateDays(), personal.earlyLeaveDays(), personal.missingDays(),
                         personal.pendingReissueCount()),
-                item.team().stream().limit(50).map(member -> new TeamStats(
-                        member.userName(), member.departmentName(), member.totalDays(), member.normalDays(),
-                        member.lateDays(), member.earlyLeaveDays(), member.missingDays())).toList());
+                team);
         return result(query, null, List.of(), List.of(), statistics, null, 1);
     }
 

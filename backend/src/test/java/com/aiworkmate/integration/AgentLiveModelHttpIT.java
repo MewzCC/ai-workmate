@@ -10,6 +10,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -51,6 +52,26 @@ class AgentLiveModelHttpIT extends AbstractIsolatedAgentIntegrationTest {
     }
 
     @BeforeEach void resetObservations() { MODEL_CALLS.clear(); }
+
+    @ParameterizedTest(name = "real conversation/business intent {index}: {0}")
+    @CsvSource(value = {
+            "CHAT|刚才我让你记住的短语是什么？请原样复述。",
+            "CHAT|再复述我最开始让你记住的短语。",
+            "CHAT|请重复本次对话中我上条消息的原文，不访问其他数据。",
+            "OPERATION|刚才提交的请假申请现在是什么状态？",
+            "OPERATION|请查询我的待办并复述每条待办的内容。",
+            "OPERATION|记住我的长期系统偏好并保存到账号设置。"
+    }, delimiter = '|')
+    void conversationRecallIsNotMisroutedToBusinessPlanning(String expected, String input) throws Exception {
+        long tenant = jdbc.queryForObject("SELECT id FROM tenant WHERE code='DEFAULT'", Long.class);
+        var http = new AgentHttpTestFixture(jdbc,json,passwords,port,"zh-CN");
+        var actor = http.createAndLogin(tenant,List.of("route:ai-workspace"));
+        var response = AgentHttpTestFixture.client().send(http.request("POST","/api/ai/intents",actor,null,
+                json.createObjectNode().put("input",input).toString()).build(),HttpResponse.BodyHandlers.ofString());
+        assertThat(response.statusCode()).as("live intent HTTP status").isEqualTo(200);
+        assertThat(json.readTree(response.body()).path("data").path("intent").asText()).isEqualTo(expected);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM agent_task WHERE user_id=?",Long.class,actor.id())).isZero();
+    }
 
     @ParameterizedTest
     @ValueSource(strings = {"notification.mine", "todo.query"})

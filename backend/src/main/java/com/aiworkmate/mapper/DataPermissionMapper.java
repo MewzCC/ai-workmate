@@ -79,8 +79,10 @@ public interface DataPermissionMapper {
     @Update("UPDATE app_user SET permission_version=permission_version+1,updated_at=CURRENT_TIMESTAMP WHERE tenant_id=#{tenantId} AND id=#{userId}")
     int incrementUserPermissionVersion(@Param("tenantId") Long tenantId, @Param("userId") Long userId);
 
-    @Select("SELECT department_id FROM app_user WHERE tenant_id=#{tenantId} AND id=#{userId} AND status=1")
-    Long selectActiveUserDepartment(@Param("tenantId") Long tenantId, @Param("userId") Long userId);
+    record ActiveUserDepartment(Long userId, Long departmentId) { }
+
+    @Select("SELECT id AS userId, department_id AS departmentId FROM app_user WHERE tenant_id=#{tenantId} AND id=#{userId} AND status=1")
+    ActiveUserDepartment selectActiveUser(@Param("tenantId") Long tenantId, @Param("userId") Long userId);
 
     @Select("SELECT COUNT(*) FROM data_permission_role_binding WHERE tenant_id=#{tenantId} AND policy_id=#{policyId}")
     int countRoleBindings(@Param("tenantId") Long tenantId, @Param("policyId") Long policyId);

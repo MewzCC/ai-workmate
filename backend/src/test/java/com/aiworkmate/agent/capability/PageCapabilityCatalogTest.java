@@ -11,6 +11,14 @@ import java.util.stream.Collectors;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class PageCapabilityCatalogTest {
+    @org.junit.jupiter.api.Test void genericApplicationReadsRequireTheExistingCompanionEntryRoute() {
+        var catalog = new PageCapabilityCatalog();
+        for (String code : java.util.List.of("approval.application.mine.query", "approval.application.detail.query")) {
+            assertThat(catalog.allowsTool("my-applications", code, java.util.List.of("route:my-applications"))).isFalse();
+            assertThat(catalog.allowsTool("my-applications", code, java.util.List.of("route:my-applications", "route:approval-start"))).isTrue();
+            assertThat(catalog.allowsTool("ai-workspace", code, java.util.List.of("route:ai-workspace", "route:my-applications"))).isFalse();
+        }
+    }
     private final PageCapabilityCatalog catalog = new PageCapabilityCatalog();
 
     @Test

@@ -7,6 +7,17 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class AgentReadToolDefinitionsTest {
+    @Test void visitorQueryAcceptsAnOmittedOptionalDepartureTime() throws Exception {
+        var mapper = new ObjectMapper();
+        var definition = new AgentReadToolDefinitions().visitorQueryToolDefinition(mapper);
+        var result = mapper.readTree("""
+                {"items":[{"id":1,"applicantName":"Reader","hostName":"Host","visitorName":"Visitor","purpose":"Visit",
+                "expectedVisitAt":"2026-10-26T10:00:00","partySize":1,"status":"PENDING","version":0,
+                "canWithdraw":true,"canDecide":false,"canCheckIn":false,"canMarkVisited":false,"canLeave":false,"canMarkNoShow":false}],
+                "total":1,"page":1,"size":20}
+                """);
+        assertThat(new ToolSchemaValidator().valid(definition.outputSchema(), result)).isTrue();
+    }
 
     @Test
     void visitorAndSealDefinitionsHideSensitiveOperationalFields() throws Exception {
@@ -15,7 +26,7 @@ class AgentReadToolDefinitionsTest {
         ToolDefinition visitor = new AgentReadToolDefinitions().visitorQueryToolDefinition(mapper);
         ToolDefinition seal = new AgentReadToolDefinitions().sealQueryToolDefinition(mapper);
         assertThat(visitor.schemaHash()).isEqualTo(
-                "sha256:aa6f923d24734c45f3022026885641deb9b74abbe6e9061394234e5cc739a3aa");
+                "sha256:0ee54fb81f4e29f20108018ac3449c19f747fa481249a87b67d06d8e8479891e");
         assertThat(seal.schemaHash()).isEqualTo(
                 "sha256:9f896eeb4041562e8c0a7d33ed8117af6c9be6f91d71ce3c763a59d3ce3c0175");
         assertThat(visitor.requiredPermissions()).containsExactly("visitor:read:self");
@@ -37,9 +48,11 @@ class AgentReadToolDefinitionsTest {
         ToolDefinition definition = new AgentReadToolDefinitions().attendanceQueryToolDefinition(mapper);
         ToolSchemaValidator validator = new ToolSchemaValidator();
         assertThat(definition.schemaHash()).isEqualTo(
-                "sha256:4ff357d3836da753f0c32d3774ea04ba3cf83d1c6b8708de548e8ff711348d60");
+                "sha256:bbf04a579ddf4826587b5a21e662e25259ef69e41a93cb55e753d275195ce1b4");
         assertThat(definition.requiredPermissions()).containsExactly("attendance:read");
         assertThat(definition.ownershipPolicy()).isEqualTo(OwnershipPolicy.TENANT_SCOPED);
+        assertThat(definition.outputSchema().at("/properties/reissues/items/properties/version/type").asText()).isEqualTo("integer");
+        assertThat(definition.outputSchema().at("/properties/settings/properties/version/type").asText()).isEqualTo("integer");
         assertThat(definition.outputSchema().toString())
                 .doesNotContain("tenantId", "userId", "clockInIp", "clockOutIp");
         assertThat(validator.valid(definition.inputSchema(), mapper.readTree(

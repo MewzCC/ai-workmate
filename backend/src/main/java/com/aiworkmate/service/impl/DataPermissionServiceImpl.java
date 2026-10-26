@@ -120,8 +120,9 @@ public class DataPermissionServiceImpl implements DataPermissionService {
 
     @Override @Transactional(readOnly = true)
     public ResolvedDataPermission resolve(Long tenantId, Long userId) {
-        Long ownDepartment = mapper.selectActiveUserDepartment(tenantId, userId);
-        if (ownDepartment == null) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        var activeUser = mapper.selectActiveUser(tenantId, userId);
+        if (activeUser == null || !Objects.equals(activeUser.userId(), userId)) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        Long ownDepartment = activeUser.departmentId();
         List<String> values = mapper.selectEffectiveScopes(tenantId, userId);
         Set<String> scopes = values.isEmpty() ? Set.of("SELF") : new HashSet<>(values);
         boolean exception = mapper.selectUserExceptions(tenantId).stream().anyMatch(item -> item.userId().equals(userId));
@@ -129,8 +130,9 @@ public class DataPermissionServiceImpl implements DataPermissionService {
         if (scopes.contains("ALL")) {
             departments.addAll(accessMapper.selectDepartments(tenantId).stream().map(DepartmentResponse::id).toList());
         } else {
-            if (scopes.contains("DEPARTMENT")) departments.add(ownDepartment);
-            if (scopes.contains("DEPARTMENT_AND_CHILDREN")) departments.addAll(descendants(tenantId, ownDepartment));
+            if (ownDepartment != null && scopes.contains("DEPARTMENT")) departments.add(ownDepartment);
+            if (ownDepartment != null && (scopes.contains("DEPARTMENT_TREE") || scopes.contains("DEPARTMENT_AND_CHILDREN")))
+                departments.addAll(descendants(tenantId, ownDepartment));
             if (scopes.contains("CUSTOM_DEPARTMENTS")) departments.addAll(mapper.selectEffectiveCustomDepartments(tenantId, userId));
         }
         Set<Long> visible = accessMapper.selectUsers(tenantId).stream()

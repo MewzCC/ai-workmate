@@ -38,6 +38,16 @@ public final class AgentReadResultPresenter {
             throw new BusinessException(ErrorCode.REQUEST_INVALID);
         }
         StringBuilder answer = new StringBuilder(MessageUtils.resolve("agent.result.completed", plain(toolCode)));
+        if (List.of("accessGovernance.query", "dataPermission.query", "aiPermission.query").contains(toolCode)) {
+            for (String collection : List.of("roles", "policies", "tools")) {
+                if (result.path(collection + "Truncated").asBoolean()) {
+                    String count = switch (collection) { case "roles" -> "roleCount"; case "policies" -> "policyCount"; default -> "toolCount"; };
+                    answer.append('\n').append(MessageUtils.resolve("agent.governance.truncated",
+                            MessageUtils.resolve("agent.governance.collection." + collection),
+                            result.path(collection).size(), result.path(count).asInt()));
+                }
+            }
+        }
         JsonNode items = result.isObject() ? result.path("items") : result;
         if (result.isObject() && result.path("total").canConvertToLong()) {
             answer.append('\n').append(MessageUtils.resolve("agent.result.total", result.path("total").asLong()));
