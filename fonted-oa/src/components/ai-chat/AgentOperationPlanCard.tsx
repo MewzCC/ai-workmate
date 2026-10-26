@@ -19,7 +19,7 @@ export default function AgentOperationPlanCard({ plan, executing, onConfirm, onD
       title: t('chat.operationConfirmTitle'),
       content: <Space orientation="vertical" size={10}>
         <Typography.Text>{t('chat.operationConfirmContent', { riskLevel: plan.riskLevel })}</Typography.Text>
-        <Typography.Text type="secondary">{plan.summary}</Typography.Text>
+        <AgentPlanPreview plan={plan} />
       </Space>,
       okText: t('chat.operationConfirm'),
       cancelText: t('common.cancel'),
