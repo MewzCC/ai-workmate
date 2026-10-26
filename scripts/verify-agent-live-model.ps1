@@ -11,7 +11,6 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 if (-not $EnableLiveModel) { throw 'Explicit -EnableLiveModel is required for external model acceptance.' }
-if ($Browser -and $LeaveWrite) { throw 'Select either browser read acceptance or isolated leave-write acceptance.' }
 $repositoryPath = Split-Path -Parent $PSScriptRoot
 if (-not $EnvFile) { $EnvFile = Join-Path $repositoryPath '.env' }
 $names = @('AI_API_KEY', 'AI_BASE_URL', 'AI_MODEL', 'AGENT_TEST_DB_URL', 'AGENT_TEST_DB_USERNAME', 'AGENT_TEST_REDIS_BINARY')
@@ -47,7 +46,7 @@ try {
     Push-Location (Join-Path $repositoryPath 'backend')
     try {
         # Credentials remain environment variables, never JVM command-line properties or output.
-        $testClass = if ($LeaveWrite) { 'AgentLiveLeaveApplyIT' } elseif ($Browser) { 'AgentLiveBrowserIT' } else { 'AgentLiveModelHttpIT' }
+        $testClass = if ($Browser -and $LeaveWrite) { 'AgentLiveBrowserLeaveIT' } elseif ($LeaveWrite) { 'AgentLiveLeaveApplyIT' } elseif ($Browser) { 'AgentLiveBrowserIT' } else { 'AgentLiveModelHttpIT' }
         & mvn "-Dtest=$testClass" '-Dagent.test.live-model=true' '-Dlogging.level.root=OFF' `
             '-Dlogging.level.com.aiworkmate=OFF' '-Dlogging.level.com.aiworkmate.agent=OFF' `
             '-Dlogging.level.org.springframework.ai=OFF' test *> $logPath

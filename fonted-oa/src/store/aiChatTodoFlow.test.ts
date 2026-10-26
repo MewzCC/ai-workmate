@@ -71,7 +71,7 @@ describe('AI Workspace governed OA operations', () => {
     expect(api.executeAiTask).not.toHaveBeenCalled();
     expect(useAiChatStore.getState().pendingPlans[3]?.taskId).toBe('task-2');
 
-    api.issueAiTaskConfirmation.mockResolvedValue({ token: 'one-time', expiresAt: '' });
+    api.issueAiTaskConfirmation.mockResolvedValue({ confirmationToken: 'one-time', expiresAt: '' });
     api.executeAiTask.mockResolvedValue({ taskId: 'task-2', status: 'QUEUED' });
     api.detail.mockResolvedValue({ taskId: 'task-2', status: 'SUCCEEDED', steps: [{ toolCode: 'meeting.book', status: 'SUCCEEDED' }] });
     api.appendAgentResult.mockResolvedValue('会议室预订完成。');

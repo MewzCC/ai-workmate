@@ -344,7 +344,7 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageC
       if (withConfirmation) {
         const credential = await issueAiTaskConfirmation(acceptedPlan.taskId, { planVersion: acceptedPlan.planVersion, planHash: acceptedPlan.planHash });
         if (request !== executionRequestRef.current) return;
-        confirmationTokenRef.current = credential.token;
+        confirmationTokenRef.current = credential.confirmationToken;
       }
       const data = await executeAiTask(acceptedPlan.taskId, {
         planVersion: acceptedPlan.planVersion,

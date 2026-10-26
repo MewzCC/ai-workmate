@@ -102,14 +102,14 @@ describe('Phase 2 task API contracts', () => {
 
   it('never puts the one-time confirmation credential in the URL', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch')
-      .mockResolvedValueOnce(result({ token: 'one-time-secret', expiresAt: '2026-08-25T12:10:00+08:00' }))
+      .mockResolvedValueOnce(result({ confirmationToken: 'one-time-secret', expiresAt: '2026-08-25T12:10:00+08:00' }))
       .mockResolvedValueOnce(result({ taskId: 'agt_task', status: 'QUEUED' }, 202));
 
     const credential = await issueAiTaskConfirmation('agt_task', { planVersion: 2, planHash: 'sha256:bound-plan' });
     await executeAiTask('agt_task', {
       planVersion: 2,
       planHash: 'sha256:bound-plan',
-      confirmationToken: credential.token,
+      confirmationToken: credential.confirmationToken,
     }, 'execute-key');
 
     expect(String(fetchMock.mock.calls[0][0])).not.toContain('one-time-secret');

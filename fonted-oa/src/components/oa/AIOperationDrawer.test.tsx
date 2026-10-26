@@ -321,13 +321,13 @@ describe('AIOperationDrawer', () => {
     fireEvent.click(await screen.findByRole('button', { name: '确认执行' }));
     await waitFor(() => expect(api.issueAiTaskConfirmation).toHaveBeenCalledOnce());
     view.rerender(drawer(false));
-    await act(async () => resolveCredential({ token: 'isolated-test-credential' }));
+    await act(async () => resolveCredential({ confirmationToken: 'isolated-test-credential' }));
     expect(api.executeAiTask).not.toHaveBeenCalled();
   });
 
   it('does not issue a credential from a confirmation modal left behind by an unmounted drawer', async () => {
     api.planAiTask.mockResolvedValue({ ...basePlan, status: 'WAITING_CONFIRMATION', riskLevel: 'L1', confirmationRequired: true });
-    api.issueAiTaskConfirmation.mockResolvedValue({ token: 'isolated-test-credential' });
+    api.issueAiTaskConfirmation.mockResolvedValue({ confirmationToken: 'isolated-test-credential' });
     const drawer = (visible: boolean) => <App>{visible && <AIOperationDrawer open role="system_admin" pageId="todo-list"
       pageTitle="待办" onClose={vi.fn()} />}</App>;
     const view = render(drawer(true));
@@ -641,7 +641,7 @@ describe('AIOperationDrawer', () => {
 
   it('issues a memory-only confirmation credential immediately before L1 execution', async () => {
     api.planAiTask.mockResolvedValue({ ...basePlan, status: 'WAITING_CONFIRMATION', riskLevel: 'L1', confirmationRequired: true });
-    api.issueAiTaskConfirmation.mockResolvedValue({ token: 'one-time-secret', expiresAt: '2026-08-25T12:10:00+08:00' });
+    api.issueAiTaskConfirmation.mockResolvedValue({ confirmationToken: 'one-time-secret', expiresAt: '2026-08-25T12:10:00+08:00' });
     api.executeAiTask.mockResolvedValue({ taskId: basePlan.taskId, status: 'QUEUED', statusUrl: '/status', eventsUrl: '/events' });
     const storageSpy = vi.spyOn(Storage.prototype, 'setItem');
     renderDrawer();
@@ -678,7 +678,7 @@ describe('AIOperationDrawer', () => {
         arguments: { applicationId: 42, version: 3 },
       }],
     });
-    api.issueAiTaskConfirmation.mockResolvedValue({ token: 'secondary-one-time-secret', expiresAt: '2026-08-29T22:00:00+08:00' });
+    api.issueAiTaskConfirmation.mockResolvedValue({ confirmationToken: 'secondary-one-time-secret', expiresAt: '2026-08-29T22:00:00+08:00' });
     api.executeAiTask.mockResolvedValue({ taskId: basePlan.taskId, status: 'QUEUED', statusUrl: '/status', eventsUrl: '/events' });
     renderDrawer();
     fireEvent.change(screen.getByRole('textbox'), { target: { value: '提交刚才选择的请假草稿' } });

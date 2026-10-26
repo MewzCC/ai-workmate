@@ -392,7 +392,7 @@ export const useAiChatStore = create<AiChatState>((set, get) => ({
       await executeAiTask(plan.taskId, {
         planVersion: plan.planVersion,
         planHash: plan.planHash,
-        confirmationToken: credential.token,
+        confirmationToken: credential.confirmationToken,
       });
       await waitForAgentTask(plan.taskId, controller.signal);
       if (controller.signal.aborted) throw new DOMException('Aborted', 'AbortError');

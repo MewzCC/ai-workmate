@@ -12,16 +12,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.net.ServerSocket;
-import java.io.IOException;
 import java.util.List;
-import java.util.ArrayList;
+import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -29,7 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class AgentLiveBrowserIT extends AbstractIsolatedAgentIntegrationTest {
     private static final AgentIntegrationEnvironment ENVIRONMENT = new AgentIntegrationEnvironment();
-    private static final int UI_PORT = reserveUiPort();
+    private static final int UI_PORT = AgentBrowserFixture.reserveUiPort();
     @Override protected AgentIntegrationEnvironment environment() { return ENVIRONMENT; }
     @LocalServerPort private int port;
     @Autowired private JdbcTemplate jdbc;
@@ -61,46 +54,10 @@ class AgentLiveBrowserIT extends AbstractIsolatedAgentIntegrationTest {
         jdbc.update("INSERT INTO notification(tenant_id,user_id,type,title,content) VALUES (?,?,'SYSTEM',?,'synthetic browser data')", tenant, owner.id(), notice);
         var cancellable = new FrozenReadTaskFixture(jdbc, json, hashing, catalog)
                 .create(tenant, owner.id(), "messages", "notification.mine", json.createObjectNode(), FrozenReadTaskFixture.State.PLAN_READY);
-        Path repository = Path.of("..").toAbsolutePath().normalize();
-        Path log = Path.of("target", "agent-it", ENVIRONMENT.schema(), "browser.log").toAbsolutePath();
-        Files.createDirectories(log.getParent());
-        var launcher = new ProcessBuilder("node", repository.resolve("scripts/verify-agent-browser.mjs").toString())
-                .directory(repository.resolve("fonted-oa").toFile()).redirectErrorStream(true).redirectOutput(log.toFile());
-        // The browser/Vite process never inherits server model or database credentials.
-        var original = System.getenv();
-        launcher.environment().clear();
-        for (String name : List.of("Path", "PATH", "SystemRoot", "WINDIR", "COMSPEC", "PATHEXT", "TEMP", "TMP",
-                "USERPROFILE", "LOCALAPPDATA", "APPDATA", "HOME", "PLAYWRIGHT_BROWSERS_PATH")) {
-            if (original.containsKey(name)) launcher.environment().put(name, original.get(name));
-        }
-        launcher.environment().put("AGENT_BROWSER_API_PORT", Integer.toString(port));
-        launcher.environment().put("AGENT_BROWSER_UI_PORT", Integer.toString(UI_PORT));
-        launcher.environment().put("AGENT_BROWSER_COOKIE", owner.cookie());
-        launcher.environment().put("AGENT_BROWSER_APPLICANT", applicantName);
-        launcher.environment().put("AGENT_BROWSER_NOTICE", notice);
-        launcher.environment().put("AGENT_BROWSER_CHAT_MARKER", chatMarker);
-        launcher.environment().put("AGENT_BROWSER_CANCELLABLE_TASK", cancellable.number());
-        Process browser = launcher.start();
-        try {
-            assertThat(browser.waitFor(210, TimeUnit.SECONDS)).as("owned browser completion budget").isTrue();
-            Files.readAllLines(log).stream().filter(line -> line.startsWith("Browser acceptance:")).forEach(System.out::println);
-            assertThat(browser.exitValue()).as("browser acceptance exit code; inspect only the private local log").isZero();
-        } finally {
-            if (browser.isAlive()) {
-                var owned = new ArrayList<>(browser.descendants().toList());
-                owned.add(browser.toHandle());
-                owned.stream().filter(ProcessHandle::isAlive).forEach(ProcessHandle::destroy);
-                try {
-                    CompletableFuture.allOf(owned.stream().map(ProcessHandle::onExit).toArray(CompletableFuture[]::new)).get(3, TimeUnit.SECONDS);
-                } catch (TimeoutException timeout) {
-                    // Escalate only the handles captured from our still-owned browser process.
-                } finally {
-                    owned.stream().filter(ProcessHandle::isAlive).forEach(ProcessHandle::destroyForcibly);
-                }
-                CompletableFuture.allOf(owned.stream().map(ProcessHandle::onExit).toArray(CompletableFuture[]::new)).get(5, TimeUnit.SECONDS);
-                assertThat(owned).noneMatch(ProcessHandle::isAlive);
-            }
-        }
+        AgentBrowserFixture.run(ENVIRONMENT.schema(), port, UI_PORT, Map.of(
+                "AGENT_BROWSER_COOKIE", owner.cookie(), "AGENT_BROWSER_APPLICANT", applicantName,
+                "AGENT_BROWSER_NOTICE", notice, "AGENT_BROWSER_CHAT_MARKER", chatMarker,
+                "AGENT_BROWSER_CANCELLABLE_TASK", cancellable.number()));
         assertThat(jdbc.queryForObject("SELECT count(*) FROM agent_task WHERE user_id=? AND status='SUCCEEDED'", Long.class, owner.id())).isEqualTo(3);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM agent_task WHERE user_id=?", Long.class, owner.id())).isEqualTo(4);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM agent_tool_invocation WHERE user_id=? AND handler_invoked AND outcome='SUCCEEDED'", Long.class, owner.id())).isEqualTo(3);
@@ -116,11 +73,4 @@ class AgentLiveBrowserIT extends AbstractIsolatedAgentIntegrationTest {
         assertThat(jdbc.queryForObject("SELECT write_tools_enabled FROM agent_tenant_policy WHERE tenant_id=?", Boolean.class, tenant)).isFalse();
     }
 
-    private static int reserveUiPort() {
-        try (var reservation = new ServerSocket(0, 0, java.net.InetAddress.getLoopbackAddress())) {
-            return reservation.getLocalPort();
-        } catch (IOException unavailable) {
-            throw new IllegalStateException("Cannot reserve the owned browser test port");
-        }
-    }
 }

@@ -18,11 +18,17 @@ const applicant = process.env.AGENT_BROWSER_APPLICANT;
 const notice = process.env.AGENT_BROWSER_NOTICE;
 const chatMarker = process.env.AGENT_BROWSER_CHAT_MARKER;
 const cancellableTask = process.env.AGENT_BROWSER_CANCELLABLE_TASK;
-assert(cookie?.startsWith('oa_browser_it=') && applicant && notice && chatMarker?.startsWith('browser-chat-') && /^[a-f0-9-]{36}$/.test(cancellableTask));
-const artifacts = path.join(repository, 'output', 'playwright', 'agent-read-browser');
+const leaveWrite = process.env.AGENT_BROWSER_MODE === 'leave-write';
+const leaveReason = process.env.AGENT_BROWSER_LEAVE_REASON;
+const leaveDate = process.env.AGENT_BROWSER_LEAVE_DATE;
+assert(cookie?.startsWith('oa_browser_it='));
+assert(leaveWrite ? /^browser-leave-[a-f0-9-]{36}$/.test(leaveReason) && /^\d{4}-\d{2}-\d{2}$/.test(leaveDate)
+  : applicant && notice && chatMarker?.startsWith('browser-chat-') && /^[a-f0-9-]{36}$/.test(cancellableTask));
+const artifacts = path.join(repository, 'output', 'playwright', leaveWrite ? 'agent-leave-browser' : 'agent-read-browser');
 let server, browser, page, phase = 'startup';
 let pageErrors = 0;
 const responses = [];
+const writeRequests = [];
 try {
   server = await createServer({
     configFile: path.join(repository, 'fonted-oa', 'vite.config.ts'),
@@ -44,13 +50,78 @@ try {
   page = await context.newPage();
   page.setDefaultTimeout(15_000);
   page.on('pageerror', () => { pageErrors += 1; });
+  page.on('request', (request) => {
+    const match = new URL(request.url()).pathname.match(/^\/api\/ai\/tasks\/[^/]+\/(execute|confirmation-token)$/);
+    if (match) writeRequests.push(match[1]); // Never retain headers, body or credentials.
+  });
   page.on('response', (response) => {
     const url = new URL(response.url());
-    if (/^\/api\/(?:chat\/stream|ai\/(?:intents|tasks\/plan|tasks\/[^/]+\/(?:execute|cancel)))$/.test(url.pathname)) {
-      responses.push({ action: url.pathname.endsWith('/stream') ? 'chat' : url.pathname.endsWith('/cancel') ? 'cancel' : url.pathname.endsWith('/execute') ? 'execute' : url.pathname.endsWith('/plan') ? 'plan' : 'intent', status: response.status() });
+    if (/^\/api\/(?:chat\/stream|ai\/(?:intents|tasks\/plan|tasks\/[^/]+\/(?:execute|cancel|confirmation-token)))$/.test(url.pathname)) {
+      responses.push({ action: url.pathname.endsWith('/stream') ? 'chat' : url.pathname.endsWith('/cancel') ? 'cancel' : url.pathname.endsWith('/execute') ? 'execute' : url.pathname.endsWith('/confirmation-token') ? 'confirm' : url.pathname.endsWith('/plan') ? 'plan' : 'intent', status: response.status() });
     }
   });
   await mkdir(artifacts, { recursive: true });
+  if (leaveWrite) {
+    phase = 'leave page load';
+    await page.goto(`${base}/oa/leave-application`);
+    await page.getByRole('button', { name: '打开 AI 操作面板', exact: true }).click();
+    const drawer = page.locator('.oa-ai-operation-drawer');
+    const planned = page.waitForResponse((r) => new URL(r.url()).pathname === '/api/ai/tasks/plan', { timeout: 45_000 });
+    await drawer.getByRole('textbox').fill(`请帮我直接提交${leaveDate}上午至当天下午的事假申请，原因填写：${leaveReason}，使用系统为我配置的审批人。`);
+    await drawer.getByRole('button', { name: /发送 \/ 生成计划/ }).click();
+    const planResponse = await planned;
+    assert.equal(planResponse.status(), 200);
+    const plan = (await planResponse.json()).data;
+    assert.equal(plan.status, 'WAITING_CONFIRMATION');
+    assert.equal(plan.confirmationRequired, true);
+    assert.equal(plan.steps.length, 1);
+    assert.equal(plan.steps[0].toolCode, 'leave.apply');
+    assert.equal(plan.steps[0].arguments.reason, leaveReason);
+    assert.equal(plan.steps[0].arguments.startDate, leaveDate);
+    assert.equal(await drawer.getByRole('textbox').inputValue(), '');
+    const noWrites = async () => {
+      assert.equal(writeRequests.length, 0);
+      const mine = await context.request.get(`${base}/api/leave-applications/mine`);
+      assert.equal(mine.status(), 200);
+      const data = (await mine.json()).data;
+      assert.equal(Array.isArray(data) ? data.length : data.total, 0);
+    };
+    phase = 'leave cancelled confirmation';
+    await drawer.getByRole('button', { name: '确认并执行', exact: true }).click();
+    const modal = page.getByRole('dialog', { name: '确认执行 AI 计划' });
+    await modal.getByText(leaveReason, { exact: true }).waitFor();
+    await noWrites();
+    await modal.getByRole('button', { name: /取\s*消/, exact: true }).click();
+    await modal.waitFor({ state: 'hidden' });
+    await noWrites();
+    console.log('Browser acceptance: leave plan and cancelled confirmation caused no write or confirmation request');
+    phase = 'leave confirmed execution';
+    await drawer.getByRole('button', { name: '确认并执行', exact: true }).click();
+    await modal.getByRole('button', { name: '确认执行', exact: true }).click();
+    await drawer.getByText(/已提交请假申请.*等待审批/).first().waitFor({ timeout: 45_000 });
+    await modal.waitFor({ state: 'hidden' });
+    assert.equal(responses.filter((r) => r.action === 'confirm' && r.status === 200).length, 1);
+    assert.equal(responses.filter((r) => r.action === 'execute' && r.status === 202).length, 1);
+    assert.deepEqual(writeRequests, ['confirmation-token', 'execute']);
+    await page.waitForURL('**/oa/my-applications');
+    await page.screenshot({ path: path.join(artifacts, 'confirmed-result.png') });
+    phase = 'leave result route persistence';
+    await drawer.getByRole('textbox').fill('尚未发送的后续请求');
+    await drawer.getByRole('button', { name: /^(Close|关闭)$/ }).click();
+    await page.getByRole('menuitem').filter({ hasText: 'AI 工作空间' }).click();
+    await page.waitForURL('**/oa/ai-workspace');
+    assert.equal(await page.getByRole('button', { name: '打开 AI 操作面板', exact: true }).count(), 0);
+    await page.getByRole('tab').filter({ hasText: '请假申请' }).first().click();
+    await page.waitForURL('**/oa/leave-application');
+    await page.getByRole('button', { name: '打开 AI 操作面板', exact: true }).click();
+    await drawer.getByText(/已提交请假申请.*等待审批/).first().waitFor();
+    assert.equal(await drawer.getByRole('textbox').inputValue(), '尚未发送的后续请求');
+    assert.equal(responses.filter((r) => r.action === 'plan').length, 1);
+    assert.equal(responses.filter((r) => r.action === 'execute').length, 1);
+    assert.deepEqual(writeRequests, ['confirmation-token', 'execute']);
+    assert.equal(pageErrors, 0);
+    console.log('Browser acceptance: one confirmed leave write, readable actual result, cleared input and route persistence passed');
+  } else {
   phase = 'dashboard load';
   await page.goto(`${base}/oa/dashboard`);
   phase = 'drawer open';
@@ -137,6 +208,7 @@ try {
   assert.equal(responses.filter((item) => item.action === 'cancel' && item.status === 200).length, 1);
   console.log('Browser acceptance: workspace actual result, business link, cleared input and zero page errors passed');
   console.log('Browser acceptance: task centre confirmed cancellation through the real owned API');
+  }
 } catch (error) {
   // Do not print exception payloads, cookies, response bodies, model settings or DOM dumps.
   if (page) await page.screenshot({ path: path.join(artifacts, 'failure.png') }).catch(() => undefined);
