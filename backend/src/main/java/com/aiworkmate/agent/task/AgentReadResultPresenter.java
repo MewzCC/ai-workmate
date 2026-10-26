@@ -25,6 +25,7 @@ public final class AgentReadResultPresenter {
         if ("approval.form.patchDraftField".equals(toolCode)) return formFieldPatch(result);
         if ("approval.form.definition.query".equals(toolCode)) return formDefinition(result);
         if ("todo.query".equals(toolCode)) return todo(result);
+        if ("userPermission.mine.query".equals(toolCode)) return userPermissions(result);
         if ("dashboard.overview.query".equals(toolCode)) return dashboard(result);
         if ("observability.overview.query".equals(toolCode)) return observability(result);
         if ("approval.application.mine.query".equals(toolCode)) return myApplications(result);
@@ -337,6 +338,61 @@ public final class AgentReadResultPresenter {
             answer.append('\n').append(MessageUtils.resolve("agent.dashboard.distributionTruncated"));
         }
         return answer.substring(0, Math.min(MAX_LENGTH, answer.length()));
+    }
+
+    private static String userPermissions(JsonNode result) {
+        if (result == null || !result.isObject() || !result.path("primaryRole").isTextual()
+                || !result.path("permissionVersion").canConvertToLong() || result.path("permissionVersion").asLong() < 0
+                || !result.path("total").canConvertToLong() || result.path("total").asLong() < 0
+                || !result.path("page").canConvertToInt() || result.path("page").asInt() < 1 || result.path("page").asInt() > 10000
+                || !result.path("size").canConvertToInt() || result.path("size").asInt() < 1 || result.path("size").asInt() > 50
+                || !result.path("permissions").isArray() || result.path("permissions").size() > result.path("size").asInt()) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        String primary = result.path("primaryRole").asText().isEmpty() ? MessageUtils.resolve("agent.result.noDetails")
+                : permissionIdentifier(result.path("primaryRole"), 80);
+        String roles = permissionIdentifiers(result.path("roles"));
+        String scopes = permissionIdentifiers(result.path("dataScopes"));
+        var codes = new ArrayList<String>();
+        for (JsonNode code : result.path("permissions")) codes.add(permissionIdentifier(code, 120));
+        StringBuilder answer = new StringBuilder(MessageUtils.resolve("agent.userPermission.header", primary, result.path("permissionVersion").asLong()));
+        answer.append('\n').append(MessageUtils.resolve("agent.userPermission.roles", result.path("roles").size(), roles));
+        answer.append('\n').append(MessageUtils.resolve("agent.userPermission.scopes", result.path("dataScopes").size(), scopes));
+        answer.append('\n').append(MessageUtils.resolve("agent.userPermission.page", result.path("total").asLong(), result.path("page").asInt(), result.path("size").asInt()));
+        int shown = 0;
+        for (String code : codes) {
+            String line = "\n- " + code;
+            if (shown >= MAX_ITEMS || answer.length() + line.length() > MAX_LENGTH - 100) break;
+            answer.append(line);
+            shown++;
+        }
+        if (codes.isEmpty()) answer.append('\n').append(MessageUtils.resolve("agent.result.empty"));
+        if (shown < codes.size()) answer.append('\n').append(MessageUtils.resolve("agent.userPermission.more", codes.size() - shown));
+        return answer.toString();
+    }
+
+    private static String permissionIdentifiers(JsonNode values) {
+        if (!values.isArray() || values.size() > 20) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        var codes = new ArrayList<String>();
+        for (JsonNode value : values) codes.add(permissionIdentifier(value, 80));
+        if (codes.isEmpty()) return MessageUtils.resolve("agent.result.noDetails");
+        StringBuilder answer = new StringBuilder();
+        for (String code : codes) {
+            if (answer.length() + code.length() + 2 > 180) { answer.append(" …"); break; }
+            if (!answer.isEmpty()) answer.append(", ");
+            answer.append(code);
+        }
+        return answer.toString();
+    }
+
+    private static String permissionIdentifier(JsonNode value, int maxLength) {
+        String literal = value.asText();
+        if (!value.isTextual() || literal.isBlank() || literal.codePointCount(0, literal.length()) > maxLength
+                || literal.codePoints().anyMatch(Character::isISOControl)) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        // A longer code fence preserves schema-valid identifiers without interpreting embedded Markdown.
+        String fence = "`";
+        while (literal.contains(fence)) fence += "`";
+        return fence + " " + literal + " " + fence;
     }
 
     private static String plain(String value) {

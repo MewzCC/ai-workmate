@@ -16,8 +16,9 @@ assert(Number.isInteger(uiPort) && uiPort > 0 && uiPort < 65536);
 const cookie = process.env.AGENT_BROWSER_COOKIE;
 const applicant = process.env.AGENT_BROWSER_APPLICANT;
 const notice = process.env.AGENT_BROWSER_NOTICE;
+const chatMarker = process.env.AGENT_BROWSER_CHAT_MARKER;
 const cancellableTask = process.env.AGENT_BROWSER_CANCELLABLE_TASK;
-assert(cookie?.startsWith('oa_browser_it=') && applicant && notice && /^[a-f0-9-]{36}$/.test(cancellableTask));
+assert(cookie?.startsWith('oa_browser_it=') && applicant && notice && chatMarker?.startsWith('browser-chat-') && /^[a-f0-9-]{36}$/.test(cancellableTask));
 const artifacts = path.join(repository, 'output', 'playwright', 'agent-read-browser');
 let server, browser, page, phase = 'startup';
 let pageErrors = 0;
@@ -45,8 +46,8 @@ try {
   page.on('pageerror', () => { pageErrors += 1; });
   page.on('response', (response) => {
     const url = new URL(response.url());
-    if (/^\/api\/ai\/(?:intents|tasks\/plan|tasks\/[^/]+\/(?:execute|cancel))$/.test(url.pathname)) {
-      responses.push({ action: url.pathname.endsWith('/cancel') ? 'cancel' : url.pathname.endsWith('/execute') ? 'execute' : url.pathname.endsWith('/plan') ? 'plan' : 'intent', status: response.status() });
+    if (/^\/api\/(?:chat\/stream|ai\/(?:intents|tasks\/plan|tasks\/[^/]+\/(?:execute|cancel)))$/.test(url.pathname)) {
+      responses.push({ action: url.pathname.endsWith('/stream') ? 'chat' : url.pathname.endsWith('/cancel') ? 'cancel' : url.pathname.endsWith('/execute') ? 'execute' : url.pathname.endsWith('/plan') ? 'plan' : 'intent', status: response.status() });
     }
   });
   await mkdir(artifacts, { recursive: true });
@@ -77,14 +78,45 @@ try {
   assert.equal(await drawer.getByRole('textbox').inputValue(), '下一条尚未发送');
   console.log('Browser acceptance: drawer messages, result and unsent draft survived route switch');
 
-  phase = 'workspace actual read';
+  phase = 'workspace normal chat';
   await page.goto(`${base}/oa/ai-workspace`);
   const composer = page.locator('.ai-composer textarea');
-  await composer.fill('请帮我查询我的通知。');
-  await composer.press('Enter');
+  const submit = async (input) => {
+    await page.getByRole('button', { name: '发送消息', exact: true }).waitFor();
+    await composer.fill(input);
+    await composer.press('Enter');
+  };
+  const chat = async (input, index) => {
+    const streamed = page.waitForResponse((response) => new URL(response.url()).pathname === '/api/chat/stream', { timeout: 45_000 });
+    await submit(input);
+    assert.equal((await streamed).status(), 200);
+    await page.locator('.ai-message-assistant').nth(index).filter({ hasText: chatMarker }).waitFor({ timeout: 45_000 });
+    await page.locator('.ai-message-content-streaming').waitFor({ state: 'hidden', timeout: 45_000 });
+    assert.equal(await composer.inputValue(), '');
+  };
+  await chat(`你好，请记住短语“${chatMarker}”，原样回复这个短语即可。`, 0);
+  await chat('刚才我让你记住的短语是什么？请原样复述。', 1);
+  console.log('Browser acceptance: actual streaming chat and server conversation context passed');
+
+  phase = 'workspace actual read';
+  await submit('请帮我查询我的通知。');
   const reply = page.locator('.ai-message-assistant').filter({ hasText: notice });
   await reply.first().waitFor({ timeout: 45_000 });
   assert.equal(await composer.inputValue(), '');
+  phase = 'workspace permission read';
+  await submit('请查询我自己的实时角色和权限码。');
+  await page.locator('.ai-message-assistant').nth(3).filter({ hasText: 'user-permission:read:self' }).waitFor({ timeout: 45_000 });
+  assert.equal(await composer.inputValue(), '');
+  phase = 'workspace chat after governed operation';
+  await chat('再复述我最开始让你记住的短语。', 4);
+  phase = 'workspace persisted conversation';
+  await page.reload();
+  await page.locator('.ai-session-item').click(); // Reopen the actual saved conversation, not browser storage.
+  await page.locator('.ai-message-assistant').nth(4).filter({ hasText: chatMarker }).waitFor();
+  await page.locator('.ai-message-assistant').nth(2).filter({ hasText: notice }).waitFor();
+  await page.locator('.ai-message-assistant').nth(3).filter({ hasText: 'user-permission:read:self' }).waitFor();
+  assert.equal(await page.locator('.ai-message-assistant').count(), 5);
+  console.log('Browser acceptance: permission query, return to normal chat and persisted mixed conversation passed');
   await page.screenshot({ path: path.join(artifacts, 'workspace-result.png') });
   await reply.getByRole('button', { name: '前往对应业务页面', exact: true }).click();
   await page.waitForURL('**/oa/messages');
@@ -98,9 +130,10 @@ try {
   assert.equal(await row.getByRole('button', { name: /取\s*消/, exact: true }).count(), 0);
   await page.screenshot({ path: path.join(artifacts, 'cancelled-task.png') });
   assert.equal(pageErrors, 0);
-  assert.equal(responses.filter((item) => item.action === 'plan' && item.status === 200).length, 2);
-  assert.equal(responses.filter((item) => item.action === 'execute' && item.status === 202).length, 2);
-  assert.equal(responses.filter((item) => item.action === 'intent' && item.status === 200).length, 1);
+  assert.equal(responses.filter((item) => item.action === 'plan' && item.status === 200).length, 3);
+  assert.equal(responses.filter((item) => item.action === 'execute' && item.status === 202).length, 3);
+  assert.equal(responses.filter((item) => item.action === 'intent' && item.status === 200).length, 5);
+  assert.equal(responses.filter((item) => item.action === 'chat' && item.status === 200).length, 3);
   assert.equal(responses.filter((item) => item.action === 'cancel' && item.status === 200).length, 1);
   console.log('Browser acceptance: workspace actual result, business link, cleared input and zero page errors passed');
   console.log('Browser acceptance: task centre confirmed cancellation through the real owned API');

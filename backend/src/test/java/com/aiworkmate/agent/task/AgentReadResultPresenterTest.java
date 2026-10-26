@@ -11,6 +11,75 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class AgentReadResultPresenterTest {
+    @Test void showsConcreteCurrentPermissionCodesRatherThanOnlyArraySizes() throws Exception {
+        var result = mapper.readTree("""
+                {"primaryRole":"HR_REVIEWER","roles":["HR_REVIEWER"],"dataScopes":["SELF"],"permissionVersion":12,
+                 "permissions":["route:ai-workspace","user-permission:read:self","agent:tool:userPermission.mine.query"],"total":3,"page":1,"size":20}
+                """);
+        String answer = AgentReadResultPresenter.present("userPermission.mine.query", result);
+        assertThat(answer).contains("HR_REVIEWER", "SELF", "12", "route:ai-workspace", "user-permission:read:self", "agent:tool:userPermission.mine.query");
+        assertThat(answer.length()).isLessThanOrEqualTo(1000);
+    }
+
+    @Test void permissionSummaryPreservesSchemaValidIdentifiersAsLiteralText() throws Exception {
+        var result = mapper.readTree("""
+                {"primaryRole":"测试角色","roles":["测试角色"],"dataScopes":["SELF"],"permissionVersion":12,
+                 "permissions":["custom:`[literal](https://example.invalid)"],"total":1,"page":1,"size":20}
+                """);
+        String answer = AgentReadResultPresenter.present("userPermission.mine.query", result);
+        assertThat(answer).contains("测试角色", "`` custom:`[literal](https://example.invalid) ``");
+    }
+
+    @Test void permissionIdentifierLengthUsesUnicodeCodePointsAsTheSchemaDoes() {
+        String code = "custom:" + "\uD83D\uDE00".repeat(61);
+        var result = mapper.createObjectNode().put("primaryRole", "USER").put("permissionVersion", 1)
+                .put("total", 1).put("page", 1).put("size", 20);
+        result.putArray("roles").add("USER");
+        result.putArray("dataScopes").add("SELF");
+        result.putArray("permissions").add(code);
+        assertThat(AgentReadResultPresenter.present("userPermission.mine.query", result)).contains(code);
+    }
+
+    @Test void permissionSummaryUsesBothLanguagesAndExplainsEmptyResults() throws Exception {
+        var result = mapper.readTree("""
+                {"primaryRole":"HR_REVIEWER","roles":["HR_REVIEWER"],"dataScopes":["SELF"],"permissionVersion":12,
+                 "permissions":[],"total":0,"page":1,"size":20}
+                """);
+        try {
+            org.springframework.context.i18n.LocaleContextHolder.setLocale(java.util.Locale.US);
+            assertThat(AgentReadResultPresenter.present("userPermission.mine.query", result))
+                    .contains("Current primary role", "HR_REVIEWER", "Permissions: 0 total", "No matching records");
+            org.springframework.context.i18n.LocaleContextHolder.setLocale(java.util.Locale.SIMPLIFIED_CHINESE);
+            assertThat(AgentReadResultPresenter.present("userPermission.mine.query", result))
+                    .contains("当前主角色", "HR_REVIEWER", "权限共 0 项", "没有匹配的记录");
+        } finally { org.springframework.context.i18n.LocaleContextHolder.resetLocaleContext(); }
+    }
+
+    @Test void permissionSummaryBoundsOutputWithoutCuttingPermissionCodes() {
+        var result = mapper.createObjectNode().put("primaryRole", "R".repeat(80)).put("permissionVersion", Long.MAX_VALUE)
+                .put("total", Long.MAX_VALUE).put("page", 10000).put("size", 50);
+        var roles = result.putArray("roles");
+        var scopes = result.putArray("dataScopes");
+        for (int index = 0; index < 20; index++) {
+            roles.add("ROLE_" + index + "R".repeat(70));
+            scopes.add("SCOPE_" + index + "S".repeat(70));
+        }
+        var codes = result.putArray("permissions");
+        for (int index = 0; index < 50; index++) codes.add("permission:" + index + "_" + "x".repeat(104));
+        String answer = AgentReadResultPresenter.present("userPermission.mine.query", result);
+        assertThat(answer.length()).isLessThanOrEqualTo(1000);
+        assertThat(answer).contains(codes.get(0).asText()).doesNotContain(codes.get(49).asText());
+        assertThat(answer).doesNotEndWith("x");
+    }
+
+    @Test void malformedPermissionReceiptsCannotBeShownAsSuccessfulResults() throws Exception {
+        for (String invalid : java.util.List.of("null", "{}", "{\"primaryRole\":\"USER\",\"permissions\":{}}",
+                "{\"primaryRole\":\"USER\",\"permissionVersion\":-1,\"permissions\":[]}")) {
+            assertThatThrownBy(() -> AgentReadResultPresenter.present("userPermission.mine.query", mapper.readTree(invalid)))
+                    .isInstanceOf(BusinessException.class);
+        }
+    }
+
     @Test void conditionPatchShowsTheActualNumberVersionAndUntruncatedLiteralValue() throws Exception {
         org.springframework.context.i18n.LocaleContextHolder.setLocale(java.util.Locale.US);
         try {
