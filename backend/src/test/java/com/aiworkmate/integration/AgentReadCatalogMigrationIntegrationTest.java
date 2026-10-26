@@ -19,7 +19,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** Empty-db startup plus an exact data-only restoration of the preceding baseline, only in our owned DB. */
+/** Empty-db startup plus restoration of changed tool/route contracts, only in our owned DB. */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
 @EnabledIfEnvironmentVariable(named = "AGENT_TEST_DB_URL", matches = "jdbc:postgresql:.*")
 class AgentReadCatalogMigrationIntegrationTest extends AbstractIsolatedAgentIntegrationTest {
@@ -44,7 +44,7 @@ class AgentReadCatalogMigrationIntegrationTest extends AbstractIsolatedAgentInte
         flyway().validate();
         assertThat(flyway().info().pending()).isEmpty();
 
-        // Undo only the new data migrations in this freshly owned DB, producing its exact old contract state.
+        // Restore the changed data contracts in this freshly owned DB; never remove history from a user DB.
         jdbc.update("DELETE FROM rbac_role_permission WHERE permission_code='route:approval-form'");
         jdbc.update("UPDATE rbac_route SET permission_code='access:manage' WHERE route_key='approval-form'");
         jdbc.update("DELETE FROM rbac_permission WHERE code='route:approval-form'");
@@ -59,7 +59,10 @@ class AgentReadCatalogMigrationIntegrationTest extends AbstractIsolatedAgentInte
         ((ObjectNode)oldAttendance.at("/properties/reissues/items/properties")).remove("version");
         ((ObjectNode)oldAttendance.at("/properties/settings/properties")).remove("version");
         jdbc.update("UPDATE agent_tool SET output_schema=?::jsonb,schema_hash=? WHERE code='attendance.query'",oldAttendance.toString(),"sha256:4ff357d3836da753f0c32d3774ea04ba3cf83d1c6b8708de548e8ff711348d60");
-        assertThat(jdbc.update("DELETE FROM flyway_schema_history WHERE version IN ('202610260915','202610260916','202610260917','202610260918','202610260919','202610260920')")).isEqualTo(6);
+        jdbc.update("UPDATE agent_tool SET required_permissions='[\"leave:remind\"]'::jsonb WHERE code='leave.remind'");
+        var replayVersions=jdbc.queryForList("SELECT version FROM flyway_schema_history WHERE version::numeric>=202610260915 ORDER BY installed_rank",String.class);
+        assertThat(replayVersions).contains("202610260915","202610260916","202610260917","202610260918","202610260919","202610260920","202610261500");
+        assertThat(jdbc.update("DELETE FROM flyway_schema_history WHERE version::numeric>=202610260915")).isEqualTo(replayVersions.size());
 
         long tenant = jdbc.queryForObject("SELECT id FROM tenant WHERE code='DEFAULT'", Long.class);
         String suffix = UUID.randomUUID().toString().replace("-", "").substring(0,12);
@@ -72,8 +75,8 @@ class AgentReadCatalogMigrationIntegrationTest extends AbstractIsolatedAgentInte
         String otherManager = role(otherTenant, "OTHER_"+suffix, "access:manage");
         long otherUser = user(otherTenant, otherManager);
 
-        assertThat(flyway().info().pending()).hasSize(6);
-        assertThat(flyway().migrate().migrationsExecuted).isEqualTo(6);
+        assertThat(flyway().info().pending()).hasSize(replayVersions.size());
+        assertThat(flyway().migrate().migrationsExecuted).isEqualTo(replayVersions.size());
         assertCurrentContracts();
         assertThat(granted(tenant, manager)).isTrue();
         assertThat(granted(tenant, starter)).isFalse();
@@ -92,6 +95,7 @@ class AgentReadCatalogMigrationIntegrationTest extends AbstractIsolatedAgentInte
     }
 
     private void assertCurrentContracts() {
+        assertThat(jdbc.queryForObject("SELECT required_permissions='[\"leave:read:self\",\"leave:remind\"]'::jsonb FROM agent_tool WHERE tenant_id IS NULL AND code='leave.remind'",Boolean.class)).isTrue();
         assertThat(jdbc.queryForObject("SELECT permission_code FROM rbac_route WHERE route_key='approval-form'", String.class)).isEqualTo("route:approval-form");
         assertThat(jdbc.queryForObject("SELECT schema_hash FROM agent_tool WHERE tenant_id IS NULL AND code='visitor.query'", String.class))
                 .isEqualTo(catalog.find("visitor.query").orElseThrow().schemaHash());

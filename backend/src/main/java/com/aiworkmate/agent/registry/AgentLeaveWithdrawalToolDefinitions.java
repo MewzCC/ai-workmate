@@ -32,7 +32,7 @@ public class AgentLeaveWithdrawalToolDefinitions {
                 "Sends one rate-limited reminder for a pending leave application owned by the authenticated user.",
                 "Remind the current assignee for one version-bound leave application; never retry automatically.",
                 mapper.readTree(INPUT_SCHEMA), mapper.readTree(REMIND_OUTPUT_SCHEMA),
-                ToolWriteProfile.NON_RETRYABLE_L1, Set.of("leave:remind"), OwnershipPolicy.SELF,
+                ToolWriteProfile.NON_RETRYABLE_L1, Set.of("leave:remind", "leave:read:self"), OwnershipPolicy.SELF,
                 1, 4096, 10000);
     }
 }

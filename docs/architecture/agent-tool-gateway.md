@@ -204,6 +204,11 @@ OA lint 零错误（3 条既有警告）、194 项测试与生产构建通过。
 
 ## 10. 事务、幂等与审计一致性
 
+队列提交后的唤醒只负责领取和分派。领取必须经 `AgentWorkerTransitionService.claim` 的
+`REQUIRES_NEW` 代理事务提交后再交给异步 Executor；不能在 afterCommit 中复用已提交但未清理的事务连接写领取状态。
+否则其他连接仍可能看到 QUEUED，异步步骤查询会错过未提交的领取，留下停滞任务。
+真实提交可见性回归在原回调退出前用独立连接检查此约束；它不改变 Gateway、租约、预算或重试规则。
+
 - 网关前置 ALLOW/DENY 决策必须在 handler 前持久化，失败则不调用 handler。
 - 写工具的业务变更和 `business_audit_log` 必须处于同一领域事务；无法保证原子业务审计的写工具不得进入 Phase 2B。
 - `agent_tool_invocation` 完成记录可以在领域事务后更新，但如果更新失败，必须保留前置 ALLOW 记录、记录低敏错误并停止后续步骤，不能假定业务写入未发生。

@@ -42,6 +42,7 @@ class AgentReadExecutionIntegrationTest extends AbstractIsolatedAgentIntegration
     @Autowired private AgentTaskApiService api;
     @Autowired private UserAccessService access;
     @Autowired private AgentRuntimeProperties properties;
+    @Autowired private org.springframework.transaction.PlatformTransactionManager transactions;
     private long tenant, user;
     private String role;
 
@@ -71,6 +72,29 @@ class AgentReadExecutionIntegrationTest extends AbstractIsolatedAgentIntegration
 
     @AfterEach void cancelUnclaimedFixtures() {
         jdbc.update("UPDATE agent_task SET status='CANCELLED' WHERE user_id=? AND status='QUEUED'", user);
+    }
+
+    @Test void afterCommitWakeupCommitsTheClaimBeforeDispatchingTheWorker() {
+        var task=queue("messages","notification.mine",json.createObjectNode());
+        var transaction=new org.springframework.transaction.support.TransactionTemplate(transactions);
+        transaction.executeWithoutResult(ignored->{
+            jdbc.queryForObject("SELECT 1",Integer.class);
+            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                    new org.springframework.transaction.support.TransactionSynchronization() {
+                        @Override public void afterCommit() {
+                            worker.poll();
+                            String observed;
+                            try {
+                                observed=java.util.concurrent.CompletableFuture.supplyAsync(()->jdbc.queryForObject(
+                                        "SELECT status FROM agent_task WHERE id=?",String.class,task.id())).get(5,java.util.concurrent.TimeUnit.SECONDS);
+                            } catch(Exception failure) {throw new IllegalStateException("Independent claim observation failed",failure);}
+                            assertThat(observed).as("claim must be committed while the original afterCommit callback is still active")
+                                    .isIn("RUNNING","SUCCEEDED");
+                        }
+                    });
+        });
+        runUntil(task,"SUCCEEDED");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM agent_tool_invocation WHERE task_id=? AND handler_invoked AND outcome='SUCCEEDED'",Long.class,task.id())).isEqualTo(1);
     }
 
     @Test void workerReturnsOnlyOwnedNotificationsAndPersistsResultsEventsAndAudit() throws Exception {

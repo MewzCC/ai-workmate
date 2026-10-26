@@ -7,12 +7,16 @@ import com.aiworkmate.entity.LeaveApplication;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
 @Mapper
 public interface LeaveApplicationMapper extends BaseMapper<LeaveApplication> {
+    @Select("SELECT * FROM leave_application WHERE tenant_id=#{tenantId} AND applicant_user_id=#{applicantUserId} AND id=#{id}")
+    LeaveApplication selectOwnedApplication(@Param("tenantId") Long tenantId,
+            @Param("applicantUserId") Long applicantUserId,@Param("id") Long id);
 
     int insertAgentDraft(LeaveApplication application);
 

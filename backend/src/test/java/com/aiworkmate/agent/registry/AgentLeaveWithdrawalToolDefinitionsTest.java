@@ -34,7 +34,7 @@ class AgentLeaveWithdrawalToolDefinitionsTest {
         var mapper = new ObjectMapper();
         var definition = new AgentLeaveWithdrawalToolDefinitions().leaveRemindToolDefinition(mapper);
 
-        assertThat(definition.requiredPermissions()).containsExactly("leave:remind");
+        assertThat(definition.requiredPermissions()).containsExactlyInAnyOrder("leave:remind","leave:read:self");
         assertThat(definition.ownershipPolicy()).isEqualTo(OwnershipPolicy.SELF);
         assertThat(definition.retryPolicy()).isEqualTo(RetryPolicy.NEVER);
         assertThat(definition.confirmationPolicy()).isEqualTo(ConfirmationPolicy.EXPLICIT);

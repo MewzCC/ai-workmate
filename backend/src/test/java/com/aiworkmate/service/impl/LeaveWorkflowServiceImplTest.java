@@ -121,7 +121,7 @@ class LeaveWorkflowServiceImplTest {
     void shouldResolveFallbackApproverAndCreateSinglePendingTaskOnSubmit() {
         when(userAccessService.resolveActiveUser(APPLICANT_ID)).thenReturn(applicantAccess());
         LeaveApplication draft = leave("DRAFT", null, 0);
-        when(leaveMapper.selectById(10L)).thenReturn(draft);
+        when(leaveMapper.selectOwnedApplication(TENANT_ID,APPLICANT_ID,10L)).thenReturn(draft);
         when(leaveMapper.resolveApprover(TENANT_ID, APPLICANT_ID)).thenReturn(APPROVER_ID);
         when(leaveMapper.countEligibleApprover(TENANT_ID, APPLICANT_ID, APPROVER_ID)).thenReturn(1);
         when(leaveMapper.selectLeaveDefinitionId(TENANT_ID)).thenReturn(5L);
@@ -464,7 +464,7 @@ class LeaveWorkflowServiceImplTest {
         when(userAccessService.resolveActiveUser(APPLICANT_ID)).thenReturn(applicantAccess());
         LeaveApplication application = leave("PENDING", APPROVER_ID, 1);
         application.setWorkflowInstanceId(20L);
-        when(leaveMapper.selectById(10L)).thenReturn(application);
+        when(leaveMapper.selectOwnedApplication(TENANT_ID,APPLICANT_ID,10L)).thenReturn(application);
         when(leaveMapper.update(isNull(), any())).thenReturn(1);
         when(taskMapper.selectOne(any())).thenReturn(pendingTask());
         when(taskMapper.update(isNull(), any())).thenReturn(1);
@@ -487,9 +487,19 @@ class LeaveWorkflowServiceImplTest {
     }
 
     @Test
+    void shouldLookUpOwnedWritesWithTenantAndApplicantInTheQuery() {
+        when(userAccessService.resolveActiveUser(APPLICANT_ID)).thenReturn(applicantAccess());
+        assertThatThrownBy(()->service.withdraw(APPLICANT_ID,10L,new VersionRequest(1)))
+                .isInstanceOfSatisfying(BusinessException.class,error->assertThat(error.getErrorCode()).isEqualTo("RESOURCE_NOT_FOUND"));
+        verify(leaveMapper).selectOwnedApplication(TENANT_ID,APPLICANT_ID,10L);
+        verify(leaveMapper,never()).selectById(anyLong());
+        verify(leaveMapper,never()).update(isNull(),any());
+    }
+
+    @Test
     void shouldRemindCurrentApproverAndRecordWorkflowAudit() {
         when(userAccessService.resolveActiveUser(APPLICANT_ID)).thenReturn(applicantAccess());
-        when(leaveMapper.selectById(10L)).thenReturn(leave("PENDING", APPROVER_ID, 1));
+        when(leaveMapper.selectOwnedApplication(TENANT_ID,APPLICANT_ID,10L)).thenReturn(leave("PENDING", APPROVER_ID, 1));
         when(taskMapper.selectOne(any())).thenReturn(pendingTask());
         when(taskMapper.update(isNull(), any())).thenReturn(1);
         when(leaveMapper.update(isNull(), any())).thenReturn(1);
@@ -511,7 +521,7 @@ class LeaveWorkflowServiceImplTest {
     @Test
     void shouldRateLimitFrequentReminderWithoutChangingApplication() {
         when(userAccessService.resolveActiveUser(APPLICANT_ID)).thenReturn(applicantAccess());
-        when(leaveMapper.selectById(10L)).thenReturn(leave("PENDING", APPROVER_ID, 1));
+        when(leaveMapper.selectOwnedApplication(TENANT_ID,APPLICANT_ID,10L)).thenReturn(leave("PENDING", APPROVER_ID, 1));
         when(taskMapper.selectOne(any())).thenReturn(pendingTask());
         when(taskMapper.update(isNull(), any())).thenReturn(0);
 
@@ -590,7 +600,7 @@ class LeaveWorkflowServiceImplTest {
         draft.setCreatedAt(taskCreatedAt.minusMinutes(1));
         when(agentTaskMapper.selectCreatedAtForWriteEvidence(88L, TENANT_ID, APPLICANT_ID))
                 .thenReturn(taskCreatedAt);
-        when(leaveMapper.selectById(10L)).thenReturn(draft);
+        when(leaveMapper.selectOwnedApplication(TENANT_ID,APPLICANT_ID,10L)).thenReturn(draft);
         when(leaveMapper.resolveApprover(TENANT_ID, APPLICANT_ID)).thenReturn(APPROVER_ID);
         when(leaveMapper.countEligibleApprover(TENANT_ID, APPLICANT_ID, APPROVER_ID)).thenReturn(1);
         when(leaveMapper.selectLeaveDefinitionId(TENANT_ID)).thenReturn(5L);
@@ -625,7 +635,7 @@ class LeaveWorkflowServiceImplTest {
                 .thenReturn(taskCreatedAt);
         LeaveApplication draft = leave("DRAFT", null, 0);
         draft.setCreatedAt(taskCreatedAt.plusSeconds(1));
-        when(leaveMapper.selectById(10L)).thenReturn(draft);
+        when(leaveMapper.selectOwnedApplication(TENANT_ID,APPLICANT_ID,10L)).thenReturn(draft);
 
         assertThatThrownBy(() -> service.submitAgent(
                 APPLICANT_ID, 10L, new VersionRequest(0), 88L))

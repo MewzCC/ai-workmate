@@ -69,6 +69,7 @@ public final class AgentReadCatalogDevelopmentVerifier {
                                 "SELECT schema_hash FROM agent_tool WHERE tenant_id IS NULL AND code=?",String.class,code)),"Tool schema mismatch");
                     }
                     require(before.equals(switches(jdbc)),"Release switches changed");
+                    require(Boolean.TRUE.equals(jdbc.queryForObject("SELECT required_permissions='[\"leave:read:self\",\"leave:remind\"]'::jsonb FROM agent_tool WHERE tenant_id IS NULL AND code='leave.remind'",Boolean.class)),"Reminder permission contract mismatch");
                     System.out.println("Development restart "+cycle+": verified; pending=0; write switches unchanged");
                 }
             }

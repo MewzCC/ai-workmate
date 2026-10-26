@@ -20,6 +20,8 @@ public final class AgentReadResultPresenter {
     private AgentReadResultPresenter() { }
 
     public static String present(String toolCode, JsonNode result) {
+        if (List.of("leave.createDraft","leave.updateDraft","leave.submit","leave.apply","leave.withdraw","leave.remind").contains(toolCode == null ? "" : toolCode))
+            return leaveWrite(toolCode,result);
         if ("approval.rule.patchDraftCondition".equals(toolCode)) return ruleConditionPatch(result);
         if ("approval.rule.definition.query".equals(toolCode)) return ruleDefinition(result);
         if ("approval.form.patchDraftField".equals(toolCode)) return formFieldPatch(result);
@@ -68,6 +70,26 @@ public final class AgentReadResultPresenter {
             if (!description.isBlank()) answer.append('\n').append(description);
         }
         return answer.substring(0, Math.min(MAX_LENGTH, answer.length()));
+    }
+
+    private static String leaveWrite(String code, JsonNode result) {
+        String status = switch(code) {
+            case "leave.createDraft","leave.updateDraft" -> "DRAFT";
+            case "leave.withdraw" -> "WITHDRAWN";
+            default -> "PENDING";
+        };
+        if(result==null || !result.isObject() || !result.path("applicationId").isIntegralNumber()
+                || !result.path("applicationId").canConvertToLong() || result.path("applicationId").asLong()<1
+                || !result.path("version").isIntegralNumber() || !result.path("version").canConvertToInt()
+                || result.path("version").asInt()<("leave.createDraft".equals(code)?0:1)
+                || !status.equals(result.path("status").asText()))
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        if("leave.apply".equals(code) && (!result.path("approvalTaskId").isIntegralNumber()
+                || !result.path("approvalTaskId").canConvertToLong() || result.path("approvalTaskId").asLong()<1))
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        return MessageUtils.resolve("agent.leaveWrite."+code.substring("leave.".length()),
+                Long.toString(result.path("applicationId").asLong()),Integer.toString(result.path("version").asInt()),
+                Long.toString(result.path("approvalTaskId").asLong()));
     }
 
     private static String ruleConditionPatch(JsonNode result) {
