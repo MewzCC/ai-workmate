@@ -61,7 +61,11 @@ public class PageCapabilityCatalog {
 
     /** Preserve the generic approval domain's existing entry-route prerequisite independently of business permissions. */
     public Set<String> prerequisitePageIdsForTool(String toolCode) {
-        return APPROVAL_APPLICATION_MINE_QUERY.code().equals(toolCode) || APPROVAL_APPLICATION_DETAIL_QUERY.code().equals(toolCode)
+        return Set.of(APPROVAL_APPLICATION_MINE_QUERY.code(), APPROVAL_APPLICATION_DETAIL_QUERY.code(),
+                APPROVAL_APPLICATION_CREATE_DRAFT.code(), APPROVAL_APPLICATION_UPDATE_DRAFT.code(),
+                APPROVAL_APPLICATION_SUBMIT_DRAFT.code(), APPROVAL_APPLICATION_CANCEL_DRAFT.code(),
+                APPROVAL_APPLICATION_WITHDRAW.code(), APPROVAL_APPLICATION_REOPEN.code(),
+                APPROVAL_APPLICATION_REMIND.code()).contains(toolCode == null ? "" : toolCode)
                 ? Set.of(OaPage.APPROVAL_START.routeKey()) : Set.of();
     }
 
