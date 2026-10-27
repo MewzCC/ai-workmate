@@ -27,14 +27,14 @@
 .review-header-actions { display: flex; align-items: center; gap: 12px; }
 .review-header-actions .ant-tag { margin: 0; font-size: 10px; color: #78879b; background: #e8ecf3; border-radius: 6px; padding: 3px 9px; }
 .review-header-actions .ant-btn { font-size: 11px; color: #7b879a; padding-right: 0; }
-.auth-stage { width: 100%; min-height: max(880px, 100dvh); position: relative; overflow: hidden; isolation: isolate; background: #e8f2ff; }
+.auth-stage { width: 100%; min-height: 100dvh; position: relative; overflow: hidden; isolation: isolate; background: #e8f2ff; }
 .fullscreen-art { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
 .fullscreen-art > img { width: 100%; height: 100%; position: absolute; inset: 0; object-fit: cover; object-position: 50% 55%; transform: scale(1.035) translateX(-.6%); transition: transform 1600ms cubic-bezier(.2,.7,.2,1); }
 .mode-register .fullscreen-art > img { transform: scale(1.055) translateX(.6%); }
 .fullscreen-art .art-light { background: linear-gradient(180deg, #edf5ff88 0%, #edf5ff22 32%, transparent 65%, #dceaff44 100%); }
-.forms-layer { position: relative; margin-left: 58%; width: 42%; min-height: max(880px, 100dvh); z-index: 2; padding: 110px 32px 92px; display: flex; align-items: center; justify-content: center; perspective: 1800px; perspective-origin: 50% 42%; transform: translateX(0); transition: transform 1100ms cubic-bezier(.65,0,.25,1); }
+.forms-layer { position: relative; margin-left: 58%; width: 42%; min-height: 100dvh; z-index: 2; padding: clamp(82px, 9vh, 120px) clamp(20px, 2.5vw, 64px) clamp(30px, 4vh, 60px); display: flex; align-items: center; justify-content: center; perspective: 1800px; perspective-origin: 50% 42%; transform: translateX(0); transition: transform 1100ms cubic-bezier(.65,0,.25,1); }
 .mode-register .forms-layer { transform: translateX(-138.095238%); }
-.glass-card-shell { position: relative; width: 100%; max-width: 484px; perspective: 1800px; }
+.glass-card-shell { position: relative; width: 100%; perspective: 1800px; }
 /* Keep backdrop filtering outside the preserve-3d tree so it cannot flatten the card faces. */
 .card-glass-mask { position: absolute; inset: -7px; border-radius: 30px; pointer-events: none; background: linear-gradient(135deg, #ffffff9e, #f4f8ff80 55%, #e7f0ff99); backdrop-filter: blur(26px) saturate(115%); -webkit-backdrop-filter: blur(26px) saturate(115%); border: 1px solid #ffffffc9; box-shadow: 0 28px 85px #284c7b20, inset 0 1px 0 #ffffffe6, inset 0 -1px 0 #ffffff66; }
 .flip-card { position: relative; display: grid; width: 100%; transform-style: preserve-3d; transform: rotateY(0deg); transform-origin: 50% 50%; transition: transform 1100ms cubic-bezier(.65,0,.25,1.015); }
@@ -42,7 +42,7 @@
 .account-panel { grid-area: 1 / 1; width: 100%; position: relative; display: flex; align-items: center; justify-content: center; padding: 42px 36px; background: linear-gradient(145deg, #ffffff47, #f2f7ff29); border: 1px solid #ffffff7a; border-radius: 23px; box-shadow: 0 8px 26px #28426b05, inset 0 1px 0 #ffffffb3; backface-visibility: hidden; -webkit-backface-visibility: hidden; transform-style: preserve-3d; }
 .account-panel::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; background: linear-gradient(110deg, transparent 30%, #cbdcff30 44%, #ffffff90 50%, transparent 65%); background-size: 300% 100%; background-position: 100% 0; opacity: 0; }
 .mode-login .panel-login::after, .mode-register .panel-register::after { animation: card-light-sweep 1000ms ease both; }
-.account-content { width: 100%; max-width: 386px; }
+.account-content { width: 100%; min-width: 0; }
 .panel-login { transform: rotateY(0deg) translateZ(1px); }
 .panel-register { transform: rotateY(180deg) translateZ(1px); pointer-events: none; }
 .mode-register .panel-login { pointer-events: none; }
@@ -214,5 +214,69 @@
   .entry-register .forms-layer { animation: auth-card-enter-left 2000ms cubic-bezier(.22,.65,.3,1) 150ms backwards; }
   .auth-review .card-glass-mask { animation: auth-glass-reveal 2400ms ease-in-out 150ms backwards; }
   .auth-review .account-panel { animation: auth-content-reveal 2200ms ease-in-out 250ms backwards; }
+}
+.brand-content-track { perspective: 1800px; }
+.brand-copy-flip { position: absolute; inset: 0; transform-style: preserve-3d; transform: rotateY(0deg); transition: transform 1100ms cubic-bezier(.65,0,.25,1.015); }
+.mode-register .brand-copy-flip { transform: rotateY(-180deg); }
+.brand-copy-face { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+.brand-copy-login { transform: rotateY(0deg) translateZ(1px); }
+.brand-copy-register { transform: rotateY(180deg) translateZ(1px); }
+.brand-copy-face[aria-hidden='true'] { pointer-events: none; }
+
+/* Fluid sizing follows both viewport width and usable height, with scroll inside each face. */
+.auth-production {
+  --auth-type: clamp(13px, .78vw, 18px);
+  --auth-control: clamp(44px, 4.7vh, 60px);
+  --auth-space: clamp(12px, 1.8vh, 26px);
+  --auth-card-pad: clamp(24px, 2.5vw, 58px);
+  --auth-face-height: calc(100dvh - clamp(82px, 9vh, 120px) - clamp(30px, 4vh, 60px));
+}
+.auth-production .account-panel { padding: clamp(24px, 3.5vh, 50px) var(--auth-card-pad); max-height: var(--auth-face-height); min-height: min(660px, var(--auth-face-height)); }
+.auth-production .account-content { max-height: calc(var(--auth-face-height) - clamp(48px, 7vh, 100px)); overflow-y: auto; scrollbar-width: thin; scrollbar-color: #6c8eb144 transparent; padding: 3px; }
+.auth-production .account-heading h1 { font-size: clamp(24px, 1.65vw, 38px); overflow-wrap: anywhere; }
+.auth-production .panel-register .account-heading h1 { font-size: clamp(23px, 1.5vw, 35px); }
+.auth-production .account-heading { margin-bottom: var(--auth-space); }
+.auth-production .account-heading p,
+.auth-production .account-panel .ant-form-item-label > label,
+.auth-production .account-panel .ant-input,
+.auth-production .auth-code-row .ant-btn,
+.auth-production .auth-form-meta .ant-checkbox-wrapper,
+.auth-production .auth-form-meta .ant-btn,
+.auth-production .auth-switch-copy,
+.auth-production .auth-switch-copy .ant-btn,
+.auth-production .auth-social .ant-btn,
+.auth-production .auth-login-tabs .ant-btn { font-size: var(--auth-type); }
+.auth-production .account-panel .ant-input::placeholder { font-size: .95em; }
+.auth-production .account-eyebrow { font-size: clamp(10px, .65vw, 15px); }
+.auth-production .account-panel .ant-form-item,
+.auth-production .panel-register .ant-form-item { margin-bottom: var(--auth-space); }
+.auth-production .account-panel .ant-input:not(.ant-input-affix-wrapper .ant-input),
+.auth-production .account-panel .ant-input-affix-wrapper,
+.auth-production .auth-code-row .ant-btn { height: var(--auth-control); min-height: var(--auth-control); }
+.auth-production .account-panel .account-submit.ant-btn { height: calc(var(--auth-control) + 6px); font-size: var(--auth-type); }
+.auth-production .auth-social .ant-btn { height: clamp(34px, 3.8vh, 46px); }
+.auth-production .account-security { font-size: clamp(10px, .65vw, 15px); margin-top: var(--auth-space); }
+.auth-production .auth-login-tabs { min-width: 0; width: 100%; grid-template-columns: 1fr 1fr; margin-bottom: var(--auth-space); }
+.auth-production .auth-login-tabs .ant-btn { padding-inline: 5px; white-space: normal; }
+.auth-production .auth-agreement-copy { font-size: clamp(11px, .7vw, 16px); }
+.auth-production .auth-agreement-copy .ant-btn { font-size: inherit; }
+.auth-production .brand-eyebrow { font-size: clamp(10px, .65vw, 15px); }
+.auth-production .brand-message p,
+.auth-production .brand-invitation p { font-size: clamp(13px, .85vw, 20px); }
+.auth-production .invitation-position,
+.auth-production .brand-invitation .ant-btn { width: clamp(240px, 19vw, 410px); }
+.auth-production .brand-invitation .ant-btn { height: clamp(48px, 5.2vh, 68px); font-size: clamp(12px, .85vw, 20px); }
+.auth-production .hero-title-line,
+.auth-production .hero-description-line { white-space: normal; overflow-wrap: anywhere; }
+.auth-production .brand-panel-caption { font-size: clamp(10px, .65vw, 15px); }
+
+@media (max-width: 720px) {
+  .auth-production { --auth-type: 14px; --auth-space: 18px; --auth-card-pad: clamp(20px, 5vw, 34px); --auth-face-height: none; }
+  .auth-production .forms-layer { padding: 20px 18px 30px; min-height: 0; }
+  .auth-production .account-panel { max-height: none; min-height: 0; padding: 28px var(--auth-card-pad); }
+  .auth-production .account-content { max-height: none; overflow: visible; }
+  .auth-production .brand-copy-flip { perspective: 1300px; }
+  .auth-production .brand-message p,
+  .auth-production .brand-invitation { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { .auth-production *, .auth-production *::before, .auth-production *::after { animation: none !important; transition: none !important; } }

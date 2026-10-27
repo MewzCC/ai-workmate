@@ -29,11 +29,17 @@ export default function AuthExperience({ mode, onModeChange, login, register, lo
         <section className="account-panel panel-login" aria-hidden={isRegister} inert={isRegister}><div className="account-content"><header className="account-heading"><span className="account-eyebrow">{t('loginEyebrow')}</span><h1>{loginTitle}</h1><p>{loginDescription}</p></header>{login}<footer className="account-security"><OaIcon name="safety" />{t('security')}</footer></div></section>
         <section className="account-panel panel-register" aria-hidden={!isRegister} inert={!isRegister}><div className="account-content"><header className="account-heading"><span className="account-eyebrow">{t('registerEyebrow')}</span><h1>{t('registerTitle')}</h1><p>{t('registerDescription')}</p></header>{register}<footer className="account-security"><OaIcon name="safety" />{t('security')}</footer></div></section>
       </div></div></div>
-      <aside className="scene-panel"><div className="brand-panel-surface"><div className="brand-content-track">
-        <div className="brand-message"><span className="brand-eyebrow scene-aligned"><span />{t('heroEyebrow')}</span><h2>{t(isRegister ? 'heroRegisterTitle' : 'heroLoginTitle').split('\n').map((line, index) => <span className="hero-title-line scene-aligned" key={index}>{line}</span>)}</h2><p>{t(isRegister ? 'heroRegisterDescription' : 'heroLoginDescription').split('\n').map((line, index) => <span className="hero-description-line scene-aligned" key={index}>{line}</span>)}</p></div>
-        <div className="brand-invitation"><p className="scene-aligned">{t(isRegister ? 'heroRegisterPrompt' : 'heroLoginPrompt')}</p><div className="invitation-position scene-aligned"><Button onClick={() => onModeChange(isRegister ? 'login' : 'register')}><span>{t(isRegister ? 'heroRegisterAction' : 'heroLoginAction')}</span><span className="invitation-arrow" aria-hidden="true"><OaIcon name={isRegister ? 'previous' : 'next'} /></span></Button></div></div>
-        <div className="brand-caption-position"><span className="brand-panel-caption scene-aligned">{t('heroFoot')}</span></div>
-      </div></div></aside>
+      <aside className="scene-panel"><div className="brand-panel-surface"><div className="brand-content-track"><div className="brand-copy-flip">
+        {(['login', 'register'] as const).map((face) => {
+          const back = face === 'register';
+          const hidden = face !== mode;
+          return <div key={face} className={`brand-copy-face brand-copy-${face}`} aria-hidden={hidden} inert={hidden}>
+            <div className="brand-message"><span className="brand-eyebrow scene-aligned"><span />{t('heroEyebrow')}</span><h2>{t(back ? 'heroRegisterTitle' : 'heroLoginTitle').split('\n').map((line, index) => <span className="hero-title-line scene-aligned" key={index}>{line}</span>)}</h2><p>{t(back ? 'heroRegisterDescription' : 'heroLoginDescription').split('\n').map((line, index) => <span className="hero-description-line scene-aligned" key={index}>{line}</span>)}</p></div>
+            <div className="brand-invitation"><p className="scene-aligned">{t(back ? 'heroRegisterPrompt' : 'heroLoginPrompt')}</p><div className="invitation-position scene-aligned"><Button onClick={() => onModeChange(back ? 'login' : 'register')}><span>{t(back ? 'heroRegisterAction' : 'heroLoginAction')}</span><span className="invitation-arrow" aria-hidden="true"><OaIcon name={back ? 'previous' : 'next'} /></span></Button></div></div>
+            <div className="brand-caption-position"><span className="brand-panel-caption scene-aligned">{t('heroFoot')}</span></div>
+          </div>;
+        })}
+      </div></div></div></aside>
     </main>
   </div>;
 }
