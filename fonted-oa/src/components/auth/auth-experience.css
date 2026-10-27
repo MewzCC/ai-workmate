@@ -225,16 +225,17 @@
 
 /* Fluid sizing follows both viewport width and usable height, with scroll inside each face. */
 .auth-production {
-  --auth-type: clamp(13px, .78vw, 18px);
-  --auth-control: clamp(44px, 4.7vh, 60px);
-  --auth-space: clamp(12px, 1.8vh, 26px);
-  --auth-card-pad: clamp(24px, 2.5vw, 58px);
+  --auth-type: clamp(13px, .68vw, 16px);
+  --auth-control: clamp(44px, 4vh, 52px);
+  --auth-space: clamp(12px, 1.4vh, 20px);
+  --auth-card-pad: clamp(24px, 2vw, 42px);
   --auth-face-height: calc(100dvh - clamp(82px, 9vh, 120px) - clamp(30px, 4vh, 60px));
 }
-.auth-production .account-panel { padding: clamp(24px, 3.5vh, 50px) var(--auth-card-pad); max-height: var(--auth-face-height); min-height: min(660px, var(--auth-face-height)); }
-.auth-production .account-content { max-height: calc(var(--auth-face-height) - clamp(48px, 7vh, 100px)); overflow-y: auto; scrollbar-width: thin; scrollbar-color: #6c8eb144 transparent; padding: 3px; }
-.auth-production .account-heading h1 { font-size: clamp(24px, 1.65vw, 38px); overflow-wrap: anywhere; }
-.auth-production .panel-register .account-heading h1 { font-size: clamp(23px, 1.5vw, 35px); }
+.auth-production .glass-card-shell { width: 100%; max-width: clamp(480px, 30vw, 600px); }
+.auth-production .account-panel { padding: clamp(24px, 2.8vh, 38px) var(--auth-card-pad); max-height: var(--auth-face-height); min-height: 0; }
+.auth-production .account-content { max-height: calc(var(--auth-face-height) - clamp(48px, 5.6vh, 76px)); overflow-y: auto; scrollbar-width: thin; scrollbar-color: #6c8eb144 transparent; padding: 3px; }
+.auth-production .account-heading h1 { font-size: clamp(24px, 1.4vw, 32px); overflow-wrap: anywhere; }
+.auth-production .panel-register .account-heading h1 { font-size: clamp(23px, 1.3vw, 30px); }
 .auth-production .account-heading { margin-bottom: var(--auth-space); }
 .auth-production .account-heading p,
 .auth-production .account-panel .ant-form-item-label > label,
@@ -247,15 +248,15 @@
 .auth-production .auth-social .ant-btn,
 .auth-production .auth-login-tabs .ant-btn { font-size: var(--auth-type); }
 .auth-production .account-panel .ant-input::placeholder { font-size: .95em; }
-.auth-production .account-eyebrow { font-size: clamp(10px, .65vw, 15px); }
+.auth-production .account-eyebrow { font-size: clamp(10px, .55vw, 13px); }
 .auth-production .account-panel .ant-form-item,
 .auth-production .panel-register .ant-form-item { margin-bottom: var(--auth-space); }
 .auth-production .account-panel .ant-input:not(.ant-input-affix-wrapper .ant-input),
 .auth-production .account-panel .ant-input-affix-wrapper,
 .auth-production .auth-code-row .ant-btn { height: var(--auth-control); min-height: var(--auth-control); }
 .auth-production .account-panel .account-submit.ant-btn { height: calc(var(--auth-control) + 6px); font-size: var(--auth-type); }
-.auth-production .auth-social .ant-btn { height: clamp(34px, 3.8vh, 46px); }
-.auth-production .account-security { font-size: clamp(10px, .65vw, 15px); margin-top: var(--auth-space); }
+.auth-production .auth-social .ant-btn { height: clamp(34px, 3.2vh, 40px); font-size: clamp(11px, .6vw, 14px); }
+.auth-production .account-security { font-size: clamp(10px, .55vw, 13px); margin-top: var(--auth-space); }
 .auth-production .auth-login-tabs { min-width: 0; width: 100%; grid-template-columns: 1fr 1fr; margin-bottom: var(--auth-space); }
 .auth-production .auth-login-tabs .ant-btn { padding-inline: 5px; white-space: normal; }
 .auth-production .auth-agreement-copy { font-size: clamp(11px, .7vw, 16px); }
