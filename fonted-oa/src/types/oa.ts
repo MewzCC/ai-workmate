@@ -123,7 +123,7 @@ export interface AiTaskExecuteResponse {
 }
 
 export interface AiTaskConfirmationResponse {
-  token: string;
+  confirmationToken: string;
   expiresAt: string;
 }
 

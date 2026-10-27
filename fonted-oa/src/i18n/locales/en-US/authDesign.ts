@@ -1,0 +1,25 @@
+const authDesign = {
+  mark: 'w.',
+  brand: 'AI WorkMate',
+  workspace: 'Intelligent workspace',
+  loginEyebrow: 'YOUR SPACE. NEW POSSIBILITIES.',
+  registerEyebrow: 'YOUR NEXT CHAPTER STARTS HERE',
+  loginTitle: 'Good to see you again',
+  registerTitle: 'Create your WorkMate account',
+  loginDescription: 'Pick up where your work and ideas left off.',
+  registerDescription: 'A few details, and a new way to work with AI.',
+  emailPlaceholder: 'name@company.com',
+  security: 'A thoughtful start to your working day',
+  heroEyebrow: 'GOOD WORK STARTS WITH CONNECTION',
+  heroLoginTitle: 'A place for\nyour next good idea.',
+  heroRegisterTitle: 'Make room for\nnew possibilities.',
+  heroLoginDescription: 'Bring your team, knowledge and AI together.\nTurn a first thought into the next step.',
+  heroRegisterDescription: 'Your team. Your ideas. Your AI work partner.\nOne space to bring it all together.',
+  heroLoginPrompt: 'Your first time here?',
+  heroRegisterPrompt: 'It is good to have you back.',
+  heroLoginAction: 'Create an account',
+  heroRegisterAction: 'Sign in to your workspace',
+  heroFoot: 'Better together, from the first connection.',
+};
+
+export default authDesign;

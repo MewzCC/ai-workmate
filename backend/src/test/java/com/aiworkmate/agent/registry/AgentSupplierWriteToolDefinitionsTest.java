@@ -49,4 +49,23 @@ class AgentSupplierWriteToolDefinitionsTest {
                 .doesNotContain("code", "unifiedSocialCreditCode", "contactName", "contactPhone",
                         "contactEmail", "address", "riskNote", "status");
     }
+
+    @Test
+    void statusUpdateRequiresSecondaryConfirmationAndClosedArguments() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        ToolDefinition definition = new AgentSupplierWriteToolDefinitions()
+                .supplierUpdateStatusToolDefinition(mapper);
+        assertThat(definition.schemaHash()).isEqualTo(
+                "sha256:0cb980da791f760e584b3d4a29d342f6668756b96451ea2c03f3539fd7401e4e");
+        assertThat(definition.requiredPermissions()).containsExactly("supplier:manage");
+        assertThat(definition.riskLevel()).isEqualTo(RiskLevel.L2);
+        assertThat(definition.retryPolicy()).isEqualTo(RetryPolicy.NEVER);
+        assertThat(definition.confirmationPolicy()).isEqualTo(ConfirmationPolicy.SECONDARY);
+        assertThat(new ToolSchemaValidator().valid(definition.inputSchema(), mapper.readTree("""
+                {"supplierId":92,"version":1,"status":"BLACKLISTED","reason":"合规风险"}
+                """))).isTrue();
+        assertThat(new ToolSchemaValidator().valid(definition.inputSchema(), mapper.readTree("""
+                {"supplierId":92,"version":1,"status":"DELETED","reason":"越界状态"}
+                """))).isFalse();
+    }
 }

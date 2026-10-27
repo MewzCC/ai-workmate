@@ -35,6 +35,7 @@ public class AttendanceReissue {
     private String agentOperationKey;
     private LocalDateTime submittedAt;
     private LocalDateTime decidedAt;
+    private Integer version;
 
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createdAt;

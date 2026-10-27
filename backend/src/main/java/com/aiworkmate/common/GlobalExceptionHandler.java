@@ -17,6 +17,7 @@ import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.util.List;
 import java.util.Locale;
@@ -75,7 +76,8 @@ public class GlobalExceptionHandler {
         return Result.error(ErrorCode.REQUEST_INVALID, ex.getMessage());
     }
 
-    @ExceptionHandler({ServletRequestBindingException.class, HttpMessageNotReadableException.class})
+    @ExceptionHandler({ServletRequestBindingException.class, HttpMessageNotReadableException.class,
+            MethodArgumentTypeMismatchException.class})
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public Result<Void> handleMalformedRequest(Exception ex) {
         return Result.error(ErrorCode.REQUEST_INVALID);

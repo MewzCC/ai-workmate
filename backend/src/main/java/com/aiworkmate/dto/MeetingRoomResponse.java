@@ -14,6 +14,7 @@ public record MeetingRoomResponse(
         String facilities,
         String status,
         String remark,
+        Integer version,
         LocalDateTime createdAt,
         LocalDateTime updatedAt,
         boolean canEdit,

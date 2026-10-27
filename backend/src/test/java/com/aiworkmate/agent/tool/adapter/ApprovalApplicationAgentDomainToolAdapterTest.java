@@ -26,6 +26,29 @@ class ApprovalApplicationAgentDomainToolAdapterTest {
     private final ToolActorContext actor = new ToolActorContext(10L, 20L, 30L, 40L, 1, "trace");
 
     @Test
+    void readsOnlySafeSummaryAndPreservesActualPageTotal() {
+        var value = mock(ApprovalApplicationResponse.class);
+        when(value.id()).thenReturn(71L);
+        when(value.formKey()).thenReturn("travel");
+        when(value.formName()).thenReturn("Travel");
+        when(value.status()).thenReturn("DRAFT");
+        when(value.version()).thenReturn(3);
+        when(value.canEditDraft()).thenReturn(true);
+        when(service.mineForAgent(actor.userId(), "DRAFT", "travel", 2, 10))
+                .thenReturn(com.aiworkmate.common.PageResponse.of(List.of(value), 15, 2, 10));
+        var result = adapter.mine(actor, new ApprovalApplicationToolPort.Query("DRAFT", "travel", 2, 10));
+        assertThat(result.total()).isEqualTo(15);
+        assertThat(result.page()).isEqualTo(2);
+        assertThat(result.items().get(0).applicationId()).isEqualTo(71);
+        assertThat(result.items().get(0).canEditDraft()).isTrue();
+        verify(service).mineForAgent(actor.userId(), "DRAFT", "travel", 2, 10);
+        verify(value, org.mockito.Mockito.never()).dataJson();
+        verify(value, org.mockito.Mockito.never()).formSchemaSnapshot();
+        verify(value, org.mockito.Mockito.never()).applicantUserId();
+        verify(value, org.mockito.Mockito.never()).taskAssigneeName();
+    }
+
+    @Test
     void mapsTypedFieldsToExistingDomainRequest() {
         var command = new ApprovalApplicationToolPort.Draft("expense", null, List.of(
                 new ApprovalApplicationToolPort.FieldValue("reason", List.of("客户拜访"), false),
@@ -108,5 +131,55 @@ class ApprovalApplicationAgentDomainToolAdapterTest {
         assertThat(result).isEqualTo(
                 new ApprovalApplicationToolPort.WriteResult(30L, "expense", "DRAFT", 5));
         verify(service).reopenAgentApplication(20L, 30L, new com.aiworkmate.dto.VersionRequest(4));
+    }
+
+    @Test
+    void remindsOwnedPendingApplicationThroughExistingRateLimitedService() {
+        var response = mock(ApprovalApplicationResponse.class);
+        when(response.id()).thenReturn(30L);
+        when(response.formKey()).thenReturn("expense");
+        when(response.status()).thenReturn("PENDING");
+        when(response.version()).thenReturn(6);
+        when(service.remind(20L, 30L, new com.aiworkmate.dto.VersionRequest(5)))
+                .thenReturn(response);
+
+        assertThat(adapter.remind(actor, 30L, 5)).isEqualTo(
+                new ApprovalApplicationToolPort.WriteResult(30L, "expense", "PENDING", 6));
+        verify(service).remind(20L, 30L, new com.aiworkmate.dto.VersionRequest(5));
+    }
+
+    @Test
+    void updatesOwnedDraftThroughSchemaValidatedAgentService() {
+        var response = mock(ApprovalApplicationResponse.class);
+        when(response.id()).thenReturn(30L);
+        when(response.formKey()).thenReturn("expense");
+        when(response.status()).thenReturn("DRAFT");
+        when(response.version()).thenReturn(2);
+        var update = new ApprovalApplicationToolPort.DraftUpdate(null, List.of(
+                new ApprovalApplicationToolPort.FieldValue("reason", List.of("调整事由"), false)));
+        when(service.updateAgentDraft(eq(20L), eq(30L), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(response);
+
+        assertThat(adapter.updateDraft(actor, 30L, 1, update)).isEqualTo(
+                new ApprovalApplicationToolPort.WriteResult(30L, "expense", "DRAFT", 2));
+        var request = ArgumentCaptor.forClass(com.aiworkmate.dto.ApprovalDraftUpdateRequest.class);
+        verify(service).updateAgentDraft(eq(20L), eq(30L), request.capture());
+        assertThat(request.getValue().version()).isOne();
+        assertThat(request.getValue().formData()).containsEntry("reason", "调整事由");
+    }
+
+    @Test
+    void cancelsOwnedDraftThroughDedicatedAgentService() {
+        var response = mock(ApprovalApplicationResponse.class);
+        when(response.id()).thenReturn(30L);
+        when(response.formKey()).thenReturn("expense");
+        when(response.status()).thenReturn("CANCELLED");
+        when(response.version()).thenReturn(3);
+        when(service.cancelAgentDraft(20L, 30L, new com.aiworkmate.dto.VersionRequest(2)))
+                .thenReturn(response);
+
+        assertThat(adapter.cancelDraft(actor, 30L, 2)).isEqualTo(
+                new ApprovalApplicationToolPort.WriteResult(30L, "expense", "CANCELLED", 3));
+        verify(service).cancelAgentDraft(20L, 30L, new com.aiworkmate.dto.VersionRequest(2));
     }
 }

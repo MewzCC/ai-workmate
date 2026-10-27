@@ -302,6 +302,21 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
     @Transactional
     public ApprovalApplicationResponse cancelDraft(Long userId, Long id, VersionRequest request) {
         ResolvedUserAccess actor = requirePermission(userId, "route:approval-start");
+        return cancelDraftInternal(actor, id, request);
+    }
+
+    @Override
+    @Transactional
+    public ApprovalApplicationResponse cancelAgentDraft(Long userId, Long id, VersionRequest request) {
+        ResolvedUserAccess actor = requirePermission(userId, "route:approval-start");
+        if (!actor.permissions().contains("approval:cancel")) {
+            throw new BusinessException(ErrorCode.PERMISSION_DENIED);
+        }
+        return cancelDraftInternal(actor, id, request);
+    }
+
+    private ApprovalApplicationResponse cancelDraftInternal(
+            ResolvedUserAccess actor, Long id, VersionRequest request) {
         ApprovalApplication application = requireOwnedApplication(actor, id);
         requireDraft(application);
         LocalDateTime now = LocalDateTime.now();
@@ -318,7 +333,7 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
         if (updated != 1) {
             throw new BusinessException(ErrorCode.VERSION_CONFLICT);
         }
-        auditService.record(actor.tenantId(), actor.userId(), BUSINESS_TYPE,
+        auditService.recordTransactional(actor.tenantId(), actor.userId(), BUSINESS_TYPE,
                 id.toString(), "DRAFT_CANCEL", "SUCCESS", "取消通用表单草稿");
         return response(actor, requireView(actor.tenantId(), id), null);
     }
@@ -457,9 +472,9 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
         }
         insertAction(actor, instance.getId(), task.getId(),
                 "REMIND", "PENDING", "PENDING", null);
-        auditService.record(actor.tenantId(), actor.userId(), BUSINESS_TYPE,
+        auditService.recordTransactional(actor.tenantId(), actor.userId(), BUSINESS_TYPE,
                 id.toString(), "REMIND", "SUCCESS", "催办通用审批待办");
-        notificationService.publish(actor.tenantId(), task.getAssigneeUserId(),
+        notificationService.publishTransactional(actor.tenantId(), task.getAssigneeUserId(),
                 NotificationService.TYPE_APPROVAL,
                 "审批催办提醒",
                 "申请人提醒你及时处理「" + application.getFormName() + "」",
@@ -635,6 +650,14 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
 
     @Override
     @Transactional(readOnly = true)
+    public PageResponse<ApprovalApplicationResponse> mineForAgent(
+            Long userId, String status, String formKey, int page, int size) {
+        requirePermission(userId, "approval:mine:read");
+        return mine(userId, status, formKey, page, size);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public ApprovalApplicationResponse detail(Long userId, Long id) {
         ResolvedUserAccess actor = requireAccess(userId);
         ApprovalApplicationView view = applicationMapper.selectView(actor.tenantId(), id);
@@ -653,6 +676,37 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
                 ? null
                 : actionLogMapper.selectBusinessTimeline(actor.tenantId(), BUSINESS_TYPE, view.id());
         return response(actor, view, timeline);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public com.aiworkmate.dto.ApprovalApplicationAgentDetailResponse detailMineForAgent(Long userId, Long id, int fieldPage) {
+        if (fieldPage < 1 || fieldPage > 2) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        ResolvedUserAccess actor = requirePermission(userId, "approval:mine:read");
+        if (!actor.permissions().contains("route:approval-start")) {
+            throw new BusinessException(ErrorCode.PERMISSION_DENIED);
+        }
+        ApprovalApplicationView view = applicationMapper.selectView(actor.tenantId(), id);
+        if (view == null) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        // The general page detail permits assignees/auditors; Agent self-detail intentionally does not.
+        if (!actor.userId().equals(view.applicantUserId())) throw new BusinessException(ErrorCode.RESOURCE_FORBIDDEN);
+        String schema = view.formSchemaSnapshot();
+        Integer formVersion = view.formVersionSnapshot();
+        String source = "SNAPSHOT";
+        if ("DRAFT".equals(view.status())) {
+            ApprovalForm form = formMapper.selectOne(new LambdaQueryWrapper<ApprovalForm>()
+                    .eq(ApprovalForm::getTenantId, actor.tenantId()).eq(ApprovalForm::getId, view.formId())
+                    .eq(ApprovalForm::getDeleted, false));
+            if (form == null) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+            schema = form.getSchemaJson();
+            formVersion = form.getVersion();
+            source = "CURRENT_DRAFT";
+        }
+        var fields = ApprovalApplicationAgentFieldProjection.project(objectMapper, schema, view.dataJson());
+        int from = Math.min(fields.size(), (fieldPage - 1) * 50);
+        return new com.aiworkmate.dto.ApprovalApplicationAgentDetailResponse(
+                com.aiworkmate.dto.ApprovalApplicationAgentDetailResponse.Application.from(response(actor, view, null)),
+                source, formVersion, fields.subList(from, Math.min(fields.size(), from + 50)), fields.size(), fieldPage);
     }
 
     // ============================================================

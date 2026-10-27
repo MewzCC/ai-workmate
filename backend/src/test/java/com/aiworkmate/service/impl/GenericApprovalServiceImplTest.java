@@ -46,6 +46,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -247,6 +248,45 @@ class GenericApprovalServiceImplTest {
         assertThat(response.status()).isEqualTo("CANCELLED");
         assertThat(response.canEditDraft()).isFalse();
         verify(instanceMapper, never()).insert(any(WorkflowInstance.class));
+        verify(auditService).recordTransactional(TENANT_ID, USER_ID,
+                "GENERIC_APPROVAL", "10", "DRAFT_CANCEL", "SUCCESS", "取消通用表单草稿");
+    }
+
+    @Test
+    void cancelAgentDraftRequiresDedicatedPermissionAndUsesSameVersionedTransition() {
+        when(applicationMapper.selectOne(any())).thenReturn(application("DRAFT", 2));
+        when(applicationMapper.update(any(), any())).thenReturn(1);
+        when(applicationMapper.selectView(TENANT_ID, 10L)).thenReturn(view("CANCELLED", 3));
+
+        assertThat(service.cancelAgentDraft(USER_ID, 10L, new VersionRequest(2)).status())
+                .isEqualTo("CANCELLED");
+        verify(auditService).recordTransactional(TENANT_ID, USER_ID,
+                "GENERIC_APPROVAL", "10", "DRAFT_CANCEL", "SUCCESS", "取消通用表单草稿");
+    }
+
+    @Test
+    void cancellationPropagatesTransactionalAuditFailureInsteadOfReturningSuccess() {
+        when(applicationMapper.selectOne(any())).thenReturn(application("DRAFT", 2));
+        when(applicationMapper.update(any(), any())).thenReturn(1);
+        org.mockito.Mockito.doThrow(new IllegalStateException("test-only audit failure"))
+                .when(auditService).recordTransactional(any(), any(), any(), any(), any(), any(), any());
+
+        assertThatThrownBy(() -> service.cancelAgentDraft(USER_ID, 10L, new VersionRequest(2)))
+                .isInstanceOf(IllegalStateException.class);
+        verify(applicationMapper).update(any(), any());
+        verify(applicationMapper, never()).selectView(any(), any());
+    }
+
+    @Test
+    void cancelAgentDraftFailsClosedAfterCancelPermissionRevocation() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(new ResolvedUserAccess(
+                USER_ID, "applicant", TENANT_ID, "EMPLOYEE", List.of("EMPLOYEE"),
+                List.of("route:approval-start", "approval:create"), List.of("SELF"), 2L));
+
+        assertThatThrownBy(() -> service.cancelAgentDraft(USER_ID, 10L, new VersionRequest(2)))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("PERMISSION_DENIED");
+        verify(applicationMapper, never()).update(any(), any());
     }
 
     @Test
@@ -525,7 +565,9 @@ class GenericApprovalServiceImplTest {
 
         assertThat(response.status()).isEqualTo("PENDING");
         verify(actionLogMapper).insert(any(WorkflowActionLog.class));
-        verify(notificationService).publish(TENANT_ID, 2002L,
+        verify(auditService).recordTransactional(eq(TENANT_ID), eq(USER_ID), eq("GENERIC_APPROVAL"),
+                eq("10"), eq("REMIND"), eq("SUCCESS"), any());
+        verify(notificationService).publishTransactional(TENANT_ID, 2002L,
                 NotificationService.TYPE_APPROVAL, "审批催办提醒",
                 "申请人提醒你及时处理「费用报销」", "generic-approval", 10L);
     }
@@ -575,11 +617,66 @@ class GenericApprovalServiceImplTest {
                 TENANT_ID, USER_ID, "PENDING", "expense-application");
     }
 
+    @Test
+    void agentDetailUsesFrozenSchemaWithoutReadingCurrentConfiguration() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(new ResolvedUserAccess(USER_ID, "applicant", TENANT_ID,
+                "EMPLOYEE", List.of("EMPLOYEE"), List.of("approval:mine:read", "route:approval-start"), List.of("SELF"), 1L));
+        when(applicationMapper.selectView(TENANT_ID, 10L)).thenReturn(view("PENDING", 2));
+        var result = service.detailMineForAgent(USER_ID, 10L, 1);
+        assertThat(result.schemaSource()).isEqualTo("SNAPSHOT");
+        assertThat(result.formVersion()).isEqualTo(7);
+        assertThat(result.fields()).anySatisfy(field -> assertThat(field.values()).contains("客户拜访"));
+        org.mockito.Mockito.verifyNoInteractions(formMapper, processMapper, ruleMapper, actionLogMapper);
+    }
+
+    @Test
+    void agentDetailCannotUseAuditorPermissionToReadAnotherApplicant() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(new ResolvedUserAccess(USER_ID, "applicant", TENANT_ID,
+                "SYSTEM_ADMIN", List.of("SYSTEM_ADMIN"), List.of("approval:mine:read", "route:approval-start", "audit:read"), List.of("TENANT"), 1L));
+        var other = org.mockito.Mockito.mock(ApprovalApplicationView.class);
+        when(other.applicantUserId()).thenReturn(9999L);
+        when(applicationMapper.selectView(TENANT_ID, 10L)).thenReturn(other);
+        assertThatThrownBy(() -> service.detailMineForAgent(USER_ID, 10L, 1)).isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("RESOURCE_FORBIDDEN");
+        org.mockito.Mockito.verifyNoInteractions(formMapper, actionLogMapper);
+    }
+
+    @Test
+    void agentDetailPagesLargeFrozenFormsWithoutLosingLaterFields() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(new ResolvedUserAccess(USER_ID, "applicant", TENANT_ID,
+                "EMPLOYEE", List.of("EMPLOYEE"), List.of("approval:mine:read", "route:approval-start"), List.of("SELF"), 1L));
+        var view = org.mockito.Mockito.mock(ApprovalApplicationView.class);
+        when(view.id()).thenReturn(10L);
+        when(view.version()).thenReturn(0);
+        when(view.applicantUserId()).thenReturn(USER_ID);
+        when(view.status()).thenReturn("APPROVED");
+        when(view.dataJson()).thenReturn("{}");
+        String fields = java.util.stream.IntStream.range(0, 60)
+                .mapToObj(index -> "{\"name\":\"field" + index + "\",\"type\":\"text\"}")
+                .collect(java.util.stream.Collectors.joining(","));
+        when(view.formSchemaSnapshot()).thenReturn("{\"fields\":[" + fields + "]}");
+        when(applicationMapper.selectView(TENANT_ID, 10L)).thenReturn(view);
+        var first = service.detailMineForAgent(USER_ID, 10L, 1);
+        var second = service.detailMineForAgent(USER_ID, 10L, 2);
+        assertThat(first.fields()).hasSize(50);
+        assertThat(second.fields()).hasSize(10);
+        assertThat(second.fields().get(0).name()).isEqualTo("field50");
+        assertThat(second.fieldsTotal()).isEqualTo(60);
+        assertThat(second.fieldPage()).isEqualTo(2);
+    }
+
+    @Test
+    void agentDetailMissingBusinessPermissionFailsBeforeResourceRead() {
+        assertThatThrownBy(() -> service.detailMineForAgent(USER_ID, 10L, 1)).isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("PERMISSION_DENIED");
+        org.mockito.Mockito.verifyNoInteractions(applicationMapper);
+    }
+
     private ResolvedUserAccess access() {
         return new ResolvedUserAccess(USER_ID, "applicant", TENANT_ID, "EMPLOYEE",
                 List.of("EMPLOYEE"),
                 List.of("route:approval-start", "approval:create", "approval:submit", "approval:withdraw",
-                        "approval:reopen"),
+                        "approval:reopen", "approval:cancel"),
                 List.of("SELF"), 1L);
     }
 

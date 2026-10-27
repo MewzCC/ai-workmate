@@ -96,6 +96,22 @@ class PlatformObservabilityServiceImplTest {
         verify(mapper, never()).selectStats(any(), any(), any(), any(), any(), any(), any(), any(), anyBoolean());
     }
 
+    @Test void missingPagePermissionAndInactiveUserNeverQueryTenantStatistics() {
+        when(accessService.resolveActiveUser(7L)).thenReturn(access(List.of("runtime-log:read")))
+                .thenReturn(null);
+        assertThatThrownBy(() -> service.overview(7L, "7d")).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> service.overview(7L, "7d")).isInstanceOf(BusinessException.class);
+        org.mockito.Mockito.verifyNoInteractions(mapper);
+    }
+
+    @Test void permissionRevocationIsObservedWithoutReloginOrCachedAggregates() {
+        when(accessService.resolveActiveUser(7L)).thenReturn(access(List.of(
+                "route:platform-observability", "runtime-log:read")), access(List.of("route:platform-observability")));
+        service.overview(7L, "24h");
+        assertThatThrownBy(() -> service.overview(7L, "24h")).isInstanceOf(BusinessException.class);
+        verify(mapper, times(1)).selectSourceCounts(eq(9L), any(), any());
+    }
+
     private ResolvedUserAccess access(List<String> permissions) {
         return new ResolvedUserAccess(7L, "admin", 9L, "SYSTEM_ADMIN",
                 List.of("SYSTEM_ADMIN"), permissions, List.of("TENANT"), 1L);

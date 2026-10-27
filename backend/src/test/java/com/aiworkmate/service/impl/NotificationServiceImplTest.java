@@ -54,6 +54,48 @@ class NotificationServiceImplTest {
     }
 
     @Test
+    void closingSpringContextStopsItsConsumer() throws Exception {
+        when(redisTemplate.opsForList()).thenReturn(listOps);
+        var started = new java.util.concurrent.CountDownLatch(1);
+        var worker = new java.util.concurrent.atomic.AtomicReference<Thread>();
+        when(listOps.rightPop(eq("notification:queue"), any(Duration.class))).thenAnswer(invocation -> {
+            worker.set(Thread.currentThread());
+            started.countDown();
+            new java.util.concurrent.CountDownLatch(1).await();
+            return null;
+        });
+        var context = new org.springframework.context.annotation.AnnotationConfigApplicationContext();
+        try {
+            context.registerBean(NotificationServiceImpl.class, () -> notificationService);
+            context.refresh();
+            assertThat(started.await(2, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+            notificationService.startConsumer();
+            context.close();
+            worker.get().join(500);
+            assertThat(worker.get().isAlive()).isFalse();
+            verify(listOps).rightPop(eq("notification:queue"), any(Duration.class));
+        } finally {
+            context.close();
+            if (worker.get() != null) {
+                worker.get().interrupt();
+                worker.get().join(2000);
+            }
+        }
+    }
+
+    @Test
+    void transactionalPublishInsertsTheBusinessNotificationWithoutUsingRedis() {
+        notificationService.publishTransactional(1L, 2L, "approval", "催办", "请处理申请", "generic-approval", 42L);
+        var notification = org.mockito.ArgumentCaptor.forClass(Notification.class);
+        verify(notificationMapper).insert(notification.capture());
+        assertThat(notification.getValue().getTenantId()).isEqualTo(1L);
+        assertThat(notification.getValue().getUserId()).isEqualTo(2L);
+        assertThat(notification.getValue().getBizId()).isEqualTo(42L);
+        assertThat(notification.getValue().getReadFlag()).isFalse();
+        verifyNoInteractions(redisTemplate);
+    }
+
+    @Test
     void publishShouldEnqueueToRedisQueue() {
         when(redisTemplate.opsForList()).thenReturn(listOps);
 

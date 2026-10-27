@@ -68,11 +68,13 @@ export interface AttendanceReissue {
   decidedAt?: string | null;
   createdAt: string;
   updatedAt: string;
+  version: number;
   canDecide: boolean;
   canWithdraw: boolean;
 }
 
 export interface AttendanceReissueDecision {
+  version: number;
   decision: 'APPROVED' | 'REJECTED';
   comment?: string;
 }
@@ -113,10 +115,12 @@ export interface AttendanceSettings {
   startFlexMinutes: number;
   endFlexMinutes: number;
   flexLinked: boolean;
+  version: number;
   updatedAt?: string | null;
 }
 
 export interface AttendanceSettingsPayload {
+  version: number;
   workStartTime: string;
   workEndTime: string;
   startFlexMinutes: number;

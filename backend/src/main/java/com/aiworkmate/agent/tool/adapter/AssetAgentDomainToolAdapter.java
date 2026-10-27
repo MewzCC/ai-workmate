@@ -4,6 +4,10 @@ import com.aiworkmate.agent.tool.port.AssetToolPort;
 import com.aiworkmate.agent.tool.port.ToolActorContext;
 import com.aiworkmate.agent.tool.port.ToolOperationKey;
 import com.aiworkmate.agent.tool.port.ToolWriteVerification;
+import com.aiworkmate.dto.AssetInventoryRequest;
+import com.aiworkmate.dto.AssetMaintenanceRequest;
+import com.aiworkmate.dto.AssetOperationRequest;
+import com.aiworkmate.dto.AssetLedgerResponse;
 import com.aiworkmate.service.AdminAssetsService;
 import com.aiworkmate.service.model.AssetAgentClaimCommand;
 import com.aiworkmate.service.model.AssetAgentRepairStartCommand;
@@ -14,6 +18,26 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public final class AssetAgentDomainToolAdapter implements AssetToolPort {
     private final AdminAssetsService adminAssetsService;
+
+    @Override
+    public MetadataReceipt create(ToolActorContext context, Create command) {
+        return metadata(adminAssetsService.createAssetAgent(context.userId(), fields(command.fields()), command.departmentId()));
+    }
+
+    @Override
+    public MetadataReceipt update(ToolActorContext context, Update command) {
+        return metadata(adminAssetsService.updateAssetAgent(context.userId(), command.assetId(), command.version(),
+                fields(command.fields()), command.clearPurchaseDate()));
+    }
+
+    private com.aiworkmate.service.model.AssetAgentMetadataFields fields(Fields fields) {
+        return new com.aiworkmate.service.model.AssetAgentMetadataFields(fields.assetCode(), fields.name(), fields.category(),
+                fields.specification(), fields.purchaseDate(), fields.originalValue(), fields.remark());
+    }
+
+    private MetadataReceipt metadata(com.aiworkmate.service.model.AssetAgentMetadataReceipt receipt) {
+        return new MetadataReceipt(receipt.assetId(), receipt.assetCode(), receipt.name(), receipt.status(), receipt.version());
+    }
 
     @Override
     public Page query(ToolActorContext context, Query query) {
@@ -87,5 +111,36 @@ public final class AssetAgentDomainToolAdapter implements AssetToolPort {
 
     private AssetAgentRepairStartCommand toDomain(RepairStartCommand command) {
         return new AssetAgentRepairStartCommand(command.assetId(), command.version(), command.reason());
+    }
+
+    @Override
+    public LifecycleResult transfer(ToolActorContext context, TransferCommand command) {
+        return lifecycle(command.assetId(), "TRANSFER", adminAssetsService.transferAsset(
+                context.userId(), command.assetId(), new AssetOperationRequest(command.version(),
+                        command.targetOwnerUserId(), command.targetDepartmentId(), command.reason())));
+    }
+
+    @Override
+    public LifecycleResult completeRepair(ToolActorContext context, MaintenanceCommand command) {
+        return lifecycle(command.assetId(), "REPAIR_COMPLETE", adminAssetsService.completeAssetRepair(
+                context.userId(), command.assetId(), new AssetMaintenanceRequest(command.version(), command.reason())));
+    }
+
+    @Override
+    public LifecycleResult inventory(ToolActorContext context, InventoryCommand command) {
+        return lifecycle(command.assetId(), "INVENTORY", adminAssetsService.inventoryAsset(
+                context.userId(), command.assetId(), new AssetInventoryRequest(command.version(),
+                        command.inventoryResult(), command.actualStatus(), command.actualDepartmentId(),
+                        command.actualOwnerUserId(), command.reason())));
+    }
+
+    @Override
+    public LifecycleResult scrap(ToolActorContext context, MaintenanceCommand command) {
+        return lifecycle(command.assetId(), "SCRAP", adminAssetsService.scrapAsset(
+                context.userId(), command.assetId(), new AssetMaintenanceRequest(command.version(), command.reason())));
+    }
+
+    private LifecycleResult lifecycle(long assetId, String action, AssetLedgerResponse response) {
+        return new LifecycleResult(assetId, response.status(), response.version(), action);
     }
 }

@@ -18,6 +18,10 @@ public interface VisitorToolPort {
     VisitResult leave(ToolActorContext context, VisitCommand command, ToolOperationKey operationKey);
     ToolWriteVerification<VisitResult> findLeave(
             ToolActorContext context, VisitCommand command, ToolOperationKey operationKey);
+    StatusResult withdraw(ToolActorContext context, VersionCommand command);
+    VisitResult markNoShow(ToolActorContext context, VisitCommand command, ToolOperationKey operationKey);
+    ToolWriteVerification<VisitResult> findNoShow(
+            ToolActorContext context, VisitCommand command, ToolOperationKey operationKey);
     enum Queue { MINE, PENDING }
     record Query(Long bookingId, Queue queue, String status, int page, int size) { }
     record ApplicationCommand(String visitorName, String visitorCompany, String visitorPhone,
@@ -26,6 +30,8 @@ public interface VisitorToolPort {
     record ApplicationResult(long bookingId, String status, int version, LocalDateTime submittedAt)
             implements ToolWriteReceipt { }
     record VisitCommand(long bookingId, int version, String remark) { }
+    record VersionCommand(long bookingId, int version) { }
+    record StatusResult(long bookingId, String status, int version) implements ToolWriteReceipt { }
     record VisitResult(long bookingId, String status, int version, LocalDateTime occurredAt)
             implements ToolWriteReceipt { }
     record Page(List<Item> items, long total, int page, int size) {

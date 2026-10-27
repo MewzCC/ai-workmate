@@ -294,6 +294,7 @@ export default {
     },
     form: {
       title: '表单管理',
+      detailTitle: '表单定义详情',
       description: '维护审批表单定义：通过表单设计器拖拽配置字段结构，发布后可用于发起审批。',
       columnKey: '表单标识',
       columnName: '表单名称',
@@ -311,6 +312,7 @@ export default {
       fieldsCount: '{{count}} 个字段',
     },
     process: {
+      detailTitle: '流程详情',
       title: '流程列表',
       description: '维护审批流程定义：在流程设计器中编排审批节点、审批人与超时策略，发布后供发起审批选用。',
       columnKey: '流程标识',
@@ -344,6 +346,7 @@ export default {
     },
     rule: {
       title: '审批规则',
+      detailTitle: '规则详情',
       description: '维护审批规则：命中条件后按动作执行（如加签、转交），优先级数字越小越先执行。',
       columnKey: '规则标识',
       columnName: '规则名称',

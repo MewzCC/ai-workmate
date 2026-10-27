@@ -1,6 +1,8 @@
 import type { AiModelId } from '@/config/aiModels';
 
 export type ChatRole = 'user' | 'assistant' | 'system';
+export type ChatComposerMode = 'auto' | 'chat' | 'operation';
+export type AiChatIntent = 'CHAT' | 'OPERATION';
 export type MessageStatus = 'sending' | 'success' | 'failed';
 export type MessageFeedback = 'like' | 'dislike' | null;
 
@@ -37,6 +39,10 @@ export interface ChatMessage {
   /** AI 回复引用的知识库片段；无引用时为空数组 */
   citations: ChatMessageCitation[];
   createdAt: string;
+  /** Only populated for a server-verified Agent task answer. */
+  sourceTaskNo?: string | null;
+  /** First executed fixed tool, used only to select an authorized destination page. */
+  sourceToolCode?: string | null;
 }
 
 export interface ChatConversation {

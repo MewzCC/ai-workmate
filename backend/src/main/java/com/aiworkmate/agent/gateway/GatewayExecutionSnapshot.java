@@ -11,6 +11,7 @@ public class GatewayExecutionSnapshot {
     private Integer sequenceNo;
     private Long tenantId;
     private Long userId;
+    private String pageId;
     private String taskStatus;
     private String stepStatus;
     private String workerId;

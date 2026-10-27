@@ -20,8 +20,8 @@ class AgentSecurityGovernanceToolDefinitionsTest {
             assertThat(tool.outputSchema().toString()).doesNotContain("email", "actorUserId", "departmentIds", "userId");
         });
         assertThat(tools).extracting(ToolDefinition::schemaHash).containsExactly(
-                "sha256:d622f57307336098c25b779333ff842a874adcbf1880ae687c08276d3c6bbc61",
-                "sha256:858c22c5e8947762eda39892caf2fbf962282c21d94945491daf34ebde3f6c21",
-                "sha256:270d6da876eea0376fddf296219842f25f2bdc594ec61023ac365006cfc7ae87");
+                "sha256:7286724aabd5e431fe911c9a9b3ec9f9984be9431fe9cf3dd436c4dea4a6b806",
+                "sha256:e4f18dfeab7b4995534312eeef5e2aa1fbf2590fd4aa17d5299b3070aaed8b51",
+                "sha256:d10931f47f7a8c029913766cb429a38e2caef5ad4c5d72e992ca8220632f6870");
     }
 }

@@ -21,6 +21,30 @@ public class AgentContractWriteToolDefinitions {
     public static final String UPDATE_DRAFT_OUTPUT_SCHEMA = """
             {"type":"object","additionalProperties":false,"required":["contractId","code","status","version","updatedAt"],"properties":{"contractId":{"type":"integer","minimum":1},"code":{"type":"string"},"status":{"type":"string","const":"DRAFT"},"version":{"type":"integer","minimum":1},"updatedAt":{"type":"string","format":"date-time"}}}
             """.strip();
+    public static final String UPDATE_STATUS_INPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["contractId","version","status"],"properties":{"contractId":{"type":"integer","minimum":1},"version":{"type":"integer","minimum":0,"maximum":2147483646},"status":{"type":"string","enum":["ACTIVE","COMPLETED","TERMINATED"]},"reason":{"type":"string","maxLength":500}}}
+            """.strip();
+    public static final String UPDATE_STATUS_OUTPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["contractId","code","status","version","updatedAt"],"properties":{"contractId":{"type":"integer","minimum":1},"code":{"type":"string"},"status":{"type":"string","enum":["ACTIVE","COMPLETED","TERMINATED"]},"version":{"type":"integer","minimum":1},"updatedAt":{"type":"string","format":"date-time"}}}
+            """.strip();
+    public static final String UPDATE_FULFILLMENT_INPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["contractId","version","status"],"properties":{"contractId":{"type":"integer","minimum":1},"version":{"type":"integer","minimum":0,"maximum":2147483646},"status":{"type":"string","enum":["IN_PROGRESS","FULFILLED","BREACHED"]},"reason":{"type":"string","maxLength":500}}}
+            """.strip();
+    public static final String UPDATE_FULFILLMENT_OUTPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["contractId","code","status","fulfillmentStatus","version","updatedAt"],"properties":{"contractId":{"type":"integer","minimum":1},"code":{"type":"string"},"status":{"type":"string","const":"ACTIVE"},"fulfillmentStatus":{"type":"string","enum":["IN_PROGRESS","FULFILLED","BREACHED"]},"version":{"type":"integer","minimum":1},"updatedAt":{"type":"string","format":"date-time"}}}
+            """.strip();
+    public static final String RECORD_PAYMENT_INPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["contractId","version","amount","paymentDate","reference"],"properties":{"contractId":{"type":"integer","minimum":1},"version":{"type":"integer","minimum":0,"maximum":2147483646},"amount":{"type":"number","minimum":0.01,"maximum":9999999999999999.99,"multipleOf":0.01},"paymentDate":{"type":"string","format":"date"},"reference":{"type":"string","minLength":1,"maxLength":100},"note":{"type":"string","maxLength":500}}}
+            """.strip();
+    public static final String RECORD_PAYMENT_OUTPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["contractId","code","status","amount","paidAmount","currency","version","updatedAt"],"properties":{"contractId":{"type":"integer","minimum":1},"code":{"type":"string"},"status":{"type":"string","const":"ACTIVE"},"amount":{"type":"number","minimum":0.01},"paidAmount":{"type":"number","minimum":0},"currency":{"type":"string","enum":["CNY","USD","EUR","HKD"]},"version":{"type":"integer","minimum":1},"updatedAt":{"type":"string","format":"date-time"}}}
+            """.strip();
+    public static final String REMIND_INPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["contractId","version"],"properties":{"contractId":{"type":"integer","minimum":1},"version":{"type":"integer","minimum":0,"maximum":2147483646}}}
+            """.strip();
+    public static final String REMIND_OUTPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["contractId","code","expiryState","reminderCount","lastRemindedAt","version"],"properties":{"contractId":{"type":"integer","minimum":1},"code":{"type":"string"},"expiryState":{"type":"string","enum":["EXPIRING","EXPIRED"]},"reminderCount":{"type":"integer","minimum":1},"lastRemindedAt":{"type":"string","format":"date-time"},"version":{"type":"integer","minimum":1}}}
+            """.strip();
 
     @Bean
     ToolDefinition contractCreateDraftToolDefinition(ObjectMapper objectMapper)
@@ -45,5 +69,56 @@ public class AgentContractWriteToolDefinitions {
                 objectMapper.readTree(UPDATE_DRAFT_INPUT_SCHEMA),
                 objectMapper.readTree(UPDATE_DRAFT_OUTPUT_SCHEMA),
                 ToolWriteProfile.NON_RETRYABLE_L1, Set.of("contract:manage"), OwnershipPolicy.TENANT_SCOPED, 1, 4096, 15000);
+    }
+
+    @Bean
+    ToolDefinition contractUpdateStatusToolDefinition(ObjectMapper objectMapper)
+            throws JsonProcessingException {
+        return ToolDefinitionFactory.singleWrite(
+                ToolCode.CONTRACT_UPDATE_STATUS, "Update one contract status",
+                "Applies one allowed lifecycle transition to one tenant-scoped contract using optimistic locking.",
+                "Change only the lifecycle status of one contract after secondary confirmation; never pay, send or edit it.",
+                objectMapper.readTree(UPDATE_STATUS_INPUT_SCHEMA),
+                objectMapper.readTree(UPDATE_STATUS_OUTPUT_SCHEMA),
+                ToolWriteProfile.SECONDARY_L2, Set.of("contract:manage"), OwnershipPolicy.TENANT_SCOPED,
+                1, 4096, 15000);
+    }
+
+    @Bean
+    ToolDefinition contractUpdateFulfillmentToolDefinition(ObjectMapper objectMapper)
+            throws JsonProcessingException {
+        return ToolDefinitionFactory.singleWrite(
+                ToolCode.CONTRACT_UPDATE_FULFILLMENT, "Update one contract fulfillment status",
+                "Applies one allowed fulfillment transition to one active tenant-scoped contract using optimistic locking.",
+                "Change only the fulfillment status of one active contract after secondary confirmation; require a reason for breach.",
+                objectMapper.readTree(UPDATE_FULFILLMENT_INPUT_SCHEMA),
+                objectMapper.readTree(UPDATE_FULFILLMENT_OUTPUT_SCHEMA),
+                ToolWriteProfile.SECONDARY_L2, Set.of("contract:manage"), OwnershipPolicy.TENANT_SCOPED,
+                1, 4096, 15000);
+    }
+
+    @Bean
+    ToolDefinition contractRecordPaymentToolDefinition(ObjectMapper objectMapper)
+            throws JsonProcessingException {
+        return ToolDefinitionFactory.singleWrite(
+                ToolCode.CONTRACT_RECORD_PAYMENT, "Record one contract payment",
+                "Records one bounded payment against one active tenant-scoped contract using optimistic locking.",
+                "Record exactly one payment after secondary confirmation; never exceed the contract amount or change lifecycle state.",
+                objectMapper.readTree(RECORD_PAYMENT_INPUT_SCHEMA),
+                objectMapper.readTree(RECORD_PAYMENT_OUTPUT_SCHEMA),
+                ToolWriteProfile.SECONDARY_L2, Set.of("contract:manage"), OwnershipPolicy.TENANT_SCOPED,
+                1, 4096, 15000);
+    }
+
+    @Bean
+    ToolDefinition contractRemindToolDefinition(ObjectMapper objectMapper)
+            throws JsonProcessingException {
+        return ToolDefinitionFactory.singleWrite(
+                ToolCode.CONTRACT_REMIND, "Remind one contract owner",
+                "Sends one rate-limited internal expiry reminder for one due tenant-scoped contract.",
+                "Remind exactly one expiring or expired contract owner after explicit confirmation; never send externally.",
+                objectMapper.readTree(REMIND_INPUT_SCHEMA), objectMapper.readTree(REMIND_OUTPUT_SCHEMA),
+                ToolWriteProfile.NON_RETRYABLE_L1, Set.of("contract:manage"), OwnershipPolicy.TENANT_SCOPED,
+                1, 4096, 15000);
     }
 }

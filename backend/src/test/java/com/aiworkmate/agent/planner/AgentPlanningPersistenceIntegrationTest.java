@@ -1,5 +1,8 @@
 package com.aiworkmate.agent.planner;
 
+import com.aiworkmate.integration.AbstractIsolatedAgentIntegrationTest;
+import com.aiworkmate.integration.AgentIntegrationEnvironment;
+
 import com.aiworkmate.agent.task.AgentTask;
 import com.aiworkmate.agent.task.AgentTaskMapper;
 import com.aiworkmate.agent.task.AgentTaskStep;
@@ -19,16 +22,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
 @EnabledIfEnvironmentVariable(named = "AGENT_TEST_DB_URL", matches = "jdbc:postgresql:.*")
-class AgentPlanningPersistenceIntegrationTest {
+class AgentPlanningPersistenceIntegrationTest extends AbstractIsolatedAgentIntegrationTest {
+    private static final AgentIntegrationEnvironment ENVIRONMENT = new AgentIntegrationEnvironment();
+    @Override protected AgentIntegrationEnvironment environment() { return ENVIRONMENT; }
     @Autowired private JdbcTemplate jdbc;
     @Autowired private AgentTaskMapper taskMapper;
     @Autowired private AgentTaskStepMapper stepMapper;
 
     @DynamicPropertySource
     static void databaseProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", () -> System.getenv("AGENT_TEST_DB_URL"));
-        registry.add("spring.datasource.username", () -> System.getenv().getOrDefault("AGENT_TEST_DB_USERNAME", "postgres"));
-        registry.add("spring.datasource.password", () -> System.getenv().getOrDefault("AGENT_TEST_DB_PASSWORD", "postgres"));
+        ENVIRONMENT.register(registry);
         registry.add("agent.enabled", () -> "false");
     }
 

@@ -11,6 +11,24 @@ function result(data: unknown): Response {
 afterEach(() => vi.restoreAllMocks());
 
 describe('通用审批草稿接口', () => {
+  it('读取规则的受保护详情并携带认证请求', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(result({ id: 11, version: 7 }));
+    expect(await approvalEngineApi.getRule(11)).toMatchObject({ id: 11, version: 7 });
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/approval-config/rules/11');
+    expect(fetchMock.mock.calls[0][1]).toEqual(expect.objectContaining({ credentials: 'include', cache: 'no-store' }));
+  });
+  it('读取受保护表单详情而不是从列表猜测记录', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(result({ id: 11, version: 7 }));
+    expect(await approvalEngineApi.getForm(11)).toMatchObject({ id: 11, version: 7 });
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/approval-config/forms/11');
+    expect(fetchMock.mock.calls[0][1]).toEqual(expect.objectContaining({ credentials: 'include', cache: 'no-store' }));
+  });
+  it('读取受保护流程详情时保留认证请求和真实版本', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(result({ id: 11, version: 3 }));
+    expect(await approvalEngineApi.getProcess(11)).toMatchObject({ id: 11, version: 3 });
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/approval-config/processes/11');
+    expect(fetchMock.mock.calls[0][1]).toEqual(expect.objectContaining({ credentials: 'include', cache: 'no-store' }));
+  });
   it('使用认证请求完成创建、更新、提交和取消草稿', async () => {
     const draft = { id: 9, status: 'DRAFT', version: 0 };
     const fetchMock = vi.spyOn(globalThis, 'fetch')

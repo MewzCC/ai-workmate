@@ -12,7 +12,7 @@ const expense = {
   status: { DRAFT: 'Draft', PENDING: 'Pending', APPROVED: 'Approved', REJECTED: 'Rejected', WITHDRAWN: 'Withdrawn', CANCELLED: 'Cancelled' },
   form: { createTitle: 'New reimbursement claim', editTitle: 'Edit reimbursement claim', amount: 'Amount', category: 'Category', expenseDate: 'Expense date', invoiceNumber: 'Invoice number', invoicePlaceholder: 'Enter an invoice or receipt reference', reason: 'Business reason', reasonPlaceholder: 'Describe the purpose and business context', required: 'Required' },
   detail: { title: 'Claim details', overview: 'Application', process: 'Approval progress', applicant: 'Applicant', currentApprover: 'Current approver', dueAt: 'Due at', createdAt: 'Created', submittedAt: 'Submitted', noTimeline: 'No approval events exist for this draft yet' },
-  dialog: { submitTitle: 'Submit this claim?', submitContent: 'After submission it enters approval and cannot be edited directly.', withdrawTitle: 'Withdraw this claim?', cancelTitle: 'Cancel this draft?', remindTitle: 'Remind the current approver?' },
+  dialog: { submitTitle: 'Submit this claim?', submitContent: 'After submission it enters approval and cannot be edited directly.', withdrawTitle: 'Withdraw this claim?', cancelTitle: 'Cancel this draft?', reopenTitle: 'Reopen this claim as a draft?', remindTitle: 'Remind the current approver?' },
 };
 
 export default expense;

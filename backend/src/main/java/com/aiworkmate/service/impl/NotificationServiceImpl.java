@@ -15,6 +15,7 @@ import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -27,7 +28,8 @@ import java.util.List;
 
 /**
  * 通知实现：Redis List 作为临时消息队列（LPUSH 生产 / BRPOP 消费），
- * 消费者线程异步落库到 notification 表；Redis 不可用时降级为直接落库，保证通知不丢失。
+ * 消费者线程异步落库到 notification 表；生产端 Redis 不可用时尝试直接落库。
+ * BRPOP 后落库失败仍存在消息丢失窗口，可靠投递需要独立的确认/重放协议。
  */
 @Slf4j
 @Service
@@ -36,12 +38,13 @@ public class NotificationServiceImpl implements NotificationService {
 
     private static final String QUEUE_KEY = "notification:queue";
     private static final Duration POP_TIMEOUT = Duration.ofSeconds(1);
-    private static final Duration IDLE_SLEEP = Duration.ofMillis(200);
     private final NotificationMapper notificationMapper;
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
     private final UserAccessService userAccessService;
     private final BusinessAuditService auditService;
+    private volatile Thread consumerThread;
+    private volatile boolean consumerClosed;
 
     @PostConstruct
     public void init() {
@@ -66,50 +69,58 @@ public class NotificationServiceImpl implements NotificationService {
     }
 
     @Override
-    public boolean consumeOne() {
-        String raw;
-        try {
-            raw = redisTemplate.opsForList().rightPop(QUEUE_KEY, POP_TIMEOUT);
-        } catch (RuntimeException ex) {
-            log.warn("Redis queue consume failed, will retry", ex);
-            return false;
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.MANDATORY)
+    public void publishTransactional(long tenantId, long userId, String type, String title, String content,
+                                     String bizType, Long bizId) {
+        if (content == null || content.isBlank()) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
         }
-        if (raw == null) return false;
+        insertDirect(new QueueMessage(tenantId, userId, type, title, content, bizType, bizId));
+    }
+
+    @Override
+    public boolean consumeOne() {
         try {
-            insertDirect(fromJson(raw));
-            return true;
+            return pollQueuedNotification();
         } catch (RuntimeException ex) {
-            log.error("Notification consume failed, raw={}", raw, ex);
+            log.warn("Notification queue consume failed, errorType={}", ex.getClass().getSimpleName());
             return false;
         }
     }
 
+    private boolean pollQueuedNotification() {
+        String raw = redisTemplate.opsForList().rightPop(QUEUE_KEY, POP_TIMEOUT);
+        if (raw == null) return false;
+        insertDirect(fromJson(raw));
+        return true;
+    }
+
     @Override
-    public void startConsumer() {
-        Thread worker = new Thread(() -> {
-            while (!Thread.currentThread().isInterrupted()) {
-                try {
-                    if (!consumeOne()) {
-                        Thread.sleep(IDLE_SLEEP.toMillis());
-                    }
-                } catch (InterruptedException ex) {
-                    Thread.currentThread().interrupt();
-                    log.info("Notification consumer stopped");
-                    break;
-                } catch (RuntimeException ex) {
-                    log.error("Notification consumer error", ex);
-                    try {
-                        Thread.sleep(IDLE_SLEEP.toMillis());
-                    } catch (InterruptedException ie) {
-                        Thread.currentThread().interrupt();
-                        break;
-                    }
-                }
-            }
-        }, "notification-consumer");
+    public synchronized void startConsumer() {
+        if (consumerClosed || (consumerThread != null && consumerThread.isAlive())) return;
+        Thread worker = new Thread(new NotificationConsumerLoop(this::pollQueuedNotification,
+                () -> !consumerClosed, Thread::sleep), "notification-consumer");
         worker.setDaemon(true);
+        consumerThread = worker;
         worker.start();
         log.info("Notification consumer started");
+    }
+
+    @PreDestroy
+    public void stopConsumer() {
+        Thread worker;
+        synchronized (this) {
+            consumerClosed = true;
+            worker = consumerThread;
+        }
+        if (worker == null || worker == Thread.currentThread()) return;
+        worker.interrupt();
+        try {
+            worker.join(5000);
+            if (worker.isAlive()) log.warn("Notification consumer shutdown timed out");
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     @Override

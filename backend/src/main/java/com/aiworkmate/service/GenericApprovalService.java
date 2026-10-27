@@ -38,6 +38,9 @@ public interface GenericApprovalService {
     /** 取消本人草稿；取消后只保留审计记录，不允许继续编辑。 */
     ApprovalApplicationResponse cancelDraft(Long userId, Long id, VersionRequest request);
 
+    /** Agent 专用草稿取消入口；领域层再次校验独立取消权限。 */
+    ApprovalApplicationResponse cancelAgentDraft(Long userId, Long id, VersionRequest request);
+
     /** 撤回本人审批中的申请，同时取消当前流程实例和唯一有效待办。 */
     ApprovalApplicationResponse withdraw(Long userId, Long id, VersionRequest request);
 
@@ -59,6 +62,11 @@ public interface GenericApprovalService {
     /** 当前用户提交过的通用申请分页。 */
     PageResponse<ApprovalApplicationResponse> mine(Long userId, String status, String formKey, int page, int size);
 
+    /** Agent requires an explicit self-query business permission in addition to page access. */
+    PageResponse<ApprovalApplicationResponse> mineForAgent(Long userId, String status, String formKey, int page, int size);
+
     /** 申请详情：申请人、当前待办受理人或具备审计权限者可读。 */
     ApprovalApplicationResponse detail(Long userId, Long id);
+
+    com.aiworkmate.dto.ApprovalApplicationAgentDetailResponse detailMineForAgent(Long userId, Long id, int fieldPage);
 }

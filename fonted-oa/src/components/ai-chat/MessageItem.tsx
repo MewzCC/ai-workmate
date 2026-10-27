@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Avatar, Button, Space, Tag, Tooltip, Typography } from 'antd';
 import { message as antMessage } from '@/lib/antdMessage';
@@ -17,6 +17,12 @@ import AttachmentPreview from './AttachmentPreview';
 import MarkdownRenderer from './MarkdownRenderer';
 import CitationList, { extractCitedIndexes, type CitedItem } from './CitationList';
 import { OaIcon } from '@/components/OaIcon';
+import { usePermission } from '@/hooks/usePermission';
+import { useRouter } from '@/lib/nextCompat';
+import { agentToolTargetPage, resolveAgentTaskTargetPath } from '@/lib/agentToolTargetPage';
+import { agentTaskApi } from '@/lib/oaApi';
+import { getNavigation } from '@/lib/navigationApi';
+import { toMenuItem } from '@/lib/navigationTree';
 
 interface MessageItemProps {
   item: ChatMessage;
@@ -27,7 +33,38 @@ export default function MessageItem({ item, onRetry }: MessageItemProps) {
   const { t } = useTranslation();
   const isAssistant = item.role === 'assistant';
   const { user } = useAuth();
+  const targetPage = agentToolTargetPage(item.sourceToolCode);
+  const { allowed: canOpenTarget, permissionVersion } = usePermission(`route:${targetPage}`);
+  const router = useRouter();
   const [feedbackValue, setFeedbackValue] = useState(item.feedback);
+  const [opening, setOpening] = useState(false);
+  const openingRef = useRef(false);
+  const requestRef = useRef(0);
+
+  useEffect(() => {
+    requestRef.current += 1;
+    openingRef.current = false;
+    setOpening(false);
+    return () => { requestRef.current += 1; };
+  }, [item.id, item.sourceTaskNo, item.status, item.role, canOpenTarget, permissionVersion, user?.id, user?.tenantId]);
+
+  const openBusinessResult = async () => {
+    if (!isAssistant || item.status !== 'success' || !item.sourceTaskNo || !canOpenTarget || openingRef.current) return;
+    const request = ++requestRef.current;
+    openingRef.current = true;
+    setOpening(true);
+    try {
+      const [detail, navigation] = await Promise.all([agentTaskApi.detail(item.sourceTaskNo), getNavigation()]);
+      if (request !== requestRef.current) return;
+      const path = resolveAgentTaskTargetPath(item.sourceTaskNo, detail, navigation.map(toMenuItem));
+      if (!path) throw new Error('UNAVAILABLE');
+      router.push(path);
+    } catch {
+      if (request === requestRef.current) antMessage.error(t('chat.businessTargetUnavailable'));
+    } finally {
+      if (request === requestRef.current) { openingRef.current = false; setOpening(false); }
+    }
+  };
 
   // 末尾引用列表只展示正文中实际标注过的引用，保持与上标序号一一对应；
   // 正文完全未标注时保底展示全部引用，避免丢失知识来源信息
@@ -80,7 +117,7 @@ export default function MessageItem({ item, onRetry }: MessageItemProps) {
           </div>
         )}
         <div className={`ai-message-content ${isAssistant && item.status === 'sending' ? 'ai-message-content-streaming' : ''}`}>
-          {isAssistant ? (
+          {isAssistant && !item.sourceTaskNo && !item.sourceToolCode ? (
             <MarkdownRenderer
               content={item.content || (item.status === 'sending' ? t('chat.thinking') : '')}
               citations={item.citations || []}
@@ -91,6 +128,11 @@ export default function MessageItem({ item, onRetry }: MessageItemProps) {
         </div>
         {isAssistant && item.status === 'success' && visibleCitations.length > 0 && (
           <CitationList citations={visibleCitations} />
+        )}
+        {isAssistant && item.status === 'success' && item.sourceTaskNo && canOpenTarget && (
+          <Button type="link" loading={opening} icon={<OaIcon name="integration" />} onClick={() => void openBusinessResult()}>
+            {t('chat.openBusinessPage')}
+          </Button>
         )}
         {isAssistant && item.status !== 'sending' && (
           <Space size={2} className="ai-message-actions">

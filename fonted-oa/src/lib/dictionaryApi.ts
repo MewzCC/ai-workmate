@@ -47,7 +47,14 @@ export interface DictionaryItemPayload {
   version?: number;
 }
 
+export interface DictionaryItemDetail {
+  dictionaryType: DictionaryType;
+  item: DictionaryItem;
+}
+
 export const dictionaryApi = {
+  typeDetail: (id: number) => request<DictionaryType>(`/admin/dictionaries/${id}`),
+  itemDetail: (itemId: number) => request<DictionaryItemDetail>(`/admin/dictionaries/items/${itemId}`),
   listTypes: (params: { keyword?: string; status?: string } = {}) =>
     request<{ records: DictionaryType[]; canManage: boolean }>(`/admin/dictionaries${queryString(params)}`),
   createType: (payload: DictionaryTypePayload) => request<DictionaryType>('/admin/dictionaries', {

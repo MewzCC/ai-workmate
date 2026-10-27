@@ -65,6 +65,13 @@ class P1PostgresMigrationIT {
         assertThat(emptyResult.migrationsExecuted).isGreaterThan(0);
         assertThat(empty.validateWithResult().validationSuccessful).isTrue();
         assertP1Schema(emptySchema);
+        assertMeetingRoomToolRegistration(emptySchema);
+        assertChatAgentResultSchema(emptySchema);
+        ApprovalFormDefinitionPostgresVerifier.verify(databaseUrl, databaseUsername, databasePassword, emptySchema);
+        ApprovalRuleDefinitionPostgresVerifier.verify(databaseUrl, databaseUsername, databasePassword, emptySchema);
+        ApprovalRuleConditionPatchPostgresVerifier.verify(databaseUrl, databaseUsername, databasePassword, emptySchema);
+        ApprovalFormFieldPatchPostgresVerifier.verify(databaseUrl, databaseUsername, databasePassword, emptySchema);
+        GatewayPageAccessPostgresVerifier.verify(databaseUrl, databaseUsername, databasePassword, emptySchema);
         MeetingBookingPostgresVerifier.verify(databaseUrl, databaseUsername, databasePassword, emptySchema);
         AttendanceReissuePostgresVerifier.verify(databaseUrl, databaseUsername, databasePassword, emptySchema);
         NotificationMarkReadPostgresVerifier.verify(databaseUrl, databaseUsername, databasePassword, emptySchema);
@@ -82,6 +89,10 @@ class P1PostgresMigrationIT {
                 databaseUrl, databaseUsername, databasePassword, emptySchema);
         ExpenseDraftPostgresVerifier.verify(
                 databaseUrl, databaseUsername, databasePassword, emptySchema);
+        DictionaryDetailPostgresVerifier.verify(
+                databaseUrl, databaseUsername, databasePassword, emptySchema);
+        ApprovalProcessReferencePostgresVerifier.verify(
+                databaseUrl, databaseUsername, databasePassword, emptySchema);
         BudgetDraftPostgresVerifier.verify(
                 databaseUrl, databaseUsername, databasePassword, emptySchema);
         ContractDraftPostgresVerifier.verify(
@@ -89,6 +100,10 @@ class P1PostgresMigrationIT {
         SupplierDraftPostgresVerifier.verify(
                 databaseUrl, databaseUsername, databasePassword, emptySchema);
         PlatformOperationLogPostgresVerifier.verify(
+                databaseUrl, databaseUsername, databasePassword, emptySchema);
+        ObservabilityOverviewPostgresVerifier.verify(
+                databaseUrl, databaseUsername, databasePassword, emptySchema);
+        ApprovalApplicationMinePostgresVerifier.verify(
                 databaseUrl, databaseUsername, databasePassword, emptySchema);
         Flyway restartedEmpty = flyway(emptySchema, null);
         assertThat(restartedEmpty.migrate().migrationsExecuted).isZero();
@@ -106,13 +121,36 @@ class P1PostgresMigrationIT {
         Flyway beforeSupplier = flyway(upgradeSchema, MigrationVersion.fromVersion("202609101100"));
         assertThat(beforeSupplier.migrate().migrationsExecuted).isGreaterThan(0);
         insertLegacySupplierRecord(upgradeSchema);
+        try (Connection connection = DriverManager.getConnection(databaseUrl, databaseUsername, databasePassword);
+             Statement statement = connection.createStatement()) {
+            statement.execute("SET search_path TO \"" + upgradeSchema + "\"");
+            statement.executeUpdate("""
+                    INSERT INTO meeting_room(tenant_id, code, name, capacity, status, deleted)
+                    SELECT id, 'MR-LEGACY-VERSION', 'Legacy room', 8, 'OPEN', FALSE FROM tenant WHERE code='DEFAULT'
+                    """);
+        }
 
         Flyway upgraded = flyway(upgradeSchema, null);
         assertThat(upgraded.migrate().migrationsExecuted).isGreaterThan(0);
         assertThat(upgraded.validateWithResult().validationSuccessful).isTrue();
         assertP1Schema(upgradeSchema);
+        assertMeetingRoomToolRegistration(upgradeSchema);
+        assertChatAgentResultSchema(upgradeSchema);
+        ApprovalFormDefinitionPostgresVerifier.verify(databaseUrl, databaseUsername, databasePassword, upgradeSchema);
+        ApprovalRuleDefinitionPostgresVerifier.verify(databaseUrl, databaseUsername, databasePassword, upgradeSchema);
+        ApprovalRuleConditionPatchPostgresVerifier.verify(databaseUrl, databaseUsername, databasePassword, upgradeSchema);
+        ApprovalFormFieldPatchPostgresVerifier.verify(databaseUrl, databaseUsername, databasePassword, upgradeSchema);
+        assertThat(queryCount(upgradeSchema, """
+                SELECT COUNT(*) FROM meeting_room
+                WHERE code='MR-LEGACY-VERSION' AND version=0 AND name='Legacy room'
+                """)).isOne();
         PlatformOperationLogPostgresVerifier.verify(
                 databaseUrl, databaseUsername, databasePassword, upgradeSchema);
+        ObservabilityOverviewPostgresVerifier.verify(
+                databaseUrl, databaseUsername, databasePassword, upgradeSchema);
+        ApprovalApplicationMinePostgresVerifier.verify(
+                databaseUrl, databaseUsername, databasePassword, upgradeSchema);
+        GatewayPageAccessPostgresVerifier.verify(databaseUrl, databaseUsername, databasePassword, upgradeSchema);
         assertThat(queryCount(upgradeSchema, """
                 SELECT COUNT(*) FROM supplier
                 WHERE supplier_code = 'LEGACY-SUP-001' AND status = 'ACTIVE'
@@ -140,6 +178,66 @@ class P1PostgresMigrationIT {
         assertNoDuplicateMigrationVersions(upgradeSchema);
     }
 
+    private static void assertMeetingRoomToolRegistration(String schema) throws Exception {
+        assertThat(queryCount(schema, """
+                SELECT count(*) FROM agent_tool WHERE tenant_id IS NULL AND code='expense.remind'
+                AND handler_version='1.0.0' AND data_scope_policy='SELF' AND risk_level='L1'
+                AND side_effect='SINGLE_WRITE' AND retry_policy='NEVER' AND confirmation_policy='EXPLICIT'
+                AND enabled=FALSE AND required_permissions='["approval:remind"]'::jsonb
+                AND schema_hash='sha256:4a38437ed858eee879c9cadcf868a4f21e3ad0b70b17efa4dff6f1c73d5578d3'
+                """)).isOne();
+        assertThat(queryCount(schema, "SELECT count(*) FROM rbac_permission WHERE code='agent:tool:expense.remind'")).isOne();
+        assertThat(queryCount(schema, """
+                SELECT count(*) FROM rbac_role_permission tool_grant
+                WHERE tool_grant.permission_code='agent:tool:expense.remind'
+                AND NOT EXISTS (SELECT 1 FROM rbac_role_permission business_grant
+                    WHERE business_grant.tenant_id=tool_grant.tenant_id
+                    AND business_grant.role_code=tool_grant.role_code AND business_grant.permission_code='approval:remind')
+                """)).isZero();
+        assertThat(queryCount(schema, """
+                SELECT count(*) FROM agent_tool WHERE tenant_id IS NULL AND code='expense.cancelDraft'
+                AND handler_version='1.0.0' AND data_scope_policy='SELF' AND risk_level='L1'
+                AND side_effect='SINGLE_WRITE' AND retry_policy='NEVER' AND confirmation_policy='EXPLICIT'
+                AND enabled=FALSE AND required_permissions='["approval:cancel"]'::jsonb
+                AND schema_hash='sha256:a8b1701915dd62722f5ec22a97d3195b2671a66147dc448964ed83a15601490b'
+                """)).isOne();
+        assertThat(queryCount(schema, "SELECT count(*) FROM rbac_permission WHERE code='agent:tool:expense.cancelDraft'")).isOne();
+        assertThat(queryCount(schema, """
+                SELECT count(*) FROM rbac_role_permission tool_grant
+                WHERE tool_grant.permission_code='agent:tool:expense.cancelDraft'
+                AND NOT EXISTS (SELECT 1 FROM rbac_role_permission business_grant
+                    WHERE business_grant.tenant_id=tool_grant.tenant_id
+                    AND business_grant.role_code=tool_grant.role_code AND business_grant.permission_code='approval:cancel')
+                """)).isZero();
+        assertThat(queryCount(schema, """
+                SELECT count(*) FROM agent_tool WHERE tenant_id IS NULL AND code IN ('asset.create','asset.update')
+                AND data_scope_policy='TENANT_SCOPED' AND risk_level='L1' AND side_effect='SINGLE_WRITE'
+                AND retry_policy='NEVER' AND confirmation_policy='EXPLICIT' AND enabled=FALSE
+                AND schema_hash=CASE code
+                  WHEN 'asset.create' THEN 'sha256:de7519ee9fd9f0c13b082e4754f2cd96435b0fdada088d70e2fa4f5933f14e5e'
+                  WHEN 'asset.update' THEN 'sha256:84879740ee0225517991384a90bf2794fcdcf6675de9b8b551d4c3018c6717cc' END
+                """)).isEqualTo(2);
+        assertThat(queryCount(schema, """
+                SELECT COUNT(*) FROM agent_tool WHERE tenant_id IS NULL
+                AND code IN ('meeting.room.query','meeting.room.create','meeting.room.update')
+                AND data_scope_policy='TENANT_SCOPED'
+                AND schema_hash = CASE code
+                  WHEN 'meeting.room.query' THEN 'sha256:45bc82f82e3dab815be1eb58da17701d69d5ea5266af20f829099968b057d114'
+                  WHEN 'meeting.room.create' THEN 'sha256:eb0a73f37a5acd02ff01ba4465f9c768a54d69d543dbbb63c8f0fb52fcb65539'
+                  WHEN 'meeting.room.update' THEN 'sha256:b4778abcb5352b23af844b4f466e619414ea72d9a818c5371830eb3c4fcde84b' END
+                """)).isEqualTo(3);
+        assertThat(queryCount(schema, """
+                SELECT COUNT(*) FROM agent_tool WHERE tenant_id IS NULL
+                AND code IN ('meeting.room.create','meeting.room.update')
+                AND risk_level='L1' AND side_effect='SINGLE_WRITE' AND retry_policy='NEVER'
+                AND confirmation_policy='EXPLICIT' AND enabled=FALSE
+                """)).isEqualTo(2);
+        assertThat(queryCount(schema, """
+                SELECT COUNT(*) FROM agent_tool WHERE tenant_id IS NULL AND code='meeting.room.query'
+                AND permission_mode='ANY' AND enabled=TRUE AND side_effect='NONE' AND risk_level='L0'
+                """)).isOne();
+    }
+
     private static Flyway flyway(String schema, MigrationVersion target) {
         var configuration = Flyway.configure()
                 .dataSource(databaseUrl, databaseUsername, databasePassword)
@@ -152,6 +250,24 @@ class P1PostgresMigrationIT {
                 .baselineVersion(MigrationVersion.fromVersion("0"));
         if (target != null) configuration.target(target);
         return configuration.load();
+    }
+
+    private static void assertChatAgentResultSchema(String schema) throws Exception {
+        assertThat(queryCount(schema, """
+                SELECT COUNT(*) FROM information_schema.columns
+                WHERE table_schema = current_schema() AND table_name = 'message'
+                  AND column_name = 'source_task_no'
+                """)).isOne();
+        assertThat(queryCount(schema, """
+                SELECT COUNT(*) FROM information_schema.columns
+                WHERE table_schema = current_schema() AND table_name = 'message'
+                  AND column_name = 'source_tool_code'
+                """)).isOne();
+        assertThat(queryCount(schema, """
+                SELECT COUNT(*) FROM pg_indexes
+                WHERE schemaname = current_schema() AND tablename = 'message'
+                  AND indexname = 'uk_message_source_task_no' AND indexdef ILIKE '%UNIQUE%'
+                """)).isOne();
     }
 
     private static void assertP1Schema(String schema) throws Exception {
@@ -513,7 +629,7 @@ class P1PostgresMigrationIT {
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM agent_tool
                     WHERE tenant_id IS NULL AND code = 'attendance.query' AND handler_version = '1.0.0'
-                      AND schema_hash = 'sha256:4ff357d3836da753f0c32d3774ea04ba3cf83d1c6b8708de548e8ff711348d60'
+                      AND schema_hash = 'sha256:bbf04a579ddf4826587b5a21e662e25259ef69e41a93cb55e753d275195ce1b4'
                       AND risk_level = 'L0' AND data_scope_policy = 'TENANT_SCOPED'
                       AND side_effect = 'NONE' AND enabled = TRUE
                     """)).as("考勤 Agent 工具必须以冻结契约的只读租户范围种子存在").isOne();
@@ -521,6 +637,19 @@ class P1PostgresMigrationIT {
                     SELECT COUNT(*) FROM rbac_permission
                     WHERE code IN ('attendance:read', 'agent:tool:attendance.query')
                     """)).as("考勤 Agent 工具必须具备业务与工具两层实时权限").isEqualTo(2);
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'attendance.clock' AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:dd02d5489088fddfdb73f510972bf86b047b75470e72ac4c8293758f908bdd86'
+                      AND risk_level = 'L1' AND data_scope_policy = 'SELF'
+                      AND required_permissions = '["attendance:clock"]'::jsonb
+                      AND retry_policy = 'NEVER' AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'EXPLICIT' AND enabled = TRUE
+                    """)).as("本人考勤打卡工具必须以冻结的当前时间原子写契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code IN ('attendance:clock', 'agent:tool:attendance.clock')
+                    """)).as("本人考勤打卡工具必须具备业务与工具两层实时权限").isEqualTo(2);
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM agent_tool
                     WHERE tenant_id IS NULL AND code = 'attendance.reissue.apply' AND handler_version = '1.0.0'
@@ -543,6 +672,111 @@ class P1PostgresMigrationIT {
                     WHERE schemaname = current_schema() AND tablename = 'attendance_reissue'
                       AND indexname = 'ux_attendance_reissue_agent_operation'
                     """)).as("补卡申请 Agent 幂等键必须具备唯一索引").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'attendance.reissue.decide'
+                      AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:990ee606bb356549b674e8f03b90433b45e4887e081627eed1db950b227659e3'
+                      AND risk_level = 'L2' AND data_scope_policy = 'ASSIGNED_TO_SELF'
+                      AND required_permissions = '["attendance:reissue:decide"]'::jsonb
+                      AND retry_policy = 'NEVER' AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'SECONDARY' AND enabled = TRUE
+                    """)).as("补卡审批工具必须以冻结的受理人原子写契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code IN ('attendance:reissue:decide', 'agent:tool:attendance.reissue.decide')
+                    """)).as("补卡审批工具必须具备业务与工具两层实时权限").isEqualTo(2);
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM information_schema.columns
+                    WHERE table_schema = current_schema() AND table_name = 'attendance_reissue'
+                      AND column_name = 'version' AND data_type = 'integer' AND is_nullable = 'NO'
+                    """)).as("补卡审批必须持久化非空乐观锁版本").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'attendance.settings.update'
+                      AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:643217d55767222ce1f6aaee5fd923866924842409883215ab15305d52bb4cfd'
+                      AND risk_level = 'L2' AND data_scope_policy = 'TENANT_SCOPED'
+                      AND required_permissions = '["attendance:settings:manage"]'::jsonb
+                      AND retry_policy = 'NEVER' AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'SECONDARY' AND enabled = TRUE
+                    """)).as("考勤设置更新工具必须以冻结的租户原子写契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code IN ('attendance:settings:manage', 'agent:tool:attendance.settings.update')
+                    """)).as("考勤设置工具必须具备业务与工具两层实时权限").isEqualTo(2);
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM information_schema.columns
+                    WHERE table_schema = current_schema() AND table_name = 'attendance_setting'
+                      AND column_name = 'version' AND data_type = 'integer' AND is_nullable = 'NO'
+                    """)).as("考勤设置必须持久化非空乐观锁版本").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'userSettings.update'
+                      AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:3feb8fb4d05d55598844578f85d61f905114ceb4ac1bca9096f0b06dfbc11e59'
+                      AND risk_level = 'L1' AND data_scope_policy = 'SELF'
+                      AND required_permissions = '["settings:self:update"]'::jsonb
+                      AND retry_policy = 'NEVER' AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'EXPLICIT' AND enabled = TRUE
+                    """)).as("个人系统设置工具必须以本人原子写契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code IN ('settings:self:update', 'agent:tool:userSettings.update')
+                    """)).as("个人系统设置工具必须具备业务与工具两层实时权限").isEqualTo(2);
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'dashboard.preferences.update'
+                      AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:bdfa0ed9774119150ea82446ad14fdebdfd5f88e21652a3bf82511301c8e9a96'
+                      AND risk_level = 'L1' AND data_scope_policy = 'SELF'
+                      AND required_permissions = '["dashboard:read"]'::jsonb
+                      AND retry_policy = 'NEVER' AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'EXPLICIT' AND enabled = TRUE
+                    """)).as("驾驶舱指标偏好工具必须以本人原子写契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code = 'agent:tool:dashboard.preferences.update'
+                    """)).as("驾驶舱指标偏好工具必须具备独立实时工具权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL
+                      AND code IN ('observability.preferences.update', 'observability.thresholds.update')
+                      AND handler_version = '1.0.0'
+                      AND risk_level = 'L1' AND data_scope_policy = 'SELF'
+                      AND required_permissions = '["runtime-log:read"]'::jsonb
+                      AND retry_policy = 'NEVER' AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'EXPLICIT' AND enabled = TRUE
+                    """)).as("平台观测个人偏好工具必须以本人原子写契约存在").isEqualTo(2);
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code IN ('agent:tool:observability.preferences.update',
+                                   'agent:tool:observability.thresholds.update')
+                    """)).as("平台观测个人偏好工具必须具备独立实时工具权限").isEqualTo(2);
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL
+                      AND code IN ('hr.change.approve', 'hr.change.reject')
+                      AND handler_version = '1.0.0' AND risk_level = 'L2'
+                      AND data_scope_policy = 'ASSIGNED_TO_SELF'
+                      AND required_permissions = '["hr:manage"]'::jsonb
+                      AND retry_policy = 'NEVER' AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'SECONDARY' AND enabled = TRUE
+                    """)).as("员工变动审批工具必须以指派本人二次确认契约存在").isEqualTo(2);
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'hr.change.withdraw'
+                      AND handler_version = '1.0.0' AND risk_level = 'L1'
+                      AND data_scope_policy = 'SELF'
+                      AND required_permissions = '["hr:manage"]'::jsonb
+                      AND retry_policy = 'NEVER' AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'EXPLICIT' AND enabled = TRUE
+                    """)).as("员工变动撤回工具必须以本人显式确认契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code IN ('agent:tool:hr.change.approve', 'agent:tool:hr.change.reject',
+                                   'agent:tool:hr.change.withdraw')
+                    """)).as("员工变动决策工具必须具备独立实时工具权限").isEqualTo(3);
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM agent_tool
                     WHERE tenant_id IS NULL AND code = 'approval.application.createDraft'
@@ -608,7 +842,7 @@ class P1PostgresMigrationIT {
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM agent_tool
                     WHERE tenant_id IS NULL AND code = 'visitor.query' AND handler_version = '1.0.0'
-                      AND schema_hash = 'sha256:aa6f923d24734c45f3022026885641deb9b74abbe6e9061394234e5cc739a3aa'
+                      AND schema_hash = 'sha256:0ee54fb81f4e29f20108018ac3449c19f747fa481249a87b67d06d8e8479891e'
                       AND risk_level = 'L0' AND data_scope_policy = 'SELF'
                       AND required_permissions = '["visitor:read:self"]'::jsonb
                       AND side_effect = 'NONE' AND enabled = TRUE
@@ -841,6 +1075,62 @@ class P1PostgresMigrationIT {
                     """)).as("合同草稿更新 Agent 工具必须具备独立实时权限").isOne();
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'contract.updateStatus'
+                      AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:10210557fa790ede65d98aadab50a9ea4a82648c21299e731e69e1f61008ab1a'
+                      AND risk_level = 'L2' AND data_scope_policy = 'TENANT_SCOPED'
+                      AND required_permissions = '["contract:manage"]'::jsonb
+                      AND retry_policy = 'NEVER' AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'SECONDARY' AND enabled = TRUE
+                    """)).as("合同状态工具必须以冻结的二次确认原子写契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code = 'agent:tool:contract.updateStatus'
+                    """)).as("合同状态 Agent 工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'contract.updateFulfillment'
+                      AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:d6db3babd6a6432c6f4621cf711fffeda272c3b65f18d34266700235dd620556'
+                      AND risk_level = 'L2' AND data_scope_policy = 'TENANT_SCOPED'
+                      AND required_permissions = '["contract:manage"]'::jsonb
+                      AND retry_policy = 'NEVER' AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'SECONDARY' AND enabled = TRUE
+                    """)).as("合同履约工具必须以冻结的二次确认原子写契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code = 'agent:tool:contract.updateFulfillment'
+                    """)).as("合同履约 Agent 工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'contract.recordPayment'
+                      AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:a9d8ba8b0aaedf6bc8e18d201f28f349f73c45111548a179fb8ca5021341c585'
+                      AND risk_level = 'L2' AND data_scope_policy = 'TENANT_SCOPED'
+                      AND required_permissions = '["contract:manage"]'::jsonb
+                      AND retry_policy = 'NEVER' AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'SECONDARY' AND enabled = TRUE
+                    """)).as("合同付款工具必须以冻结的二次确认财务原子写契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code = 'agent:tool:contract.recordPayment'
+                    """)).as("合同付款 Agent 工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'contract.remind'
+                      AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:578ed3fa7179edbd9e6e5b874edd2ae196248d0333dbe631bf41bc9db5b90321'
+                      AND risk_level = 'L1' AND data_scope_policy = 'TENANT_SCOPED'
+                      AND required_permissions = '["contract:manage"]'::jsonb
+                      AND retry_policy = 'NEVER' AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'EXPLICIT' AND enabled = TRUE
+                    """)).as("合同到期提醒工具必须以冻结的站内频控原子写契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code = 'agent:tool:contract.remind'
+                    """)).as("合同到期提醒 Agent 工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
                     WHERE tenant_id IS NULL AND code = 'supplier.createDraft'
                       AND handler_version = '1.0.0'
                       AND schema_hash = 'sha256:9d859cfb46661e9c8994e04a29966aa378f2ef717eb5f62f6e8b5d434add1fdb'
@@ -869,6 +1159,20 @@ class P1PostgresMigrationIT {
                     """)).as("供应商草稿更新 Agent 工具必须具备独立实时权限").isOne();
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND code = 'supplier.updateStatus'
+                      AND handler_version = '1.0.0'
+                      AND schema_hash = 'sha256:0cb980da791f760e584b3d4a29d342f6668756b96451ea2c03f3539fd7401e4e'
+                      AND risk_level = 'L2' AND data_scope_policy = 'TENANT_SCOPED'
+                      AND required_permissions = '["supplier:manage"]'::jsonb
+                      AND retry_policy = 'NEVER' AND side_effect = 'SINGLE_WRITE'
+                      AND confirmation_policy = 'SECONDARY' AND enabled = TRUE
+                    """)).as("供应商状态工具必须以冻结的二次确认原子写契约存在").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code = 'agent:tool:supplier.updateStatus'
+                    """)).as("供应商状态 Agent 工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
                     WHERE tenant_id IS NULL AND enabled = TRUE AND side_effect = 'NONE'
                       AND (code, schema_hash, data_scope_policy) IN (
                         ('integration.endpoint.query','sha256:77b6949a8aca42cdd8c7776e51e64e2fa4bf52c64bb4d950e5d61e2c19eadd22','TENANT_SCOPED'),
@@ -886,9 +1190,9 @@ class P1PostgresMigrationIT {
                     SELECT COUNT(*) FROM agent_tool
                     WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='NONE'
                       AND (code,schema_hash,data_scope_policy) IN (
-                        ('accessGovernance.query','sha256:d622f57307336098c25b779333ff842a874adcbf1880ae687c08276d3c6bbc61','TENANT_SCOPED'),
-                        ('dataPermission.query','sha256:858c22c5e8947762eda39892caf2fbf962282c21d94945491daf34ebde3f6c21','TENANT_SCOPED'),
-                        ('aiPermission.query','sha256:270d6da876eea0376fddf296219842f25f2bdc594ec61023ac365006cfc7ae87','TENANT_SCOPED'))
+                        ('accessGovernance.query','sha256:7286724aabd5e431fe911c9a9b3ec9f9984be9431fe9cf3dd436c4dea4a6b806','TENANT_SCOPED'),
+                        ('dataPermission.query','sha256:e4f18dfeab7b4995534312eeef5e2aa1fbf2590fd4aa17d5299b3070aaed8b51','TENANT_SCOPED'),
+                        ('aiPermission.query','sha256:d10931f47f7a8c029913766cb429a38e2caef5ad4c5d72e992ca8220632f6870','TENANT_SCOPED'))
                     """)).as("三个安全治理 Agent 工具必须以冻结契约存在").isEqualTo(3);
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM rbac_permission
@@ -921,6 +1225,353 @@ class P1PostgresMigrationIT {
                     """)).as("AI 任务中心工具必须具备业务与工具两层实时权限").isEqualTo(2);
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='SINGLE_WRITE'
+                      AND code='agentTask.cancel'
+                      AND schema_hash='sha256:69904eabce7fcee590879e4aef10104ae960cc6141e32b175145f4e95c325ff2'
+                      AND risk_level='L1' AND data_scope_policy='SELF'
+                      AND retry_policy='NEVER' AND confirmation_policy='EXPLICIT'
+                    """)).as("AI 任务中心必须具备本人单任务受控取消工具").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code='agent:tool:agentTask.cancel'
+                    """)).as("AI 任务取消工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='SINGLE_WRITE'
+                      AND code='knowledge.document.createText'
+                      AND schema_hash='sha256:15e630e3f3e2b4555b462814140dbff020de8be9546f2a365d8c3e3e912a4e9a'
+                      AND risk_level='L1' AND data_scope_policy='FIXED_RESOURCE'
+                      AND retry_policy='NEVER' AND confirmation_policy='EXPLICIT'
+                    """)).as("知识库必须具备单篇受控文本资料创建工具").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code='agent:tool:knowledge.document.createText'
+                    """)).as("知识库文本创建工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='SINGLE_WRITE'
+                      AND code='knowledge.base.create'
+                      AND schema_hash='sha256:e397aeffc2f83042328b36a7308a762abac81935ffd00c2face07d301aeeb8c1'
+                      AND risk_level='L1' AND data_scope_policy='SELF'
+                      AND retry_policy='NEVER' AND confirmation_policy='EXPLICIT'
+                    """)).as("知识库必须具备本人单库受控创建工具").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code='agent:tool:knowledge.base.create'
+                    """)).as("知识库创建工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='NONE'
+                      AND code='knowledge.base.query'
+                      AND schema_hash='sha256:7cc0a0854493e1ff0fffe222391339feb71ac75d84ddfc7467c587f1335acbc5'
+                      AND risk_level='L0' AND data_scope_policy='SELF'
+                      AND retry_policy='READ_ONLY_SAFE' AND confirmation_policy='NONE'
+                    """)).as("知识库必须具备本人受控查询工具").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code='agent:tool:knowledge.base.query'
+                    """)).as("知识库查询工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='NONE'
+                      AND code='knowledge.document.query'
+                      AND schema_hash='sha256:b34bbef6fe8e164e15901ed574a0ae0647cea357bdec3d9ce4c12400b138aeea'
+                      AND risk_level='L0' AND data_scope_policy='FIXED_RESOURCE'
+                      AND retry_policy='READ_ONLY_SAFE' AND confirmation_policy='NONE'
+                      AND max_result_items=20
+                    """)).as("知识库必须具备本人资料受控查询工具").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code='agent:tool:knowledge.document.query'
+                    """)).as("知识库资料查询工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='SINGLE_WRITE'
+                      AND code='knowledge.document.reindex'
+                      AND schema_hash='sha256:9b0d45dc6506d6b7e5f342d62f71aba31cc2a7e3d993fb7eab30c38528356205'
+                      AND risk_level='L1' AND data_scope_policy='FIXED_RESOURCE'
+                      AND retry_policy='NEVER' AND confirmation_policy='EXPLICIT'
+                    """)).as("知识库必须具备本人单篇资料受控重建工具").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code='agent:tool:knowledge.document.reindex'
+                    """)).as("知识库资料重建工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='SINGLE_WRITE'
+                      AND code='approval.form.createDraft'
+                      AND schema_hash='sha256:8d37f2c2e3a5181b9dfdf2891550c7f44e6e10fc2264c07924c58a603c81402c'
+                      AND risk_level='L1' AND data_scope_policy='TENANT_SCOPED'
+                      AND retry_policy='NEVER' AND confirmation_policy='EXPLICIT'
+                    """)).as("表单引擎必须具备未发布表单受控创建工具").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code='agent:tool:approval.form.createDraft'
+                    """)).as("审批表单草稿创建工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='SINGLE_WRITE'
+                      AND code='approval.form.updateDraft'
+                      AND schema_hash='sha256:e7466382448ff0ccc7ed0fea44a49b95ac4016b70da63497a017d70e8712546a'
+                      AND risk_level='L1' AND data_scope_policy='FIXED_RESOURCE'
+                      AND retry_policy='NEVER' AND confirmation_policy='EXPLICIT'
+                    """)).as("表单引擎必须具备未发布表单受控更新工具").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code='agent:tool:approval.form.updateDraft'
+                    """)).as("审批表单草稿更新工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='SINGLE_WRITE'
+                      AND code='approval.form.publishDraft'
+                      AND schema_hash='sha256:f7edbba87f8613de2b780a4d15083b76b995be9031eb23da1432771f854085e9'
+                      AND risk_level='L2' AND data_scope_policy='FIXED_RESOURCE'
+                      AND retry_policy='NEVER' AND confirmation_policy='SECONDARY'
+                    """)).as("表单引擎必须具备草稿受控发布工具").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code='agent:tool:approval.form.publishDraft'
+                    """)).as("审批表单草稿发布工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='SINGLE_WRITE'
+                      AND code='approval.process.createDraft'
+                      AND schema_hash='sha256:6875532a42b510541241e91f7f4b71526d5f613d16a40f724728fc991c3ea23d'
+                      AND risk_level='L1' AND data_scope_policy='TENANT_SCOPED'
+                      AND retry_policy='NEVER' AND confirmation_policy='EXPLICIT'
+                    """)).as("流程配置必须具备未发布流程受控创建工具").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code='agent:tool:approval.process.createDraft'
+                    """)).as("审批流程草稿创建工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='SINGLE_WRITE'
+                      AND code='approval.process.updateDraft'
+                      AND schema_hash='sha256:034f079551643c41dfbf3bf2f446205c7355890f63edbdff49a5b5daf6aa07f8'
+                      AND risk_level='L1' AND data_scope_policy='FIXED_RESOURCE'
+                      AND retry_policy='NEVER' AND confirmation_policy='EXPLICIT'
+                    """)).as("流程配置必须具备未发布流程受控更新工具").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code='agent:tool:approval.process.updateDraft'
+                    """)).as("审批流程草稿更新工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='SINGLE_WRITE'
+                      AND code='approval.process.publishDraft'
+                      AND schema_hash='sha256:3be228efd5386ea292967cb9bf6e027e051798b2ee67b2c8dbff6b0af5fd1113'
+                      AND risk_level='L2' AND data_scope_policy='FIXED_RESOURCE'
+                      AND retry_policy='NEVER' AND confirmation_policy='SECONDARY'
+                    """)).as("流程配置必须具备草稿受控发布工具").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code='agent:tool:approval.process.publishDraft'
+                    """)).as("审批流程草稿发布工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='SINGLE_WRITE'
+                      AND code='approval.rule.createDraft'
+                      AND schema_hash='sha256:847518614624e4e86c659cf1656265ae7e76786a006538d58f2277276c5acc11'
+                      AND risk_level='L1' AND data_scope_policy='TENANT_SCOPED'
+                      AND retry_policy='NEVER' AND confirmation_policy='EXPLICIT'
+                    """)).as("审批规则必须具备未启用规则受控创建工具").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code='agent:tool:approval.rule.createDraft'
+                    """)).as("审批规则草稿创建工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='SINGLE_WRITE'
+                      AND code='approval.rule.updateDraft'
+                      AND schema_hash='sha256:ae1d105826a8bb98979b5db5b997b25b35791c1d4b1c5c9e4c20976c83eab733'
+                      AND risk_level='L1' AND data_scope_policy='FIXED_RESOURCE'
+                      AND retry_policy='NEVER' AND confirmation_policy='EXPLICIT'
+                    """)).as("审批规则必须具备未启用规则受控更新工具").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code='agent:tool:approval.rule.updateDraft'
+                    """)).as("审批规则草稿更新工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='SINGLE_WRITE'
+                      AND code='approval.rule.enableDraft'
+                      AND schema_hash='sha256:a3e22a58f7f77633f402e444b7bf4f3555bf7fde854a4c8819b47233ee762740'
+                      AND risk_level='L2' AND data_scope_policy='FIXED_RESOURCE'
+                      AND retry_policy='NEVER' AND confirmation_policy='SECONDARY'
+                    """)).as("审批规则必须具备草稿受控启用工具").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code='agent:tool:approval.rule.enableDraft'
+                    """)).as("审批规则草稿启用工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='SINGLE_WRITE'
+                      AND code='dictionary.type.create'
+                      AND schema_hash='sha256:89f0b84f72ca1c6a026e551921ddedb7b38aa69ab2abe91cd16e66c8f7797cdc'
+                      AND risk_level='L2' AND data_scope_policy='TENANT_SCOPED'
+                      AND retry_policy='NEVER' AND confirmation_policy='SECONDARY'
+                    """)).as("数据字典必须具备租户内单类型受控创建工具").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code='agent:tool:dictionary.type.create'
+                    """)).as("字典类型创建工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='SINGLE_WRITE'
+                      AND code='dictionary.type.update'
+                      AND schema_hash='sha256:1885b4e3284a75c88784f5318f5fbf0a7fb0c12a31699eb4cb4e7e73101d5678'
+                      AND risk_level='L1' AND data_scope_policy='FIXED_RESOURCE'
+                      AND retry_policy='NEVER' AND confirmation_policy='EXPLICIT'
+                    """)).as("数据字典必须具备按不可变编码和版本受控更新工具").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code='agent:tool:dictionary.type.update'
+                    """)).as("字典类型更新工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='SINGLE_WRITE'
+                      AND code='dictionary.item.create'
+                      AND schema_hash='sha256:e02f5ca5efeaca0e10f3b00ea3312a2cb03d6fd88900cabb1e43781627d9f742'
+                      AND risk_level='L2' AND data_scope_policy='FIXED_RESOURCE'
+                      AND retry_policy='NEVER' AND confirmation_policy='SECONDARY'
+                    """)).as("数据字典必须具备启用类型下单字典项受控创建工具").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code='agent:tool:dictionary.item.create'
+                    """)).as("字典项创建工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='NONE'
+                      AND code='dictionary.item.query'
+                      AND schema_hash='sha256:a292013677a883e78f42ffe1c2c99c99896f45f354d7d8d9780a0168543520c5'
+                      AND risk_level='L0' AND data_scope_policy='TENANT_SCOPED'
+                      AND retry_policy='READ_ONLY_SAFE' AND confirmation_policy='NONE'
+                    """)).as("数据字典必须具备不暴露内部标识的字典项分页查询工具").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code='agent:tool:dictionary.item.query'
+                    """)).as("字典项查询工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='SINGLE_WRITE'
+                      AND code='dictionary.item.update'
+                      AND schema_hash='sha256:6b132372c671d8449c5b998e46e3405b64a044474db6230867e9739c658bfc9b'
+                      AND risk_level='L1' AND data_scope_policy='FIXED_RESOURCE'
+                      AND retry_policy='NEVER' AND confirmation_policy='EXPLICIT'
+                    """)).as("数据字典必须具备按类型编码、不可变值和版本受控更新字典项工具").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code='agent:tool:dictionary.item.update'
+                    """)).as("字典项更新工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='SINGLE_WRITE'
+                      AND code='dictionary.type.updateStatus'
+                      AND schema_hash='sha256:bfa7721b31746645df0cded2372f6a5a58e2a8ccd0b345d92751e806a182203d'
+                      AND risk_level='L2' AND data_scope_policy='FIXED_RESOURCE'
+                      AND retry_policy='NEVER' AND confirmation_policy='SECONDARY'
+                    """)).as("数据字典必须具备按不可变编码和版本受控启停字典类型工具").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code='agent:tool:dictionary.type.updateStatus'
+                    """)).as("字典类型启停工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='SINGLE_WRITE'
+                      AND code='dictionary.item.updateStatus'
+                      AND schema_hash='sha256:a427c5f87244f9808d49c39e3f35905928e36cc0933bb6c34dfacef16dc12acd'
+                      AND risk_level='L2' AND data_scope_policy='FIXED_RESOURCE'
+                      AND retry_policy='NEVER' AND confirmation_policy='SECONDARY'
+                    """)).as("数据字典必须具备按类型编码、不可变值和版本受控启停字典项工具").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code='agent:tool:dictionary.item.updateStatus'
+                    """)).as("字典项启停工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='SINGLE_WRITE'
+                      AND code='integration.endpoint.createDraft'
+                      AND schema_hash='sha256:0bd660271acaffa2206989975ab46244c231f6c1d3794b4828707b1211fd19d9'
+                      AND risk_level='L2' AND data_scope_policy='TENANT_SCOPED'
+                      AND retry_policy='NEVER' AND confirmation_policy='SECONDARY'
+                    """)).as("接口联调中心必须具备不执行网络请求的端点草稿受控创建工具").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code='agent:tool:integration.endpoint.createDraft'
+                    """)).as("接口端点草稿创建工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='SINGLE_WRITE'
+                      AND code='integration.endpoint.updateDraft'
+                      AND schema_hash='sha256:58259cb9641a8bb4eaa14c2a8e7a0927dd2887812138160bf8aa65122300470a'
+                      AND risk_level='L1' AND data_scope_policy='TENANT_SCOPED'
+                      AND retry_policy='NEVER' AND confirmation_policy='EXPLICIT'
+                    """)).as("接口联调中心必须具备仅编辑草稿且不执行网络请求的受控更新工具").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code='agent:tool:integration.endpoint.updateDraft'
+                    """)).as("接口端点草稿更新工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='SINGLE_WRITE'
+                      AND code='integration.endpoint.updateStatus'
+                      AND schema_hash='sha256:48dd8ca12531584d28decdd30c84948c59e68fb08db1d32b1e393c517cdadba8'
+                      AND risk_level='L2' AND data_scope_policy='TENANT_SCOPED'
+                      AND retry_policy='NEVER' AND confirmation_policy='SECONDARY'
+                    """)).as("接口联调中心必须具备版本受控且不执行端点请求的启停工具").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code='agent:tool:integration.endpoint.updateStatus'
+                    """)).as("接口端点启停工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND enabled=TRUE AND code='dashboard.overview.query'
+                      AND schema_hash='sha256:e27a8ab9413f2ef431e93ede1a0a0055dc3c683b3cc71f648c7c8bd383135282'
+                      AND risk_level='L0' AND data_scope_policy='SELF' AND side_effect='NONE'
+                      AND retry_policy='READ_ONLY_SAFE' AND confirmation_policy='NONE'
+                    """)).as("驾驶舱必须具备本人范围的只读聚合工具").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission WHERE code='agent:tool:dashboard.overview.query'
+                    """)).as("驾驶舱聚合工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND enabled=TRUE AND code='observability.overview.query'
+                      AND schema_hash='sha256:e2b4272f1feb67c26f738a8ed15c84cf52eee23f58c2df2cfa87953d484f171b'
+                      AND risk_level='L0' AND data_scope_policy='TENANT_SCOPED' AND side_effect='NONE'
+                      AND retry_policy='READ_ONLY_SAFE' AND confirmation_policy='NONE'
+                    """)).as("平台观测必须具备本租户只读聚合工具").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission WHERE code='agent:tool:observability.overview.query'
+                    """)).as("平台观测聚合工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool WHERE tenant_id IS NULL AND enabled=TRUE
+                      AND code='approval.application.mine.query'
+                      AND schema_hash='sha256:f0f343b67ee165583e7d62914ac9037fa659fe2dd470b1fb7c7c27fb2328af74'
+                      AND risk_level='L0' AND data_scope_policy='SELF' AND side_effect='NONE'
+                      AND required_permissions='["approval:mine:read"]'::jsonb
+                    """)).as("本人通用申请工具必须保持只读本人范围").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool WHERE tenant_id IS NULL AND enabled=TRUE
+                      AND code='approval.application.detail.query'
+                      AND schema_hash='sha256:ac5b12b6c1316ba942c2b8816ad1991d92f51aecb1fddd46bff79803bb456777'
+                      AND risk_level='L0' AND data_scope_policy='SELF' AND side_effect='NONE'
+                      AND required_permissions='["approval:mine:read"]'::jsonb
+                    """)).as("通用申请详情工具必须保持只读本人范围").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='SINGLE_WRITE'
+                      AND code='knowledge.base.update'
+                      AND schema_hash='sha256:79f873ae75d3b83b062efa802cfd1aa22708fd41d7fdde6f373ad400457c66f2'
+                      AND risk_level='L1' AND data_scope_policy='FIXED_RESOURCE'
+                      AND retry_policy='NEVER' AND confirmation_policy='EXPLICIT'
+                    """)).as("知识库必须具备本人单库受控更新工具").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code='agent:tool:knowledge.base.update'
+                    """)).as("知识库更新工具必须具备独立实时权限").isOne();
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
                     WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='NONE'
                       AND code='userPermission.mine.query'
                       AND schema_hash='sha256:3a7a57d10e446b40d09a32d49c9a94bd017872d9e2f823b1890802d6f1e11128'
@@ -930,6 +1581,71 @@ class P1PostgresMigrationIT {
                     SELECT COUNT(*) FROM rbac_permission
                     WHERE code IN ('user-permission:read:self','agent:tool:userPermission.mine.query')
                     """)).as("本人权限查询工具必须具备业务与工具两层实时权限").isEqualTo(2);
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='SINGLE_WRITE'
+                      AND code IN ('approval.task.approve','approval.task.reject','approval.task.transfer',
+                        'approval.task.copy','approval.task.addSign')
+                      AND data_scope_policy='ASSIGNED_TO_SELF'
+                    """)).as("审批中心必须具备五个单任务受控写工具").isEqualTo(5);
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code IN ('agent:tool:approval.task.approve','agent:tool:approval.task.reject',
+                      'agent:tool:approval.task.transfer','agent:tool:approval.task.copy',
+                      'agent:tool:approval.task.addSign')
+                    """)).as("审批写工具必须具备独立实时权限").isEqualTo(5);
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='SINGLE_WRITE'
+                      AND code IN ('asset.transfer','asset.repair.complete','asset.inventory','asset.scrap')
+                      AND data_scope_policy='TENANT_SCOPED'
+                    """)).as("资产台账必须具备四个剩余单资产生命周期工具").isEqualTo(4);
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='SINGLE_WRITE'
+                      AND code IN ('visitor.withdraw','visitor.noShow')
+                      AND data_scope_policy='SELF' AND confirmation_policy='EXPLICIT'
+                    """)).as("访客预约必须具备撤回与失约两个单记录受控工具").isEqualTo(2);
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code IN ('agent:tool:visitor.withdraw','agent:tool:visitor.noShow')
+                    """)).as("访客生命周期工具必须具备独立实时权限").isEqualTo(2);
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='SINGLE_WRITE'
+                      AND code IN ('seal.withdraw','seal.return')
+                      AND retry_policy='NEVER' AND confirmation_policy='EXPLICIT'
+                    """)).as("印章用印必须具备撤回与归还两个单记录受控工具").isEqualTo(2);
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code IN ('agent:tool:seal.withdraw','agent:tool:seal.return')
+                    """)).as("印章生命周期工具必须具备独立实时权限").isEqualTo(2);
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='SINGLE_WRITE'
+                      AND code IN ('leave.remind','approval.application.remind')
+                      AND data_scope_policy='SELF' AND retry_policy='NEVER'
+                      AND confirmation_policy='EXPLICIT'
+                    """)).as("请假与通用审批必须具备单申请受控催办工具").isEqualTo(2);
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code IN ('leave:remind','approval:remind',
+                                   'agent:tool:leave.remind','agent:tool:approval.application.remind')
+                    """)).as("申请催办必须具备业务权限和独立 Agent 权限").isEqualTo(4);
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM agent_tool
+                    WHERE tenant_id IS NULL AND enabled=TRUE AND side_effect='SINGLE_WRITE'
+                      AND code IN ('leave.updateDraft','approval.application.updateDraft',
+                                   'approval.application.cancelDraft')
+                      AND data_scope_policy='SELF' AND retry_policy='NEVER'
+                      AND confirmation_policy='EXPLICIT'
+                    """)).as("申请草稿必须具备编辑与取消原子工具").isEqualTo(3);
+            assertThat(count(statement, """
+                    SELECT COUNT(*) FROM rbac_permission
+                    WHERE code IN ('approval:cancel','agent:tool:leave.updateDraft',
+                                   'agent:tool:approval.application.updateDraft',
+                                   'agent:tool:approval.application.cancelDraft')
+                    """)).as("申请草稿工具必须具备独立实时权限").isEqualTo(4);
             assertThat(count(statement, """
                     SELECT COUNT(*) FROM information_schema.views
                     WHERE table_schema = current_schema() AND table_name = 'runtime_log_view'

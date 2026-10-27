@@ -21,6 +21,7 @@ public record AttendanceReissueResponse(
         LocalDateTime decidedAt,
         LocalDateTime createdAt,
         LocalDateTime updatedAt,
+        Integer version,
         boolean canDecide,
         boolean canWithdraw
 ) {

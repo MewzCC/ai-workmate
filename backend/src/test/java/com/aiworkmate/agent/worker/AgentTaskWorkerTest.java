@@ -44,7 +44,7 @@ class AgentTaskWorkerTest {
     void killSwitchPreventsQueueClaimAndRecovery() {
         worker.poll();
         worker.heartbeatAndRecover();
-        verify(mapper, never()).claim(anyString(), anyString(), any(), anyInt());
+        verify(transitions, never()).claim(anyString(), anyString(), any(), anyInt());
         verify(mapper, never()).recoverExpiredReadOnly();
         verify(observer, never()).workerRecovery(anyInt(), anyInt(), anyInt());
     }
@@ -55,7 +55,7 @@ class AgentTaskWorkerTest {
         properties.setExecutionEnabled(true);
         AgentTask task = task();
         AgentTaskStep step = step();
-        when(mapper.claim(anyString(), anyString(), any(), anyInt())).thenReturn(task);
+        when(transitions.claim(anyString(), anyString(), any(), anyInt())).thenReturn(task);
         when(transitions.startNextStep(any(), anyString(), anyString(), any()))
                 .thenReturn(step).thenReturn(null);
         when(gateway.execute(anyLong(), any())).thenReturn(new ToolGatewayResult(
@@ -75,7 +75,7 @@ class AgentTaskWorkerTest {
         properties.setExecutionEnabled(true);
         AgentTask task = task();
         AgentTaskStep step = step();
-        when(mapper.claim(anyString(), anyString(), any(), anyInt())).thenReturn(task);
+        when(transitions.claim(anyString(), anyString(), any(), anyInt())).thenReturn(task);
         when(transitions.startNextStep(any(), anyString(), anyString(), any())).thenReturn(step);
         when(gateway.execute(anyLong(), any())).thenReturn(ToolGatewayResult.unavailable(
                 GatewayDecisionCode.GATEWAY_UNAVAILABLE));
@@ -94,7 +94,7 @@ class AgentTaskWorkerTest {
         AgentTask task = task();
         AgentTaskStep step = step();
         step.setRiskLevel("L2");
-        when(mapper.claim(anyString(), anyString(), any(), anyInt())).thenReturn(task);
+        when(transitions.claim(anyString(), anyString(), any(), anyInt())).thenReturn(task);
         when(transitions.startNextStep(any(), anyString(), anyString(), any())).thenReturn(step);
         when(gateway.execute(anyLong(), any())).thenReturn(ToolGatewayResult.uncertain());
 
@@ -111,7 +111,7 @@ class AgentTaskWorkerTest {
         properties.setExecutionEnabled(true);
         AgentTask task = task();
         AgentTaskStep step = step();
-        when(mapper.claim(anyString(), anyString(), any(), anyInt())).thenReturn(task);
+        when(transitions.claim(anyString(), anyString(), any(), anyInt())).thenReturn(task);
         when(transitions.startNextStep(any(), anyString(), anyString(), any())).thenReturn(step);
         when(gateway.execute(anyLong(), any())).thenReturn(new ToolGatewayResult(
                 GatewayDecision.DENY, GatewayDecisionCode.TOOL_STATE_CONFLICT, null));
@@ -141,7 +141,7 @@ class AgentTaskWorkerTest {
     void executorRejectionDoesNotLeakLocalConcurrencyCapacity() {
         properties.setEnabled(true);
         properties.setExecutionEnabled(true);
-        when(mapper.claim(anyString(), anyString(), any(), anyInt())).thenReturn(task());
+        when(transitions.claim(anyString(), anyString(), any(), anyInt())).thenReturn(task());
         worker = new AgentTaskWorker(properties, mapper, gateway,
                 new AgentHashing(objectMapper), objectMapper, transitions,
                 observer,
@@ -150,7 +150,7 @@ class AgentTaskWorkerTest {
         worker.poll();
         worker.poll();
 
-        verify(mapper, times(2)).claim(anyString(), anyString(), any(), anyInt());
+        verify(transitions, times(2)).claim(anyString(), anyString(), any(), anyInt());
     }
 
     private AgentTask task() {

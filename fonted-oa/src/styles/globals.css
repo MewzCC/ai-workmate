@@ -4997,6 +4997,9 @@ html.oa-wallpaper-active .ant-menu-submenu-popup .ant-menu-dark {
 }
 
 .ai-composer:focus-within { border-color: color-mix(in srgb, var(--oa-primary, #1677ff) 55%, transparent); }
+.ai-composer-mode { margin-bottom: 7px; background: color-mix(in srgb, var(--oa-primary, #1677ff) 7%, var(--oa-card, #ffffff)); }
+.ai-operation-plan { margin-bottom: 10px; border-color: color-mix(in srgb, var(--oa-primary, #1677ff) 32%, var(--oa-border, rgba(15, 23, 42, 0.12))); background: color-mix(in srgb, var(--oa-card, #ffffff) 94%, transparent); }
+.ai-operation-plan > .ant-card-body { display: grid; gap: 12px; max-height: min(46vh, 520px); overflow: auto; }
 .ai-composer textarea { padding: 4px 2px !important; border: 0 !important; box-shadow: none !important; resize: none; background: transparent !important; }
 .ai-composer-toolbar { display: flex; align-items: center; justify-content: space-between; min-height: 36px; margin-top: 5px; }
 .ai-composer-hint { font-size: 12px; color: var(--oa-muted, #64748b); }

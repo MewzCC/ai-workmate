@@ -61,6 +61,12 @@ public interface AdminAssetsService {
 
     AssetLedgerResponse updateAsset(Long userId, Long id, AssetLedgerRequest request);
 
+    com.aiworkmate.service.model.AssetAgentMetadataReceipt createAssetAgent(Long userId,
+            com.aiworkmate.service.model.AssetAgentMetadataFields fields, Long departmentId);
+
+    com.aiworkmate.service.model.AssetAgentMetadataReceipt updateAssetAgent(Long userId, Long id, int version,
+            com.aiworkmate.service.model.AssetAgentMetadataFields fields, boolean clearPurchaseDate);
+
     void deleteAsset(Long userId, Long id);
 
     AssetLedgerResponse claimAsset(Long userId, Long id, AssetOperationRequest request);
@@ -106,6 +112,11 @@ public interface AdminAssetsService {
 
     MeetingRoomResponse updateMeetingRoom(Long userId, Long id, MeetingRoomRequest request);
 
+    MeetingRoomResponse createMeetingRoomAgent(Long userId, com.aiworkmate.service.model.MeetingRoomAgentFields fields);
+
+    MeetingRoomResponse updateMeetingRoomAgent(Long userId, Long id, int version,
+            com.aiworkmate.service.model.MeetingRoomAgentFields fields);
+
     void deleteMeetingRoom(Long userId, Long id);
 
     // ---------- 访客预约 ----------
@@ -134,6 +145,12 @@ public interface AdminAssetsService {
             Long userId, VisitorAgentVisitCommand command, String operationKey);
 
     Optional<VisitorAgentVisitReceipt> findAgentVisitorLeave(
+            Long userId, VisitorAgentVisitCommand command, String operationKey);
+
+    VisitorAgentVisitReceipt markVisitorNoShowAgent(
+            Long userId, VisitorAgentVisitCommand command, String operationKey);
+
+    Optional<VisitorAgentVisitReceipt> findAgentVisitorNoShow(
             Long userId, VisitorAgentVisitCommand command, String operationKey);
 
     VisitorBookingResponse getVisitorBooking(Long userId, Long id);

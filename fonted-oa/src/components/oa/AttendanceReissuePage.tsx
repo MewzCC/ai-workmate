@@ -46,6 +46,7 @@ interface ReissueFormValues {
 export default function AttendanceReissuePage() {
   const { t } = useTranslation();
   const { allowed: canApply } = usePermission('attendance:reissue:apply');
+  const { allowed: canDecide } = usePermission('attendance:reissue:decide');
   const [activeTab, setActiveTab] = useState('mine');
   const [mine, setMine] = useState<AttendanceReissue[]>([]);
   const [pending, setPending] = useState<AttendanceReissue[]>([]);
@@ -130,6 +131,7 @@ export default function AttendanceReissuePage() {
       const values = await decideForm.validateFields();
       setDeciding(true);
       await attendanceApi.decideReissue(decideTarget.id, {
+        version: decideTarget.version,
         decision,
         comment: values.comment,
       });
@@ -227,7 +229,7 @@ export default function AttendanceReissuePage() {
       title: t('attendance.common.action'),
       key: 'action',
       render: (_: unknown, record: AttendanceReissue) => (
-        <Button
+        canDecide && record.canDecide ? <Button
           type="link"
           onClick={() => {
             setDecideTarget(record);
@@ -236,7 +238,7 @@ export default function AttendanceReissuePage() {
           }}
         >
           {t('attendance.reissue.decide')}
-        </Button>
+        </Button> : null
       ),
     },
   ];
@@ -284,7 +286,7 @@ export default function AttendanceReissuePage() {
                 </>
               ),
             },
-            {
+            ...(canDecide ? [{
               key: 'pending',
               label: t('attendance.reissue.pendingApproval'),
               children: (
@@ -297,7 +299,7 @@ export default function AttendanceReissuePage() {
                   locale={{ emptyText: <Empty description={t('attendance.common.noData')} /> }}
                 />
               ),
-            },
+            }] : []),
           ]}
         />
         </Card>

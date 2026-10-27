@@ -32,4 +32,37 @@ class AgentEmployeeChangeWriteToolDefinitionsTest {
                  "reviewApproverUserId":12,"reason":"团队调整","applicantUserId":7}
                 """))).isFalse();
     }
+
+    @Test
+    void decisionsAreAssignedL2AndWithdrawalIsOwnedL1() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        var definitions = new AgentEmployeeChangeWriteToolDefinitions();
+        ToolSchemaValidator validator = new ToolSchemaValidator();
+        ToolDefinition approve = definitions.employeeChangeApproveToolDefinition(mapper);
+        ToolDefinition reject = definitions.employeeChangeRejectToolDefinition(mapper);
+        ToolDefinition withdraw = definitions.employeeChangeWithdrawToolDefinition(mapper);
+
+        assertThat(approve.schemaHash()).isEqualTo(
+                "sha256:9525bd2d59e4ae2eb5195a0ffda94a19d53c4c73236a5122b5eb7424c418761b");
+        assertThat(reject.schemaHash()).isEqualTo(
+                "sha256:92118412e490ebdd270eceb4ba99b0a313c460710e978aa740dd2d7f968e7870");
+        assertThat(withdraw.schemaHash()).isEqualTo(
+                "sha256:b08cddab012490cf1ebaebc02b1a94513e73f1e29a4528b5968e9f4d27e4d247");
+        assertThat(approve.riskLevel()).isEqualTo(RiskLevel.L2);
+        assertThat(reject.riskLevel()).isEqualTo(RiskLevel.L2);
+        assertThat(approve.confirmationPolicy()).isEqualTo(ConfirmationPolicy.SECONDARY);
+        assertThat(approve.ownershipPolicy()).isEqualTo(OwnershipPolicy.ASSIGNED_TO_SELF);
+        assertThat(reject.ownershipPolicy()).isEqualTo(OwnershipPolicy.ASSIGNED_TO_SELF);
+        assertThat(withdraw.riskLevel()).isEqualTo(RiskLevel.L1);
+        assertThat(withdraw.confirmationPolicy()).isEqualTo(ConfirmationPolicy.EXPLICIT);
+        assertThat(withdraw.ownershipPolicy()).isEqualTo(OwnershipPolicy.SELF);
+        assertThat(validator.valid(approve.inputSchema(), mapper.readTree(
+                "{\"changeId\":41,\"expectedVersion\":0}"))).isTrue();
+        assertThat(validator.valid(reject.inputSchema(), mapper.readTree(
+                "{\"changeId\":41,\"expectedVersion\":0,\"comment\":\"资料不完整\"}"))).isTrue();
+        assertThat(validator.valid(reject.inputSchema(), mapper.readTree(
+                "{\"changeId\":41,\"expectedVersion\":0}"))).isFalse();
+        assertThat(validator.valid(withdraw.inputSchema(), mapper.readTree(
+                "{\"changeId\":41,\"expectedVersion\":0,\"userId\":7}"))).isFalse();
+    }
 }

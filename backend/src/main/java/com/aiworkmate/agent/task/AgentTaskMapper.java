@@ -31,6 +31,11 @@ public interface AgentTaskMapper extends BaseMapper<AgentTask> {
                           @Param("userId") Long userId,
                           @Param("taskNo") String taskNo);
 
+    @Select("SELECT * FROM agent_task WHERE tenant_id=#{tenantId} AND user_id=#{userId} AND task_no=#{taskNo} FOR UPDATE")
+    AgentTask selectOwnedForUpdate(@Param("tenantId") Long tenantId,
+                                   @Param("userId") Long userId,
+                                   @Param("taskNo") String taskNo);
+
     @Select("""
             SELECT created_at FROM agent_task
             WHERE id=#{taskId} AND tenant_id=#{tenantId} AND user_id=#{userId} AND status='RUNNING'

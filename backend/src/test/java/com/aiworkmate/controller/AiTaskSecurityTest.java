@@ -5,6 +5,8 @@ import com.aiworkmate.common.ErrorCode;
 import com.aiworkmate.common.GlobalExceptionHandler;
 import com.aiworkmate.config.RequestTraceFilter;
 import com.aiworkmate.config.SecurityConfig;
+import com.aiworkmate.config.CorsConfig;
+import com.aiworkmate.config.LocaleConfig;
 import com.aiworkmate.security.JwtAuthenticationFilter;
 import com.aiworkmate.security.JwtValidationStatus;
 import com.aiworkmate.service.AiTaskService;
@@ -18,6 +20,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.http.MediaType;
 import jakarta.servlet.http.Cookie;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -36,8 +39,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 
-@WebMvcTest(AiTaskController.class)
-@Import({SecurityConfig.class, JwtAuthenticationFilter.class, RequestTraceFilter.class, GlobalExceptionHandler.class})
+@WebMvcTest({AiTaskController.class, AiIntentController.class})
+@Import({SecurityConfig.class, CorsConfig.class, LocaleConfig.class, JwtAuthenticationFilter.class, RequestTraceFilter.class, GlobalExceptionHandler.class})
+@TestPropertySource(properties = "app.cors.allowed-origins=http://localhost:3001")
 class AiTaskSecurityTest {
 
     private static final String TOKEN = "test-token";
@@ -47,6 +51,7 @@ class AiTaskSecurityTest {
 
     @MockBean
     private AiTaskService aiTaskService;
+    @MockBean private com.aiworkmate.service.AiIntentService aiIntentService;
 
     @MockBean
     private AgentTaskApiService agentTaskApiService;
@@ -66,6 +71,27 @@ class AiTaskSecurityTest {
     }
 
     @Test
+    void trustedOriginDoesNotGrantAuthenticationButCanReadTheUnauthorizedResponse() throws Exception {
+        mockMvc.perform(post("/api/ai/tasks/plan").header("Origin", "http://localhost:3001")
+                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:3001"))
+                .andExpect(jsonPath("$.errorCode").value("AUTH_REQUIRED"));
+        verifyNoInteractions(aiTaskService);
+    }
+
+    @Test
+    void untrustedOriginIsRejectedBeforeAuthenticatedPlanning() throws Exception {
+        mockMvc.perform(post("/api/ai/tasks/plan").header("Origin", "https://untrusted.example")
+                        .header("Authorization", "Bearer " + TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"input\":\"查询待办\",\"pageId\":\"dashboard\"}"))
+                .andExpect(status().isForbidden())
+                .andExpect(header().doesNotExist("Access-Control-Allow-Origin"))
+                .andExpect(jsonPath("$.errorCode").value("PERMISSION_DENIED"));
+        verifyNoInteractions(aiTaskService);
+    }
+
+    @Test
     void shouldRejectAnonymousPlan() throws Exception {
         mockMvc.perform(post("/api/ai/tasks/plan")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -75,6 +101,29 @@ class AiTaskSecurityTest {
                 .andExpect(header().exists(RequestTraceFilter.REQUEST_ID_HEADER));
 
         verifyNoInteractions(aiTaskService);
+    }
+
+    @Test
+    void authenticatedIntentRequestReturnsOnlyAClassificationWithoutPlanningOrExecuting() throws Exception {
+        when(aiIntentService.classify(any(), any())).thenReturn(new com.aiworkmate.dto.AiIntentResponse(
+                com.aiworkmate.dto.AiIntentResponse.Intent.CHAT));
+        mockMvc.perform(post("/api/ai/intents")
+                        .header("Authorization", "Bearer " + TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"input\":\"你好\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.intent").value("CHAT"));
+        verifyNoInteractions(aiTaskService, agentTaskApiService);
+    }
+
+    @Test void intentRequiresAuthenticationAndRejectsCallerSuppliedAuthorityFields() throws Exception {
+        mockMvc.perform(post("/api/ai/intents").contentType(MediaType.APPLICATION_JSON).content("{\"input\":\"你好\"}"))
+                .andExpect(status().isUnauthorized());
+        for (String body : java.util.List.of("{\"input\":\" \"}", "{\"input\":\"你好\",\"userId\":2}",
+                "{\"input\":\"你好\",\"tenantId\":2}", "{\"input\":\"你好\",\"pageId\":\"access-control\"}")) {
+            mockMvc.perform(post("/api/ai/intents").cookie(new Cookie("access_token", TOKEN))
+                            .header("Authorization", "Bearer " + TOKEN).contentType(MediaType.APPLICATION_JSON).content(body))
+                    .andExpect(status().isBadRequest());
+        }
+        verifyNoInteractions(aiIntentService, aiTaskService, agentTaskApiService);
     }
 
     @Test

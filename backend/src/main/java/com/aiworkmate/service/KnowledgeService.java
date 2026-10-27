@@ -16,9 +16,13 @@ public interface KnowledgeService {
 
     KnowledgeDocumentResponse create(Long userId, KnowledgeDocumentCreateRequest request);
 
+    KnowledgeDocumentResponse createAgent(Long userId, KnowledgeDocumentCreateRequest request);
+
     KnowledgeDocumentResponse upload(Long userId, Long kbId, MultipartFile file);
 
     KnowledgeDocumentResponse reindex(Long userId, Long documentId);
+
+    KnowledgeDocumentResponse reindexAgent(Long userId, Long documentId);
 
     KnowledgeDocumentDetailResponse documentDetail(Long userId, Long documentId);
 
@@ -29,6 +33,9 @@ public interface KnowledgeService {
     List<KnowledgeDocumentResponse> batchReindex(Long userId, List<Long> ids);
 
     PageResponse<KnowledgeDocumentResponse> list(Long userId, Long kbId, int page, int size);
+
+    PageResponse<KnowledgeDocumentResponse> queryDocumentsAgent(
+            Long userId, Long kbId, Long documentId, int page, int size);
 
     void delete(Long userId, Long documentId);
 

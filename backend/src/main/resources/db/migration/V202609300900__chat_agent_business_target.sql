@@ -1,0 +1,1 @@
+ALTER TABLE message ADD COLUMN IF NOT EXISTS source_tool_code VARCHAR(120);

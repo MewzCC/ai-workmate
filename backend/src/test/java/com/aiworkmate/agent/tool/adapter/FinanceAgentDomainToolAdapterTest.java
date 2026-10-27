@@ -42,6 +42,26 @@ class FinanceAgentDomainToolAdapterTest {
     private final ToolActorContext actor = new ToolActorContext(1L, 7L, 3L, 4L, 1, "trace");
 
     @Test
+    void remindsOnlyThroughTheExpenseBoundaryWithTrustedIdentity() {
+        when(expenseApplications.remindAgentApplication(7L, 51L, 2))
+                .thenReturn(new ExpenseAgentLifecycleReceipt(51, "expense-application", "PENDING", 3));
+        assertThat(expenseAdapter.remindExpense(actor, 51, 2)).isEqualTo(
+                new ExpenseToolPort.ExpenseLifecycleResult(51, "expense-application", "PENDING", 3));
+        verify(expenseApplications).remindAgentApplication(7L, 51L, 2);
+        verifyNoInteractions(expenses);
+    }
+
+    @Test
+    void cancelsExpenseOnlyThroughTheTypedOwnedDraftBoundary() {
+        when(expenseApplications.cancelAgentDraft(7L, 51L, 0))
+                .thenReturn(new ExpenseAgentLifecycleReceipt(51, "expense-application", "CANCELLED", 1));
+        assertThat(expenseAdapter.cancelExpenseDraft(actor, 51, 0)).isEqualTo(
+                new ExpenseToolPort.ExpenseLifecycleResult(51, "expense-application", "CANCELLED", 1));
+        verify(expenseApplications).cancelAgentDraft(7L, 51L, 0);
+        verifyNoInteractions(expenses);
+    }
+
+    @Test
     void mapsTypedExpenseWithoutRawApprovalJson() {
         var now = LocalDateTime.of(2026, 9, 14, 9, 0);
         when(expenses.mine(7L, "PENDING", 1, 20)).thenReturn(PageResponse.of(List.of(
@@ -183,6 +203,86 @@ class FinanceAgentDomainToolAdapterTest {
     }
 
     @Test
+    void changesContractStatusThroughExistingStateMachine() {
+        var updatedAt = LocalDateTime.of(2026, 9, 30, 20, 15);
+        when(contracts.updateStatus(eq(7L), eq(81L), any())).thenReturn(new ContractResponse(
+                81L, "HT-001", "更新合同", "SERVICE", "示例公司", null, null, 7L, "员工",
+                new BigDecimal("1200.00"), BigDecimal.ZERO, "CNY", LocalDate.of(2026, 9, 1),
+                LocalDate.of(2026, 9, 1), LocalDate.of(2027, 8, 31), "TERMINATED", "NOT_STARTED",
+                "NORMAL", 346, "更新摘要", 0, null, 3, updatedAt, updatedAt, true,
+                List.of(), List.of(), false, false));
+
+        var command = new ContractToolPort.ContractStatusUpdate(
+                81L, 2, "TERMINATED", "双方协商终止");
+        assertThat(contractAdapter.updateContractStatus(actor, command)).isEqualTo(
+                new ContractToolPort.ContractDraftResult(81L, "HT-001", "TERMINATED", 3, updatedAt));
+        verify(contracts).updateStatus(eq(7L), eq(81L), argThat(request ->
+                request.version() == 2 && request.status().equals("TERMINATED")
+                        && request.reason().equals("双方协商终止")));
+    }
+
+    @Test
+    void changesContractFulfillmentThroughExistingStateMachine() {
+        var updatedAt = LocalDateTime.of(2026, 9, 30, 20, 25);
+        when(contracts.updateFulfillment(eq(7L), eq(81L), any())).thenReturn(new ContractResponse(
+                81L, "HT-001", "更新合同", "SERVICE", "示例公司", null, null, 7L, "员工",
+                new BigDecimal("1200.00"), BigDecimal.ZERO, "CNY", LocalDate.of(2026, 9, 1),
+                LocalDate.of(2026, 9, 1), LocalDate.of(2027, 8, 31), "ACTIVE", "BREACHED",
+                "NORMAL", 346, "更新摘要", 0, null, 4, updatedAt, updatedAt, true,
+                List.of("COMPLETED", "TERMINATED"), List.of("IN_PROGRESS", "FULFILLED"), true, false));
+
+        var command = new ContractToolPort.ContractFulfillmentUpdate(
+                81L, 3, "BREACHED", "交付逾期");
+        assertThat(contractAdapter.updateContractFulfillment(actor, command)).isEqualTo(
+                new ContractToolPort.ContractFulfillmentResult(
+                        81L, "HT-001", "ACTIVE", "BREACHED", 4, updatedAt));
+        verify(contracts).updateFulfillment(eq(7L), eq(81L), argThat(request ->
+                request.version() == 3 && request.status().equals("BREACHED")
+                        && request.reason().equals("交付逾期")));
+    }
+
+    @Test
+    void recordsContractPaymentThroughExistingFinancialBoundary() {
+        var updatedAt = LocalDateTime.of(2026, 9, 30, 20, 45);
+        when(contracts.recordPayment(eq(7L), eq(81L), any())).thenReturn(new ContractResponse(
+                81L, "HT-001", "更新合同", "SERVICE", "示例公司", null, null, 7L, "员工",
+                new BigDecimal("1200.00"), new BigDecimal("300.00"), "CNY", LocalDate.of(2026, 9, 1),
+                LocalDate.of(2026, 9, 1), LocalDate.of(2027, 8, 31), "ACTIVE", "IN_PROGRESS",
+                "NORMAL", 346, "更新摘要", 0, null, 5, updatedAt, updatedAt, true,
+                List.of("COMPLETED", "TERMINATED"), List.of("FULFILLED", "BREACHED"), true, false));
+
+        var command = new ContractToolPort.ContractPayment(
+                81L, 4, new BigDecimal("200.00"), LocalDate.of(2026, 9, 30),
+                "PAY-20260930-001", "首付款");
+        assertThat(contractAdapter.recordContractPayment(actor, command)).isEqualTo(
+                new ContractToolPort.ContractPaymentResult(
+                        81L, "HT-001", "ACTIVE", new BigDecimal("200.00"),
+                        new BigDecimal("300.00"), "CNY", 5, updatedAt));
+        verify(contracts).recordPayment(eq(7L), eq(81L), argThat(request ->
+                request.version() == 4 && request.amount().compareTo(new BigDecimal("200.00")) == 0
+                        && request.paymentDate().equals(LocalDate.of(2026, 9, 30))
+                        && request.reference().equals("PAY-20260930-001")
+                        && request.note().equals("首付款")));
+    }
+
+    @Test
+    void remindsContractOwnerThroughExistingRateLimitedBoundary() {
+        var remindedAt = LocalDateTime.of(2026, 9, 30, 21, 5);
+        var updatedAt = remindedAt.plusSeconds(1);
+        when(contracts.remind(eq(7L), eq(81L), any())).thenReturn(new ContractResponse(
+                81L, "HT-001", "更新合同", "SERVICE", "示例公司", null, null, 7L, "员工",
+                new BigDecimal("1200.00"), new BigDecimal("300.00"), "CNY", LocalDate.of(2026, 9, 1),
+                LocalDate.of(2026, 9, 1), LocalDate.of(2026, 10, 5), "ACTIVE", "IN_PROGRESS",
+                "EXPIRING", 5, "更新摘要", 2, remindedAt, 6, updatedAt.minusDays(1), updatedAt, true,
+                List.of("COMPLETED", "TERMINATED"), List.of("FULFILLED", "BREACHED"), true, false));
+
+        assertThat(contractAdapter.remindContract(actor, 81L, 5)).isEqualTo(
+                new ContractToolPort.ContractReminderResult(
+                        81L, "HT-001", "EXPIRING", 2, remindedAt, 6));
+        verify(contracts).remind(eq(7L), eq(81L), argThat(request -> request.version() == 5));
+    }
+
+    @Test
     void submitsExpenseThroughDedicatedTypedBoundary() {
         when(expenseApplications.submitAgentDraft(7L, 51L, 0))
                 .thenReturn(new ExpenseAgentLifecycleReceipt(
@@ -274,5 +374,23 @@ class FinanceAgentDomainToolAdapterTest {
                 new SupplierToolPort.SupplierDraftResult(92L, "SUP-2027", "DRAFT", 1, updatedAt));
         verify(suppliers).updateAgentDraft(eq(7L), eq(92L), eq(0), argThat(update ->
                 update.name().equals("更新供应商") && update.supplierLevel().equals("PREFERRED")));
+    }
+
+    @Test
+    void updatesSupplierStatusThroughExistingAuditedStateMachine() {
+        var command = new SupplierToolPort.SupplierStatusUpdate(
+                92L, 1, "BLACKLISTED", "合规风险");
+        var updatedAt = LocalDateTime.of(2026, 9, 30, 19, 55);
+        when(suppliers.updateStatus(eq(7L), eq(92L), any())).thenReturn(new SupplierResponse(
+                92L, "SUP-2027", "示例供应商", "示例", null, "SERVICE", "STANDARD", "BLACKLISTED",
+                null, null, null, null, "月结30天", "合规风险", 2,
+                updatedAt.minusDays(1), updatedAt, true, List.of("SUSPENDED")));
+
+        assertThat(supplierAdapter.updateSupplierStatus(actor, command)).isEqualTo(
+                new SupplierToolPort.SupplierDraftResult(
+                        92L, "SUP-2027", "BLACKLISTED", 2, updatedAt));
+        verify(suppliers).updateStatus(eq(7L), eq(92L), argThat(request ->
+                request.status().equals("BLACKLISTED") && request.version() == 1
+                        && request.reason().equals("合规风险")));
     }
 }

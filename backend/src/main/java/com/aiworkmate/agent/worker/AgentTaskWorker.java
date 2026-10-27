@@ -62,7 +62,7 @@ public class AgentTaskWorker {
         if (!properties.isEnabled() || !properties.isExecutionEnabled() || activeCount.get() >= 2) return;
         String token = token();
         String hash = hashing.sha256(token);
-        AgentTask task = mapper.claim(workerId, hash, LocalDateTime.now().plusSeconds(30),
+        AgentTask task = transitions.claim(workerId, hash, LocalDateTime.now().plusSeconds(30),
                 properties.getLimits().getMaxConcurrentTasksPerUser());
         if (task == null) return;
         activeCount.incrementAndGet();

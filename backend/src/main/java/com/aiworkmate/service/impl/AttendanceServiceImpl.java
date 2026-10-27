@@ -26,6 +26,7 @@ import com.aiworkmate.service.BusinessAuditService;
 import com.aiworkmate.service.UserAccessService;
 import com.aiworkmate.service.model.ResolvedUserAccess;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -80,6 +81,9 @@ public class AttendanceServiceImpl implements AttendanceService {
     @Transactional
     public AttendanceClockResponse clock(Long userId, AttendanceClockRequest request, String clientIp) {
         ResolvedUserAccess actor = requireActiveUser(userId);
+        if (!actor.permissions().contains("attendance:clock")) {
+            throw new BusinessException(ErrorCode.PERMISSION_DENIED);
+        }
         LocalDate today = LocalDate.now();
         LocalDateTime now = LocalDateTime.now();
         boolean isClockIn = "CLOCK_IN".equals(request.clockType());
@@ -121,6 +125,8 @@ public class AttendanceServiceImpl implements AttendanceService {
             recomputeStatus(record, workHours);
             recordMapper.updateById(record);
         }
+        auditService.recordTransactional(actor.tenantId(), actor.userId(), "ATTENDANCE_RECORD",
+                String.valueOf(record.getId()), request.clockType(), "SUCCESS", record.getClockDate().toString());
         return toClockResponse(record);
     }
 
@@ -249,6 +255,7 @@ public class AttendanceServiceImpl implements AttendanceService {
         reissue.setClockType(request.clockType());
         reissue.setReason(request.reason());
         reissue.setStatus("PENDING");
+        reissue.setVersion(0);
         LocalDateTime now = LocalDateTime.now();
         reissue.setSubmittedAt(now);
         reissue.setCreatedAt(now);
@@ -318,8 +325,13 @@ public class AttendanceServiceImpl implements AttendanceService {
     @Transactional
     public AttendanceReissueResponse decideReissue(Long userId, Long id, AttendanceReissueDecisionRequest request) {
         ResolvedUserAccess actor = requireActiveUser(userId);
-        AttendanceReissue reissue = reissueMapper.selectById(id);
-        if (reissue == null || !actor.tenantId().equals(reissue.getTenantId())) {
+        if (!actor.permissions().contains("attendance:reissue:decide")) {
+            throw new BusinessException(ErrorCode.PERMISSION_DENIED);
+        }
+        AttendanceReissue reissue = reissueMapper.selectOne(new LambdaQueryWrapper<AttendanceReissue>()
+                .eq(AttendanceReissue::getId, id)
+                .eq(AttendanceReissue::getTenantId, actor.tenantId()));
+        if (reissue == null) {
             throw new BusinessException(ErrorCode.ATTENDANCE_REISSUE_NOT_FOUND);
         }
         if (!actor.userId().equals(reissue.getApproverUserId())) {
@@ -328,15 +340,41 @@ public class AttendanceServiceImpl implements AttendanceService {
         if (!"PENDING".equals(reissue.getStatus())) {
             throw new BusinessException(ErrorCode.ATTENDANCE_REISSUE_DECIDED);
         }
+        if (request == null || request.version() == null || request.version() < 0
+                || !request.version().equals(reissue.getVersion())) {
+            throw new BusinessException(ErrorCode.VERSION_CONFLICT);
+        }
         boolean approved = "APPROVED".equals(request.decision());
-        reissue.setStatus(approved ? "APPROVED" : "REJECTED");
+        if (!approved && (request.comment() == null || request.comment().isBlank())) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        String decision = approved ? "APPROVED" : "REJECTED";
+        LocalDateTime decidedAt = LocalDateTime.now();
+        int updated = reissueMapper.update(null, new LambdaUpdateWrapper<AttendanceReissue>()
+                .eq(AttendanceReissue::getId, id)
+                .eq(AttendanceReissue::getTenantId, actor.tenantId())
+                .eq(AttendanceReissue::getApproverUserId, actor.userId())
+                .eq(AttendanceReissue::getStatus, "PENDING")
+                .eq(AttendanceReissue::getVersion, request.version())
+                .set(AttendanceReissue::getStatus, decision)
+                .set(AttendanceReissue::getApproverComment, request.comment())
+                .set(AttendanceReissue::getDecidedAt, decidedAt)
+                .set(AttendanceReissue::getUpdatedAt, decidedAt)
+                .set(AttendanceReissue::getVersion, request.version() + 1));
+        if (updated != 1) {
+            throw new BusinessException(ErrorCode.VERSION_CONFLICT);
+        }
+        reissue.setStatus(decision);
         reissue.setApproverComment(request.comment());
-        reissue.setDecidedAt(LocalDateTime.now());
-        reissueMapper.updateById(reissue);
+        reissue.setDecidedAt(decidedAt);
+        reissue.setUpdatedAt(decidedAt);
+        reissue.setVersion(request.version() + 1);
 
         if (approved) {
             applyReissueToRecord(reissue);
         }
+        auditService.recordTransactional(actor.tenantId(), actor.userId(), "ATTENDANCE_REISSUE",
+                reissue.getId().toString(), decision, "SUCCESS", "version=" + reissue.getVersion());
         return toReissueResponse(reissue, actor.userId());
     }
 
@@ -370,7 +408,8 @@ public class AttendanceServiceImpl implements AttendanceService {
         AttendanceSetting row = attendanceSettingMapper.selectOne(new LambdaQueryWrapper<AttendanceSetting>()
                 .eq(AttendanceSetting::getTenantId, actor.tenantId()));
         return new AttendanceSettingsResponse(actor.tenantId(), wh.start(), wh.end(),
-                wh.startFlex(), wh.endFlex(), wh.linked(), row != null ? row.getUpdatedAt() : null);
+                wh.startFlex(), wh.endFlex(), wh.linked(), row != null ? nullToZero(row.getVersion()) : 0,
+                row != null ? row.getUpdatedAt() : null);
     }
 
     @Override
@@ -386,10 +425,13 @@ public class AttendanceServiceImpl implements AttendanceService {
         if (request.flexLinked() == null) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.attendance.flexLinked.required");
         }
+        if (request.version() == null || request.version() < 0) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.version.invalid");
+        }
         if (!request.workStartTime().isBefore(request.workEndTime())) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.attendance.workHoursOrder.invalid");
         }
-        if (!isManager(actor)) {
+        if (!actor.permissions().contains("attendance:settings:manage")) {
             throw new BusinessException(ErrorCode.PERMISSION_DENIED);
         }
 
@@ -400,6 +442,7 @@ public class AttendanceServiceImpl implements AttendanceService {
             row = new AttendanceSetting();
             row.setTenantId(actor.tenantId());
             row.setCreatedAt(now);
+            row.setVersion(0);
         }
         row.setWorkStartTime(request.workStartTime());
         row.setWorkEndTime(request.workEndTime());
@@ -408,14 +451,34 @@ public class AttendanceServiceImpl implements AttendanceService {
         row.setFlexLinked(request.flexLinked());
         row.setUpdatedBy(actor.userId());
         row.setUpdatedAt(now);
+        int currentVersion = nullToZero(row.getVersion());
+        if (request.version() != currentVersion) {
+            throw new BusinessException(ErrorCode.VERSION_CONFLICT);
+        }
         if (row.getId() == null) {
+            row.setVersion(1);
             attendanceSettingMapper.insert(row);
         } else {
-            attendanceSettingMapper.updateById(row);
+            int updated = attendanceSettingMapper.update(null, new LambdaUpdateWrapper<AttendanceSetting>()
+                    .eq(AttendanceSetting::getId, row.getId())
+                    .eq(AttendanceSetting::getTenantId, actor.tenantId())
+                    .eq(AttendanceSetting::getVersion, currentVersion)
+                    .set(AttendanceSetting::getWorkStartTime, request.workStartTime())
+                    .set(AttendanceSetting::getWorkEndTime, request.workEndTime())
+                    .set(AttendanceSetting::getStartFlexMinutes, request.startFlexMinutes())
+                    .set(AttendanceSetting::getEndFlexMinutes, request.endFlexMinutes())
+                    .set(AttendanceSetting::getFlexLinked, request.flexLinked())
+                    .set(AttendanceSetting::getUpdatedBy, actor.userId())
+                    .set(AttendanceSetting::getUpdatedAt, now)
+                    .set(AttendanceSetting::getVersion, currentVersion + 1));
+            if (updated != 1) throw new BusinessException(ErrorCode.VERSION_CONFLICT);
+            row.setVersion(currentVersion + 1);
         }
+        auditService.recordTransactional(actor.tenantId(), actor.userId(), "ATTENDANCE_SETTING",
+                actor.tenantId().toString(), "UPDATE", "SUCCESS", "Updated tenant attendance settings");
         return new AttendanceSettingsResponse(actor.tenantId(), row.getWorkStartTime(), row.getWorkEndTime(),
                 nullToZero(row.getStartFlexMinutes()), nullToZero(row.getEndFlexMinutes()),
-                Boolean.TRUE.equals(row.getFlexLinked()), row.getUpdatedAt());
+                Boolean.TRUE.equals(row.getFlexLinked()), row.getVersion(), row.getUpdatedAt());
     }
 
     // ==================== 辅助方法 ====================
@@ -637,7 +700,7 @@ public class AttendanceServiceImpl implements AttendanceService {
                 reissue.getApproverUserId() != null ? nameMap.get(reissue.getApproverUserId()) : null,
                 reissue.getClockDate(), reissue.getClockType(), reissue.getReason(), reissue.getStatus(),
                 reissue.getApproverComment(), reissue.getSubmittedAt(), reissue.getDecidedAt(),
-                reissue.getCreatedAt(), reissue.getUpdatedAt(), canDecide, canWithdraw);
+                reissue.getCreatedAt(), reissue.getUpdatedAt(), reissue.getVersion(), canDecide, canWithdraw);
     }
 
     private AttendanceClockResponse toClockResponse(AttendanceRecord record) {

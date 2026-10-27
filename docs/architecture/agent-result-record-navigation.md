@@ -1,0 +1,96 @@
+# Agent 结果的受控记录定位
+
+## 当前支持范围
+
+所有既有工具继续使用 `agentToolTargetPage` 的固定业务模块映射。
+本节点在已有页面详情能力上增加记录定位，不把“跳到模块首页”冒充“定位到实际业务对象”：
+
+| 工具 | 唯一记录来源 | 目标 |
+| --- | --- | --- |
+| hr.employee.query | 成功结果的 id | 员工档案页的当前可见员工选择 |
+| asset.create/update/claim/return/transfer/repair.start/repair.complete/inventory/scrap | 成功回执的 assetId | 资产台账的只读详情抽屉 |
+| budget.createDraft/updateDraft/activateDraft/cancelDraft | 成功回执的 budgetId | 预算中心受保护详情 |
+| supplier.createDraft/updateDraft/updateStatus | 成功回执的 supplierId | 供应商受保护详情 |
+| expense.createDraft/updateDraft/submitDraft/withdraw/reopen/cancelDraft/remind | 成功回执的 applicationId | 本人费用报销详情 |
+| contract.createDraft/updateDraft/updateStatus/updateFulfillment/recordPayment/remind | 成功回执的 contractId | 合同受保护详情 |
+| integration.endpoint.createDraft/updateDraft/updateStatus | 成功回执的 endpointId | 接口联调中心受保护详情 |
+| dictionary.type.create/update/updateStatus | 成功回执的 dictionaryTypeId | 字典类型受保护详情 |
+| dictionary.item.create/update/updateStatus | 成功回执的 dictionaryItemId | 字典项与真实父级受保护详情 |
+| approval.process.createDraft/updateDraft/publishDraft | 成功回执的 processId | 流程配置受保护详情 |
+| approval.form.createDraft/updateDraft/patchDraftField/publishDraft | 成功回执的 formId | 表单管理受保护详情 |
+| approval.form.definition.query | 实际字段读取结果的 formId | 表单管理受保护详情 |
+| approval.rule.createDraft/updateDraft/enableDraft | 成功回执的 ruleId | 审批规则受保护详情 |
+| approval.rule.definition.query | 实际定义读取结果的 ruleId | 审批规则受保护详情 |
+
+预算详情的上下文、版本与失败边界见[预算页面对接](agent-budget-page-context.md)。
+供应商的选择、版本与联系信息边界见[供应商页面对接](agent-supplier-page-context.md)。
+费用申请的本人/表单核验与部分保存失败边界见[费用页面对接](agent-expense-page-context.md)。
+合同的选择、版本及写后刷新边界见[合同页面对接](agent-contract-page-context.md)。
+接口端点的选择、版本及人工执行边界见[接口页面对接](agent-integration-page-context.md)。
+字典父子身份、独立版本和字典项维护标志见[字典页面对接](agent-dictionary-page-context.md)。
+流程详情、设计器版本和关联名称隔离见[流程页面对接](agent-process-page-context.md)。
+表单管理、设计器字段标识及共享定义页生命周期见[表单页面对接](agent-form-page-context.md)。
+审批规则详情、选中版本及共享生命周期见[规则页面对接](agent-rule-page-context.md)。
+
+列表查询不会默认取第一行作为选中记录。其他模块保留现有模块导航，本节点不宣称它们已完成单资源定位。
+不修改工具 Schema、数据库、服务端执行或写工具开关。
+
+## 安全边界
+
+`AgentPageNavigator` 只传页面 ID、可选数字记录 ID 和代码确定的可选字典父子类型，不接受模型输出的 URL、路径、查询字符串或任意 UI 动作。
+只有明确支持的工具读取约定的结果字段，ID 必须为正安全整数，不强制转换字符串或不安全 Long。
+数据来自已成功的终态结果，不从候选计划参数、摘要正文或第一行列表推断。
+
+AdminLayout 调用共享解析器，先用当前服务端导航结果检查页面可访问且可见，才构造代码拥有的内部路径。
+页面权限消失、目录节点、隐藏页面、非法 ID 或不支持记录定位的页面均拒绝；普通模块路径也拒绝外部 URL、
+协议相对地址、路径遍历和任意查询参数。当前页与目标页相同也更新记录 query，避免被原先“同页不跳转”短路。
+页面标签继续按模块保存，不将员工/资产的记录 ID 持久化为独立权限或新标签授权。
+
+员工页仍只允许最新组织列表中的可见员工；资产详情调用原受认证 API，再次校验业务读取权限与租户。
+定位不打开创建、编辑或提交按钮，不执行写接口；有写权限的用户仍须通过原交互确认操作。
+任务失败、部分成功或非成功步骤不触发记录导航，重复事件不重复跳转。
+
+## Workspace 与侧边面板的共同结果导航
+
+Workspace 历史消息的“前往对应业务页面”不再仅凭 `sourceToolCode` 拼接模块路径。
+用户点击后并行读取受认证的任务详情和最新 `/api/navigation`；任务编号必须对应消息来源，
+任务及步骤必须成功且有实际结果，才使用共享的 `agentTaskNavigationTarget` 与固定路径解析器。
+员工、资产采用上表约定的结果 ID，其他已有工具继续使用固定模块映射，不从列表首行猜记录。
+
+`sourceToolCode` 仅用于入口的权限显示提示，不替代点击后的任务与导航复核。
+导航树转换也与持久布局共用 `toMenuItem`，不为聊天另外维护页面或角色清单。
+侧边面板改为消费同一个成功结果选择器，避免两入口对失败状态、记录 ID 或待办筛选作不同解释。
+暂未支持的历史状态/日期待办筛选不跳到默认待办列表，Workspace 显示明确不可定位提示。
+
+失败消息不显示业务结果入口；详情/导航请求失败、任务号不匹配、页面已移除或路径不安全时
+保持当前会话并显示双语错误，不回退成盲跳模块。加载期间抑制重复点击；消息切换、状态变化、
+权限版本变化、用户/租户切换及卸载后，迟到响应不能带走当前页面。
+这些请求均为只读，不生成计划、重新执行任务或调用写接口；目标页面仍须调用自身受保护的读取接口。
+
+## 资产请求生命周期
+
+详情读取统一使用失效序号。切换目标、关闭、权限版本变化或卸载后，迟到结果不能恢复旧详情。
+获取失败关闭抽屉，不使用列表旧行或猜测对象伪造详情；关闭明确选中详情时移除 URL 选择。
+已发出的手工操作不因关闭界面而伪装取消，但其迟到响应不能重新打开或覆盖另一条资产详情。
+表单验证期间目标变化时不继续发起写入；服务端对已经发出的操作仍执行原版本、状态、租户和审计校验。
+
+## 回归与回滚
+
+门禁覆盖工具到正式页面映射、服务端结果 ID 与模型参数不一致、非法 ID、实时菜单移除、
+隐藏/目录节点拒绝、外部路径拒绝、实际资产详情加载、失败关闭、关闭后的迟到读写响应以及不触发新写。
+这些组件与纯函数测试不代替真实模型、Worker 和浏览器端到端验收。
+
+回滚可回退可选记录参数和页面 URL 读取，恢复模块级导航；不需要删除数据、修改迁移或关闭审计。
+任何后续记录定位都必须显式增加固定结果字段与受保护页面读取逻辑，不能将此协议扩展为通用任意路径执行器。
+
+2026-10-21 验证：OA lint 零错误（3 条既有警告）、173 项测试及 build 通过；
+后端 `mvn test` 1298 项零失败、零错误，10 项环境依赖测试跳过。
+本节点无数据库或迁移改动，未重复运行 PostgreSQL 迁移门禁；真实模型与浏览器端到端仍未验收。
+
+2026-10-22 Workspace 收口验证：先复现六个结果定位/未复核/失败入口场景，以及状态变化后的迟到响应，
+再完成修复；新增消息组件 13 项回归，覆盖实际员工/资产结果 ID、非记录模块导航、任务失败/错号、
+导航权限移除、读取失败不泄漏、重复点击、卸载、状态变化及权限变化。
+最终 OA lint 零错误（3 条既有警告）、210 项测试与生产构建通过；
+完整后端 `mvn test` 1320 项零失败、零错误，10 项环境依赖测试跳过。
+保留既有组件弃用、React Router 升级及大分包提示；无数据库/后端接口变更，未重复 PostgreSQL 门禁。
+未调用真实模型或进行全页面浏览器验收；此处组件测试不作为这些门禁的替代证据。

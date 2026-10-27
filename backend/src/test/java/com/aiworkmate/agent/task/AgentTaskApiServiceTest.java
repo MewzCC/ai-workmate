@@ -36,11 +36,12 @@ class AgentTaskApiServiceTest {
     private final AgentTaskStepMapper stepMapper = mock(AgentTaskStepMapper.class);
     private final AgentTaskEventService eventService = mock(AgentTaskEventService.class);
     private final ToolRegistry toolRegistry = mock(ToolRegistry.class);
+    private final PageActionPolicyResolver pageActionPolicies = mock(PageActionPolicyResolver.class);
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final AgentRuntimeProperties properties = new AgentRuntimeProperties();
     private final AuthenticatedUser user = new AuthenticatedUser(
             7L, "alice", 9L, "EMPLOYEE", List.of("EMPLOYEE"),
-            List.of("leave:create", "agent:tool:leave.createDraft"), List.of("SELF"), 1L);
+            List.of("route:my-applications", "leave:create", "agent:tool:leave.createDraft"), List.of("SELF"), 1L);
     private AgentTaskApiService service;
 
     @BeforeEach
@@ -48,7 +49,9 @@ class AgentTaskApiServiceTest {
         properties.setEnabled(true);
         properties.setExecutionEnabled(true);
         service = new AgentTaskApiService(taskMapper, stepMapper, new AgentHashing(objectMapper),
-                toolRegistry, properties, eventService, objectMapper);
+                toolRegistry, properties, eventService, objectMapper, new com.aiworkmate.agent.capability.PageCapabilityCatalog(),
+                pageActionPolicies);
+        when(pageActionPolicies.enabledToolCodes(anyLong(), anyString())).thenReturn(Set.of("leave.createDraft"));
         AgentTaskStep step = new AgentTaskStep();
         step.setToolCode("leave.createDraft");
         step.setToolVersion("1.0.0");
@@ -57,6 +60,64 @@ class AgentTaskApiServiceTest {
         when(stepMapper.selectByTaskId(11L)).thenReturn(List.of(step));
         when(toolRegistry.resolveExecutableTool(9L, "leave.createDraft"))
                 .thenReturn(Optional.of(writeTool()));
+    }
+
+    @Test
+    void disabledPagePolicyCannotSignOrConsumeConfirmation() {
+        when(taskMapper.selectOwned(9L, 7L, TASK_NO)).thenReturn(waitingTask());
+        when(pageActionPolicies.enabledToolCodes(9L, "my-applications")).thenReturn(Set.of());
+        assertThatThrownBy(() -> service.issueConfirmation(user, TASK_NO, new AgentConfirmationTokenRequest(1, PLAN_HASH)))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        exception -> assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.PERMISSION_DENIED.getErrorCode()));
+        assertThatThrownBy(() -> service.consumeConfirmation(user, TASK_NO, 1, PLAN_HASH, "issued-token"))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        exception -> assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.PERMISSION_DENIED.getErrorCode()));
+        verify(taskMapper, never()).issueConfirmation(anyLong(), anyLong(), anyLong(), anyLong(), anyInt(), anyString(), anyString(), any());
+        verify(taskMapper, never()).consumeConfirmation(anyLong(), anyLong(), anyString(), anyInt(), anyString(), anyString(), any());
+    }
+
+    @Test
+    void unavailablePagePolicyFailsClosedBeforeConfirmationWrites() {
+        when(taskMapper.selectOwned(9L, 7L, TASK_NO)).thenReturn(waitingTask());
+        when(pageActionPolicies.enabledToolCodes(9L, "my-applications")).thenThrow(new IllegalStateException("policy unavailable"));
+        assertThatThrownBy(() -> service.issueConfirmation(user, TASK_NO, new AgentConfirmationTokenRequest(1, PLAN_HASH)))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        exception -> assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.AI_TASK_CAPABILITY_UNAVAILABLE.getErrorCode()));
+        assertThatThrownBy(() -> service.consumeConfirmation(user, TASK_NO, 1, PLAN_HASH, "issued-token"))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        exception -> assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.AI_TASK_CAPABILITY_UNAVAILABLE.getErrorCode()));
+        verify(taskMapper, never()).issueConfirmation(anyLong(), anyLong(), anyLong(), anyLong(), anyInt(), anyString(), anyString(), any());
+        verify(taskMapper, never()).consumeConfirmation(anyLong(), anyLong(), anyString(), anyInt(), anyString(), anyString(), any());
+    }
+
+    @Test
+    void workspaceCannotSignAWriteAfterItsBusinessPagePermissionIsRevoked() {
+        AgentTask task = waitingTask();
+        task.setPageId("ai-workspace");
+        when(taskMapper.selectOwned(9L, 7L, TASK_NO)).thenReturn(task);
+        when(taskMapper.issueConfirmation(anyLong(), anyLong(), anyLong(), anyLong(), anyInt(),
+                anyString(), anyString(), any(LocalDateTime.class))).thenReturn(1);
+        var revoked = new AuthenticatedUser(7L, "alice", 9L, "EMPLOYEE", List.of("EMPLOYEE"),
+                List.of("route:ai-workspace", "leave:create", "agent:tool:leave.createDraft"), List.of("SELF"), 2L);
+        assertThatThrownBy(() -> service.issueConfirmation(revoked, TASK_NO,
+                new AgentConfirmationTokenRequest(1, PLAN_HASH)))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        exception -> assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.PERMISSION_DENIED.getErrorCode()));
+        verify(taskMapper, never()).issueConfirmation(anyLong(), anyLong(), anyLong(), anyLong(), anyInt(),
+                anyString(), anyString(), any(LocalDateTime.class));
+    }
+
+    @Test
+    void routeRevocationRejectsAnAlreadyIssuedConfirmationWithoutConsumingIt() {
+        AgentTask task = waitingTask();
+        when(taskMapper.selectOwned(9L, 7L, TASK_NO)).thenReturn(task);
+        var revoked = new AuthenticatedUser(7L, "alice", 9L, "EMPLOYEE", List.of("EMPLOYEE"),
+                List.of("leave:create", "agent:tool:leave.createDraft"), List.of("SELF"), 2L);
+        assertThatThrownBy(() -> service.consumeConfirmation(revoked, TASK_NO, 1, PLAN_HASH, "issued-token"))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        exception -> assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.PERMISSION_DENIED.getErrorCode()));
+        verify(taskMapper, never()).consumeConfirmation(anyLong(), anyLong(), anyString(), anyInt(),
+                anyString(), anyString(), any());
     }
 
     @Test

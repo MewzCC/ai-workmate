@@ -1,6 +1,7 @@
 package com.aiworkmate.agent.registry;
 
 import com.aiworkmate.agent.config.AgentRuntimeProperties;
+import com.aiworkmate.agent.capability.PageCapabilityCatalog;
 import com.aiworkmate.service.model.ResolvedUserAccess;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -25,6 +26,7 @@ public class DatabaseBackedToolRegistry implements ToolRegistry {
     private final ToolCatalog catalog;
     private final PageActionPolicyResolver pageActionPolicyResolver;
     private final ObjectMapper objectMapper;
+    private final PageCapabilityCatalog pageCapabilities;
 
     @Override
     @Transactional(readOnly = true)
@@ -41,6 +43,7 @@ public class DatabaseBackedToolRegistry implements ToolRegistry {
         Map<String, ToolPolicySource.ToolPolicy> tenantRows = index(policySource.tenantTools(access.tenantId()), access.tenantId());
         return catalog.all().stream()
                 .filter(definition -> pageTools.contains(definition.code()))
+                .filter(definition -> pageCapabilities.allowsTool(pageId, definition.code(), access.permissions()))
                 .map(definition -> resolveDefinition(policy, definition,
                         platformRows.get(definition.code()), tenantRows.get(definition.code())).orElse(null))
                 .filter(java.util.Objects::nonNull)

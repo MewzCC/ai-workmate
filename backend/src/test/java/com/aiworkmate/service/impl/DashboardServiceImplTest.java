@@ -155,6 +155,9 @@ class DashboardServiceImplTest {
 
         assertThat(response.metricCodes()).containsExactlyElementsOf(requested);
         verify(userSettingsService).setDashboardMetricCodes(7L, requested);
+        verify(auditService).recordTransactional(9L, 7L, "DASHBOARD", "preferences",
+                "UPDATE_PREFERENCES", "SUCCESS",
+                "Updated dashboard metric preferences: MY_APPLICATIONS,PENDING_TODOS");
     }
 
     private ResolvedUserAccess access(List<String> permissions) {

@@ -4,6 +4,7 @@ import com.aiworkmate.agent.tool.port.SupplierToolPort;
 import com.aiworkmate.agent.tool.port.ToolActorContext;
 import com.aiworkmate.agent.tool.port.ToolPage;
 import com.aiworkmate.dto.SupplierRequest;
+import com.aiworkmate.dto.SupplierStatusRequest;
 import com.aiworkmate.service.SupplierService;
 import com.aiworkmate.service.model.SupplierAgentDraftCommand;
 import lombok.RequiredArgsConstructor;
@@ -39,6 +40,13 @@ public class SupplierAgentDomainToolAdapter implements SupplierToolPort {
         var result = supplierService.updateAgentDraft(context.userId(), command.supplierId(), command.version(),
                 new SupplierAgentDraftCommand(command.name(), command.shortName(), command.category(),
                         command.supplierLevel(), command.paymentTerms()));
+        return result(result);
+    }
+
+    @Override public SupplierDraftResult updateSupplierStatus(
+            ToolActorContext context, SupplierStatusUpdate command) {
+        var result = supplierService.updateStatus(context.userId(), command.supplierId(),
+                new SupplierStatusRequest(command.status(), command.reason(), command.version()));
         return result(result);
     }
 

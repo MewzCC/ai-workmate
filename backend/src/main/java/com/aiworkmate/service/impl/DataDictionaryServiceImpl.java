@@ -4,10 +4,14 @@ import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.common.ErrorCode;
 import com.aiworkmate.dto.DictionaryItemPageResponse;
 import com.aiworkmate.dto.DictionaryItemRequest;
+import com.aiworkmate.dto.DictionaryItemAgentCreateRequest;
+import com.aiworkmate.dto.DictionaryItemAgentUpdateRequest;
 import com.aiworkmate.dto.DictionaryItemResponse;
+import com.aiworkmate.dto.DictionaryItemDetailResponse;
 import com.aiworkmate.dto.DictionaryOptionResponse;
 import com.aiworkmate.dto.DictionaryStatusRequest;
 import com.aiworkmate.dto.DictionaryTypeListResponse;
+import com.aiworkmate.dto.DictionaryTypeAgentUpdateRequest;
 import com.aiworkmate.dto.DictionaryTypeRequest;
 import com.aiworkmate.dto.DictionaryTypeResponse;
 import com.aiworkmate.entity.DataDictionaryItem;
@@ -31,12 +35,15 @@ import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.regex.Pattern;
 
 @Service
 @RequiredArgsConstructor
 public class DataDictionaryServiceImpl implements DataDictionaryService {
     private static final String READ_PERMISSION = "route:dictionary";
     private static final String MANAGE_PERMISSION = "dictionary:manage";
+    private static final Pattern TYPE_CODE_PATTERN = Pattern.compile("^[A-Z][A-Z0-9_]{1,63}$");
+    private static final Pattern ITEM_VALUE_PATTERN = Pattern.compile("^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$");
 
     private final DataDictionaryTypeMapper typeMapper;
     private final DataDictionaryItemMapper itemMapper;
@@ -62,8 +69,42 @@ public class DataDictionaryServiceImpl implements DataDictionaryService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public DictionaryTypeResponse typeDetail(Long userId, Long id) {
+        ResolvedUserAccess actor = requireRead(userId);
+        if (id == null || id <= 0) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        return typeResponse(actor, requireType(actor, id), canManage(actor));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public DictionaryItemDetailResponse itemDetail(Long userId, Long itemId) {
+        ResolvedUserAccess actor = requireRead(userId);
+        if (itemId == null || itemId <= 0) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        DataDictionaryItem item = itemMapper.selectOne(new LambdaQueryWrapper<DataDictionaryItem>()
+                .eq(DataDictionaryItem::getTenantId, actor.tenantId())
+                .eq(DataDictionaryItem::getDeleted, false)
+                .eq(DataDictionaryItem::getId, itemId));
+        if (item == null) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        DataDictionaryType type = requireType(actor, item.getDictionaryTypeId());
+        boolean manage = canManage(actor);
+        return new DictionaryItemDetailResponse(typeResponse(actor, type, manage), itemResponse(actor, item, manage));
+    }
+
+    @Override
     @Transactional
     public DictionaryTypeResponse createType(Long userId, DictionaryTypeRequest request) {
+        return createTypeInternal(userId, request);
+    }
+
+    @Override
+    @Transactional
+    public DictionaryTypeResponse createTypeAgent(Long userId, DictionaryTypeRequest request) {
+        validateAgentTypeRequest(request);
+        return createTypeInternal(userId, request);
+    }
+
+    private DictionaryTypeResponse createTypeInternal(Long userId, DictionaryTypeRequest request) {
         ResolvedUserAccess actor = requireManage(userId);
         DataDictionaryType type = new DataDictionaryType();
         type.setTenantId(actor.tenantId());
@@ -98,6 +139,24 @@ public class DataDictionaryServiceImpl implements DataDictionaryService {
 
     @Override
     @Transactional
+    public DictionaryTypeResponse updateTypeAgent(
+            Long userId, String code, DictionaryTypeAgentUpdateRequest request) {
+        validateAgentTypeUpdate(code, request);
+        ResolvedUserAccess actor = requireManage(userId);
+        DataDictionaryType existing = requireType(actor, code.trim());
+        requireVersion(request.version(), existing.getVersion());
+
+        DataDictionaryType changed = new DataDictionaryType();
+        if (request.name() != null) changed.setName(request.name().trim());
+        if (request.description() != null) changed.setDescription(trimToNull(request.description()));
+        if (request.sortOrder() != null) changed.setSortOrder(request.sortOrder());
+        updateTypeWithVersion(actor, existing, changed);
+        audit(actor, "DICTIONARY_TYPE", existing.getId(), "UPDATE", existing.getCode());
+        return typeResponse(actor, requireType(actor, existing.getId()), true);
+    }
+
+    @Override
+    @Transactional
     public DictionaryTypeResponse updateTypeStatus(Long userId, Long id, DictionaryStatusRequest request) {
         ResolvedUserAccess actor = requireManage(userId);
         DataDictionaryType existing = requireType(actor, id);
@@ -107,6 +166,25 @@ public class DataDictionaryServiceImpl implements DataDictionaryService {
         updateTypeWithVersion(actor, existing, changed);
         audit(actor, "DICTIONARY_TYPE", id, "SET_STATUS", existing.getCode() + ":" + request.status());
         return typeResponse(actor, requireType(actor, id), true);
+    }
+
+    @Override
+    @Transactional
+    public DictionaryTypeResponse updateTypeStatusAgent(
+            Long userId, String code, DictionaryStatusRequest request) {
+        validateAgentTypeStatus(code, request);
+        ResolvedUserAccess actor = requireManage(userId);
+        DataDictionaryType existing = requireType(actor, code.trim());
+        requireVersion(request.version(), existing.getVersion());
+        if (request.status().equals(existing.getStatus())) {
+            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID);
+        }
+        DataDictionaryType changed = new DataDictionaryType();
+        changed.setStatus(request.status());
+        updateTypeWithVersion(actor, existing, changed);
+        audit(actor, "DICTIONARY_TYPE", existing.getId(), "SET_STATUS",
+                existing.getCode() + ":" + request.status());
+        return typeResponse(actor, requireType(actor, existing.getId()), true);
     }
 
     @Override
@@ -130,8 +208,25 @@ public class DataDictionaryServiceImpl implements DataDictionaryService {
     public DictionaryItemPageResponse listItems(Long userId, Long typeId, String keyword, String status, int page, int size) {
         ResolvedUserAccess actor = requireRead(userId);
         requireType(actor, typeId);
+        return listItems(actor, typeId, keyword, status, page, size, 100);
+    }
+
+    @Override
+    public DictionaryItemPageResponse listItemsAgent(
+            Long userId, String typeCode, String keyword, String status, int page, int size) {
+        if (!StringUtils.hasText(typeCode) || !TYPE_CODE_PATTERN.matcher(typeCode.trim()).matches()) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        ResolvedUserAccess actor = requireRead(userId);
+        DataDictionaryType type = requireType(actor, typeCode.trim());
+        return listItems(actor, type.getId(), keyword, status, page, size, 50);
+    }
+
+    private DictionaryItemPageResponse listItems(
+            ResolvedUserAccess actor, Long typeId, String keyword, String status,
+            int page, int size, int maximumSize) {
         int safePage = Math.max(1, page);
-        int safeSize = Math.min(100, Math.max(1, size));
+        int safeSize = Math.min(maximumSize, Math.max(1, size));
         String normalizedStatus = normalizeOptionalStatus(status);
         LambdaQueryWrapper<DataDictionaryItem> query = itemQuery(actor.tenantId(), typeId)
                 .eq(StringUtils.hasText(normalizedStatus), DataDictionaryItem::getStatus, normalizedStatus)
@@ -149,6 +244,25 @@ public class DataDictionaryServiceImpl implements DataDictionaryService {
     public DictionaryItemResponse createItem(Long userId, Long typeId, DictionaryItemRequest request) {
         ResolvedUserAccess actor = requireManage(userId);
         requireType(actor, typeId);
+        return createItemInternal(actor, typeId, request);
+    }
+
+    @Override
+    @Transactional
+    public DictionaryItemResponse createItemAgent(
+            Long userId, String typeCode, DictionaryItemAgentCreateRequest request) {
+        validateAgentItemCreate(typeCode, request);
+        ResolvedUserAccess actor = requireManage(userId);
+        DataDictionaryType type = requireType(actor, typeCode.trim());
+        if (!"ACTIVE".equals(type.getStatus())) {
+            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID);
+        }
+        return createItemInternal(actor, type.getId(), new DictionaryItemRequest(
+                request.value(), request.label(), request.description(), request.sortOrder(), null));
+    }
+
+    private DictionaryItemResponse createItemInternal(
+            ResolvedUserAccess actor, Long typeId, DictionaryItemRequest request) {
         DataDictionaryItem item = new DataDictionaryItem();
         item.setTenantId(actor.tenantId());
         item.setDictionaryTypeId(typeId);
@@ -183,6 +297,25 @@ public class DataDictionaryServiceImpl implements DataDictionaryService {
 
     @Override
     @Transactional
+    public DictionaryItemResponse updateItemAgent(
+            Long userId, String typeCode, String value, DictionaryItemAgentUpdateRequest request) {
+        validateAgentItemUpdate(typeCode, value, request);
+        ResolvedUserAccess actor = requireManage(userId);
+        DataDictionaryType type = requireType(actor, typeCode.trim());
+        DataDictionaryItem existing = requireItem(actor, type.getId(), value.trim());
+        requireVersion(request.version(), existing.getVersion());
+
+        DataDictionaryItem changed = new DataDictionaryItem();
+        if (request.label() != null) changed.setLabel(request.label().trim());
+        if (request.description() != null) changed.setDescription(trimToNull(request.description()));
+        if (request.sortOrder() != null) changed.setSortOrder(request.sortOrder());
+        updateItemWithVersion(actor, existing, changed);
+        audit(actor, "DICTIONARY_ITEM", existing.getId(), "UPDATE", existing.getValue());
+        return itemResponse(actor, requireItem(actor, type.getId(), existing.getId()), true);
+    }
+
+    @Override
+    @Transactional
     public DictionaryItemResponse updateItemStatus(Long userId, Long typeId, Long itemId, DictionaryStatusRequest request) {
         ResolvedUserAccess actor = requireManage(userId);
         DataDictionaryItem existing = requireItem(actor, typeId, itemId);
@@ -192,6 +325,26 @@ public class DataDictionaryServiceImpl implements DataDictionaryService {
         updateItemWithVersion(actor, existing, changed);
         audit(actor, "DICTIONARY_ITEM", itemId, "SET_STATUS", existing.getValue() + ":" + request.status());
         return itemResponse(actor, requireItem(actor, typeId, itemId), true);
+    }
+
+    @Override
+    @Transactional
+    public DictionaryItemResponse updateItemStatusAgent(
+            Long userId, String typeCode, String value, DictionaryStatusRequest request) {
+        validateAgentItemStatus(typeCode, value, request);
+        ResolvedUserAccess actor = requireManage(userId);
+        DataDictionaryType type = requireType(actor, typeCode.trim());
+        DataDictionaryItem existing = requireItem(actor, type.getId(), value.trim());
+        requireVersion(request.version(), existing.getVersion());
+        if (request.status().equals(existing.getStatus())) {
+            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID);
+        }
+        DataDictionaryItem changed = new DataDictionaryItem();
+        changed.setStatus(request.status());
+        updateItemWithVersion(actor, existing, changed);
+        audit(actor, "DICTIONARY_ITEM", existing.getId(), "SET_STATUS",
+                existing.getValue() + ":" + request.status());
+        return itemResponse(actor, requireItem(actor, type.getId(), existing.getId()), true);
     }
 
     @Override
@@ -300,8 +453,24 @@ public class DataDictionaryServiceImpl implements DataDictionaryService {
         return type;
     }
 
+    private DataDictionaryType requireType(ResolvedUserAccess actor, String code) {
+        DataDictionaryType type = typeMapper.selectOne(new LambdaQueryWrapper<DataDictionaryType>()
+                .eq(DataDictionaryType::getTenantId, actor.tenantId())
+                .eq(DataDictionaryType::getCode, code)
+                .eq(DataDictionaryType::getDeleted, false));
+        if (type == null) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        return type;
+    }
+
     private DataDictionaryItem requireItem(ResolvedUserAccess actor, Long typeId, Long itemId) {
         DataDictionaryItem item = itemMapper.selectOne(itemQuery(actor.tenantId(), typeId).eq(DataDictionaryItem::getId, itemId));
+        if (item == null) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        return item;
+    }
+
+    private DataDictionaryItem requireItem(ResolvedUserAccess actor, Long typeId, String value) {
+        DataDictionaryItem item = itemMapper.selectOne(itemQuery(actor.tenantId(), typeId)
+                .eq(DataDictionaryItem::getValue, value));
         if (item == null) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
         return item;
     }
@@ -325,6 +494,71 @@ public class DataDictionaryServiceImpl implements DataDictionaryService {
     }
 
     private boolean canManage(ResolvedUserAccess actor) { return actor.permissions().contains(MANAGE_PERMISSION); }
+    private void validateAgentTypeRequest(DictionaryTypeRequest request) {
+        if (request == null || !StringUtils.hasText(request.code())
+                || !TYPE_CODE_PATTERN.matcher(request.code().trim()).matches()
+                || !StringUtils.hasText(request.name()) || request.name().trim().length() > 120
+                || (request.description() != null && request.description().trim().length() > 500)
+                || (request.sortOrder() != null && (request.sortOrder() < 0 || request.sortOrder() > 9999))
+                || request.version() != null) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+    }
+    private void validateAgentTypeUpdate(String code, DictionaryTypeAgentUpdateRequest request) {
+        if (!StringUtils.hasText(code) || !TYPE_CODE_PATTERN.matcher(code.trim()).matches()
+                || request == null || request.version() == null || request.version() < 0
+                || request.version() == Integer.MAX_VALUE
+                || (request.name() == null && request.description() == null && request.sortOrder() == null)
+                || (request.name() != null && (!StringUtils.hasText(request.name())
+                || request.name().trim().length() > 120))
+                || (request.description() != null && request.description().trim().length() > 500)
+                || (request.sortOrder() != null && (request.sortOrder() < 0 || request.sortOrder() > 9999))) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+    }
+    private void validateAgentTypeStatus(String code, DictionaryStatusRequest request) {
+        if (!StringUtils.hasText(code) || !TYPE_CODE_PATTERN.matcher(code.trim()).matches()
+                || request == null || request.version() == null || request.version() < 0
+                || request.version() == Integer.MAX_VALUE
+                || !StringUtils.hasText(request.status())
+                || (!"ACTIVE".equals(request.status()) && !"DISABLED".equals(request.status()))) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+    }
+    private void validateAgentItemCreate(String typeCode, DictionaryItemAgentCreateRequest request) {
+        if (!StringUtils.hasText(typeCode) || !TYPE_CODE_PATTERN.matcher(typeCode.trim()).matches()
+                || request == null || !StringUtils.hasText(request.value())
+                || !ITEM_VALUE_PATTERN.matcher(request.value().trim()).matches()
+                || !StringUtils.hasText(request.label()) || request.label().trim().length() > 160
+                || (request.description() != null && request.description().trim().length() > 500)
+                || (request.sortOrder() != null && (request.sortOrder() < 0 || request.sortOrder() > 9999))) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+    }
+    private void validateAgentItemStatus(String typeCode, String value, DictionaryStatusRequest request) {
+        if (!StringUtils.hasText(typeCode) || !TYPE_CODE_PATTERN.matcher(typeCode.trim()).matches()
+                || !StringUtils.hasText(value) || !ITEM_VALUE_PATTERN.matcher(value.trim()).matches()
+                || request == null || request.version() == null || request.version() < 0
+                || request.version() == Integer.MAX_VALUE
+                || !StringUtils.hasText(request.status())
+                || (!"ACTIVE".equals(request.status()) && !"DISABLED".equals(request.status()))) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+    }
+    private void validateAgentItemUpdate(
+            String typeCode, String value, DictionaryItemAgentUpdateRequest request) {
+        if (!StringUtils.hasText(typeCode) || !TYPE_CODE_PATTERN.matcher(typeCode.trim()).matches()
+                || !StringUtils.hasText(value) || !ITEM_VALUE_PATTERN.matcher(value.trim()).matches()
+                || request == null || request.version() == null || request.version() < 0
+                || request.version() == Integer.MAX_VALUE
+                || (request.label() == null && request.description() == null && request.sortOrder() == null)
+                || (request.label() != null && (!StringUtils.hasText(request.label())
+                || request.label().trim().length() > 160))
+                || (request.description() != null && request.description().trim().length() > 500)
+                || (request.sortOrder() != null && (request.sortOrder() < 0 || request.sortOrder() > 9999))) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+    }
     private void requireVersion(Integer actual, Integer expected) { if (actual == null || !actual.equals(expected)) throw new BusinessException(ErrorCode.VERSION_CONFLICT); }
     private String normalizeOptionalStatus(String value) {
         if (!StringUtils.hasText(value)) return null;

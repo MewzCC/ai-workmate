@@ -294,6 +294,7 @@ export default {
     },
     form: {
       title: 'Form Management',
+      detailTitle: 'Form Definition Details',
       description: 'Manage approval form definitions: drag and drop fields in the Form Builder, and publish to make them available when starting requests.',
       columnKey: 'Form Key',
       columnName: 'Form Name',
@@ -311,6 +312,7 @@ export default {
       fieldsCount: '{{count}} field(s)',
     },
     process: {
+      detailTitle: 'Process details',
       title: 'Process List',
       description: 'Manage approval process definitions: arrange approval nodes, approvers and timeout policies in the Process Designer, and publish for use.',
       columnKey: 'Process Key',
@@ -344,6 +346,7 @@ export default {
     },
     rule: {
       title: 'Approval Rules',
+      detailTitle: 'Rule Details',
       description: 'Manage approval rules: when a condition matches, the action runs (e.g. append approver, forward); smaller priority runs first.',
       columnKey: 'Rule Key',
       columnName: 'Rule Name',

@@ -14,6 +14,7 @@ vi.mock('@/lib/oaApi', async (importOriginal) => {
 });
 
 import AiTaskCenterPage from './AiTaskCenterPage';
+import { OaApiError } from '@/lib/oaApi';
 
 const summary = {
   taskId: 'agt_4YpV7zqR2mK8nT1x',
@@ -83,6 +84,20 @@ describe('AiTaskCenterPage', () => {
     expect(api.cancel).not.toHaveBeenCalled();
     fireEvent.click(await screen.findByRole('button', { name: '确认取消' }));
     await waitFor(() => expect(api.cancel).toHaveBeenCalledWith(summary.taskId));
+  });
+
+  it('refreshes an actual running task without claiming cancellation when execution wins', async () => {
+    api.list.mockResolvedValueOnce({ records: [summary], total: 1, page: 1, size: 20 })
+      .mockResolvedValue({ records: [{ ...summary, status: 'RUNNING' }], total: 1, page: 1, size: 20 });
+    api.cancel.mockRejectedValue(new OaApiError('state changed', 409, 'INVALID_TASK_STATE'));
+    api.detail.mockResolvedValue({ ...detail, status: 'RUNNING' });
+    renderPage();
+    await screen.findByText(summary.taskId);
+    fireEvent.click(screen.getByRole('button', { name: '取消' }));
+    fireEvent.click(await screen.findByRole('button', { name: '确认取消' }));
+    expect(await screen.findByText('执行中')).toBeTruthy();
+    expect(screen.queryByText('任务已取消')).toBeNull();
+    expect(api.cancel).toHaveBeenCalledOnce(); expect(api.detail).toHaveBeenCalledOnce();
   });
 
   it('renders a localized safe error category instead of a raw internal failure', async () => {

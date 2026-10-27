@@ -12,6 +12,7 @@ import com.aiworkmate.service.BusinessAuditService;
 import com.aiworkmate.service.FileParserService;
 import com.aiworkmate.service.ObjectStorageService;
 import com.aiworkmate.service.UserAccessService;
+import com.aiworkmate.service.DataPermissionService;
 import com.aiworkmate.service.model.ParsedFile;
 import com.aiworkmate.service.model.ResolvedUserAccess;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
@@ -51,6 +52,7 @@ class EmployeeDocumentServiceImplTest {
     @Mock private FileParserService fileParserService;
     @Mock private ObjectStorageService objectStorageService;
     @Mock private BusinessAuditService auditService;
+    @Mock private DataPermissionService dataPermissionService;
 
     private EmployeeDocumentServiceImpl service;
     private UploadProperties properties;
@@ -61,7 +63,10 @@ class EmployeeDocumentServiceImplTest {
         properties = new UploadProperties();
         properties.setEmployeeDocumentStoragePrefix("employee-documents/");
         service = new EmployeeDocumentServiceImpl(documentMapper, accessControlMapper,
-                userAccessService, fileParserService, objectStorageService, properties, auditService);
+                userAccessService, fileParserService, objectStorageService, properties, auditService, dataPermissionService);
+        org.mockito.Mockito.lenient().when(dataPermissionService.resolve(TENANT_ID, ACTOR_ID))
+                .thenReturn(new DataPermissionService.ResolvedDataPermission("ROLE", java.util.Set.of("ALL"),
+                        java.util.Set.of(), java.util.Set.of(ACTOR_ID, EMPLOYEE_ID)));
     }
 
     @Test
@@ -141,6 +146,49 @@ class EmployeeDocumentServiceImplTest {
         when(documentMapper.selectList(any())).thenReturn(List.of());
 
         assertThat(service.list(actor(), ACTOR_ID)).isEmpty();
+    }
+
+    @Test
+    void hrReadCannotListDocumentsOutsideLiveDataScope() {
+        when(userAccessService.resolveActiveUser(ACTOR_ID)).thenReturn(access(ACTOR_ID, List.of("hr:read")));
+        org.mockito.Mockito.lenient().when(accessControlMapper.selectUsers(TENANT_ID)).thenReturn(users());
+        org.mockito.Mockito.lenient().when(documentMapper.selectList(any())).thenReturn(List.of());
+        org.mockito.Mockito.lenient().when(dataPermissionService.resolve(TENANT_ID, ACTOR_ID))
+                .thenReturn(new DataPermissionService.ResolvedDataPermission("USER", java.util.Set.of("SELF"),
+                        java.util.Set.of(), java.util.Set.of(ACTOR_ID)));
+        assertThatThrownBy(() -> service.list(actor(), EMPLOYEE_ID)).isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("RESOURCE_FORBIDDEN");
+        verify(documentMapper, never()).selectList(any());
+    }
+
+    @Test
+    void managePermissionCannotUploadOutsideLiveDataScope() {
+        when(userAccessService.resolveActiveUser(ACTOR_ID)).thenReturn(access(ACTOR_ID, List.of("hr:manage")));
+        when(dataPermissionService.resolve(TENANT_ID, ACTOR_ID))
+                .thenReturn(new DataPermissionService.ResolvedDataPermission("USER", java.util.Set.of("SELF"),
+                        java.util.Set.of(), java.util.Set.of(ACTOR_ID)));
+        assertThatThrownBy(() -> service.upload(actor(), EMPLOYEE_ID, "PROFILE", pdf()))
+                .isInstanceOf(BusinessException.class).extracting("errorCode").isEqualTo("RESOURCE_FORBIDDEN");
+        org.mockito.Mockito.verifyNoInteractions(fileParserService, objectStorageService, documentMapper);
+    }
+
+    @Test
+    void documentDownloadRechecksNarrowedDataScopeBeforeObjectStorage() {
+        when(userAccessService.resolveActiveUser(ACTOR_ID)).thenReturn(access(ACTOR_ID, List.of("hr:read")));
+        when(dataPermissionService.resolve(TENANT_ID, ACTOR_ID))
+                .thenReturn(new DataPermissionService.ResolvedDataPermission("USER", java.util.Set.of("SELF"),
+                        java.util.Set.of(), java.util.Set.of(ACTOR_ID)));
+        assertThatThrownBy(() -> service.download(actor(), EMPLOYEE_ID, 9L))
+                .isInstanceOf(BusinessException.class).extracting("errorCode").isEqualTo("RESOURCE_FORBIDDEN");
+        org.mockito.Mockito.verifyNoInteractions(objectStorageService, documentMapper, auditService);
+    }
+
+    @Test
+    void dataScopeFailureCannotFallBackToTenantWideRead() {
+        when(userAccessService.resolveActiveUser(ACTOR_ID)).thenReturn(access(ACTOR_ID, List.of("hr:read")));
+        when(dataPermissionService.resolve(TENANT_ID, ACTOR_ID)).thenThrow(new IllegalStateException("policy unavailable"));
+        assertThatThrownBy(() -> service.list(actor(), EMPLOYEE_ID)).isInstanceOf(IllegalStateException.class);
+        org.mockito.Mockito.verifyNoInteractions(documentMapper, objectStorageService);
     }
 
     @Test

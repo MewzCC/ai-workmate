@@ -175,6 +175,7 @@ export interface ApprovalApplication {
 
 export const approvalEngineApi = {
   // ---------- 表单定义 ----------
+  getForm: (id: number) => request<ApprovalForm>(`/approval-config/forms/${id}`),
   listForms: (params: {
     keyword?: string;
     status?: ApprovalConfigStatus;
@@ -199,6 +200,7 @@ export const approvalEngineApi = {
     request<void>(`/approval-config/forms/${id}`, { method: 'DELETE' }),
 
   // ---------- 流程定义 ----------
+  getProcess: (id: number) => request<ApprovalProcess>(`/approval-config/processes/${id}`),
   listProcesses: (params: {
     keyword?: string;
     status?: ApprovalConfigStatus;
@@ -230,6 +232,8 @@ export const approvalEngineApi = {
     size?: number;
   } = {}) =>
     request<PageResponse<ApprovalRule>>(`/approval-config/rules${queryString(params)}`),
+
+  getRule: (id: number) => request<ApprovalRule>(`/approval-config/rules/${id}`),
 
   createRule: (payload: ApprovalRulePayload) =>
     request<ApprovalRule>('/approval-config/rules', {

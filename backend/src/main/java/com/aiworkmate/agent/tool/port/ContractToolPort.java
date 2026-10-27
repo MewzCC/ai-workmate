@@ -9,6 +9,11 @@ public interface ContractToolPort {
     ToolPage<Contract> contracts(ToolActorContext context, ContractQuery query);
     ContractDraftResult createContractDraft(ToolActorContext context, ContractDraft command);
     ContractDraftResult updateContractDraft(ToolActorContext context, ContractDraftUpdate command);
+    ContractDraftResult updateContractStatus(ToolActorContext context, ContractStatusUpdate command);
+    ContractFulfillmentResult updateContractFulfillment(
+            ToolActorContext context, ContractFulfillmentUpdate command);
+    ContractPaymentResult recordContractPayment(ToolActorContext context, ContractPayment command);
+    ContractReminderResult remindContract(ToolActorContext context, long contractId, int version);
 
     record ContractQuery(Long contractId, String keyword, String status, String contractType,
                          String expiryState, int page, int size) { }
@@ -19,8 +24,21 @@ public interface ContractToolPort {
                                String counterpartyName, Long supplierId, long ownerUserId,
                                BigDecimal amount, String currency, LocalDate signedDate,
                                LocalDate startDate, LocalDate endDate, String summary) { }
+    record ContractStatusUpdate(long contractId, int version, String status, String reason) { }
+    record ContractFulfillmentUpdate(long contractId, int version, String status, String reason) { }
+    record ContractPayment(long contractId, int version, BigDecimal amount, LocalDate paymentDate,
+                           String reference, String note) { }
     record ContractDraftResult(long contractId, String code, String status, int version,
                                LocalDateTime updatedAt) implements ToolWriteReceipt { }
+    record ContractFulfillmentResult(long contractId, String code, String status,
+                                     String fulfillmentStatus, int version,
+                                     LocalDateTime updatedAt) implements ToolWriteReceipt { }
+    record ContractPaymentResult(long contractId, String code, String status, BigDecimal amount,
+                                 BigDecimal paidAmount, String currency, int version,
+                                 LocalDateTime updatedAt) implements ToolWriteReceipt { }
+    record ContractReminderResult(long contractId, String code, String expiryState,
+                                  int reminderCount, LocalDateTime lastRemindedAt,
+                                  int version) implements ToolWriteReceipt { }
     record Contract(long id, String code, String name, String contractType, String counterpartyName,
                     String supplierLabel, String ownerLabel, BigDecimal amount, BigDecimal paidAmount,
                     String currency, LocalDate signedDate, LocalDate startDate, LocalDate endDate,

@@ -101,6 +101,7 @@ export interface AssetLedger {
 export type MeetingRoomStatus = 'OPEN' | 'CLOSED';
 
 export interface MeetingRoomPayload {
+  version?: number;
   code: string;
   name: string;
   location?: string;
@@ -111,6 +112,7 @@ export interface MeetingRoomPayload {
 }
 
 export interface MeetingRoom {
+  version: number;
   id: number;
   code: string;
   name: string;

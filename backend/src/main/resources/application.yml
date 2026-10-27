@@ -82,6 +82,8 @@ spring:
       max-request-size: 22MB
 
 app:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:}
   auth:
     cookie-name: ${AUTH_COOKIE_NAME:oa_session}
     session-ttl: ${AUTH_SESSION_TTL:86400}

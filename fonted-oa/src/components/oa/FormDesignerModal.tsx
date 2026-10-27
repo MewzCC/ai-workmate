@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Button,
@@ -30,7 +30,7 @@ import {
 import { message } from '@/lib/antdMessage';
 import { useTranslation } from 'react-i18next';
 import {
-  approvalEngineApi,
+  type ApprovalFormPayload,
   type ApprovalConfigStatus,
   type ApprovalForm,
 } from '@/lib/approvalEngineApi';
@@ -45,6 +45,7 @@ export type BuilderFieldType =
   | 'table' | 'divider';
 
 export interface BuilderField {
+  min?: number;
   /** 仅设计器内部使用，保存时剔除 */
   id: string;
   type: BuilderFieldType;
@@ -124,7 +125,9 @@ function upperFirst(value: string): string {
 }
 
 interface PersistedField {
+  min?: number;
   name?: string;
+  key?: string;
   label?: string;
   type?: string;
   required?: boolean;
@@ -140,14 +143,16 @@ function parseSchemaFields(schemaJson: string): BuilderField[] {
     return parsed.fields
       .filter((f) => f && typeof f === 'object')
       .map((f, index) => {
+        const name = f.name || f.key;
         const type = FIELD_TYPES.some((item) => item.type === f.type)
           ? (f.type as BuilderFieldType)
           : 'text';
         return {
-          id: newId(f.name || String(index)),
+          ...(typeof f.min === 'number' && Number.isFinite(f.min) ? { min: f.min } : {}),
+          id: newId(name || String(index)),
           type,
-          label: f.label || f.name || upperFirst(type),
-          key: f.name || `${type}${index + 1}`,
+          label: f.label || name || upperFirst(type),
+          key: name || `${type}${index + 1}`,
           required: Boolean(f.required),
           placeholder: f.placeholder || '',
           options: Array.isArray(f.options) ? f.options.filter((o) => typeof o === 'string') : [],
@@ -163,10 +168,10 @@ function newId(seed: string): string {
   return `f-${seed}-${Math.random().toString(36).slice(2, 6)}`;
 }
 
-function stripFieldId(field: BuilderField): Omit<BuilderField, 'id'> {
-  const { id: _id, ...rest } = field;
+function persistedField(field: BuilderField) {
+  const { id: _id, key, ...rest } = field;
   void _id;
-  return rest;
+  return { ...rest, name: key };
 }
 
 function fieldTypeLabel(type: BuilderFieldType) {
@@ -180,13 +185,15 @@ function fieldTypeLabel(type: BuilderFieldType) {
 export default function FormDesignerModal({
   open,
   editing,
+  loading,
   onClose,
-  onSaved,
+  onSubmit,
 }: {
   open: boolean;
   editing: ApprovalForm | null;
+  loading: boolean;
   onClose: () => void;
-  onSaved: () => void;
+  onSubmit: (payload: ApprovalFormPayload) => Promise<void>;
 }) {
   const { t, i18n } = useTranslation();
   const [metaForm] = Form.useForm<MetaFormValues>();
@@ -196,9 +203,11 @@ export default function FormDesignerModal({
   const [future, setFuture] = useState<BuilderField[][]>([]);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || loading) return;
     if (editing) {
       metaForm.setFieldsValue({
         formKey: editing.formKey,
@@ -214,7 +223,7 @@ export default function FormDesignerModal({
     setPast([]);
     setFuture([]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, editing]);
+  }, [open, editing, loading]);
 
   const selected = useMemo(
     () => fields.find((field) => field.id === selectedId),
@@ -285,8 +294,10 @@ export default function FormDesignerModal({
   };
 
   const handleSave = async (publish: boolean) => {
+    if (!open || loading || submitting) return;
     try {
       const values = await metaForm.validateFields();
+      if (!mounted.current) return;
       if (fields.length === 0) {
         message.warning(t('approval.builder.needField'));
         return;
@@ -296,22 +307,15 @@ export default function FormDesignerModal({
         formKey: values.formKey,
         formName: values.formName,
         description: values.description,
-        schemaJson: JSON.stringify({ fields: fields.map(stripFieldId) }),
+        schemaJson: JSON.stringify({ fields: fields.map(persistedField) }),
         status: (publish ? 'ENABLED' : 'DISABLED') as ApprovalConfigStatus,
       };
-      if (editing) {
-        await approvalEngineApi.updateForm(editing.id, { ...payload, version: editing.version });
-        message.success(t(publish ? 'approval.builder.publishSuccess' : 'approval.config.common.updateSuccess'));
-      } else {
-        await approvalEngineApi.createForm(payload);
-        message.success(t(publish ? 'approval.builder.publishSuccess' : 'approval.config.common.createSuccess'));
-      }
-      onSaved();
+      await onSubmit(payload);
     } catch (err) {
-      if (err instanceof Error && err.name === 'ValidationError') return;
+      if (!mounted.current || (err && typeof err === 'object' && 'errorFields' in err)) return;
       message.error(formatOaApiError(err));
     } finally {
-      setSubmitting(false);
+      if (mounted.current) setSubmitting(false);
     }
   };
 
@@ -323,6 +327,7 @@ export default function FormDesignerModal({
       className="form-designer-modal"
       title={editing ? t('approval.builder.editTitle') : t('approval.builder.createTitle')}
       open={open}
+      loading={loading}
       onCancel={onClose}
       width={1100}
       destroyOnClose
@@ -338,10 +343,10 @@ export default function FormDesignerModal({
           <Button icon={<EyeOutlined />} disabled={fields.length === 0} onClick={() => setPreviewOpen(true)}>
             {t('approval.builder.preview')}
           </Button>
-          <Button loading={submitting} icon={<OaIcon name="save" />} onClick={() => void handleSave(false)}>
+          <Button disabled={loading} loading={submitting} icon={<OaIcon name="save" />} onClick={() => void handleSave(false)}>
             {t('common.save')}
           </Button>
-          <Button type="primary" loading={submitting} icon={<OaIcon name="send" />} onClick={() => void handleSave(true)}>
+          <Button disabled={loading} type="primary" loading={submitting} icon={<OaIcon name="send" />} onClick={() => void handleSave(true)}>
             {t('approval.builder.publish')}
           </Button>
         </Space>

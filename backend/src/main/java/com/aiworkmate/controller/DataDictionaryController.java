@@ -4,6 +4,7 @@ import com.aiworkmate.common.Result;
 import com.aiworkmate.dto.DictionaryItemPageResponse;
 import com.aiworkmate.dto.DictionaryItemRequest;
 import com.aiworkmate.dto.DictionaryItemResponse;
+import com.aiworkmate.dto.DictionaryItemDetailResponse;
 import com.aiworkmate.dto.DictionaryOptionResponse;
 import com.aiworkmate.dto.DictionaryStatusRequest;
 import com.aiworkmate.dto.DictionaryTypeListResponse;
@@ -13,8 +14,11 @@ import com.aiworkmate.dto.VersionRequest;
 import com.aiworkmate.security.AuthenticatedUser;
 import com.aiworkmate.service.DataDictionaryService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -29,8 +33,23 @@ import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
+@Validated
 public class DataDictionaryController {
     private final DataDictionaryService service;
+
+    @GetMapping("/api/admin/dictionaries/{id}")
+    @PreAuthorize("hasAuthority('route:dictionary')")
+    public Result<DictionaryTypeResponse> typeDetail(@AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable @Min(value = 1, message = "validation.dictionary.id.positive") Long id) {
+        return Result.ok(service.typeDetail(user.userId(), id));
+    }
+
+    @GetMapping("/api/admin/dictionaries/items/{itemId}")
+    @PreAuthorize("hasAuthority('route:dictionary')")
+    public Result<DictionaryItemDetailResponse> itemDetail(@AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable @Min(value = 1, message = "validation.dictionary.id.positive") Long itemId) {
+        return Result.ok(service.itemDetail(user.userId(), itemId));
+    }
 
     @GetMapping("/api/admin/dictionaries")
     public Result<DictionaryTypeListResponse> listTypes(@AuthenticationPrincipal AuthenticatedUser user,

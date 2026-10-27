@@ -1,7 +1,9 @@
 package com.aiworkmate.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 
 /**
@@ -10,6 +12,7 @@ import jakarta.validation.constraints.Size;
  * <p>{@code APPROVED} 通过；{@code REJECTED} 驳回。
  */
 public record AttendanceReissueDecisionRequest(
+        @NotNull @PositiveOrZero Integer version,
         @NotBlank
         @Pattern(regexp = "APPROVED|REJECTED", message = "{validation.attendance.decision.invalid}")
         String decision,

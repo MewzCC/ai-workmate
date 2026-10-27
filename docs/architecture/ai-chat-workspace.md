@@ -9,6 +9,8 @@ AI Chat Workspace 是 OA 左侧菜单中的独立工作页面，路由为 `/oa/a
 - 聊天模型可以分析和建议，但不能声称已完成审批、付款、删除、权限修改或敏感导出。
 - OA 写操作继续使用 `/api/ai/tasks/plan` 与 `/api/ai/tasks/execute`，执行前重新鉴权，高风险动作人工确认。
 - 未连接真实业务工具时返回能力不可用，不提供 mock 成功。
+- 工作空间提供“对话 / OA 操作”双模式。OA 操作模式只暴露代码注册、租户启用且当前用户实时有权使用的固定工具；执行结果来自 Tool Gateway 调用的真实领域服务。
+- L0 只读计划可以直接执行；L1/L2 单步写计划必须先展示冻结计划并由用户确认，再签发仅绑定该计划的一次性确认凭证。
 
 ## 2. 技术方案
 
@@ -78,13 +80,14 @@ backend/src/main/java/com/aiworkmate/
 | GET | `/api/attachments/{id}/content` | 读取图片或文件 | JWT + attachment owner |
 | POST | `/api/chat` | 非流式聊天 | JWT + conversation/attachment owner |
 | POST | `/api/chat/stream` | SSE 流式聊天 | JWT + conversation/attachment owner |
+| POST | `/api/conversations/{id}/agent-results/{taskId}` | 将已完成的受控 Agent 任务转为可读回复并写入会话 | JWT + 会话/任务所有权 + 实时页面与工具权限 + 成功任务校验 |
 
 流式事件类型为 `metadata`、`delta`、`done`、`error`。错误事件包含 `errorCode` 和 `traceId`。
 
 ## 5. 数据模型
 
 - **Conversation**：`id`、`userId`、`title`、`model`、`createdAt`、`updatedAt`。
-- **Message**：`id`、`conversationId`、`role`、`content`、`status`、`feedback`、`tokenCount`、`createdAt`。
+- **Message**：`id`、`conversationId`、`role`、`content`、`status`、`feedback`、`tokenCount`、`sourceTaskNo`、`sourceToolCode`、`createdAt`。两个来源字段只由服务端写入，用于证明任务来源并选择受权限保护的业务页面入口。
 - **Attachment**：`id`、`userId`、`conversationId`、`messageId`、`type`、`name`、`storageName`、`size`、`mimeType`、`extractedText`、`createdAt`。
 
 原始文件名仅用于展示；磁盘文件名使用 UUID。附件在发送时绑定消息，已绑定附件不能被其他消息重复引用。
@@ -99,6 +102,9 @@ backend/src/main/java/com/aiworkmate/
 6. API Key 仅由 `AI_API_KEY` 注入；设置页不读取或保存密钥。
 7. 系统提示词禁止权限提升和伪造业务执行结果。
 8. 删除会话只删除当前用户拥有的资源，并同步清理物理附件。
+9. OA 操作先规划并通过 Tool Gateway 执行；结果接口只读取属于当前用户、来源页面为 `ai-workspace` 且状态成功的冻结任务，不直接调用工具处理器，也不接受前端传入的结果。
+10. 写任务仍受一个任务最多一个写步骤、实时权限、确认凭证、Kill Switch、领域状态机和业务审计约束；结果落入聊天不等于重新执行。
+11. 结果写入在数据库行锁和唯一索引下幂等；越权、跨租户、权限已回收、未完成任务及当前已不可用工具均拒绝，不把模型文本当作成功凭据。
 
 ## 7. 当前交付状态
 
@@ -113,18 +119,21 @@ backend/src/main/java/com/aiworkmate/
 - PDF、Word、Excel、CSV、Markdown、文本解析缓存。
 - Markdown、代码高亮、亮暗主题和移动端会话抽屉。
 - 模型、上下文轮数、流式开关和清空记录设置。
+- AI 工作空间统一接入全部代码注册工具上界；实际列表继续按租户策略、工具开关、角色授权、业务权限和数据范围收窄。
+- 只读任务自动执行并展示经过限量、转义的真实结果；写任务显示计划卡片，经独立确认后执行。回复提供有权限时的对应业务页面入口。
 
 ### 外部依赖
 
 - 需要 PostgreSQL、Redis 和后端服务可访问。
 - 需要有效 `AI_API_KEY`、`AI_BASE_URL` 和 `AI_MODEL`。
 - 图像识别要求配置的模型本身支持视觉输入。
-- 新库和既有数据库统一执行 `backend/src/main/resources/db/init.sql`；该文件已包含 AI Chat Workspace 表结构与兼容升级。
+- 新库和既有数据库均由 Flyway 自动迁移；本次会话结果来源字段由 `V202609281000__chat_agent_result_source.sql` 增加，不修改历史迁移。
 
 ### 有意保留的边界
 
 - 浏览器不能编辑或读取 API Key、内部 AI 网关地址。
-- Chat Workspace 当前不直接调用 OA 写工具；页面操作仍进入受控 plan/execute 链路。
+- Chat Workspace 的 OA 操作模式复用受控 plan/confirmation/execute 链路；聊天结果接口只持久化已经完成的任务结果，绝不直接写业务数据。
+- 写工具平台和租户开关默认关闭，必须通过独立发布门开启；永久禁止能力不会因工作空间入口或用户确认而开放。
 - 附件当前使用本地磁盘，生产环境应迁移对象存储并增加病毒扫描。
 
 ## 8. 启动方式
@@ -152,7 +161,7 @@ npm run dev
 |---|---|---|---|
 | A. Chat Workspace 基线 | DONE | 对话、会话、附件、解析、鉴权、SSE 闭环 | 越权测试、停止生成、重启后恢复 |
 | B. 附件生产化 | NOT_STARTED | MinIO/S3、病毒扫描、异步解析、配额 | 大文件、恶意文件、失败重试 |
-| C. OA Tool Calling | NOT_STARTED | 页面能力协议、工具白名单、确认与审计 | 普通员工越权、幂等、回滚 |
+| C. OA Tool Calling | IN_PROGRESS | 42 页面能力清单、固定工具白名单、工作空间统一入口、确认与审计 | 普通员工越权、幂等、结果呈现、全工具回归 |
 | D. RAG 知识库 | NOT_STARTED | 文档入库、分块、向量检索、引用 | tenant/user 过滤、来源与评分 |
 | E. 多模型与路由 | NOT_STARTED | 模型注册表、能力标签、成本和降级策略 | 视觉/文本能力匹配、限流 |
 | F. 多 Agent | NOT_STARTED | Supervisor、领域 Worker、任务恢复 | 最大轮次、权限继承、全链路 trace |

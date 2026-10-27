@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Propagation;
 
 import java.time.LocalDateTime;
 
@@ -16,6 +17,12 @@ public class AgentWorkerTransitionService {
     private final AgentWorkerMapper mapper;
     private final AgentTaskEventService eventService;
     private final ObjectMapper objectMapper;
+
+    /** Queue wakeups can run in afterCommit, where reusing the completed transaction cannot commit a claim. */
+    @Transactional(propagation=Propagation.REQUIRES_NEW)
+    public AgentTask claim(String workerId,String leaseHash,LocalDateTime leaseUntil,int userLimit) {
+        return mapper.claim(workerId,leaseHash,leaseUntil,userLimit);
+    }
 
     @Transactional
     public AgentTaskStep startNextStep(AgentTask task, String workerId, String leaseHash,

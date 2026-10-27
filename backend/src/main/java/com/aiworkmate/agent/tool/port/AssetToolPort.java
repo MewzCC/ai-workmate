@@ -7,6 +7,14 @@ import java.util.List;
 
 public interface AssetToolPort {
     Page query(ToolActorContext context, Query query);
+    MetadataReceipt create(ToolActorContext context, Create command);
+    MetadataReceipt update(ToolActorContext context, Update command);
+    record Fields(String assetCode, String name, String category, String specification,
+                  LocalDate purchaseDate, BigDecimal originalValue, String remark) {}
+    record Create(Fields fields, Long departmentId) {}
+    record Update(long assetId, int version, Fields fields, boolean clearPurchaseDate) {}
+    record MetadataReceipt(long assetId, String assetCode, String name, String status, int version)
+            implements ToolWriteReceipt {}
     ClaimResult claim(ToolActorContext context, ClaimCommand command, ToolOperationKey operationKey);
     ToolWriteVerification<ClaimResult> findClaim(
             ToolActorContext context, ClaimCommand command, ToolOperationKey operationKey);
@@ -17,6 +25,10 @@ public interface AssetToolPort {
             ToolActorContext context, RepairStartCommand command, ToolOperationKey operationKey);
     ToolWriteVerification<RepairStartResult> findRepairStart(
             ToolActorContext context, RepairStartCommand command, ToolOperationKey operationKey);
+    LifecycleResult transfer(ToolActorContext context, TransferCommand command);
+    LifecycleResult completeRepair(ToolActorContext context, MaintenanceCommand command);
+    LifecycleResult inventory(ToolActorContext context, InventoryCommand command);
+    LifecycleResult scrap(ToolActorContext context, MaintenanceCommand command);
     record Query(String keyword, String category, String status, int page, int size) {}
     record ClaimCommand(long assetId, long employeeId, int version, String reason) {}
     record ClaimResult(long assetId, String status, int version) implements ToolWriteReceipt {}
@@ -24,6 +36,13 @@ public interface AssetToolPort {
     record ReturnResult(long assetId, String status, int version) implements ToolWriteReceipt {}
     record RepairStartCommand(long assetId, int version, String reason) {}
     record RepairStartResult(long assetId, String status, int version) implements ToolWriteReceipt {}
+    record TransferCommand(long assetId, long targetDepartmentId, Long targetOwnerUserId,
+                           int version, String reason) {}
+    record MaintenanceCommand(long assetId, int version, String reason) {}
+    record InventoryCommand(long assetId, int version, String inventoryResult, String actualStatus,
+                            Long actualDepartmentId, Long actualOwnerUserId, String reason) {}
+    record LifecycleResult(long assetId, String status, int version, String action)
+            implements ToolWriteReceipt {}
     record Page(List<Item> items, long total, int page, int size) {
         public Page { items = List.copyOf(items); }
     }

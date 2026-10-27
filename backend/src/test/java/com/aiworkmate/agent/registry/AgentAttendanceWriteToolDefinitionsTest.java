@@ -8,6 +8,28 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class AgentAttendanceWriteToolDefinitionsTest {
     @Test
+    void clockIsConfirmedNonRetryableAndRejectsIdentityAndTimeInjection() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        var definition = new AgentAttendanceWriteToolDefinitions()
+                .attendanceClockToolDefinition(mapper);
+        var validator = new ToolSchemaValidator();
+
+        assertThat(definition.schemaHash()).isEqualTo(
+                "sha256:dd02d5489088fddfdb73f510972bf86b047b75470e72ac4c8293758f908bdd86");
+        assertThat(definition.requiredPermissions()).containsExactly("attendance:clock");
+        assertThat(definition.riskLevel()).isEqualTo(RiskLevel.L1);
+        assertThat(definition.retryPolicy()).isEqualTo(RetryPolicy.NEVER);
+        assertThat(definition.confirmationPolicy()).isEqualTo(ConfirmationPolicy.EXPLICIT);
+        assertThat(definition.ownershipPolicy()).isEqualTo(OwnershipPolicy.SELF);
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree("""
+                {"clockType":"CLOCK_IN"}
+                """))).isTrue();
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree("""
+                {"clockType":"CLOCK_IN","userId":99,"clockTime":"2026-09-30T09:00:00"}
+                """))).isFalse();
+    }
+
+    @Test
     void reissueIsConfirmedIdempotentSelfOwnedAndRejectsIdentityInjection() throws Exception {
         ObjectMapper mapper = new ObjectMapper();
         var definition = new AgentAttendanceWriteToolDefinitions()
@@ -26,6 +48,50 @@ class AgentAttendanceWriteToolDefinitionsTest {
                 """))).isTrue();
         assertThat(validator.valid(definition.inputSchema(), mapper.readTree("""
                 {"clockDate":"2026-09-14","clockType":"CLOCK_IN","reason":"忘记打卡","userId":99}
+                """))).isFalse();
+    }
+
+    @Test
+    void reissueDecisionRequiresSecondaryConfirmationAndAssignedOwnership() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        var definition = new AgentAttendanceWriteToolDefinitions()
+                .attendanceReissueDecideToolDefinition(mapper);
+        var validator = new ToolSchemaValidator();
+
+        assertThat(definition.schemaHash()).isEqualTo(
+                "sha256:990ee606bb356549b674e8f03b90433b45e4887e081627eed1db950b227659e3");
+        assertThat(definition.requiredPermissions()).containsExactly("attendance:reissue:decide");
+        assertThat(definition.riskLevel()).isEqualTo(RiskLevel.L2);
+        assertThat(definition.retryPolicy()).isEqualTo(RetryPolicy.NEVER);
+        assertThat(definition.confirmationPolicy()).isEqualTo(ConfirmationPolicy.SECONDARY);
+        assertThat(definition.ownershipPolicy()).isEqualTo(OwnershipPolicy.ASSIGNED_TO_SELF);
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree("""
+                {"reissueId":31,"version":0,"decision":"APPROVED"}
+                """))).isTrue();
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree("""
+                {"reissueId":31,"version":0,"decision":"APPROVED","userId":99}
+                """))).isFalse();
+    }
+
+    @Test
+    void settingsUpdateRequiresSecondaryConfirmationAndRejectsTenantInjection() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        var definition = new AgentAttendanceWriteToolDefinitions()
+                .attendanceSettingsUpdateToolDefinition(mapper);
+        var validator = new ToolSchemaValidator();
+
+        assertThat(definition.schemaHash()).isEqualTo(
+                "sha256:643217d55767222ce1f6aaee5fd923866924842409883215ab15305d52bb4cfd");
+        assertThat(definition.requiredPermissions()).containsExactly("attendance:settings:manage");
+        assertThat(definition.riskLevel()).isEqualTo(RiskLevel.L2);
+        assertThat(definition.retryPolicy()).isEqualTo(RetryPolicy.NEVER);
+        assertThat(definition.confirmationPolicy()).isEqualTo(ConfirmationPolicy.SECONDARY);
+        assertThat(definition.ownershipPolicy()).isEqualTo(OwnershipPolicy.TENANT_SCOPED);
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree("""
+                {"version":2,"workStartTime":"09:00","workEndTime":"18:00","startFlexMinutes":15,"endFlexMinutes":10,"flexLinked":true}
+                """))).isTrue();
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree("""
+                {"version":2,"workStartTime":"09:00","workEndTime":"18:00","startFlexMinutes":15,"endFlexMinutes":10,"flexLinked":true,"tenantId":2}
                 """))).isFalse();
     }
 }

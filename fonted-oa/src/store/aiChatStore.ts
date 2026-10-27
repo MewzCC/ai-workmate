@@ -3,20 +3,23 @@
 import { create } from 'zustand';
 import { message as antMessage } from '@/lib/antdMessage';
 import {
-  createConversation, deleteConversation, listConversations, listMessages,
+  appendAgentResult, createConversation, deleteConversation, listConversations, listMessages,
   renameConversation, sendChat, streamChat, uploadAttachment,
 } from '@/lib/chatApi';
-import type { ChatAttachment, ChatConversation, ChatMessage, ChatMessageCitation, ChatSettings } from '@/types/chat';
+import type { ChatAttachment, ChatComposerMode, ChatConversation, ChatMessage, ChatMessageCitation, ChatSettings } from '@/types/chat';
 import { DEFAULT_AI_MODEL, normalizeAiModel } from '@/config/aiModels';
 import { StreamTypewriter } from '@/lib/StreamTypewriter';
 import { uuid } from '@/lib/uuid';
 import i18n from '@/i18n';
 import { getChatPreferences, updateChatPreferences } from '@/lib/userSettingsApi';
+import { agentTaskApi, classifyAiIntent, executeAiTask, issueAiTaskConfirmation, planAiTask } from '@/lib/oaApi';
+import type { AiTaskPlanResponse } from '@/types/oa';
 
 const SETTINGS_KEY = 'workmeta-ai-chat-settings';
 const SETTINGS_MIGRATED_KEY = 'workmeta-ai-chat-settings-migrated';
 const controllers = new Map<number, AbortController>();
 const typewriters = new Map<number, StreamTypewriter>();
+const agentTasks = new Map<number, string>();
 let settingsHydration: Promise<void> | null = null;
 
 export interface UploadProgressItem {
@@ -27,6 +30,8 @@ export interface UploadProgressItem {
 }
 
 interface AiChatState {
+  composerMode: ChatComposerMode;
+  pendingPlans: Record<number, AiTaskPlanResponse>;
   conversations: ChatConversation[];
   activeId: number | null;
   draftMode: boolean;
@@ -46,6 +51,9 @@ interface AiChatState {
   upload: (files: File[]) => Promise<void>;
   removePendingAttachment: (id: number) => void;
   send: (content: string) => Promise<void>;
+  setComposerMode: (mode: ChatComposerMode) => void;
+  confirmOperation: (conversationId: number) => Promise<void>;
+  discardOperation: (conversationId: number) => Promise<void>;
   stop: (id: number) => void;
   retry: (content: string) => Promise<void>;
   hydrateSettings: () => Promise<void>;
@@ -55,8 +63,28 @@ interface AiChatState {
 
 const defaultSettings: ChatSettings = { model: DEFAULT_AI_MODEL, kbId: null, maxContextRounds: 10, stream: true };
 
+async function waitForAgentTask(taskId: string, signal: AbortSignal): Promise<void> {
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
+    const detail = await agentTaskApi.detail(taskId);
+    if (detail.status === 'SUCCEEDED' && detail.steps.length > 0
+        && detail.steps.every((step) => step.status === 'SUCCEEDED')) return;
+    if (['FAILED', 'TIMED_OUT', 'REJECTED', 'EXPIRED', 'CANCELLED', 'PARTIALLY_SUCCEEDED'].includes(detail.status)) {
+      throw new Error(i18n.t('chat.operationFailed'));
+    }
+    await new Promise<void>((resolve) => {
+      const onAbort = () => { window.clearTimeout(timer); resolve(); };
+      const timer = window.setTimeout(() => { signal.removeEventListener('abort', onAbort); resolve(); }, 1000);
+      signal.addEventListener('abort', onAbort, { once: true });
+    });
+  }
+  throw new Error(i18n.t('chat.operationTimeout'));
+}
+
 export const useAiChatStore = create<AiChatState>((set, get) => ({
   conversations: [],
+  composerMode: 'auto',
+  pendingPlans: {},
   activeId: null,
   draftMode: false,
   messagesByConversation: {},
@@ -153,10 +181,13 @@ export const useAiChatStore = create<AiChatState>((set, get) => ({
       delete messages[id];
       const previews = { ...state.previewByConversation };
       delete previews[id];
+      const pendingPlans = { ...state.pendingPlans };
+      delete pendingPlans[id];
       return {
         conversations,
         messagesByConversation: messages,
         previewByConversation: previews,
+        pendingPlans,
         activeId: state.activeId === id ? conversations[0]?.id ?? null : state.activeId,
         draftMode: state.activeId === id ? false : state.draftMode,
       };
@@ -221,6 +252,8 @@ export const useAiChatStore = create<AiChatState>((set, get) => ({
     } }));
   },
 
+  setComposerMode: (composerMode) => set({ composerMode }),
+
   send: async (rawContent) => {
     const state = get();
     let conversationId = state.activeId;
@@ -241,8 +274,16 @@ export const useAiChatStore = create<AiChatState>((set, get) => ({
       }
     }
     if (controllers.has(conversationId)) return;
+    if (get().pendingPlans[conversationId]) {
+      antMessage.warning(i18n.t('chat.operationPending'));
+      return;
+    }
     const attachments = state.pendingAttachments[conversationId] || [];
     const content = rawContent.trim() || i18n.t('chat.defaultAttachmentPrompt');
+    if (state.composerMode === 'operation' && attachments.length > 0) {
+      antMessage.error(i18n.t('chat.operationAttachmentsUnsupported'));
+      return;
+    }
     const now = new Date().toISOString();
     const userId = `local-user-${uuid()}`;
     const assistantId = `local-assistant-${uuid()}`;
@@ -253,34 +294,59 @@ export const useAiChatStore = create<AiChatState>((set, get) => ({
 
     const controller = new AbortController();
     controllers.set(conversationId, controller);
+    let classifying = false;
     try {
-      const request = {
-        conversationId,
-        message: content,
-        model: state.settings.model,
-        kbId: state.settings.kbId ?? null,
-        attachmentIds: attachments.map((item) => item.id),
-        maxContextRounds: state.settings.maxContextRounds,
-      };
-      if (state.settings.stream) {
-        const typewriter = new StreamTypewriter((delta) => {
-          appendMessageContent(set, conversationId, assistantId, delta);
-        });
-        typewriters.set(conversationId, typewriter);
-        await streamChat(request, controller.signal, (event) => {
-          if (event.type === 'delta' && event.data) typewriter.push(event.data);
-          if (event.type === 'references' && event.data) {
-            try {
-              const citations = JSON.parse(event.data) as ChatMessageCitation[];
-              updateMessage(set, conversationId, assistantId, { citations });
-            } catch {
-              // 引用数据异常时忽略，不影响对话主流程
-            }
-          }
-        });
-        await typewriter.finish();
+      let operationRequest = state.composerMode === 'operation';
+      if (state.composerMode === 'auto' && attachments.length === 0) {
+        classifying = true;
+        const intent = await classifyAiIntent(content, controller.signal);
+        if (controller.signal.aborted) throw new DOMException('Aborted', 'AbortError');
+        classifying = false;
+        operationRequest = intent === 'OPERATION';
+      }
+      if (operationRequest) {
+        const plan = await planAiTask({ input: content, pageId: 'ai-workspace' });
+        if (controller.signal.aborted) throw new DOMException('Aborted', 'AbortError');
+        if (!plan.steps.length) throw new Error(i18n.t('chat.operationPlanUnavailable'));
+        agentTasks.set(conversationId, plan.taskId);
+        if (plan.confirmationRequired) {
+          updateMessage(set, conversationId, assistantId, { content: plan.summary, status: 'success' });
+          set((current) => ({ pendingPlans: { ...current.pendingPlans, [conversationId]: plan } }));
+          return;
+        }
+        await executeAiTask(plan.taskId, { planVersion: plan.planVersion, planHash: plan.planHash });
+        await waitForAgentTask(plan.taskId, controller.signal);
+        if (controller.signal.aborted) throw new DOMException('Aborted', 'AbortError');
+        await appendAgentResult(conversationId, plan.taskId);
       } else {
-        await sendChat(request, controller.signal);
+        const request = {
+          conversationId,
+          message: content,
+          model: state.settings.model,
+          kbId: state.settings.kbId ?? null,
+          attachmentIds: attachments.map((item) => item.id),
+          maxContextRounds: state.settings.maxContextRounds,
+        };
+        if (state.settings.stream) {
+          const typewriter = new StreamTypewriter((delta) => {
+            appendMessageContent(set, conversationId, assistantId, delta);
+          });
+          typewriters.set(conversationId, typewriter);
+          await streamChat(request, controller.signal, (event) => {
+            if (event.type === 'delta' && event.data) typewriter.push(event.data);
+            if (event.type === 'references' && event.data) {
+              try {
+                const citations = JSON.parse(event.data) as ChatMessageCitation[];
+                updateMessage(set, conversationId, assistantId, { citations });
+              } catch {
+                // 引用数据异常时忽略，不影响对话主流程
+              }
+            }
+          });
+          await typewriter.finish();
+        } else {
+          await sendChat(request, controller.signal);
+        }
       }
       const persistedMessages = await listMessages(conversationId);
       set((current) => ({
@@ -296,18 +362,95 @@ export const useAiChatStore = create<AiChatState>((set, get) => ({
       } else {
         await typewriter?.finish();
       }
-      if (!controller.signal.aborted) antMessage.error(error instanceof Error ? error.message : i18n.t('chat.aiReplyFailed'));
-      updateMessage(set, conversationId, assistantId, { status: 'failed' });
+      const reason = error instanceof Error ? error.message : i18n.t('chat.aiReplyFailed');
+      const failure = classifying ? i18n.t('chat.autoRoutingFailed', { reason }) : reason;
+      if (!controller.signal.aborted) antMessage.error(failure);
+      updateMessage(set, conversationId, assistantId, {
+        status: 'failed', content: !controller.signal.aborted ? failure : i18n.t('chat.aiReplyFailed'),
+      });
     } finally {
       controllers.delete(conversationId);
       typewriters.delete(conversationId);
+      agentTasks.delete(conversationId);
       set((current) => ({ generatingIds: current.generatingIds.filter((id) => id !== conversationId) }));
     }
+  },
+
+  confirmOperation: async (conversationId) => {
+    const plan = get().pendingPlans[conversationId];
+    if (!plan || controllers.has(conversationId)) return;
+    const controller = new AbortController();
+    controllers.set(conversationId, controller);
+    agentTasks.set(conversationId, plan.taskId);
+    set((current) => ({ generatingIds: [...current.generatingIds, conversationId] }));
+    try {
+      const credential = await issueAiTaskConfirmation(plan.taskId, {
+        planVersion: plan.planVersion,
+        planHash: plan.planHash,
+      });
+      if (controller.signal.aborted) throw new DOMException('Aborted', 'AbortError');
+      await executeAiTask(plan.taskId, {
+        planVersion: plan.planVersion,
+        planHash: plan.planHash,
+        confirmationToken: credential.confirmationToken,
+      });
+      await waitForAgentTask(plan.taskId, controller.signal);
+      if (controller.signal.aborted) throw new DOMException('Aborted', 'AbortError');
+      await appendAgentResult(conversationId, plan.taskId);
+      const persistedMessages = await listMessages(conversationId);
+      set((current) => {
+        const pendingPlans = { ...current.pendingPlans };
+        delete pendingPlans[conversationId];
+        return {
+          pendingPlans,
+          messagesByConversation: { ...current.messagesByConversation, [conversationId]: persistedMessages },
+          previewByConversation: { ...current.previewByConversation, [conversationId]: persistedMessages.slice(-1) },
+        };
+      });
+      await get().loadConversations();
+    } catch (error) {
+      if (!controller.signal.aborted) {
+        antMessage.error(error instanceof Error ? error.message : i18n.t('chat.operationFailed'));
+      }
+    } finally {
+      controllers.delete(conversationId);
+      agentTasks.delete(conversationId);
+      set((current) => ({ generatingIds: current.generatingIds.filter((id) => id !== conversationId) }));
+    }
+  },
+
+  discardOperation: async (conversationId) => {
+    const plan = get().pendingPlans[conversationId];
+    if (!plan) return;
+    await agentTaskApi.cancel(plan.taskId).catch(() => undefined);
+    const now = new Date().toISOString();
+    set((current) => {
+      const pendingPlans = { ...current.pendingPlans };
+      delete pendingPlans[conversationId];
+      return {
+        pendingPlans,
+        messagesByConversation: {
+          ...current.messagesByConversation,
+          [conversationId]: [...(current.messagesByConversation[conversationId] || []), {
+            id: `local-cancelled-${uuid()}`,
+            role: 'assistant',
+            content: i18n.t('chat.operationCancelled'),
+            status: 'success',
+            feedback: null,
+            attachments: [],
+            citations: [],
+            createdAt: now,
+          }],
+        },
+      };
+    });
   },
 
   stop: (id) => {
     controllers.get(id)?.abort();
     typewriters.get(id)?.cancel();
+    const taskId = agentTasks.get(id);
+    if (taskId) void agentTaskApi.cancel(taskId).catch(() => undefined);
   },
   retry: async (content) => get().send(content),
 
@@ -339,7 +482,7 @@ export const useAiChatStore = create<AiChatState>((set, get) => ({
     typewriters.forEach((typewriter) => typewriter.cancel());
     controllers.clear();
     typewriters.clear();
-    set({ conversations: [], activeId: null, draftMode: false, messagesByConversation: {}, previewByConversation: {}, pendingAttachments: {}, uploading: {}, generatingIds: [] });
+    set({ conversations: [], activeId: null, draftMode: false, messagesByConversation: {}, previewByConversation: {}, pendingAttachments: {}, uploading: {}, generatingIds: [], pendingPlans: {} });
   },
 }));
 

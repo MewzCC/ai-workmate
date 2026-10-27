@@ -1,12 +1,14 @@
 package com.aiworkmate.integration;
 
 import com.aiworkmate.common.BusinessException;
+import com.aiworkmate.dto.VersionRequest;
 import com.aiworkmate.mapper.ApprovalApplicationMapper;
 import com.aiworkmate.mapper.ApprovalFormMapper;
 import com.aiworkmate.mapper.ApprovalProcessMapper;
 import com.aiworkmate.mapper.ApprovalRuleMapper;
 import com.aiworkmate.mapper.BusinessAuditLogMapper;
 import com.aiworkmate.mapper.LeaveApplicationMapper;
+import com.aiworkmate.mapper.NotificationMapper;
 import com.aiworkmate.mapper.UserMapper;
 import com.aiworkmate.mapper.WorkflowActionLogMapper;
 import com.aiworkmate.mapper.WorkflowInstanceMapper;
@@ -17,17 +19,21 @@ import com.aiworkmate.service.UserAccessService;
 import com.aiworkmate.service.impl.BusinessAuditServiceImpl;
 import com.aiworkmate.service.impl.ExpenseApplicationServiceImpl;
 import com.aiworkmate.service.impl.GenericApprovalServiceImpl;
+import com.aiworkmate.service.impl.NotificationServiceImpl;
 import com.aiworkmate.service.model.ExpenseAgentDraftCommand;
 import com.aiworkmate.service.model.ResolvedUserAccess;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.extension.spring.MybatisSqlSessionFactoryBean;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.mybatis.spring.SqlSessionTemplate;
+import org.springframework.aop.framework.ProxyFactory;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.transaction.annotation.AnnotationTransactionAttributeSource;
+import org.springframework.transaction.interceptor.TransactionInterceptor;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -68,7 +74,7 @@ final class ExpenseDraftPostgresVerifier {
                 ApprovalProcessMapper.class, ApprovalRuleMapper.class,
                 LeaveApplicationMapper.class, UserMapper.class,
                 WorkflowInstanceMapper.class, WorkflowTaskMapper.class,
-                WorkflowActionLogMapper.class, BusinessAuditLogMapper.class)) {
+                WorkflowActionLogMapper.class, BusinessAuditLogMapper.class, NotificationMapper.class)) {
             configuration.addMapper(mapper);
         }
         var factory = new MybatisSqlSessionFactoryBean();
@@ -83,6 +89,8 @@ final class ExpenseDraftPostgresVerifier {
         var audit = new BusinessAuditServiceImpl(session.getMapper(BusinessAuditLogMapper.class));
         var service = service(session, access, audit);
         var tx = new TransactionTemplate(new DataSourceTransactionManager(datasource));
+        verifyCancellationTransaction(jdbc, session, access, audit, tx, applicant, tenant);
+        verifyReminderTransaction(jdbc, session, access, audit, tx, applicant, tenant);
         var command = new ExpenseAgentDraftCommand(
                 new BigDecimal("88.50"), "TRAVEL", LocalDate.now().minusDays(1),
                 "INV-AGENT-1", "客户拜访");
@@ -298,7 +306,18 @@ final class ExpenseDraftPostgresVerifier {
     private static ExpenseApplicationServiceImpl service(
             SqlSessionTemplate session, UserAccessService access, BusinessAuditService audit) {
         ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
-        var generic = new GenericApprovalServiceImpl(
+        return new ExpenseApplicationServiceImpl(
+                approvalService(session, access, audit), session.getMapper(ApprovalApplicationMapper.class), access, objectMapper);
+    }
+
+    private static GenericApprovalServiceImpl approvalService(
+            SqlSessionTemplate session, UserAccessService access, BusinessAuditService audit) {
+        return approvalService(session, access, audit, mock(NotificationService.class));
+    }
+
+    private static GenericApprovalServiceImpl approvalService(
+            SqlSessionTemplate session, UserAccessService access, BusinessAuditService audit, NotificationService notifications) {
+        return new GenericApprovalServiceImpl(
                 session.getMapper(ApprovalApplicationMapper.class),
                 session.getMapper(ApprovalFormMapper.class),
                 session.getMapper(ApprovalProcessMapper.class),
@@ -308,15 +327,234 @@ final class ExpenseDraftPostgresVerifier {
                 session.getMapper(WorkflowInstanceMapper.class),
                 session.getMapper(WorkflowTaskMapper.class),
                 session.getMapper(WorkflowActionLogMapper.class),
-                access, audit, mock(NotificationService.class), objectMapper);
-        return new ExpenseApplicationServiceImpl(
-                generic, session.getMapper(ApprovalApplicationMapper.class), access, objectMapper);
+                access, audit, notifications, new ObjectMapper().findAndRegisterModules());
+    }
+
+    private static void verifyCancellationTransaction(JdbcTemplate jdbc, SqlSessionTemplate session,
+            UserAccessService access, BusinessAuditService audit, TransactionTemplate tx, long applicant, long tenant) throws Exception {
+        // Directly constructed services do not apply audit propagation; use the actual Spring transaction advice.
+        var proxy = new ProxyFactory(audit);
+        proxy.setInterfaces(BusinessAuditService.class);
+        proxy.addAdvice(new TransactionInterceptor(tx.getTransactionManager(), new AnnotationTransactionAttributeSource()));
+        var transactionalAudit = (BusinessAuditService) proxy.getProxy();
+        var generic = approvalService(session, access, transactionalAudit);
+        var expense = service(session, access, transactionalAudit);
+        var draft = tx.execute(status -> expense.createAgentDraft(applicant,
+                new ExpenseAgentDraftCommand(null, null, null, null, "测试取消事务"), "cancel-transaction-probe"));
+        long id = draft.applicationId();
+        var failingAudit = mock(BusinessAuditService.class);
+        doThrow(new IllegalStateException("test-only cancellation audit unavailable")).when(failingAudit)
+                .recordTransactional(any(), any(), any(), any(), any(), any(), any());
+        var failing = service(session, access, failingAudit);
+        assertThatThrownBy(() -> tx.execute(status -> failing.cancelAgentDraft(applicant, id, 0)))
+                .isInstanceOf(IllegalStateException.class);
+        assertThat(jdbc.queryForObject("SELECT status FROM approval_application WHERE id=?", String.class, id)).isEqualTo("DRAFT");
+        assertThat(jdbc.queryForObject("SELECT version FROM approval_application WHERE id=?", Integer.class, id)).isZero();
+        assertThatThrownBy(() -> tx.executeWithoutResult(status -> {
+            generic.cancelAgentDraft(applicant, id, new VersionRequest(0));
+            throw new IllegalStateException("test-only outer failure after audit");
+        })).isInstanceOf(IllegalStateException.class);
+        assertThat(jdbc.queryForObject("SELECT status FROM approval_application WHERE id=?", String.class, id)).isEqualTo("DRAFT");
+        assertThat(jdbc.queryForObject("SELECT version FROM approval_application WHERE id=?", Integer.class, id)).isZero();
+        assertThat(jdbc.queryForObject("SELECT completed_at IS NULL FROM approval_application WHERE id=?", Boolean.class, id)).isTrue();
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM business_audit_log
+                WHERE tenant_id=? AND resource_type='GENERIC_APPROVAL' AND resource_id=? AND action='DRAFT_CANCEL'
+                """, Integer.class, tenant, Long.toString(id))).isZero();
+
+        assertThatThrownBy(() -> tx.execute(status -> expense.cancelAgentDraft(applicant, id, 1)))
+                .isInstanceOf(BusinessException.class).extracting("errorCode").isEqualTo("VERSION_CONFLICT");
+        var result = tx.execute(status -> expense.cancelAgentDraft(applicant, id, 0));
+        assertThat(result.status()).isEqualTo("CANCELLED");
+        assertThat(result.version()).isOne();
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM business_audit_log
+                WHERE tenant_id=? AND resource_type='GENERIC_APPROVAL' AND resource_id=? AND action='DRAFT_CANCEL'
+                """, Integer.class, tenant, Long.toString(id))).isOne();
+        assertThatThrownBy(() -> tx.execute(status -> expense.cancelAgentDraft(applicant, id, 0)))
+                .isInstanceOf(BusinessException.class).extracting("errorCode").isEqualTo("BUSINESS_STATE_INVALID");
+
+        long concurrentId = tx.execute(status -> expense.createAgentDraft(applicant,
+                new ExpenseAgentDraftCommand(null, null, null, null, "测试并发取消"), "cancel-concurrent-probe")).applicationId();
+        var executor = Executors.newFixedThreadPool(2);
+        try {
+            var barrier = new CyclicBarrier(2);
+            Callable<Boolean> cancel = () -> {
+                barrier.await(10, TimeUnit.SECONDS);
+                try {
+                    tx.execute(status -> expense.cancelAgentDraft(applicant, concurrentId, 0));
+                    return true;
+                } catch (BusinessException error) {
+                    assertThat(error.getErrorCode()).isIn("VERSION_CONFLICT", "BUSINESS_STATE_INVALID");
+                    return false;
+                }
+            };
+            var first = executor.submit(cancel); var second = executor.submit(cancel);
+            assertThat(List.of(first.get(20, TimeUnit.SECONDS), second.get(20, TimeUnit.SECONDS)))
+                    .containsExactlyInAnyOrder(true, false);
+        } finally { executor.shutdownNow(); }
+        assertThat(jdbc.queryForObject("SELECT version FROM approval_application WHERE id=?", Integer.class, concurrentId)).isOne();
+        assertThat(jdbc.queryForObject("SELECT status FROM approval_application WHERE id=?", String.class, concurrentId)).isEqualTo("CANCELLED");
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM business_audit_log
+                WHERE tenant_id=? AND resource_type='GENERIC_APPROVAL' AND resource_id=? AND action='DRAFT_CANCEL'
+                """, Integer.class, tenant, Long.toString(concurrentId))).isOne();
+
+        long protectedId = tx.execute(status -> expense.createAgentDraft(applicant,
+                new ExpenseAgentDraftCommand(null, null, null, null, "测试归属限制"), "cancel-scoped-probe")).applicationId();
+        long otherUser = applicant + 100000;
+        when(access.resolveActiveUser(otherUser)).thenReturn(actor(otherUser, tenant, 1));
+        assertThatThrownBy(() -> tx.execute(status -> expense.cancelAgentDraft(otherUser, protectedId, 0)))
+                .isInstanceOf(BusinessException.class).extracting("errorCode").isEqualTo("RESOURCE_NOT_FOUND");
+        when(access.resolveActiveUser(applicant)).thenReturn(actor(applicant, tenant + 100000, 2));
+        assertThatThrownBy(() -> tx.execute(status -> expense.cancelAgentDraft(applicant, protectedId, 0)))
+                .isInstanceOf(BusinessException.class).extracting("errorCode").isEqualTo("RESOURCE_NOT_FOUND");
+        when(access.resolveActiveUser(applicant)).thenReturn(new ResolvedUserAccess(
+                applicant, "expense-user", tenant, "EMPLOYEE", List.of("EMPLOYEE"),
+                List.of("route:approval-start"), List.of("SELF"), 3L));
+        assertThatThrownBy(() -> tx.execute(status -> expense.cancelAgentDraft(applicant, protectedId, 0)))
+                .isInstanceOf(BusinessException.class).extracting("errorCode").isEqualTo("PERMISSION_DENIED");
+        when(access.resolveActiveUser(applicant)).thenReturn(actor(applicant, tenant, 4));
+        jdbc.update("UPDATE approval_application SET form_key='test-other-form' WHERE id=?", protectedId);
+        assertThatThrownBy(() -> tx.execute(status -> expense.cancelAgentDraft(applicant, protectedId, 0)))
+                .isInstanceOf(BusinessException.class).extracting("errorCode").isEqualTo("RESOURCE_NOT_FOUND");
+        assertThat(jdbc.queryForObject("SELECT status FROM approval_application WHERE id=?", String.class, protectedId)).isEqualTo("DRAFT");
+        assertThat(jdbc.queryForObject("SELECT version FROM approval_application WHERE id=?", Integer.class, protectedId)).isZero();
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM business_audit_log WHERE resource_type='GENERIC_APPROVAL'
+                AND resource_id=? AND action='DRAFT_CANCEL'
+                """, Integer.class, Long.toString(protectedId))).isZero();
+        long pendingId = pendingExpense(jdbc, tenant, applicant, "cancel-pending-probe");
+        assertThatThrownBy(() -> tx.execute(status -> expense.cancelAgentDraft(applicant, pendingId, 0)))
+                .isInstanceOf(BusinessException.class).extracting("errorCode").isEqualTo("BUSINESS_STATE_INVALID");
+        assertThat(jdbc.queryForObject("SELECT status FROM approval_application WHERE id=?", String.class, pendingId)).isEqualTo("PENDING");
+        assertThat(jdbc.queryForObject("SELECT status FROM workflow_task WHERE business_type='GENERIC_APPROVAL' AND business_id=?",
+                String.class, pendingId)).isEqualTo("PENDING");
+    }
+
+    private static void verifyReminderTransaction(JdbcTemplate jdbc, SqlSessionTemplate session,
+            UserAccessService access, BusinessAuditService audit, TransactionTemplate tx, long applicant, long tenant) {
+        var proxy = new ProxyFactory(audit);
+        proxy.setInterfaces(BusinessAuditService.class);
+        proxy.addAdvice(new TransactionInterceptor(tx.getTransactionManager(), new AnnotationTransactionAttributeSource()));
+        var transactionalAudit = (BusinessAuditService) proxy.getProxy();
+        var redis = mock(org.springframework.data.redis.core.StringRedisTemplate.class);
+        var notifications = new NotificationServiceImpl(session.getMapper(NotificationMapper.class), redis,
+                new ObjectMapper(), access, transactionalAudit);
+        var notificationProxy = new ProxyFactory(notifications);
+        notificationProxy.setInterfaces(NotificationService.class);
+        notificationProxy.addAdvice(new TransactionInterceptor(tx.getTransactionManager(), new AnnotationTransactionAttributeSource()));
+        var transactionalNotifications = (NotificationService) notificationProxy.getProxy();
+        var generic = approvalService(session, access, transactionalAudit, transactionalNotifications);
+        org.springframework.test.util.ReflectionTestUtils.setField(generic, "reminderIntervalMinutes", 30L);
+        var expense = new ExpenseApplicationServiceImpl(generic, session.getMapper(ApprovalApplicationMapper.class), access,
+                new ObjectMapper().findAndRegisterModules());
+        long id = pendingExpense(jdbc, tenant, applicant, "remind-rollback-probe");
+        assertThatThrownBy(() -> tx.executeWithoutResult(status -> {
+            generic.remind(applicant, id, new VersionRequest(0));
+            throw new IllegalStateException("test-only outer failure after reminder");
+        })).isInstanceOf(IllegalStateException.class);
+        assertThat(jdbc.queryForObject("SELECT version FROM approval_application WHERE id=?", Integer.class, id)).isZero();
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM business_audit_log WHERE resource_type='GENERIC_APPROVAL'
+                AND resource_id=? AND action='REMIND'
+                """, Integer.class, Long.toString(id))).isZero();
+        assertThat(jdbc.queryForObject("SELECT reminder_count FROM workflow_task WHERE business_type='GENERIC_APPROVAL' AND business_id=?",
+                Integer.class, id)).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM notification WHERE biz_type='generic-approval' AND biz_id=?",
+                Integer.class, id)).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM workflow_action_log WHERE instance_id=(SELECT workflow_instance_id FROM approval_application WHERE id=?) AND action='REMIND'",
+                Integer.class, id)).isZero();
+        assertThatThrownBy(() -> transactionalNotifications.publishTransactional(tenant, applicant, "approval", "test", "test", "generic-approval", id))
+                .isInstanceOf(org.springframework.transaction.IllegalTransactionStateException.class);
+        assertThatThrownBy(() -> tx.execute(status -> expense.remindAgentApplication(applicant, id, 1)))
+                .isInstanceOf(BusinessException.class).extracting("errorCode").isEqualTo("VERSION_CONFLICT");
+        var receipt = tx.execute(status -> expense.remindAgentApplication(applicant, id, 0));
+        assertThat(receipt.status()).isEqualTo("PENDING"); assertThat(receipt.version()).isOne();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM notification WHERE tenant_id=? AND user_id=? AND biz_type='generic-approval' AND biz_id=?",
+                Integer.class, tenant, applicant, id)).isOne();
+        assertThatThrownBy(() -> tx.execute(status -> expense.remindAgentApplication(applicant, id, 1)))
+                .isInstanceOf(BusinessException.class).extracting("errorCode").isEqualTo("RATE_LIMITED");
+        assertReminderCommittedOnce(jdbc, id);
+
+        long concurrentId = pendingExpense(jdbc, tenant, applicant, "remind-concurrent-probe");
+        var executor = Executors.newFixedThreadPool(2);
+        try {
+            var barrier = new CyclicBarrier(2);
+            Callable<Boolean> remind = () -> {
+                barrier.await(10, TimeUnit.SECONDS);
+                try { tx.execute(status -> expense.remindAgentApplication(applicant, concurrentId, 0)); return true; }
+                catch (BusinessException error) {
+                    assertThat(error.getErrorCode()).isIn("VERSION_CONFLICT", "RATE_LIMITED"); return false;
+                }
+            };
+            var first = executor.submit(remind); var second = executor.submit(remind);
+            assertThat(List.of(first.get(20, TimeUnit.SECONDS), second.get(20, TimeUnit.SECONDS)))
+                    .containsExactlyInAnyOrder(true, false);
+        } catch (Exception error) { throw new IllegalStateException(error); }
+        finally { executor.shutdownNow(); }
+        assertReminderCommittedOnce(jdbc, concurrentId);
+
+        long failureId = pendingExpense(jdbc, tenant, applicant, "remind-failure-probe");
+        var failedNotifications = mock(NotificationService.class);
+        doThrow(new IllegalStateException("test-only notification storage failure")).when(failedNotifications)
+                .publishTransactional(org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyLong(), any(), any(), any(), any(), any());
+        var failed = approvalService(session, access, transactionalAudit, failedNotifications);
+        org.springframework.test.util.ReflectionTestUtils.setField(failed, "reminderIntervalMinutes", 30L);
+        assertThatThrownBy(() -> tx.execute(status -> failed.remind(applicant, failureId, new VersionRequest(0))))
+                .isInstanceOf(IllegalStateException.class);
+        assertThat(jdbc.queryForObject("SELECT version FROM approval_application WHERE id=?", Integer.class, failureId)).isZero();
+        assertThat(jdbc.queryForObject("SELECT reminder_count FROM workflow_task WHERE business_type='GENERIC_APPROVAL' AND business_id=?",
+                Integer.class, failureId)).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM business_audit_log WHERE resource_type='GENERIC_APPROVAL' AND resource_id=? AND action='REMIND'",
+                Integer.class, Long.toString(failureId))).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM workflow_action_log WHERE instance_id=(SELECT workflow_instance_id FROM approval_application WHERE id=?) AND action='REMIND'",
+                Integer.class, failureId)).isZero();
+        var failedAudit = mock(BusinessAuditService.class);
+        doThrow(new IllegalStateException("test-only reminder audit unavailable")).when(failedAudit)
+                .recordTransactional(any(), any(), any(), any(), any(), any(), any());
+        var auditFailure = approvalService(session, access, failedAudit, transactionalNotifications);
+        org.springframework.test.util.ReflectionTestUtils.setField(auditFailure, "reminderIntervalMinutes", 30L);
+        assertThatThrownBy(() -> tx.execute(status -> auditFailure.remind(applicant, failureId, new VersionRequest(0))))
+                .isInstanceOf(IllegalStateException.class);
+        assertThat(jdbc.queryForObject("SELECT version FROM approval_application WHERE id=?", Integer.class, failureId)).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM notification WHERE biz_type='generic-approval' AND biz_id=?",
+                Integer.class, failureId)).isZero();
+
+        when(access.resolveActiveUser(applicant)).thenReturn(actor(applicant, tenant + 100000, 8));
+        assertThatThrownBy(() -> tx.execute(status -> expense.remindAgentApplication(applicant, failureId, 0)))
+                .isInstanceOf(BusinessException.class).extracting("errorCode").isEqualTo("RESOURCE_NOT_FOUND");
+        long other = applicant + 100000;
+        when(access.resolveActiveUser(other)).thenReturn(actor(other, tenant, 1));
+        assertThatThrownBy(() -> tx.execute(status -> expense.remindAgentApplication(other, failureId, 0)))
+                .isInstanceOf(BusinessException.class).extracting("errorCode").isEqualTo("RESOURCE_NOT_FOUND");
+        when(access.resolveActiveUser(applicant)).thenReturn(new ResolvedUserAccess(applicant, "expense-user", tenant,
+                "EMPLOYEE", List.of("EMPLOYEE"), List.of("route:approval-start"), List.of("SELF"), 9L));
+        assertThatThrownBy(() -> tx.execute(status -> expense.remindAgentApplication(applicant, failureId, 0)))
+                .isInstanceOf(BusinessException.class).extracting("errorCode").isEqualTo("PERMISSION_DENIED");
+        when(access.resolveActiveUser(applicant)).thenReturn(actor(applicant, tenant, 10));
+        jdbc.update("UPDATE approval_application SET form_key='test-other-form' WHERE id=?", failureId);
+        assertThatThrownBy(() -> tx.execute(status -> expense.remindAgentApplication(applicant, failureId, 0)))
+                .isInstanceOf(BusinessException.class).extracting("errorCode").isEqualTo("RESOURCE_NOT_FOUND");
+        jdbc.update("UPDATE approval_application SET form_key='expense-application',status='DRAFT' WHERE id=?", failureId);
+        assertThatThrownBy(() -> tx.execute(status -> expense.remindAgentApplication(applicant, failureId, 0)))
+                .isInstanceOf(BusinessException.class).extracting("errorCode").isEqualTo("BUSINESS_STATE_INVALID");
+        org.mockito.Mockito.verifyNoInteractions(redis);
+    }
+
+    private static void assertReminderCommittedOnce(JdbcTemplate jdbc, long id) {
+        assertThat(jdbc.queryForObject("SELECT version FROM approval_application WHERE id=?", Integer.class, id)).isOne();
+        assertThat(jdbc.queryForObject("SELECT reminder_count FROM workflow_task WHERE business_type='GENERIC_APPROVAL' AND business_id=?",
+                Integer.class, id)).isOne();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM business_audit_log WHERE resource_type='GENERIC_APPROVAL' AND resource_id=? AND action='REMIND'",
+                Integer.class, Long.toString(id))).isOne();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM notification WHERE biz_type='generic-approval' AND biz_id=?", Integer.class, id)).isOne();
     }
 
     private static ResolvedUserAccess actor(long userId, long tenantId, long version) {
         return new ResolvedUserAccess(
                 userId, "expense-user", tenantId, "EMPLOYEE", List.of("EMPLOYEE"),
-                List.of("route:approval-start", "approval:create", "approval:withdraw", "approval:reopen"),
+                List.of("route:approval-start", "approval:create", "approval:withdraw", "approval:reopen", "approval:cancel", "approval:remind"),
                 List.of("SELF"), version);
     }
 

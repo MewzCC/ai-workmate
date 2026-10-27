@@ -2,11 +2,16 @@ package com.aiworkmate.service.impl;
 
 import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.dto.DictionaryTypeRequest;
+import com.aiworkmate.dto.DictionaryTypeAgentUpdateRequest;
+import com.aiworkmate.dto.DictionaryItemAgentCreateRequest;
+import com.aiworkmate.dto.DictionaryItemAgentUpdateRequest;
+import com.aiworkmate.dto.DictionaryStatusRequest;
 import com.aiworkmate.entity.DataDictionaryItem;
 import com.aiworkmate.entity.DataDictionaryType;
 import com.aiworkmate.mapper.DataDictionaryItemMapper;
 import com.aiworkmate.mapper.DataDictionaryItemUsageMapper;
 import com.aiworkmate.mapper.DataDictionaryTypeMapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.aiworkmate.service.BusinessAuditService;
 import com.aiworkmate.service.UserAccessService;
 import com.aiworkmate.service.model.ResolvedUserAccess;
@@ -21,8 +26,10 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -34,6 +41,72 @@ class DataDictionaryServiceImplTest {
     @Mock private UserAccessService userAccessService;
     @Mock private BusinessAuditService auditService;
     @InjectMocks private DataDictionaryServiceImpl service;
+
+    @Test
+    void readonlyTypeDetailKeepsActualVersionWithoutGrantingManagement() {
+        when(userAccessService.resolveActiveUser(1001L)).thenReturn(access(List.of("route:dictionary")));
+        when(typeMapper.selectOne(any())).thenReturn(dictionaryType("FIXTURE", "类型", null, 0, 3));
+        when(itemMapper.selectCount(any())).thenReturn(2L, 1L);
+        var result = service.typeDetail(1001L, 81L);
+        assertThat(result.id()).isEqualTo(81L); assertThat(result.version()).isEqualTo(3);
+        assertThat(result.itemCount()).isEqualTo(2); assertThat(result.activeItemCount()).isOne();
+        assertThat(result.canManage()).isFalse(); verifyNoInteractions(auditService);
+    }
+
+    @Test
+    void itemDetailReturnsItsActualParentAndIndependentVersionsWithReadonlyFlags() {
+        when(userAccessService.resolveActiveUser(1001L)).thenReturn(access(List.of("route:dictionary")));
+        when(itemMapper.selectOne(any())).thenReturn(dictionaryItem("FIRST", "第一项", null, 0, 4));
+        when(typeMapper.selectOne(any())).thenReturn(dictionaryType("FIXTURE", "类型", null, 0, 3));
+        when(itemMapper.selectCount(any())).thenReturn(1L); when(usageMapper.selectCount(any())).thenReturn(2L);
+        var result = service.itemDetail(1001L, 101L);
+        assertThat(result.dictionaryType().id()).isEqualTo(81L);
+        assertThat(result.dictionaryType().version()).isEqualTo(3);
+        assertThat(result.item().id()).isEqualTo(101L); assertThat(result.item().version()).isEqualTo(4);
+        assertThat(result.item().dictionaryTypeId()).isEqualTo(81L);
+        assertThat(result.item().usageCount()).isEqualTo(2L);
+        assertThat(result.item().canManage()).isFalse(); assertThat(result.item().canDelete()).isFalse();
+        verifyNoInteractions(auditService);
+    }
+
+    @Test
+    void detailsRejectRevokedReadPermissionBeforeTouchingRecords() {
+        when(userAccessService.resolveActiveUser(1001L)).thenReturn(access(List.of("dictionary:manage")));
+        assertThatThrownBy(() -> service.typeDetail(1001L, 81L)).isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("PERMISSION_DENIED");
+        assertThatThrownBy(() -> service.itemDetail(1001L, 101L)).isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("PERMISSION_DENIED");
+        verifyNoInteractions(typeMapper, itemMapper, usageMapper, auditService);
+    }
+
+    @Test
+    void detailsRejectInvalidIdsWithoutReadingRecords() {
+        when(userAccessService.resolveActiveUser(1001L)).thenReturn(access(List.of("route:dictionary")));
+        for (Long id : new Long[] {null, 0L, -1L}) {
+            assertThatThrownBy(() -> service.typeDetail(1001L, id)).isInstanceOf(BusinessException.class)
+                    .extracting("errorCode").isEqualTo("REQUEST_INVALID");
+            assertThatThrownBy(() -> service.itemDetail(1001L, id)).isInstanceOf(BusinessException.class)
+                    .extracting("errorCode").isEqualTo("REQUEST_INVALID");
+        }
+        verifyNoInteractions(typeMapper, itemMapper, usageMapper, auditService);
+    }
+
+    @Test
+    void missingScopedItemNeverReadsAnotherParentOrFallsBackToAnUnscopedLookup() {
+        when(userAccessService.resolveActiveUser(1001L)).thenReturn(access(List.of("route:dictionary")));
+        assertThatThrownBy(() -> service.itemDetail(1001L, 101L)).isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("RESOURCE_NOT_FOUND");
+        verify(itemMapper, never()).selectById(anyLong()); verifyNoInteractions(typeMapper, usageMapper, auditService);
+    }
+
+    @Test
+    void missingScopedParentRejectsTheWholeItemDetail() {
+        when(userAccessService.resolveActiveUser(1001L)).thenReturn(access(List.of("route:dictionary")));
+        when(itemMapper.selectOne(any())).thenReturn(dictionaryItem("FIRST", "第一项", null, 0, 4));
+        assertThatThrownBy(() -> service.itemDetail(1001L, 101L)).isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("RESOURCE_NOT_FOUND");
+        verify(typeMapper, never()).selectById(anyLong()); verifyNoInteractions(usageMapper, auditService);
+    }
 
     @Test
     void shouldRequireDictionaryManagePermissionForMutation() {
@@ -58,6 +131,231 @@ class DataDictionaryServiceImplTest {
         assertThat(response.code()).isEqualTo("EMPLOYEE_STATUS");
         assertThat(response.status()).isEqualTo("ACTIVE");
         verify(auditService).recordTransactional(9L, 1001L, "DICTIONARY_TYPE", "81", "CREATE", "SUCCESS", "EMPLOYEE_STATUS");
+    }
+
+    @Test
+    void shouldCreateAgentTypeThroughTheSameTenantScopedTransaction() {
+        when(userAccessService.resolveActiveUser(1001L)).thenReturn(access(List.of("route:dictionary", "dictionary:manage")));
+        doAnswer(invocation -> { DataDictionaryType type = invocation.getArgument(0); type.setId(91L); return 1; })
+                .when(typeMapper).insert(any(DataDictionaryType.class));
+        when(itemMapper.selectCount(any())).thenReturn(0L);
+
+        var response = service.createTypeAgent(1001L,
+                new DictionaryTypeRequest("PROJECT_STAGE", "项目阶段", "项目阶段字典", 20, null));
+
+        assertThat(response.id()).isEqualTo(91L);
+        assertThat(response.status()).isEqualTo("ACTIVE");
+        verify(auditService).recordTransactional(9L, 1001L, "DICTIONARY_TYPE", "91", "CREATE", "SUCCESS", "PROJECT_STAGE");
+    }
+
+    @Test
+    void shouldRejectInvalidAgentTypeBeforeResolvingActorOrWriting() {
+        assertThatThrownBy(() -> service.createTypeAgent(1001L,
+                new DictionaryTypeRequest("bad-code", "项目阶段", null, 0, null)))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("REQUEST_INVALID");
+        verifyNoInteractions(userAccessService, typeMapper, itemMapper, usageMapper, auditService);
+    }
+
+    @Test
+    void shouldUpdateAgentTypeByImmutableCodeWithOptimisticVersion() {
+        when(userAccessService.resolveActiveUser(1001L)).thenReturn(
+                access(List.of("route:dictionary", "dictionary:manage")));
+        DataDictionaryType existing = dictionaryType("PROJECT_STAGE", "项目阶段", "原描述", 20, 2);
+        DataDictionaryType updated = dictionaryType("PROJECT_STAGE", "项目阶段新版", null, 30, 3);
+        when(typeMapper.selectOne(any())).thenReturn(existing, updated);
+        when(typeMapper.update(any(), any())).thenReturn(1);
+        when(itemMapper.selectCount(any())).thenReturn(0L);
+
+        var response = service.updateTypeAgent(1001L, "PROJECT_STAGE",
+                new DictionaryTypeAgentUpdateRequest(2, "项目阶段新版", "", 30));
+
+        assertThat(response.name()).isEqualTo("项目阶段新版");
+        assertThat(response.description()).isNull();
+        assertThat(response.version()).isEqualTo(3);
+        verify(auditService).recordTransactional(
+                9L, 1001L, "DICTIONARY_TYPE", "81", "UPDATE", "SUCCESS", "PROJECT_STAGE");
+    }
+
+    @Test
+    void shouldRejectAgentTypeUpdateWithoutChangeBeforeResolvingActor() {
+        assertThatThrownBy(() -> service.updateTypeAgent(1001L, "PROJECT_STAGE",
+                new DictionaryTypeAgentUpdateRequest(2, null, null, null)))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("REQUEST_INVALID");
+        verifyNoInteractions(userAccessService, typeMapper, itemMapper, usageMapper, auditService);
+    }
+
+    @Test
+    void shouldChangeAgentTypeStatusByImmutableCodeAndVersion() {
+        when(userAccessService.resolveActiveUser(1001L)).thenReturn(
+                access(List.of("route:dictionary", "dictionary:manage")));
+        DataDictionaryType existing = dictionaryType("PROJECT_STAGE", "项目阶段", null, 20, 4);
+        DataDictionaryType updated = dictionaryType("PROJECT_STAGE", "项目阶段", null, 20, 5);
+        updated.setStatus("DISABLED");
+        when(typeMapper.selectOne(any())).thenReturn(existing, updated);
+        when(typeMapper.update(any(), any())).thenReturn(1);
+        when(itemMapper.selectCount(any())).thenReturn(2L, 2L);
+
+        var response = service.updateTypeStatusAgent(1001L, "PROJECT_STAGE",
+                new DictionaryStatusRequest("DISABLED", 4));
+
+        assertThat(response.status()).isEqualTo("DISABLED");
+        assertThat(response.version()).isEqualTo(5);
+        verify(auditService).recordTransactional(
+                9L, 1001L, "DICTIONARY_TYPE", "81", "SET_STATUS", "SUCCESS",
+                "PROJECT_STAGE:DISABLED");
+    }
+
+    @Test
+    void shouldRejectInvalidAgentTypeStatusBeforeResolvingActor() {
+        assertThatThrownBy(() -> service.updateTypeStatusAgent(1001L, "PROJECT_STAGE",
+                new DictionaryStatusRequest("UNKNOWN", 4)))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("REQUEST_INVALID");
+        verifyNoInteractions(userAccessService, typeMapper, itemMapper, usageMapper, auditService);
+    }
+
+    @Test
+    void shouldCreateAgentItemInsideActiveTypeAndAudit() {
+        when(userAccessService.resolveActiveUser(1001L)).thenReturn(
+                access(List.of("route:dictionary", "dictionary:manage")));
+        when(typeMapper.selectOne(any())).thenReturn(
+                dictionaryType("PROJECT_STAGE", "项目阶段", null, 20, 1));
+        doAnswer(invocation -> { DataDictionaryItem item = invocation.getArgument(0); item.setId(101L); return 1; })
+                .when(itemMapper).insert(any(DataDictionaryItem.class));
+        when(usageMapper.selectCount(any())).thenReturn(0L);
+
+        var response = service.createItemAgent(1001L, "PROJECT_STAGE",
+                new DictionaryItemAgentCreateRequest("IN_PROGRESS", "进行中", "处理中", 10));
+
+        assertThat(response.id()).isEqualTo(101L);
+        assertThat(response.status()).isEqualTo("ACTIVE");
+        assertThat(response.usageCount()).isZero();
+        verify(auditService).recordTransactional(
+                9L, 1001L, "DICTIONARY_ITEM", "101", "CREATE", "SUCCESS", "IN_PROGRESS");
+    }
+
+    @Test
+    void shouldRejectInvalidAgentItemBeforeResolvingActor() {
+        assertThatThrownBy(() -> service.createItemAgent(1001L, "PROJECT_STAGE",
+                new DictionaryItemAgentCreateRequest("bad value", "进行中", null, 10)))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("REQUEST_INVALID");
+        verifyNoInteractions(userAccessService, typeMapper, itemMapper, usageMapper, auditService);
+    }
+
+    @Test
+    void shouldUpdateAgentItemByImmutableCoordinatesWithOptimisticVersion() {
+        when(userAccessService.resolveActiveUser(1001L)).thenReturn(
+                access(List.of("route:dictionary", "dictionary:manage")));
+        when(typeMapper.selectOne(any())).thenReturn(
+                dictionaryType("PROJECT_STAGE", "项目阶段", null, 20, 1));
+        DataDictionaryItem existing = dictionaryItem("IN_PROGRESS", "进行中", "处理中", 10, 3);
+        DataDictionaryItem updated = dictionaryItem("IN_PROGRESS", "处理中", "执行中", 20, 4);
+        when(itemMapper.selectOne(any())).thenReturn(existing, updated);
+        when(itemMapper.update(any(), any())).thenReturn(1);
+        when(usageMapper.selectCount(any())).thenReturn(2L);
+
+        var response = service.updateItemAgent(1001L, "PROJECT_STAGE", "IN_PROGRESS",
+                new DictionaryItemAgentUpdateRequest(3, "处理中", "执行中", 20));
+
+        assertThat(response.label()).isEqualTo("处理中");
+        assertThat(response.description()).isEqualTo("执行中");
+        assertThat(response.version()).isEqualTo(4);
+        verify(auditService).recordTransactional(
+                9L, 1001L, "DICTIONARY_ITEM", "101", "UPDATE", "SUCCESS", "IN_PROGRESS");
+    }
+
+    @Test
+    void shouldRejectAgentItemUpdateWithoutChangeBeforeResolvingActor() {
+        assertThatThrownBy(() -> service.updateItemAgent(1001L, "PROJECT_STAGE", "IN_PROGRESS",
+                new DictionaryItemAgentUpdateRequest(3, null, null, null)))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("REQUEST_INVALID");
+        verifyNoInteractions(userAccessService, typeMapper, itemMapper, usageMapper, auditService);
+    }
+
+    @Test
+    void shouldChangeAgentItemStatusByImmutableCoordinatesAndVersion() {
+        when(userAccessService.resolveActiveUser(1001L)).thenReturn(
+                access(List.of("route:dictionary", "dictionary:manage")));
+        when(typeMapper.selectOne(any())).thenReturn(
+                dictionaryType("PROJECT_STAGE", "项目阶段", null, 20, 1));
+        DataDictionaryItem existing = dictionaryItem("IN_PROGRESS", "进行中", null, 20, 4);
+        DataDictionaryItem updated = dictionaryItem("IN_PROGRESS", "进行中", null, 20, 5);
+        updated.setStatus("DISABLED");
+        when(itemMapper.selectOne(any())).thenReturn(existing, updated);
+        when(itemMapper.update(any(), any())).thenReturn(1);
+        when(usageMapper.selectCount(any())).thenReturn(2L);
+
+        var response = service.updateItemStatusAgent(1001L, "PROJECT_STAGE", "IN_PROGRESS",
+                new DictionaryStatusRequest("DISABLED", 4));
+
+        assertThat(response.status()).isEqualTo("DISABLED");
+        assertThat(response.version()).isEqualTo(5);
+        verify(auditService).recordTransactional(
+                9L, 1001L, "DICTIONARY_ITEM", "101", "SET_STATUS", "SUCCESS",
+                "IN_PROGRESS:DISABLED");
+    }
+
+    @Test
+    void shouldRejectInvalidAgentItemStatusBeforeResolvingActor() {
+        assertThatThrownBy(() -> service.updateItemStatusAgent(1001L, "PROJECT_STAGE", "IN_PROGRESS",
+                new DictionaryStatusRequest("UNKNOWN", 4)))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("REQUEST_INVALID");
+        verifyNoInteractions(userAccessService, typeMapper, itemMapper, usageMapper, auditService);
+    }
+
+    @Test
+    void shouldRejectAgentItemStatusNoOpWithoutWritingOrAuditing() {
+        when(userAccessService.resolveActiveUser(1001L)).thenReturn(
+                access(List.of("route:dictionary", "dictionary:manage")));
+        when(typeMapper.selectOne(any())).thenReturn(
+                dictionaryType("PROJECT_STAGE", "项目阶段", null, 20, 1));
+        when(itemMapper.selectOne(any())).thenReturn(
+                dictionaryItem("IN_PROGRESS", "进行中", null, 20, 4));
+
+        assertThatThrownBy(() -> service.updateItemStatusAgent(1001L, "PROJECT_STAGE", "IN_PROGRESS",
+                new DictionaryStatusRequest("ACTIVE", 4)))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("BUSINESS_STATE_INVALID");
+        verify(itemMapper, org.mockito.Mockito.never()).update(any(), any());
+        verifyNoInteractions(usageMapper, auditService);
+    }
+
+    @Test
+    void shouldListAgentItemsByTenantTypeCodeWithBoundedPage() {
+        when(userAccessService.resolveActiveUser(1001L)).thenReturn(access(List.of("route:dictionary")));
+        when(typeMapper.selectOne(any())).thenReturn(dictionaryType("PROJECT_STAGE", "项目阶段", null, 20, 1));
+        DataDictionaryItem item = new DataDictionaryItem();
+        item.setId(101L); item.setTenantId(9L); item.setDictionaryTypeId(81L);
+        item.setValue("IN_PROGRESS"); item.setLabel("进行中"); item.setStatus("ACTIVE");
+        item.setSortOrder(10); item.setVersion(3); item.setDeleted(false);
+        when(itemMapper.selectPage(any(Page.class), any())).thenAnswer(invocation -> {
+            Page<DataDictionaryItem> page = invocation.getArgument(0);
+            page.setRecords(List.of(item)); page.setTotal(1);
+            return page;
+        });
+        when(usageMapper.selectCount(any())).thenReturn(2L);
+
+        var response = service.listItemsAgent(1001L, "PROJECT_STAGE", "progress", "ACTIVE", 1, 500);
+
+        assertThat(response.size()).isEqualTo(50);
+        assertThat(response.records()).singleElement().satisfies(value -> {
+            assertThat(value.value()).isEqualTo("IN_PROGRESS");
+            assertThat(value.version()).isEqualTo(3);
+            assertThat(value.usageCount()).isEqualTo(2L);
+        });
+    }
+
+    @Test
+    void shouldRejectInvalidAgentItemQueryBeforeResolvingActor() {
+        assertThatThrownBy(() -> service.listItemsAgent(1001L, "bad-code", null, null, 1, 20))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("REQUEST_INVALID");
+        verifyNoInteractions(userAccessService, typeMapper, itemMapper, usageMapper, auditService);
     }
 
     @Test
@@ -89,6 +387,24 @@ class DataDictionaryServiceImplTest {
 
     private DictionaryTypeRequest request(Integer version) {
         return new DictionaryTypeRequest("EMPLOYEE_STATUS", "员工状态", "员工档案状态", 10, version);
+    }
+
+    private DataDictionaryType dictionaryType(
+            String code, String name, String description, int sortOrder, int version) {
+        DataDictionaryType type = new DataDictionaryType();
+        type.setId(81L); type.setTenantId(9L); type.setCode(code); type.setName(name);
+        type.setDescription(description); type.setSortOrder(sortOrder); type.setStatus("ACTIVE");
+        type.setVersion(version); type.setDeleted(false);
+        return type;
+    }
+
+    private DataDictionaryItem dictionaryItem(
+            String value, String label, String description, int sortOrder, int version) {
+        DataDictionaryItem item = new DataDictionaryItem();
+        item.setId(101L); item.setTenantId(9L); item.setDictionaryTypeId(81L); item.setValue(value);
+        item.setLabel(label); item.setDescription(description); item.setSortOrder(sortOrder); item.setStatus("ACTIVE");
+        item.setVersion(version); item.setDeleted(false);
+        return item;
     }
 
     private ResolvedUserAccess access(List<String> permissions) {

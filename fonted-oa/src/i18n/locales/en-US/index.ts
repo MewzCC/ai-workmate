@@ -9,6 +9,7 @@ import employeeFile from './employeeFile';
 import pages from './pages';
 import chat from './chat';
 import auth from './auth';
+import authDesign from './authDesign';
 import profile from './profile';
 import errors from './errors';
 import attendance from './attendance';
@@ -41,6 +42,7 @@ const enUS = {
   pages,
   chat,
   auth,
+  authDesign,
   profile,
   errors,
   attendance,

@@ -43,6 +43,8 @@ public class AttendanceSetting {
 
     private Long updatedBy;
 
+    private Integer version;
+
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createdAt;
 

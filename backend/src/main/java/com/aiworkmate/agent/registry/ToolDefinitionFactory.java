@@ -16,8 +16,16 @@ public final class ToolDefinitionFactory {
             ToolCode code, String name, String description, String purpose,
             JsonNode inputSchema, JsonNode outputSchema, Set<String> requiredPermissions,
             OwnershipPolicy ownershipPolicy, int maxResultItems, int maxResultBytes, int timeoutMs) {
+        return read(code, name, description, purpose, inputSchema, outputSchema, requiredPermissions,
+                PermissionMode.ALL, ownershipPolicy, maxResultItems, maxResultBytes, timeoutMs);
+    }
+
+    public static ToolDefinition read(
+            ToolCode code, String name, String description, String purpose,
+            JsonNode inputSchema, JsonNode outputSchema, Set<String> requiredPermissions, PermissionMode permissionMode,
+            OwnershipPolicy ownershipPolicy, int maxResultItems, int maxResultBytes, int timeoutMs) {
         return ToolDefinition.create(code, name, description, purpose, ToolHandlerContract.VERSION,
-                inputSchema, outputSchema, RiskLevel.L0, requiredPermissions, PermissionMode.ALL,
+                inputSchema, outputSchema, RiskLevel.L0, requiredPermissions, permissionMode,
                 ownershipPolicy, RetryPolicy.READ_ONLY_SAFE, SideEffect.NONE, ConfirmationPolicy.NONE,
                 maxResultItems, maxResultBytes, timeoutMs, READ_AUDIT);
     }

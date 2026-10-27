@@ -3,6 +3,10 @@ spring:
     # dev 默认连本地 ai_workmate_dev；容器化通过 DB_URL 覆盖
     url: ${DB_URL:jdbc:postgresql://localhost:5432/ai_workmate_dev}
 
+app:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:3001,http://127.0.0.1:3000,http://127.0.0.1:3001}
+
 logging:
   level:
     com.aiworkmate: debug

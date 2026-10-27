@@ -10,9 +10,83 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class PageContextFilterTest {
+    @Test
+    void ruleSelectionDoesNotExposeConditionsActionsOrEditorDrafts() {
+        assertThat(filter.filter("approval-rules", mapper.createObjectNode().put("ruleId", 11).put("version", 7)
+                .put("page", 1).put("size", 20).put("keyword", "fixture").put("status", "DISABLED")
+                .put("conditionJson", "private").put("actionJson", "private").put("description", "private").put("tenantId", 999)))
+                .isEqualTo(mapper.createObjectNode().put("ruleId", 11).put("version", 7).put("page", 1)
+                        .put("size", 20).put("keyword", "fixture").put("status", "DISABLED"));
+    }
+    @Test
+    void formSelectionDoesNotExposeSchemaOrDesignerDrafts() {
+        assertThat(filter.filter("form-engine", mapper.createObjectNode().put("formId", 11).put("version", 7)
+                .put("page", 1).put("size", 20).put("keyword", "fixture").put("status", "DISABLED")
+                .put("schemaJson", "private").put("description", "private").put("formName", "private").put("tenantId", 999)))
+                .isEqualTo(mapper.createObjectNode().put("formId", 11).put("version", 7).put("page", 1)
+                        .put("size", 20).put("keyword", "fixture").put("status", "DISABLED"));
+    }
+    @Test
+    void processSelectionDoesNotExposeNodesFormsOrDraftContent() {
+        assertThat(filter.filter("process-config", mapper.createObjectNode().put("processId", 11).put("version", 3)
+                .put("page", 1).put("size", 20).put("keyword", "fixture").put("status", "DISABLED")
+                .put("nodeJson", "private").put("description", "private").put("formId", 5).put("tenantId", 999)))
+                .isEqualTo(mapper.createObjectNode().put("processId", 11).put("version", 3).put("page", 1)
+                        .put("size", 20).put("keyword", "fixture").put("status", "DISABLED"));
+    }
     private final ObjectMapper mapper = new ObjectMapper();
     private final PageContextFilter filter = new PageContextFilter(
             mapper, new AgentRuntimeProperties(), new PageCapabilityCatalog());
+
+    @Test
+    void dictionaryKeepsExplicitParentChildVersionsButNotDraftsOrIdentity() {
+        var result = filter.filter("dictionary", mapper.createObjectNode().put("dictionaryTypeId", 11).put("typeCode", "FIXTURE")
+                .put("typeVersion", 3).put("dictionaryItemId", 21).put("itemValue", "FIRST").put("version", 4)
+                .put("page", 1).put("size", 20).put("typeKeyword", "fixture").put("keyword", "first")
+                .put("description", "private").put("label", "private").put("tenantId", 999));
+        assertThat(result).isEqualTo(mapper.createObjectNode().put("dictionaryTypeId", 11).put("typeCode", "FIXTURE")
+                .put("typeVersion", 3).put("dictionaryItemId", 21).put("itemValue", "FIRST").put("version", 4)
+                .put("page", 1).put("size", 20).put("typeKeyword", "fixture").put("keyword", "first"));
+    }
+
+    @Test
+    void integrationSelectionKeepsVersionButNotTargetsPayloadsOrInvocationContent() {
+        var result = filter.filter("api-center", mapper.createObjectNode().put("endpointId", 11).put("version", 3)
+                .put("relativePath", "/fixture").put("upstreamCode", "sandbox").put("requestTemplate", "private")
+                .put("responsePreview", "private").put("tenantId", 999));
+        assertThat(result).isEqualTo(mapper.createObjectNode().put("endpointId", 11).put("version", 3));
+    }
+
+    @Test
+    void contractContextRetainsSelectedVersionButNotCommercialOrIdentityFields() {
+        var result = filter.filter("contracts", mapper.createObjectNode().put("contractId", 11).put("version", 3)
+                .put("contractType", "SERVICE").put("ownerUserId", 7).put("amount", 1000)
+                .put("summary", "private").put("counterpartyName", "private").put("tenantId", 999));
+        assertThat(result).isEqualTo(mapper.createObjectNode().put("contractId", 11).put("version", 3).put("contractType", "SERVICE"));
+    }
+
+    @Test
+    void expenseContextRetainsSelectedVersionButNotInvoiceOrApplicantData() {
+        var result = filter.filter("expense", mapper.createObjectNode().put("applicationId", 11).put("version", 3)
+                .put("page", 1).put("applicantUserId", 7).put("amount", 100).put("invoiceNumber", "FIXTURE-11")
+                .put("reason", "private").put("tenantId", 999));
+        assertThat(result).isEqualTo(mapper.createObjectNode().put("applicationId", 11).put("version", 3).put("page", 1));
+    }
+
+    @Test
+    void supplierContextKeepsTheSelectedVersionWithoutLeakingContactOrRiskData() {
+        var result = filter.filter("suppliers", mapper.createObjectNode().put("supplierId", 11).put("version", 3)
+                .put("category", "SERVICE").put("contactEmail", "fixture@example.invalid").put("riskNote", "private")
+                .put("tenantId", 999).put("paymentTerms", "private"));
+        assertThat(result).isEqualTo(mapper.createObjectNode().put("supplierId", 11).put("version", 3).put("category", "SERVICE"));
+    }
+
+    @Test
+    void budgetContextRetainsTheSelectedVersionButNeverIdentityOrFinancialDraftFields() {
+        var result = filter.filter("budget", mapper.createObjectNode().put("budgetId", 11).put("version", 3)
+                .put("fiscalYear", 2026).put("ownerUserId", 999).put("tenantId", 888).put("totalAmount", 9000));
+        assertThat(result).isEqualTo(mapper.createObjectNode().put("budgetId", 11).put("version", 3).put("fiscalYear", 2026));
+    }
 
     @Test
     void rebuildsKnownPageContextFromScalarAllowlist() throws Exception {

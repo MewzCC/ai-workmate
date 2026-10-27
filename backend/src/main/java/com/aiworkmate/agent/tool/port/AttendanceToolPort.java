@@ -8,17 +8,31 @@ import java.util.List;
 /** Transport-neutral attendance read contract; a remote adapter can replace the local implementation. */
 public interface AttendanceToolPort {
     Result query(ToolActorContext context, Query query);
+    ClockWriteResult clock(ToolActorContext context, String clockType);
     ReissueWriteResult submitReissue(
             ToolActorContext context, ReissueCommand command, ToolOperationKey operationKey);
+    ReissueDecisionResult decideReissue(ToolActorContext context, ReissueDecisionCommand command);
+    SettingsUpdateResult updateSettings(ToolActorContext context, SettingsUpdateCommand command);
 
     enum Resource { TODAY, RECORDS, EXCEPTIONS, MY_REISSUES, PENDING_REISSUES, STATISTICS, SETTINGS }
 
     record Query(Resource resource, LocalDate from, LocalDate to, Long employeeId, String status,
                  Integer year, Integer month, int page, int size) { }
     record ReissueCommand(LocalDate clockDate, String clockType, String reason) { }
+    record ReissueDecisionCommand(long reissueId, int version, String decision, String comment) { }
+    record ReissueDecisionResult(long reissueId, String status, int version,
+                                 LocalDateTime decidedAt) implements ToolWriteReceipt { }
+    record SettingsUpdateCommand(int version, LocalTime workStartTime, LocalTime workEndTime,
+                                 int startFlexMinutes, int endFlexMinutes, boolean flexLinked) { }
+    record SettingsUpdateResult(int version, LocalTime workStartTime, LocalTime workEndTime,
+                                int startFlexMinutes, int endFlexMinutes, boolean flexLinked,
+                                LocalDateTime updatedAt) implements ToolWriteReceipt { }
     record ReissueWriteResult(long reissueId, String status, LocalDate clockDate,
                               String clockType, LocalDateTime submittedAt)
             implements ToolWriteReceipt { }
+    record ClockWriteResult(long recordId, LocalDate clockDate, LocalDateTime clockInTime,
+                            LocalDateTime clockOutTime, String status, Integer lateMinutes,
+                            Integer earlyLeaveMinutes) implements ToolWriteReceipt { }
 
     record Result(Resource resource, Today today, List<Record> records, List<Reissue> reissues,
                   Statistics statistics, Settings settings, long total, int page, int size) {
@@ -39,7 +53,7 @@ public interface AttendanceToolPort {
     record Reissue(long id, String applicantName, String approverName, LocalDate clockDate,
                    String clockType, String reason, String status, String approverComment,
                    LocalDateTime submittedAt, LocalDateTime decidedAt,
-                   boolean canDecide, boolean canWithdraw) { }
+                   int version, boolean canDecide, boolean canWithdraw) { }
 
     record Statistics(LocalDate startDate, LocalDate endDate, PersonalStats personal,
                       List<TeamStats> team) {
@@ -53,5 +67,5 @@ public interface AttendanceToolPort {
                      int lateDays, int earlyLeaveDays, int missingDays) { }
 
     record Settings(LocalTime workStartTime, LocalTime workEndTime, Integer startFlexMinutes,
-                    Integer endFlexMinutes, Boolean flexLinked, LocalDateTime updatedAt) { }
+                    Integer endFlexMinutes, Boolean flexLinked, Integer version, LocalDateTime updatedAt) { }
 }

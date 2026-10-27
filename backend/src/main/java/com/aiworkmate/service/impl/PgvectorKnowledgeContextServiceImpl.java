@@ -6,6 +6,9 @@ import com.aiworkmate.dto.KnowledgeSearchRequest;
 import com.aiworkmate.dto.KnowledgeSearchResponse;
 import com.aiworkmate.service.KnowledgeContextService;
 import com.aiworkmate.service.KnowledgeService;
+import com.aiworkmate.service.UserAccessService;
+import com.aiworkmate.common.BusinessException;
+import com.aiworkmate.common.ErrorCode;
 import com.aiworkmate.service.model.KnowledgeContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -23,9 +26,15 @@ public class PgvectorKnowledgeContextServiceImpl implements KnowledgeContextServ
 
     private final KnowledgeService knowledgeService;
     private final EmbeddingProperties properties;
+    private final UserAccessService userAccessService;
 
     @Override
     public KnowledgeContext retrieve(Long userId, String userMessage, Long kbId) {
+        if (userId == null) throw new BusinessException(ErrorCode.AUTH_REQUIRED);
+        var access = userAccessService.resolveActiveUser(userId);
+        if (access == null) throw new BusinessException(ErrorCode.AUTH_REQUIRED);
+        // Implicit all-library enrichment is optional; explicit KB requests retain domain ownership checks.
+        if (kbId == null && !access.permissions().contains("knowledge:search")) return KnowledgeContext.empty();
         KnowledgeSearchRequest request = new KnowledgeSearchRequest(userMessage,
                 properties.getRetrievalTopK(), properties.getRetrievalMinScore());
         KnowledgeSearchResponse result = kbId == null

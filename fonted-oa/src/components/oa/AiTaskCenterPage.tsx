@@ -9,8 +9,8 @@ import type { AgentTaskDetail, AgentTaskDetailStep, AgentTaskStatus, AgentTaskSu
 import { agentTaskApi, formatOaApiError } from '@/lib/oaApi';
 import { OaIcon } from '@/components/OaIcon';
 import ResponsiveTable from './ResponsiveTable';
+import { canCancelAgentTask, cancelAgentTask } from '@/lib/agentTaskCancellation';
 
-const CANCELLABLE_STATUSES = new Set<AgentTaskStatus>(['PLAN_READY', 'WAITING_CONFIRMATION', 'QUEUED']);
 const STATUS_VALUES: AgentTaskStatus[] = [
   'RECEIVED', 'PLANNING', 'PLAN_READY', 'WAITING_CONFIRMATION', 'QUEUED', 'RUNNING',
   'SUCCEEDED', 'PARTIALLY_SUCCEEDED', 'FAILED', 'TIMED_OUT', 'REJECTED', 'EXPIRED', 'CANCELLED',
@@ -81,9 +81,11 @@ export default function AiTaskCenterPage() {
       onOk: async () => {
         setCancellingTaskId(task.taskId);
         try {
-          const nextDetail = await agentTaskApi.cancel(task.taskId);
+          const outcome = await cancelAgentTask(task.taskId);
+          const nextDetail = outcome.detail;
           setDetail((current) => current?.taskId === task.taskId ? nextDetail : current);
-          message.success(t('pages.agentTasks.cancelSuccess'));
+          if (outcome.cancelled) message.success(t('pages.agentTasks.cancelSuccess'));
+          else message.info(t('oa.ai.cancelNoLongerPossible'));
           await load();
         } catch (error) {
           message.error(formatOaApiError(error));
@@ -132,7 +134,7 @@ export default function AiTaskCenterPage() {
       fixed: 'right',
       render: (_, item) => <Space>
         <Button type="link" size="small" onClick={() => void openDetail(item.taskId)}>{t('pages.agentTasks.view')}</Button>
-        {CANCELLABLE_STATUSES.has(item.status) && <Button danger type="link" size="small" loading={cancellingTaskId === item.taskId} onClick={() => cancelTask(item)}>{t('pages.agentTasks.cancelTask')}</Button>}
+        {canCancelAgentTask(item.status) && <Button danger type="link" size="small" loading={cancellingTaskId === item.taskId} onClick={() => cancelTask(item)}>{t('pages.agentTasks.cancelTask')}</Button>}
       </Space>,
     },
   ];

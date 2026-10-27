@@ -1,0 +1,189 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { describe, expect, it } from 'vitest';
+import { agentTaskNavigationTarget, agentToolTargetPage, agentToolTargetRecordId, resolveAgentToolTargetPath } from './agentToolTargetPage';
+import type { AgentTaskDetailStep, OaMenuItem } from '@/types/oa';
+import { toMenuItem } from './navigationTree';
+
+function backendToolCodes(): string[] {
+  const source = readFileSync(resolve(
+    process.cwd(), '../backend/src/main/java/com/aiworkmate/agent/registry/ToolCode.java',
+  ), 'utf8');
+  return [...source.matchAll(/^\s*[A-Z][A-Z0-9_]*\("([^"]+)"/gm)].map((match) => match[1]);
+}
+
+function backendOaPages(): Set<string> {
+  const source = readFileSync(resolve(
+    process.cwd(), '../backend/src/main/java/com/aiworkmate/oa/page/OaPage.java',
+  ), 'utf8');
+  return new Set([...source.matchAll(/^\s*[A-Z][A-Z0-9_]*\("([^"]+)"/gm)].map((match) => match[1]));
+}
+
+describe('Agent tool business navigation', () => {
+  it('locates a typed rule definition result without trusting output URLs', () => {
+    expect(agentToolTargetPage('approval.rule.definition.query')).toBe('approval-rules');
+    expect(agentToolTargetRecordId('approval.rule.definition.query', { ruleId: 11, url: 'https://invalid.example' })).toBe(11);
+  });
+  it('locates the actual rule receipt without selecting a configuration query row', () => {
+    for (const code of ['approval.rule.createDraft', 'approval.rule.updateDraft', 'approval.rule.patchDraftCondition', 'approval.rule.enableDraft']) {
+      expect(agentToolTargetRecordId(code, { ruleId: 11 })).toBe(11);
+    }
+    expect(resolveAgentToolTargetPath('approval-rules', 11, [{ id: 'approval-rules', name: '规则', type: 'page', visible: true, sort: 1 }]))
+      .toBe('/oa/approval-rules?id=11');
+    expect(resolveAgentToolTargetPath('approval-rules', 11, [])).toBeNull();
+    expect(agentToolTargetRecordId('approval.configuration.query', { items: [{ id: 11 }] })).toBeUndefined();
+  });
+  it('locates a typed form definition read result on its protected form page', () => {
+    expect(agentToolTargetPage('approval.form.definition.query')).toBe('form-engine');
+    expect(agentToolTargetRecordId('approval.form.definition.query', { formId: 11, fields: [] })).toBe(11);
+  });
+  it('locates form write receipts without trusting model arguments or a query first row', () => {
+    for (const code of ['approval.form.createDraft', 'approval.form.updateDraft', 'approval.form.publishDraft', 'approval.form.patchDraftField']) {
+      expect(agentToolTargetRecordId(code, { formId: 11 })).toBe(11);
+    }
+    expect(agentToolTargetRecordId('approval.configuration.query', { items: [{ id: 11 }] })).toBeUndefined();
+    expect(resolveAgentToolTargetPath('form-engine', 11, [{ id: 'form-engine', name: '表单', type: 'page', visible: true, sort: 1 }]))
+      .toBe('/oa/form-engine?id=11');
+    expect(resolveAgentToolTargetPath('form-engine', 11, [])).toBeNull();
+  });
+  it('locates process write receipts rather than configuration query rows', () => {
+    for (const code of ['approval.process.createDraft', 'approval.process.updateDraft', 'approval.process.publishDraft']) {
+      expect(agentToolTargetRecordId(code, { processId: 11 })).toBe(11);
+    }
+    expect(agentToolTargetRecordId('approval.configuration.query', { items: [{ id: 11 }] })).toBeUndefined();
+    expect(resolveAgentToolTargetPath('process-config', 11, [{ id: 'process-config', name: '流程', type: 'page', visible: true, sort: 1 }]))
+      .toBe('/oa/process-config?id=11');
+  });
+  const completed: AgentTaskDetailStep = { sequence: 1, toolCode: 'todo.query', status: 'SUCCEEDED', riskLevel: 'L0',
+    arguments: {}, result: { items: [], total: 0 }, resultSummary: '真实空结果', errorCode: null, startedAt: null, finishedAt: null };
+  it('distinguishes dictionary parent and child receipts without trusting output URLs or arguments', () => {
+    const menus: OaMenuItem[] = [{ id: 'dictionary', name: 'Dictionary', type: 'page', visible: true, sort: 1 }];
+    for (const kind of ['type', 'item']) for (const operation of ['create', 'update', 'updateStatus']) {
+      const step = { ...completed, toolCode: `dictionary.${kind}.${operation}`, arguments: { dictionaryTypeId: 999 },
+        result: { dictionaryTypeId: 11, dictionaryItemId: 21, url: 'https://invalid.example' } };
+      const target = agentTaskNavigationTarget({ status: 'SUCCEEDED', steps: [step] });
+      expect(target).toMatchObject({ pageId: 'dictionary', recordId: kind === 'type' ? 11 : 21, recordKind: `dictionary-${kind}` });
+      expect(resolveAgentToolTargetPath(target!.pageId, target!.recordId, menus, target!.recordKind))
+        .toBe(kind === 'type' ? '/oa/dictionary?typeId=11' : '/oa/dictionary?itemId=21');
+      expect(resolveAgentToolTargetPath(target!.pageId, target!.recordId, [], target!.recordKind)).toBeNull();
+    }
+    expect(resolveAgentToolTargetPath('dictionary', 11, menus)).toBeNull();
+    expect(agentToolTargetRecordId('dictionary.item.query', { items: [{ id: 21 }], dictionaryItemId: 21 })).toBeUndefined();
+  });
+  it('does not turn incomplete, partial, empty or missing-result tasks into page navigation', () => {
+    expect(agentTaskNavigationTarget({ status: 'PARTIALLY_SUCCEEDED', steps: [completed] })).toBeNull();
+    expect(agentTaskNavigationTarget({ status: 'SUCCEEDED', steps: [] })).toBeNull();
+    expect(agentTaskNavigationTarget({ status: 'SUCCEEDED', steps: [{ ...completed, status: 'FAILED' }] })).toBeNull();
+    expect(agentTaskNavigationTarget({ status: 'SUCCEEDED', steps: [{ ...completed, result: null }] })).toBeNull();
+    expect(agentTaskNavigationTarget({ status: 'SUCCEEDED', steps: [completed] })).toMatchObject({ pageId: 'todo' });
+  });
+  it('does not misrepresent filtered todo results as the default pending list', () => {
+    for (const args of [{ status: 'APPROVED' }, { from: '2026-10-01T00:00:00Z' }, { to: '2026-10-22T00:00:00Z' }]) {
+      expect(agentTaskNavigationTarget({ status: 'SUCCEEDED', steps: [{ ...completed, arguments: args }] })).toBeNull();
+    }
+  });
+  it('shares the live navigation conversion for nested groups without promoting a directory to a page', () => {
+    const menus = [toMenuItem({ routeKey: 'people', name: '人员', routeType: 'GROUP', sortOrder: 1,
+      children: [{ routeKey: 'employee-files', name: '档案', routeType: 'PAGE', sortOrder: 2,
+        componentKey: 'EMPLOYEE_FILES', path: '/oa/employee-files', children: [] }] })];
+    expect(resolveAgentToolTargetPath('people', undefined, menus)).toBeNull();
+    expect(resolveAgentToolTargetPath('employee-files', 23, menus)).toBe('/oa/employee-files?id=23');
+  });
+  const menus: OaMenuItem[] = ['employee-files', 'asset-ledger', 'dashboard'].map((id) => ({
+    id, name: id, type: 'page', visible: true, sort: 1, path: `/oa/${id}`,
+  }));
+  it('takes only explicit supported resource IDs from actual completed output', () => {
+    expect(agentToolTargetRecordId('hr.employee.query', { id: 23, url: 'https://invalid.example' })).toBe(23);
+    for (const code of ['asset.create', 'asset.update', 'asset.claim', 'asset.return', 'asset.transfer',
+      'asset.repair.start', 'asset.repair.complete', 'asset.inventory', 'asset.scrap']) {
+      expect(agentToolTargetRecordId(code, { assetId: 45 })).toBe(45);
+    }
+    expect(agentToolTargetRecordId('asset.query', { items: [{ id: 1 }], assetId: 1 })).toBeUndefined();
+    expect(agentToolTargetRecordId('legacy.unknown', { id: 23, assetId: 45 })).toBeUndefined();
+  });
+  it('locates only explicit budget write receipts, not a query row or supplied arguments', () => {
+    for (const code of ['budget.createDraft', 'budget.updateDraft', 'budget.activateDraft', 'budget.cancelDraft']) {
+      expect(agentToolTargetRecordId(code, { budgetId: 11 })).toBe(11);
+    }
+    expect(agentToolTargetRecordId('budget.query', { items: [{ id: 11 }] })).toBeUndefined();
+    expect(resolveAgentToolTargetPath('budget', 11, [{ id: 'budget', name: 'Budget', type: 'page', visible: true, sort: 1 }]))
+      .toBe('/oa/budget?id=11');
+  });
+  it('locates only explicit supplier write receipts after page authorization', () => {
+    for (const code of ['supplier.createDraft', 'supplier.updateDraft', 'supplier.updateStatus']) {
+      expect(agentToolTargetRecordId(code, { supplierId: 11, url: 'https://invalid.example' })).toBe(11);
+    }
+    expect(agentToolTargetRecordId('supplier.query', { items: [{ id: 11 }] })).toBeUndefined();
+    expect(resolveAgentToolTargetPath('suppliers', 11, [{ id: 'suppliers', name: 'Supplier', type: 'page', visible: true, sort: 1 }]))
+      .toBe('/oa/suppliers?id=11');
+    expect(resolveAgentToolTargetPath('suppliers', 11, [])).toBeNull();
+  });
+  it('locates actual expense receipts without choosing the first query result', () => {
+    for (const code of ['expense.createDraft', 'expense.updateDraft', 'expense.submitDraft', 'expense.withdraw', 'expense.reopen', 'expense.cancelDraft', 'expense.remind']) {
+      expect(agentToolTargetRecordId(code, { applicationId: 11 })).toBe(11);
+    }
+    expect(agentToolTargetRecordId('expense.query', { items: [{ id: 11 }] })).toBeUndefined();
+    expect(resolveAgentToolTargetPath('expense', 11, [{ id: 'expense', name: 'Expense', type: 'page', visible: true, sort: 1 }]))
+      .toBe('/oa/expense?id=11');
+    expect(resolveAgentToolTargetPath('expense', 11, [])).toBeNull();
+  });
+  it('locates actual contract write receipts, never the first query row', () => {
+    for (const code of ['contract.createDraft', 'contract.updateDraft', 'contract.updateStatus',
+      'contract.updateFulfillment', 'contract.recordPayment', 'contract.remind']) {
+      expect(agentToolTargetRecordId(code, { contractId: 11 })).toBe(11);
+    }
+    expect(agentToolTargetRecordId('contract.query', { items: [{ id: 11 }] })).toBeUndefined();
+    expect(resolveAgentToolTargetPath('contracts', 11, [{ id: 'contracts', name: 'Contracts', type: 'page', visible: true, sort: 1 }]))
+      .toBe('/oa/contracts?id=11');
+    expect(resolveAgentToolTargetPath('contracts', 11, [])).toBeNull();
+  });
+  it('locates only actual integration metadata write receipts', () => {
+    for (const code of ['integration.endpoint.createDraft', 'integration.endpoint.updateDraft', 'integration.endpoint.updateStatus']) {
+      expect(agentToolTargetRecordId(code, { endpointId: 11 })).toBe(11);
+    }
+    expect(agentToolTargetRecordId('integration.endpoint.query', { items: [{ id: 11 }] })).toBeUndefined();
+    expect(resolveAgentToolTargetPath('api-center', 11, [{ id: 'api-center', name: 'API', type: 'page', visible: true, sort: 1 }]))
+      .toBe('/oa/api-center?id=11');
+    expect(resolveAgentToolTargetPath('api-center', 11, [])).toBeNull();
+  });
+  it('rejects malformed IDs without coercing strings, arrays or unsafe numbers', () => {
+    for (const id of [0, -1, 1.2, Number.MAX_SAFE_INTEGER + 1, Infinity, NaN, '23', 'https://invalid.example', null, {}]) {
+      expect(agentToolTargetRecordId('hr.employee.query', { id })).toBeUndefined();
+    }
+    expect(agentToolTargetRecordId('hr.employee.query', [{ id: 23 }])).toBeUndefined();
+    expect(agentToolTargetRecordId('hr.employee.query', null)).toBeUndefined();
+  });
+  it('builds record locations only for supported internal pages after live menu authorization', () => {
+    expect(resolveAgentToolTargetPath('employee-files', 23, menus)).toBe('/oa/employee-files?id=23');
+    expect(resolveAgentToolTargetPath('asset-ledger', 45, menus)).toBe('/oa/asset-ledger?id=45');
+    expect(resolveAgentToolTargetPath('employee-files', 23, menus.filter((menu) => menu.id !== 'employee-files'))).toBeNull();
+    expect(resolveAgentToolTargetPath('employee-files', 23, [{ ...menus[0], visible: false }])).toBeNull();
+    expect(resolveAgentToolTargetPath('employee-files', 23, [{ ...menus[0], type: 'group' }])).toBeNull();
+    expect(resolveAgentToolTargetPath('dashboard', 23, menus)).toBeNull();
+    expect(resolveAgentToolTargetPath('asset-ledger', NaN, menus)).toBeNull();
+  });
+  it('keeps module navigation internal and refuses arbitrary URLs in route configuration', () => {
+    expect(resolveAgentToolTargetPath('dashboard', undefined, menus)).toBe('/oa/dashboard');
+    for (const path of ['https://invalid.example', '//invalid.example/oa', '/oa/../auth', '/oa/dashboard?url=x', 'javascript:alert(1)']) {
+      expect(resolveAgentToolTargetPath('dashboard', undefined, [{ ...menus[2], path }])).toBeNull();
+    }
+  });
+  it('assigns every registered business tool to an explicit page', () => {
+    const pages = backendOaPages();
+    for (const toolCode of backendToolCodes()) {
+      if (toolCode.startsWith('agentTask.')) continue;
+      const targetPage = agentToolTargetPage(toolCode);
+      expect(targetPage, toolCode).not.toBe('ai-tasks');
+      expect(pages.has(targetPage), `${toolCode} -> ${targetPage}`).toBe(true);
+    }
+  });
+
+  it('uses task center only for task inspection or unknown historical tools', () => {
+    expect(agentToolTargetPage('attendance.clock')).toBe('attendance-clock');
+    expect(agentToolTargetPage('dashboard.overview.query')).toBe('dashboard');
+    expect(agentToolTargetPage('observability.overview.query')).toBe('platform-observability');
+    expect(agentToolTargetPage('agentTask.mine.query')).toBe('ai-tasks');
+    expect(agentToolTargetPage('agentTask.cancel')).toBe('ai-tasks');
+    expect(agentToolTargetPage('legacy.unknown')).toBe('ai-tasks');
+  });
+});

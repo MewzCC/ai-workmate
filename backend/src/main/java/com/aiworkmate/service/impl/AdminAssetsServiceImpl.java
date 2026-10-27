@@ -186,6 +186,12 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
     @Transactional
     public AssetLedgerResponse createAsset(Long userId, AssetLedgerRequest request) {
         ResolvedUserAccess actor = requirePermission(userId, "asset:write");
+        return assetDetail(actor, createAssetRecord(actor, request));
+    }
+
+    private AssetLedger createAssetRecord(ResolvedUserAccess actor, AssetLedgerRequest request) {
+        validateAssetMetadataFields(assetFields(request), true);
+        if (request.departmentId() != null) requireDepartment(actor.tenantId(), request.departmentId());
         if (assetMapper.exists(new LambdaQueryWrapper<AssetLedger>()
                 .eq(AssetLedger::getTenantId, actor.tenantId())
                 .eq(AssetLedger::getAssetCode, request.assetCode().trim())
@@ -210,18 +216,29 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
         a.setDeleted(false);
         a.setCreatedAt(now);
         a.setUpdatedAt(now);
-        assetMapper.insert(a);
-        auditService.record(actor.tenantId(), actor.userId(), "ASSET_LEDGER",
+        try {
+            assetMapper.insert(a);
+        } catch (org.springframework.dao.DuplicateKeyException exception) {
+            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID, "validation.asset.code.duplicate");
+        }
+        auditService.recordTransactional(actor.tenantId(), actor.userId(), "ASSET_LEDGER",
                 a.getId().toString(), "CREATE", "SUCCESS", "新增资产台账");
-        return assetDetail(actor, a);
+        return a;
     }
 
     @Override
     @Transactional
     public AssetLedgerResponse updateAsset(Long userId, Long id, AssetLedgerRequest request) {
         ResolvedUserAccess actor = requirePermission(userId, "asset:write");
-        AssetLedger a = requireAsset(actor.tenantId(), id);
-        if (request.version() == null) {
+        if (request == null) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        requireAsset(actor.tenantId(), id);
+        BigDecimal value = request.originalValue() == null ? BigDecimal.ZERO : request.originalValue();
+        return assetDetail(actor, updateAssetRecord(actor, id, request, value));
+    }
+
+    private AssetLedger updateAssetRecord(ResolvedUserAccess actor, Long id, AssetLedgerRequest request, BigDecimal value) {
+        validateAssetMetadataFields(assetFields(request), true);
+        if (request.version() == null || request.version() < 0 || request.version() == Integer.MAX_VALUE) {
             throw new BusinessException(ErrorCode.VERSION_CONFLICT);
         }
         if (assetMapper.exists(new LambdaQueryWrapper<AssetLedger>()
@@ -232,7 +249,9 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
             throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID,
                     "validation.asset.code.duplicate");
         }
-        int updated = assetMapper.update(null, new LambdaUpdateWrapper<AssetLedger>()
+        int updated;
+        try {
+            updated = assetMapper.update(null, new LambdaUpdateWrapper<AssetLedger>()
                 .eq(AssetLedger::getId, id)
                 .eq(AssetLedger::getTenantId, actor.tenantId())
                 .eq(AssetLedger::getDeleted, false)
@@ -242,17 +261,82 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
                 .set(AssetLedger::getCategory, request.category().trim())
                 .set(AssetLedger::getSpecification, trim(request.specification()))
                 .set(AssetLedger::getPurchaseDate, request.purchaseDate())
-                .set(AssetLedger::getOriginalValue,
-                        request.originalValue() == null ? BigDecimal.ZERO : request.originalValue())
+                .set(AssetLedger::getOriginalValue, value)
                 .set(AssetLedger::getRemark, trim(request.remark()))
                 .set(AssetLedger::getUpdatedAt, LocalDateTime.now())
                 .setSql("version = version + 1"));
+        } catch (org.springframework.dao.DuplicateKeyException exception) {
+            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID, "validation.asset.code.duplicate");
+        }
         if (updated != 1) {
             throw new BusinessException(ErrorCode.VERSION_CONFLICT);
         }
-        auditService.record(actor.tenantId(), actor.userId(), "ASSET_LEDGER",
+        auditService.recordTransactional(actor.tenantId(), actor.userId(), "ASSET_LEDGER",
                 id.toString(), "UPDATE", "SUCCESS", "更新资产台账");
-        return assetDetail(actor, requireAsset(actor.tenantId(), id));
+        return assetMapper.selectOne(new LambdaQueryWrapper<AssetLedger>().eq(AssetLedger::getTenantId, actor.tenantId())
+                .eq(AssetLedger::getId, id).eq(AssetLedger::getDeleted, false));
+    }
+
+    @Override
+    @Transactional
+    public com.aiworkmate.service.model.AssetAgentMetadataReceipt createAssetAgent(Long userId,
+            com.aiworkmate.service.model.AssetAgentMetadataFields fields, Long departmentId) {
+        ResolvedUserAccess actor = requirePermission(userId, "asset:write");
+        validateAssetMetadataFields(fields, true);
+        if (departmentId != null && departmentId < 1) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        var record = createAssetRecord(actor, new AssetLedgerRequest(fields.assetCode(), fields.name(), fields.category(),
+                fields.specification(), null, departmentId, null, fields.purchaseDate(), fields.originalValue(), fields.remark(), null));
+        return assetMetadataReceipt(record);
+    }
+
+    @Override
+    @Transactional
+    public com.aiworkmate.service.model.AssetAgentMetadataReceipt updateAssetAgent(Long userId, Long id, int version,
+            com.aiworkmate.service.model.AssetAgentMetadataFields fields, boolean clearPurchaseDate) {
+        ResolvedUserAccess actor = requirePermission(userId, "asset:write");
+        validateAssetMetadataFields(fields, false);
+        if (id == null || id < 1 || version < 0 || version == Integer.MAX_VALUE
+                || (clearPurchaseDate && fields.purchaseDate() != null)
+                || (!clearPurchaseDate && fields.assetCode() == null && fields.name() == null && fields.category() == null
+                    && fields.specification() == null && fields.purchaseDate() == null && fields.originalValue() == null && fields.remark() == null)) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        AssetLedger current = assetMapper.lockMetadata(actor.tenantId(), id);
+        if (current == null) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        if (!Objects.equals(current.getVersion(), version)) throw new BusinessException(ErrorCode.VERSION_CONFLICT);
+        var merged = new AssetLedgerRequest(fields.assetCode() == null ? current.getAssetCode() : fields.assetCode(),
+                fields.name() == null ? current.getName() : fields.name(),
+                fields.category() == null ? current.getCategory() : fields.category(),
+                fields.specification() == null ? current.getSpecification() : fields.specification(), null, null, null,
+                clearPurchaseDate ? null : fields.purchaseDate() == null ? current.getPurchaseDate() : fields.purchaseDate(),
+                fields.originalValue() == null ? current.getOriginalValue() : fields.originalValue(),
+                fields.remark() == null ? current.getRemark() : fields.remark(), version);
+        // Unlike a full HTTP replacement, an omitted Agent value must preserve a legacy NULL rather than coerce it to zero.
+        return assetMetadataReceipt(updateAssetRecord(actor, id, merged, merged.originalValue()));
+    }
+
+    private com.aiworkmate.service.model.AssetAgentMetadataFields assetFields(AssetLedgerRequest request) {
+        if (request == null) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        return new com.aiworkmate.service.model.AssetAgentMetadataFields(request.assetCode(), request.name(), request.category(),
+                request.specification(), request.purchaseDate(), request.originalValue(), request.remark());
+    }
+
+    private void validateAssetMetadataFields(com.aiworkmate.service.model.AssetAgentMetadataFields fields, boolean required) {
+        if (fields == null || (required && (fields.assetCode() == null || fields.name() == null || fields.category() == null))
+                || (fields.assetCode() != null && (fields.assetCode().isBlank() || fields.assetCode().length() > 64))
+                || (fields.name() != null && (fields.name().isBlank() || fields.name().length() > 120))
+                || (fields.category() != null && (fields.category().isBlank() || fields.category().length() > 40))
+                || (fields.specification() != null && fields.specification().length() > 120)
+                || (fields.remark() != null && fields.remark().length() > 500)
+                || (fields.originalValue() != null && (fields.originalValue().signum() < 0
+                    || fields.originalValue().stripTrailingZeros().scale() > 2
+                    || fields.originalValue().compareTo(new BigDecimal("999999999999.99")) > 0))) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+    }
+
+    private com.aiworkmate.service.model.AssetAgentMetadataReceipt assetMetadataReceipt(AssetLedger record) {
+        return new com.aiworkmate.service.model.AssetAgentMetadataReceipt(record.getId(), record.getAssetCode(), record.getName(), record.getStatus(), record.getVersion());
     }
 
     @Override
@@ -587,7 +671,7 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
         String kw = normalize(keyword);
 
         LambdaQueryWrapper<MeetingRoom> q = meetingListWrapper(actor.tenantId(), kw, status);
-        q.orderByDesc(MeetingRoom::getCreatedAt).last("LIMIT " + safeSize + " OFFSET " + offset);
+        q.orderByDesc(MeetingRoom::getCreatedAt, MeetingRoom::getId).last("LIMIT " + safeSize + " OFFSET " + offset);
         List<MeetingRoom> rows = meetingRoomMapper.selectList(q);
         long total = meetingRoomMapper.selectCount(meetingListWrapper(actor.tenantId(), kw, status));
         boolean canWrite = actor.permissions().contains("meeting:write");
@@ -625,11 +709,12 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
         m.setFacilities(trim(request.facilities()));
         m.setStatus(request.status() == null ? "OPEN" : request.status());
         m.setRemark(trim(request.remark()));
+        m.setVersion(0);
         m.setDeleted(false);
         m.setCreatedAt(now);
         m.setUpdatedAt(now);
         meetingRoomMapper.insert(m);
-        auditService.record(actor.tenantId(), actor.userId(), "MEETING_ROOM",
+        auditService.recordTransactional(actor.tenantId(), actor.userId(), "MEETING_ROOM",
                 m.getId().toString(), "CREATE", "SUCCESS", "新增会议室");
         return toMeetingRoomResponse(m, true);
     }
@@ -638,7 +723,12 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
     @Transactional
     public MeetingRoomResponse updateMeetingRoom(Long userId, Long id, MeetingRoomRequest request) {
         ResolvedUserAccess actor = requirePermission(userId, "meeting:write");
-        MeetingRoom current = requireMeetingRoom(actor.tenantId(), id);
+        if (request.version() == null || request.version() < 0) {
+            throw new BusinessException(ErrorCode.VERSION_CONFLICT);
+        }
+        // Share the booking lock so closing a room cannot race a new reservation.
+        MeetingRoom current = meetingRoomMapper.lockForBooking(actor.tenantId(), id);
+        if (current == null) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
         String targetStatus = request.status() == null ? "OPEN" : request.status();
         if (!"CLOSED".equals(current.getStatus()) && "CLOSED".equals(targetStatus)
                 && hasActiveMeetingBooking(actor.tenantId(), id)) {
@@ -656,6 +746,7 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
                 .eq(MeetingRoom::getId, id)
                 .eq(MeetingRoom::getTenantId, actor.tenantId())
                 .eq(MeetingRoom::getDeleted, false)
+                .eq(MeetingRoom::getVersion, request.version())
                 .set(MeetingRoom::getCode, request.code().trim())
                 .set(MeetingRoom::getName, request.name().trim())
                 .set(MeetingRoom::getLocation, trim(request.location()))
@@ -663,13 +754,61 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
                 .set(MeetingRoom::getFacilities, trim(request.facilities()))
                 .set(MeetingRoom::getStatus, targetStatus)
                 .set(MeetingRoom::getRemark, trim(request.remark()))
+                .setSql("version = version + 1")
                 .set(MeetingRoom::getUpdatedAt, LocalDateTime.now()));
         if (updated != 1) {
             throw new BusinessException(ErrorCode.VERSION_CONFLICT);
         }
-        auditService.record(actor.tenantId(), actor.userId(), "MEETING_ROOM",
+        auditService.recordTransactional(actor.tenantId(), actor.userId(), "MEETING_ROOM",
                 id.toString(), "UPDATE", "SUCCESS", "更新会议室");
         return toMeetingRoomResponse(requireMeetingRoom(actor.tenantId(), id), true);
+    }
+
+    @Override
+    @Transactional
+    public MeetingRoomResponse createMeetingRoomAgent(Long userId, com.aiworkmate.service.model.MeetingRoomAgentFields fields) {
+        requirePermission(userId, "meeting:write");
+        validateAgentRoomFields(fields);
+        if (fields.code() == null || fields.name() == null || fields.capacity() == null || fields.status() == null) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        return createMeetingRoom(userId, new MeetingRoomRequest(fields.code(), fields.name(), fields.location(),
+                fields.capacity(), fields.facilities(), fields.status(), fields.remark(), null));
+    }
+
+    @Override
+    @Transactional
+    public MeetingRoomResponse updateMeetingRoomAgent(Long userId, Long id, int version,
+            com.aiworkmate.service.model.MeetingRoomAgentFields fields) {
+        ResolvedUserAccess actor = requirePermission(userId, "meeting:write");
+        validateAgentRoomFields(fields);
+        if (id == null || id < 1 || version < 0 || version == Integer.MAX_VALUE) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        MeetingRoom current = meetingRoomMapper.lockForBooking(actor.tenantId(), id);
+        if (current == null) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        if (!Objects.equals(current.getVersion(), version)) throw new BusinessException(ErrorCode.VERSION_CONFLICT);
+        // Merge while holding the same transaction/row lock as the versioned domain update.
+        return updateMeetingRoom(userId, id, new MeetingRoomRequest(
+                fields.code() == null ? current.getCode() : fields.code(),
+                fields.name() == null ? current.getName() : fields.name(),
+                fields.location() == null ? current.getLocation() : fields.location(),
+                fields.capacity() == null ? current.getCapacity() : fields.capacity(),
+                fields.facilities() == null ? current.getFacilities() : fields.facilities(),
+                fields.status() == null ? current.getStatus() : fields.status(),
+                fields.remark() == null ? current.getRemark() : fields.remark(), version));
+    }
+
+    private void validateAgentRoomFields(com.aiworkmate.service.model.MeetingRoomAgentFields fields) {
+        if (fields == null || (fields.code() == null && fields.name() == null && fields.location() == null
+                && fields.capacity() == null && fields.facilities() == null && fields.status() == null && fields.remark() == null)
+                || (fields.code() != null && (fields.code().isBlank() || fields.code().length() > 64))
+                || (fields.name() != null && (fields.name().isBlank() || fields.name().length() > 120))
+                || (fields.location() != null && fields.location().length() > 200)
+                || (fields.facilities() != null && fields.facilities().length() > 200)
+                || (fields.remark() != null && fields.remark().length() > 500)
+                || (fields.capacity() != null && (fields.capacity() < 0 || fields.capacity() > 10000))
+                || (fields.status() != null && !Set.of("OPEN", "CLOSED").contains(fields.status()))) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
     }
 
     @Override
@@ -776,6 +915,21 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
     public Optional<VisitorAgentVisitReceipt> findAgentVisitorLeave(
             Long userId, VisitorAgentVisitCommand command, String operationKey) {
         return findAgentVisitorTransition(userId, command, operationKey, "LEAVE", "LEFT");
+    }
+
+    @Override
+    @Transactional
+    public VisitorAgentVisitReceipt markVisitorNoShowAgent(
+            Long userId, VisitorAgentVisitCommand command, String operationKey) {
+        return transitionVisitorVisitAgent(userId, command, operationKey,
+                "APPROVED", "NO_SHOW", "NO_SHOW");
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<VisitorAgentVisitReceipt> findAgentVisitorNoShow(
+            Long userId, VisitorAgentVisitCommand command, String operationKey) {
+        return findAgentVisitorTransition(userId, command, operationKey, "NO_SHOW", "NO_SHOW");
     }
 
     private VisitorAgentVisitReceipt transitionVisitorVisitAgent(
@@ -2150,7 +2304,7 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
     private MeetingRoomResponse toMeetingRoomResponse(MeetingRoom m, boolean canWrite) {
         return new MeetingRoomResponse(
                 m.getId(), m.getCode(), m.getName(), m.getLocation(), m.getCapacity(),
-                m.getFacilities(), m.getStatus(), m.getRemark(),
+                m.getFacilities(), m.getStatus(), m.getRemark(), m.getVersion(),
                 m.getCreatedAt(), m.getUpdatedAt(), canWrite, canWrite);
     }
 

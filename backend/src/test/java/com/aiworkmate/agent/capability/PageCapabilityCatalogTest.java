@@ -11,7 +11,39 @@ import java.util.stream.Collectors;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class PageCapabilityCatalogTest {
+    @org.junit.jupiter.api.Test void genericApplicationReadsRequireTheExistingCompanionEntryRoute() {
+        var catalog = new PageCapabilityCatalog();
+        for (String code : java.util.List.of("approval.application.mine.query", "approval.application.detail.query")) {
+            assertThat(catalog.allowsTool("my-applications", code, java.util.List.of("route:my-applications"))).isFalse();
+            assertThat(catalog.allowsTool("my-applications", code, java.util.List.of("route:my-applications", "route:approval-start"))).isTrue();
+            assertThat(catalog.allowsTool("ai-workspace", code, java.util.List.of("route:ai-workspace", "route:my-applications"))).isFalse();
+        }
+    }
     private final PageCapabilityCatalog catalog = new PageCapabilityCatalog();
+
+    @Test
+    void workspaceRequiresBothEntryAndAssociatedBusinessPagePermissions() {
+        assertThat(catalog.allowsTool("ai-workspace", "meeting.book",
+                Set.of("route:ai-workspace", "route:meeting-room"))).isTrue();
+        assertThat(catalog.allowsTool("ai-workspace", "meeting.book", Set.of("route:ai-workspace"))).isFalse();
+        assertThat(catalog.allowsTool("ai-workspace", "meeting.book", Set.of("route:meeting-room"))).isFalse();
+    }
+
+    @Test
+    void pageAccessCannotAuthorizeUnboundToolsAndUnknownContextsFailClosed() {
+        var permissions = Set.of("route:todo", "route:meeting-room", "route:ai-workspace");
+        assertThat(catalog.allowsTool("todo", "meeting.book", permissions)).isFalse();
+        assertThat(catalog.allowsTool("missing", "todo.query", permissions)).isFalse();
+        assertThat(catalog.allowsTool(null, "todo.query", permissions)).isFalse();
+        assertThat(catalog.allowsTool("todo", "missing", permissions)).isFalse();
+        assertThat(catalog.allowsTool("todo", "todo.query", null)).isFalse();
+    }
+
+    @Test
+    void legacyContextAliasesRequireCanonicalPagePermissions() {
+        assertThat(catalog.allowsTool("todo-list", "todo.query", Set.of("route:todo"))).isTrue();
+        assertThat(catalog.allowsTool("todo-list", "todo.query", Set.of("route:todo-list"))).isFalse();
+    }
 
     @Test
     void registersAllEnabledPagesWithUniqueComponents() {
@@ -44,42 +76,78 @@ class PageCapabilityCatalogTest {
 
         assertThat(registered).isEqualTo(knownTools);
         assertThat(catalog.find("access-control").orElseThrow().writeTools()).isEmpty();
-        assertThat(catalog.find("ai-workspace").orElseThrow().writeTools())
+        assertThat(catalog.find("ai-workspace").orElseThrow().tools())
                 .extracting(PageToolReference::toolCode)
-                .containsExactlyInAnyOrder("notification.markRead", "leave.createDraft", "leave.submit",
-                        "leave.apply", "leave.withdraw", "attendance.reissue.apply",
-                        "approval.application.createDraft", "approval.application.submitDraft",
-                        "approval.application.withdraw", "approval.application.reopen");
+                .containsExactlyInAnyOrderElementsOf(knownTools);
         assertThat(catalog.find("todo").orElseThrow().readTools())
                 .extracting(PageToolReference::code)
                 .containsExactly(ToolCode.TODO_QUERY);
         assertThat(catalog.find("dashboard").orElseThrow().readTools())
                 .extracting(PageToolReference::code)
-                .contains(ToolCode.USER_PERMISSION_MINE_QUERY);
+                .contains(ToolCode.USER_PERMISSION_MINE_QUERY, ToolCode.DASHBOARD_OVERVIEW_QUERY);
+        assertThat(catalog.find("dashboard").orElseThrow().writeTools())
+                .extracting(PageToolReference::code)
+                .containsExactly(ToolCode.DASHBOARD_PREFERENCES_UPDATE);
         assertThat(catalog.find("ai-workspace").orElseThrow().readTools())
                 .extracting(PageToolReference::code)
                 .contains(ToolCode.USER_PERMISSION_MINE_QUERY);
+        assertThat(catalog.find("knowledge-base").orElseThrow().writeTools())
+                .extracting(PageToolReference::code)
+                .containsExactly(ToolCode.KNOWLEDGE_BASE_CREATE, ToolCode.KNOWLEDGE_BASE_UPDATE,
+                        ToolCode.KNOWLEDGE_DOCUMENT_CREATE_TEXT, ToolCode.KNOWLEDGE_DOCUMENT_REINDEX);
+        assertThat(catalog.find("knowledge-base").orElseThrow().readTools())
+                .extracting(PageToolReference::code)
+                .containsExactly(ToolCode.KNOWLEDGE_SEARCH, ToolCode.KNOWLEDGE_BASE_QUERY,
+                        ToolCode.KNOWLEDGE_DOCUMENT_QUERY);
+        assertThat(catalog.find("form-engine").orElseThrow().writeTools())
+                .extracting(PageToolReference::code)
+                .containsExactly(ToolCode.APPROVAL_FORM_CREATE_DRAFT, ToolCode.APPROVAL_FORM_UPDATE_DRAFT,
+                        ToolCode.APPROVAL_FORM_PATCH_DRAFT_FIELD, ToolCode.APPROVAL_FORM_PUBLISH_DRAFT);
+        assertThat(catalog.find("process-config").orElseThrow().writeTools())
+                .extracting(PageToolReference::code)
+                .containsExactly(ToolCode.APPROVAL_PROCESS_CREATE_DRAFT,
+                        ToolCode.APPROVAL_PROCESS_UPDATE_DRAFT,
+                        ToolCode.APPROVAL_PROCESS_PUBLISH_DRAFT);
+        assertThat(catalog.find("approval-rules").orElseThrow().writeTools())
+                .extracting(PageToolReference::code)
+                .containsExactly(ToolCode.APPROVAL_RULE_CREATE_DRAFT,
+                        ToolCode.APPROVAL_RULE_UPDATE_DRAFT,
+                        ToolCode.APPROVAL_RULE_PATCH_DRAFT_CONDITION,
+                        ToolCode.APPROVAL_RULE_ENABLE_DRAFT);
     }
 
     @Test
     void everyProductionPageHasAtLeastOneControlledTool() {
+        assertThat(catalog.find("platform-observability").orElseThrow().readTools())
+                .extracting(PageToolReference::code).contains(ToolCode.OBSERVABILITY_OVERVIEW_QUERY);
         assertThat(catalog.all()).allSatisfy(page ->
                 assertThat(page.tools()).as(page.pageId()).isNotEmpty());
         assertThat(catalog.find("ai-tasks").orElseThrow().readTools())
                 .extracting(PageToolReference::code).containsExactly(ToolCode.AGENT_TASK_MINE_QUERY);
+        assertThat(catalog.find("ai-tasks").orElseThrow().writeTools())
+                .extracting(PageToolReference::code).containsExactly(ToolCode.AGENT_TASK_CANCEL);
         assertThat(catalog.find("leave-application").orElseThrow().tools())
                 .extracting(PageToolReference::code)
                 .containsExactlyInAnyOrder(ToolCode.LEAVE_MINE, ToolCode.LEAVE_CREATE_DRAFT,
-                        ToolCode.LEAVE_SUBMIT, ToolCode.LEAVE_APPLY, ToolCode.LEAVE_WITHDRAW);
+                        ToolCode.LEAVE_UPDATE_DRAFT, ToolCode.LEAVE_SUBMIT, ToolCode.LEAVE_APPLY, ToolCode.LEAVE_WITHDRAW,
+                        ToolCode.LEAVE_REMIND);
+    }
+
+    @Test
+    void everyWorkspaceToolHasAtLeastOnePermissionBearingBusinessPage() {
+        assertThat(catalog.find("ai-workspace").orElseThrow().tools()).allSatisfy(tool ->
+                assertThat(catalog.businessPageIdsForTool(tool.toolCode())).as(tool.toolCode()).isNotEmpty());
+        assertThat(catalog.businessPageIdsForTool("meeting.book")).containsExactly("meeting-room");
     }
 
     @Test
     void meetingPageOffersReadAndConfirmedAtomicWrites() {
         var page = catalog.find("meeting-room").orElseThrow();
         assertThat(page.readTools()).extracting(PageToolReference::code)
-                .containsExactly(ToolCode.MEETING_QUERY);
+                .containsExactly(ToolCode.MEETING_QUERY, ToolCode.MEETING_ROOM_QUERY);
         assertThat(page.writeTools()).extracting(PageToolReference::code)
-                .containsExactly(ToolCode.MEETING_BOOK, ToolCode.MEETING_CANCEL);
+                .containsExactly(ToolCode.MEETING_BOOK, ToolCode.MEETING_CANCEL,
+                        ToolCode.MEETING_ROOM_CREATE, ToolCode.MEETING_ROOM_UPDATE);
     }
 
     @Test
@@ -87,12 +155,16 @@ class PageCapabilityCatalogTest {
         var page = catalog.find("asset-ledger").orElseThrow();
         assertThat(page.readTools()).extracting(PageToolReference::code)
                 .containsExactly(ToolCode.ASSET_QUERY);
-        assertThat(page.writeTools()).extracting(PageToolReference::code)
-                .containsExactly(ToolCode.ASSET_CLAIM, ToolCode.ASSET_RETURN, ToolCode.ASSET_REPAIR_START);
+        assertThat(page.writeTools()).extracting(tool -> tool.code().code())
+                .containsExactly("asset.create", "asset.update", "asset.claim", "asset.return", "asset.repair.start",
+                        "asset.transfer", "asset.repair.complete", "asset.inventory", "asset.scrap");
     }
 
     @Test
     void genericApprovalEntryPagesShareAtomicDraftLifecycleTools() {
+        assertThat(catalog.find("my-applications").orElseThrow().readTools())
+                .extracting(PageToolReference::code).contains(ToolCode.APPROVAL_APPLICATION_MINE_QUERY,
+                        ToolCode.APPROVAL_APPLICATION_DETAIL_QUERY);
         assertThat(Set.of("approval-start", "approval-form", "my-applications")).allSatisfy(pageId ->
                 assertThat(catalog.find(pageId).orElseThrow().writeTools())
                         .extracting(PageToolReference::code)
@@ -101,11 +173,25 @@ class PageCapabilityCatalogTest {
         assertThat(catalog.find("my-applications").orElseThrow().writeTools())
                 .extracting(PageToolReference::code)
                 .contains(ToolCode.APPROVAL_APPLICATION_WITHDRAW,
-                        ToolCode.APPROVAL_APPLICATION_REOPEN);
+                        ToolCode.APPROVAL_APPLICATION_REOPEN,
+                        ToolCode.APPROVAL_APPLICATION_UPDATE_DRAFT,
+                        ToolCode.APPROVAL_APPLICATION_CANCEL_DRAFT,
+                        ToolCode.APPROVAL_APPLICATION_REMIND);
         assertThat(catalog.find("approval-start").orElseThrow().writeTools())
                 .extracting(PageToolReference::code)
                 .doesNotContain(ToolCode.APPROVAL_APPLICATION_WITHDRAW,
                         ToolCode.APPROVAL_APPLICATION_REOPEN);
+    }
+
+    @Test
+    void approvalCenterOffersReadAndSingleTaskActionsOnly() {
+        var page = catalog.find("approval-list").orElseThrow();
+        assertThat(page.readTools()).extracting(PageToolReference::code)
+                .containsExactly(ToolCode.APPROVAL_TASK_QUERY);
+        assertThat(page.writeTools()).extracting(PageToolReference::code)
+                .containsExactly(ToolCode.APPROVAL_TASK_APPROVE, ToolCode.APPROVAL_TASK_REJECT,
+                        ToolCode.APPROVAL_TASK_TRANSFER, ToolCode.APPROVAL_TASK_COPY,
+                        ToolCode.APPROVAL_TASK_ADD_SIGN);
     }
 
     @Test
@@ -133,7 +219,14 @@ class PageCapabilityCatalogTest {
                         .containsExactly(ToolCode.ATTENDANCE_QUERY));
         assertThat(catalog.find("attendance-reissue").orElseThrow().writeTools())
                 .extracting(PageToolReference::code)
-                .containsExactly(ToolCode.ATTENDANCE_REISSUE_APPLY);
+                .containsExactly(ToolCode.ATTENDANCE_REISSUE_APPLY,
+                        ToolCode.ATTENDANCE_REISSUE_DECIDE);
+        assertThat(catalog.find("attendance-clock").orElseThrow().writeTools())
+                .extracting(PageToolReference::code)
+                .containsExactly(ToolCode.ATTENDANCE_CLOCK);
+        assertThat(catalog.find("attendance-settings").orElseThrow().writeTools())
+                .extracting(PageToolReference::code)
+                .containsExactly(ToolCode.ATTENDANCE_SETTINGS_UPDATE);
     }
 
     @Test
@@ -144,12 +237,14 @@ class PageCapabilityCatalogTest {
         assertThat(visitor.writeTools())
                 .extracting(PageToolReference::code)
                 .containsExactly(ToolCode.VISITOR_APPLY, ToolCode.VISITOR_CHECK_IN,
-                        ToolCode.VISITOR_MARK_ARRIVED, ToolCode.VISITOR_LEAVE);
+                        ToolCode.VISITOR_MARK_ARRIVED, ToolCode.VISITOR_LEAVE,
+                        ToolCode.VISITOR_WITHDRAW, ToolCode.VISITOR_NO_SHOW);
         assertThat(catalog.find("seal-usage").orElseThrow().readTools())
                 .extracting(PageToolReference::code).containsExactly(ToolCode.SEAL_QUERY);
         assertThat(catalog.find("seal-usage").orElseThrow().writeTools())
                 .extracting(PageToolReference::code)
-                .containsExactly(ToolCode.SEAL_APPLY, ToolCode.SEAL_REGISTER_USE);
+                .containsExactly(ToolCode.SEAL_APPLY, ToolCode.SEAL_REGISTER_USE,
+                        ToolCode.SEAL_WITHDRAW, ToolCode.SEAL_RETURN);
     }
 
     @Test
@@ -161,7 +256,7 @@ class PageCapabilityCatalogTest {
                 .extracting(PageToolReference::code).containsExactly(
                         ToolCode.EXPENSE_CREATE_DRAFT, ToolCode.EXPENSE_UPDATE_DRAFT,
                         ToolCode.EXPENSE_SUBMIT_DRAFT, ToolCode.EXPENSE_WITHDRAW,
-                        ToolCode.EXPENSE_REOPEN);
+                        ToolCode.EXPENSE_REOPEN, ToolCode.EXPENSE_CANCEL_DRAFT, ToolCode.EXPENSE_REMIND);
         var budget = catalog.find("budget").orElseThrow();
         assertThat(budget.readTools())
                 .extracting(PageToolReference::code).containsExactly(ToolCode.BUDGET_QUERY);
@@ -173,12 +268,15 @@ class PageCapabilityCatalogTest {
                 .extracting(PageToolReference::code).containsExactly(ToolCode.CONTRACT_QUERY);
         assertThat(catalog.find("contracts").orElseThrow().writeTools())
                 .extracting(PageToolReference::code).containsExactly(
-                        ToolCode.CONTRACT_CREATE_DRAFT, ToolCode.CONTRACT_UPDATE_DRAFT);
+                        ToolCode.CONTRACT_CREATE_DRAFT, ToolCode.CONTRACT_UPDATE_DRAFT,
+                        ToolCode.CONTRACT_UPDATE_STATUS, ToolCode.CONTRACT_UPDATE_FULFILLMENT,
+                        ToolCode.CONTRACT_RECORD_PAYMENT, ToolCode.CONTRACT_REMIND);
         assertThat(catalog.find("suppliers").orElseThrow().readTools())
                 .extracting(PageToolReference::code).containsExactly(ToolCode.SUPPLIER_QUERY);
         assertThat(catalog.find("suppliers").orElseThrow().writeTools())
                 .extracting(PageToolReference::code).containsExactly(
-                        ToolCode.SUPPLIER_CREATE_DRAFT, ToolCode.SUPPLIER_UPDATE_DRAFT);
+                        ToolCode.SUPPLIER_CREATE_DRAFT, ToolCode.SUPPLIER_UPDATE_DRAFT,
+                        ToolCode.SUPPLIER_UPDATE_STATUS);
     }
 
     @Test
@@ -187,15 +285,27 @@ class PageCapabilityCatalogTest {
         assertThat(page.readTools()).extracting(PageToolReference::code)
                 .containsExactly(ToolCode.HR_CHANGE_QUERY);
         assertThat(page.writeTools()).extracting(PageToolReference::code)
-                .containsExactly(ToolCode.HR_CHANGE_APPLY);
+                .containsExactly(ToolCode.HR_CHANGE_APPLY, ToolCode.HR_CHANGE_APPROVE,
+                        ToolCode.HR_CHANGE_REJECT, ToolCode.HR_CHANGE_WITHDRAW);
     }
 
     @Test
     void bindsEachPlatformOperationsPageToItsLeastPrivilegeReadTool() {
-        assertThat(catalog.find("api-center").orElseThrow().readTools()).extracting(PageToolReference::code).containsExactly(ToolCode.INTEGRATION_ENDPOINT_QUERY);
+        assertThat(catalog.find("api-center").orElseThrow().readTools()).extracting(PageToolReference::code)
+                .containsExactly(ToolCode.INTEGRATION_ENDPOINT_QUERY);
+        assertThat(catalog.find("api-center").orElseThrow().writeTools()).extracting(PageToolReference::code)
+                .containsExactly(ToolCode.INTEGRATION_ENDPOINT_CREATE_DRAFT,
+                        ToolCode.INTEGRATION_ENDPOINT_UPDATE_DRAFT,
+                        ToolCode.INTEGRATION_ENDPOINT_UPDATE_STATUS);
         assertThat(catalog.find("page-actions").orElseThrow().readTools()).extracting(PageToolReference::code).containsExactly(ToolCode.PAGE_ACTION_QUERY);
         assertThat(catalog.find("runtime-logs").orElseThrow().readTools()).extracting(PageToolReference::code).containsExactly(ToolCode.RUNTIME_LOG_QUERY);
         assertThat(catalog.find("sandbox-replay").orElseThrow().readTools()).extracting(PageToolReference::code).containsExactly(ToolCode.SANDBOX_REPLAY_QUERY);
+        assertThat(catalog.find("platform-observability").orElseThrow().readTools())
+                .extracting(PageToolReference::code).containsExactly(ToolCode.RUNTIME_LOG_QUERY,
+                        ToolCode.OBSERVABILITY_OVERVIEW_QUERY);
+        assertThat(catalog.find("platform-observability").orElseThrow().writeTools())
+                .extracting(PageToolReference::code).containsExactly(
+                        ToolCode.OBSERVABILITY_PREFERENCES_UPDATE, ToolCode.OBSERVABILITY_THRESHOLDS_UPDATE);
     }
 
     @Test
@@ -209,7 +319,13 @@ class PageCapabilityCatalogTest {
     void bindsOperationalGovernancePagesToNarrowReadTools() {
         assertThat(catalog.find("audit-center").orElseThrow().readTools()).extracting(PageToolReference::code).containsExactly(ToolCode.AUDIT_QUERY);
         assertThat(catalog.find("tenant-config").orElseThrow().readTools()).extracting(PageToolReference::code).containsExactly(ToolCode.TENANT_CONFIGURATION_QUERY);
-        assertThat(catalog.find("dictionary").orElseThrow().readTools()).extracting(PageToolReference::code).containsExactly(ToolCode.DICTIONARY_QUERY);
+        assertThat(catalog.find("dictionary").orElseThrow().readTools()).extracting(PageToolReference::code)
+                .containsExactly(ToolCode.DICTIONARY_QUERY, ToolCode.DICTIONARY_ITEM_QUERY);
+        assertThat(catalog.find("dictionary").orElseThrow().writeTools()).extracting(PageToolReference::code)
+                .containsExactly(ToolCode.DICTIONARY_TYPE_CREATE, ToolCode.DICTIONARY_TYPE_UPDATE,
+                        ToolCode.DICTIONARY_ITEM_CREATE, ToolCode.DICTIONARY_ITEM_UPDATE,
+                        ToolCode.DICTIONARY_TYPE_UPDATE_STATUS, ToolCode.DICTIONARY_ITEM_UPDATE_STATUS);
         assertThat(catalog.find("system-config").orElseThrow().readTools()).extracting(PageToolReference::code).containsExactly(ToolCode.SYSTEM_CAPABILITY_QUERY);
+        assertThat(catalog.find("system-config").orElseThrow().writeTools()).extracting(PageToolReference::code).containsExactly(ToolCode.USER_SETTINGS_UPDATE);
     }
 }

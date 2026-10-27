@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   agentTaskApi,
+  classifyAiIntent,
   executeAiTask,
   formatOaApiError,
   issueAiTaskConfirmation,
@@ -19,6 +20,36 @@ function result(data: unknown, status = 200): Response {
 }
 
 afterEach(() => vi.restoreAllMocks());
+
+describe('authenticated intent API', () => {
+  it.each(['CHAT', 'OPERATION'] as const)('accepts only the %s hint with authenticated input-only requests', async (intent) => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(result({ intent }));
+    const signal = new AbortController().signal;
+    await expect(classifyAiIntent('查询预算', signal)).resolves.toBe(intent);
+    expect(fetchMock).toHaveBeenCalledWith('/api/ai/intents', expect.objectContaining({
+      method: 'POST', credentials: 'include', body: JSON.stringify({ input: '查询预算' }), signal,
+      headers: expect.objectContaining({ 'Accept-Language': 'zh-CN' }),
+    }));
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it.each([null, [], { intent: 0 }, { intent: 'UNKNOWN' }, { intent: 'CHAT', tool: 'todo.query' }])(
+    'rejects invalid classification data without a fallback: %j', async (data) => {
+      const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(result(data));
+      await expect(classifyAiIntent('查询预算')).rejects.toMatchObject({ errorCode: 'SCHEMA_INVALID' });
+      expect(fetchMock).toHaveBeenCalledOnce();
+    },
+  );
+
+  it.each([401, 429, 503])('preserves HTTP %s and never retries', async (status) => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(
+      JSON.stringify({ code: status, message: 'unavailable', errorCode: 'INTENT_UNAVAILABLE' }),
+      { status, headers: { 'Content-Type': 'application/json' } },
+    ));
+    await expect(classifyAiIntent('查询预算')).rejects.toMatchObject({ status });
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+});
 
 describe('请假催办 API contracts', () => {
   it('uses an authenticated application version when sending a reminder', async () => {
@@ -71,14 +102,14 @@ describe('Phase 2 task API contracts', () => {
 
   it('never puts the one-time confirmation credential in the URL', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch')
-      .mockResolvedValueOnce(result({ token: 'one-time-secret', expiresAt: '2026-08-25T12:10:00+08:00' }))
+      .mockResolvedValueOnce(result({ confirmationToken: 'one-time-secret', expiresAt: '2026-08-25T12:10:00+08:00' }))
       .mockResolvedValueOnce(result({ taskId: 'agt_task', status: 'QUEUED' }, 202));
 
     const credential = await issueAiTaskConfirmation('agt_task', { planVersion: 2, planHash: 'sha256:bound-plan' });
     await executeAiTask('agt_task', {
       planVersion: 2,
       planHash: 'sha256:bound-plan',
-      confirmationToken: credential.token,
+      confirmationToken: credential.confirmationToken,
     }, 'execute-key');
 
     expect(String(fetchMock.mock.calls[0][0])).not.toContain('one-time-secret');

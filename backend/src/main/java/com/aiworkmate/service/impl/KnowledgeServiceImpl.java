@@ -105,6 +105,13 @@ public class KnowledgeServiceImpl implements KnowledgeService {
 
     @Override
     @Transactional
+    public KnowledgeDocumentResponse createAgent(Long userId, KnowledgeDocumentCreateRequest request) {
+        requireSearchAccess(userId);
+        return create(userId, request);
+    }
+
+    @Override
+    @Transactional
     public KnowledgeDocumentResponse upload(Long userId, Long kbId, MultipartFile file) {
         validateUploadFile(file);
         Path tempFile = createTempFile(file);
@@ -186,6 +193,16 @@ public class KnowledgeServiceImpl implements KnowledgeService {
     @Transactional
     public KnowledgeDocumentResponse reindex(Long userId, Long documentId) {
         ResolvedUserAccess access = requireAccess(userId);
+        return reindex(access, documentId);
+    }
+
+    @Override
+    @Transactional
+    public KnowledgeDocumentResponse reindexAgent(Long userId, Long documentId) {
+        return reindex(requireSearchAccess(userId), documentId);
+    }
+
+    private KnowledgeDocumentResponse reindex(ResolvedUserAccess access, Long documentId) {
         KnowledgeDocument document = requireOwned(access, documentId);
         EmbeddingDescriptor descriptor = embeddingService.current();
         KnowledgeDocument duplicate = findByHash(access, document.getKbId(), document.getContentHash(), descriptor);
@@ -289,8 +306,28 @@ public class KnowledgeServiceImpl implements KnowledgeService {
     @Override
     public PageResponse<KnowledgeDocumentResponse> list(Long userId, Long kbId, int page, int size) {
         ResolvedUserAccess access = requireAccess(userId);
+        return list(access, kbId, page, size, 100);
+    }
+
+    @Override
+    public PageResponse<KnowledgeDocumentResponse> queryDocumentsAgent(
+            Long userId, Long kbId, Long documentId, int page, int size) {
+        ResolvedUserAccess access = requireSearchAccess(userId);
+        requireKnowledgeBase(access, kbId);
+        if (documentId != null) {
+            KnowledgeDocument document = requireOwned(access, documentId);
+            if (!kbId.equals(document.getKbId())) {
+                throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+            }
+            return PageResponse.of(List.of(toResponse(document)), 1, 1, 1);
+        }
+        return list(access, kbId, page, size, 20);
+    }
+
+    private PageResponse<KnowledgeDocumentResponse> list(
+            ResolvedUserAccess access, Long kbId, int page, int size, int maximumSize) {
         int safePage = Math.max(page, 1);
-        int safeSize = Math.min(Math.max(size, 1), 100);
+        int safeSize = Math.min(Math.max(size, 1), maximumSize);
         LambdaQueryWrapper<KnowledgeDocument> wrapper = new LambdaQueryWrapper<KnowledgeDocument>()
                 .eq(KnowledgeDocument::getTenantId, access.tenantId())
                 .eq(KnowledgeDocument::getUserId, access.userId())

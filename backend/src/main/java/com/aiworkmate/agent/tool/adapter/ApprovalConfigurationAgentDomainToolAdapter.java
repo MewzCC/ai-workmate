@@ -2,6 +2,12 @@ package com.aiworkmate.agent.tool.adapter;
 
 import com.aiworkmate.agent.tool.port.ApprovalConfigurationToolPort;
 import com.aiworkmate.agent.tool.port.ToolActorContext;
+import com.aiworkmate.dto.ApprovalFormAgentDraftRequest;
+import com.aiworkmate.dto.ApprovalFormAgentDraftUpdateRequest;
+import com.aiworkmate.dto.ApprovalProcessAgentDraftRequest;
+import com.aiworkmate.dto.ApprovalProcessAgentDraftUpdateRequest;
+import com.aiworkmate.dto.ApprovalRuleAgentDraftRequest;
+import com.aiworkmate.dto.ApprovalRuleAgentDraftUpdateRequest;
 import com.aiworkmate.service.ApprovalEngineService;
 import lombok.RequiredArgsConstructor;
 
@@ -9,6 +15,23 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public final class ApprovalConfigurationAgentDomainToolAdapter implements ApprovalConfigurationToolPort {
     private final ApprovalEngineService approvalEngineService;
+
+    @Override
+    public RuleDefinition readRuleDefinition(ToolActorContext context, long ruleId) {
+        var result = approvalEngineService.readRuleDefinitionAgent(context.userId(), context.tenantId(), ruleId);
+        return new RuleDefinition(result.ruleId(), result.ruleKey(), result.ruleName(), result.ruleType(), result.priority(),
+                result.status(), result.version(), result.logic(), result.conditions().stream().map(condition ->
+                new RuleCondition(condition.field(), condition.operator(), condition.value())).toList(),
+                new RuleAction(result.action().appendNode(), result.action().enabled(), result.action().mode()));
+    }
+
+    @Override
+    public FormDefinition readFormDefinition(ToolActorContext context, long formId) {
+        var result = approvalEngineService.readFormDefinitionAgent(context.userId(), context.tenantId(), formId);
+        return new FormDefinition(result.formId(), result.formKey(), result.formName(), result.status(), result.version(),
+                result.fields().stream().map(field -> new FormDefinitionField(field.name(), field.label(), field.type(),
+                        field.required(), field.placeholder(), field.options(), field.width(), field.min())).toList());
+    }
 
     @Override
     public Page query(ToolActorContext context, Query query) {
@@ -38,5 +61,121 @@ public final class ApprovalConfigurationAgentDomainToolAdapter implements Approv
                                 item.updatedAt())).toList(), result.total(), result.page(), result.size());
             }
         };
+    }
+
+    @Override
+    public FormDraftResult createFormDraft(ToolActorContext context, FormDraft command) {
+        var request = new ApprovalFormAgentDraftRequest(command.formKey(), command.formName(),
+                command.description(), command.fields().stream().map(field ->
+                new ApprovalFormAgentDraftRequest.Field(field.name(), field.label(), field.type(),
+                        field.required(), field.placeholder(), field.options(), field.width())).toList());
+        var response = approvalEngineService.createFormDraftAgent(context.userId(), request);
+        return new FormDraftResult(response.id(), response.formKey(), response.status(),
+                response.version(), response.updatedAt());
+    }
+
+    @Override
+    public FormDraftResult updateFormDraft(ToolActorContext context, FormDraftUpdate command) {
+        var request = new ApprovalFormAgentDraftUpdateRequest(command.version(), command.formName(),
+                command.description(), command.fields().stream().map(field ->
+                new ApprovalFormAgentDraftUpdateRequest.Field(field.name(), field.label(), field.type(),
+                        field.required(), field.placeholder(), field.options(), field.width())).toList());
+        var response = approvalEngineService.updateFormDraftAgent(context.userId(), command.formId(), request);
+        return new FormDraftResult(response.id(), response.formKey(), response.status(),
+                response.version(), response.updatedAt());
+    }
+
+    @Override
+    public FormDraftResult publishFormDraft(ToolActorContext context, VersionedForm command) {
+        var response = approvalEngineService.publishFormDraftAgent(
+                context.userId(), command.formId(), command.version());
+        return new FormDraftResult(response.id(), response.formKey(), response.status(),
+                response.version(), response.updatedAt());
+    }
+
+    @Override
+    public FormFieldPatchResult patchFormDraftField(ToolActorContext context, FormFieldPatch command) {
+        var result = approvalEngineService.patchFormDraftFieldAgent(context.userId(), context.tenantId(), command.formId(),
+                new com.aiworkmate.dto.ApprovalFormFieldPatchRequest(command.version(), command.fieldName(), command.label(),
+                        command.required(), command.placeholder(), command.width()));
+        return new FormFieldPatchResult(result.formId(), result.formKey(), result.status(), result.version(),
+                result.fieldName(), result.label(), result.required(), result.placeholder(), result.width());
+    }
+
+    @Override
+    public RuleConditionPatchResult patchRuleDraftCondition(ToolActorContext context, RuleConditionPatch command) {
+        var result = approvalEngineService.patchRuleDraftConditionAgent(context.userId(), context.tenantId(), command.ruleId(),
+                new com.aiworkmate.dto.ApprovalRuleConditionPatchRequest(command.version(), command.conditionNumber(), command.value()));
+        return new RuleConditionPatchResult(result.ruleId(), result.version(), result.status(), result.conditionNumber(),
+                result.field(), result.operator(), result.value());
+    }
+
+    @Override
+    public ProcessDraftResult createProcessDraft(ToolActorContext context, ProcessDraft command) {
+        var request = new ApprovalProcessAgentDraftRequest(command.processKey(), command.processName(),
+                command.description(), command.formId(), command.nodes().stream().map(node ->
+                new ApprovalProcessAgentDraftRequest.Node(node.nodeType(), node.nodeName(), node.approveType(),
+                        node.targetKey(), node.mode(), node.timeoutEnabled(), node.timeoutHours(),
+                        node.timeoutAction())).toList());
+        var response = approvalEngineService.createProcessDraftAgent(context.userId(), request);
+        return new ProcessDraftResult(response.id(), response.processKey(), response.status(),
+                response.version(), response.updatedAt());
+    }
+
+    @Override
+    public ProcessDraftResult updateProcessDraft(ToolActorContext context, ProcessDraftUpdate command) {
+        var request = new ApprovalProcessAgentDraftUpdateRequest(command.version(), command.processName(),
+                command.description(), command.formId(), command.nodes().stream().map(node ->
+                new ApprovalProcessAgentDraftUpdateRequest.Node(node.nodeType(), node.nodeName(), node.approveType(),
+                        node.targetKey(), node.mode(), node.timeoutEnabled(), node.timeoutHours(),
+                        node.timeoutAction())).toList());
+        var response = approvalEngineService.updateProcessDraftAgent(
+                context.userId(), command.processId(), request);
+        return new ProcessDraftResult(response.id(), response.processKey(), response.status(),
+                response.version(), response.updatedAt());
+    }
+
+    @Override
+    public ProcessDraftResult publishProcessDraft(ToolActorContext context, VersionedProcess command) {
+        var response = approvalEngineService.publishProcessDraftAgent(
+                context.userId(), command.processId(), command.version());
+        return new ProcessDraftResult(response.id(), response.processKey(), response.status(),
+                response.version(), response.updatedAt());
+    }
+
+    @Override
+    public RuleDraftResult createRuleDraft(ToolActorContext context, RuleDraft command) {
+        var request = new ApprovalRuleAgentDraftRequest(command.ruleKey(), command.ruleName(), command.ruleType(),
+                command.priority(), command.description(), command.logic(), command.conditions().stream().map(condition ->
+                new ApprovalRuleAgentDraftRequest.Condition(condition.field(), condition.operator(),
+                        condition.value())).toList(),
+                new ApprovalRuleAgentDraftRequest.Action(command.action().appendNode(),
+                        command.action().enabled(), command.action().mode()));
+        var response = approvalEngineService.createRuleDraftAgent(context.userId(), request);
+        return new RuleDraftResult(response.id(), response.ruleKey(), response.status(),
+                response.version(), response.updatedAt());
+    }
+
+    @Override
+    public RuleDraftResult updateRuleDraft(ToolActorContext context, RuleDraftUpdate command) {
+        var request = new ApprovalRuleAgentDraftUpdateRequest(command.version(), command.ruleName(),
+                command.ruleType(), command.priority(), command.description(), command.logic(),
+                command.conditions().stream().map(condition ->
+                        new ApprovalRuleAgentDraftUpdateRequest.Condition(condition.field(),
+                                condition.operator(), condition.value())).toList(),
+                new ApprovalRuleAgentDraftUpdateRequest.Action(command.action().appendNode(),
+                        command.action().enabled(), command.action().mode()));
+        var response = approvalEngineService.updateRuleDraftAgent(
+                context.userId(), command.ruleId(), request);
+        return new RuleDraftResult(response.id(), response.ruleKey(), response.status(),
+                response.version(), response.updatedAt());
+    }
+
+    @Override
+    public RuleDraftResult enableRuleDraft(ToolActorContext context, VersionedRule command) {
+        var response = approvalEngineService.enableRuleDraftAgent(
+                context.userId(), command.ruleId(), command.version());
+        return new RuleDraftResult(response.id(), response.ruleKey(), response.status(),
+                response.version(), response.updatedAt());
     }
 }

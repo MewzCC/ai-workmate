@@ -9,6 +9,31 @@ import java.util.Set;
 
 @Configuration(proxyBeanMethods = false)
 public class AgentExpenseWriteToolDefinitions {
+    public static final String REMIND_OUTPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["applicationId","formKey","status","version"],"properties":{"applicationId":{"type":"integer","minimum":1},"formKey":{"type":"string","const":"expense-application"},"status":{"type":"string","const":"PENDING"},"version":{"type":"integer","minimum":1}}}
+            """.strip();
+
+    @Bean
+    ToolDefinition expenseRemindToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {
+        return ToolDefinitionFactory.singleWrite(ToolCode.EXPENSE_REMIND, "Remind my expense approver",
+                "Sends one rate-limited internal reminder to the current approver of one owned pending expense application.",
+                "Remind only the existing assignee of a verified expense application; never select recipients or send external messages.",
+                objectMapper.readTree(SUBMIT_DRAFT_INPUT_SCHEMA), objectMapper.readTree(REMIND_OUTPUT_SCHEMA),
+                ToolWriteProfile.NON_RETRYABLE_L1, Set.of("approval:remind"), OwnershipPolicy.SELF, 1, 4096, 15000);
+    }
+
+    public static final String CANCEL_DRAFT_OUTPUT_SCHEMA = """
+            {"type":"object","additionalProperties":false,"required":["applicationId","formKey","status","version"],"properties":{"applicationId":{"type":"integer","minimum":1},"formKey":{"type":"string","const":"expense-application"},"status":{"type":"string","const":"CANCELLED"},"version":{"type":"integer","minimum":1}}}
+            """.strip();
+
+    @Bean
+    ToolDefinition expenseCancelDraftToolDefinition(ObjectMapper objectMapper) throws JsonProcessingException {
+        return ToolDefinitionFactory.singleWrite(ToolCode.EXPENSE_CANCEL_DRAFT, "Cancel my expense draft",
+                "Cancels one self-owned expense draft without deleting it or affecting an active approval.",
+                "Cancel only a verified expense-application draft after explicit confirmation; never delete or withdraw another form.",
+                objectMapper.readTree(SUBMIT_DRAFT_INPUT_SCHEMA), objectMapper.readTree(CANCEL_DRAFT_OUTPUT_SCHEMA),
+                ToolWriteProfile.NON_RETRYABLE_L1, Set.of("approval:cancel"), OwnershipPolicy.SELF, 1, 4096, 15000);
+    }
     public static final String CREATE_DRAFT_INPUT_SCHEMA = """
             {"type":"object","additionalProperties":false,"minProperties":1,"properties":{"amount":{"type":"number","minimum":0.01,"maximum":999999999.99,"multipleOf":0.01},"category":{"type":"string","enum":["TRAVEL","MEAL","TRANSPORT","OFFICE","OTHER"]},"expenseDate":{"type":"string","format":"date"},"invoiceNumber":{"type":"string","minLength":1,"maxLength":100},"reason":{"type":"string","minLength":1,"maxLength":1000}}}
             """.strip();

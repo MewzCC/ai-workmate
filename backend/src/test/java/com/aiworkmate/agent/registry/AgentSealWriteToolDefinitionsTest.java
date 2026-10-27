@@ -52,4 +52,39 @@ class AgentSealWriteToolDefinitionsTest {
                 {"usageId":41,"version":2,"actualCopies":2,"handlerUserId":7}
                 """))).isFalse();
     }
+
+    @Test
+    void sealWithdrawIsOneNonRetryableConfirmedOwnerWrite() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        ToolDefinition definition = new AgentSealWriteToolDefinitions().sealWithdrawToolDefinition(mapper);
+
+        assertThat(definition.schemaHash()).isEqualTo(
+                "sha256:48bf01914cebaa352fe82a1159d420740b010fb6eec110f0ef7525f764cac005");
+        assertThat(definition.requiredPermissions()).containsExactly("seal:withdraw");
+        assertThat(definition.riskLevel()).isEqualTo(RiskLevel.L1);
+        assertThat(definition.retryPolicy()).isEqualTo(RetryPolicy.NEVER);
+        assertThat(definition.confirmationPolicy()).isEqualTo(ConfirmationPolicy.EXPLICIT);
+        assertThat(definition.ownershipPolicy()).isEqualTo(OwnershipPolicy.SELF);
+    }
+
+    @Test
+    void sealReturnIsOneNonRetryableTenantScopedWriteWithDomainAuthorization() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        ToolDefinition definition = new AgentSealWriteToolDefinitions().sealReturnToolDefinition(mapper);
+        ToolSchemaValidator validator = new ToolSchemaValidator();
+
+        assertThat(definition.schemaHash()).isEqualTo(
+                "sha256:943c6c284623e111a9f4c8fcabe36d1585156d0f4bea7e5cff8d0cd5e6afa0fd");
+        assertThat(definition.requiredPermissions()).containsExactly("seal:register");
+        assertThat(definition.riskLevel()).isEqualTo(RiskLevel.L1);
+        assertThat(definition.retryPolicy()).isEqualTo(RetryPolicy.NEVER);
+        assertThat(definition.confirmationPolicy()).isEqualTo(ConfirmationPolicy.EXPLICIT);
+        assertThat(definition.ownershipPolicy()).isEqualTo(OwnershipPolicy.TENANT_SCOPED);
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree("""
+                {"usageId":41,"version":3,"remark":"印章已归还"}
+                """))).isTrue();
+        assertThat(validator.valid(definition.inputSchema(), mapper.readTree("""
+                {"usageId":41,"version":3,"storagePath":"越界字段"}
+                """))).isFalse();
+    }
 }

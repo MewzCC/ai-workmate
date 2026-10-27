@@ -1,5 +1,8 @@
 package com.aiworkmate.agent.retention;
 
+import com.aiworkmate.integration.AbstractIsolatedAgentIntegrationTest;
+import com.aiworkmate.integration.AgentIntegrationEnvironment;
+
 import com.aiworkmate.agent.gateway.AgentAuditQueryService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
@@ -17,16 +20,17 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
 @EnabledIfEnvironmentVariable(named = "AGENT_TEST_DB_URL", matches = "jdbc:postgresql:.*")
-class AgentRetentionPersistenceIntegrationTest {
+class AgentRetentionPersistenceIntegrationTest extends AbstractIsolatedAgentIntegrationTest {
+    private static final AgentIntegrationEnvironment ENVIRONMENT = new AgentIntegrationEnvironment();
+    @Override protected AgentIntegrationEnvironment environment() { return ENVIRONMENT; }
     @Autowired private JdbcTemplate jdbc;
     @Autowired private AgentRetentionCleaner cleaner;
     @Autowired private AgentAuditQueryService auditQuery;
 
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", () -> System.getenv("AGENT_TEST_DB_URL"));
-        registry.add("spring.datasource.username", () -> System.getenv().getOrDefault("AGENT_TEST_DB_USERNAME", "postgres"));
-        registry.add("spring.datasource.password", () -> System.getenv().getOrDefault("AGENT_TEST_DB_PASSWORD", "postgres"));
+        ENVIRONMENT.register(registry);
+        registry.add("agent.retention-cleanup-enabled", () -> "true");
         registry.add("agent.retention-batch-size", () -> "10");
     }
 

@@ -29,6 +29,7 @@ public class MeetingRoom {
     private String facilities;
     private String status;
     private String remark;
+    private Integer version;
     private Boolean deleted;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

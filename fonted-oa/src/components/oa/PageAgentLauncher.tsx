@@ -12,6 +12,7 @@ import type { OaRole } from '@/types/oa';
 import AIOperationDrawer from './AIOperationDrawer';
 import AiMiniPanel from './AiMiniPanel';
 import type { PageAgentContextSnapshot } from './PageAgentContext';
+import type { AgentPageNavigator } from '@/lib/agentToolTargetPage';
 
 const AGENT_WORKSPACE_PAGE_ID = 'ai-workspace';
 
@@ -26,6 +27,7 @@ interface PageAgentLauncherProps {
   pageContext?: PageAgentContextSnapshot;
   miniEnabled: boolean;
   onPageRefresh?: () => void;
+  onNavigatePage?: AgentPageNavigator;
 }
 
 /**
@@ -33,7 +35,7 @@ interface PageAgentLauncherProps {
  * 抽屉、迷你面板和提示词生命周期统一在这里管理。
  */
 const PageAgentLauncher = forwardRef<PageAgentLauncherHandle, PageAgentLauncherProps>(
-  function PageAgentLauncher({ role, pageId, pageTitle, pageContext, miniEnabled, onPageRefresh }, ref) {
+  function PageAgentLauncher({ role, pageId, pageTitle, pageContext, miniEnabled, onPageRefresh, onNavigatePage }, ref) {
     const { t } = useTranslation();
     const [open, setOpen] = useState(false);
     const [drawerPresent, setDrawerPresent] = useState(false);
@@ -77,6 +79,7 @@ const PageAgentLauncher = forwardRef<PageAgentLauncherHandle, PageAgentLauncherP
           onClose={() => setOpen(false)}
           onOpenChangeComplete={setDrawerPresent}
           onExecutionCompleted={onPageRefresh}
+          onNavigatePage={onNavigatePage}
         />
       </>
     );

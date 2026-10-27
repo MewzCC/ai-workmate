@@ -4,6 +4,7 @@ import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.common.ErrorCode;
 import com.aiworkmate.dto.AttendanceClockRequest;
 import com.aiworkmate.dto.AttendanceClockResponse;
+import com.aiworkmate.dto.AttendanceReissueDecisionRequest;
 import com.aiworkmate.dto.AttendanceSettingsRequest;
 import com.aiworkmate.dto.AttendanceSettingsResponse;
 import com.aiworkmate.entity.AttendanceRecord;
@@ -16,6 +17,10 @@ import com.aiworkmate.mapper.AttendanceSettingMapper;
 import com.aiworkmate.mapper.UserMapper;
 import com.aiworkmate.service.UserAccessService;
 import com.aiworkmate.service.model.ResolvedUserAccess;
+import com.baomidou.mybatisplus.core.MybatisConfiguration;
+import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
+import org.apache.ibatis.builder.MapperBuilderAssistant;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -30,6 +35,8 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -49,7 +56,19 @@ class AttendanceServiceImplTest {
     private static final long USER_ID = 1001L;
 
     private static final ResolvedUserAccess ACTOR = new ResolvedUserAccess(
-            USER_ID, "alice", "EMPLOYEE", List.of("route:attendance-clock", "attendance:reissue:apply"));
+            USER_ID, "alice", "EMPLOYEE",
+            List.of("route:attendance-clock", "attendance:clock", "attendance:reissue:apply",
+                    "attendance:reissue:decide"));
+
+    @BeforeAll
+    static void initializeMybatisMetadata() {
+        TableInfoHelper.initTableInfo(
+                new MapperBuilderAssistant(new MybatisConfiguration(), "attendance-test"),
+                AttendanceReissue.class);
+        TableInfoHelper.initTableInfo(
+                new MapperBuilderAssistant(new MybatisConfiguration(), "attendance-setting-test"),
+                AttendanceSetting.class);
+    }
 
     @Mock
     private AttendanceRecordMapper recordMapper;
@@ -159,6 +178,51 @@ class AttendanceServiceImplTest {
     }
 
     @Test
+    void reissueDecisionRequiresDedicatedBusinessPermissionBeforeReadingTheRequest() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(new ResolvedUserAccess(
+                USER_ID, "alice", "PROCESS_ADMIN", List.of("route:attendance-reissue")));
+
+        assertThatThrownBy(() -> attendanceService.decideReissue(USER_ID, 41L,
+                new AttendanceReissueDecisionRequest(0, "APPROVED", null)))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("PERMISSION_DENIED");
+        verifyNoInteractions(reissueMapper, recordMapper, auditService);
+    }
+
+    @Test
+    void reissueDecisionRejectsStaleVersionWithoutUpdatingAttendance() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(ACTOR);
+        AttendanceReissue request = assignedPendingReissue();
+        request.setVersion(2);
+        when(reissueMapper.selectOne(any())).thenReturn(request);
+
+        assertThatThrownBy(() -> attendanceService.decideReissue(USER_ID, request.getId(),
+                new AttendanceReissueDecisionRequest(1, "APPROVED", null)))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("VERSION_CONFLICT");
+        verifyNoInteractions(recordMapper, auditService);
+    }
+
+    @Test
+    void reissueRejectionUsesAtomicAssignedVersionUpdateAndWritesAudit() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(ACTOR);
+        AttendanceReissue request = assignedPendingReissue();
+        when(reissueMapper.selectOne(any())).thenReturn(request);
+        when(reissueMapper.update(eq(null), any())).thenReturn(1);
+        when(userMapper.selectBatchIds(any())).thenReturn(List.of(activeApplicant()));
+
+        var response = attendanceService.decideReissue(USER_ID, request.getId(),
+                new AttendanceReissueDecisionRequest(0, "REJECTED", "证明不足"));
+
+        assertThat(response.status()).isEqualTo("REJECTED");
+        assertThat(response.version()).isEqualTo(1);
+        verify(reissueMapper).update(eq(null), any());
+        verifyNoInteractions(recordMapper);
+        verify(auditService).recordTransactional(eq(ACTOR.tenantId()), eq(USER_ID),
+                eq("ATTENDANCE_REISSUE"), eq("41"), eq("REJECTED"), eq("SUCCESS"), eq("version=1"));
+    }
+
+    @Test
     void clockIn_shouldInsertRecordWithTimestamps() {
         when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(ACTOR);
         when(recordMapper.selectOne(any())).thenReturn(null);
@@ -183,6 +247,8 @@ class AttendanceServiceImplTest {
         assertThat(inserted.getCreatedAt()).isNotNull();
         assertThat(inserted.getUpdatedAt()).isNotNull();
         assertThat(inserted.getClockInTime()).isNotNull();
+        verify(auditService).recordTransactional(eq(ACTOR.tenantId()), eq(USER_ID),
+                eq("ATTENDANCE_RECORD"), anyString(), eq("CLOCK_IN"), eq("SUCCESS"), anyString());
     }
 
     @Test
@@ -241,6 +307,7 @@ class AttendanceServiceImplTest {
         assertThat(response.startFlexMinutes()).isZero();
         assertThat(response.endFlexMinutes()).isZero();
         assertThat(response.flexLinked()).isFalse();
+        assertThat(response.version()).isZero();
     }
 
     @Test
@@ -249,7 +316,7 @@ class AttendanceServiceImplTest {
                 new ResolvedUserAccess(USER_ID, "alice", "EMPLOYEE", List.of("route:attendance-clock")));
 
         assertThatThrownBy(() -> attendanceService.updateSettings(USER_ID,
-                new AttendanceSettingsRequest(LocalTime.of(8, 30), LocalTime.of(17, 30), 30, 15, true)))
+                new AttendanceSettingsRequest(0, LocalTime.of(8, 30), LocalTime.of(17, 30), 30, 15, true)))
                 .isInstanceOfSatisfying(BusinessException.class, ex ->
                         assertThat(ex.getErrorCode())
                                 .isEqualTo(ErrorCode.PERMISSION_DENIED.getErrorCode()));
@@ -258,21 +325,21 @@ class AttendanceServiceImplTest {
     @Test
     void updateSettings_shouldRejectEndNotAfterStart() {
         when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(
-                new ResolvedUserAccess(USER_ID, "admin", "SYSTEM_ADMIN", List.of("route:attendance-clock")));
+                new ResolvedUserAccess(USER_ID, "admin", "SYSTEM_ADMIN", List.of("attendance:settings:manage")));
 
         assertThatThrownBy(() -> attendanceService.updateSettings(USER_ID,
-                new AttendanceSettingsRequest(LocalTime.of(9, 0), LocalTime.of(9, 0), 0, 0, false)))
+                new AttendanceSettingsRequest(0, LocalTime.of(9, 0), LocalTime.of(9, 0), 0, 0, false)))
                 .isInstanceOf(BusinessException.class);
     }
 
     @Test
     void updateSettings_shouldInsertConfiguredSettingsForTenant() {
         when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(
-                new ResolvedUserAccess(USER_ID, "admin", "SYSTEM_ADMIN", List.of("route:attendance-clock")));
+                new ResolvedUserAccess(USER_ID, "admin", "SYSTEM_ADMIN", List.of("attendance:settings:manage")));
         when(attendanceSettingMapper.selectOne(any())).thenReturn(null);
 
         AttendanceSettingsResponse response = attendanceService.updateSettings(USER_ID,
-                new AttendanceSettingsRequest(LocalTime.of(8, 30), LocalTime.of(17, 30), 30, 15, true));
+                new AttendanceSettingsRequest(0, LocalTime.of(8, 30), LocalTime.of(17, 30), 30, 15, true));
 
         ArgumentCaptor<AttendanceSetting> captor =
                 ArgumentCaptor.forClass(AttendanceSetting.class);
@@ -287,9 +354,51 @@ class AttendanceServiceImplTest {
         assertThat(inserted.getFlexLinked()).isTrue();
         assertThat(inserted.getCreatedAt()).isNotNull();
         assertThat(inserted.getUpdatedAt()).isNotNull();
+        assertThat(inserted.getVersion()).isEqualTo(1);
         assertThat(response.workStartTime()).isEqualTo(LocalTime.of(8, 30));
         assertThat(response.startFlexMinutes()).isEqualTo(30);
         assertThat(response.flexLinked()).isTrue();
+        assertThat(response.version()).isEqualTo(1);
+        verify(auditService).recordTransactional(1L, USER_ID, "ATTENDANCE_SETTING", "1",
+                "UPDATE", "SUCCESS", "Updated tenant attendance settings");
+    }
+
+    @Test
+    void updateSettings_shouldUseTenantAndVersionBoundAtomicUpdate() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(
+                new ResolvedUserAccess(USER_ID, "admin", "EMPLOYEE", List.of("attendance:settings:manage")));
+        AttendanceSetting row = new AttendanceSetting();
+        row.setId(9L);
+        row.setTenantId(1L);
+        row.setVersion(2);
+        when(attendanceSettingMapper.selectOne(any())).thenReturn(row);
+        when(attendanceSettingMapper.update(eq(null), any())).thenReturn(1);
+
+        AttendanceSettingsResponse response = attendanceService.updateSettings(USER_ID,
+                new AttendanceSettingsRequest(2, LocalTime.of(8, 30), LocalTime.of(17, 30), 20, 10, true));
+
+        assertThat(response.version()).isEqualTo(3);
+        assertThat(response.workStartTime()).isEqualTo(LocalTime.of(8, 30));
+        verify(attendanceSettingMapper).update(eq(null), any());
+        verify(auditService).recordTransactional(1L, USER_ID, "ATTENDANCE_SETTING", "1",
+                "UPDATE", "SUCCESS", "Updated tenant attendance settings");
+    }
+
+    @Test
+    void updateSettings_shouldRejectStaleVersionBeforeWriting() {
+        when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(
+                new ResolvedUserAccess(USER_ID, "admin", "EMPLOYEE", List.of("attendance:settings:manage")));
+        AttendanceSetting row = new AttendanceSetting();
+        row.setId(9L);
+        row.setTenantId(1L);
+        row.setVersion(3);
+        when(attendanceSettingMapper.selectOne(any())).thenReturn(row);
+
+        assertThatThrownBy(() -> attendanceService.updateSettings(USER_ID,
+                new AttendanceSettingsRequest(2, LocalTime.of(8, 30), LocalTime.of(17, 30), 20, 10, true)))
+                .isInstanceOfSatisfying(BusinessException.class, ex ->
+                        assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.VERSION_CONFLICT.getErrorCode()));
+        verifyNoInteractions(auditService);
     }
 
     private AttendanceRecord recordWithClockIn() {
@@ -328,10 +437,18 @@ class AttendanceServiceImplTest {
         reissue.setClockType("CLOCK_IN");
         reissue.setReason("忘记打卡");
         reissue.setStatus("PENDING");
+        reissue.setVersion(0);
         reissue.setAgentOperationKey(operationKey);
         reissue.setSubmittedAt(java.time.LocalDateTime.now());
         reissue.setCreatedAt(reissue.getSubmittedAt());
         reissue.setUpdatedAt(reissue.getSubmittedAt());
+        return reissue;
+    }
+
+    private AttendanceReissue assignedPendingReissue() {
+        AttendanceReissue reissue = pendingReissue(null);
+        reissue.setApplicantUserId(USER_ID + 1);
+        reissue.setApproverUserId(USER_ID);
         return reissue;
     }
 }

@@ -11,6 +11,7 @@ import com.aiworkmate.common.PageResponse;
 import com.aiworkmate.dto.KnowledgeSearchItemResponse;
 import com.aiworkmate.dto.KnowledgeSearchResponse;
 import com.aiworkmate.dto.ApprovalFormResponse;
+import com.aiworkmate.dto.ApprovalProcessResponse;
 import com.aiworkmate.agent.tool.port.ApprovalConfigurationToolPort;
 import com.aiworkmate.dto.LeaveApplicationResponse;
 import com.aiworkmate.dto.NotificationResponse;
@@ -21,6 +22,7 @@ import com.aiworkmate.dto.PositionResponse;
 import com.aiworkmate.dto.SealUsageResponse;
 import com.aiworkmate.dto.VisitorBookingResponse;
 import com.aiworkmate.service.KnowledgeService;
+import com.aiworkmate.service.KnowledgeBaseService;
 import com.aiworkmate.service.LeaveWorkflowService;
 import com.aiworkmate.service.NotificationService;
 import com.aiworkmate.service.ApprovalEngineService;
@@ -36,17 +38,39 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class AgentDomainToolAdaptersTest {
+    @Test void forwardsRuleConditionPatchWithTrustedTenantAndReturnsTheNarrowActualReceipt() {
+        var command = new ApprovalConfigurationToolPort.RuleConditionPatch(11, 3, 2, " keep literal ");
+        var request = new com.aiworkmate.dto.ApprovalRuleConditionPatchRequest(3, 2, " keep literal ");
+        when(approvalEngineService.patchRuleDraftConditionAgent(7L, 91L, 11L, request)).thenReturn(
+                new com.aiworkmate.dto.ApprovalRuleConditionPatchResponse(11, 4, "DISABLED", 2, "leaveType", "eq", " keep literal "));
+        assertThat(approvalConfigurationAdapter.patchRuleDraftCondition(context, command)).isEqualTo(
+                new ApprovalConfigurationToolPort.RuleConditionPatchResult(11, 4, "DISABLED", 2, "leaveType", "eq", " keep literal "));
+        verify(approvalEngineService).patchRuleDraftConditionAgent(7L, 91L, 11L, request);
+    }
+    @Test void forwardsFieldPatchWithTrustedTenantAndProjectsTheNarrowActualReceipt() {
+        var command = new ApprovalConfigurationToolPort.FormFieldPatch(11, 3, "reason", " Reason ", false, "", "half");
+        var request = new com.aiworkmate.dto.ApprovalFormFieldPatchRequest(3, "reason", " Reason ", false, "", "half");
+        when(approvalEngineService.patchFormDraftFieldAgent(7L, 91L, 11L, request)).thenReturn(
+                new com.aiworkmate.dto.ApprovalFormFieldPatchResponse(11, "fixture", "DISABLED", 4, "reason", "Reason", false, "", "half"));
+        assertThat(approvalConfigurationAdapter.patchFormDraftField(context, command)).isEqualTo(
+                new ApprovalConfigurationToolPort.FormFieldPatchResult(11, "fixture", "DISABLED", 4, "reason", "Reason", false, "", "half"));
+        verify(approvalEngineService).patchFormDraftFieldAgent(7L, 91L, 11L, request);
+    }
     @Mock private LeaveWorkflowService leaveWorkflowService;
     @Mock private KnowledgeService knowledgeService;
+    @Mock private KnowledgeBaseService knowledgeBaseService;
     @Mock private NotificationService notificationService;
     @Mock private ApprovalEngineService approvalEngineService;
     @Mock private HrService hrService;
@@ -75,8 +99,33 @@ class AgentDomainToolAdaptersTest {
         attendanceAdapter = new AttendanceAgentDomainToolAdapter(attendanceService);
         visitorAdapter = new VisitorAgentDomainToolAdapter(adminAssetsService);
         sealAdapter = new SealAgentDomainToolAdapter(adminAssetsService);
-        knowledgeAdapter = new KnowledgeAgentDomainToolAdapter(knowledgeService);
+        knowledgeAdapter = new KnowledgeAgentDomainToolAdapter(knowledgeService, knowledgeBaseService);
         notificationAdapter = new NotificationAgentDomainToolAdapter(notificationService);
+    }
+
+    @Test
+    void mapsTypedFormFieldsUsingBothTrustedUserAndTenant() {
+        when(approvalEngineService.readFormDefinitionAgent(7L, 91L, 11L)).thenReturn(
+                new com.aiworkmate.dto.ApprovalFormDefinitionResponse(11L, "fixture", "Fixture", "DISABLED", 3,
+                        List.of(new com.aiworkmate.dto.ApprovalFormDefinitionResponse.Field(
+                                "reason", "Reason", "text", true, null, List.of(), "full", null))));
+        var result = approvalConfigurationAdapter.readFormDefinition(context, 11L);
+        assertThat(result.formId()).isEqualTo(11L); assertThat(result.version()).isEqualTo(3);
+        assertThat(result.fields()).containsExactly(new com.aiworkmate.agent.tool.port.ApprovalConfigurationToolPort.FormDefinitionField(
+                "reason", "Reason", "text", true, null, List.of(), "full", null));
+        verify(approvalEngineService).readFormDefinitionAgent(7L, 91L, 11L);
+    }
+
+    @Test void mapsTypedRuleConditionsAndActionsWithBothTrustedIdentities() {
+        when(approvalEngineService.readRuleDefinitionAgent(7L, 91L, 11L)).thenReturn(
+                new com.aiworkmate.dto.ApprovalRuleDefinitionResponse(11L, "fixture", "Fixture", "AMOUNT_THRESHOLD", 20,
+                        "DISABLED", 3, "AND", List.of(new com.aiworkmate.dto.ApprovalRuleDefinitionResponse.Condition("amount", "gte", "5000")),
+                        new com.aiworkmate.dto.ApprovalRuleDefinitionResponse.Action("FINANCE_REVIEW", false, "OR_SIGN")));
+        var result = approvalConfigurationAdapter.readRuleDefinition(context, 11L);
+        assertThat(result.ruleId()).isEqualTo(11L); assertThat(result.version()).isEqualTo(3);
+        assertThat(result.conditions()).containsExactly(new com.aiworkmate.agent.tool.port.ApprovalConfigurationToolPort.RuleCondition("amount", "gte", "5000"));
+        assertThat(result.action().enabled()).isFalse();
+        verify(approvalEngineService).readRuleDefinitionAgent(7L, 91L, 11L);
     }
 
     @Test
@@ -97,6 +146,16 @@ class AgentDomainToolAdaptersTest {
     }
 
     @Test
+    void defaultsUnfilteredTodoQueryToPendingLikeMyTodoPage() {
+        when(leaveWorkflowService.todos(7L, "PENDING", null, null, 1, 20))
+                .thenReturn(PageResponse.of(List.of(), 0, 1, 20));
+        TodoToolPort.Page result = todoAdapter.query(context,
+                new TodoToolPort.Query(null, null, null, 1, 20));
+        assertThat(result.total()).isZero();
+        verify(leaveWorkflowService).todos(7L, "PENDING", null, null, 1, 20);
+    }
+
+    @Test
     void dispatchesApprovalResourceThroughTypedDomainMethod() {
         LocalDateTime now = LocalDateTime.of(2026, 9, 12, 8, 30);
         when(approvalEngineService.listForms(7L, "报销", "ENABLED", 1, 20))
@@ -111,6 +170,183 @@ class AgentDomainToolAdaptersTest {
                 12L, ApprovalConfigurationToolPort.Resource.FORM, "expense", "费用报销", "报销表单",
                 "ENABLED", 3, null, null, null, now));
         assertThat(result.toString()).doesNotContain("sensitive-schema");
+    }
+
+    @Test
+    void createsOnlyDisabledApprovalFormDraftFromSemanticFields() {
+        LocalDateTime now = LocalDateTime.of(2026, 10, 1, 22, 10);
+        var command = new ApprovalConfigurationToolPort.FormDraft(
+                "travel", "出差申请", "员工出差申请", List.of(
+                new ApprovalConfigurationToolPort.FormField(
+                        "reason", "出差事由", "textarea", true, "请输入", List.of(), "full")));
+        when(approvalEngineService.createFormDraftAgent(eq(7L), any())).thenReturn(new ApprovalFormResponse(
+                31L, "travel", "出差申请", "员工出差申请", "{hidden}",
+                "DISABLED", 1, "管理员", now, now, true, true));
+
+        var result = approvalConfigurationAdapter.createFormDraft(context, command);
+
+        assertThat(result).isEqualTo(new ApprovalConfigurationToolPort.FormDraftResult(
+                31L, "travel", "DISABLED", 1, now));
+        var request = org.mockito.ArgumentCaptor.forClass(com.aiworkmate.dto.ApprovalFormAgentDraftRequest.class);
+        verify(approvalEngineService).createFormDraftAgent(eq(7L), request.capture());
+        assertThat(request.getValue().formKey()).isEqualTo("travel");
+        assertThat(request.getValue().fields()).extracting(com.aiworkmate.dto.ApprovalFormAgentDraftRequest.Field::name)
+                .containsExactly("reason");
+    }
+
+    @Test
+    void updatesOnlyVersionBoundDisabledApprovalFormDraft() {
+        LocalDateTime now = LocalDateTime.of(2026, 10, 1, 22, 30);
+        var command = new ApprovalConfigurationToolPort.FormDraftUpdate(
+                31L, 2, "出差申请（新版）", "更新说明", List.of(
+                new ApprovalConfigurationToolPort.FormField(
+                        "reason", "出差事由", "textarea", true, "请输入", List.of(), "full")));
+        when(approvalEngineService.updateFormDraftAgent(eq(7L), eq(31L), any())).thenReturn(
+                new ApprovalFormResponse(31L, "travel", "出差申请（新版）", "更新说明", "{hidden}",
+                        "DISABLED", 3, "管理员", now.minusDays(1), now, true, true));
+
+        var result = approvalConfigurationAdapter.updateFormDraft(context, command);
+
+        assertThat(result).isEqualTo(new ApprovalConfigurationToolPort.FormDraftResult(
+                31L, "travel", "DISABLED", 3, now));
+        var request = org.mockito.ArgumentCaptor.forClass(
+                com.aiworkmate.dto.ApprovalFormAgentDraftUpdateRequest.class);
+        verify(approvalEngineService).updateFormDraftAgent(eq(7L), eq(31L), request.capture());
+        assertThat(request.getValue().version()).isEqualTo(2);
+        assertThat(request.getValue().fields())
+                .extracting(com.aiworkmate.dto.ApprovalFormAgentDraftUpdateRequest.Field::name)
+                .containsExactly("reason");
+    }
+
+    @Test
+    void publishesOnlyTheVersionBoundApprovalFormDraft() {
+        LocalDateTime now = LocalDateTime.of(2026, 10, 2, 0, 10);
+        var command = new ApprovalConfigurationToolPort.VersionedForm(31L, 2);
+        when(approvalEngineService.publishFormDraftAgent(7L, 31L, 2)).thenReturn(
+                new ApprovalFormResponse(31L, "travel", "出差申请", null, "{hidden}",
+                        "ENABLED", 3, "管理员", now.minusDays(1), now, true, true));
+
+        var result = approvalConfigurationAdapter.publishFormDraft(context, command);
+
+        assertThat(result).isEqualTo(new ApprovalConfigurationToolPort.FormDraftResult(
+                31L, "travel", "ENABLED", 3, now));
+        verify(approvalEngineService).publishFormDraftAgent(7L, 31L, 2);
+    }
+
+    @Test
+    void createsOnlyDisabledApprovalProcessDraftFromSemanticNodes() {
+        LocalDateTime now = LocalDateTime.of(2026, 10, 1, 22, 50);
+        var command = new ApprovalConfigurationToolPort.ProcessDraft(
+                "travel", "出差审批", null, 31L, List.of(
+                new ApprovalConfigurationToolPort.ProcessNode("START", "开始", null, null, null, null, null, null),
+                new ApprovalConfigurationToolPort.ProcessNode("APPROVAL", "主管审批", "DIRECT_MANAGER", "", "OR_SIGN", false, 48, "REMIND"),
+                new ApprovalConfigurationToolPort.ProcessNode("END", "结束", null, null, null, null, null, null)));
+        when(approvalEngineService.createProcessDraftAgent(eq(7L), any())).thenReturn(
+                new ApprovalProcessResponse(41L, "travel", "出差审批", null, 31L, "出差申请",
+                        "[{hidden}]", "DISABLED", 1, "管理员", now, now, true, true));
+
+        var result = approvalConfigurationAdapter.createProcessDraft(context, command);
+
+        assertThat(result.status()).isEqualTo("DISABLED");
+        var request = org.mockito.ArgumentCaptor.forClass(
+                com.aiworkmate.dto.ApprovalProcessAgentDraftRequest.class);
+        verify(approvalEngineService).createProcessDraftAgent(eq(7L), request.capture());
+        assertThat(request.getValue().nodes()).hasSize(3);
+    }
+
+    @Test
+    void updatesOnlyVersionBoundDisabledApprovalProcessDraft() {
+        LocalDateTime now = LocalDateTime.of(2026, 10, 1, 23, 10);
+        var command = new ApprovalConfigurationToolPort.ProcessDraftUpdate(
+                41L, 2, "出差审批（新版）", "更新说明", 31L, List.of(
+                new ApprovalConfigurationToolPort.ProcessNode("START", "开始", null, null, null, null, null, null),
+                new ApprovalConfigurationToolPort.ProcessNode("APPROVAL", "主管审批", "DIRECT_MANAGER", "", "OR_SIGN", false, 48, "REMIND"),
+                new ApprovalConfigurationToolPort.ProcessNode("END", "结束", null, null, null, null, null, null)));
+        when(approvalEngineService.updateProcessDraftAgent(eq(7L), eq(41L), any())).thenReturn(
+                new ApprovalProcessResponse(41L, "travel", "出差审批（新版）", "更新说明", 31L, "出差申请",
+                        "[{hidden}]", "DISABLED", 3, "管理员", now.minusDays(1), now, true, true));
+
+        var result = approvalConfigurationAdapter.updateProcessDraft(context, command);
+
+        assertThat(result.version()).isEqualTo(3);
+        var request = org.mockito.ArgumentCaptor.forClass(
+                com.aiworkmate.dto.ApprovalProcessAgentDraftUpdateRequest.class);
+        verify(approvalEngineService).updateProcessDraftAgent(eq(7L), eq(41L), request.capture());
+        assertThat(request.getValue().version()).isEqualTo(2);
+        assertThat(request.getValue().nodes()).hasSize(3);
+    }
+
+    @Test
+    void publishesOnlyTheVersionBoundApprovalProcessDraft() {
+        LocalDateTime now = LocalDateTime.of(2026, 10, 2, 0, 30);
+        var command = new ApprovalConfigurationToolPort.VersionedProcess(41L, 2);
+        when(approvalEngineService.publishProcessDraftAgent(7L, 41L, 2)).thenReturn(
+                new ApprovalProcessResponse(41L, "travel", "出差审批", null, 31L, "出差申请",
+                        "[{hidden}]", "ENABLED", 3, "管理员", now.minusDays(1), now, true, true));
+
+        var result = approvalConfigurationAdapter.publishProcessDraft(context, command);
+
+        assertThat(result).isEqualTo(new ApprovalConfigurationToolPort.ProcessDraftResult(
+                41L, "travel", "ENABLED", 3, now));
+        verify(approvalEngineService).publishProcessDraftAgent(7L, 41L, 2);
+    }
+
+    @Test
+    void createsOnlyDisabledApprovalRuleDraftFromSemanticConditions() {
+        LocalDateTime now = LocalDateTime.of(2026, 10, 1, 23, 30);
+        var command = new ApprovalConfigurationToolPort.RuleDraft(
+                "large-expense", "大额费用复核", "AMOUNT_THRESHOLD", 10, null, "AND",
+                List.of(new ApprovalConfigurationToolPort.RuleCondition("amount", "gte", "5000")),
+                new ApprovalConfigurationToolPort.RuleAction("FINANCE_REVIEW", true, "OR_SIGN"));
+        when(approvalEngineService.createRuleDraftAgent(eq(7L), any())).thenReturn(
+                new com.aiworkmate.dto.ApprovalRuleResponse(51L, "large-expense", "大额费用复核",
+                        "AMOUNT_THRESHOLD", 10, "{hidden}", "{hidden}", null, "DISABLED", 1,
+                        "管理员", now, now, true, true));
+
+        var result = approvalConfigurationAdapter.createRuleDraft(context, command);
+
+        assertThat(result.status()).isEqualTo("DISABLED");
+        var request = org.mockito.ArgumentCaptor.forClass(com.aiworkmate.dto.ApprovalRuleAgentDraftRequest.class);
+        verify(approvalEngineService).createRuleDraftAgent(eq(7L), request.capture());
+        assertThat(request.getValue().conditions()).hasSize(1);
+    }
+
+    @Test
+    void updatesOnlyVersionBoundDisabledApprovalRuleDraft() {
+        LocalDateTime now = LocalDateTime.of(2026, 10, 1, 23, 50);
+        var command = new ApprovalConfigurationToolPort.RuleDraftUpdate(
+                51L, 2, "大额费用复核（新版）", "AMOUNT_THRESHOLD", 5, null, "AND",
+                List.of(new ApprovalConfigurationToolPort.RuleCondition("amount", "gte", "8000")),
+                new ApprovalConfigurationToolPort.RuleAction("FINANCE_REVIEW", true, "OR_SIGN"));
+        when(approvalEngineService.updateRuleDraftAgent(eq(7L), eq(51L), any())).thenReturn(
+                new com.aiworkmate.dto.ApprovalRuleResponse(51L, "large-expense", "大额费用复核（新版）",
+                        "AMOUNT_THRESHOLD", 5, "{hidden}", "{hidden}", null, "DISABLED", 3,
+                        "管理员", now.minusDays(1), now, true, true));
+
+        var result = approvalConfigurationAdapter.updateRuleDraft(context, command);
+
+        assertThat(result.version()).isEqualTo(3);
+        var request = org.mockito.ArgumentCaptor.forClass(
+                com.aiworkmate.dto.ApprovalRuleAgentDraftUpdateRequest.class);
+        verify(approvalEngineService).updateRuleDraftAgent(eq(7L), eq(51L), request.capture());
+        assertThat(request.getValue().version()).isEqualTo(2);
+        assertThat(request.getValue().conditions()).hasSize(1);
+    }
+
+    @Test
+    void enablesOnlyTheVersionBoundApprovalRuleDraft() {
+        LocalDateTime now = LocalDateTime.of(2026, 10, 2, 0, 50);
+        var command = new ApprovalConfigurationToolPort.VersionedRule(51L, 2);
+        when(approvalEngineService.enableRuleDraftAgent(7L, 51L, 2)).thenReturn(
+                new com.aiworkmate.dto.ApprovalRuleResponse(51L, "large-expense", "大额费用复核",
+                        "AMOUNT_THRESHOLD", 5, "{hidden}", "{hidden}", null, "ENABLED", 3,
+                        "管理员", now.minusDays(1), now, true, true));
+
+        var result = approvalConfigurationAdapter.enableRuleDraft(context, command);
+
+        assertThat(result).isEqualTo(new ApprovalConfigurationToolPort.RuleDraftResult(
+                51L, "large-expense", "ENABLED", 3, now));
+        verify(approvalEngineService).enableRuleDraftAgent(7L, 51L, 2);
     }
 
     @Test
@@ -174,7 +410,7 @@ class AgentDomainToolAdaptersTest {
                 eq("operation-1"))).thenReturn(new com.aiworkmate.dto.AttendanceReissueResponse(
                 31L, 7L, "当前用户", 8L, "直属主管", date, "CLOCK_IN", "忘记打卡",
                 "PENDING", null, submittedAt, null, submittedAt, submittedAt,
-                false, true));
+                0, false, true));
 
         var result = attendanceAdapter.submitReissue(context,
                 new AttendanceToolPort.ReissueCommand(date, "CLOCK_IN", "忘记打卡"),
@@ -186,6 +422,59 @@ class AgentDomainToolAdaptersTest {
         verify(attendanceService).submitAgentReissue(eq(7L), request.capture(), eq("operation-1"));
         assertThat(request.getValue()).isEqualTo(
                 new com.aiworkmate.dto.AttendanceReissueRequest(date, "CLOCK_IN", "忘记打卡"));
+    }
+
+    @Test
+    void mapsAttendanceReissueDecisionToVersionedDomainWrite() {
+        LocalDateTime decidedAt = LocalDateTime.of(2026, 10, 1, 9, 0);
+        when(attendanceService.decideReissue(eq(7L), eq(31L), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(new com.aiworkmate.dto.AttendanceReissueResponse(
+                        31L, 9L, "申请人", 7L, "当前用户", LocalDate.of(2026, 9, 30),
+                        "CLOCK_IN", "忘记打卡", "REJECTED", "信息不足", decidedAt.minusDays(1),
+                        decidedAt, decidedAt.minusDays(1), decidedAt, 4, false, false));
+
+        var result = attendanceAdapter.decideReissue(context,
+                new AttendanceToolPort.ReissueDecisionCommand(31L, 3, "REJECTED", "信息不足"));
+
+        assertThat(result).isEqualTo(new AttendanceToolPort.ReissueDecisionResult(
+                31L, "REJECTED", 4, decidedAt));
+        var request = ArgumentCaptor.forClass(com.aiworkmate.dto.AttendanceReissueDecisionRequest.class);
+        verify(attendanceService).decideReissue(eq(7L), eq(31L), request.capture());
+        assertThat(request.getValue()).isEqualTo(
+                new com.aiworkmate.dto.AttendanceReissueDecisionRequest(3, "REJECTED", "信息不足"));
+    }
+
+    @Test
+    void mapsSelfAttendanceClockWithoutInventingClientIpOrTimestamp() {
+        LocalDate day = LocalDate.of(2026, 9, 30);
+        LocalDateTime clockIn = day.atTime(9, 0);
+        when(attendanceService.clock(7L, new com.aiworkmate.dto.AttendanceClockRequest("CLOCK_IN"), null))
+                .thenReturn(new com.aiworkmate.dto.AttendanceClockResponse(
+                        81L, day, clockIn, null, "NORMAL", 0, 0));
+
+        assertThat(attendanceAdapter.clock(context, "CLOCK_IN")).isEqualTo(
+                new AttendanceToolPort.ClockWriteResult(
+                        81L, day, clockIn, null, "NORMAL", 0, 0));
+        verify(attendanceService).clock(
+                7L, new com.aiworkmate.dto.AttendanceClockRequest("CLOCK_IN"), null);
+    }
+
+    @Test
+    void mapsAttendanceSettingsUpdateWithoutAcceptingTenantIdentity() {
+        LocalDateTime updatedAt = LocalDateTime.of(2026, 10, 1, 18, 10);
+        var command = new AttendanceToolPort.SettingsUpdateCommand(
+                2, LocalTime.of(8, 30), LocalTime.of(17, 30), 20, 10, true);
+        when(attendanceService.updateSettings(eq(7L), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(new com.aiworkmate.dto.AttendanceSettingsResponse(
+                        1L, LocalTime.of(8, 30), LocalTime.of(17, 30), 20, 10, true, 3, updatedAt));
+
+        assertThat(attendanceAdapter.updateSettings(context, command)).isEqualTo(
+                new AttendanceToolPort.SettingsUpdateResult(
+                        3, LocalTime.of(8, 30), LocalTime.of(17, 30), 20, 10, true, updatedAt));
+        var request = ArgumentCaptor.forClass(com.aiworkmate.dto.AttendanceSettingsRequest.class);
+        verify(attendanceService).updateSettings(eq(7L), request.capture());
+        assertThat(request.getValue()).isEqualTo(new com.aiworkmate.dto.AttendanceSettingsRequest(
+                2, LocalTime.of(8, 30), LocalTime.of(17, 30), 20, 10, true));
     }
 
     @Test
@@ -312,6 +601,44 @@ class AgentDomainToolAdaptersTest {
     }
 
     @Test
+    void mapsVisitorWithdrawAndNoShowWithoutAcceptingAnActorFromArguments() {
+        VisitorBookingResponse withdrawn = mock(VisitorBookingResponse.class);
+        when(withdrawn.id()).thenReturn(31L);
+        when(withdrawn.status()).thenReturn("WITHDRAWN");
+        when(withdrawn.version()).thenReturn(3);
+        when(adminAssetsService.withdrawVisitorBooking(
+                7L, 31L, new com.aiworkmate.dto.VersionRequest(2))).thenReturn(withdrawn);
+
+        var withdrawResult = visitorAdapter.withdraw(context,
+                new com.aiworkmate.agent.tool.port.VisitorToolPort.VersionCommand(31, 2));
+        assertThat(withdrawResult).isEqualTo(
+                new com.aiworkmate.agent.tool.port.VisitorToolPort.StatusResult(31, "WITHDRAWN", 3));
+
+        LocalDateTime occurredAt = LocalDateTime.of(2026, 9, 30, 18, 20);
+        var command = new com.aiworkmate.agent.tool.port.VisitorToolPort.VisitCommand(
+                32, 4, "超过预约时间未到访");
+        var domain = new com.aiworkmate.service.model.VisitorAgentVisitCommand(
+                32, 4, "超过预约时间未到访");
+        var receipt = new com.aiworkmate.service.model.VisitorAgentVisitReceipt(
+                32, "NO_SHOW", 5, occurredAt);
+        when(adminAssetsService.markVisitorNoShowAgent(7L, domain, "operation-5"))
+                .thenReturn(receipt);
+        when(adminAssetsService.findAgentVisitorNoShow(7L, domain, "operation-5"))
+                .thenReturn(java.util.Optional.of(receipt));
+
+        var expected = new com.aiworkmate.agent.tool.port.VisitorToolPort.VisitResult(
+                32, "NO_SHOW", 5, occurredAt);
+        assertThat(visitorAdapter.markNoShow(context, command, new ToolOperationKey("operation-5")))
+                .isEqualTo(expected);
+        assertThat(visitorAdapter.findNoShow(context, command, new ToolOperationKey("operation-5")))
+                .isEqualTo(com.aiworkmate.agent.tool.port.ToolWriteVerification.observed(expected));
+        verify(adminAssetsService).withdrawVisitorBooking(
+                7L, 31L, new com.aiworkmate.dto.VersionRequest(2));
+        verify(adminAssetsService).markVisitorNoShowAgent(7L, domain, "operation-5");
+        verify(adminAssetsService).findAgentVisitorNoShow(7L, domain, "operation-5");
+    }
+
+    @Test
     void mapsSealSummaryWithoutWorkflowOrStorageMetadata() {
         LocalDateTime now = LocalDateTime.of(2026, 9, 14, 10, 0);
         when(adminAssetsService.getSealUsage(7L, 41L)).thenReturn(new SealUsageResponse(
@@ -380,6 +707,36 @@ class AgentDomainToolAdaptersTest {
     }
 
     @Test
+    void mapsSealWithdrawAndReturnThroughVersionBoundDomainRequests() {
+        SealUsageResponse withdrawn = mock(SealUsageResponse.class);
+        when(withdrawn.id()).thenReturn(41L);
+        when(withdrawn.status()).thenReturn("WITHDRAWN");
+        when(withdrawn.version()).thenReturn(3);
+        when(adminAssetsService.withdrawSealUsage(
+                7L, 41L, new com.aiworkmate.dto.VersionRequest(2))).thenReturn(withdrawn);
+
+        assertThat(sealAdapter.withdraw(context,
+                new com.aiworkmate.agent.tool.port.SealToolPort.VersionCommand(41, 2)))
+                .isEqualTo(new com.aiworkmate.agent.tool.port.SealToolPort.StatusResult(
+                        41, "WITHDRAWN", 3));
+
+        SealUsageResponse returned = mock(SealUsageResponse.class);
+        when(returned.id()).thenReturn(42L);
+        when(returned.status()).thenReturn("RETURNED");
+        when(returned.version()).thenReturn(5);
+        var returnRequest = new com.aiworkmate.dto.SealReturnRequest(4, "印章已归还");
+        when(adminAssetsService.returnSeal(7L, 42L, returnRequest)).thenReturn(returned);
+
+        assertThat(sealAdapter.returnSeal(context,
+                new com.aiworkmate.agent.tool.port.SealToolPort.ReturnCommand(42, 4, "印章已归还")))
+                .isEqualTo(new com.aiworkmate.agent.tool.port.SealToolPort.StatusResult(
+                        42, "RETURNED", 5));
+        verify(adminAssetsService).withdrawSealUsage(
+                7L, 41L, new com.aiworkmate.dto.VersionRequest(2));
+        verify(adminAssetsService).returnSeal(7L, 42L, returnRequest);
+    }
+
+    @Test
     void keepsLeaveOperationKeyAndMapsWriteResult() {
         when(leaveWorkflowService.createAgentDraft(eq(7L), org.mockito.ArgumentMatchers.any(), eq("operation-1")))
                 .thenReturn(leaveApplication());
@@ -395,6 +752,41 @@ class AgentDomainToolAdaptersTest {
         verify(leaveWorkflowService).createAgentDraft(eq(7L), request.capture(), eq("operation-1"));
         assertThat(request.getValue().reason()).isEqualTo("家庭事务");
         assertThat(request.getValue().version()).isNull();
+    }
+
+    @Test
+    void mapsLeaveReminderThroughTheRateLimitedDomainOperation() {
+        LeaveApplicationResponse response = mock(LeaveApplicationResponse.class);
+        when(response.id()).thenReturn(30L);
+        when(response.status()).thenReturn("PENDING");
+        when(response.version()).thenReturn(4);
+        when(leaveWorkflowService.remind(7L, 30L, new com.aiworkmate.dto.VersionRequest(3)))
+                .thenReturn(response);
+
+        assertThat(leaveAdapter.remind(context, 30L, 3))
+                .isEqualTo(new LeaveToolPort.StatusResult(30L, "PENDING", 4));
+        verify(leaveWorkflowService).remind(7L, 30L, new com.aiworkmate.dto.VersionRequest(3));
+    }
+
+    @Test
+    void mapsCompleteLeaveDraftUpdateWithExpectedVersion() {
+        LeaveApplicationResponse response = mock(LeaveApplicationResponse.class);
+        when(response.id()).thenReturn(30L);
+        when(response.status()).thenReturn("DRAFT");
+        when(response.version()).thenReturn(2);
+        when(response.taskId()).thenReturn(null);
+        LeaveToolPort.Draft draft = new LeaveToolPort.Draft(
+                "PERSONAL", 8L, LocalDate.of(2026, 10, 1), "AM",
+                LocalDate.of(2026, 10, 1), "PM", "调整事由");
+        when(leaveWorkflowService.updateDraft(eq(7L), eq(30L), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(response);
+
+        assertThat(leaveAdapter.updateDraft(context, 30L, 1, draft))
+                .isEqualTo(new LeaveToolPort.WriteResult(30L, "DRAFT", 2, null));
+        var request = ArgumentCaptor.forClass(com.aiworkmate.dto.LeaveApplicationRequest.class);
+        verify(leaveWorkflowService).updateDraft(eq(7L), eq(30L), request.capture());
+        assertThat(request.getValue().version()).isOne();
+        assertThat(request.getValue().reason()).isEqualTo("调整事由");
     }
 
     @Test

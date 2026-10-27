@@ -5,6 +5,7 @@ import com.aiworkmate.common.ErrorCode;
 import com.aiworkmate.config.EmbeddingProperties;
 import com.aiworkmate.config.UploadProperties;
 import com.aiworkmate.dto.KnowledgeSearchRequest;
+import com.aiworkmate.dto.KnowledgeDocumentCreateRequest;
 import com.aiworkmate.entity.KnowledgeBase;
 import com.aiworkmate.entity.KnowledgeDocument;
 import com.aiworkmate.mapper.KnowledgeBaseMapper;
@@ -33,6 +34,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class KnowledgeServiceImplTest {
@@ -74,6 +76,92 @@ class KnowledgeServiceImplTest {
         return new KnowledgeServiceImpl(mapper, kbMapper, embeddingService,
                 new KnowledgeChunker(), accessService, parser,
                 new UploadProperties(), properties, new ObjectMapper(), rerankService);
+    }
+
+    @Test
+    void agentTextCreationShouldFailClosedWithoutRealtimeKnowledgePermission() {
+        UserAccessService accessService = mock(UserAccessService.class);
+        when(accessService.resolveActiveUser(7L)).thenReturn(new ResolvedUserAccess(
+                7L, "alice", 99L, "EMPLOYEE", List.of("EMPLOYEE"),
+                List.of(), List.of("SELF"), 1L));
+        KnowledgeDocumentMapper mapper = mock(KnowledgeDocumentMapper.class);
+        KnowledgeBaseMapper kbMapper = mock(KnowledgeBaseMapper.class);
+        EmbeddingService embeddingService = mock(EmbeddingService.class);
+        KnowledgeServiceImpl service = service(mapper, kbMapper, embeddingService,
+                accessService, mock(FileParserService.class), new EmbeddingProperties());
+
+        assertThatThrownBy(() -> service.createAgent(7L,
+                new KnowledgeDocumentCreateRequest(5L, "policy.txt", "Policy content")))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        error -> assertThat(error.getErrorCode()).isEqualTo("PERMISSION_DENIED"));
+
+        verifyNoInteractions(mapper, kbMapper, embeddingService);
+    }
+
+    @Test
+    void agentDocumentQueryReturnsOnlyDocumentFromRequestedOwnedBase() {
+        UserAccessService accessService = mock(UserAccessService.class);
+        when(accessService.resolveActiveUser(7L)).thenReturn(ACCESS);
+        KnowledgeDocumentMapper mapper = mock(KnowledgeDocumentMapper.class);
+        KnowledgeBaseMapper kbMapper = mock(KnowledgeBaseMapper.class);
+        when(kbMapper.selectOne(any())).thenReturn(ownedKnowledgeBase());
+        KnowledgeDocument document = new KnowledgeDocument();
+        document.setId(42L);
+        document.setTenantId(99L);
+        document.setUserId(7L);
+        document.setKbId(5L);
+        document.setFilename("policy.txt");
+        document.setFileSize(128L);
+        document.setFileType("TEXT");
+        document.setChunkCount(3);
+        document.setStatus("READY");
+        when(mapper.selectOne(any())).thenReturn(document);
+        KnowledgeServiceImpl service = service(mapper, kbMapper, mock(EmbeddingService.class),
+                accessService, mock(FileParserService.class), new EmbeddingProperties());
+
+        var result = service.queryDocumentsAgent(7L, 5L, 42L, 9, 20);
+
+        assertThat(result.records()).extracting(response -> response.id()).containsExactly(42L);
+        assertThat(result.total()).isOne();
+        assertThat(result.page()).isOne();
+        assertThat(result.size()).isOne();
+    }
+
+    @Test
+    void agentDocumentQueryFailsClosedBeforeOwnershipLookupWhenPermissionWasRevoked() {
+        UserAccessService accessService = mock(UserAccessService.class);
+        when(accessService.resolveActiveUser(7L)).thenReturn(new ResolvedUserAccess(
+                7L, "alice", 99L, "EMPLOYEE", List.of("EMPLOYEE"),
+                List.of(), List.of("SELF"), 1L));
+        KnowledgeDocumentMapper mapper = mock(KnowledgeDocumentMapper.class);
+        KnowledgeBaseMapper kbMapper = mock(KnowledgeBaseMapper.class);
+        KnowledgeServiceImpl service = service(mapper, kbMapper, mock(EmbeddingService.class),
+                accessService, mock(FileParserService.class), new EmbeddingProperties());
+
+        assertThatThrownBy(() -> service.queryDocumentsAgent(7L, 5L, null, 1, 20))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        error -> assertThat(error.getErrorCode()).isEqualTo("PERMISSION_DENIED"));
+
+        verifyNoInteractions(mapper, kbMapper);
+    }
+
+    @Test
+    void agentReindexFailsClosedBeforeDocumentLookupWhenPermissionWasRevoked() {
+        UserAccessService accessService = mock(UserAccessService.class);
+        when(accessService.resolveActiveUser(7L)).thenReturn(new ResolvedUserAccess(
+                7L, "alice", 99L, "EMPLOYEE", List.of("EMPLOYEE"),
+                List.of(), List.of("SELF"), 1L));
+        KnowledgeDocumentMapper mapper = mock(KnowledgeDocumentMapper.class);
+        KnowledgeBaseMapper kbMapper = mock(KnowledgeBaseMapper.class);
+        EmbeddingService embeddingService = mock(EmbeddingService.class);
+        KnowledgeServiceImpl service = service(mapper, kbMapper, embeddingService,
+                accessService, mock(FileParserService.class), new EmbeddingProperties());
+
+        assertThatThrownBy(() -> service.reindexAgent(7L, 42L))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        error -> assertThat(error.getErrorCode()).isEqualTo("PERMISSION_DENIED"));
+
+        verifyNoInteractions(mapper, kbMapper, embeddingService);
     }
 
     @Test

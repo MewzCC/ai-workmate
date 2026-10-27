@@ -2,11 +2,23 @@ package com.aiworkmate.service;
 
 import com.aiworkmate.common.PageResponse;
 import com.aiworkmate.dto.ApprovalFormRequest;
+import com.aiworkmate.dto.ApprovalFormAgentDraftRequest;
+import com.aiworkmate.dto.ApprovalFormAgentDraftUpdateRequest;
 import com.aiworkmate.dto.ApprovalFormResponse;
+import com.aiworkmate.dto.ApprovalFormDefinitionResponse;
+import com.aiworkmate.dto.ApprovalFormFieldPatchRequest;
+import com.aiworkmate.dto.ApprovalFormFieldPatchResponse;
 import com.aiworkmate.dto.ApprovalProcessRequest;
+import com.aiworkmate.dto.ApprovalProcessAgentDraftRequest;
+import com.aiworkmate.dto.ApprovalProcessAgentDraftUpdateRequest;
 import com.aiworkmate.dto.ApprovalProcessResponse;
 import com.aiworkmate.dto.ApprovalRuleRequest;
+import com.aiworkmate.dto.ApprovalRuleConditionPatchRequest;
+import com.aiworkmate.dto.ApprovalRuleConditionPatchResponse;
+import com.aiworkmate.dto.ApprovalRuleAgentDraftRequest;
+import com.aiworkmate.dto.ApprovalRuleAgentDraftUpdateRequest;
 import com.aiworkmate.dto.ApprovalRuleResponse;
+import com.aiworkmate.dto.ApprovalRuleDefinitionResponse;
 
 /**
  * 审批引擎配置服务：表单引擎 / 流程配置 / 审批规则。
@@ -24,7 +36,19 @@ public interface ApprovalEngineService {
 
     ApprovalFormResponse getForm(Long userId, Long id);
 
+    ApprovalFormDefinitionResponse readFormDefinitionAgent(Long userId, Long expectedTenantId, Long id);
+
+    ApprovalFormFieldPatchResponse patchFormDraftFieldAgent(Long userId, Long expectedTenantId, Long id,
+                                                 ApprovalFormFieldPatchRequest request);
+
     ApprovalFormResponse createForm(Long userId, ApprovalFormRequest request);
+
+    ApprovalFormResponse createFormDraftAgent(Long userId, ApprovalFormAgentDraftRequest request);
+
+    ApprovalFormResponse updateFormDraftAgent(Long userId, Long id,
+                                              ApprovalFormAgentDraftUpdateRequest request);
+
+    ApprovalFormResponse publishFormDraftAgent(Long userId, Long id, Integer version);
 
     ApprovalFormResponse updateForm(Long userId, Long id, ApprovalFormRequest request);
 
@@ -39,6 +63,13 @@ public interface ApprovalEngineService {
 
     ApprovalProcessResponse createProcess(Long userId, ApprovalProcessRequest request);
 
+    ApprovalProcessResponse createProcessDraftAgent(Long userId, ApprovalProcessAgentDraftRequest request);
+
+    ApprovalProcessResponse updateProcessDraftAgent(Long userId, Long id,
+                                                     ApprovalProcessAgentDraftUpdateRequest request);
+
+    ApprovalProcessResponse publishProcessDraftAgent(Long userId, Long id, Integer version);
+
     ApprovalProcessResponse updateProcess(Long userId, Long id, ApprovalProcessRequest request);
 
     void deleteProcess(Long userId, Long id);
@@ -50,7 +81,19 @@ public interface ApprovalEngineService {
 
     ApprovalRuleResponse getRule(Long userId, Long id);
 
+    ApprovalRuleDefinitionResponse readRuleDefinitionAgent(Long userId, Long expectedTenantId, Long id);
+
+    ApprovalRuleConditionPatchResponse patchRuleDraftConditionAgent(Long userId, Long expectedTenantId, Long id,
+                                                                   ApprovalRuleConditionPatchRequest request);
+
     ApprovalRuleResponse createRule(Long userId, ApprovalRuleRequest request);
+
+    ApprovalRuleResponse createRuleDraftAgent(Long userId, ApprovalRuleAgentDraftRequest request);
+
+    ApprovalRuleResponse updateRuleDraftAgent(Long userId, Long id,
+                                               ApprovalRuleAgentDraftUpdateRequest request);
+
+    ApprovalRuleResponse enableRuleDraftAgent(Long userId, Long id, Integer version);
 
     ApprovalRuleResponse updateRule(Long userId, Long id, ApprovalRuleRequest request);
 

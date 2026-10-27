@@ -54,4 +54,83 @@ class AgentContractWriteToolDefinitionsTest {
         assertThat(definition.inputSchema().path("properties").fieldNames()).toIterable()
                 .doesNotContain("code", "status", "paidAmount", "fulfillmentStatus", "sendTo");
     }
+
+    @Test
+    void statusUpdateRequiresSecondaryConfirmationAndClosedArguments() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        ToolDefinition definition = new AgentContractWriteToolDefinitions()
+                .contractUpdateStatusToolDefinition(mapper);
+        assertThat(definition.schemaHash()).isEqualTo(
+                "sha256:10210557fa790ede65d98aadab50a9ea4a82648c21299e731e69e1f61008ab1a");
+        assertThat(definition.requiredPermissions()).containsExactly("contract:manage");
+        assertThat(definition.riskLevel()).isEqualTo(RiskLevel.L2);
+        assertThat(definition.retryPolicy()).isEqualTo(RetryPolicy.NEVER);
+        assertThat(definition.confirmationPolicy()).isEqualTo(ConfirmationPolicy.SECONDARY);
+        assertThat(new ToolSchemaValidator().valid(definition.inputSchema(), mapper.readTree("""
+                {"contractId":81,"version":2,"status":"TERMINATED","reason":"双方协商终止"}
+                """))).isTrue();
+        assertThat(new ToolSchemaValidator().valid(definition.inputSchema(), mapper.readTree("""
+                {"contractId":81,"version":2,"status":"PAID"}
+                """))).isFalse();
+    }
+
+    @Test
+    void fulfillmentUpdateRequiresSecondaryConfirmationAndClosedArguments() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        ToolDefinition definition = new AgentContractWriteToolDefinitions()
+                .contractUpdateFulfillmentToolDefinition(mapper);
+        assertThat(definition.schemaHash()).isEqualTo(
+                "sha256:d6db3babd6a6432c6f4621cf711fffeda272c3b65f18d34266700235dd620556");
+        assertThat(definition.requiredPermissions()).containsExactly("contract:manage");
+        assertThat(definition.riskLevel()).isEqualTo(RiskLevel.L2);
+        assertThat(definition.retryPolicy()).isEqualTo(RetryPolicy.NEVER);
+        assertThat(definition.confirmationPolicy()).isEqualTo(ConfirmationPolicy.SECONDARY);
+        assertThat(new ToolSchemaValidator().valid(definition.inputSchema(), mapper.readTree("""
+                {"contractId":81,"version":3,"status":"BREACHED","reason":"交付逾期"}
+                """))).isTrue();
+        assertThat(new ToolSchemaValidator().valid(definition.inputSchema(), mapper.readTree("""
+                {"contractId":81,"version":3,"status":"NOT_STARTED"}
+                """))).isFalse();
+    }
+
+    @Test
+    void paymentRequiresSecondaryConfirmationAndBoundedAmount() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        ToolDefinition definition = new AgentContractWriteToolDefinitions()
+                .contractRecordPaymentToolDefinition(mapper);
+        assertThat(definition.schemaHash()).isEqualTo(
+                "sha256:a9d8ba8b0aaedf6bc8e18d201f28f349f73c45111548a179fb8ca5021341c585");
+        assertThat(definition.requiredPermissions()).containsExactly("contract:manage");
+        assertThat(definition.riskLevel()).isEqualTo(RiskLevel.L2);
+        assertThat(definition.retryPolicy()).isEqualTo(RetryPolicy.NEVER);
+        assertThat(definition.confirmationPolicy()).isEqualTo(ConfirmationPolicy.SECONDARY);
+        assertThat(new ToolSchemaValidator().valid(definition.inputSchema(), mapper.readTree("""
+                {"contractId":81,"version":4,"amount":200.00,"paymentDate":"2026-09-30",
+                 "reference":"PAY-20260930-001","note":"首付款"}
+                """))).isTrue();
+        assertThat(new ToolSchemaValidator().valid(definition.inputSchema(), mapper.readTree("""
+                {"contractId":81,"version":4,"amount":0,"paymentDate":"2026-09-30",
+                 "reference":"PAY-20260930-001"}
+                """))).isFalse();
+    }
+
+    @Test
+    void reminderRequiresExplicitConfirmationAndOnlyAcceptsIdentityAndVersion() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        ToolDefinition definition = new AgentContractWriteToolDefinitions()
+                .contractRemindToolDefinition(mapper);
+        assertThat(definition.schemaHash()).isEqualTo(
+                "sha256:578ed3fa7179edbd9e6e5b874edd2ae196248d0333dbe631bf41bc9db5b90321");
+        assertThat(definition.requiredPermissions()).containsExactly("contract:manage");
+        assertThat(definition.riskLevel()).isEqualTo(RiskLevel.L1);
+        assertThat(definition.retryPolicy()).isEqualTo(RetryPolicy.NEVER);
+        assertThat(definition.confirmationPolicy()).isEqualTo(ConfirmationPolicy.EXPLICIT);
+        assertThat(definition.ownershipPolicy()).isEqualTo(OwnershipPolicy.TENANT_SCOPED);
+        assertThat(new ToolSchemaValidator().valid(definition.inputSchema(), mapper.readTree("""
+                {"contractId":81,"version":5}
+                """))).isTrue();
+        assertThat(new ToolSchemaValidator().valid(definition.inputSchema(), mapper.readTree("""
+                {"contractId":81,"version":5,"recipient":"external@example.com"}
+                """))).isFalse();
+    }
 }

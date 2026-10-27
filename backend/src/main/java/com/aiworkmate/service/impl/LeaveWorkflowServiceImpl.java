@@ -209,7 +209,7 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
                 .set(LeaveApplication::getUpdatedAt, LocalDateTime.now())
                 .setSql("version = version + 1");
         assertUpdated(leaveMapper.update(null, update), actor, id, "UPDATE_DRAFT");
-        auditService.record(actor.tenantId(), actor.userId(), BUSINESS_TYPE,
+        auditService.recordTransactional(actor.tenantId(), actor.userId(), BUSINESS_TYPE,
                 id.toString(), "UPDATE_DRAFT", "SUCCESS", "更新请假草稿");
         return response(actor, requireView(actor.tenantId(), id));
     }
@@ -505,7 +505,7 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
         assertUpdated(applicationUpdated, actor, id, "REMIND");
         insertAction(actor, task.getInstanceId(), task.getId(),
                 "REMIND", "PENDING", "PENDING", null);
-        auditService.record(actor.tenantId(), actor.userId(), BUSINESS_TYPE,
+        auditService.recordTransactional(actor.tenantId(), actor.userId(), BUSINESS_TYPE,
                 id.toString(), "REMIND", "SUCCESS", "催办当前审批待办");
         notificationService.publish(actor.tenantId(), task.getAssigneeUserId(),
                 NotificationService.TYPE_APPROVAL,
@@ -1034,14 +1034,11 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
     }
 
     private LeaveApplication requireOwnedLeave(ResolvedUserAccess actor, Long id) {
-        LeaveApplication leave = leaveMapper.selectById(id);
-        if (leave == null || !actor.tenantId().equals(leave.getTenantId())) {
-            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
-        }
-        if (!actor.userId().equals(leave.getApplicantUserId())) {
+        LeaveApplication leave = leaveMapper.selectOwnedApplication(actor.tenantId(),actor.userId(),id);
+        if (leave == null) {
             auditService.record(actor.tenantId(), actor.userId(), BUSINESS_TYPE,
-                    id.toString(), "WRITE", "DENIED", "非申请资源所有者");
-            throw new BusinessException(ErrorCode.RESOURCE_FORBIDDEN);
+                    String.valueOf(id), "WRITE", "DENIED", "申请不存在或不属于当前用户");
+            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
         }
         return leave;
     }

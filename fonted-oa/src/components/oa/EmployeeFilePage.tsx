@@ -33,6 +33,7 @@ import {
 } from '@/lib/hrApi';
 import { message } from '@/lib/antdMessage';
 import { useRouter, useSearchParams } from '@/lib/nextCompat';
+import { usePublishPageAgentContext } from './PageAgentContext';
 
 const { Title, Text } = Typography;
 
@@ -52,87 +53,103 @@ export default function EmployeeFilePage() {
   const searchParams = useSearchParams();
   const urlId = searchParams.get('id');
 
-  const [overview, setOverview] = useState<OrganizationOverview | null>(null);
+  const scopeKey = user ? `${user.tenantId}:${user.id}:${user.permissionVersion}` : 'anonymous';
+  const [overviewData, setOverviewData] = useState<{ key: string; value: OrganizationOverview } | null>(null);
+  const overview = overviewData?.key === scopeKey ? overviewData.value : null;
   const [overviewLoading, setOverviewLoading] = useState(true);
   const [keyword, setKeyword] = useState('');
-  const [selectedId, setSelectedId] = useState<number | null>(
+  const [requestedId, setSelectedId] = useState<number | null>(
     urlId ? Number(urlId) : null,
   );
-  const [detail, setDetail] = useState<EmployeeDetail | null>(null);
+  const selectedId = overview?.employees.some((employee) => employee.id === requestedId)
+    ? requestedId : overview?.employees[0]?.id ?? null;
+  const viewKey = `${scopeKey}:${selectedId}`;
+  const [detailData, setDetailData] = useState<{ key: string; value: EmployeeDetail } | null>(null);
+  const detail = detailData?.key === viewKey ? detailData.value : null;
   const [detailLoading, setDetailLoading] = useState(false);
-  const [documents, setDocuments] = useState<EmployeeDocument[]>([]);
+  const [documentsData, setDocumentsData] = useState<{ key: string; value: EmployeeDocument[] } | null>(null);
+  const documents = documentsData?.key === viewKey ? documentsData.value : [];
   const [documentsLoading, setDocumentsLoading] = useState(false);
   const [documentType, setDocumentType] = useState<EmployeeDocumentType>('CONTRACT');
   const [uploading, setUploading] = useState(false);
   const [downloadingId, setDownloadingId] = useState<number>();
   const requestSeq = useRef(0);
+  const overviewSeq = useRef(0);
+  const documentsSeq = useRef(0);
+  const currentViewKey = useRef(viewKey);
+  currentViewKey.current = viewKey;
   const canManage = user?.permissions.includes('hr:manage') ?? false;
+  usePublishPageAgentContext({ employeeId: selectedId ?? undefined });
 
   const loadOverview = useCallback(async () => {
+    const seq = ++overviewSeq.current;
+    setOverviewData(null);
+    if (scopeKey === 'anonymous') { setOverviewLoading(false); return; }
     setOverviewLoading(true);
     try {
       const data = await hrApi.overview();
-      setOverview(data);
+      if (seq === overviewSeq.current) setOverviewData({ key: scopeKey, value: data });
     } catch (error) {
-      message.error(error instanceof Error ? error.message : t('organization.loadFailed'));
+      if (seq === overviewSeq.current) message.error(error instanceof Error ? error.message : t('organization.loadFailed'));
     } finally {
-      setOverviewLoading(false);
+      if (seq === overviewSeq.current) setOverviewLoading(false);
     }
-  }, [t]);
+  }, [scopeKey, t]);
 
   useEffect(() => {
+    const sequence = overviewSeq;
     void loadOverview();
+    return () => { ++sequence.current; };
   }, [loadOverview]);
 
   // 当 URL 中的 id 变化时（例如从组织架构跳转而来）同步选中项
   useEffect(() => {
-    if (urlId && Number(urlId) !== selectedId && overview?.employees.some((e) => e.id === Number(urlId))) {
-      setSelectedId(Number(urlId));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const id = Number(urlId);
+    setSelectedId(Number.isSafeInteger(id) && id > 0 ? id : null);
   }, [urlId]);
 
   // 选中员工后加载详情；默认选中第一个员工
   useEffect(() => {
-    if (overview && selectedId === null) {
-      if (overview.employees.length > 0) {
-        setSelectedId(overview.employees[0].id);
-      }
-      return;
-    }
-    if (selectedId === null) return;
-
-    const seq = ++requestSeq.current;
+    const sequence = requestSeq;
+    const seq = ++sequence.current;
+    setDetailData(null);
+    if (selectedId === null) { setDetailLoading(false); return; }
     setDetailLoading(true);
     hrApi.detail(selectedId)
       .then((data) => {
-        if (seq === requestSeq.current) setDetail(data);
+        if (seq === requestSeq.current) setDetailData({ key: viewKey, value: data });
       })
       .catch((error) => {
         if (seq === requestSeq.current) {
           message.error(error instanceof Error ? error.message : t('errors.hr.employeeLoadFailed'));
-          setDetail(null);
+          setDetailData(null);
         }
       })
       .finally(() => {
         if (seq === requestSeq.current) setDetailLoading(false);
       });
-  }, [overview, selectedId, t]);
+    return () => { ++sequence.current; };
+  }, [selectedId, viewKey, t]);
 
   const loadDocuments = useCallback(async (employeeId: number) => {
+    const seq = ++documentsSeq.current;
+    setDocumentsData(null);
     setDocumentsLoading(true);
     try {
-      setDocuments(await hrApi.listEmployeeDocuments(employeeId));
+      const value = await hrApi.listEmployeeDocuments(employeeId);
+      if (seq === documentsSeq.current) setDocumentsData({ key: viewKey, value });
     } catch (error) {
-      message.error(error instanceof Error ? error.message : t('employeeFile.documents.loadFailed'));
-      setDocuments([]);
+      if (seq === documentsSeq.current) message.error(error instanceof Error ? error.message : t('employeeFile.documents.loadFailed'));
     } finally {
-      setDocumentsLoading(false);
+      if (seq === documentsSeq.current) setDocumentsLoading(false);
     }
-  }, [t]);
+  }, [viewKey, t]);
 
   useEffect(() => {
+    const sequence = documentsSeq;
     if (selectedId !== null) void loadDocuments(selectedId);
+    else setDocumentsLoading(false);
+    return () => { ++sequence.current; };
   }, [loadDocuments, selectedId]);
 
   const filteredEmployees = useMemo(() => {
@@ -152,17 +169,18 @@ export default function EmployeeFilePage() {
   };
 
   const handleRefresh = () => {
-    setDetail(null);
     void loadOverview();
-    if (selectedId !== null) void loadDocuments(selectedId);
   };
 
   const handleUpload: UploadProps['customRequest'] = async ({ file, onError, onSuccess }) => {
-    if (selectedId === null || !(file instanceof File)) return;
+    if (!canManage || selectedId === null || !(file instanceof File)) return;
     setUploading(true);
     try {
       const document = await hrApi.uploadEmployeeDocument(selectedId, documentType, file);
-      setDocuments((current) => [document, ...current]);
+      if (currentViewKey.current === viewKey) {
+        // Re-read so a concurrent list request cannot replace the newly uploaded document.
+        void loadDocuments(selectedId);
+      }
       message.success(t('employeeFile.documents.uploadSuccess'));
       onSuccess?.(document);
     } catch (error) {

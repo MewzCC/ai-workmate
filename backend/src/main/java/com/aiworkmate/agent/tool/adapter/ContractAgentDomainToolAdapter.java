@@ -4,6 +4,10 @@ import com.aiworkmate.agent.tool.port.ContractToolPort;
 import com.aiworkmate.agent.tool.port.ToolActorContext;
 import com.aiworkmate.agent.tool.port.ToolPage;
 import com.aiworkmate.dto.ContractRequest;
+import com.aiworkmate.dto.ContractFulfillmentRequest;
+import com.aiworkmate.dto.ContractPaymentRequest;
+import com.aiworkmate.dto.ContractReminderRequest;
+import com.aiworkmate.dto.ContractStatusRequest;
 import com.aiworkmate.service.ContractService;
 import com.aiworkmate.service.model.ContractAgentDraftCommand;
 import lombok.RequiredArgsConstructor;
@@ -42,6 +46,37 @@ public class ContractAgentDomainToolAdapter implements ContractToolPort {
                         command.supplierId(), command.ownerUserId(), command.amount(), command.currency(),
                         command.signedDate(), command.startDate(), command.endDate(), command.summary()));
         return result(result);
+    }
+
+    @Override public ContractDraftResult updateContractStatus(
+            ToolActorContext context, ContractStatusUpdate command) {
+        var result = contractService.updateStatus(context.userId(), command.contractId(),
+                new ContractStatusRequest(command.status(), command.reason(), command.version()));
+        return result(result);
+    }
+
+    @Override public ContractFulfillmentResult updateContractFulfillment(
+            ToolActorContext context, ContractFulfillmentUpdate command) {
+        var result = contractService.updateFulfillment(context.userId(), command.contractId(),
+                new ContractFulfillmentRequest(command.status(), command.reason(), command.version()));
+        return new ContractFulfillmentResult(result.id(), result.code(), result.status(),
+                result.fulfillmentStatus(), result.version(), result.updatedAt());
+    }
+
+    @Override public ContractPaymentResult recordContractPayment(
+            ToolActorContext context, ContractPayment command) {
+        var result = contractService.recordPayment(context.userId(), command.contractId(),
+                new ContractPaymentRequest(command.amount(), command.paymentDate(),
+                        command.reference(), command.note(), command.version()));
+        return new ContractPaymentResult(result.id(), result.code(), result.status(), command.amount(),
+                result.paidAmount(), result.currency(), result.version(), result.updatedAt());
+    }
+
+    @Override public ContractReminderResult remindContract(
+            ToolActorContext context, long contractId, int version) {
+        var result = contractService.remind(context.userId(), contractId, new ContractReminderRequest(version));
+        return new ContractReminderResult(result.id(), result.code(), result.expiryState(),
+                result.reminderCount(), result.lastRemindedAt(), result.version());
     }
 
     private ContractDraftResult result(com.aiworkmate.dto.ContractResponse item) {

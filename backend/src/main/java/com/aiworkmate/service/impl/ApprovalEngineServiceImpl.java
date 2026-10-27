@@ -4,11 +4,23 @@ import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.common.ErrorCode;
 import com.aiworkmate.common.PageResponse;
 import com.aiworkmate.dto.ApprovalFormRequest;
+import com.aiworkmate.dto.ApprovalFormAgentDraftRequest;
+import com.aiworkmate.dto.ApprovalFormAgentDraftUpdateRequest;
 import com.aiworkmate.dto.ApprovalFormResponse;
+import com.aiworkmate.dto.ApprovalFormDefinitionResponse;
+import com.aiworkmate.dto.ApprovalFormFieldPatchRequest;
+import com.aiworkmate.dto.ApprovalFormFieldPatchResponse;
 import com.aiworkmate.dto.ApprovalProcessRequest;
+import com.aiworkmate.dto.ApprovalProcessAgentDraftRequest;
+import com.aiworkmate.dto.ApprovalProcessAgentDraftUpdateRequest;
 import com.aiworkmate.dto.ApprovalProcessResponse;
 import com.aiworkmate.dto.ApprovalRuleRequest;
+import com.aiworkmate.dto.ApprovalRuleConditionPatchRequest;
+import com.aiworkmate.dto.ApprovalRuleConditionPatchResponse;
+import com.aiworkmate.dto.ApprovalRuleAgentDraftRequest;
+import com.aiworkmate.dto.ApprovalRuleAgentDraftUpdateRequest;
 import com.aiworkmate.dto.ApprovalRuleResponse;
+import com.aiworkmate.dto.ApprovalRuleDefinitionResponse;
 import com.aiworkmate.entity.ApprovalForm;
 import com.aiworkmate.entity.ApprovalProcess;
 import com.aiworkmate.entity.ApprovalRule;
@@ -33,6 +45,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -102,6 +116,135 @@ public class ApprovalEngineServiceImpl implements ApprovalEngineService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public ApprovalFormDefinitionResponse readFormDefinitionAgent(Long userId, Long expectedTenantId, Long id) {
+        ResolvedUserAccess actor = requirePermission(userId, "approval:read");
+        if (!actor.tenantId().equals(expectedTenantId)) throw new BusinessException(ErrorCode.PERMISSION_DENIED);
+        if (id == null || id < 1) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        ApprovalForm form = formMapper.selectOne(new LambdaQueryWrapper<ApprovalForm>()
+                .eq(ApprovalForm::getTenantId, actor.tenantId()).eq(ApprovalForm::getId, id)
+                .eq(ApprovalForm::getDeleted, false));
+        if (form == null) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        JsonNode root = normalizedAgentFormSchema(form.getSchemaJson());
+        List<AgentFormField> fields = requirePublishableFormSchema(root.toString());
+        requireAgentFormDraft(form.getFormKey(), form.getFormName(), null, fields, true);
+        List<ApprovalFormDefinitionResponse.Field> result = new java.util.ArrayList<>(fields.size());
+        for (int index = 0; index < fields.size(); index++) {
+            AgentFormField field = fields.get(index);
+            JsonNode min = root.path("fields").get(index).get("min");
+            result.add(new ApprovalFormDefinitionResponse.Field(field.name(), field.label(), field.type(), field.required(),
+                    field.placeholder(), field.options(), field.width(), min == null ? null : min.decimalValue()));
+        }
+        return new ApprovalFormDefinitionResponse(form.getId(), form.getFormKey(), form.getFormName(),
+                form.getStatus(), form.getVersion(), result);
+    }
+
+    private JsonNode normalizedAgentFormSchema(String json) {
+        if (json == null || json.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 65536) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.approval.json.invalid");
+        }
+        JsonNode root;
+        try {
+            root = objectMapper.reader()
+                    .with(com.fasterxml.jackson.databind.DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS)
+                    .with(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
+                    .with(com.fasterxml.jackson.core.JsonParser.Feature.STRICT_DUPLICATE_DETECTION)
+                    .readTree(json);
+            if (root == null || !root.isObject() || root.size() != 1 || !root.path("fields").isArray()
+                    || root.path("fields").size() > 20) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+            Set<String> allowed = Set.of("name", "key", "label", "type", "required", "placeholder", "options", "width", "min");
+            for (JsonNode field : root.path("fields")) {
+                if (!field.isObject()) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+                var names = field.fieldNames();
+                while (names.hasNext()) {
+                    if (!allowed.contains(names.next())) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+                }
+                var normalized = (com.fasterxml.jackson.databind.node.ObjectNode) field;
+                if (field.has("key")) {
+                    if (field.has("name") && !field.get("name").equals(field.get("key"))) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+                    if (!field.has("name")) normalized.set("name", field.get("key"));
+                    normalized.remove("key");
+                }
+                if (!field.has("required")) normalized.put("required", false);
+                if (!field.has("options")) normalized.putArray("options");
+                if (!field.has("width")) normalized.put("width", "full");
+                if (field.has("min") && (!field.get("min").isNumber()
+                        || field.get("min").decimalValue().abs().compareTo(new java.math.BigDecimal("1000000000000000")) > 0
+                        || !Set.of("number", "money").contains(field.path("type").asText()))) {
+                    throw new BusinessException(ErrorCode.REQUEST_INVALID);
+                }
+            }
+        } catch (JsonProcessingException exception) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.approval.json.invalid");
+        }
+        requirePublishableFormSchema(root.toString());
+        return root;
+    }
+
+    @Override
+    @Transactional
+    public ApprovalFormFieldPatchResponse patchFormDraftFieldAgent(Long userId, Long expectedTenantId, Long id,
+                                                        ApprovalFormFieldPatchRequest request) {
+        ResolvedUserAccess actor = requirePermission(userId, "approval:manage");
+        if (!actor.tenantId().equals(expectedTenantId)) throw new BusinessException(ErrorCode.PERMISSION_DENIED);
+        if (id == null || id < 1 || request == null || request.version() == null
+                || request.version() < 1 || request.version() == Integer.MAX_VALUE
+                || request.fieldName() == null || !request.fieldName().matches("^[a-z][A-Za-z0-9_-]{0,39}$")
+                || request.label() != null && (request.label().isBlank() || request.label().length() > 40)
+                || request.placeholder() != null && request.placeholder().length() > 80
+                || request.width() != null && !Set.of("full", "half").contains(request.width())
+                || request.label() == null && request.required() == null && request.placeholder() == null && request.width() == null) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        ApprovalForm form = formMapper.selectOne(new LambdaQueryWrapper<ApprovalForm>()
+                .eq(ApprovalForm::getTenantId, actor.tenantId()).eq(ApprovalForm::getId, id)
+                .eq(ApprovalForm::getDeleted, false));
+        if (form == null) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        if (!"DISABLED".equals(form.getStatus())) throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID);
+        if (!request.version().equals(form.getVersion())) throw new BusinessException(ErrorCode.VERSION_CONFLICT);
+        if (form.getFormKey() == null || !form.getFormKey().matches("^[a-z][a-z0-9_-]{0,63}$")) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        normalizedAgentFormSchema(form.getSchemaJson());
+        JsonNode root;
+        try {
+            root = objectMapper.reader().with(com.fasterxml.jackson.databind.DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS)
+                    .readTree(form.getSchemaJson());
+        } catch (JsonProcessingException exception) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.approval.json.invalid");
+        }
+        com.fasterxml.jackson.databind.node.ObjectNode target = null;
+        for (JsonNode field : root.path("fields")) {
+            if (request.fieldName().equals(field.path("name").asText(field.path("key").asText()))) {
+                target = (com.fasterxml.jackson.databind.node.ObjectNode) field;
+                break;
+            }
+        }
+        if (target == null) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        JsonNode before = target.deepCopy();
+        if (request.label() != null) target.put("label", request.label().trim());
+        if (request.required() != null) target.put("required", request.required());
+        if (request.placeholder() != null) target.put("placeholder", request.placeholder());
+        if (request.width() != null) target.put("width", request.width());
+        if (target.equals(before)) throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID);
+        String schemaJson = root.toString();
+        normalizedAgentFormSchema(schemaJson);
+        LocalDateTime now = LocalDateTime.now();
+        int updated = formMapper.update(null, new LambdaUpdateWrapper<ApprovalForm>()
+                .eq(ApprovalForm::getTenantId, actor.tenantId()).eq(ApprovalForm::getId, id)
+                .eq(ApprovalForm::getDeleted, false).eq(ApprovalForm::getStatus, "DISABLED")
+                .eq(ApprovalForm::getVersion, request.version())
+                .set(ApprovalForm::getSchemaJson, schemaJson).set(ApprovalForm::getUpdatedAt, now)
+                .setSql("version = version + 1"));
+        if (updated != 1) throw new BusinessException(ErrorCode.VERSION_CONFLICT);
+        auditService.recordTransactional(actor.tenantId(), actor.userId(), RESOURCE_FORM,
+                id.toString(), "PATCH_FIELD", "SUCCESS", "Agent 局部修改审批表单草稿字段");
+        return new ApprovalFormFieldPatchResponse(form.getId(), form.getFormKey(), form.getStatus(), request.version() + 1,
+                target.path("name").asText(target.path("key").asText()), target.path("label").asText(),
+                target.path("required").asBoolean(false), target.path("placeholder").asText(""), target.path("width").asText("full"));
+    }
+
+    @Override
     @Transactional
     public ApprovalFormResponse createForm(Long userId, ApprovalFormRequest request) {
         ResolvedUserAccess actor = requirePermission(userId, "approval:manage");
@@ -149,6 +292,87 @@ public class ApprovalEngineServiceImpl implements ApprovalEngineService {
         auditService.record(actor.tenantId(), actor.userId(), RESOURCE_FORM,
                 form.getId().toString(), "CREATE", "SUCCESS", "新增审批表单定义");
         return toFormResponse(form, singleUserName(actor.userId()), true);
+    }
+
+    @Override
+    @Transactional
+    public ApprovalFormResponse createFormDraftAgent(Long userId, ApprovalFormAgentDraftRequest request) {
+        List<AgentFormField> fields = request == null ? null : request.fields().stream()
+                .map(field -> new AgentFormField(field.name(), field.label(), field.type(), field.required(),
+                        field.placeholder(), field.options(), field.width())).toList();
+        requireAgentFormDraft(request == null ? null : request.formKey(), request == null ? null : request.formName(),
+                request == null ? null : request.description(), fields, true);
+        String schemaJson = agentFormSchema(fields);
+        return createForm(userId, new ApprovalFormRequest(request.formKey(), request.formName(),
+                request.description(), schemaJson, "DISABLED", null));
+    }
+
+    @Override
+    @Transactional
+    public ApprovalFormResponse updateFormDraftAgent(Long userId, Long id,
+                                                     ApprovalFormAgentDraftUpdateRequest request) {
+        List<AgentFormField> fields = request == null ? null : request.fields().stream()
+                .map(field -> new AgentFormField(field.name(), field.label(), field.type(), field.required(),
+                        field.placeholder(), field.options(), field.width())).toList();
+        requireAgentFormDraft(null, request == null ? null : request.formName(),
+                request == null ? null : request.description(), fields, false);
+        if (id == null || id < 1 || request.version() == null || request.version() < 1) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        ResolvedUserAccess actor = requirePermission(userId, "approval:manage");
+        ApprovalForm form = requireForm(actor.tenantId(), id);
+        if (!"DISABLED".equals(form.getStatus())) {
+            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID);
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        int updated = formMapper.update(null, new LambdaUpdateWrapper<ApprovalForm>()
+                .eq(ApprovalForm::getId, id)
+                .eq(ApprovalForm::getTenantId, actor.tenantId())
+                .eq(ApprovalForm::getDeleted, false)
+                .eq(ApprovalForm::getStatus, "DISABLED")
+                .eq(ApprovalForm::getVersion, request.version())
+                .set(ApprovalForm::getFormName, request.formName().trim())
+                .set(ApprovalForm::getDescription, trim(request.description()))
+                .set(ApprovalForm::getSchemaJson, agentFormSchema(fields))
+                .set(ApprovalForm::getUpdatedAt, now)
+                .setSql("version = version + 1"));
+        if (updated != 1) {
+            throw new BusinessException(ErrorCode.VERSION_CONFLICT);
+        }
+        auditService.record(actor.tenantId(), actor.userId(), RESOURCE_FORM,
+                id.toString(), "UPDATE", "SUCCESS", "Agent 更新审批表单草稿");
+        return toFormResponse(formMapper.selectById(id), singleUserName(form.getCreatedBy()), true);
+    }
+
+    @Override
+    @Transactional
+    public ApprovalFormResponse publishFormDraftAgent(Long userId, Long id, Integer version) {
+        if (id == null || id < 1 || version == null || version < 1) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        ResolvedUserAccess actor = requirePermission(userId, "approval:manage");
+        ApprovalForm form = requireForm(actor.tenantId(), id);
+        if (!"DISABLED".equals(form.getStatus())) {
+            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID);
+        }
+        requirePublishableFormSchema(form.getSchemaJson());
+        LocalDateTime now = LocalDateTime.now();
+        int updated = formMapper.update(null, new LambdaUpdateWrapper<ApprovalForm>()
+                .eq(ApprovalForm::getId, id)
+                .eq(ApprovalForm::getTenantId, actor.tenantId())
+                .eq(ApprovalForm::getDeleted, false)
+                .eq(ApprovalForm::getStatus, "DISABLED")
+                .eq(ApprovalForm::getVersion, version)
+                .set(ApprovalForm::getStatus, "ENABLED")
+                .set(ApprovalForm::getUpdatedAt, now)
+                .setSql("version = version + 1"));
+        if (updated != 1) {
+            throw new BusinessException(ErrorCode.VERSION_CONFLICT);
+        }
+        auditService.record(actor.tenantId(), actor.userId(), RESOURCE_FORM,
+                id.toString(), "PUBLISH", "SUCCESS", "Agent 发布审批表单草稿");
+        return toFormResponse(formMapper.selectById(id), singleUserName(form.getCreatedBy()), true);
     }
 
     @Override
@@ -222,7 +446,7 @@ public class ApprovalEngineServiceImpl implements ApprovalEngineService {
         long total = processMapper.selectCount(baseProcessQuery(actor.tenantId(), kw, status));
 
         boolean canManage = actor.permissions().contains("approval:manage");
-        Map<Long, String> formNames = formNames(rows.stream()
+        Map<Long, String> formNames = formNames(actor.tenantId(), rows.stream()
                 .map(ApprovalProcess::getFormId)
                 .filter(java.util.Objects::nonNull)
                 .toList());
@@ -298,6 +522,96 @@ public class ApprovalEngineServiceImpl implements ApprovalEngineService {
                 process.getId().toString(), "CREATE", "SUCCESS", "新增审批流程定义");
         return toProcessResponse(process, formNameOf(actor.tenantId(), formId),
                 singleUserName(actor.userId()), true);
+    }
+
+    @Override
+    @Transactional
+    public ApprovalProcessResponse createProcessDraftAgent(Long userId,
+                                                           ApprovalProcessAgentDraftRequest request) {
+        requireAgentProcessDraft(request);
+        String nodeJson;
+        try {
+            nodeJson = objectMapper.writeValueAsString(request.nodes());
+        } catch (JsonProcessingException exception) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.approval.json.invalid");
+        }
+        return createProcess(userId, new ApprovalProcessRequest(request.processKey(), request.processName(),
+                request.description(), request.formId(), nodeJson, "DISABLED", null));
+    }
+
+    @Override
+    @Transactional
+    public ApprovalProcessResponse updateProcessDraftAgent(Long userId, Long id,
+                                                            ApprovalProcessAgentDraftUpdateRequest request) {
+        requireAgentProcessDraft(request);
+        if (id == null || id < 1 || request.version() == null || request.version() < 1) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        ResolvedUserAccess actor = requirePermission(userId, "approval:manage");
+        ApprovalProcess process = requireProcess(actor.tenantId(), id);
+        if (!"DISABLED".equals(process.getStatus())) {
+            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID);
+        }
+        Long formId = requireFormRef(actor.tenantId(), request.formId());
+        String nodeJson = agentProcessNodes(request.nodes());
+        LocalDateTime now = LocalDateTime.now();
+        int updated = processMapper.update(null, new LambdaUpdateWrapper<ApprovalProcess>()
+                .eq(ApprovalProcess::getId, id)
+                .eq(ApprovalProcess::getTenantId, actor.tenantId())
+                .eq(ApprovalProcess::getDeleted, false)
+                .eq(ApprovalProcess::getStatus, "DISABLED")
+                .eq(ApprovalProcess::getVersion, request.version())
+                .set(ApprovalProcess::getProcessName, request.processName().trim())
+                .set(ApprovalProcess::getDescription, trim(request.description()))
+                .set(ApprovalProcess::getFormId, formId)
+                .set(ApprovalProcess::getNodeJson, nodeJson)
+                .set(ApprovalProcess::getUpdatedAt, now)
+                .setSql("version = version + 1"));
+        if (updated != 1) {
+            throw new BusinessException(ErrorCode.VERSION_CONFLICT);
+        }
+        auditService.record(actor.tenantId(), actor.userId(), RESOURCE_PROCESS,
+                id.toString(), "UPDATE", "SUCCESS", "Agent 更新审批流程草稿");
+        return toProcessResponse(processMapper.selectById(id), formNameOf(actor.tenantId(), formId),
+                singleUserName(process.getCreatedBy()), true);
+    }
+
+    @Override
+    @Transactional
+    public ApprovalProcessResponse publishProcessDraftAgent(Long userId, Long id, Integer version) {
+        if (id == null || id < 1 || version == null || version < 1) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        ResolvedUserAccess actor = requirePermission(userId, "approval:manage");
+        ApprovalProcess process = requireProcess(actor.tenantId(), id);
+        if (!"DISABLED".equals(process.getStatus())) {
+            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID);
+        }
+        requirePublishableProcess(process);
+        if (process.getFormId() != null) {
+            ApprovalForm form = requireForm(actor.tenantId(), process.getFormId());
+            if (!"ENABLED".equals(form.getStatus())) {
+                throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID);
+            }
+        }
+        LocalDateTime now = LocalDateTime.now();
+        int updated = processMapper.update(null, new LambdaUpdateWrapper<ApprovalProcess>()
+                .eq(ApprovalProcess::getId, id)
+                .eq(ApprovalProcess::getTenantId, actor.tenantId())
+                .eq(ApprovalProcess::getDeleted, false)
+                .eq(ApprovalProcess::getStatus, "DISABLED")
+                .eq(ApprovalProcess::getVersion, version)
+                .set(ApprovalProcess::getStatus, "ENABLED")
+                .set(ApprovalProcess::getUpdatedAt, now)
+                .setSql("version = version + 1"));
+        if (updated != 1) {
+            throw new BusinessException(ErrorCode.VERSION_CONFLICT);
+        }
+        auditService.record(actor.tenantId(), actor.userId(), RESOURCE_PROCESS,
+                id.toString(), "PUBLISH", "SUCCESS", "Agent 发布审批流程草稿");
+        return toProcessResponse(processMapper.selectById(id),
+                formNameOf(actor.tenantId(), process.getFormId()),
+                singleUserName(process.getCreatedBy()), true);
     }
 
     @Override
@@ -453,6 +767,115 @@ public class ApprovalEngineServiceImpl implements ApprovalEngineService {
 
     @Override
     @Transactional
+    public ApprovalRuleResponse createRuleDraftAgent(Long userId, ApprovalRuleAgentDraftRequest request) {
+        requireAgentRuleDraft(request);
+        String conditionJson;
+        String actionJson;
+        try {
+            List<Map<String, String>> conditions = request.conditions().stream()
+                    .map(condition -> Map.of("field", condition.field(), "op", condition.operator(),
+                            "value", condition.value())).toList();
+            Object conditionDocument = conditions.size() == 1
+                    ? conditions.get(0)
+                    : Map.of("logic", request.logic(), "conditions", conditions);
+            conditionJson = objectMapper.writeValueAsString(conditionDocument);
+            actionJson = objectMapper.writeValueAsString(Map.of(
+                    "appendNode", request.action().appendNode(),
+                    "enabled", request.action().enabled(),
+                    "mode", request.action().mode()));
+        } catch (JsonProcessingException exception) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.approval.json.invalid");
+        }
+        return createRule(userId, new ApprovalRuleRequest(request.ruleKey(), request.ruleName(),
+                request.ruleType(), request.priority(), conditionJson, actionJson,
+                request.description(), "DISABLED", null));
+    }
+
+    @Override
+    @Transactional
+    public ApprovalRuleResponse updateRuleDraftAgent(Long userId, Long id,
+                                                     ApprovalRuleAgentDraftUpdateRequest request) {
+        requireAgentRuleDraft(request);
+        if (id == null || id < 1 || request.version() == null || request.version() < 1) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        ResolvedUserAccess actor = requirePermission(userId, "approval:manage");
+        ApprovalRule rule = requireRule(actor.tenantId(), id);
+        if (!"DISABLED".equals(rule.getStatus())) {
+            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID);
+        }
+        String conditionJson;
+        String actionJson;
+        try {
+            List<Map<String, String>> conditions = request.conditions().stream()
+                    .map(condition -> Map.of("field", condition.field(), "op", condition.operator(),
+                            "value", condition.value())).toList();
+            Object conditionDocument = conditions.size() == 1
+                    ? conditions.get(0)
+                    : Map.of("logic", request.logic(), "conditions", conditions);
+            conditionJson = objectMapper.writeValueAsString(conditionDocument);
+            actionJson = objectMapper.writeValueAsString(Map.of(
+                    "appendNode", request.action().appendNode(),
+                    "enabled", request.action().enabled(),
+                    "mode", request.action().mode()));
+        } catch (JsonProcessingException exception) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.approval.json.invalid");
+        }
+        LocalDateTime now = LocalDateTime.now();
+        int updated = ruleMapper.update(null, new LambdaUpdateWrapper<ApprovalRule>()
+                .eq(ApprovalRule::getId, id)
+                .eq(ApprovalRule::getTenantId, actor.tenantId())
+                .eq(ApprovalRule::getDeleted, false)
+                .eq(ApprovalRule::getStatus, "DISABLED")
+                .eq(ApprovalRule::getVersion, request.version())
+                .set(ApprovalRule::getRuleName, request.ruleName().trim())
+                .set(ApprovalRule::getRuleType, request.ruleType())
+                .set(ApprovalRule::getPriority, request.priority())
+                .set(ApprovalRule::getConditionJson, conditionJson)
+                .set(ApprovalRule::getActionJson, actionJson)
+                .set(ApprovalRule::getDescription, trim(request.description()))
+                .set(ApprovalRule::getUpdatedAt, now)
+                .setSql("version = version + 1"));
+        if (updated != 1) {
+            throw new BusinessException(ErrorCode.VERSION_CONFLICT);
+        }
+        auditService.record(actor.tenantId(), actor.userId(), RESOURCE_RULE,
+                id.toString(), "UPDATE", "SUCCESS", "Agent 更新审批规则草稿");
+        return toRuleResponse(ruleMapper.selectById(id), singleUserName(rule.getCreatedBy()), true);
+    }
+
+    @Override
+    @Transactional
+    public ApprovalRuleResponse enableRuleDraftAgent(Long userId, Long id, Integer version) {
+        if (id == null || id < 1 || version == null || version < 1) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        ResolvedUserAccess actor = requirePermission(userId, "approval:manage");
+        ApprovalRule rule = requireRule(actor.tenantId(), id);
+        if (!"DISABLED".equals(rule.getStatus())) {
+            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID);
+        }
+        requirePublishableRule(rule);
+        LocalDateTime now = LocalDateTime.now();
+        int updated = ruleMapper.update(null, new LambdaUpdateWrapper<ApprovalRule>()
+                .eq(ApprovalRule::getId, id)
+                .eq(ApprovalRule::getTenantId, actor.tenantId())
+                .eq(ApprovalRule::getDeleted, false)
+                .eq(ApprovalRule::getStatus, "DISABLED")
+                .eq(ApprovalRule::getVersion, version)
+                .set(ApprovalRule::getStatus, "ENABLED")
+                .set(ApprovalRule::getUpdatedAt, now)
+                .setSql("version = version + 1"));
+        if (updated != 1) {
+            throw new BusinessException(ErrorCode.VERSION_CONFLICT);
+        }
+        auditService.record(actor.tenantId(), actor.userId(), RESOURCE_RULE,
+                id.toString(), "ENABLE", "SUCCESS", "Agent 启用审批规则草稿");
+        return toRuleResponse(ruleMapper.selectById(id), singleUserName(rule.getCreatedBy()), true);
+    }
+
+    @Override
+    @Transactional
     public ApprovalRuleResponse updateRule(Long userId, Long id, ApprovalRuleRequest request) {
         ResolvedUserAccess actor = requirePermission(userId, "approval:manage");
         requireVersion(request.version());
@@ -515,6 +938,412 @@ public class ApprovalEngineServiceImpl implements ApprovalEngineService {
             throw new BusinessException(ErrorCode.PERMISSION_DENIED);
         }
         return access;
+    }
+
+    private void requireAgentFormDraft(String formKey, String formName, String description,
+                                       List<AgentFormField> fields, boolean requireKey) {
+        Set<String> types = Set.of("text", "textarea", "number", "money", "date", "dateRange", "time",
+                "radio", "checkbox", "select", "user", "department", "file", "image", "table", "divider");
+        if ((requireKey && (formKey == null || !formKey.matches("^[a-z][a-z0-9_-]{0,63}$")))
+                || formName == null || formName.isBlank() || formName.length() > 120
+                || description != null && description.length() > 500
+                || fields == null || fields.isEmpty() || fields.size() > 20) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        Set<String> names = new HashSet<>();
+        for (AgentFormField field : fields) {
+            if (field == null || field.name() == null
+                    || !field.name().matches("^[a-z][A-Za-z0-9_-]{0,39}$") || !names.add(field.name())
+                    || field.label() == null || field.label().isBlank() || field.label().length() > 40
+                    || !types.contains(field.type()) || !("full".equals(field.width()) || "half".equals(field.width()))
+                    || field.placeholder() != null && field.placeholder().length() > 80
+                    || field.options() == null || field.options().size() > 10
+                    || field.options().stream().anyMatch(option -> option == null || option.isBlank()
+                    || option.length() > 80)) {
+                throw new BusinessException(ErrorCode.REQUEST_INVALID);
+            }
+        }
+    }
+
+    private String agentFormSchema(List<AgentFormField> fields) {
+        try {
+            return objectMapper.writeValueAsString(Map.of("fields", fields));
+        } catch (JsonProcessingException exception) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.approval.json.invalid");
+        }
+    }
+
+    private record AgentFormField(String name, String label, String type, boolean required,
+                                  String placeholder, List<String> options, String width) { }
+
+    private List<AgentFormField> requirePublishableFormSchema(String schemaJson) {
+        try {
+            JsonNode root = objectMapper.readTree(schemaJson);
+            JsonNode fieldsNode = root == null ? null : root.get("fields");
+            if (root == null || !root.isObject() || fieldsNode == null || !fieldsNode.isArray()) {
+                throw new BusinessException(ErrorCode.REQUEST_INVALID,
+                        "validation.approval.json.invalid");
+            }
+            List<AgentFormField> fields = new java.util.ArrayList<>(fieldsNode.size());
+            for (JsonNode field : fieldsNode) {
+                JsonNode required = field.get("required");
+                JsonNode options = field.get("options");
+                if (!field.isObject() || required == null || !required.isBoolean()
+                        || options == null || !options.isArray()) {
+                    throw new BusinessException(ErrorCode.REQUEST_INVALID,
+                            "validation.approval.json.invalid");
+                }
+                List<String> optionValues = new java.util.ArrayList<>(options.size());
+                options.forEach(option -> {
+                    if (!option.isTextual()) {
+                        throw new BusinessException(ErrorCode.REQUEST_INVALID,
+                                "validation.approval.json.invalid");
+                    }
+                    optionValues.add(option.textValue());
+                });
+                fields.add(new AgentFormField(textValue(field, "name"), textValue(field, "label"),
+                        textValue(field, "type"), required.booleanValue(), nullableTextValue(field, "placeholder"),
+                        List.copyOf(optionValues), textValue(field, "width")));
+            }
+            requireAgentFormDraft(null, "publish", null, fields, false);
+            return List.copyOf(fields);
+        } catch (JsonProcessingException exception) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.approval.json.invalid");
+        }
+    }
+
+    private String textValue(JsonNode object, String field) {
+        JsonNode value = object.get(field);
+        if (value == null || !value.isTextual()) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.approval.json.invalid");
+        }
+        return value.textValue();
+    }
+
+    private String nullableTextValue(JsonNode object, String field) {
+        JsonNode value = object.get(field);
+        if (value == null || value.isNull()) return null;
+        if (!value.isTextual()) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.approval.json.invalid");
+        }
+        return value.textValue();
+    }
+
+    private void requireAgentProcessDraft(ApprovalProcessAgentDraftRequest request) {
+        Set<String> nodeTypes = Set.of("START", "APPROVAL", "CONDITION", "CC", "DELAY", "END");
+        Set<String> approveTypes = Set.of("DIRECT_MANAGER", "ROLE", "DEPARTMENT", "USER", "SELF", "MULTI_LEVEL");
+        Set<String> modes = Set.of("COUNTERSIGN", "OR_SIGN", "SEQUENTIAL");
+        Set<String> timeoutActions = Set.of("REMIND", "TRANSFER", "AUTO_APPROVE");
+        if (request == null || request.processKey() == null
+                || !request.processKey().matches("^[a-z][a-z0-9_-]{0,63}$")
+                || request.processName() == null || request.processName().isBlank()
+                || request.processName().length() > 120
+                || request.description() != null && request.description().length() > 500
+                || request.formId() != null && request.formId() < 1
+                || request.nodes() == null || request.nodes().size() < 3 || request.nodes().size() > 20
+                || !"START".equals(request.nodes().get(0).nodeType())
+                || !"END".equals(request.nodes().get(request.nodes().size() - 1).nodeType())) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        long starts = request.nodes().stream().filter(node -> node != null && "START".equals(node.nodeType())).count();
+        long ends = request.nodes().stream().filter(node -> node != null && "END".equals(node.nodeType())).count();
+        long approvals = request.nodes().stream().filter(node -> node != null && "APPROVAL".equals(node.nodeType())).count();
+        if (starts != 1 || ends != 1 || approvals < 1) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        for (ApprovalProcessAgentDraftRequest.Node node : request.nodes()) {
+            if (node == null || !nodeTypes.contains(node.nodeType()) || node.nodeName() == null
+                    || node.nodeName().isBlank() || node.nodeName().length() > 80
+                    || node.targetKey() != null && node.targetKey().length() > 80
+                    || node.timeoutHours() != null && (node.timeoutHours() < 1 || node.timeoutHours() > 720)
+                    || node.timeoutAction() != null && !timeoutActions.contains(node.timeoutAction())
+                    || "APPROVAL".equals(node.nodeType())
+                    && (!approveTypes.contains(node.approveType()) || !modes.contains(node.mode()))) {
+                throw new BusinessException(ErrorCode.REQUEST_INVALID);
+            }
+        }
+    }
+
+    private void requireAgentProcessDraft(ApprovalProcessAgentDraftUpdateRequest request) {
+        requireAgentProcessDraft(request == null ? null : new ApprovalProcessAgentDraftRequest(
+                "agent-update", request.processName(), request.description(), request.formId(),
+                request.nodes().stream().map(node -> new ApprovalProcessAgentDraftRequest.Node(
+                        node.nodeType(), node.nodeName(), node.approveType(), node.targetKey(), node.mode(),
+                        node.timeoutEnabled(), node.timeoutHours(), node.timeoutAction())).toList()));
+    }
+
+    private void requirePublishableProcess(ApprovalProcess process) {
+        if (process.getNodeJson() == null || process.getNodeJson().isBlank()) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.approval.json.invalid");
+        }
+        try {
+            JsonNode nodesJson = objectMapper.readTree(process.getNodeJson());
+            if (nodesJson == null || !nodesJson.isArray()) {
+                throw new BusinessException(ErrorCode.REQUEST_INVALID,
+                        "validation.approval.json.invalid");
+            }
+            List<ApprovalProcessAgentDraftRequest.Node> nodes = new java.util.ArrayList<>(nodesJson.size());
+            for (JsonNode node : nodesJson) {
+                if (!node.isObject()) {
+                    throw new BusinessException(ErrorCode.REQUEST_INVALID,
+                            "validation.approval.json.invalid");
+                }
+                nodes.add(new ApprovalProcessAgentDraftRequest.Node(
+                        textValue(node, "nodeType"), textValue(node, "nodeName"),
+                        nullableTextValue(node, "approveType"), nullableTextValue(node, "targetKey"),
+                        nullableTextValue(node, "mode"), nullableBooleanValue(node, "timeoutEnabled"),
+                        nullableIntegerValue(node, "timeoutHours"), nullableTextValue(node, "timeoutAction")));
+            }
+            requireAgentProcessDraft(new ApprovalProcessAgentDraftRequest(
+                    process.getProcessKey(), process.getProcessName(), process.getDescription(),
+                    process.getFormId(), List.copyOf(nodes)));
+        } catch (JsonProcessingException exception) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.approval.json.invalid");
+        }
+    }
+
+    private Boolean nullableBooleanValue(JsonNode object, String field) {
+        JsonNode value = object.get(field);
+        if (value == null || value.isNull()) return null;
+        if (!value.isBoolean()) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.approval.json.invalid");
+        }
+        return value.booleanValue();
+    }
+
+    private Integer nullableIntegerValue(JsonNode object, String field) {
+        JsonNode value = object.get(field);
+        if (value == null || value.isNull()) return null;
+        if (!value.isIntegralNumber() || !value.canConvertToInt()) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.approval.json.invalid");
+        }
+        return value.intValue();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ApprovalRuleDefinitionResponse readRuleDefinitionAgent(Long userId, Long expectedTenantId, Long id) {
+        ResolvedUserAccess actor = requirePermission(userId, "approval:read");
+        if (!actor.tenantId().equals(expectedTenantId)) throw new BusinessException(ErrorCode.PERMISSION_DENIED);
+        if (id == null || id < 1) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        ApprovalRule rule = ruleMapper.selectOne(new LambdaQueryWrapper<ApprovalRule>()
+                .eq(ApprovalRule::getTenantId, actor.tenantId()).eq(ApprovalRule::getId, id).eq(ApprovalRule::getDeleted, false));
+        if (rule == null) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        return agentRuleDefinition(rule);
+    }
+
+    @Override
+    @Transactional
+    public ApprovalRuleConditionPatchResponse patchRuleDraftConditionAgent(Long userId, Long expectedTenantId, Long id,
+                                                                          ApprovalRuleConditionPatchRequest request) {
+        ResolvedUserAccess actor = requirePermission(userId, "approval:manage");
+        if (!actor.tenantId().equals(expectedTenantId)) throw new BusinessException(ErrorCode.PERMISSION_DENIED);
+        if (id == null || id < 1 || request == null || request.version() == null || request.version() < 1
+                || request.version() == Integer.MAX_VALUE || request.conditionNumber() == null
+                || request.conditionNumber() < 1 || request.conditionNumber() > 10
+                || request.value() == null || request.value().isBlank() || request.value().length() > 120) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        ApprovalRule rule = ruleMapper.selectOne(new LambdaQueryWrapper<ApprovalRule>()
+                .eq(ApprovalRule::getTenantId, actor.tenantId()).eq(ApprovalRule::getId, id)
+                .eq(ApprovalRule::getDeleted, false));
+        if (rule == null) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        if (!"DISABLED".equals(rule.getStatus())) throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID);
+        if (!request.version().equals(rule.getVersion())) throw new BusinessException(ErrorCode.VERSION_CONFLICT);
+        var definition = agentRuleDefinition(rule);
+        if (request.conditionNumber() > definition.conditions().size()) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        JsonNode root = readAgentRuleObject(rule.getConditionJson());
+        var target = (com.fasterxml.jackson.databind.node.ObjectNode) (root.has("conditions")
+                ? root.path("conditions").get(request.conditionNumber() - 1) : root);
+        if (target.path("value").isNumber()) {
+            try {
+                if (!request.value().matches("-?(0|[1-9][0-9]*)(\\.[0-9]+)?([eE][+-]?[0-9]+)?")) {
+                    throw new NumberFormatException();
+                }
+                var value = new java.math.BigDecimal(request.value());
+                if (value.scale() < -120 || value.scale() > 120) throw new NumberFormatException();
+                target.put("value", value);
+            } catch (NumberFormatException exception) {
+                throw new BusinessException(ErrorCode.REQUEST_INVALID);
+            }
+        } else if (target.path("value").isBoolean()) {
+            if (!Set.of("true", "false").contains(request.value())) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+            target.put("value", Boolean.parseBoolean(request.value()));
+        } else {
+            target.put("value", request.value());
+        }
+        String actualValue = target.path("value").asText();
+        if (actualValue.length() > 120) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        int updated = ruleMapper.update(null, new LambdaUpdateWrapper<ApprovalRule>()
+                .eq(ApprovalRule::getTenantId, actor.tenantId()).eq(ApprovalRule::getId, id)
+                .eq(ApprovalRule::getDeleted, false).eq(ApprovalRule::getStatus, "DISABLED")
+                .eq(ApprovalRule::getVersion, request.version()).set(ApprovalRule::getConditionJson, root.toString())
+                .set(ApprovalRule::getUpdatedAt, LocalDateTime.now()).setSql("version = version + 1"));
+        if (updated != 1) throw new BusinessException(ErrorCode.VERSION_CONFLICT);
+        auditService.recordTransactional(actor.tenantId(), actor.userId(), RESOURCE_RULE, id.toString(),
+                "PATCH_CONDITION", "SUCCESS", "conditionNumber=" + request.conditionNumber());
+        return new ApprovalRuleConditionPatchResponse(id, request.version() + 1, "DISABLED", request.conditionNumber(),
+                target.path("field").asText(), target.path("op").asText(), actualValue);
+    }
+
+    private ApprovalRuleDefinitionResponse agentRuleDefinition(ApprovalRule rule) {
+        if (rule.getRuleType() == null || rule.getStatus() == null || !Set.of("ENABLED", "DISABLED").contains(rule.getStatus())
+                || rule.getVersion() == null || rule.getVersion() < 0) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        JsonNode condition = readAgentRuleObject(rule.getConditionJson());
+        JsonNode action = readAgentRuleObject(rule.getActionJson());
+        List<ApprovalRuleAgentDraftRequest.Condition> conditions = new java.util.ArrayList<>();
+        String logic = "AND";
+        if (condition.has("conditions")) {
+            requireAgentRuleKeys(condition, Set.of("logic", "conditions"));
+            logic = textValue(condition, "logic");
+            JsonNode rows = condition.get("conditions");
+            if (!rows.isArray() || rows.isEmpty() || rows.size() > 10) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+            for (JsonNode row : rows) {
+                requireAgentRuleKeys(row, Set.of("field", "op", "value"));
+                conditions.add(publishableRuleCondition(row));
+            }
+        } else {
+            requireAgentRuleKeys(condition, Set.of("field", "op", "value"));
+            conditions.add(publishableRuleCondition(condition));
+        }
+        requireAgentRuleKeys(action, Set.of("appendNode", "enabled", "mode"));
+        if (!action.path("enabled").isBoolean()) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        var typedAction = new ApprovalRuleAgentDraftRequest.Action(textValue(action, "appendNode"),
+                action.path("enabled").booleanValue(), action.has("mode") ? textValue(action, "mode") : "OR_SIGN");
+        requireAgentRuleShape(new ApprovalRuleAgentDraftRequest(rule.getRuleKey(), rule.getRuleName(), rule.getRuleType(),
+                rule.getPriority(), null, logic, conditions, typedAction));
+        return new ApprovalRuleDefinitionResponse(rule.getId(), rule.getRuleKey(), rule.getRuleName(),
+                rule.getRuleType(), rule.getPriority(), rule.getStatus(), rule.getVersion(), logic,
+                conditions.stream().map(row -> new ApprovalRuleDefinitionResponse.Condition(
+                        row.field(), row.operator(), row.value())).toList(),
+                new ApprovalRuleDefinitionResponse.Action(typedAction.appendNode(), typedAction.enabled(), typedAction.mode()));
+    }
+
+    private JsonNode readAgentRuleObject(String json) {
+        if (json == null || json.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 65536) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        try {
+            JsonNode root = objectMapper.reader().with(com.fasterxml.jackson.databind.DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS)
+                    .with(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
+                    .with(com.fasterxml.jackson.core.JsonParser.Feature.STRICT_DUPLICATE_DETECTION).readTree(json);
+            if (root == null || !root.isObject()) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+            return root;
+        } catch (JsonProcessingException exception) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.approval.json.invalid");
+        }
+    }
+
+    private void requireAgentRuleKeys(JsonNode object, Set<String> allowed) {
+        if (object == null || !object.isObject()) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        var names = object.fieldNames();
+        while (names.hasNext()) if (!allowed.contains(names.next())) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+    }
+
+    private void requireAgentRuleDraft(ApprovalRuleAgentDraftRequest request) {
+        requireAgentRuleShape(request);
+        if (request.priority() > 10000) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+    }
+
+    private void requireAgentRuleShape(ApprovalRuleAgentDraftRequest request) {
+        Set<String> ruleTypes = Set.of("AMOUNT_THRESHOLD", "LEAVE_TYPE", "EMPLOYEE_LEVEL", "LIMIT_OVERRIDE");
+        Set<String> fields = Set.of("amount", "durationDays", "department", "employeeLevel", "leaveType");
+        Set<String> operators = Set.of("eq", "ne", "gt", "gte", "lt", "lte", "in");
+        Set<String> nodes = Set.of("DEPARTMENT_HEAD", "FINANCE_REVIEW", "DIRECT_MANAGER");
+        Set<String> modes = Set.of("COUNTERSIGN", "OR_SIGN", "SEQUENTIAL");
+        if (request == null || request.ruleKey() == null
+                || !request.ruleKey().matches("^[a-z][a-z0-9_-]{0,63}$")
+                || request.ruleName() == null || request.ruleName().isBlank() || request.ruleName().length() > 120
+                || !ruleTypes.contains(request.ruleType()) || request.priority() == null
+                || request.priority() < 0
+                || request.description() != null && request.description().length() > 500
+                || !("AND".equals(request.logic()) || "OR".equals(request.logic()))
+                || request.conditions() == null || request.conditions().isEmpty() || request.conditions().size() > 10
+                || request.action() == null || !nodes.contains(request.action().appendNode())
+                || !modes.contains(request.action().mode())) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        for (ApprovalRuleAgentDraftRequest.Condition condition : request.conditions()) {
+            if (condition == null || !fields.contains(condition.field())
+                    || !operators.contains(condition.operator()) || condition.value() == null
+                    || condition.value().isBlank() || condition.value().length() > 120) {
+                throw new BusinessException(ErrorCode.REQUEST_INVALID);
+            }
+        }
+    }
+
+    private void requireAgentRuleDraft(ApprovalRuleAgentDraftUpdateRequest request) {
+        if (request == null || request.conditions() == null || request.action() == null) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        requireAgentRuleDraft(new ApprovalRuleAgentDraftRequest(
+                "agent-update", request.ruleName(), request.ruleType(), request.priority(),
+                request.description(), request.logic(), request.conditions().stream().map(condition ->
+                new ApprovalRuleAgentDraftRequest.Condition(condition.field(), condition.operator(),
+                        condition.value())).toList(),
+                new ApprovalRuleAgentDraftRequest.Action(request.action().appendNode(),
+                        request.action().enabled(), request.action().mode())));
+    }
+
+    private void requirePublishableRule(ApprovalRule rule) {
+        if (rule.getConditionJson() == null || rule.getConditionJson().isBlank()
+                || rule.getActionJson() == null || rule.getActionJson().isBlank()) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.approval.json.invalid");
+        }
+        try {
+            JsonNode conditionDocument = objectMapper.readTree(rule.getConditionJson());
+            JsonNode actionDocument = objectMapper.readTree(rule.getActionJson());
+            if (conditionDocument == null || !conditionDocument.isObject()
+                    || actionDocument == null || !actionDocument.isObject()) {
+                throw new BusinessException(ErrorCode.REQUEST_INVALID,
+                        "validation.approval.json.invalid");
+            }
+            String logic = "AND";
+            List<ApprovalRuleAgentDraftRequest.Condition> conditions = new java.util.ArrayList<>();
+            JsonNode conditionList = conditionDocument.get("conditions");
+            if (conditionList == null) {
+                conditions.add(publishableRuleCondition(conditionDocument));
+            } else {
+                logic = textValue(conditionDocument, "logic");
+                if (!conditionList.isArray()) {
+                    throw new BusinessException(ErrorCode.REQUEST_INVALID,
+                            "validation.approval.json.invalid");
+                }
+                for (JsonNode condition : conditionList) {
+                    conditions.add(publishableRuleCondition(condition));
+                }
+            }
+            Boolean actionEnabled = nullableBooleanValue(actionDocument, "enabled");
+            if (!Boolean.TRUE.equals(actionEnabled)) {
+                throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID);
+            }
+            String mode = nullableTextValue(actionDocument, "mode");
+            requireAgentRuleDraft(new ApprovalRuleAgentDraftRequest(
+                    rule.getRuleKey(), rule.getRuleName(), rule.getRuleType(), rule.getPriority(),
+                    rule.getDescription(), logic, List.copyOf(conditions),
+                    new ApprovalRuleAgentDraftRequest.Action(textValue(actionDocument, "appendNode"),
+                            true, mode == null ? "OR_SIGN" : mode)));
+        } catch (JsonProcessingException exception) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.approval.json.invalid");
+        }
+    }
+
+    private ApprovalRuleAgentDraftRequest.Condition publishableRuleCondition(JsonNode condition) {
+        if (condition == null || !condition.isObject()) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.approval.json.invalid");
+        }
+        JsonNode value = condition.get("value");
+        if (value == null || value.isNull() || !value.isValueNode()) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.approval.json.invalid");
+        }
+        return new ApprovalRuleAgentDraftRequest.Condition(
+                textValue(condition, "field"), textValue(condition, "op"), value.asText());
+    }
+
+    private String agentProcessNodes(List<ApprovalProcessAgentDraftUpdateRequest.Node> nodes) {
+        try {
+            return objectMapper.writeValueAsString(nodes);
+        } catch (JsonProcessingException exception) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.approval.json.invalid");
+        }
     }
 
     private void requireVersion(Integer version) {
@@ -633,13 +1462,13 @@ public class ApprovalEngineServiceImpl implements ApprovalEngineService {
         return q;
     }
 
-    private Map<Long, String> formNames(List<Long> ids) {
+    private Map<Long, String> formNames(Long tenantId, List<Long> ids) {
         if (ids.isEmpty()) {
             return Map.of();
         }
         List<ApprovalForm> forms = formMapper.selectBatchIds(ids);
         return forms.stream()
-                .filter(f -> !Boolean.TRUE.equals(f.getDeleted()))
+                .filter(f -> tenantId.equals(f.getTenantId()) && !Boolean.TRUE.equals(f.getDeleted()))
                 .collect(Collectors.toMap(ApprovalForm::getId, ApprovalForm::getFormName,
                         (a, b) -> a));
     }
@@ -649,7 +1478,7 @@ public class ApprovalEngineServiceImpl implements ApprovalEngineService {
             return null;
         }
         ApprovalForm form = formMapper.selectById(formId);
-        return form == null || Boolean.TRUE.equals(form.getDeleted()) ? null : form.getFormName();
+        return form == null || !tenantId.equals(form.getTenantId()) || Boolean.TRUE.equals(form.getDeleted()) ? null : form.getFormName();
     }
 
     private Map<Long, String> batchCreatorNames(List<Long> ids) {

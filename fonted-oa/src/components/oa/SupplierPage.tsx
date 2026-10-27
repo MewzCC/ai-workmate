@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   App, Button, Card, Col, Descriptions, Drawer, Empty, Form, Input, Row, Select, Space,
@@ -11,6 +11,11 @@ import { OaIcon } from '@/components/OaIcon';
 import ResponsiveTable from '@/components/oa/ResponsiveTable';
 import { message } from '@/lib/antdMessage';
 import { formatOaApiError } from '@/lib/oaApi';
+import { useAuth } from '@/components/auth/AuthProvider';
+import { usePermission } from '@/hooks/usePermission';
+import { useRouter, useSearchParams } from '@/lib/nextCompat';
+import { parseRecordId } from '@/lib/recordSelection';
+import { usePublishPageAgentContext } from './PageAgentContext';
 import {
   supplierApi,
   type Supplier,
@@ -30,15 +35,25 @@ const STATUS_COLORS: Record<SupplierStatus, string> = {
 const LEVEL_COLORS: Record<SupplierLevel, string> = {
   STRATEGIC: 'blue', PREFERRED: 'cyan', STANDARD: 'default', RESTRICTED: 'orange',
 };
+const EMPTY_STATS = { total: 0, active: 0, suspended: 0, blacklisted: 0 };
 
 export default function SupplierPage() {
   const { t, i18n } = useTranslation();
   const { modal } = App.useApp();
   const [form] = Form.useForm<SupplierPayload>();
-  const [records, setRecords] = useState<Supplier[]>([]);
-  const [stats, setStats] = useState({ total: 0, active: 0, suspended: 0, blacklisted: 0 });
+  const { user } = useAuth();
+  const { allowed: liveManage, permissionVersion } = usePermission('supplier:manage');
+  const router = useRouter();
+  const requestedId = useSearchParams().get('id');
+  const scope = `${user?.id}:${user?.tenantId}:${permissionVersion}:${liveManage}`;
+  const [dataScope, setDataScope] = useState(scope);
+  const [storedRecords, setRecords] = useState<Supplier[]>([]);
+  const [storedStats, setStats] = useState(EMPTY_STATS);
+  const records = dataScope === scope ? storedRecords : [];
+  const stats = dataScope === scope ? storedStats : EMPTY_STATS;
   const [total, setTotal] = useState(0);
-  const [canManage, setCanManage] = useState(false);
+  const [serverCanManage, setCanManage] = useState(false);
+  const canManage = liveManage && serverCanManage && dataScope === scope;
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [keywordInput, setKeywordInput] = useState('');
@@ -52,6 +67,26 @@ export default function SupplierPage() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detail, setDetail] = useState<SupplierDetail>();
+  const listRequest = useRef(0);
+  const detailRequest = useRef(0);
+  const editorRequest = useRef(0);
+  const scopeRequest = useRef(0);
+  const selectedId = useRef<number | undefined>(undefined);
+  const selected = dataScope !== scope ? undefined : editorOpen ? editing : detailOpen ? detail?.supplier : undefined;
+  usePublishPageAgentContext({ supplierId: selected?.id, version: selected?.version,
+    keyword: keyword || undefined, status, category, page, size });
+
+  useEffect(() => {
+    scopeRequest.current += 1; listRequest.current += 1; detailRequest.current += 1; editorRequest.current += 1;
+    selectedId.current = undefined;
+    setRecords([]); setStats(EMPTY_STATS); setTotal(0); setCanManage(false);
+    setDetail(undefined); setDetailOpen(false); setDetailLoading(false);
+    setEditing(undefined); setEditorOpen(false); setSaving(false);
+    return () => {
+      scopeRequest.current += 1; listRequest.current += 1; detailRequest.current += 1; editorRequest.current += 1;
+      selectedId.current = undefined;
+    };
+  }, [scope]);
 
   const statusOptions = useMemo(() => STATUSES.map((value) => ({
     value, label: t(`supplier.status.${value}`),
@@ -64,43 +99,80 @@ export default function SupplierPage() {
   })), [t]);
 
   const load = useCallback(async () => {
+    const request = ++listRequest.current;
     setLoading(true);
     try {
       const result = await supplierApi.list({ keyword, status, category, page, size });
+      if (request !== listRequest.current) return;
+      setDataScope(scope);
       setRecords(result.records);
       setTotal(result.total);
       setStats(result.stats);
       setCanManage(result.canManage);
     } catch (error) {
-      message.error(formatOaApiError(error));
+      if (request === listRequest.current) {
+        setRecords([]); setStats(EMPTY_STATS); setTotal(0); setCanManage(false);
+        message.error(formatOaApiError(error));
+      }
     } finally {
-      setLoading(false);
+      if (request === listRequest.current) setLoading(false);
     }
-  }, [category, keyword, page, size, status]);
+  }, [category, keyword, page, size, status, scope]);
+  const latestLoad = useRef(load);
+  useEffect(() => { latestLoad.current = load; }, [load]);
 
   useEffect(() => { void load(); }, [load]);
 
   const loadDetail = useCallback(async (id: number) => {
+    const request = ++detailRequest.current;
+    selectedId.current = id;
+    setDetail(undefined); setDetailOpen(true);
     setDetailLoading(true);
     try {
       const result = await supplierApi.detail(id);
+      if (request !== detailRequest.current) return undefined;
+      if (result.supplier.id !== id) throw new Error('RESOURCE_MISMATCH');
       setDetail(result);
       return result;
     } catch (error) {
-      message.error(formatOaApiError(error));
+      if (request === detailRequest.current) {
+        selectedId.current = undefined; setDetail(undefined); setDetailOpen(false);
+        message.error(formatOaApiError(error));
+      }
       return undefined;
     } finally {
-      setDetailLoading(false);
+      if (request === detailRequest.current) setDetailLoading(false);
     }
   }, []);
 
+  useEffect(() => {
+    detailRequest.current += 1; editorRequest.current += 1; selectedId.current = undefined;
+    setDetail(undefined); setDetailOpen(false); setEditing(undefined); setEditorOpen(false); setSaving(false);
+    const id = parseRecordId(requestedId);
+    if (id !== undefined) void loadDetail(id);
+    return () => { detailRequest.current += 1; selectedId.current = undefined; };
+  }, [requestedId, scope, loadDetail]);
+
+  const closeDetail = () => {
+    detailRequest.current += 1; selectedId.current = undefined;
+    setDetail(undefined); setDetailOpen(false); setDetailLoading(false);
+    if (requestedId) router.replace('/oa/suppliers');
+  };
+  const closeEditor = () => {
+    editorRequest.current += 1; selectedId.current = undefined;
+    setEditing(undefined); setEditorOpen(false); setSaving(false);
+  };
+
   const openDetail = (record: Supplier) => {
-    setDetail(undefined);
-    setDetailOpen(true);
-    void loadDetail(record.id);
+    closeEditor();
+    if (requestedId === String(record.id)) void loadDetail(record.id);
+    else router.push(`/oa/suppliers?id=${record.id}`);
   };
 
   const openCreate = () => {
+    if (!canManage) return;
+    editorRequest.current += 1; detailRequest.current += 1; selectedId.current = undefined;
+    setDetail(undefined); setDetailOpen(false); setDetailLoading(false);
     setEditing(undefined);
     form.resetFields();
     form.setFieldsValue({ category: 'SERVICE', supplierLevel: 'STANDARD' });
@@ -108,7 +180,10 @@ export default function SupplierPage() {
   };
 
   const openEdit = (record: Supplier) => {
-    setDetailOpen(false);
+    if (!canManage || !record.canManage) return;
+    editorRequest.current += 1; detailRequest.current += 1;
+    if (selectedId.current !== record.id) selectedId.current = undefined;
+    setDetail(undefined); setDetailOpen(false); setDetailLoading(false);
     setEditing(record);
     form.setFieldsValue({
       code: record.code,
@@ -128,26 +203,39 @@ export default function SupplierPage() {
   };
 
   const save = async () => {
-    const values = await form.validateFields();
-    setSaving(true);
+    if (!canManage || saving || (editing && !editing.canManage)) return;
+    const target = editing;
+    const request = editorRequest.current;
+    const identity = scopeRequest.current;
     try {
-      if (editing) {
-        await supplierApi.update(editing.id, { ...values, version: editing.version });
+      const values = await form.validateFields();
+      if (request !== editorRequest.current || identity !== scopeRequest.current) return;
+      setSaving(true);
+      if (target) {
+        await supplierApi.update(target.id, { ...values, version: target.version });
       } else {
         await supplierApi.create(values);
       }
-      setEditorOpen(false);
-      message.success(t('supplier.saveSuccess'));
-      await load();
-      if (detailOpen && editing) await loadDetail(editing.id);
+      if (identity !== scopeRequest.current) return;
+      if (request === editorRequest.current) {
+        closeEditor();
+        message.success(t('supplier.saveSuccess'));
+      }
+      await latestLoad.current();
     } catch (error) {
-      message.error(formatOaApiError(error));
+      if (request === editorRequest.current && identity === scopeRequest.current
+        && !(error && typeof error === 'object' && 'errorFields' in error)) {
+        message.error(formatOaApiError(error));
+      }
     } finally {
-      setSaving(false);
+      if (request === editorRequest.current && identity === scopeRequest.current) setSaving(false);
     }
   };
 
   const changeStatus = (supplier: Supplier, target: SupplierStatus) => {
+    if (!canManage || !supplier.canManage) return;
+    const identity = scopeRequest.current;
+    const request = detailRequest.current;
     const needsReason = target === 'SUSPENDED' || target === 'BLACKLISTED';
     let reason = '';
     modal.confirm({
@@ -174,17 +262,19 @@ export default function SupplierPage() {
       cancelText: t('common.cancel'),
       okButtonProps: { danger: target === 'BLACKLISTED' },
       onOk: async () => {
+        if (identity !== scopeRequest.current || request !== detailRequest.current) return;
         if (needsReason && !reason.trim()) {
           message.warning(t('supplier.statusDialog.reasonRequired'));
           return Promise.reject();
         }
         try {
           await supplierApi.updateStatus(supplier.id, target, supplier.version, reason.trim() || undefined);
+          if (identity !== scopeRequest.current) return;
           message.success(t('supplier.statusSuccess'));
-          await load();
-          if (detailOpen) await loadDetail(supplier.id);
+          await latestLoad.current();
+          if (request === detailRequest.current && selectedId.current === supplier.id) await loadDetail(supplier.id);
         } catch (error) {
-          message.error(formatOaApiError(error));
+          if (identity === scopeRequest.current) message.error(formatOaApiError(error));
           return Promise.reject(error);
         }
       },
@@ -231,7 +321,7 @@ export default function SupplierPage() {
       title: t('supplier.columns.actions'), key: 'actions', width: canManage ? 138 : 70, fixed: 'right',
       render: (_, record) => <Space size={2} onClick={(event) => event.stopPropagation()}>
         <Button type="link" size="small" onClick={() => openDetail(record)}>{t('supplier.actions.view')}</Button>
-        {canManage && <Button type="link" size="small" onClick={() => openEdit(record)}>{t('supplier.actions.edit')}</Button>}
+        {canManage && record.canManage && <Button type="link" size="small" onClick={() => openEdit(record)}>{t('supplier.actions.edit')}</Button>}
       </Space>,
     },
   ];
@@ -299,25 +389,25 @@ export default function SupplierPage() {
 
       <Drawer
         width="min(720px, 100vw)"
-        open={editorOpen}
+        open={editorOpen && dataScope === scope}
         title={t(editing ? 'supplier.form.editTitle' : 'supplier.form.createTitle')}
-        onClose={() => setEditorOpen(false)}
-        extra={<Button type="primary" loading={saving} onClick={() => void save()}>{t('common.save')}</Button>}
+        onClose={closeEditor}
+        extra={<Button type="primary" disabled={!canManage} loading={saving} onClick={() => void save()}>{t('common.save')}</Button>}
       >
-        <SupplierForm form={form} editing={Boolean(editing)} categoryOptions={categoryOptions} levelOptions={levelOptions} />
+        <SupplierForm form={form} disabled={!canManage} editing={Boolean(editing)} categoryOptions={categoryOptions} levelOptions={levelOptions} />
       </Drawer>
 
       <Drawer
         width="min(760px, 100vw)"
-        open={detailOpen}
+        open={detailOpen && dataScope === scope}
         loading={detailLoading}
         title={t('supplier.detail.title')}
-        onClose={() => setDetailOpen(false)}
-        extra={detail?.supplier.canManage
+        onClose={closeDetail}
+        extra={canManage && detail?.supplier.canManage
           ? <Button icon={<OaIcon name="edit" />} onClick={() => openEdit(detail.supplier)}>{t('supplier.actions.edit')}</Button>
           : undefined}
       >
-        {detail ? <SupplierDetailView detail={detail} onStatus={changeStatus} /> : <Empty description={t('supplier.empty')} />}
+        {detail && dataScope === scope ? <SupplierDetailView detail={detail} canManage={canManage} onStatus={changeStatus} /> : <Empty description={t('supplier.empty')} />}
       </Drawer>
     </section>
   );
@@ -326,13 +416,14 @@ export default function SupplierPage() {
 interface SupplierFormProps {
   form: ReturnType<typeof Form.useForm<SupplierPayload>>[0];
   editing: boolean;
+  disabled: boolean;
   categoryOptions: Array<{ value: SupplierCategory; label: string }>;
   levelOptions: Array<{ value: SupplierLevel; label: string }>;
 }
 
-function SupplierForm({ form, editing, categoryOptions, levelOptions }: SupplierFormProps) {
+function SupplierForm({ form, editing, disabled, categoryOptions, levelOptions }: SupplierFormProps) {
   const { t } = useTranslation();
-  return <Form form={form} layout="vertical" requiredMark="optional" className="oa-supplier-form">
+  return <Form form={form} disabled={disabled} layout="vertical" requiredMark="optional" className="oa-supplier-form">
     <Typography.Title level={5}>{t('supplier.form.identity')}</Typography.Title>
     <Row gutter={12}>
       <Col xs={24} sm={10}><Form.Item name="code" label={t('supplier.form.code')} rules={[{ required: true, message: t('supplier.form.required') }]}><Input disabled={editing} maxLength={64} placeholder={t('supplier.form.codePlaceholder')} /></Form.Item></Col>
@@ -355,7 +446,7 @@ function SupplierForm({ form, editing, categoryOptions, levelOptions }: Supplier
   </Form>;
 }
 
-function SupplierDetailView({ detail, onStatus }: { detail: SupplierDetail; onStatus: (supplier: Supplier, target: SupplierStatus) => void }) {
+function SupplierDetailView({ detail, canManage, onStatus }: { detail: SupplierDetail; canManage: boolean; onStatus: (supplier: Supplier, target: SupplierStatus) => void }) {
   const { t, i18n } = useTranslation();
   const supplier = detail.supplier;
   const formatDate = (value: string) => new Intl.DateTimeFormat(i18n.language, {
@@ -366,7 +457,7 @@ function SupplierDetailView({ detail, onStatus }: { detail: SupplierDetail; onSt
       <span className="oa-supplier-detail-logo"><OaIcon name="suppliers" size={26} /></span>
       <div><Typography.Title level={4}>{supplier.name}</Typography.Title><Space wrap><Typography.Text code>{supplier.code}</Typography.Text><Tag color={STATUS_COLORS[supplier.status]}>{t(`supplier.status.${supplier.status}`)}</Tag><Tag color={LEVEL_COLORS[supplier.supplierLevel]}>{t(`supplier.level.${supplier.supplierLevel}`)}</Tag></Space></div>
     </div>
-    {supplier.canManage && supplier.allowedTransitions.length > 0 && <Space wrap className="oa-supplier-transition-actions">
+    {canManage && supplier.canManage && supplier.allowedTransitions.length > 0 && <Space wrap className="oa-supplier-transition-actions">
       {supplier.allowedTransitions.map((target) => <Button key={target} danger={target === 'BLACKLISTED'} type={target === 'ACTIVE' ? 'primary' : 'default'} onClick={() => onStatus(supplier, target)}>{t(`supplier.actions.${target}`)}</Button>)}
     </Space>}
     <Card size="small" title={t('supplier.detail.profile')}>

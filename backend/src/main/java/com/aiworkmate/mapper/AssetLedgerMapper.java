@@ -3,6 +3,8 @@ package com.aiworkmate.mapper;
 import com.aiworkmate.entity.AssetLedger;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
 
 /**
  * 资产台账 Mapper。
@@ -12,4 +14,6 @@ import org.apache.ibatis.annotations.Mapper;
  */
 @Mapper
 public interface AssetLedgerMapper extends BaseMapper<AssetLedger> {
+    @Select("SELECT * FROM asset_ledger WHERE tenant_id=#{tenantId} AND id=#{id} AND deleted=FALSE FOR UPDATE")
+    AssetLedger lockMetadata(@Param("tenantId") Long tenantId, @Param("id") Long id);
 }

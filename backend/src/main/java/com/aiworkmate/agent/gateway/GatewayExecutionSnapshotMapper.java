@@ -13,6 +13,7 @@ public interface GatewayExecutionSnapshotMapper {
                    step.sequence_no,
                    task.tenant_id,
                    task.user_id,
+                   task.page_id,
                    task.status AS task_status,
                    step.status AS step_status,
                    task.worker_id,

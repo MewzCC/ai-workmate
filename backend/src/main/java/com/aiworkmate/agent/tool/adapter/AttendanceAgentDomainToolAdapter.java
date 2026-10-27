@@ -3,7 +3,10 @@ package com.aiworkmate.agent.tool.adapter;
 import com.aiworkmate.agent.tool.port.AttendanceToolPort;
 import com.aiworkmate.agent.tool.port.ToolActorContext;
 import com.aiworkmate.agent.tool.port.ToolOperationKey;
+import com.aiworkmate.dto.AttendanceReissueDecisionRequest;
 import com.aiworkmate.dto.AttendanceReissueRequest;
+import com.aiworkmate.dto.AttendanceClockRequest;
+import com.aiworkmate.dto.AttendanceSettingsRequest;
 import com.aiworkmate.service.AttendanceService;
 import lombok.RequiredArgsConstructor;
 
@@ -28,12 +31,35 @@ public final class AttendanceAgentDomainToolAdapter implements AttendanceToolPor
     }
 
     @Override
+    public ClockWriteResult clock(ToolActorContext context, String clockType) {
+        var item = attendanceService.clock(context.userId(), new AttendanceClockRequest(clockType), null);
+        return new ClockWriteResult(item.id(), item.clockDate(), item.clockInTime(), item.clockOutTime(),
+                item.status(), item.lateMinutes(), item.earlyLeaveMinutes());
+    }
+
+    @Override
     public ReissueWriteResult submitReissue(
             ToolActorContext context, ReissueCommand command, ToolOperationKey operationKey) {
         var item = attendanceService.submitAgentReissue(context.userId(), new AttendanceReissueRequest(
                 command.clockDate(), command.clockType(), command.reason()), operationKey.value());
         return new ReissueWriteResult(item.id(), item.status(), item.clockDate(),
                 item.clockType(), item.submittedAt());
+    }
+
+    @Override
+    public ReissueDecisionResult decideReissue(ToolActorContext context, ReissueDecisionCommand command) {
+        var item = attendanceService.decideReissue(context.userId(), command.reissueId(),
+                new AttendanceReissueDecisionRequest(command.version(), command.decision(), command.comment()));
+        return new ReissueDecisionResult(item.id(), item.status(), item.version(), item.decidedAt());
+    }
+
+    @Override
+    public SettingsUpdateResult updateSettings(ToolActorContext context, SettingsUpdateCommand command) {
+        var item = attendanceService.updateSettings(context.userId(), new AttendanceSettingsRequest(
+                command.version(), command.workStartTime(), command.workEndTime(), command.startFlexMinutes(),
+                command.endFlexMinutes(), command.flexLinked()));
+        return new SettingsUpdateResult(item.version(), item.workStartTime(), item.workEndTime(),
+                item.startFlexMinutes(), item.endFlexMinutes(), item.flexLinked(), item.updatedAt());
     }
 
     private Result today(ToolActorContext context, Query query) {
@@ -63,7 +89,7 @@ public final class AttendanceAgentDomainToolAdapter implements AttendanceToolPor
         var reissues = page.records().stream().map(item -> new Reissue(
                 item.id(), item.applicantName(), item.approverName(), item.clockDate(), item.clockType(),
                 item.reason(), item.status(), item.approverComment(), item.submittedAt(), item.decidedAt(),
-                item.canDecide(), item.canWithdraw())).toList();
+                item.version(), item.canDecide(), item.canWithdraw())).toList();
         return new Result(query.resource(), null, List.of(), reissues, null, null,
                 page.total(), page.page(), page.size());
     }
@@ -71,20 +97,21 @@ public final class AttendanceAgentDomainToolAdapter implements AttendanceToolPor
     private Result statistics(ToolActorContext context, Query query) {
         var item = attendanceService.getStatistics(context.userId(), query.year(), query.month());
         var personal = item.personal();
+        var team = item.team() == null ? List.<TeamStats>of() : item.team().stream().limit(50)
+                .map(member -> new TeamStats(member.userName(), member.departmentName(), member.totalDays(),
+                        member.normalDays(), member.lateDays(), member.earlyLeaveDays(), member.missingDays())).toList();
         var statistics = new Statistics(item.startDate(), item.endDate(),
                 new PersonalStats(personal.userName(), personal.totalDays(), personal.normalDays(),
                         personal.lateDays(), personal.earlyLeaveDays(), personal.missingDays(),
                         personal.pendingReissueCount()),
-                item.team().stream().limit(50).map(member -> new TeamStats(
-                        member.userName(), member.departmentName(), member.totalDays(), member.normalDays(),
-                        member.lateDays(), member.earlyLeaveDays(), member.missingDays())).toList());
+                team);
         return result(query, null, List.of(), List.of(), statistics, null, 1);
     }
 
     private Result settings(ToolActorContext context, Query query) {
         var item = attendanceService.getSettings(context.userId());
         var settings = new Settings(item.workStartTime(), item.workEndTime(), item.startFlexMinutes(),
-                item.endFlexMinutes(), item.flexLinked(), item.updatedAt());
+                item.endFlexMinutes(), item.flexLinked(), item.version(), item.updatedAt());
         return result(query, null, List.of(), List.of(), null, settings, 1);
     }
 

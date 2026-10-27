@@ -107,6 +107,9 @@ public class DashboardServiceImpl implements DashboardService {
             throw new BusinessException(ErrorCode.REQUEST_INVALID);
         }
         userSettingsService.setDashboardMetricCodes(actor.userId(), requested);
+        auditService.recordTransactional(actor.tenantId(), actor.userId(), "DASHBOARD",
+                "preferences", "UPDATE_PREFERENCES", "SUCCESS",
+                "Updated dashboard metric preferences: " + String.join(",", requested));
         return new DashboardPreferenceResponse(List.copyOf(requested), available);
     }
 

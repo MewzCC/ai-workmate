@@ -19,6 +19,10 @@ public interface ExpenseToolPort {
             ToolActorContext context, long applicationId, int version);
     ExpenseLifecycleResult reopenExpense(
             ToolActorContext context, long applicationId, int version);
+    ExpenseLifecycleResult cancelExpenseDraft(
+            ToolActorContext context, long applicationId, int version);
+    ExpenseLifecycleResult remindExpense(
+            ToolActorContext context, long applicationId, int version);
 
     record ExpenseQuery(Long applicationId, String status, int page, int size) { }
     record ExpenseDraft(BigDecimal amount, String category, LocalDate expenseDate,

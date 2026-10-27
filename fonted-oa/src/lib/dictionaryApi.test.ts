@@ -10,6 +10,17 @@ function result(data: unknown): Response {
 afterEach(() => vi.restoreAllMocks());
 
 describe('数据字典接口', () => {
+  it('按真实记录编号读取类型和字典项所属类型，不依赖列表分页或编码推断', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(result({ id: 18, code: 'FIXTURE', version: 3, canManage: false }))
+      .mockResolvedValueOnce(result({ dictionaryType: { id: 18, code: 'FIXTURE', version: 3 }, item: { id: 7, dictionaryTypeId: 18, version: 4 } }));
+    expect(await dictionaryApi.typeDetail(18)).toMatchObject({ id: 18, version: 3, canManage: false });
+    expect(await dictionaryApi.itemDetail(7)).toMatchObject({ dictionaryType: { id: 18 }, item: { id: 7, version: 4 } });
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/admin/dictionaries/18');
+    expect(fetchMock.mock.calls[1][0]).toBe('/api/admin/dictionaries/items/7');
+    expect(fetchMock.mock.calls[1][1]).toEqual(expect.objectContaining({ credentials: 'include' }));
+  });
+
   it('按字典类型分页查询字典项', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(result({
       records: [], total: 0, page: 2, size: 20, canManage: true,

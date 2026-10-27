@@ -1,0 +1,25 @@
+const authDesign = {
+  mark: 'w.',
+  brand: 'AI WorkMate',
+  workspace: '企业智能工作空间',
+  loginEyebrow: '熟悉的工作空间，新的可能',
+  registerEyebrow: '你的下一段高效旅程',
+  loginTitle: '很高兴，再次见到你',
+  registerTitle: '创建你的 WorkMate 账号',
+  loginDescription: '登录账号，继续你的工作与灵感。',
+  registerDescription: '只需几步，开启与 AI 并肩的工作日。',
+  emailPlaceholder: 'name@company.com',
+  security: '专注工作，从安心登录开始',
+  heroEyebrow: '工作，从连接开始',
+  heroLoginTitle: '让好想法，\n在这里相遇。',
+  heroRegisterTitle: '准备好，\n开启新的可能。',
+  heroLoginDescription: '连接团队、知识与 AI，\n把每一个想法，变成下一步行动。',
+  heroRegisterDescription: '你的团队、你的灵感、你的 AI 工作伙伴。\n一个空间，让协作自然发生。',
+  heroLoginPrompt: '第一次来到这里？',
+  heroRegisterPrompt: '我们又见面了。',
+  heroLoginAction: '创建账号，开始协作',
+  heroRegisterAction: '登录，继续你的工作',
+  heroFoot: '更好的协作，始于一次连接。',
+};
+
+export default authDesign;
