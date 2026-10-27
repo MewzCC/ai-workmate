@@ -6,16 +6,15 @@ import {
   CheckCircle2,
   DatabaseZap,
   FileSearch,
-  Play,
   Send,
   ShieldCheck,
   Sparkles,
   Workflow,
-  Zap,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import ThemeToggle from '@/components/ThemeToggle';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
+import './home-cta.css';
 
 type SiteTheme = 'day' | 'night';
 type WorkflowKey = 'launch' | 'contract' | 'support' | 'weekly';
@@ -184,7 +183,7 @@ export default function HomePage() {
           <button type="button" className="wm-login" onClick={enterOa}>{t('common.login')}</button>
           <button type="button" className="wm-try wm-try-nav" onClick={enterOa} aria-label={t('common.tryNow')}>
             <span className="wm-try-nav-text">{t('common.tryNow')}</span>
-            <ArrowRight className="h-4 w-4" />
+            <span className="wm-cta-arrow" aria-hidden="true"><ArrowRight className="h-4 w-4" /></span>
           </button>
         </div>
       </header>
@@ -199,8 +198,8 @@ export default function HomePage() {
 
         <div className="wm-hero-actions">
           <button type="button" className="wm-try wm-try-main" onClick={enterOa}>
-            {t('common.tryNow')}
-            <Play className="h-5 w-5 fill-current" />
+            <span>{t('common.tryNow')}</span>
+            <span className="wm-cta-arrow" aria-hidden="true"><ArrowRight className="h-5 w-5" /></span>
           </button>
           <a href="#product" className="wm-secondary">
             {t('home.hero.productTour')}
@@ -258,8 +257,8 @@ export default function HomePage() {
           <h2>{t('home.scenes.title')}</h2>
           <p>{t('home.scenes.desc')}</p>
           <button type="button" className="wm-try" onClick={enterOa}>
-            {t('common.tryNow')}
-            <Zap className="h-5 w-5 fill-current" />
+            <span>{t('common.tryNow')}</span>
+            <span className="wm-cta-arrow" aria-hidden="true"><ArrowRight className="h-5 w-5" /></span>
           </button>
         </div>
         <div className="wm-stack-panel wm-scroll-reveal">
@@ -299,8 +298,8 @@ export default function HomePage() {
         <h2>{t('home.final.title')}</h2>
         <p>{t('home.final.desc')}</p>
         <button type="button" className="wm-try wm-try-main" onClick={enterOa}>
-          {t('common.tryNow')}
-          <ArrowRight className="h-5 w-5" />
+          <span>{t('common.tryNow')}</span>
+          <span className="wm-cta-arrow" aria-hidden="true"><ArrowRight className="h-5 w-5" /></span>
         </button>
       </section>
     </main>

@@ -6,7 +6,6 @@ import {
   BankOutlined,
   CheckCircleFilled,
   DingdingOutlined,
-  SafetyCertificateOutlined,
   WechatOutlined,
 } from '@ant-design/icons';
 import { App, Button, Checkbox, ConfigProvider, Form, Input, Modal, Result } from 'antd';
@@ -20,13 +19,14 @@ import {
   EMAIL_CODE_PATTERN,
   EmailCodeInput,
   FormInput,
-  GlassTabs,
   LoginModeTabs,
   PasswordInput,
   PasswordStrength,
   PASSWORD_PATTERN,
 } from './AuthControls';
 import { AuthLegalDocument, type LegalDocumentType } from './AuthLegalDocument';
+import AuthExperience from './AuthExperience';
+import { OaIcon } from '@/components/OaIcon';
 
 type MainMode = 'login' | 'register';
 type LoginMode = 'password' | 'code';
@@ -210,41 +210,48 @@ export default function AuthPage() {
     setMainMode(mode); setView('account'); setError(''); setCooldown(0); setResetStep(0); setCaptchaModalOpen(false);
   };
 
-  const heading = mainMode === 'register' ? [t('auth.heading.registerTitle'), t('auth.heading.registerSubtitle')]
-    : view === 'forgot' ? [t('auth.heading.forgotTitle'), t('auth.heading.forgotSubtitle')]
-      : [t('auth.heading.loginTitle'), t('auth.heading.loginSubtitle')];
+  const heading = view === 'forgot' ? [t('auth.heading.forgotTitle'), t('auth.heading.forgotSubtitle')]
+      : [t('authDesign.loginTitle'), t('authDesign.loginDescription')];
 
   return (
-    <ConfigProvider theme={{ token: { colorPrimary: '#315b9b', borderRadius: 12, fontFamily: 'Inter, "PingFang SC", "Microsoft YaHei", sans-serif' } }}>
-      <main className={`auth-page auth-mode-${mainMode}`}>
-        <div className="auth-ambient auth-ambient-blue" /><div className="auth-ambient auth-ambient-green" /><div className="auth-ambient auth-ambient-gold" />
-        <section className="auth-card" aria-labelledby="auth-title">
-          <header className="auth-brand"><span>AI</span><div><strong>AI WorkMate</strong><small>ENTERPRISE WORKSPACE</small></div></header>
-          <div className="auth-heading"><h1 id="auth-title">{heading[0]}</h1><p>{heading[1]}</p></div>
-          <GlassTabs active={mainMode} onChange={switchMainMode} />
-
-          {mainMode === 'login' && view === 'account' && <>
+    <ConfigProvider theme={{ token: { colorPrimary: '#315b9b', borderRadius: 12, fontFamily: '"Segoe UI", "Microsoft YaHei", sans-serif' } }}>
+      <>
+        <AuthExperience mode={mainMode} onModeChange={switchMainMode}
+          loginTitle={heading[0]} loginDescription={heading[1]}
+          login={<>
+          {view === 'account' && <>
             <LoginModeTabs active={loginMode} onChange={(mode) => { setLoginMode(mode); setError(''); }} />
-            {loginMode === 'password' ? <Form form={passwordForm} layout="vertical" initialValues={{ remember: true }} onFinish={submitPasswordLogin} requiredMark={false}>
-              <Form.Item label={t('auth.field.email')} name="email" rules={[{ required: true, type: 'email', message: t('auth.validation.emailInvalid') }]}><FormInput placeholder="name@company.com" autoComplete="email" /></Form.Item>
+            {loginMode === 'password' ? <Form name="auth-password" form={passwordForm} layout="vertical" initialValues={{ remember: true }} onFinish={submitPasswordLogin} requiredMark={false}>
+              <Form.Item label={t('auth.field.email')} name="email" rules={[{ required: true, type: 'email', message: t('auth.validation.emailInvalid') }]}><FormInput placeholder={t('authDesign.emailPlaceholder')} autoComplete="email" /></Form.Item>
               <Form.Item label={t('auth.field.password')} name="password" rules={[{ required: true, message: t('auth.validation.passwordRequired') }]}><PasswordInput placeholder={t('auth.field.passwordPlaceholder')} autoComplete="current-password" /></Form.Item>
               {riskCaptcha && <Form.Item label={t('auth.field.captcha')} name="captchaCode" rules={[{ required: true, message: t('auth.validation.captchaRequired') }]}><CaptchaInput image={captcha?.image} loading={captchaLoading} onRefresh={loadCaptcha} /></Form.Item>}
               <div className="auth-form-meta"><Form.Item name="remember" valuePropName="checked" noStyle><Checkbox>{t('auth.field.remember')}</Checkbox></Form.Item><Button type="link" onClick={() => { setView('forgot'); setResetStep(0); setError(''); }}>{t('auth.copy.forgotPassword')}</Button></div>
-              <AuthNotice>{error}</AuthNotice><Button htmlType="submit" type="primary" block size="large" loading={submitting}>{t('auth.button.login')}</Button>
-            </Form> : <Form form={codeForm} layout="vertical" initialValues={{ remember: true }} onFinish={submitCodeLogin} requiredMark={false}>
-              <Form.Item label={t('auth.field.email')} name="email" rules={[{ required: true, type: 'email', message: t('auth.validation.emailInvalid') }]}><FormInput placeholder="name@company.com" /></Form.Item>
+              <AuthNotice>{error}</AuthNotice><Button htmlType="submit" type="primary" className="account-submit" block size="large" loading={submitting}><span>{t('auth.button.login')}</span><span className="button-arrow" aria-hidden="true"><OaIcon name="next" /></span></Button>
+            </Form> : <Form name="auth-code" form={codeForm} layout="vertical" initialValues={{ remember: true }} onFinish={submitCodeLogin} requiredMark={false}>
+              <Form.Item label={t('auth.field.email')} name="email" rules={[{ required: true, type: 'email', message: t('auth.validation.emailInvalid') }]}><FormInput placeholder={t('authDesign.emailPlaceholder')} /></Form.Item>
               <Form.Item label={t('auth.field.emailCode')} name="emailCode" rules={[{ required: true, message: t('auth.emailCodeRuleMessage') }, { pattern: EMAIL_CODE_PATTERN, message: t('auth.emailCodeRuleMessage') }]}><EmailCodeInput cooldown={cooldown} loading={sendingCode} onSend={() => void beginSendCode('login', codeForm)} /></Form.Item>
               <Form.Item name="remember" valuePropName="checked"><Checkbox>{t('auth.field.remember')}</Checkbox></Form.Item>
-              <AuthNotice>{error}</AuthNotice><Button htmlType="submit" type="primary" block size="large" loading={submitting}>{t('auth.button.codeLogin')}</Button>
+              <AuthNotice>{error}</AuthNotice><Button htmlType="submit" type="primary" className="account-submit" block size="large" loading={submitting}><span>{t('auth.button.codeLogin')}</span><span className="button-arrow" aria-hidden="true"><OaIcon name="next" /></span></Button>
             </Form>}
             <div className="auth-divider"><span>{t('auth.social.divider')}</span></div>
             <div className="auth-social"><Button icon={<WechatOutlined />} onClick={() => message.info(t('auth.social.wechatUnavailable'))}>{t('auth.social.wechat')}</Button><Button icon={<DingdingOutlined />} onClick={() => message.info(t('auth.social.dingtalkUnavailable'))}>{t('auth.social.dingtalk')}</Button><Button icon={<BankOutlined />} onClick={() => message.info(t('auth.social.ssoUnavailable'))}>{t('auth.social.sso')}</Button></div>
             <p className="auth-switch-copy">{t('auth.copy.noAccount')}<Button type="link" onClick={() => switchMainMode('register')}>{t('auth.button.registerWithEmail')}</Button></p>
           </>}
 
-          {mainMode === 'register' && <Form form={registerForm} layout="vertical" onFinish={submitRegister} requiredMark={false}>
+          {view === 'forgot' && <>
+            {resetStep === 2 ? <Result status="success" icon={<CheckCircleFilled />} title={t('auth.reset.successTitle')} subTitle={t('auth.reset.successSubtitle')} extra={<Button type="primary" onClick={() => { setView('account'); setResetStep(0); }}>{t('auth.button.backToLogin')}</Button>} /> : <Form name="auth-reset" form={resetForm} layout="vertical" onFinish={submitReset} requiredMark={false}>
+              <Form.Item label={t('auth.field.email')} name="email" rules={[{ required: true, type: 'email', message: t('auth.validation.emailInvalid') }]}><FormInput placeholder={t('authDesign.emailPlaceholder')} disabled={resetStep === 1} /></Form.Item>
+              {resetStep === 0 && <Button block size="large" loading={sendingCode} onClick={() => void beginSendCode('reset_password', resetForm)}>{t('auth.button.sendEmailCode')}</Button>}
+              {resetStep === 1 && <><Form.Item label={t('auth.field.emailCode')} name="emailCode" rules={[{ required: true, message: t('auth.emailCodeRuleMessage') }, { pattern: EMAIL_CODE_PATTERN, message: t('auth.emailCodeRuleMessage') }]}><Input size="large" placeholder={t('auth.field.emailCodeShortPlaceholder')} maxLength={6} inputMode="numeric" /></Form.Item><div className="auth-form-grid"><Form.Item label={t('auth.field.newPassword')} name="newPassword" rules={[{ required: true, message: t('auth.validation.newPasswordRequired') }, { pattern: PASSWORD_PATTERN, message: t('auth.passwordRuleMessage') }]}><PasswordInput placeholder={t('auth.field.newPasswordPlaceholder')} /></Form.Item><Form.Item label={t('auth.field.confirmNewPassword')} name="confirmPassword" dependencies={['newPassword']} rules={[{ required: true }, ({ getFieldValue }) => ({ validator(_, value) { return !value || getFieldValue('newPassword') === value ? Promise.resolve() : Promise.reject(new Error(t('auth.validation.passwordMismatch'))); } })]}><PasswordInput placeholder={t('auth.field.confirmNewPasswordPlaceholder')} /></Form.Item></div><Button htmlType="submit" type="primary" className="account-submit" block size="large" loading={submitting}><span>{t('auth.button.confirmModify')}</span><span className="button-arrow" aria-hidden="true"><OaIcon name="next" /></span></Button></>}
+              <AuthNotice>{error}</AuthNotice>
+            </Form>}
+            {resetStep !== 2 && <Button type="link" className="auth-back-login" onClick={() => { setView('account'); setResetStep(0); setError(''); }}>{t('auth.button.backToLogin')}</Button>}
+          </>}
+          </>}
+          register={<>
+          <Form name="auth-register" form={registerForm} layout="vertical" onFinish={submitRegister} requiredMark={false}>
             <Form.Item label={t('auth.field.name')} name="name" rules={[{ required: true, message: t('auth.validation.nameRequired') }]}><FormInput placeholder={t('auth.field.namePlaceholder')} /></Form.Item>
-            <Form.Item label={t('auth.field.email')} name="email" rules={[{ required: true, type: 'email', message: t('auth.validation.emailInvalid') }]}><FormInput placeholder="name@company.com" /></Form.Item>
+            <Form.Item label={t('auth.field.email')} name="email" rules={[{ required: true, type: 'email', message: t('auth.validation.emailInvalid') }]}><FormInput placeholder={t('authDesign.emailPlaceholder')} /></Form.Item>
             <Form.Item label={t('auth.field.emailCode')} name="emailCode" rules={[{ required: true, message: t('auth.emailCodeRuleMessage') }, { pattern: EMAIL_CODE_PATTERN, message: t('auth.emailCodeRuleMessage') }]}><EmailCodeInput cooldown={cooldown} loading={sendingCode} onSend={() => void beginSendCode('register', registerForm)} /></Form.Item>
             <Form.Item label={t('auth.field.setName')} name="password" rules={[{ required: true, message: t('auth.validation.setPasswordRequired') }, { pattern: PASSWORD_PATTERN, message: t('auth.passwordRuleMessage') }]}><PasswordInput placeholder={t('auth.field.passwordSetPlaceholder')} onChange={(event) => setRegisterPassword(event.target.value)} /></Form.Item>
             <PasswordStrength value={registerPassword} />
@@ -259,21 +266,11 @@ export default function AuthPage() {
                 </span>
               </Checkbox>
             </Form.Item>
-            <AuthNotice>{error}</AuthNotice><Button htmlType="submit" type="primary" block size="large" loading={submitting}>{t('auth.button.createAccount')}</Button>
+            <AuthNotice>{error}</AuthNotice><Button htmlType="submit" type="primary" className="account-submit" block size="large" loading={submitting}><span>{t('auth.button.createAccount')}</span><span className="button-arrow" aria-hidden="true"><OaIcon name="next" /></span></Button>
             <p className="auth-switch-copy">{t('auth.copy.hasAccount')}<Button type="link" onClick={() => switchMainMode('login')}>{t('auth.button.backToLogin')}</Button></p>
-          </Form>}
-
-          {mainMode === 'login' && view === 'forgot' && <>
-            {resetStep === 2 ? <Result status="success" icon={<CheckCircleFilled />} title={t('auth.reset.successTitle')} subTitle={t('auth.reset.successSubtitle')} extra={<Button type="primary" onClick={() => { setView('account'); setResetStep(0); }}>{t('auth.button.backToLogin')}</Button>} /> : <Form form={resetForm} layout="vertical" onFinish={submitReset} requiredMark={false}>
-              <Form.Item label={t('auth.field.email')} name="email" rules={[{ required: true, type: 'email', message: t('auth.validation.emailInvalid') }]}><FormInput placeholder="name@company.com" disabled={resetStep === 1} /></Form.Item>
-              {resetStep === 0 && <Button block size="large" loading={sendingCode} onClick={() => void beginSendCode('reset_password', resetForm)}>{t('auth.button.sendEmailCode')}</Button>}
-              {resetStep === 1 && <><Form.Item label={t('auth.field.emailCode')} name="emailCode" rules={[{ required: true, message: t('auth.emailCodeRuleMessage') }, { pattern: EMAIL_CODE_PATTERN, message: t('auth.emailCodeRuleMessage') }]}><Input size="large" placeholder={t('auth.field.emailCodeShortPlaceholder')} maxLength={6} inputMode="numeric" /></Form.Item><div className="auth-form-grid"><Form.Item label={t('auth.field.newPassword')} name="newPassword" rules={[{ required: true, message: t('auth.validation.newPasswordRequired') }, { pattern: PASSWORD_PATTERN, message: t('auth.passwordRuleMessage') }]}><PasswordInput placeholder={t('auth.field.newPasswordPlaceholder')} /></Form.Item><Form.Item label={t('auth.field.confirmNewPassword')} name="confirmPassword" dependencies={['newPassword']} rules={[{ required: true }, ({ getFieldValue }) => ({ validator(_, value) { return !value || getFieldValue('newPassword') === value ? Promise.resolve() : Promise.reject(new Error(t('auth.validation.passwordMismatch'))); } })]}><PasswordInput placeholder={t('auth.field.confirmNewPasswordPlaceholder')} /></Form.Item></div><Button htmlType="submit" type="primary" block size="large" loading={submitting}>{t('auth.button.confirmModify')}</Button></>}
-              <AuthNotice>{error}</AuthNotice>
-            </Form>}
-            {resetStep !== 2 && <Button type="link" className="auth-back-login" onClick={() => { setView('account'); setResetStep(0); setError(''); }}>{t('auth.button.backToLogin')}</Button>}
+          </Form>
           </>}
-          <footer className="auth-security"><SafetyCertificateOutlined /> {t('auth.footer')}</footer>
-        </section>
+        />
         <Modal
           className="auth-captcha-modal"
           width={456}
@@ -308,7 +305,7 @@ export default function AuthPage() {
         >
           {legalDocument && <AuthLegalDocument type={legalDocument} />}
         </Modal>
-      </main>
+      </>
     </ConfigProvider>
   );
 }
