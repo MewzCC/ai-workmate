@@ -1,4 +1,6 @@
+import { marketingZh } from './marketing';
 export default {
+  marketing: marketingZh,
   common: {
     login: '登录',
     tryNow: '立即尝试',

@@ -1,6 +1,6 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import HomePage from '@/components/home/HomePage';
+import HomePage from '@/components/home/BoldMarketing';
 import I18nProvider from '@/i18n/I18nProvider';
 // 初始化 i18next（必须在渲染前执行副作用）
 import '@/i18n';

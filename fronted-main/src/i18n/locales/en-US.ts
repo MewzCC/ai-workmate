@@ -1,4 +1,6 @@
+import { marketingEn } from './marketing';
 export default {
+  marketing: marketingEn,
   common: {
     login: 'Sign in',
     tryNow: 'Try now',
