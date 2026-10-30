@@ -1,5 +1,5 @@
 export const marketingZh = {
-  concepts: ['液态引擎', '灵感爆破'], conceptLabel: '切换设计方案',
+  concepts: ['协作之境', '灵感爆破'], conceptLabel: '切换设计方案',
   enter: '进入工作台', explore: '向下，打破惯性', nav: ['理念', '体验', '信任'],
   liquid: {
     eyebrow: 'AI WORKMATE / 人与 AI 的下一种协作',
@@ -36,7 +36,7 @@ export const marketingZh = {
   footer: 'AI WorkMate / 企业智能工作空间', top: '回到顶部', brand: 'AI WorkMate',
 };
 export const marketingEn = {
-  concepts: ['Liquid engine', 'Idea explosion'], conceptLabel: 'Choose a design concept',
+  concepts: ['Common ground', 'Idea explosion'], conceptLabel: 'Choose a design concept',
   enter: 'Enter workspace', explore: 'Scroll beyond the ordinary', nav: ['Perspective', 'Experience', 'Trust'],
   liquid: {
     eyebrow: 'AI WORKMATE / THE NEXT WAY TO WORK TOGETHER',

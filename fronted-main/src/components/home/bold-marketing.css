@@ -47,6 +47,7 @@
 .bm-nav nav a::after { content: ''; position: absolute; height: 1px; background: currentColor; left: 0; right: 0; bottom: 5px; transform: scaleX(0); transform-origin: left; transition: transform .2s; }
 .bm-nav nav a:hover::after { transform: scaleX(1); }
 .bm-nav-right { display: flex; align-items: center; gap: 25px; }
+.bm-site .wm-theme-toggle { background:transparent;border-color:var(--edge);box-shadow:none;--wm-card-strong:var(--ground);--wm-line-strong:var(--edge); }
 .bm-site .wm-lang-toggle { color: var(--ink); background: transparent; border-color: var(--edge); box-shadow: none; }
 .bm-site .wm-lang-menu { background: var(--ground); border-color: var(--edge); }
 .bm-site .wm-lang-item { color: var(--ink); }

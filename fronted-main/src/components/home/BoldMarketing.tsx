@@ -2,14 +2,15 @@ import { lazy, Suspense, useEffect, useRef, useState, type CSSProperties, type P
 import { ArrowDown, ArrowRight, ArrowUpRight, Check, ChevronUp, FileText, Grip, MessageSquare, Pause, Play, Plus, RotateCcw, ShieldCheck, Sparkles, Users } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
+import ThemeToggle from '@/components/ThemeToggle';
 import KineticPointer from './KineticPointer';
 import IdeaGravity from './IdeaGravity';
-
+import NoirMarketing from './NoirMarketing';
 import useKineticStage from './useKineticStage';
 import './bold-marketing.css';
 
 const LiquidSculpture = lazy(() => import('./LiquidSculpture'));
-type Direction = 'liquid' | 'kinetic';
+type Direction = 'liquid' | 'kinetic' | 'noir';
 
 function DraggableCard({ index, title, text, label, arrangement }: { index: number; title: string; text: string; label: string; arrangement: number }) {
   const element = useRef<HTMLDivElement>(null);
@@ -49,15 +50,18 @@ function DraggableCard({ index, title, text, label, arrangement }: { index: numb
 
 export default function BoldMarketing() {
   const { t } = useTranslation();
-  const initial = new URLSearchParams(window.location.search).get('design');
-  const [direction,setDirection] = useState<Direction>(initial === 'liquid' ? 'liquid' : 'kinetic');
+  const [direction,setDirection] = useState<Direction>(()=>{
+    const requested=new URLSearchParams(window.location.search).get('design');
+    if(requested==='noir'||requested==='kinetic'||requested==='liquid')return requested;
+    try { return window.localStorage.getItem('wm-theme')==='night'?'noir':'kinetic'; }
+    catch { return 'kinetic'; }
+  });
   const [paused,setPaused] = useState(false);
   const [scene,setScene] = useState(0);
   const [shuffle,setShuffle] = useState(0);
   const root = useRef<HTMLDivElement>(null);
   const detonate = useKineticStage(root, direction === 'kinetic');
-  const concepts = t('marketing.concepts',{returnObjects:true}) as string[];
-  const titles = t(`marketing.${direction}.title`,{returnObjects:true}) as string[];
+  const titles = t(direction === 'liquid' ? 'marketing.liquid.title' : 'marketing.kinetic.title',{returnObjects:true}) as string[];
   const story = t('marketing.liquid.storyTitle',{returnObjects:true}) as string[];
   const railTitles = t('marketing.kinetic.railTitles',{returnObjects:true}) as string[];
   const railTexts = t('marketing.kinetic.railTexts',{returnObjects:true}) as string[];
@@ -70,6 +74,11 @@ export default function BoldMarketing() {
   const trust = t('marketing.trust',{returnObjects:true}) as {title:string;text:string}[];
   const end = t('marketing.endTitle',{returnObjects:true}) as string[];
   const nav = t('marketing.nav',{returnObjects:true}) as string[];
+
+  useEffect(()=>{
+    try { window.localStorage.setItem('wm-theme',direction==='noir'?'night':'day'); }
+    catch { /* The theme still works when browser storage is unavailable. */ }
+  },[direction]);
 
   useEffect(() => {
     const node=root.current;
@@ -108,14 +117,16 @@ export default function BoldMarketing() {
   },[direction]);
   const choose = (next: Direction) => {
     setDirection(next);
-    const url=new URL(window.location.href);url.searchParams.set('design',next);url.hash='';
+    const url=new URL(window.location.href);
+    if(next==='liquid')url.searchParams.set('design',next);else url.searchParams.delete('design');
+    url.hash='';
     window.history.replaceState(null,'',url);window.scrollTo({top:0,behavior:'auto'});
   };
   const enter = () => {window.location.href=import.meta.env.VITE_OA_URL||`http://${window.location.hostname}:3001/oa/`;};
+  if (direction === 'noir') return <NoirMarketing onSwitch={()=>choose('kinetic')}/>;
   const cta = (className='') => <button type="button" onClick={enter} className={`bm-cta ${className}`}><span>{t('marketing.enter')}</span><ArrowUpRight/></button>;
   return <div ref={root} className={`bm-site bm-${direction}`} key={direction}>
-    <div className="bm-design-switch" role="group" aria-label={t('marketing.conceptLabel')}>{(['liquid','kinetic'] as const).map((item,i)=><button type="button" key={item} onClick={()=>choose(item)} aria-pressed={direction===item}><span>0{i+1}</span>{concepts[i]}<span className="bm-switch-dot"/></button>)}</div>
-    <header className="bm-nav"><a href="#" className="bm-brand" aria-label={t('marketing.brand')}><span className="bm-brand-symbol" aria-hidden="true">w.</span><strong>{t('marketing.brand')}</strong></a><nav>{['perspective','experience','trust'].map((id,i)=><a href={`#${id}`} key={id}>{nav[i]}</a>)}{direction === 'kinetic' && <a href="#gravity">{t('marketing.kinetic.labNav')}</a>}</nav><div className="bm-nav-right"><LanguageSwitcher/>{cta('bm-nav-cta')}</div></header>
+    <header className="bm-nav"><a href="#" className="bm-brand" aria-label={t('marketing.brand')}><span className="bm-brand-symbol" aria-hidden="true">w.</span><strong>{t('marketing.brand')}</strong></a><nav>{['perspective','experience','trust'].map((id,i)=><a href={`#${id}`} key={id}>{nav[i]}</a>)}{direction === 'kinetic' && <a href="#gravity">{t('marketing.kinetic.labNav')}</a>}</nav><div className="bm-nav-right"><ThemeToggle theme="day" onChange={next=>choose(next==='night'?'noir':'kinetic')}/><LanguageSwitcher/>{cta('bm-nav-cta')}</div></header>
     <main>
       {direction==='liquid' ? <>
         <section className="bm-hero bm-liquid-hero">
