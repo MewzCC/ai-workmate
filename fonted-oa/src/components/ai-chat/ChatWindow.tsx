@@ -10,8 +10,9 @@ import type { ChatAttachment, ChatComposerMode, ChatMessage } from '@/types/chat
 import ChatInput from './ChatInput';
 import MessageList from './MessageList';
 import type { UploadProgressItem } from '@/store/aiChatStore';
-import type { AiTaskPlanResponse, PageCapability } from '@/types/oa';
+import type { AgentTaskDetail, AiTaskPlanResponse, PageCapability } from '@/types/oa';
 import AgentOperationPlanCard from './AgentOperationPlanCard';
+import AgentOperationStatusCard from './AgentOperationStatusCard';
 
 interface ChatWindowProps {
   title: string;
@@ -24,6 +25,8 @@ interface ChatWindowProps {
   generating: boolean;
   mode: ChatComposerMode;
   pendingPlan?: AiTaskPlanResponse;
+  operationTask?: AgentTaskDetail;
+  onResumeOperation?: () => Promise<void>;
   operationCapability: PageCapability | null;
   onOpenSessions: () => void;
   onUpload: (files: File[]) => void;
@@ -94,6 +97,11 @@ export default function ChatWindow(props: ChatWindowProps) {
             onConfirm={props.onConfirmOperation}
             onDiscard={props.onDiscardOperation}
           />
+        ) : null}
+        {!props.pendingPlan && props.operationTask && props.onResumeOperation
+          && (props.operationTask.status !== 'SUCCEEDED' || !props.messages.some((message) => message.sourceTaskNo === props.operationTask?.taskId)) ? (
+          <AgentOperationStatusCard task={props.operationTask} observing={props.generating}
+            onRefresh={props.onResumeOperation} onCancel={props.onDiscardOperation} />
         ) : null}
         <ChatInput
           pending={props.pending}

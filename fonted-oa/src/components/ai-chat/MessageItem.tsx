@@ -129,7 +129,7 @@ export default function MessageItem({ item, onRetry }: MessageItemProps) {
         {isAssistant && item.status === 'success' && visibleCitations.length > 0 && (
           <CitationList citations={visibleCitations} />
         )}
-        {isAssistant && item.status === 'success' && item.sourceTaskNo && canOpenTarget && (
+        {isAssistant && item.status === 'success' && item.sourceTaskNo && item.sourceToolCode && canOpenTarget && (
           <Button type="link" loading={opening} icon={<OaIcon name="integration" />} onClick={() => void openBusinessResult()}>
             {t('chat.openBusinessPage')}
           </Button>
@@ -139,9 +139,9 @@ export default function MessageItem({ item, onRetry }: MessageItemProps) {
             <Tooltip title={t('chat.copyReply')}>
               <Button type="text" size="small" aria-label={t('chat.copyReply')} icon={<OaIcon name="copy" />} onClick={() => void copyReply()} />
             </Tooltip>
-            <Tooltip title={t('chat.regenerate')}>
+            {!item.sourceTaskNo && item.retryable !== false && <Tooltip title={t('chat.regenerate')}>
               <Button type="text" size="small" aria-label={t('chat.regenerate')} icon={<OaIcon name="reload" />} onClick={onRetry} />
-            </Tooltip>
+            </Tooltip>}
             <Tooltip title={t('chat.helpful')}>
               <Button
                 type="text"

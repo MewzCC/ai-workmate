@@ -43,6 +43,8 @@ export interface ChatMessage {
   sourceTaskNo?: string | null;
   /** First executed fixed tool, used only to select an authorized destination page. */
   sourceToolCode?: string | null;
+  /** Local operation placeholders must never offer automatic business resubmission. */
+  retryable?: boolean;
 }
 
 export interface ChatConversation {

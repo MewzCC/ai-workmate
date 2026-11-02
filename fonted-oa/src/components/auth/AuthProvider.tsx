@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { authApi, AuthApiError, type AuthUser } from '@/lib/authApi';
+import { bindChatIdentity } from '@/store/aiChatStore';
 import {
   AUTH_EXPIRED_EVENT,
   PERMISSIONS_CHANGED_EVENT,
@@ -37,6 +38,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     identityKey.current = key;
     identityRevision.current += 1;
     bindAuthResponseIdentity(key, JSON.stringify([next?.permissionVersion, [...(next?.roles ?? [])].sort(), [...(next?.permissions ?? [])].sort(), [...(next?.dataScopes ?? [])].sort()]));
+    bindChatIdentity(key);
     setUserState(next); setLoading(false);
   }, []);
 

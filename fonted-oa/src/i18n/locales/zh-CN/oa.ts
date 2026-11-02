@@ -289,7 +289,7 @@ export default {
     executionCompletedMessage: '任务执行完成',
     status: {
       RECEIVED: '已接收', PLANNING: '规划中', PLAN_READY: '计划就绪', WAITING_CONFIRMATION: '等待确认',
-      QUEUED: '已入队', RUNNING: '执行中', SUCCEEDED: '已成功', PARTIALLY_SUCCEEDED: '部分成功',
+      QUEUED: '已入队', RUNNING: '执行中', SUCCEEDED: '已成功', PARTIALLY_SUCCEEDED: '结果待核对',
       FAILED: '失败', TIMED_OUT: '已超时', REJECTED: '已拒绝', EXPIRED: '已过期', CANCELLED: '已取消',
     },
     events: {

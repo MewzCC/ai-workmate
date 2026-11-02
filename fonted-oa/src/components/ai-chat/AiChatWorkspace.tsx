@@ -159,6 +159,8 @@ export default function AiChatWorkspace({ role }: AiChatWorkspaceProps) {
         generating={store.activeId ? store.generatingIds.includes(store.activeId) : false}
         mode={store.composerMode}
         pendingPlan={store.activeId ? store.pendingPlans[store.activeId] : undefined}
+        operationTask={store.activeId ? store.operationTasks[store.activeId] : undefined}
+        onResumeOperation={() => store.activeId ? store.resumeOperation(store.activeId) : Promise.resolve()}
         operationCapability={operationCapability}
         onOpenSessions={() => setMobileSessionsOpen(true)}
         onUpload={store.upload}

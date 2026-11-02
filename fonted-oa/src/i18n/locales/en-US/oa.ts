@@ -289,7 +289,7 @@ export default {
     executionCompletedMessage: 'Task execution completed',
     status: {
       RECEIVED: 'Received', PLANNING: 'Planning', PLAN_READY: 'Plan ready', WAITING_CONFIRMATION: 'Awaiting confirmation',
-      QUEUED: 'Queued', RUNNING: 'Running', SUCCEEDED: 'Succeeded', PARTIALLY_SUCCEEDED: 'Partially succeeded',
+      QUEUED: 'Queued', RUNNING: 'Running', SUCCEEDED: 'Succeeded', PARTIALLY_SUCCEEDED: 'Outcome needs review',
       FAILED: 'Failed', TIMED_OUT: 'Timed out', REJECTED: 'Rejected', EXPIRED: 'Expired', CANCELLED: 'Cancelled',
     },
     events: {

@@ -64,6 +64,10 @@ export async function appendAgentResult(conversationId: number, taskId: string):
   }));
 }
 
+export async function latestConversationAgentTask(conversationId: number): Promise<import('@/types/oa').AgentTaskDetail | null> {
+  return parse(await fetch(`${BASE}/conversations/${conversationId}/agent-task`, { headers: headers(false), cache: 'no-store' }));
+}
+
 export async function uploadAttachment(
   conversationId: number,
   file: File,

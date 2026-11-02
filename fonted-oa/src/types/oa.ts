@@ -88,6 +88,7 @@ export interface AiTaskPlanRequest {
   input: string;
   pageId: string;
   pageContext?: Record<string, unknown>;
+  conversationId?: number;
 }
 
 export type AgentRiskLevel = 'L0' | 'L1' | 'L2';
