@@ -95,6 +95,57 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class AdminAssetsServiceImpl implements AdminAssetsService {
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<com.aiworkmate.dto.AssetAssignmentOption> assetDepartments(Long userId) {
+        ResolvedUserAccess actor = requirePermission(userId, "asset:write");
+        return accessControlMapper.selectDepartments(actor.tenantId()).stream()
+                .filter(department -> Integer.valueOf(1).equals(department.status()))
+                .map(department -> new com.aiworkmate.dto.AssetAssignmentOption(department.id(), department.name(), null)).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<com.aiworkmate.dto.AssetAssignmentOption> assetDepartmentOptions(Long userId, String keyword, int page, int size) {
+        ResolvedUserAccess actor = requirePermission(userId, "asset:write");
+        String search = assetCandidateKeyword(keyword, page, size);
+        return PageResponse.of(accessControlMapper.selectAssetDepartmentOptions(actor.tenantId(), search, size, (page - 1L) * size),
+                accessControlMapper.countAssetDepartmentOptions(actor.tenantId(), search), page, size);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<com.aiworkmate.dto.AssetAssignmentOption> assetCustodians(Long userId, Long departmentId, int page, int size) {
+        return assetCustodianOptions(userId, departmentId, null, page, size);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<com.aiworkmate.dto.AssetAssignmentOption> assetCustodianOptions(Long userId, Long departmentId, String keyword, int page, int size) {
+        ResolvedUserAccess actor = requirePermission(userId, "asset:write");
+        String search = assetCandidateKeyword(keyword, page, size);
+        if (departmentId == null || departmentId < 1)
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        if (accessControlMapper.countActiveAssetDepartment(actor.tenantId(), departmentId) != 1)
+            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        var query = new LambdaQueryWrapper<User>().eq(User::getTenantId, actor.tenantId())
+                .eq(User::getDepartmentId, departmentId).eq(User::getStatus, 1);
+        if (search != null) query.and(name -> name.like(User::getDisplayName, search).or().like(User::getUsername, search));
+        long total = userMapper.selectCount(query);
+        var rows = userMapper.selectList(query.select(User::getId, User::getDisplayName, User::getUsername, User::getDepartmentId)
+                .orderByAsc(User::getId).last("LIMIT " + size + " OFFSET " + ((page - 1L) * size)));
+        return PageResponse.of(rows.stream().map(user -> new com.aiworkmate.dto.AssetAssignmentOption(user.getId(),
+                user.getDisplayName() == null || user.getDisplayName().isBlank() ? user.getUsername() : user.getDisplayName(),
+                user.getDepartmentId())).toList(), total, page, size);
+    }
+
+    private String assetCandidateKeyword(String keyword, int page, int size) {
+        if (page < 1 || page > 10000 || size < 1 || size > 100 || keyword != null && keyword.length() > 120)
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        return keyword == null || keyword.isBlank() ? null : keyword.trim();
+    }
+
+
     private static final String BUSINESS_VISITOR = "VISITOR_BOOKING";
     private static final String BUSINESS_SEAL = "SEAL_USAGE";
 

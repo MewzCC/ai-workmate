@@ -54,6 +54,19 @@ public class AdminAssetsController {
 
     private final AdminAssetsService service;
 
+    @GetMapping("/assets/assignment/departments")
+    public Result<java.util.List<com.aiworkmate.dto.AssetAssignmentOption>> assetDepartments(
+            @AuthenticationPrincipal AuthenticatedUser user) {
+        return Result.ok(service.assetDepartments(user.userId()));
+    }
+
+    @GetMapping("/assets/assignment/custodians")
+    public Result<PageResponse<com.aiworkmate.dto.AssetAssignmentOption>> assetCustodians(
+            @AuthenticationPrincipal AuthenticatedUser user, @RequestParam Long departmentId,
+            @RequestParam(defaultValue = "1") int page, @RequestParam(defaultValue = "100") int size) {
+        return Result.ok(service.assetCustodians(user.userId(), departmentId, page, size));
+    }
+
     // ==================== 资产台账 ====================
 
     @GetMapping("/assets")

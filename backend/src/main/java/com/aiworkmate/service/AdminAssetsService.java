@@ -49,6 +49,10 @@ import java.util.Optional;
  * 管理员（{@code asset:write} / {@code meeting:write}）可维护资产/会议室主数据。
  */
 public interface AdminAssetsService {
+    java.util.List<com.aiworkmate.dto.AssetAssignmentOption> assetDepartments(Long userId);
+    PageResponse<com.aiworkmate.dto.AssetAssignmentOption> assetDepartmentOptions(Long userId, String keyword, int page, int size);
+    PageResponse<com.aiworkmate.dto.AssetAssignmentOption> assetCustodians(Long userId, Long departmentId, int page, int size);
+    PageResponse<com.aiworkmate.dto.AssetAssignmentOption> assetCustodianOptions(Long userId, Long departmentId, String keyword, int page, int size);
 
     // ---------- 资产台账 ----------
 

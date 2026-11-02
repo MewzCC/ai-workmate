@@ -7,6 +7,8 @@ import i18n from '@/i18n';
 
 export type AssetStatus = 'IN_USE' | 'IDLE' | 'REPAIRING' | 'SCRAPPED';
 
+export interface AssetAssignmentOption { id: number; name: string; departmentId: number | null }
+
 export interface AssetLedgerPayload {
   assetCode: string;
   name: string;
@@ -299,6 +301,9 @@ export interface ApprovalDecisionPayload {
 const PREFIX = '/admin-assets';
 
 export const adminAssetsApi = {
+  assetDepartments: () => request<AssetAssignmentOption[]>(`${PREFIX}/assets/assignment/departments`),
+  assetCustodians: (departmentId: number, page: number, size: number) =>
+    request<PageResponse<AssetAssignmentOption>>(`${PREFIX}/assets/assignment/custodians${queryString({ departmentId, page, size })}`),
   // ---------- 资产台账 ----------
   listAssets: (params: {
     keyword?: string;

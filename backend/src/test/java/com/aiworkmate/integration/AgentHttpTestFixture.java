@@ -36,12 +36,14 @@ final class AgentHttpTestFixture {
 
     Actor createAndLogin(long tenant, List<String> permissions) throws Exception {
         String suffix = UUID.randomUUID().toString().replace("-", "");
-        String role = "HTTP_IT_" + suffix.substring(0, 24);
+        // Match the canonical codes produced by the real role-creation service.
+        String role = "HTTP_IT_" + suffix.substring(0, 24).toUpperCase(java.util.Locale.ROOT);
         String email = "http-it-" + suffix + "@example.invalid";
         String password = UUID.randomUUID().toString();
         jdbc.update("INSERT INTO rbac_role(code,name,description,tenant_id,builtin) VALUES (?,'HTTP reader','isolated test',?,false)", role, tenant);
         long id = jdbc.queryForObject("INSERT INTO app_user(username,password,email,tenant_id,role) VALUES (?,?,?,?,?) RETURNING id", Long.class,
                 email, passwords.encode(password), email, tenant, role);
+        jdbc.update("INSERT INTO user_role(tenant_id,user_id,role_code) VALUES (?,?,?)", tenant, id, role);
         for (String permission : permissions) {
             jdbc.update("INSERT INTO rbac_role_permission(tenant_id,role_code,permission_code) VALUES (?,?,?)", tenant, role, permission);
         }

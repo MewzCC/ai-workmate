@@ -20,6 +20,20 @@ import java.util.Set;
 
 @Mapper
 public interface AccessControlMapper {
+    String ASSET_DEPARTMENT_FILTER = """
+            FROM department WHERE tenant_id=#{tenantId} AND status=1
+            AND (#{keyword}::text IS NULL OR name ILIKE CONCAT('%',#{keyword},'%') OR code ILIKE CONCAT('%',#{keyword},'%'))
+            """;
+
+    @Select("SELECT id,name,NULL::bigint AS department_id " + ASSET_DEPARTMENT_FILTER + " ORDER BY id LIMIT #{limit} OFFSET #{offset}")
+    List<com.aiworkmate.dto.AssetAssignmentOption> selectAssetDepartmentOptions(@Param("tenantId") Long tenantId,
+            @Param("keyword") String keyword, @Param("limit") int limit, @Param("offset") long offset);
+
+    @Select("SELECT COUNT(*) " + ASSET_DEPARTMENT_FILTER)
+    long countAssetDepartmentOptions(@Param("tenantId") Long tenantId, @Param("keyword") String keyword);
+
+    @Select("SELECT COUNT(*) FROM department WHERE tenant_id=#{tenantId} AND id=#{departmentId} AND status=1")
+    int countActiveAssetDepartment(@Param("tenantId") Long tenantId, @Param("departmentId") Long departmentId);
 
     @Select("SELECT id FROM tenant WHERE code = 'DEFAULT'")
     Long selectDefaultTenantId();
