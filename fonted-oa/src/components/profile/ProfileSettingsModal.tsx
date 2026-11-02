@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Avatar, Button, Form, Input, Modal, Space, Tabs, Upload } from 'antd';
 import { useTranslation } from 'react-i18next';
 import { message } from '@/lib/antdMessage';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { profileApi } from '@/lib/profileApi';
 import { OaIcon } from '@/components/OaIcon';
+import { isFormValidationError, useAsyncFormAction } from '@/hooks/useAsyncFormAction';
 
 const AVATAR_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const AVATAR_MAX_BYTES = 2 * 1024 * 1024;
@@ -32,29 +33,34 @@ interface PasswordForm {
 export default function ProfileSettingsModal({ open, onClose }: ProfileSettingsModalProps) {
   const { t } = useTranslation();
   const { user, setUser } = useAuth();
+  const identity = `${user?.tenantId}:${user?.id}`;
+  const latestUser = useRef(user); latestUser.current = user;
+  const action = useAsyncFormAction(`${identity}:${user?.permissionVersion}:${open}`);
+  type Submission = NonNullable<ReturnType<typeof action.begin>>;
   const [form] = Form.useForm<ProfileForm>();
   const [passwordForm] = Form.useForm<PasswordForm>();
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [deleting, setDeleting] = useState(false);
+  const [operation, setOperation] = useState<'save' | 'delete' | 'password'>();
+  const saving = action.busy && operation === 'save', deleting = action.busy && operation === 'delete';
   const [activeTab, setActiveTab] = useState<'profile' | 'password'>('profile');
-  const [changingPassword, setChangingPassword] = useState(false);
 
-  useEffect(() => {
-    if (!open || !user) return;
-    form.setFieldsValue({ name: user.name, email: user.email });
+  useLayoutEffect(() => {
+    const current = latestUser.current;
+    form.resetFields();
+    if (open && current) form.setFieldsValue({ name: current.name, email: current.email });
     setAvatarFile(null);
     setPreviewUrl(null);
     setActiveTab('profile');
     passwordForm.resetFields();
-  }, [form, passwordForm, open, user]);
+  }, [form, passwordForm, open, identity]);
 
   useEffect(() => () => {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
   }, [previewUrl]);
 
   const selectAvatar = (file: File) => {
+    if (!open || !user || action.busy) return Upload.LIST_IGNORE;
     if (!AVATAR_TYPES.has(file.type)) {
       message.error(t('profile.avatar.invalidType'));
       return Upload.LIST_IGNORE;
@@ -69,59 +75,76 @@ export default function ProfileSettingsModal({ open, onClose }: ProfileSettingsM
     return false;
   };
 
-  const save = async (values: ProfileForm) => {
-    setSaving(true);
+  const save = async (values: ProfileForm, attempt: Submission) => {
+    if (!attempt.current() || !user) return;
     try {
       let updated = await profileApi.update(values.name);
+      if (!attempt.current()) return;
       if (avatarFile) updated = await profileApi.uploadAvatar(avatarFile);
+      if (!attempt.current()) return;
+      if (updated.id !== user.id || updated.tenantId !== user.tenantId) throw new Error(t('profile.message.profileUpdateFailed'));
       setUser(updated);
       message.success(t('profile.message.profileUpdated'));
       onClose();
     } catch (error) {
+      if (!attempt.current()) return;
       message.error(error instanceof Error ? error.message : t('profile.message.profileUpdateFailed'));
-    } finally {
-      setSaving(false);
     }
   };
 
   const deleteAvatar = async () => {
-    setDeleting(true);
+    if (!open || !user) return;
+    const attempt = action.begin();
+    if (!attempt) return;
+    setOperation('delete');
     try {
       const updated = await profileApi.deleteAvatar();
+      if (!attempt.current()) return;
+      if (updated.id !== user.id || updated.tenantId !== user.tenantId) throw new Error(t('profile.message.avatarRemoveFailed'));
       setUser(updated);
       setAvatarFile(null);
       setPreviewUrl(null);
       message.success(t('profile.message.avatarRemoved'));
     } catch (error) {
+      if (!attempt.current()) return;
       message.error(error instanceof Error ? error.message : t('profile.message.avatarRemoveFailed'));
     } finally {
-      setDeleting(false);
+      attempt.finish();
     }
   };
 
-  const changePassword = async (values: PasswordForm) => {
-    setChangingPassword(true);
+  const changePassword = async (values: PasswordForm, attempt: Submission) => {
+    if (!attempt.current() || !user) return;
     try {
       await profileApi.changePassword(values.oldPassword, values.newPassword);
+      if (!attempt.current()) return;
       message.success(t('profile.message.passwordChanged'));
       passwordForm.resetFields();
       onClose();
     } catch (error) {
+      if (!attempt.current()) return;
       message.error(error instanceof Error ? error.message : t('profile.message.passwordChangeFailed'));
-    } finally {
-      setChangingPassword(false);
     }
   };
 
-  const handleOk = () => {
-    if (activeTab === 'password') {
-      passwordForm.submit();
-    } else {
-      form.submit();
-    }
+  const handleOk = async () => {
+    if (!open || !user || action.busy) return;
+    const attempt = action.begin();
+    if (!attempt) return;
+    setOperation(activeTab === 'password' ? 'password' : 'save');
+    try {
+      if (activeTab === 'password') {
+        const values = await passwordForm.validateFields();
+        if (attempt.current()) await changePassword(values, attempt);
+      } else {
+        const values = await form.validateFields();
+        if (attempt.current()) await save(values, attempt);
+      }
+    } catch (error) {
+      if (attempt.current() && !isFormValidationError(error)) message.error(t('profile.message.profileUpdateFailed'));
+    } finally { attempt.finish(); }
   };
 
-  const submitLoading = activeTab === 'password' ? changingPassword : saving;
   const okText = activeTab === 'password'
     ? t('profile.password.submit')
     : t('profile.okText');
@@ -129,19 +152,21 @@ export default function ProfileSettingsModal({ open, onClose }: ProfileSettingsM
   return (
     <Modal
       title={t('profile.title')}
-      open={open}
-      onCancel={onClose}
+      open={open && Boolean(user)}
+      onCancel={() => { action.reset(); passwordForm.resetFields(); onClose(); }}
       onOk={handleOk}
       okText={okText}
-      confirmLoading={submitLoading}
+      okButtonProps={{ loading: saving || (action.busy && operation === 'password'), disabled: deleting }}
+      cancelText={t(action.busy ? 'common.close' : 'common.cancel')}
       destroyOnHidden
     >
       <Tabs
         activeKey={activeTab}
-        onChange={(key) => setActiveTab(key as 'profile' | 'password')}
+        onChange={(key) => { if (!action.busy) setActiveTab(key as 'profile' | 'password'); }}
         items={[
           {
             key: 'profile',
+            disabled: action.busy,
             label: t('profile.tabs.profile'),
             children: (
               <>
@@ -153,14 +178,16 @@ export default function ProfileSettingsModal({ open, onClose }: ProfileSettingsM
                       maxCount={1}
                       showUploadList={false}
                       beforeUpload={selectAvatar}
+                      disabled={action.busy}
                     >
-                      <Button icon={<OaIcon name="upload" />}>{t('profile.avatar.select')}</Button>
+                      <Button disabled={action.busy} icon={<OaIcon name="upload" />}>{t('profile.avatar.select')}</Button>
                     </Upload>
                     {(user?.avatarUrl || avatarFile) && (
                       <Button
                         danger
                         icon={<OaIcon name="delete" />}
                         loading={deleting}
+                        disabled={action.busy}
                         onClick={() => void deleteAvatar()}
                       >
                         {t('profile.avatar.remove')}
@@ -169,7 +196,7 @@ export default function ProfileSettingsModal({ open, onClose }: ProfileSettingsM
                   </Space>
                   <span>{t('profile.avatar.hint')}</span>
                 </div>
-                <Form form={form} layout="vertical" onFinish={save}>
+                <Form form={form} disabled={action.busy} layout="vertical" onSubmitCapture={(event) => { event.preventDefault(); event.stopPropagation(); void handleOk(); }}>
                   <Form.Item
                     name="name"
                     label={t('profile.field.name')}
@@ -189,9 +216,10 @@ export default function ProfileSettingsModal({ open, onClose }: ProfileSettingsM
           },
           {
             key: 'password',
+            disabled: action.busy,
             label: t('profile.tabs.password'),
             children: (
-              <Form form={passwordForm} layout="vertical" onFinish={changePassword}>
+              <Form form={passwordForm} disabled={action.busy} layout="vertical" onSubmitCapture={(event) => { event.preventDefault(); event.stopPropagation(); void handleOk(); }}>
                 <Form.Item
                   name="oldPassword"
                   label={t('profile.password.oldPassword')}
