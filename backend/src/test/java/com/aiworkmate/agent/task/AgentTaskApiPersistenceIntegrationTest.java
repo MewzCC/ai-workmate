@@ -2,8 +2,10 @@ package com.aiworkmate.agent.task;
 
 import com.aiworkmate.integration.AbstractIsolatedAgentIntegrationTest;
 import com.aiworkmate.integration.AgentIntegrationEnvironment;
+import com.aiworkmate.agent.worker.AgentWorkerMapper;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -11,6 +13,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
@@ -18,6 +22,8 @@ import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -36,6 +42,10 @@ class AgentTaskApiPersistenceIntegrationTest extends AbstractIsolatedAgentIntegr
 
     @Autowired
     private AgentTaskEventMapper eventMapper;
+
+    @Autowired private AgentWorkerMapper workerMapper;
+    @Autowired private AgentTaskStepMapper stepMapper;
+    @Autowired private PlatformTransactionManager transactionManager;
 
     @AfterEach
     void cleanTestRows() {
@@ -123,6 +133,53 @@ class AgentTaskApiPersistenceIntegrationTest extends AbstractIsolatedAgentIntegr
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT status || '|' || (confirmation_token_hash IS NULL)::text FROM agent_task WHERE id=?",
                 String.class, expiredTaskId)).isEqualTo("EXPIRED|true");
+    }
+
+    @RepeatedTest(8)
+    void cancellationRacingQueueClaimHasExactlyOneWinner() throws Exception {
+        Long tenantId = jdbcTemplate.queryForObject("SELECT id FROM tenant ORDER BY id LIMIT 1", Long.class);
+        Long userId = user(tenantId, "agent-task-api-race");
+        Long taskId = waitingTask(tenantId, userId, UUID.randomUUID().toString());
+        jdbcTemplate.update("UPDATE agent_task SET status='QUEUED', timeout_at=CURRENT_TIMESTAMP + INTERVAL '1 minute' WHERE id=?", taskId);
+        jdbcTemplate.update("""
+                INSERT INTO agent_task_step(task_id,sequence_no,tool_code,tool_version,schema_hash,args,args_hash,
+                    risk_level,status,trace_id)
+                VALUES (?,1,'todo.query','1.0.0','schema','{}'::jsonb,'args','L0','PENDING','trace-cancel-claim-race')
+                """, taskId);
+        CountDownLatch start = new CountDownLatch(1);
+        var executor = Executors.newFixedThreadPool(2);
+        try {
+            var cancellation = executor.submit(() -> {
+                if (!start.await(5, TimeUnit.SECONDS)) throw new IllegalStateException("Race start timed out");
+                return new TransactionTemplate(transactionManager).execute(status -> {
+                    int changed = taskMapper.cancelOwned(taskId, tenantId, userId, "QUEUED", 0L);
+                    if (changed == 1) stepMapper.cancelPending(taskId);
+                    return changed;
+                });
+            });
+            var claim = executor.submit(() -> {
+                if (!start.await(5, TimeUnit.SECONDS)) throw new IllegalStateException("Race start timed out");
+                return workerMapper.claim("race-worker", "race-lease", LocalDateTime.now().plusMinutes(1), 2);
+            });
+            start.countDown();
+            int cancelled = cancellation.get(10, TimeUnit.SECONDS);
+            AgentTask claimed = claim.get(10, TimeUnit.SECONDS);
+            String finalTask = jdbcTemplate.queryForObject("SELECT status FROM agent_task WHERE id=?", String.class, taskId);
+            String finalStep = jdbcTemplate.queryForObject("SELECT status FROM agent_task_step WHERE task_id=?", String.class, taskId);
+            if (cancelled == 1) {
+                assertThat(claimed).isNull();
+                assertThat(finalTask).isEqualTo("CANCELLED"); assertThat(finalStep).isEqualTo("CANCELLED");
+            } else {
+                assertThat(cancelled).isZero(); assertThat(claimed).isNotNull();
+                assertThat(claimed.getId()).isEqualTo(taskId);
+                assertThat(finalTask).isEqualTo("RUNNING"); assertThat(finalStep).isEqualTo("PENDING");
+                assertThat(taskMapper.cancelOwned(taskId, tenantId, userId, "QUEUED", 0L)).isZero();
+            }
+            assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM agent_tool_invocation WHERE task_id=?", Long.class, taskId)).isZero();
+        } finally {
+            executor.shutdownNow();
+            assertThat(executor.awaitTermination(5, TimeUnit.SECONDS)).isTrue();
+        }
     }
 
     private Long user(Long tenantId, String username) {

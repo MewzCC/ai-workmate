@@ -12,6 +12,15 @@ import java.time.LocalDateTime;
 @Mapper
 public interface AgentWorkerMapper {
 
+    // Lock the task before touching its step, matching the lease recovery lock order.
+    String OWNED_TASK_FOR_STEP = """
+            SELECT task.id FROM agent_task task JOIN agent_task_step step ON step.task_id=task.id
+            WHERE step.id=#{stepId} AND task.status='RUNNING' AND task.worker_id=#{workerId}
+              AND task.lease_token_hash=#{leaseHash} AND task.attempt_count=#{attempt}
+              AND task.lease_until>CURRENT_TIMESTAMP AND task.timeout_at>CURRENT_TIMESTAMP
+            FOR UPDATE OF task
+            """;
+
     @Select("""
             WITH candidate AS (
                 SELECT task.id FROM agent_task task
@@ -35,6 +44,7 @@ public interface AgentWorkerMapper {
                 SELECT step.id FROM agent_task_step step JOIN agent_task task ON task.id=step.task_id
                 WHERE task.id=#{taskId} AND task.status='RUNNING' AND task.worker_id=#{workerId}
                   AND task.lease_token_hash=#{leaseHash} AND task.lease_until>CURRENT_TIMESTAMP
+                  AND task.timeout_at>CURRENT_TIMESTAMP
                   AND task.attempt_count=#{attempt} AND step.status='PENDING'
                   AND NOT EXISTS (SELECT 1 FROM agent_task_step prior WHERE prior.task_id=task.id
                                   AND prior.sequence_no<step.sequence_no AND prior.status<>'SUCCEEDED')
@@ -50,11 +60,13 @@ public interface AgentWorkerMapper {
                                 @Param("stepTimeout") LocalDateTime stepTimeout);
 
     @Update("""
+            WITH owned_task AS (
+            """ + OWNED_TASK_FOR_STEP + """
+            )
             UPDATE agent_task_step step SET status='SUCCEEDED', result=CAST(#{result} AS jsonb),
                 finished_at=CURRENT_TIMESTAMP, version=step.version+1, updated_at=CURRENT_TIMESTAMP
-            FROM agent_task task WHERE step.id=#{stepId} AND step.task_id=task.id
+            FROM owned_task WHERE step.id=#{stepId} AND step.task_id=owned_task.id
               AND step.status='RUNNING' AND step.attempt_count=#{attempt}
-              AND task.worker_id=#{workerId} AND task.lease_token_hash=#{leaseHash}
             """)
     int completeStep(@Param("stepId") long stepId, @Param("attempt") int attempt,
                      @Param("workerId") String workerId, @Param("leaseHash") String leaseHash,
@@ -64,17 +76,21 @@ public interface AgentWorkerMapper {
             UPDATE agent_task SET status='SUCCEEDED', finished_at=CURRENT_TIMESTAMP, worker_id=NULL,
                 lease_token_hash=NULL, lease_until=NULL, heartbeat_at=NULL, version=version+1, updated_at=CURRENT_TIMESTAMP
             WHERE id=#{taskId} AND status='RUNNING' AND worker_id=#{workerId} AND lease_token_hash=#{leaseHash}
+              AND lease_until>CURRENT_TIMESTAMP AND timeout_at>CURRENT_TIMESTAMP
               AND NOT EXISTS (SELECT 1 FROM agent_task_step WHERE task_id=#{taskId} AND status<>'SUCCEEDED')
             """)
     int completeTask(@Param("taskId") long taskId, @Param("workerId") String workerId,
                      @Param("leaseHash") String leaseHash);
 
     @Update("""
-            WITH failed_step AS (
-                UPDATE agent_task_step SET status='FAILED', error_code=#{errorCode},
+            WITH owned_task AS (
+            """ + OWNED_TASK_FOR_STEP + """
+            ), failed_step AS (
+                UPDATE agent_task_step step SET status='FAILED', error_code=#{errorCode},
                     error_message=#{errorMessage}, finished_at=CURRENT_TIMESTAMP,
-                    version=version+1, updated_at=CURRENT_TIMESTAMP
-                WHERE id=#{stepId} AND status='RUNNING' AND attempt_count=#{attempt} RETURNING task_id
+                    version=step.version+1, updated_at=CURRENT_TIMESTAMP
+                FROM owned_task WHERE step.id=#{stepId} AND step.task_id=owned_task.id
+                  AND step.status='RUNNING' AND step.attempt_count=#{attempt} RETURNING step.task_id
             )
             UPDATE agent_task task SET status='FAILED', error_code=#{errorCode}, error_message=#{errorMessage},
                 finished_at=CURRENT_TIMESTAMP, worker_id=NULL, lease_token_hash=NULL, lease_until=NULL,
@@ -87,11 +103,14 @@ public interface AgentWorkerMapper {
              @Param("errorCode") String errorCode, @Param("errorMessage") String errorMessage);
 
     @Update("""
-            WITH uncertain_step AS (
-                UPDATE agent_task_step SET status='FAILED', error_code='TOOL_RESULT_UNKNOWN',
+            WITH owned_task AS (
+            """ + OWNED_TASK_FOR_STEP + """
+            ), uncertain_step AS (
+                UPDATE agent_task_step step SET status='FAILED', error_code='TOOL_RESULT_UNKNOWN',
                     error_message='Write outcome requires manual verification', finished_at=CURRENT_TIMESTAMP,
-                    version=version+1, updated_at=CURRENT_TIMESTAMP
-                WHERE id=#{stepId} AND status='RUNNING' AND attempt_count=#{attempt} RETURNING task_id
+                    version=step.version+1, updated_at=CURRENT_TIMESTAMP
+                FROM owned_task WHERE step.id=#{stepId} AND step.task_id=owned_task.id
+                  AND step.status='RUNNING' AND step.attempt_count=#{attempt} RETURNING step.task_id
             )
             UPDATE agent_task task SET status='PARTIALLY_SUCCEEDED', error_code='TOOL_RESULT_UNKNOWN',
                 error_message='Write outcome requires manual verification', finished_at=CURRENT_TIMESTAMP,
@@ -104,10 +123,13 @@ public interface AgentWorkerMapper {
                            @Param("workerId") String workerId, @Param("leaseHash") String leaseHash);
 
     @Update("""
-            WITH reset_step AS (
+            WITH owned_task AS (
+            """ + OWNED_TASK_FOR_STEP + """
+            ), reset_step AS (
                 UPDATE agent_task_step step SET status='PENDING', attempt_count=step.attempt_count+1,
                     timeout_at=NULL, started_at=NULL, version=step.version+1, updated_at=CURRENT_TIMESTAMP
-                WHERE step.id=#{stepId} AND step.status='RUNNING' AND step.risk_level='L0'
+                FROM owned_task WHERE step.id=#{stepId} AND step.task_id=owned_task.id
+                  AND step.status='RUNNING' AND step.risk_level='L0'
                   AND step.attempt_count=#{attempt} AND step.attempt_count<2 RETURNING step.task_id
             )
             UPDATE agent_task task SET status='QUEUED', attempt_count=task.attempt_count+1,
@@ -122,7 +144,7 @@ public interface AgentWorkerMapper {
     @Update("""
             UPDATE agent_task SET heartbeat_at=CURRENT_TIMESTAMP, lease_until=#{leaseUntil}, updated_at=CURRENT_TIMESTAMP
             WHERE id=#{taskId} AND status='RUNNING' AND worker_id=#{workerId}
-              AND lease_token_hash=#{leaseHash} AND timeout_at>CURRENT_TIMESTAMP
+              AND lease_token_hash=#{leaseHash} AND lease_until>CURRENT_TIMESTAMP AND timeout_at>CURRENT_TIMESTAMP
             """)
     int heartbeat(@Param("taskId") long taskId, @Param("workerId") String workerId,
                   @Param("leaseHash") String leaseHash, @Param("leaseUntil") LocalDateTime leaseUntil);
