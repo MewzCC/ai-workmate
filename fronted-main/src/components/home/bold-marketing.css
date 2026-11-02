@@ -121,9 +121,11 @@
 /* Direction two: oversized print, tactile cards and a horizontal story. */
 .bm-kinetic {
   --ground: #e9ff52; --ink: #1427e8; --muted: #526622; --edge: #1427e85c; --accent: #1427e8;
+  --bm-nav-height: 90px;
 }
 .bm-kinetic .bm-design-switch { background: #1427e8; color: #e9ff52; --muted: #e9ff5280; --ink: #e9ff52; --edge: #e9ff5255; }
-.bm-kinetic .bm-nav { height: 90px; }
+.bm-kinetic .bm-nav { height: var(--bm-nav-height); position: sticky; top: 0; z-index: 60; background: var(--ground); }
+.bm-kinetic main [id] { scroll-margin-top: calc(var(--bm-nav-height) + 16px); }
 .bm-kinetic .bm-brand-symbol { font-size: 40px; }
 .bm-kinetic .bm-cta { background: var(--ink); color: var(--ground); border: 2px solid var(--ink); border-radius: 0; box-shadow: 5px 5px 0 var(--ground),6px 6px 0 var(--ink); }
 .bm-kinetic .bm-cta:hover { background: var(--ground); color: var(--ink); }
@@ -161,7 +163,7 @@
 .bm-ticker span { display: flex; align-items: center; gap: 35px; font-size: 28px; font-weight: 750; letter-spacing: -.04em; white-space: nowrap; padding-right: 35px; }
 .bm-ticker b { font-size: 40px; line-height: .8; }
 .bm-rail { height: 320svh; background: #f5f2e9; color: #1427e8; }
-.bm-rail-sticky { position: sticky; top: 0; height: 100svh; overflow: hidden; }
+.bm-rail-sticky { position: sticky; top: var(--bm-nav-height, 0px); height: calc(100svh - var(--bm-nav-height, 0px)); overflow: hidden; }
 .bm-rail-label { position: absolute; left: 4%; top: 28px; display: flex; gap: 25px; align-items: center; font-size: 10px; z-index: 10; }
 .bm-rail-track { display: flex; height: 100%; width: 300%; transform: translateX(calc(var(--rail-progress) * -66.666666%)); will-change: transform; }
 .bm-rail-panel { position: relative; width: 33.333333%; height: 100%; padding: 80px 6% 45px; overflow: hidden; flex-shrink: 0; }
@@ -286,6 +288,7 @@
   .bm-rail-art { width: 260px; height: 260px; right: 15%; }
 }
 @media (max-width: 720px) {
+  .bm-kinetic { --bm-nav-height: 76px; }
   .bm-nav, .bm-kinetic .bm-nav { height: 76px; padding-inline: 6%; }
   .bm-brand strong { font-size: 15px; }
   .bm-brand-symbol { font-size: 30px; }

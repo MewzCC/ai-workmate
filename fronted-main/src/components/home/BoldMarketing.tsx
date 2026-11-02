@@ -100,7 +100,8 @@ export default function BoldMarketing() {
       }
       if(rail) {
         const box=rail.getBoundingClientRect();
-        const progress=Math.min(1,Math.max(0,-box.top/Math.max(1,box.height-height)));
+        const navHeight=node.querySelector<HTMLElement>('.bm-nav')?.getBoundingClientRect().height??0;
+        const progress=Math.min(1,Math.max(0,(navHeight-box.top)/Math.max(1,box.height-height+navHeight)));
         node.style.setProperty('--rail-progress',String(motion.matches ? 0 : progress));
       }
     };
