@@ -1,4 +1,5 @@
 export default {
+  incompletePageData: '数据未能完整加载，请缩小范围或刷新后重试。',
   confirm: '确认',
   cancel: '取消',
   save: '保存',
