@@ -38,6 +38,7 @@ public class ConversationServiceImpl implements ConversationService {
     private final MessageMapper messageMapper;
     private final AttachmentService attachmentService;
     private final ObjectMapper objectMapper;
+    private final com.aiworkmate.agent.task.AgentTaskMapper agentTaskMapper;
 
     @Override
     @Transactional(readOnly = true)
@@ -87,7 +88,11 @@ public class ConversationServiceImpl implements ConversationService {
     @Override
     @Transactional
     public void deleteConversation(Long userId, Long conversationId) {
-        requireOwned(userId, conversationId);
+        Conversation owned = requireOwned(userId, conversationId);
+        Conversation locked = conversationMapper.lockOwned(owned.getTenantId(), userId, conversationId);
+        if (locked == null) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        if (agentTaskMapper.countActiveForConversation(locked.getTenantId(), userId, conversationId, null) != 0)
+            throw new BusinessException(ErrorCode.INVALID_TASK_STATE, "validation.chat.activeTask");
         attachmentService.deleteConversationAttachments(userId, conversationId);
         messageMapper.delete(new LambdaQueryWrapper<Message>().eq(Message::getConversationId, conversationId));
         conversationMapper.deleteById(conversationId);

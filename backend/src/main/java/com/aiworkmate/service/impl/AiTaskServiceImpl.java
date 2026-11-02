@@ -51,6 +51,7 @@ public class AiTaskServiceImpl implements AiTaskService {
     private final AgentHashing hashing;
     private final ObjectMapper objectMapper;
     private final ApplicationEventPublisher applicationEventPublisher;
+    private final AgentChatResultService chatTasks;
 
     @Override
     @Transactional
@@ -63,9 +64,12 @@ public class AiTaskServiceImpl implements AiTaskService {
         List<ToolDefinition> allowed = registry.resolveAllowedTools(access(user), request.getPageId());
         if (allowed.isEmpty()) throw new BusinessException(ErrorCode.AI_TASK_CAPABILITY_UNAVAILABLE);
 
+        var conversation = chatTasks.lockPlanningConversation(user, request.getPageId(), request.getConversationId());
+
         ObjectNode requestNode = objectMapper.createObjectNode().put("input", request.getInput())
                 .put("pageId", request.getPageId());
         requestNode.set("pageContext", safeContext);
+        if (request.getConversationId() != null) requestNode.put("conversationId", request.getConversationId());
         AgentTask task = newTask(request, safeContext, user);
         if (taskMapper.insertReceived(task) != 1 || task.getId() == null)
             throw new IllegalStateException("Agent task persistence failed");
@@ -78,6 +82,8 @@ public class AiTaskServiceImpl implements AiTaskService {
                     || !user.userId().equals(existing.getUserId())) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
             return response(existing, stepMapper.selectByTaskId(existing.getId()));
         }
+        if (conversation != null && taskMapper.countActiveForConversation(user.tenantId(), user.userId(), conversation.getId(), task.getId()) != 0)
+            throw new BusinessException(ErrorCode.INVALID_TASK_STATE, "validation.chat.activeTask");
         if (taskMapper.transition(task.getId(), "RECEIVED", "PLANNING", 0L) != 1)
             throw new BusinessException(ErrorCode.INVALID_TASK_STATE);
 
@@ -101,6 +107,7 @@ public class AiTaskServiceImpl implements AiTaskService {
         task.setPlan(json(built.plan()));
         task.setPlanHash(built.planHash());
         task.setMaxRiskLevel(built.riskLevel());
+        if (conversation != null) chatTasks.persistPlanPrompt(conversation, task);
         return response(task, built.steps());
     }
 
@@ -186,6 +193,7 @@ public class AiTaskServiceImpl implements AiTaskService {
         task.setTaskNo(UUID.randomUUID().toString());
         task.setTenantId(user.tenantId());
         task.setUserId(user.userId());
+        task.setConversationId(request.getConversationId());
         task.setPageId(request.getPageId());
         task.setInput(request.getInput());
         task.setPageContext(json(safeContext));

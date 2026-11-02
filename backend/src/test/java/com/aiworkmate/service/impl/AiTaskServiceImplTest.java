@@ -50,7 +50,7 @@ class AiTaskServiceImplTest {
         service = new AiTaskServiceImpl(runtime, aiRuntime, registry, planner,
                 new PageContextFilter(mapper, runtime, new PageCapabilityCatalog()),
                 taskMapper, stepMapper, idempotency, events,
-                taskApiService, rateLimiter, hashing, mapper, eventPublisher);
+                taskApiService, rateLimiter, hashing, mapper, eventPublisher, mock(AgentChatResultService.class));
         ToolDefinition tool = tool();
         when(registry.resolveAllowedTools(any(), eq("todo-list"))).thenReturn(List.of(tool));
         when(planner.plan(anyString(), eq("todo-list"), any(), anyList())).thenReturn(new PlannerCandidate(

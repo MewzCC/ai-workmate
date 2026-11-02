@@ -15,13 +15,21 @@ import java.util.List;
 public interface AgentTaskMapper extends BaseMapper<AgentTask> {
 
     @Insert("""
-            INSERT INTO agent_task(task_no, tenant_id, user_id, page_id, input, page_context,
+            INSERT INTO agent_task(task_no, tenant_id, user_id, conversation_id, page_id, input, page_context,
                 plan_version, max_risk_level, status, attempt_count, tool_call_count, trace_id, version)
-            VALUES(#{taskNo}, #{tenantId}, #{userId}, #{pageId}, #{input}, CAST(#{pageContext} AS jsonb),
+            VALUES(#{taskNo}, #{tenantId}, #{userId}, #{conversationId}, #{pageId}, #{input}, CAST(#{pageContext} AS jsonb),
                 #{planVersion}, #{maxRiskLevel}, #{status}, #{attemptCount}, #{toolCallCount}, #{traceId}, #{version})
             """)
     @Options(useGeneratedKeys = true, keyProperty = "id")
     int insertReceived(AgentTask task);
+
+    @Select("SELECT count(*) FROM agent_task WHERE tenant_id=#{tenantId} AND user_id=#{userId} AND conversation_id=#{conversationId} AND id<>COALESCE(#{excludedId,jdbcType=BIGINT},0) AND status IN ('RECEIVED','PLANNING','PLAN_READY','WAITING_CONFIRMATION','QUEUED','RUNNING')")
+    long countActiveForConversation(@Param("tenantId") Long tenantId, @Param("userId") Long userId,
+                                    @Param("conversationId") Long conversationId, @Param("excludedId") Long excludedId);
+
+    @Select("SELECT * FROM agent_task WHERE tenant_id=#{tenantId} AND user_id=#{userId} AND conversation_id=#{conversationId} ORDER BY id DESC LIMIT 1")
+    AgentTask latestForConversation(@Param("tenantId") Long tenantId, @Param("userId") Long userId,
+                                    @Param("conversationId") Long conversationId);
 
     @Select("""
             SELECT * FROM agent_task
