@@ -1,7 +1,7 @@
 import i18n from '@/i18n';
 import { buildApiHeaders } from '@/lib/apiHeaders';
 import type { ComponentKey } from '@/types/oa';
-import { notifyAuthResponseStatus, notifyPermissionsChanged } from '@/lib/authEvents';
+import { authenticatedFetch as fetch, notifyAuthResponseStatus, notifyPermissionsChanged, readAuthenticatedJson } from '@/lib/authEvents';
 
 export interface AccessUser {
   id: number;
@@ -87,14 +87,14 @@ async function request<T>(path = '', init?: RequestInit): Promise<T> {
     ...init,
     headers: buildApiHeaders(Boolean(init?.body), init?.headers),
   });
-  const result = await response.json().catch(() => null) as ApiResult<T> | null;
-  notifyAuthResponseStatus(response.status);
+  const result = await readAuthenticatedJson(response) as ApiResult<T> | null;
+  notifyAuthResponseStatus(response.status, response);
   const isVoidResponse = init?.method === 'DELETE';
   if (!response.ok || !result || result.code !== 200
       || (!isVoidResponse && result.data === null)) {
     throw new Error(result?.message || i18n.t('errors.access.requestFailed'));
   }
-  if (init?.method && init.method !== 'GET') notifyPermissionsChanged();
+  if (init?.method && init.method !== 'GET') notifyPermissionsChanged(response);
   return (result.data ?? null) as T;
 }
 

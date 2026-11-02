@@ -1,6 +1,6 @@
 import { request, queryString, type PageResponse } from '@/lib/oaApi';
 import { buildApiHeaders } from '@/lib/apiHeaders';
-import { notifyAuthResponseStatus } from '@/lib/authEvents';
+import { authenticatedFetch as fetch, notifyAuthResponseStatus, readAuthenticatedJson, readAuthenticatedBlob } from '@/lib/authEvents';
 import i18n from '@/i18n';
 
 // ==================== 资产台账 ====================
@@ -529,27 +529,33 @@ export const adminAssetsApi = {
   listSealUsageDocuments: (id: number) =>
     request<SealUsageDocument[]>(`${PREFIX}/seal-usages/${id}/documents`),
 
-  uploadSealUsageDocument: async (id: number, file: File): Promise<SealUsageDocument> => {
+  uploadSealUsageDocument: async (id: number, file: File, isCurrent: () => boolean = () => true): Promise<SealUsageDocument> => {
+    if (!isCurrent()) throw new DOMException('', 'AbortError');
     const body = new FormData();
     body.append('file', file);
     const res = await fetch(`/api${PREFIX}/seal-usages/${id}/documents`, {
       method: 'POST', credentials: 'include', headers: buildApiHeaders(false), body,
     });
-    notifyAuthResponseStatus(res.status);
-    const json = await res.json().catch(() => null) as ApiResult<SealUsageDocument> | null;
+    if (!isCurrent()) throw new DOMException('', 'AbortError');
+    notifyAuthResponseStatus(res.status, res);
+    const json = await readAuthenticatedJson(res) as ApiResult<SealUsageDocument> | null;
     if (!res.ok || !json || json.code !== 200 || json.data === null) {
       throw new Error(json?.message || i18n.t('adminAssets.seal.document.uploadFailed'));
     }
     return json.data;
   },
 
-  downloadSealUsageDocument: async (document: SealUsageDocument): Promise<void> => {
+  downloadSealUsageDocument: async (document: SealUsageDocument, isCurrent: () => boolean = () => true): Promise<void> => {
+    if (!isCurrent()) return;
     const res = await fetch(document.contentUrl, {
       credentials: 'include', headers: buildApiHeaders(false),
     });
-    notifyAuthResponseStatus(res.status);
+    if (!isCurrent()) return;
+    notifyAuthResponseStatus(res.status, res);
     if (!res.ok) throw new Error(i18n.t('adminAssets.seal.document.downloadFailed'));
-    const url = URL.createObjectURL(await res.blob());
+    const blob = await readAuthenticatedBlob(res);
+    if (!isCurrent()) return;
+    const url = URL.createObjectURL(blob);
     const link = window.document.createElement('a');
     link.href = url;
     link.download = document.displayName;

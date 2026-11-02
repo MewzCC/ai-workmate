@@ -3,6 +3,7 @@ export default {
   requestFailed: 'Request failed',
   networkError: 'Network error',
   unknown: 'Unknown error',
+  authResponseStale: 'Your identity or permissions changed. This result is no longer displayed; check the task or business record.',
 
   oa: {
     serviceUnavailable: 'Unable to reach the OA service. Please make sure the backend is running.',

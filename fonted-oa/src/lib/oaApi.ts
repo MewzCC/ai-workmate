@@ -11,7 +11,7 @@ import type {
 } from '@/types/oa';
 import { buildApiHeaders } from '@/lib/apiHeaders';
 import i18n from '@/i18n';
-import { notifyAuthResponseStatus } from '@/lib/authEvents';
+import { authenticatedFetch as fetch, assertAuthResponseCurrent, captureAuthResponseScope, isAuthResponseCurrent, notifyAuthResponseStatus, readAuthenticatedJson, readAuthenticatedChunk } from '@/lib/authEvents';
 import { requirePageUiCommandCodes } from '@/lib/pageUiCommands';
 
 const BASE = '/api';
@@ -43,7 +43,7 @@ export class OaApiError extends Error {
 }
 
 async function parseResult<T>(res: Response): Promise<T> {
-  const json = await res.json().catch(() => null) as ApiResult<T> | null;
+  const json = await readAuthenticatedJson(res) as ApiResult<T> | null;
   if (!res.ok || !json || json.code !== 200) {
     const status = res.status || 500;
     const error = new OaApiError(
@@ -53,7 +53,7 @@ async function parseResult<T>(res: Response): Promise<T> {
       json?.requestId,
       json?.traceId,
     );
-    notifyAuthResponseStatus(status);
+    notifyAuthResponseStatus(status, res);
     throw error;
   }
   // DELETE 等空数据响应的 data 为 null，属正常成功场景（chatApi.parse 同此处理）
@@ -225,6 +225,7 @@ export function subscribeAiTaskEvents(
   handlers: AiTaskEventSubscription,
 ): () => void {
   const controller = new AbortController();
+  const responseScope = captureAuthResponseScope();
   const seenIds = new Set<string>();
   const seenOrder: string[] = [];
   let lastEventId = '';
@@ -232,7 +233,8 @@ export function subscribeAiTaskEvents(
 
   const connect = async () => {
     let retryMilliseconds = 750;
-    while (!controller.signal.aborted && !terminal) {
+    while (!controller.signal.aborted && !terminal && isAuthResponseCurrent(responseScope)) {
+      let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
       try {
         const headers: Record<string, string> = { Accept: 'text/event-stream' };
         if (lastEventId) headers['Last-Event-ID'] = lastEventId;
@@ -244,19 +246,20 @@ export function subscribeAiTaskEvents(
           signal: controller.signal,
         });
         if (!response.ok || !response.body) {
-          notifyAuthResponseStatus(response.status);
+          notifyAuthResponseStatus(response.status, response);
           throw new OaApiError(statusMessage(response.status), response.status, statusErrorCode(response.status));
         }
+        assertAuthResponseCurrent(response);
         handlers.onConnected?.();
         retryMilliseconds = 750;
-        const reader = response.body.getReader();
+        reader = response.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
         while (!controller.signal.aborted && !terminal) {
-          const { done, value } = await reader.read();
+          const { done, value } = await readAuthenticatedChunk(response, reader);
           buffer += decoder.decode(value, { stream: !done }).replaceAll('\r\n', '\n');
           let boundary = buffer.indexOf('\n\n');
-          while (boundary >= 0) {
+          while (boundary >= 0 && !controller.signal.aborted && !terminal && isAuthResponseCurrent(responseScope)) {
             const event = parseSseFrame(buffer.slice(0, boundary));
             buffer = buffer.slice(boundary + 2);
             if (event && (!event.id || !seenIds.has(event.id))) {
@@ -266,6 +269,7 @@ export function subscribeAiTaskEvents(
                 seenOrder.push(event.id);
                 if (seenOrder.length > 512) seenIds.delete(seenOrder.shift() as string);
               }
+              assertAuthResponseCurrent(response);
               handlers.onEvent(event);
               terminal = isTerminalEvent(event);
             }
@@ -274,7 +278,7 @@ export function subscribeAiTaskEvents(
           if (done) break;
         }
       } catch (error) {
-        if (controller.signal.aborted) return;
+        if (controller.signal.aborted || !isAuthResponseCurrent(responseScope)) return;
         const apiError = error instanceof OaApiError
           ? error
           : new OaApiError(i18n.t('errors.oa.serviceUnavailable'), 0, 'SERVICE_UNAVAILABLE');
@@ -282,8 +286,8 @@ export function subscribeAiTaskEvents(
           handlers.onError(apiError);
           return;
         }
-      }
-      if (!terminal && !controller.signal.aborted) {
+      } finally { if (reader) void reader.cancel().catch(() => undefined); }
+      if (!terminal && !controller.signal.aborted && isAuthResponseCurrent(responseScope)) {
         await retryDelay(retryMilliseconds, controller.signal);
         retryMilliseconds = Math.min(retryMilliseconds * 2, 5_000);
       }

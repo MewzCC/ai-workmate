@@ -1,7 +1,7 @@
 import i18n from '@/i18n';
 import { buildApiHeaders } from '@/lib/apiHeaders';
 import type { AuthUser } from './authApi';
-import { notifyAuthResponseStatus } from '@/lib/authEvents';
+import { authenticatedFetch as fetch, notifyAuthResponseStatus, readAuthenticatedJson } from '@/lib/authEvents';
 
 interface ApiResult<T> {
   code: number;
@@ -16,9 +16,9 @@ export interface WallpaperResponse {
 
 async function parse<T>(responsePromise: Promise<Response>, fallbackMessage: string, requireData = true): Promise<T> {
   const response = await responsePromise;
-  const result = await response.json().catch(() => null) as ApiResult<T> | null;
+  const result = await readAuthenticatedJson(response) as ApiResult<T> | null;
   if (!response.ok || !result || result.code !== 200 || (requireData && !result.data)) {
-    notifyAuthResponseStatus(response.status);
+    notifyAuthResponseStatus(response.status, response);
     throw new Error(result?.message || fallbackMessage);
   }
   return result.data as T;

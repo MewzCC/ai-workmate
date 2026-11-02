@@ -1,6 +1,6 @@
 import i18n from '@/i18n';
 import { buildApiHeaders } from '@/lib/apiHeaders';
-import { notifyAuthResponseStatus } from '@/lib/authEvents';
+import { authenticatedFetch as fetch, notifyAuthResponseStatus, readAuthenticatedJson } from '@/lib/authEvents';
 
 interface ApiResult<T> {
   code: number;
@@ -35,9 +35,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     credentials: 'include',
     headers: buildApiHeaders(Boolean(init?.body), init?.headers),
   });
-  const body = (await response.json().catch(() => null)) as ApiResult<T> | null;
+  const body = (await readAuthenticatedJson(response)) as ApiResult<T> | null;
   if (!response.ok || !body || body.code !== 200) {
-    notifyAuthResponseStatus(response.status);
+    notifyAuthResponseStatus(response.status, response);
     throw new Error(body?.message || i18n.t('errors.notification.requestFailed'));
   }
   return body.data as T;

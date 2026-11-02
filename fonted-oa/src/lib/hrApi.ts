@@ -1,6 +1,6 @@
 import i18n from '@/i18n';
 import { buildApiHeaders } from '@/lib/apiHeaders';
-import { notifyAuthResponseStatus } from '@/lib/authEvents';
+import { authenticatedFetch as fetch, notifyAuthResponseStatus, readAuthenticatedJson, readAuthenticatedBlob } from '@/lib/authEvents';
 
 export interface HrDepartment {
   id: number;
@@ -177,8 +177,8 @@ async function hrRequest<T>(path: string, init?: RequestInit): Promise<T> {
     credentials: 'include',
     headers: { ...buildApiHeaders(hasBody), ...init?.headers },
   });
-  notifyAuthResponseStatus(res.status);
-  const json = await res.json().catch(() => null) as ApiResult<T> | null;
+  notifyAuthResponseStatus(res.status, res);
+  const json = await readAuthenticatedJson(res) as ApiResult<T> | null;
   if (!res.ok || !json || json.code !== 200 || json.data === null) {
     throw new Error(json?.message || i18n.t('errors.hr.employeeLoadFailed'));
   }
@@ -188,8 +188,8 @@ async function hrRequest<T>(path: string, init?: RequestInit): Promise<T> {
 export const hrApi = {
   overview: async (): Promise<OrganizationOverview> => {
     const res = await fetch('/api/hr/organization', { credentials: 'include', headers: buildApiHeaders(false) });
-    notifyAuthResponseStatus(res.status);
-    const json = await res.json().catch(() => null) as ApiResult<OrganizationOverview> | null;
+    notifyAuthResponseStatus(res.status, res);
+    const json = await readAuthenticatedJson(res) as ApiResult<OrganizationOverview> | null;
     if (!res.ok || !json || json.code !== 200 || json.data === null) {
       throw new Error(json?.message || i18n.t('errors.hr.organizationLoadFailed'));
     }
@@ -200,8 +200,8 @@ export const hrApi = {
       credentials: 'include',
       headers: buildApiHeaders(false),
     });
-    notifyAuthResponseStatus(res.status);
-    const json = await res.json().catch(() => null) as ApiResult<EmployeeDetail> | null;
+    notifyAuthResponseStatus(res.status, res);
+    const json = await readAuthenticatedJson(res) as ApiResult<EmployeeDetail> | null;
     if (!res.ok || !json || json.code !== 200 || json.data === null) {
       throw new Error(json?.message || i18n.t('errors.hr.employeeLoadFailed'));
     }
@@ -220,8 +220,8 @@ export const hrApi = {
     const res = await fetch(`/api/hr/employees/${employeeUserId}/documents`, {
       method: 'POST', credentials: 'include', headers: buildApiHeaders(false), body,
     });
-    notifyAuthResponseStatus(res.status);
-    const json = await res.json().catch(() => null) as ApiResult<EmployeeDocument> | null;
+    notifyAuthResponseStatus(res.status, res);
+    const json = await readAuthenticatedJson(res) as ApiResult<EmployeeDocument> | null;
     if (!res.ok || !json || json.code !== 200 || json.data === null) {
       throw new Error(json?.message || i18n.t('employeeFile.documents.uploadFailed'));
     }
@@ -231,9 +231,9 @@ export const hrApi = {
     const res = await fetch(document.contentUrl, {
       credentials: 'include', headers: buildApiHeaders(false),
     });
-    notifyAuthResponseStatus(res.status);
+    notifyAuthResponseStatus(res.status, res);
     if (!res.ok) throw new Error(i18n.t('employeeFile.documents.downloadFailed'));
-    const url = URL.createObjectURL(await res.blob());
+    const url = URL.createObjectURL(await readAuthenticatedBlob(res));
     const link = window.document.createElement('a');
     link.href = url;
     link.download = document.displayName;

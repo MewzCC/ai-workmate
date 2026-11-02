@@ -1,7 +1,7 @@
 import i18n from '@/i18n';
 import { buildApiHeaders } from '@/lib/apiHeaders';
 import type { ComponentKey } from '@/types/oa';
-import { notifyAuthResponseStatus } from '@/lib/authEvents';
+import { authenticatedFetch as fetch, notifyAuthResponseStatus, readAuthenticatedJson } from '@/lib/authEvents';
 
 export interface NavigationRoute {
   routeKey: string;
@@ -28,8 +28,8 @@ export async function getNavigation(): Promise<NavigationRoute[]> {
     cache: 'no-store',
     headers: buildApiHeaders(false),
   });
-  const result = await response.json().catch(() => null) as ApiResult<NavigationRoute[]> | null;
-  notifyAuthResponseStatus(response.status);
+  const result = await readAuthenticatedJson(response) as ApiResult<NavigationRoute[]> | null;
+  notifyAuthResponseStatus(response.status, response);
   if (!response.ok || !result || result.code !== 200 || !result.data) {
     throw new Error(result?.message || i18n.t('errors.navigation.loadFailed'));
   }
