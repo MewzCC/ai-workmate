@@ -29,6 +29,8 @@ const aiPermission = {
   tools: {
     hr_change_reviewer_query: { name: '查询人事审批候选人', description: '按姓名分页查询同租户有效且具有实时人事管理权限的审批人，排除本人。' },
     visitor_host_query: { name: '查询访客接待候选人', description: '按姓名分页查询同租户有效接待人，仅返回编号和姓名。' },
+    asset_department_query: { name: '查询资产所属部门', description: '按名称分页查询本租户有效部门，仅返回编号和名称。' },
+    asset_custodian_query: { name: '查询资产保管候选人', description: '在指定部门按姓名查询有效人员，仅返回编号、姓名和部门编号。' },
     page_ui_prepare: { name: '准备页面交互', description: '只准备白名单内的导航、筛选、详情、未提交表单与刷新指令，不执行业务提交。' },
     todo_query: { name: '查询本人待办', description: '只读取分配给当前用户的审批待办。' },
     leave_mine: { name: '查询本人请假', description: '读取当前用户自己的请假申请与状态。' },

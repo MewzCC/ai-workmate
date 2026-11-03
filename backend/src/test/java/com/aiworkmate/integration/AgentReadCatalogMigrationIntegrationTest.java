@@ -71,6 +71,9 @@ class AgentReadCatalogMigrationIntegrationTest extends AbstractIsolatedAgentInte
         String starter = role(tenant, "START_"+suffix, "route:approval-start");
         String member = role(tenant, "MEMBER_"+suffix, null);
         long direct = user(tenant, manager), assigned = user(tenant, member), unassigned = user(tenant, starter);
+        String assetRole = role(tenant, "ASSET_" + suffix, "asset:write");
+        long assetUser = user(tenant, assetRole);
+        jdbc.update("INSERT INTO user_role(tenant_id,user_id,role_code) VALUES (?,?,?)", tenant, assetUser, assetRole);
         jdbc.update("INSERT INTO user_role(tenant_id,user_id,role_code) VALUES (?,?,?)", tenant, assigned, manager);
         long otherTenant = jdbc.queryForObject("INSERT INTO tenant(code,name) VALUES (?,'synthetic other tenant') RETURNING id", Long.class, "UPGRADE_"+suffix);
         String otherManager = role(otherTenant, "OTHER_"+suffix, "access:manage");
@@ -86,11 +89,15 @@ class AgentReadCatalogMigrationIntegrationTest extends AbstractIsolatedAgentInte
         assertThat(version(assigned)).isEqualTo(2);
         assertThat(version(unassigned)).isEqualTo(1);
         assertThat(version(otherUser)).isEqualTo(1);
+        assertThat(version(assetUser)).isEqualTo(2);
+        assertThat(jdbc.queryForList("SELECT permission_code FROM rbac_role_permission WHERE tenant_id=? AND role_code=?", String.class, tenant, assetRole))
+                .contains("agent:tool:asset.department.query", "agent:tool:asset.custodian.query");
 
         // A new Flyway instance validates checksums and executes nothing after the upgrade.
         flyway().validate();
         assertThat(flyway().migrate().migrationsExecuted).isZero();
         assertThat(flyway().info().pending()).isEmpty();
+        assertThat(version(assetUser)).isEqualTo(2);
         assertThat(version(direct)).isEqualTo(2);
         assertThat(version(assigned)).isEqualTo(2);
     }

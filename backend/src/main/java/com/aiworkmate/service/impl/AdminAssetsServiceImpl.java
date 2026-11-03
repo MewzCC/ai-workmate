@@ -124,7 +124,15 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
     @Override
     @Transactional(readOnly = true)
     public PageResponse<com.aiworkmate.dto.AssetAssignmentOption> assetDepartmentOptions(Long userId, String keyword, int page, int size) {
+        return assetDepartmentOptions(userId, null, keyword, page, size);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<com.aiworkmate.dto.AssetAssignmentOption> assetDepartmentOptions(Long userId, Long expectedTenantId, String keyword, int page, int size) {
         ResolvedUserAccess actor = requirePermission(userId, "asset:write");
+        if (expectedTenantId != null && !expectedTenantId.equals(actor.tenantId()))
+            throw new BusinessException(ErrorCode.RESOURCE_FORBIDDEN);
         String search = assetCandidateKeyword(keyword, page, size);
         return PageResponse.of(accessControlMapper.selectAssetDepartmentOptions(actor.tenantId(), search, size, (page - 1L) * size),
                 accessControlMapper.countAssetDepartmentOptions(actor.tenantId(), search), page, size);
@@ -139,7 +147,15 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
     @Override
     @Transactional(readOnly = true)
     public PageResponse<com.aiworkmate.dto.AssetAssignmentOption> assetCustodianOptions(Long userId, Long departmentId, String keyword, int page, int size) {
+        return assetCustodianOptions(userId, null, departmentId, keyword, page, size);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<com.aiworkmate.dto.AssetAssignmentOption> assetCustodianOptions(Long userId, Long expectedTenantId, Long departmentId, String keyword, int page, int size) {
         ResolvedUserAccess actor = requirePermission(userId, "asset:write");
+        if (expectedTenantId != null && !expectedTenantId.equals(actor.tenantId()))
+            throw new BusinessException(ErrorCode.RESOURCE_FORBIDDEN);
         String search = assetCandidateKeyword(keyword, page, size);
         if (departmentId == null || departmentId < 1)
             throw new BusinessException(ErrorCode.REQUEST_INVALID);

@@ -60,6 +60,16 @@ describe('Agent tool business navigation', () => {
     const step = { ...completed, toolCode: 'page.ui.prepare', result: { pageId: 'todo', code: 'ui.navigate', targetPageId: 'dictionary', fields: [] } };
     expect(agentTaskNavigationTarget({ status: 'SUCCEEDED', steps: [step] })).toBeNull();
   });
+  it('routes asset candidates to the authorized ledger without selecting a candidate as an asset', () => {
+    const menus: OaMenuItem[] = [{ id: 'asset-ledger', name: 'Assets', type: 'page', visible: true, sort: 1 }];
+    for (const toolCode of ['asset.department.query', 'asset.custodian.query']) {
+      const step = { ...completed, toolCode, result: { items: [{ id: 11, name: 'Synthetic' }], total: 1, page: 1, size: 20 } };
+      const target = agentTaskNavigationTarget({ status: 'SUCCEEDED', steps: [step] });
+      expect(target).toEqual({ pageId: 'asset-ledger', recordId: undefined });
+      expect(resolveAgentToolTargetPath(target!.pageId, target!.recordId, menus)).toBe('/oa/asset-ledger');
+      expect(resolveAgentToolTargetPath(target!.pageId, target!.recordId, [])).toBeNull();
+    }
+  });
   it('distinguishes dictionary parent and child receipts without trusting output URLs or arguments', () => {
     const menus: OaMenuItem[] = [{ id: 'dictionary', name: 'Dictionary', type: 'page', visible: true, sort: 1 }];
     for (const kind of ['type', 'item']) for (const operation of ['create', 'update', 'updateStatus']) {

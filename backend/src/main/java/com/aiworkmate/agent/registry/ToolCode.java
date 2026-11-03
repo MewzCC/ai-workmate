@@ -79,6 +79,8 @@ public enum ToolCode {
     APPROVAL_APPLICATION_REOPEN("approval.application.reopen", SideEffect.SINGLE_WRITE),
     APPROVAL_APPLICATION_REMIND("approval.application.remind", SideEffect.SINGLE_WRITE),
     ASSET_QUERY("asset.query"),
+    ASSET_DEPARTMENT_QUERY("asset.department.query"),
+    ASSET_CUSTODIAN_QUERY("asset.custodian.query"),
     ASSET_CREATE("asset.create", SideEffect.SINGLE_WRITE),
     ASSET_UPDATE("asset.update", SideEffect.SINGLE_WRITE),
     ASSET_CLAIM("asset.claim", SideEffect.SINGLE_WRITE),

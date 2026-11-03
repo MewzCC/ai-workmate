@@ -63,6 +63,8 @@ const EXACT_TARGETS: Record<string, string> = {
   'hr.organization.query': 'org-tree',
   'hr.employee.query': 'employee-files',
   'hr.change.query': 'employee-change',
+  'asset.department.query': 'asset-ledger',
+  'asset.custodian.query': 'asset-ledger',
   'hr.change.apply': 'employee-change',
   'hr.change.approve': 'employee-change',
   'hr.change.reject': 'employee-change',

@@ -46,6 +46,16 @@ final class AgentReadCatalogFixture {
                 args.put("keyword", label);
             }
             case VISITOR_HOST_QUERY -> args.put("keyword", label);
+            case ASSET_DEPARTMENT_QUERY -> {
+                id("INSERT INTO department(tenant_id,code,name) VALUES (?,?,?) RETURNING id", tenant, label, label);
+                args.put("keyword", label);
+            }
+            case ASSET_CUSTODIAN_QUERY -> {
+                long department = id("INSERT INTO department(tenant_id,code,name) VALUES (?,?,?) RETURNING id", tenant, label, label);
+                long person = candidate();
+                jdbc.update("UPDATE app_user SET department_id=? WHERE id=?", department, person);
+                args.put("departmentId", department).put("keyword", label);
+            }
             case ATTENDANCE_QUERY -> {
                 jdbc.update("INSERT INTO attendance_record(tenant_id,user_id,clock_date,clock_in_time,status) VALUES (?,?,CURRENT_DATE,CURRENT_TIMESTAMP,'NORMAL')", tenant, user);
                 args.put("resource", "RECORDS").put("from", LocalDate.now().toString()).put("to", LocalDate.now().toString());

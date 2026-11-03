@@ -120,6 +120,18 @@ class AssetAssignmentCandidateIntegrationTest extends AbstractIsolatedAgentInteg
         data(get("custodians?departmentId=" + foreign, writer), 404);
     }
 
+    @Test void agentQueriesBindTrustedTenantBeforeReadingCandidates() {
+        long candidate = person(department, 1);
+        assertThat(assets.assetCustodianOptions(writer.id(), tenant, department, "Synthetic candidate", 1, 20).records())
+                .singleElement().satisfies(row -> assertThat(row.id()).isEqualTo(candidate));
+        for (Runnable query : List.<Runnable>of(
+                () -> assets.assetDepartmentOptions(writer.id(), tenant + 1, null, 1, 20),
+                () -> assets.assetCustodianOptions(writer.id(), tenant + 1, department, null, 1, 20))) {
+            assertThatThrownBy(query::run).isInstanceOfSatisfying(BusinessException.class,
+                    error -> assertThat(error.getErrorCode()).isEqualTo(com.aiworkmate.common.ErrorCode.RESOURCE_FORBIDDEN.getErrorCode()));
+        }
+    }
+
     @Test void rejectsCustodianLookupInADisabledDepartment() throws Exception {
         long disabled = department(tenant, 0);
         person(disabled, 1);

@@ -29,6 +29,8 @@ const aiPermission = {
   tools: {
     hr_change_reviewer_query: { name: 'Find employee change reviewers', description: 'Find active tenant reviewers by name using live HR management permission, excluding yourself.' },
     visitor_host_query: { name: 'Find visitor hosts', description: 'Find active tenant hosts by name. Returns identifiers and names only.' },
+    asset_department_query: { name: 'Find asset departments', description: 'Search active tenant departments by name. Returns identifiers and names only.' },
+    asset_custodian_query: { name: 'Find asset custodians', description: 'Find active users by name within a specified tenant department. Returns only identifiers, names and department identifiers.' },
     page_ui_prepare: { name: 'Prepare page interaction', description: 'Prepares an authorized navigation, filter, detail, unsaved form or refresh command. Never submits business changes.' },
     todo_query: { name: 'Query my tasks', description: 'Reads only approval tasks assigned to the current user.' },
     leave_mine: { name: 'Query my leave', description: 'Reads leave applications owned by the current user.' },
