@@ -210,6 +210,13 @@ public class AdminAssetsController {
 
     // ==================== 访客预约 ====================
 
+    @GetMapping("/visitor-bookings/host-options")
+    public Result<PageResponse<com.aiworkmate.dto.BusinessUserOption>> visitorHostOptions(
+            @AuthenticationPrincipal AuthenticatedUser user, @RequestParam(required = false) String keyword,
+            @RequestParam(defaultValue = "1") int page, @RequestParam(defaultValue = "20") int size) {
+        return Result.ok(service.visitorHostOptions(user.userId(), keyword, page, size));
+    }
+
     @PostMapping("/visitor-bookings")
     public Result<VisitorBookingResponse> submitVisitorBooking(
             @AuthenticationPrincipal AuthenticatedUser user,

@@ -1,6 +1,7 @@
 import i18n from '@/i18n';
 import { buildApiHeaders } from '@/lib/apiHeaders';
 import { authenticatedFetch as fetch, notifyAuthResponseStatus, readAuthenticatedJson, readAuthenticatedBlob } from '@/lib/authEvents';
+import type { BusinessUserOption } from '@/lib/adminAssetsApi';
 
 export interface HrDepartment {
   id: number;
@@ -186,6 +187,10 @@ async function hrRequest<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const hrApi = {
+  employeeChangeReviewerOptions: (params: { keyword?: string; page: number; size: number }) =>
+    hrRequest<PageResponse<BusinessUserOption>>(`/employee-changes/reviewer-options?${new URLSearchParams(
+      Object.entries(params).filter(([, value]) => value !== undefined).map(([key, value]) => [key, String(value)]),
+    ).toString()}`),
   overview: async (): Promise<OrganizationOverview> => {
     const res = await fetch('/api/hr/organization', { credentials: 'include', headers: buildApiHeaders(false) });
     notifyAuthResponseStatus(res.status, res);

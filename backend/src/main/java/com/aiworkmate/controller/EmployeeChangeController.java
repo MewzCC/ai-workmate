@@ -26,6 +26,14 @@ import org.springframework.web.bind.annotation.RestController;
 public class EmployeeChangeController {
     private final EmployeeChangeService service;
 
+    @GetMapping("/reviewer-options")
+    @PreAuthorize("hasAuthority('hr:manage')")
+    public Result<PageResponse<com.aiworkmate.dto.BusinessUserOption>> reviewerOptions(
+            @AuthenticationPrincipal AuthenticatedUser user, @RequestParam(required = false) String keyword,
+            @RequestParam(defaultValue = "1") int page, @RequestParam(defaultValue = "20") int size) {
+        return Result.ok(service.reviewerOptions(user.userId(), keyword, page, size));
+    }
+
     @GetMapping
     @PreAuthorize("hasAuthority('hr:read')")
     public Result<PageResponse<EmployeeChangeResponse>> list(

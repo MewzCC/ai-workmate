@@ -97,6 +97,16 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
 
     @Override
     @Transactional(readOnly = true)
+    public PageResponse<com.aiworkmate.dto.BusinessUserOption> visitorHostOptions(Long userId, String keyword, int page, int size) {
+        ResolvedUserAccess actor = requirePermission(userId, "visitor:create");
+        var query = new com.aiworkmate.service.model.BusinessCandidateQuery(keyword, page, size);
+        return PageResponse.of(userMapper.selectBusinessUserOptions(actor.tenantId(), null, null, query.keyword(), query.size(), query.offset()),
+                userMapper.countBusinessUserOptions(actor.tenantId(), null, null, query.keyword()), query.page(), query.size());
+    }
+
+
+    @Override
+    @Transactional(readOnly = true)
     public List<com.aiworkmate.dto.AssetAssignmentOption> assetDepartments(Long userId) {
         ResolvedUserAccess actor = requirePermission(userId, "asset:write");
         return accessControlMapper.selectDepartments(actor.tenantId()).stream()
@@ -140,11 +150,8 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
     }
 
     private String assetCandidateKeyword(String keyword, int page, int size) {
-        if (page < 1 || page > 10000 || size < 1 || size > 100 || keyword != null && keyword.length() > 120)
-            throw new BusinessException(ErrorCode.REQUEST_INVALID);
-        return keyword == null || keyword.isBlank() ? null : keyword.trim();
+        return new com.aiworkmate.service.model.BusinessCandidateQuery(keyword, page, size).keyword();
     }
-
 
     private static final String BUSINESS_VISITOR = "VISITOR_BOOKING";
     private static final String BUSINESS_SEAL = "SEAL_USAGE";

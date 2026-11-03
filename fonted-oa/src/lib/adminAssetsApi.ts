@@ -9,6 +9,8 @@ export type AssetStatus = 'IN_USE' | 'IDLE' | 'REPAIRING' | 'SCRAPPED';
 
 export interface AssetAssignmentOption { id: number; name: string; departmentId: number | null }
 
+export interface BusinessUserOption { id: number; name: string }
+
 export interface AssetLedgerPayload {
   assetCode: string;
   name: string;
@@ -426,6 +428,8 @@ export const adminAssetsApi = {
     }),
 
   // ---------- 访客预约 ----------
+  visitorHostOptions: (params: { keyword?: string; page: number; size: number }) =>
+    request<PageResponse<BusinessUserOption>>(`${PREFIX}/visitor-bookings/host-options${queryString(params)}`),
   submitVisitorBooking: (payload: VisitorBookingPayload) =>
     request<VisitorBooking>(`${PREFIX}/visitor-bookings`, {
       method: 'POST',
