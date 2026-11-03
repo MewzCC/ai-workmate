@@ -61,7 +61,7 @@ public class PageCapabilityCatalog {
 
     /** Preserve the generic approval domain's existing entry-route prerequisite independently of business permissions. */
     public Set<String> prerequisitePageIdsForTool(String toolCode) {
-        return Set.of(APPROVAL_APPLICATION_MINE_QUERY.code(), APPROVAL_APPLICATION_DETAIL_QUERY.code(),
+        return Set.of(APPROVAL_APPLICATION_TEMPLATE_QUERY.code(), APPROVAL_APPLICATION_MINE_QUERY.code(), APPROVAL_APPLICATION_DETAIL_QUERY.code(),
                 APPROVAL_APPLICATION_CREATE_DRAFT.code(), APPROVAL_APPLICATION_UPDATE_DRAFT.code(),
                 APPROVAL_APPLICATION_SUBMIT_DRAFT.code(), APPROVAL_APPLICATION_CANCEL_DRAFT.code(),
                 APPROVAL_APPLICATION_WITHDRAW.code(), APPROVAL_APPLICATION_REOPEN.code(),
@@ -139,13 +139,13 @@ public class PageCapabilityCatalog {
                         tool(APPROVAL_APPLICATION_REOPEN), tool(APPROVAL_APPLICATION_REMIND)),
 
                 page(OaPage.APPROVAL_LIST, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
-                        tool(APPROVAL_TASK_QUERY), tool(APPROVAL_TASK_APPROVE), tool(APPROVAL_TASK_REJECT),
+                        tool(APPROVAL_TASK_QUERY), tool(APPROVAL_TASK_PARTICIPANTS_QUERY), tool(APPROVAL_TASK_APPROVE), tool(APPROVAL_TASK_REJECT),
                         tool(APPROVAL_TASK_TRANSFER), tool(APPROVAL_TASK_COPY), tool(APPROVAL_TASK_ADD_SIGN)),
                 page(OaPage.APPROVAL_START, OwnershipPolicy.SELF, READ_COMMANDS,
-                        tool(APPROVAL_CONFIGURATION_QUERY), tool(APPROVAL_APPLICATION_CREATE_DRAFT),
+                        tool(APPROVAL_CONFIGURATION_QUERY), tool(APPROVAL_APPLICATION_TEMPLATE_QUERY), tool(APPROVAL_APPLICATION_CREATE_DRAFT),
                         tool(APPROVAL_APPLICATION_SUBMIT_DRAFT)),
                 page(OaPage.APPROVAL_FORM, OwnershipPolicy.SELF, FORM_COMMANDS,
-                        tool(APPROVAL_CONFIGURATION_QUERY), tool(APPROVAL_APPLICATION_CREATE_DRAFT),
+                        tool(APPROVAL_CONFIGURATION_QUERY), tool(APPROVAL_APPLICATION_TEMPLATE_QUERY), tool(APPROVAL_APPLICATION_CREATE_DRAFT),
                         tool(APPROVAL_APPLICATION_UPDATE_DRAFT), tool(APPROVAL_APPLICATION_SUBMIT_DRAFT),
                         tool(APPROVAL_APPLICATION_CANCEL_DRAFT)),
                 page(OaPage.FORM_ENGINE, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
@@ -154,7 +154,7 @@ public class PageCapabilityCatalog {
                         tool(APPROVAL_FORM_UPDATE_DRAFT), tool(APPROVAL_FORM_PATCH_DRAFT_FIELD), tool(APPROVAL_FORM_PUBLISH_DRAFT)),
                 page(OaPage.PROCESS_CONFIG, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         context(number("processId"), number("version"), text("keyword"), text("status"), number("page"), number("size")),
-                        tool(APPROVAL_CONFIGURATION_QUERY), tool(APPROVAL_PROCESS_CREATE_DRAFT),
+                        tool(APPROVAL_CONFIGURATION_QUERY), tool(APPROVAL_PROCESS_DEFINITION_QUERY), tool(APPROVAL_PROCESS_CREATE_DRAFT),
                         tool(APPROVAL_PROCESS_UPDATE_DRAFT), tool(APPROVAL_PROCESS_PUBLISH_DRAFT)),
                 page(OaPage.APPROVAL_RULES, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         context(number("ruleId"), number("version"), text("keyword"), text("status"), number("page"), number("size")),

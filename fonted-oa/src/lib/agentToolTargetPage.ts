@@ -39,6 +39,9 @@ const EXACT_TARGETS: Record<string, string> = {
   'userPermission.mine.query': 'dashboard',
   'approval.configuration.query': 'process-config',
   'approval.form.createDraft': 'form-engine',
+  'approval.process.definition.query': 'process-config',
+  'approval.application.template.query': 'approval-start',
+  'approval.task.participants.query': 'approval-list',
   'approval.form.definition.query': 'form-engine',
   'approval.form.updateDraft': 'form-engine',
   'approval.form.patchDraftField': 'form-engine',
@@ -123,7 +126,7 @@ const RECORD_ID_FIELDS: ReadonlyMap<string, string> = new Map([
     .map((code): [string, string] => [code, 'ruleId']),
   ...['approval.form.definition.query', 'approval.form.createDraft', 'approval.form.updateDraft', 'approval.form.patchDraftField', 'approval.form.publishDraft']
     .map((code): [string, string] => [code, 'formId']),
-  ...['approval.process.createDraft', 'approval.process.updateDraft', 'approval.process.publishDraft']
+  ...['approval.process.definition.query', 'approval.process.createDraft', 'approval.process.updateDraft', 'approval.process.publishDraft']
     .map((code): [string, string] => [code, 'processId']),
   ...[...DICTIONARY_RECORD_KINDS].map(([code, kind]): [string, string] =>
     [code, kind === 'dictionary-type' ? 'dictionaryTypeId' : 'dictionaryItemId']),

@@ -15,6 +15,12 @@ public final class ApprovalTaskAgentDomainToolAdapter implements ApprovalTaskToo
     private final LeaveWorkflowService leaveWorkflowService;
 
     @Override
+    public Participants participants(ToolActorContext context, long taskId, String keyword) {
+        return new Participants(leaveWorkflowService.participantCandidates(context.userId(), taskId, keyword).stream()
+                .map(candidate -> new Participant(candidate.id(), candidate.name(), candidate.canApprove())).toList());
+    }
+
+    @Override
     public Page query(ToolActorContext context, Query query) {
         var result = leaveWorkflowService.adminList(context.userId(), query.status(), query.from(), query.to(),
                 query.keyword(), query.leaveType(), query.page(), query.size());

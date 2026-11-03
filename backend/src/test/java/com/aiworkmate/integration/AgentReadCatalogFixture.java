@@ -48,6 +48,19 @@ final class AgentReadCatalogFixture {
             }
             case APPROVAL_CONFIGURATION_QUERY -> { form(); args.put("resource", "FORM").put("keyword", label); }
             case APPROVAL_FORM_DEFINITION_QUERY -> args.put("formId", form());
+            case APPROVAL_PROCESS_DEFINITION_QUERY -> args.put("processId", process(form()));
+            case APPROVAL_APPLICATION_TEMPLATE_QUERY -> {
+                long form = form();
+                jdbc.update("UPDATE approval_form SET status='ENABLED' WHERE id=?", form);
+                process(form);
+                args.put("formKey", label);
+            }
+            case APPROVAL_TASK_PARTICIPANTS_QUERY -> {
+                long applicant = candidate();
+                long application = LeaveReadFixture.pending(jdbc, tenant, applicant, user);
+                long task = jdbc.queryForObject("SELECT id FROM workflow_task WHERE tenant_id=? AND business_type='LEAVE_APPLICATION' AND business_id=? AND assignee_user_id=?", Long.class, tenant, application, user);
+                args.put("taskId", task).put("keyword", label);
+            }
             case APPROVAL_RULE_DEFINITION_QUERY -> {
                 long rule = id("INSERT INTO approval_rule(tenant_id,rule_key,rule_name,rule_type,condition_json,action_json,status,created_by) VALUES (?,?,?,'AMOUNT_THRESHOLD','{\"logic\":\"AND\",\"conditions\":[{\"field\":\"amount\",\"op\":\"gte\",\"value\":\"100\"}]}','{\"appendNode\":\"FINANCE_REVIEW\",\"enabled\":true,\"mode\":\"OR_SIGN\"}','DISABLED',?) RETURNING id", tenant, label, label, user);
                 args.put("ruleId", rule);
@@ -141,6 +154,20 @@ final class AgentReadCatalogFixture {
 
     private long form() {
         return id("INSERT INTO approval_form(tenant_id,form_key,form_name,schema_json,status,created_by) VALUES (?,?,?,'{\"fields\":[{\"name\":\"reason\",\"label\":\"Reason\",\"type\":\"textarea\",\"required\":true}]}','DISABLED',?) RETURNING id", tenant, label, label, user);
+    }
+
+    private long candidate() {
+        String role = jdbc.queryForObject("SELECT role FROM app_user WHERE id=?", String.class, user);
+        return id("INSERT INTO app_user(tenant_id,username,display_name,password,role) VALUES (?,?,?,'synthetic fixture',?) RETURNING id", tenant, label + "-candidate", label, role);
+    }
+
+    private long process(long form) {
+        var nodes = json.createArrayNode();
+        nodes.addObject().put("nodeType", "START").put("nodeName", "Start");
+        nodes.addObject().put("nodeType", "APPROVAL").put("nodeName", label).put("approveType", "USER")
+                .put("targetKey", Long.toString(user)).put("mode", "SEQUENTIAL");
+        nodes.addObject().put("nodeType", "END").put("nodeName", "End");
+        return id("INSERT INTO approval_process(tenant_id,process_key,process_name,form_id,node_json,status,created_by) VALUES (?,?,?,?,?,'ENABLED',?) RETURNING id", tenant, label, label, form, nodes.toString(), user);
     }
 
     private long room() { return id("INSERT INTO meeting_room(tenant_id,code,name,capacity) VALUES (?,?,?,8) RETURNING id", tenant, label, label); }

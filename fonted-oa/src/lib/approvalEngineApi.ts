@@ -4,6 +4,16 @@ import { request, queryString, type PageResponse, type WorkflowTimelineItem } fr
 
 export type ApprovalConfigStatus = 'ENABLED' | 'DISABLED';
 
+export interface ApprovalApplicationTemplate {
+  formId: number;
+  formKey: string;
+  formName: string;
+  description?: string | null;
+  version: number;
+  fields: { name: string; label: string; type: string; required: boolean; placeholder?: string | null; options: string[]; width: string; min?: number | null }[];
+  process?: { id: number; processKey: string; processName: string; version: number; nodes: { nodeName: string; approveType?: string | null }[] } | null;
+}
+
 export interface ApprovalFormPayload {
   formKey: string;
   formName: string;
@@ -174,6 +184,8 @@ export interface ApprovalApplication {
 // ==================== API 封装 ====================
 
 export const approvalEngineApi = {
+  listApplicationTemplates: (params: { keyword?: string; formKey?: string; page?: number; size?: number } = {}) =>
+    request<PageResponse<ApprovalApplicationTemplate>>(`/approval-config/application-templates${queryString(params)}`),
   // ---------- 表单定义 ----------
   getForm: (id: number) => request<ApprovalForm>(`/approval-config/forms/${id}`),
   listForms: (params: {

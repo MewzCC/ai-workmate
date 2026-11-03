@@ -29,6 +29,9 @@ public final class AgentReadResultPresenter {
         if ("approval.rule.definition.query".equals(toolCode)) return ruleDefinition(result);
         if ("approval.form.patchDraftField".equals(toolCode)) return formFieldPatch(result);
         if ("approval.form.definition.query".equals(toolCode)) return formDefinition(result);
+        if ("approval.application.template.query".equals(toolCode)) return applicationTemplates(result);
+        if ("approval.process.definition.query".equals(toolCode)) return processDefinition(result);
+        if ("approval.task.participants.query".equals(toolCode)) return approvalParticipants(result);
         if ("todo.query".equals(toolCode)) return todo(result);
         if ("userPermission.mine.query".equals(toolCode)) return userPermissions(result);
         if ("dashboard.overview.query".equals(toolCode)) return dashboard(result);
@@ -168,6 +171,58 @@ public final class AgentReadResultPresenter {
                         ? "agent.formDefinition.required" : "agent.formDefinition.optional"),
                 MessageUtils.resolve("agent.formFieldPatch.width." + result.path("width").asText()),
                 placeholder.isEmpty() ? MessageUtils.resolve("agent.formFieldPatch.noPlaceholder") : plain(placeholder));
+        return answer.substring(0, Math.min(MAX_LENGTH, answer.length()));
+    }
+
+    private static String applicationTemplates(JsonNode result) {
+        if (result == null || !result.path("items").isArray() || !result.path("total").canConvertToLong())
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        StringBuilder answer = new StringBuilder(MessageUtils.resolve("agent.template.count", result.path("total").asLong()));
+        if (result.path("items").isEmpty()) answer.append('\n').append(MessageUtils.resolve("agent.result.empty"));
+        int shown = 0;
+        for (JsonNode template : result.path("items")) {
+            String line = template.path("fields").isEmpty()
+                    ? MessageUtils.resolve("agent.template.item", template.path("formId").asLong(),
+                        plain(template.path("formName").asText()), plain(template.path("formKey").asText()),
+                        template.path("version").asInt()) : formDefinition(template);
+            if (answer.length() + line.length() > MAX_LENGTH - 100) break;
+            answer.append('\n').append(line);
+            if (template.has("processKey")) answer.append('\n').append(MessageUtils.resolve("agent.template.process",
+                    plain(template.path("processName").asText()), plain(template.path("processKey").asText()),
+                    template.path("processVersion").asInt()));
+            shown++;
+        }
+        if (shown < result.path("items").size()) answer.append('\n').append(MessageUtils.resolve("agent.result.more", result.path("items").size() - shown));
+        return answer.substring(0, Math.min(MAX_LENGTH, answer.length()));
+    }
+
+    private static String processDefinition(JsonNode result) {
+        if (result == null || result.path("processId").asLong() < 1 || !result.path("nodes").isArray())
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        StringBuilder answer = new StringBuilder(MessageUtils.resolve("agent.processDefinition.header",
+                result.path("processId").asLong(), plain(result.path("processName").asText()), result.path("version").asInt()));
+        int shown = 0;
+        for (JsonNode node : result.path("nodes")) {
+            if (shown >= MAX_ITEMS || answer.length() > 850) break;
+            answer.append('\n').append(MessageUtils.resolve("agent.processDefinition.node", ++shown,
+                    plain(node.path("nodeName").asText()), plain(node.path("approveType").asText(node.path("nodeType").asText()))));
+        }
+        if (shown < result.path("nodes").size()) answer.append('\n').append(MessageUtils.resolve("agent.result.more", result.path("nodes").size() - shown));
+        return answer.substring(0, Math.min(MAX_LENGTH, answer.length()));
+    }
+
+    private static String approvalParticipants(JsonNode result) {
+        if (result == null || !result.path("items").isArray()) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        StringBuilder answer = new StringBuilder(MessageUtils.resolve("agent.participants.header", result.path("items").size()));
+        int shown = 0;
+        for (JsonNode candidate : result.path("items")) {
+            if (shown >= MAX_ITEMS || answer.length() > 850) break;
+            answer.append('\n').append(MessageUtils.resolve("agent.participants.item", candidate.path("id").asLong(),
+                    plain(candidate.path("name").asText()), MessageUtils.resolve(candidate.path("canApprove").asBoolean()
+                            ? "agent.participants.approver" : "agent.participants.copyOnly")));
+            shown++;
+        }
+        if (shown < result.path("items").size()) answer.append('\n').append(MessageUtils.resolve("agent.result.more", result.path("items").size() - shown));
         return answer.substring(0, Math.min(MAX_LENGTH, answer.length()));
     }
 

@@ -187,7 +187,7 @@ class PageCapabilityCatalogTest {
     void approvalCenterOffersReadAndSingleTaskActionsOnly() {
         var page = catalog.find("approval-list").orElseThrow();
         assertThat(page.readTools()).extracting(PageToolReference::code)
-                .containsExactly(ToolCode.APPROVAL_TASK_QUERY);
+                .containsExactly(ToolCode.APPROVAL_TASK_QUERY, ToolCode.APPROVAL_TASK_PARTICIPANTS_QUERY);
         assertThat(page.writeTools()).extracting(PageToolReference::code)
                 .containsExactly(ToolCode.APPROVAL_TASK_APPROVE, ToolCode.APPROVAL_TASK_REJECT,
                         ToolCode.APPROVAL_TASK_TRANSFER, ToolCode.APPROVAL_TASK_COPY,

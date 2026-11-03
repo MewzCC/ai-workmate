@@ -6,6 +6,7 @@ import java.util.List;
 /** Tenant-scoped approval-center read boundary; domain service enforces live data scope. */
 public interface ApprovalTaskToolPort {
     Page query(ToolActorContext context, Query query);
+    Participants participants(ToolActorContext context, long taskId, String keyword);
     WriteResult approve(ToolActorContext context, DecisionCommand command);
     WriteResult reject(ToolActorContext context, DecisionCommand command);
     WriteResult transfer(ToolActorContext context, ParticipantCommand command);
@@ -14,6 +15,11 @@ public interface ApprovalTaskToolPort {
 
     record Query(String status, LocalDateTime from, LocalDateTime to, String keyword,
                  String leaveType, int page, int size) { }
+
+    record Participant(long id, String name, boolean canApprove) { }
+    record Participants(List<Participant> items) {
+        public Participants { items = List.copyOf(items); }
+    }
 
     record Page(List<Item> items, long total, int page, int size) {
         public Page { items = List.copyOf(items); }

@@ -17,6 +17,27 @@ public final class ApprovalConfigurationAgentDomainToolAdapter implements Approv
     private final ApprovalEngineService approvalEngineService;
 
     @Override
+    public Templates applicationTemplates(ToolActorContext context, TemplateQuery query) {
+        var result = approvalEngineService.applicationTemplates(context.userId(), context.tenantId(), query.keyword(),
+                query.formKey(), query.page(), query.size());
+        return new Templates(result.records().stream().map(item -> new Template(item.formId(), item.formKey(),
+                item.formName(), item.version(), item.fields().stream().map(field -> new FormDefinitionField(field.name(),
+                field.label(), field.type(), field.required(), field.placeholder(), field.options(), field.width(), field.min())).toList(),
+                item.process() == null ? null : item.process().processKey(),
+                item.process() == null ? null : item.process().processName(),
+                item.process() == null ? null : item.process().version())).toList(), result.total(), result.page(), result.size());
+    }
+
+    @Override
+    public ProcessDefinition readProcessDefinition(ToolActorContext context, long processId) {
+        var result = approvalEngineService.readProcessDefinitionAgent(context.userId(), context.tenantId(), processId);
+        return new ProcessDefinition(result.processId(), result.processKey(), result.processName(), result.formId(),
+                result.status(), result.version(), result.nodes().stream().map(node -> new ProcessNode(node.nodeType(),
+                node.nodeName(), node.approveType(), node.targetKey(), node.mode(), node.timeoutEnabled(),
+                node.timeoutHours(), node.timeoutAction())).toList());
+    }
+
+    @Override
     public RuleDefinition readRuleDefinition(ToolActorContext context, long ruleId) {
         var result = approvalEngineService.readRuleDefinitionAgent(context.userId(), context.tenantId(), ruleId);
         return new RuleDefinition(result.ruleId(), result.ruleKey(), result.ruleName(), result.ruleType(), result.priority(),

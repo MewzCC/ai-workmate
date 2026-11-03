@@ -28,6 +28,9 @@ import com.aiworkmate.dto.ApprovalRuleDefinitionResponse;
  * 权限按当前认证 userId 实时解析。
  */
 public interface ApprovalEngineService {
+    com.aiworkmate.dto.ApprovalProcessDefinitionResponse readProcessDefinitionAgent(Long userId, Long expectedTenantId, Long id);
+    PageResponse<com.aiworkmate.dto.ApprovalApplicationTemplateResponse> applicationTemplates(
+            Long userId, Long expectedTenantId, String keyword, String formKey, int page, int size);
 
     // ==================== 表单定义 ====================
 

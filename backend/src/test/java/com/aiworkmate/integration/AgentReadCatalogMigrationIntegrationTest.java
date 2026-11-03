@@ -95,6 +95,19 @@ class AgentReadCatalogMigrationIntegrationTest extends AbstractIsolatedAgentInte
     }
 
     private void assertCurrentContracts() {
+        org.assertj.core.api.SoftAssertions.assertSoftly(soft -> {
+            for (var definition : catalog.all()) {
+                String code = definition.code();
+                soft.assertThat(jdbc.queryForObject("SELECT schema_hash FROM agent_tool WHERE tenant_id IS NULL AND code=?", String.class, code))
+                        .as("runtime schema hash: %s", code).isEqualTo(definition.schemaHash());
+                try {
+                    soft.assertThat(json.readTree(jdbc.queryForObject("SELECT parameters_schema::text FROM agent_tool WHERE tenant_id IS NULL AND code=?", String.class, code)))
+                            .as("runtime input schema: %s", code).isEqualTo(definition.inputSchema());
+                    soft.assertThat(json.readTree(jdbc.queryForObject("SELECT output_schema::text FROM agent_tool WHERE tenant_id IS NULL AND code=?", String.class, code)))
+                            .as("runtime output schema: %s", code).isEqualTo(definition.outputSchema());
+                } catch (Exception invalid) { throw new AssertionError("Invalid persisted schema: " + code, invalid); }
+            }
+        });
         assertThat(jdbc.queryForObject("SELECT required_permissions='[\"leave:read:self\",\"leave:remind\"]'::jsonb FROM agent_tool WHERE tenant_id IS NULL AND code='leave.remind'",Boolean.class)).isTrue();
         assertThat(jdbc.queryForObject("SELECT permission_code FROM rbac_route WHERE route_key='approval-form'", String.class)).isEqualTo("route:approval-form");
         assertThat(jdbc.queryForObject("SELECT schema_hash FROM agent_tool WHERE tenant_id IS NULL AND code='visitor.query'", String.class))
