@@ -35,6 +35,9 @@ public interface AccessControlMapper {
     @Select("SELECT COUNT(*) FROM department WHERE tenant_id=#{tenantId} AND id=#{departmentId} AND status=1")
     int countActiveAssetDepartment(@Param("tenantId") Long tenantId, @Param("departmentId") Long departmentId);
 
+    @Select("SELECT id FROM department WHERE tenant_id=#{tenantId} AND id=#{departmentId} AND status=1 FOR SHARE")
+    Long lockActiveAssetDepartment(@Param("tenantId") Long tenantId, @Param("departmentId") Long departmentId);
+
     @Select("SELECT id FROM tenant WHERE code = 'DEFAULT'")
     Long selectDefaultTenantId();
 

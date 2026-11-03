@@ -2,6 +2,10 @@ package com.aiworkmate.integration;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.aiworkmate.dto.AssetLedgerRequest;
+import com.aiworkmate.dto.AssetOperationRequest;
+import com.aiworkmate.dto.AssetInventoryRequest;
+import com.aiworkmate.common.BusinessException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -21,6 +25,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /** Domain-scoped candidate endpoints with real Cookie authentication and PostgreSQL paging. */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
@@ -132,6 +137,62 @@ class AssetAssignmentCandidateIntegrationTest extends AbstractIsolatedAgentInteg
     @ValueSource(strings = { "&page=0", "&size=101", "&page=10001" })
     void rejectsOutOfBudgetPaging(String suffix) throws Exception {
         data(get("custodians?departmentId=" + department + suffix, writer), 400);
+    }
+
+    @Test void disabledDepartmentCannotBeAssignedAtAssetCreation() {
+        long disabled = department(tenant, 0);
+        String code = UUID.randomUUID().toString();
+        assertThatThrownBy(() -> assets.createAsset(writer.id(), new AssetLedgerRequest(code, "Synthetic asset", "TEST", null,
+                "IDLE", disabled, null, null, null, null, null)))
+                .isInstanceOf(BusinessException.class).extracting("errorCode").isEqualTo("RESOURCE_NOT_FOUND");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM asset_ledger WHERE tenant_id=? AND asset_code=?", Long.class, tenant, code)).isZero();
+    }
+
+    @Test void disabledDepartmentCannotReceiveAClaim() {
+        var asset = createAsset(); long disabled = department(tenant, 0); long owner = person(disabled, 1);
+        String before = assetSnapshot(asset.id());
+        assertThatThrownBy(() -> assets.claimAsset(writer.id(), asset.id(), new AssetOperationRequest(asset.version(), owner, disabled, "Synthetic claim")))
+                .isInstanceOf(BusinessException.class).extracting("errorCode").isEqualTo("RESOURCE_NOT_FOUND");
+        assertThat(assetSnapshot(asset.id())).isEqualTo(before);
+    }
+
+    @ParameterizedTest @ValueSource(booleans = {false, true})
+    void disabledDepartmentCannotReceiveIdleOrInUseTransfers(boolean inUse) {
+        var asset = createAsset();
+        if (inUse) asset = assets.claimAsset(writer.id(), asset.id(), new AssetOperationRequest(asset.version(), person(department, 1), department, "Synthetic initial claim"));
+        long disabled = department(tenant, 0); long owner = person(disabled, 1);
+        long id = asset.id(); int version = asset.version(); String before = assetSnapshot(id);
+        assertThatThrownBy(() -> assets.transferAsset(writer.id(), id, new AssetOperationRequest(version, owner, disabled, "Synthetic transfer")))
+                .isInstanceOf(BusinessException.class).extracting("errorCode").isEqualTo("RESOURCE_NOT_FOUND");
+        assertThat(assetSnapshot(id)).isEqualTo(before);
+    }
+
+    @Test void agentDomainClaimAlsoRejectsADisabledEmployeeDepartment() throws Exception {
+        var asset = createAsset(); long disabled = department(tenant, 0); long owner = person(disabled, 1);
+        var claimant = http.createAndLogin(tenant, List.of("asset:claim"));
+        String before = assetSnapshot(asset.id());
+        assertThatThrownBy(() -> assets.claimAssetAgent(claimant.id(),
+                new com.aiworkmate.service.model.AssetAgentClaimCommand(asset.id(), owner, asset.version(), "Synthetic agent claim"), "disabled-" + UUID.randomUUID()))
+                .isInstanceOf(BusinessException.class).extracting("errorCode").isEqualTo("RESOURCE_NOT_FOUND");
+        assertThat(assetSnapshot(asset.id())).isEqualTo(before);
+    }
+
+    @Test void inventoryMayRecordAnExistingInactiveLocationWithoutAssigningTheAssetThere() throws Exception {
+        var asset = createAsset(); long disabled = department(tenant, 0); long owner = person(disabled, 1);
+        var result = assets.inventoryAsset(writer.id(), asset.id(), new AssetInventoryRequest(asset.version(),
+                "LOCATION_MISMATCH", "IN_USE", disabled, owner, "Synthetic physical location discrepancy"));
+        assertThat(result.departmentId()).isEqualTo(department); assertThat(result.status()).isEqualTo("IDLE");
+        assertThat(result.ownerUserId()).isNull();
+    }
+
+    private com.aiworkmate.dto.AssetLedgerResponse createAsset() {
+        return assets.createAsset(writer.id(), new AssetLedgerRequest(UUID.randomUUID().toString(), "Synthetic asset", "TEST", null,
+                "IDLE", department, null, null, null, null, null));
+    }
+
+    private String assetSnapshot(long id) {
+        return jdbc.queryForObject("SELECT to_jsonb(asset)::text FROM asset_ledger asset WHERE id=?", String.class, id)
+                + jdbc.queryForObject("SELECT count(*) FROM asset_operation WHERE asset_id=?", Long.class, id);
     }
 
     private HttpResponse<String> get(String suffix, AgentHttpTestFixture.Actor actor) throws Exception {

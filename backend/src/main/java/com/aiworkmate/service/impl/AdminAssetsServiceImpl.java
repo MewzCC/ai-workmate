@@ -242,7 +242,7 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
 
     private AssetLedger createAssetRecord(ResolvedUserAccess actor, AssetLedgerRequest request) {
         validateAssetMetadataFields(assetFields(request), true);
-        if (request.departmentId() != null) requireDepartment(actor.tenantId(), request.departmentId());
+        if (request.departmentId() != null) requireAssignmentDepartment(actor.tenantId(), request.departmentId());
         if (assetMapper.exists(new LambdaQueryWrapper<AssetLedger>()
                 .eq(AssetLedger::getTenantId, actor.tenantId())
                 .eq(AssetLedger::getAssetCode, request.assetCode().trim())
@@ -420,6 +420,7 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
                 || request.targetDepartmentId() == null) {
             throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID, "oa.asset.claim.invalid");
         }
+        requireAssignmentDepartment(actor.tenantId(), request.targetDepartmentId());
         requireOwnerInDepartment(actor.tenantId(), request.targetOwnerUserId(), request.targetDepartmentId());
         applyAssetOperation(actor, asset, request.version(), request.reason(), "CLAIM", "IN_USE",
                 request.targetDepartmentId(), request.targetOwnerUserId());
@@ -546,7 +547,7 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
                 || request.targetDepartmentId().equals(asset.getDepartmentId())) {
             throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID, "oa.asset.transfer.invalid");
         }
-        requireDepartment(actor.tenantId(), request.targetDepartmentId());
+        requireAssignmentDepartment(actor.tenantId(), request.targetDepartmentId());
         Long targetOwner = request.targetOwnerUserId();
         if ("IN_USE".equals(asset.getStatus())) {
             if (targetOwner == null) {
@@ -1972,6 +1973,12 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
         return a;
     }
 
+    private void requireAssignmentDepartment(Long tenantId, Long departmentId) {
+        if (accessControlMapper.lockActiveAssetDepartment(tenantId, departmentId) == null) {
+            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        }
+    }
+
     private void requireDepartment(Long tenantId, Long departmentId) {
         if (accessControlMapper.countDepartment(tenantId, departmentId) != 1) {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
@@ -1994,7 +2001,7 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
                 || !Integer.valueOf(1).equals(owner.getStatus()) || owner.getDepartmentId() == null) {
             throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID, "oa.asset.owner.invalid");
         }
-        requireDepartment(tenantId, owner.getDepartmentId());
+        requireAssignmentDepartment(tenantId, owner.getDepartmentId());
         return owner;
     }
 
