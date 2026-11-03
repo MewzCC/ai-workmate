@@ -9,6 +9,7 @@ export function agentTaskNavigationTarget(detail: Pick<AgentTaskDetail, 'status'
   if (detail.status !== 'SUCCEEDED' || !detail.steps.length
       || detail.steps.some((step) => step.status !== 'SUCCEEDED' || step.result == null)) return null;
   const last = detail.steps[detail.steps.length - 1];
+  if (last.toolCode === 'page.ui.prepare') return null;
   // The todo page cannot yet reproduce historical-status or date-filtered queries.
   if (last.toolCode === 'todo.query' && ((last.arguments?.status != null && last.arguments.status !== 'PENDING')
       || last.arguments?.from != null || last.arguments?.to != null)) return null;
@@ -41,6 +42,10 @@ const EXACT_TARGETS: Record<string, string> = {
   'approval.form.createDraft': 'form-engine',
   'approval.process.definition.query': 'process-config',
   'approval.application.template.query': 'approval-start',
+  'approval.application.apply': 'my-applications',
+  'expense.apply': 'expense',
+  'hr.change.reviewer.query': 'employee-change',
+  'visitor.host.query': 'visitor-booking',
   'approval.task.participants.query': 'approval-list',
   'approval.form.definition.query': 'form-engine',
   'approval.form.updateDraft': 'form-engine',

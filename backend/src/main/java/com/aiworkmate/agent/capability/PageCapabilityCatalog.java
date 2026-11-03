@@ -61,7 +61,7 @@ public class PageCapabilityCatalog {
 
     /** Preserve the generic approval domain's existing entry-route prerequisite independently of business permissions. */
     public Set<String> prerequisitePageIdsForTool(String toolCode) {
-        return Set.of(APPROVAL_APPLICATION_TEMPLATE_QUERY.code(), APPROVAL_APPLICATION_MINE_QUERY.code(), APPROVAL_APPLICATION_DETAIL_QUERY.code(),
+        return Set.of(APPROVAL_APPLICATION_APPLY.code(), EXPENSE_APPLY.code(), APPROVAL_APPLICATION_TEMPLATE_QUERY.code(), APPROVAL_APPLICATION_MINE_QUERY.code(), APPROVAL_APPLICATION_DETAIL_QUERY.code(),
                 APPROVAL_APPLICATION_CREATE_DRAFT.code(), APPROVAL_APPLICATION_UPDATE_DRAFT.code(),
                 APPROVAL_APPLICATION_SUBMIT_DRAFT.code(), APPROVAL_APPLICATION_CANCEL_DRAFT.code(),
                 APPROVAL_APPLICATION_WITHDRAW.code(), APPROVAL_APPLICATION_REOPEN.code(),
@@ -124,12 +124,12 @@ public class PageCapabilityCatalog {
                         context(number("notificationId"), number("page"), number("size")),
                         tool(NOTIFICATION_MINE), tool(NOTIFICATION_MARK_READ)),
                 page(OaPage.LEAVE_APPLICATION, OwnershipPolicy.SELF, FORM_COMMANDS,
-                        context(text("applicationId"), text("status"), number("page"), number("size")),
+                        context(text("applicationId"), number("version"), text("status"), number("page"), number("size")),
                         tool(LEAVE_MINE), tool(LEAVE_CREATE_DRAFT), tool(LEAVE_UPDATE_DRAFT),
                         tool(LEAVE_SUBMIT), tool(LEAVE_APPLY),
                         tool(LEAVE_WITHDRAW), tool(LEAVE_REMIND)),
                 page(OaPage.MY_APPLICATIONS, OwnershipPolicy.SELF, LIST_COMMANDS,
-                        context(text("applicationId"), text("status"), number("page"), number("size")),
+                        context(text("applicationId"), text("status"), text("formKey"), number("page"), number("size")),
                         tool(LEAVE_MINE), tool(APPROVAL_APPLICATION_MINE_QUERY), tool(APPROVAL_APPLICATION_DETAIL_QUERY),
                         tool(LEAVE_CREATE_DRAFT), tool(LEAVE_UPDATE_DRAFT),
                         tool(LEAVE_SUBMIT), tool(LEAVE_APPLY),
@@ -139,13 +139,16 @@ public class PageCapabilityCatalog {
                         tool(APPROVAL_APPLICATION_REOPEN), tool(APPROVAL_APPLICATION_REMIND)),
 
                 page(OaPage.APPROVAL_LIST, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
+                        context(number("taskId"), text("status"), text("keyword"), text("leaveType"), text("from"), text("to"), number("page"), number("size")),
                         tool(APPROVAL_TASK_QUERY), tool(APPROVAL_TASK_PARTICIPANTS_QUERY), tool(APPROVAL_TASK_APPROVE), tool(APPROVAL_TASK_REJECT),
                         tool(APPROVAL_TASK_TRANSFER), tool(APPROVAL_TASK_COPY), tool(APPROVAL_TASK_ADD_SIGN)),
-                page(OaPage.APPROVAL_START, OwnershipPolicy.SELF, READ_COMMANDS,
-                        tool(APPROVAL_CONFIGURATION_QUERY), tool(APPROVAL_APPLICATION_TEMPLATE_QUERY), tool(APPROVAL_APPLICATION_CREATE_DRAFT),
+                page(OaPage.APPROVAL_START, OwnershipPolicy.SELF, LIST_COMMANDS,
+                        context(text("keyword"), text("formKey")),
+                        tool(APPROVAL_CONFIGURATION_QUERY), tool(APPROVAL_APPLICATION_TEMPLATE_QUERY), tool(APPROVAL_APPLICATION_APPLY), tool(APPROVAL_APPLICATION_CREATE_DRAFT),
                         tool(APPROVAL_APPLICATION_SUBMIT_DRAFT)),
                 page(OaPage.APPROVAL_FORM, OwnershipPolicy.SELF, FORM_COMMANDS,
-                        tool(APPROVAL_CONFIGURATION_QUERY), tool(APPROVAL_APPLICATION_TEMPLATE_QUERY), tool(APPROVAL_APPLICATION_CREATE_DRAFT),
+                        context(text("formKey"), text("processKey"), number("applicationId"), number("version")),
+                        tool(APPROVAL_CONFIGURATION_QUERY), tool(APPROVAL_APPLICATION_TEMPLATE_QUERY), tool(APPROVAL_APPLICATION_APPLY), tool(APPROVAL_APPLICATION_CREATE_DRAFT),
                         tool(APPROVAL_APPLICATION_UPDATE_DRAFT), tool(APPROVAL_APPLICATION_SUBMIT_DRAFT),
                         tool(APPROVAL_APPLICATION_CANCEL_DRAFT)),
                 page(OaPage.FORM_ENGINE, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
@@ -161,13 +164,13 @@ public class PageCapabilityCatalog {
                         tool(APPROVAL_CONFIGURATION_QUERY), tool(APPROVAL_RULE_DEFINITION_QUERY), tool(APPROVAL_RULE_CREATE_DRAFT),
                         tool(APPROVAL_RULE_UPDATE_DRAFT), tool(APPROVAL_RULE_PATCH_DRAFT_CONDITION), tool(APPROVAL_RULE_ENABLE_DRAFT)),
 
-                page(OaPage.ORG_TREE, OwnershipPolicy.TENANT_SCOPED, READ_COMMANDS,
-                        context(text("keyword"), number("limit")), tool(HR_ORGANIZATION_QUERY)),
+                page(OaPage.ORG_TREE, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
+                        context(text("keyword"), number("departmentId"), number("limit")), tool(HR_ORGANIZATION_QUERY)),
                 page(OaPage.EMPLOYEE_FILES, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
-                        context(number("employeeId")), tool(HR_ORGANIZATION_QUERY), tool(HR_EMPLOYEE_QUERY)),
+                        context(number("employeeId"), text("keyword")), tool(HR_ORGANIZATION_QUERY), tool(HR_EMPLOYEE_QUERY)),
                 page(OaPage.EMPLOYEE_CHANGE, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
-                        context(text("status"), text("changeType"), text("keyword"), number("page"), number("size")),
-                        tool(HR_CHANGE_QUERY), tool(HR_CHANGE_APPLY), tool(HR_CHANGE_APPROVE),
+                        context(number("changeId"), number("version"), text("status"), text("changeType"), text("keyword"), number("page"), number("size")),
+                        tool(HR_CHANGE_QUERY), tool(HR_CHANGE_REVIEWER_QUERY), tool(HR_CHANGE_APPLY), tool(HR_CHANGE_APPROVE),
                         tool(HR_CHANGE_REJECT), tool(HR_CHANGE_WITHDRAW)),
 
                 page(OaPage.ASSET_LEDGER, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
@@ -182,7 +185,7 @@ public class PageCapabilityCatalog {
                         tool(MEETING_ROOM_QUERY), tool(MEETING_ROOM_CREATE), tool(MEETING_ROOM_UPDATE)),
                 page(OaPage.VISITOR_BOOKING, OwnershipPolicy.SELF, LIST_COMMANDS,
                         context(number("bookingId"), text("queue"), text("status"), number("page"), number("size")),
-                        tool(VISITOR_QUERY), tool(VISITOR_APPLY), tool(VISITOR_CHECK_IN),
+                        tool(VISITOR_QUERY), tool(VISITOR_HOST_QUERY), tool(VISITOR_APPLY), tool(VISITOR_CHECK_IN),
                         tool(VISITOR_MARK_ARRIVED), tool(VISITOR_LEAVE), tool(VISITOR_WITHDRAW),
                         tool(VISITOR_NO_SHOW)),
                 page(OaPage.SEAL_USAGE, OwnershipPolicy.SELF, LIST_COMMANDS,
@@ -192,7 +195,7 @@ public class PageCapabilityCatalog {
 
                 page(OaPage.EXPENSE, OwnershipPolicy.SELF, FORM_COMMANDS,
                         context(number("applicationId"), number("version"), text("status"), number("page"), number("size")),
-                        tool(EXPENSE_QUERY), tool(EXPENSE_CREATE_DRAFT), tool(EXPENSE_UPDATE_DRAFT),
+                        tool(EXPENSE_QUERY), tool(EXPENSE_APPLY), tool(EXPENSE_CREATE_DRAFT), tool(EXPENSE_UPDATE_DRAFT),
                         tool(EXPENSE_SUBMIT_DRAFT), tool(EXPENSE_WITHDRAW), tool(EXPENSE_REOPEN), tool(EXPENSE_CANCEL_DRAFT),
                         tool(EXPENSE_REMIND)),
                 page(OaPage.BUDGET, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
@@ -215,13 +218,16 @@ public class PageCapabilityCatalog {
                         tool(INTEGRATION_ENDPOINT_QUERY), tool(INTEGRATION_ENDPOINT_CREATE_DRAFT),
                         tool(INTEGRATION_ENDPOINT_UPDATE_DRAFT), tool(INTEGRATION_ENDPOINT_UPDATE_STATUS)),
                 page(OaPage.PAGE_ACTIONS, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
-                        context(text("targetPageId"), text("enabled"), number("page"), number("size")),
+                        context(text("targetPageId"), text("keyword"), text("enabled"), number("page"), number("size")),
                         tool(PAGE_ACTION_QUERY)),
                 page(OaPage.RUNTIME_LOGS, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
-                        context(text("source"), number("recordId"), text("outcome"), text("keyword"),
+                        context(text("source"), number("recordId"), text("outcome"), text("group"), text("errorCode"), text("keyword"),
+                                new PageContextField("toExclusive", PageContextValueType.BOOLEAN, 5),
                                 text("from"), text("to"), number("page"), number("size")), tool(RUNTIME_LOG_QUERY)),
-                page(OaPage.PLATFORM_OBSERVABILITY, OwnershipPolicy.TENANT_SCOPED, READ_COMMANDS,
-                        context(), tool(RUNTIME_LOG_QUERY), tool(OBSERVABILITY_OVERVIEW_QUERY), tool(OBSERVABILITY_PREFERENCES_UPDATE),
+                page(OaPage.PLATFORM_OBSERVABILITY, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
+                        context(text("range"), new PageContextField("autoRefresh", PageContextValueType.BOOLEAN, 5),
+                                new PageContextField("showComparison", PageContextValueType.BOOLEAN, 5)),
+                        tool(RUNTIME_LOG_QUERY), tool(OBSERVABILITY_OVERVIEW_QUERY), tool(OBSERVABILITY_PREFERENCES_UPDATE),
                         tool(OBSERVABILITY_THRESHOLDS_UPDATE)),
                 page(OaPage.SANDBOX_REPLAY, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         context(number("replayId"), text("keyword"), text("status"), number("page"), number("size")),
@@ -232,7 +238,7 @@ public class PageCapabilityCatalog {
                 page(OaPage.ATTENDANCE_EXCEPTION, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         attendanceListContext(), tool(ATTENDANCE_QUERY)),
                 page(OaPage.ATTENDANCE_REISSUE, OwnershipPolicy.SELF, LIST_COMMANDS,
-                        context(text("resource"), text("status"), number("page"), number("size")),
+                        context(text("resource"), text("scope"), text("status"), number("page"), number("size")),
                         tool(ATTENDANCE_QUERY), tool(ATTENDANCE_REISSUE_APPLY),
                         tool(ATTENDANCE_REISSUE_DECIDE)),
                 page(OaPage.ATTENDANCE_STATISTICS, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
@@ -247,7 +253,7 @@ public class PageCapabilityCatalog {
                 page(OaPage.AI_PERMISSION, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         context(text("toolCode"), text("filterCode"), text("effectiveEnabled")), tool(AI_PERMISSION_QUERY)),
                 page(OaPage.KNOWLEDGE_BASE, OwnershipPolicy.FIXED_RESOURCE, LIST_COMMANDS,
-                        context(text("query"), number("topK"), number("minScore")), tool(KNOWLEDGE_SEARCH),
+                        context(number("kbId"), text("section"), number("page"), number("size"), text("query"), number("topK"), number("minScore")), tool(KNOWLEDGE_SEARCH),
                         tool(KNOWLEDGE_BASE_QUERY), tool(KNOWLEDGE_DOCUMENT_QUERY),
                         tool(KNOWLEDGE_BASE_CREATE), tool(KNOWLEDGE_BASE_UPDATE),
                         tool(KNOWLEDGE_DOCUMENT_CREATE_TEXT), tool(KNOWLEDGE_DOCUMENT_REINDEX)),
@@ -277,8 +283,24 @@ public class PageCapabilityCatalog {
     private PageCapabilityDefinition page(OaPage page, OwnershipPolicy scope,
                                           Set<PageUiCommand> commands, PageContextSchema context,
                                           PageToolReference... tools) {
+        var registered = new java.util.ArrayList<>(List.of(tools));
+        if (registered.stream().noneMatch(reference -> PAGE_UI_PREPARE.code().equals(reference.toolCode())))
+            registered.add(tool(PAGE_UI_PREPARE));
+        var supportedCommands = new java.util.HashSet<>(commands);
+        if (Set.of(OaPage.ATTENDANCE_SETTINGS, OaPage.SYSTEM_CONFIG).contains(page)) supportedCommands.addAll(Set.of(FILL_FORM, PREVIEW_SUBMISSION));
+        if (Set.of(OaPage.ASSET_LEDGER, OaPage.MEETING_ROOM, OaPage.SUPPLIERS, OaPage.BUDGET, OaPage.CONTRACTS, OaPage.EXPENSE, OaPage.ATTENDANCE_REISSUE,
+                OaPage.VISITOR_BOOKING, OaPage.SEAL_USAGE, OaPage.EMPLOYEE_CHANGE, OaPage.DICTIONARY, OaPage.KNOWLEDGE_BASE, OaPage.API_CENTER).contains(page))
+            supportedCommands.addAll(Set.of(OPEN_CREATE_FORM, FILL_FORM, PREVIEW_SUBMISSION));
+        var contextFields = new java.util.ArrayList<>(context.fields());
+        contextFields.add(new PageContextField("uiFormSession", PageContextValueType.STRING, 64));
+        contextFields.add(number("uiRecordId"));
+        contextFields.add(number("uiRecordVersion"));
+        contextFields.add(new PageContextField("uiViewKey", PageContextValueType.STRING, 120));
+        if (Set.of(OaPage.MY_APPLICATIONS, OaPage.KNOWLEDGE_BASE, OaPage.DICTIONARY).contains(page))
+            contextFields.add(new PageContextField("view", PageContextValueType.STRING, 40));
         return new PageCapabilityDefinition(page.routeKey(), page.componentKey(), 1,
-                commands, List.of(tools), Set.of("route:" + page.routeKey()), scope, context);
+                supportedCommands, registered, Set.of("route:" + page.routeKey()), scope,
+                new PageContextSchema(context.maxBytes(), Math.max(2, context.maxDepth()), contextFields));
     }
 
     private PageToolReference tool(ToolCode code) {

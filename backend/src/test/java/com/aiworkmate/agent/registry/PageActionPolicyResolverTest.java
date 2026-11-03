@@ -24,7 +24,7 @@ class PageActionPolicyResolverTest {
 
         PageActionPolicyResolver resolver = new PageActionPolicyResolver(catalog, mapper);
 
-        assertThat(resolver.enabledToolCodes(9L, "todo-list")).isEmpty();
+        assertThat(resolver.enabledToolCodes(9L, "todo-list")).containsExactly("page.ui.prepare");
         verify(mapper).selectByTenantAndPage(9L, "todo");
     }
 }

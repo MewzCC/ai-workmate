@@ -11,6 +11,9 @@ import java.util.Set;
  */
 public enum ToolCode {
     TODO_QUERY("todo.query"),
+    PAGE_UI_PREPARE("page.ui.prepare"),
+    HR_CHANGE_REVIEWER_QUERY("hr.change.reviewer.query"),
+    VISITOR_HOST_QUERY("visitor.host.query"),
     DASHBOARD_OVERVIEW_QUERY("dashboard.overview.query"),
     DASHBOARD_PREFERENCES_UPDATE("dashboard.preferences.update", SideEffect.SINGLE_WRITE),
     LEAVE_MINE("leave.mine"),
@@ -68,6 +71,7 @@ public enum ToolCode {
     APPROVAL_APPLICATION_MINE_QUERY("approval.application.mine.query", SideEffect.NONE),
     APPROVAL_APPLICATION_DETAIL_QUERY("approval.application.detail.query", SideEffect.NONE),
     APPROVAL_APPLICATION_CREATE_DRAFT("approval.application.createDraft", SideEffect.SINGLE_WRITE),
+    APPROVAL_APPLICATION_APPLY("approval.application.apply", SideEffect.SINGLE_WRITE),
     APPROVAL_APPLICATION_UPDATE_DRAFT("approval.application.updateDraft", SideEffect.SINGLE_WRITE),
     APPROVAL_APPLICATION_SUBMIT_DRAFT("approval.application.submitDraft", SideEffect.SINGLE_WRITE),
     APPROVAL_APPLICATION_CANCEL_DRAFT("approval.application.cancelDraft", SideEffect.SINGLE_WRITE),
@@ -104,6 +108,7 @@ public enum ToolCode {
     SEAL_RETURN("seal.return", SideEffect.SINGLE_WRITE),
     EXPENSE_QUERY("expense.query"),
     EXPENSE_CREATE_DRAFT("expense.createDraft", SideEffect.SINGLE_WRITE),
+    EXPENSE_APPLY("expense.apply", SideEffect.SINGLE_WRITE),
     EXPENSE_UPDATE_DRAFT("expense.updateDraft", SideEffect.SINGLE_WRITE),
     EXPENSE_SUBMIT_DRAFT("expense.submitDraft", SideEffect.SINGLE_WRITE),
     EXPENSE_WITHDRAW("expense.withdraw", SideEffect.SINGLE_WRITE),

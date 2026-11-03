@@ -20,9 +20,17 @@ public final class AgentReadResultPresenter {
     private AgentReadResultPresenter() { }
 
     public static String present(String toolCode, JsonNode result) {
-        if (List.of("approval.application.createDraft","approval.application.updateDraft","approval.application.submitDraft",
+        if ("page.ui.prepare".equals(toolCode)) return MessageUtils.resolve("agent.ui.prepared",
+                plain(result.path("pageId").asText()), plain(result.path("code").asText()));
+        if (List.of("approval.application.apply","approval.application.createDraft","approval.application.updateDraft","approval.application.submitDraft",
                 "approval.application.cancelDraft","approval.application.withdraw","approval.application.reopen","approval.application.remind")
                 .contains(toolCode == null ? "" : toolCode)) return approvalWrite(toolCode,result);
+        if ("expense.apply".equals(toolCode)) {
+            requireWriteReceipt(result, "PENDING", 1);
+            if (!"expense-application".equals(result.path("formKey").asText())) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+            return MessageUtils.resolve("agent.expenseWrite.apply", Long.toString(result.path("applicationId").asLong()),
+                    Integer.toString(result.path("version").asInt()));
+        }
         if (List.of("leave.createDraft","leave.updateDraft","leave.submit","leave.apply","leave.withdraw","leave.remind").contains(toolCode == null ? "" : toolCode))
             return leaveWrite(toolCode,result);
         if ("approval.rule.patchDraftCondition".equals(toolCode)) return ruleConditionPatch(result);

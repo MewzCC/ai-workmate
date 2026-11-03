@@ -6,7 +6,15 @@ import com.aiworkmate.agent.registry.ToolCode;
 import com.aiworkmate.agent.task.AgentHashing;
 import com.aiworkmate.agent.worker.AgentTaskWorker;
 import com.aiworkmate.dto.VersionRequest;
+import com.aiworkmate.dto.ApprovalDraftRequest;
+import com.aiworkmate.common.BusinessException;
+import com.aiworkmate.common.ErrorCode;
 import com.aiworkmate.service.GenericApprovalService;
+import com.aiworkmate.service.ExpenseApplicationService;
+import com.aiworkmate.service.UserAccessService;
+import com.aiworkmate.agent.registry.ToolRegistry;
+import com.aiworkmate.agent.registry.ToolPolicySource;
+import com.aiworkmate.service.model.ExpenseAgentDraftCommand;
 import com.aiworkmate.integration.AgentHttpTestFixture.Actor;
 import com.aiworkmate.integration.FrozenWriteTaskFixture.Task;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -27,9 +35,11 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Stream;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.awaitility.Awaitility.await;
 
 /** Real confirmation, Gateway and generic-approval transactions in an owned disposable environment. */
@@ -47,6 +57,10 @@ class AgentApprovalWriteIntegrationTest extends AbstractIsolatedAgentIntegration
     @Autowired private AgentHashing hashing;
     @Autowired private AgentTaskWorker worker;
     @Autowired private GenericApprovalService approvals;
+    @Autowired private ExpenseApplicationService expenses;
+    @Autowired private UserAccessService access;
+    @Autowired private ToolRegistry registry;
+    @Autowired private ToolPolicySource policies;
     private AgentHttpTestFixture http;
     private long tenant, application, approver;
     private int version;
@@ -81,8 +95,10 @@ class AgentApprovalWriteIntegrationTest extends AbstractIsolatedAgentIntegration
         jdbc.execute("DROP TRIGGER IF EXISTS approval_write_fault ON business_audit_log");
         jdbc.execute("DROP FUNCTION IF EXISTS approval_write_fault()");
     }
-    static Stream<ToolCode> writes() { return Stream.of(ToolCode.values()).filter(c->c.isWrite() && c.code().startsWith("approval.application.")); }
-    static Stream<ToolCode> versionedWrites() { return writes().filter(c->c!=ToolCode.APPROVAL_APPLICATION_CREATE_DRAFT); }
+    static Stream<ToolCode> writes() { return Stream.of(ToolCode.values()).filter(c->c.isWrite() && (c.code().startsWith("approval.application.") || c==ToolCode.EXPENSE_APPLY)); }
+    static Stream<ToolCode> atomicCreations() { return Stream.of(ToolCode.APPROVAL_APPLICATION_APPLY,ToolCode.EXPENSE_APPLY); }
+    private static boolean atomicCreation(ToolCode code) { return code==ToolCode.APPROVAL_APPLICATION_APPLY || code==ToolCode.EXPENSE_APPLY; }
+    static Stream<ToolCode> versionedWrites() { return writes().filter(c->c!=ToolCode.APPROVAL_APPLICATION_CREATE_DRAFT && !atomicCreation(c)); }
 
     @ParameterizedTest @MethodSource("writes")
     void confirmedWriteReturnsTheActualStateAndCommitsItsAuditTogether(ToolCode code) throws Exception {
@@ -101,15 +117,17 @@ class AgentApprovalWriteIntegrationTest extends AbstractIsolatedAgentIntegration
         };
         assertThat(result.path("result").path("status").asText()).isEqualTo(expected);
         assertThat(result.path("result").path("version").asInt()).isEqualTo(code==ToolCode.APPROVAL_APPLICATION_CREATE_DRAFT?0:version+1);
-        assertThat(result.path("resultSummary").asText()).contains("#"+id,formKey).doesNotContain("applicationId:");
+        assertThat(result.path("resultSummary").asText()).contains("#"+id).doesNotContain("applicationId:");
+        assertThat(result.path("result").path("formKey").asText()).isEqualTo(formKey);
+        if(code!=ToolCode.EXPENSE_APPLY) assertThat(result.path("resultSummary").asText()).contains(formKey);
         assertThat(jdbc.queryForObject("SELECT status FROM approval_application WHERE id=? AND tenant_id=? AND applicant_user_id=?",String.class,id,tenant,owner.id())).isEqualTo(expected);
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM approval_write_probe WHERE application_id=? AND kind='AUDIT'",Long.class,id)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM approval_write_probe WHERE application_id=? AND kind='AUDIT'",Long.class,id)).isEqualTo(atomicCreation(code)?2:1);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM approval_write_probe WHERE application_id=? AND kind='BUSINESS'",Long.class,id)).isPositive();
         assertThat(jdbc.queryForObject("SELECT count(DISTINCT transaction_id) FROM approval_write_probe WHERE application_id=?",Long.class,id)).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM agent_tool_invocation WHERE task_id=? AND handler_invoked AND outcome='SUCCEEDED'",Long.class,task.id())).isEqualTo(1);
-        if(code==ToolCode.APPROVAL_APPLICATION_CREATE_DRAFT || code==ToolCode.APPROVAL_APPLICATION_UPDATE_DRAFT)
+        if(code==ToolCode.APPROVAL_APPLICATION_CREATE_DRAFT || code==ToolCode.APPROVAL_APPLICATION_UPDATE_DRAFT || atomicCreation(code))
             assertThat(jdbc.queryForObject("SELECT data_json::jsonb->>'reason' FROM approval_application WHERE id=?",String.class,id)).isEqualTo("controlled generic value");
-        if(code==ToolCode.APPROVAL_APPLICATION_SUBMIT_DRAFT) {
+        if(code==ToolCode.APPROVAL_APPLICATION_SUBMIT_DRAFT || atomicCreation(code)) {
             assertThat(jdbc.queryForObject("SELECT count(*) FROM approval_application WHERE id=? AND form_schema_snapshot IS NOT NULL AND process_node_snapshot IS NOT NULL AND rule_snapshot IS NOT NULL",Long.class,id)).isEqualTo(1);
             assertThat(jdbc.queryForObject("SELECT count(*) FROM workflow_task WHERE business_type='GENERIC_APPROVAL' AND business_id=? AND assignee_user_id=? AND status='PENDING'",Long.class,id,approver)).isEqualTo(1);
         }
@@ -219,6 +237,59 @@ class AgentApprovalWriteIntegrationTest extends AbstractIsolatedAgentIntegration
         assertThat(jdbc.queryForObject("SELECT error_code FROM agent_task WHERE id=?",String.class,task.id())).isEqualTo("TOOL_RESULT_UNKNOWN");
     }
 
+    @ParameterizedTest @MethodSource("atomicCreations")
+    void atomicSubmissionAuditFailureRollsBackTheDraftAndWorkflow(ToolCode code) throws Exception {
+        var task=prepare(code);
+        jdbc.execute("CREATE FUNCTION approval_write_fault() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.resource_type='GENERIC_APPROVAL' AND NEW.action='SUBMIT' AND NEW.result='SUCCESS' THEN RAISE EXCEPTION 'synthetic submission audit fault'; END IF; RETURN NEW; END $$");
+        jdbc.execute("CREATE TRIGGER approval_write_fault BEFORE INSERT ON business_audit_log FOR EACH ROW EXECUTE FUNCTION approval_write_fault()");
+        assertThat(execute(task,confirm(task)).statusCode()).isEqualTo(202);
+        terminal(task,"PARTIALLY_SUCCEEDED");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM approval_application WHERE applicant_user_id=?",Long.class,owner.id())).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM workflow_instance WHERE applicant_id=? AND business_type='GENERIC_APPROVAL'",Long.class,owner.id())).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM business_audit_log WHERE actor_user_id=? AND resource_type='GENERIC_APPROVAL' AND result='SUCCESS'",Long.class,owner.id())).isZero();
+    }
+
+    @Test void atomicDomainReplayReturnsTheSameApplicationAndRejectsChangedArguments() throws Exception {
+        prepare(ToolCode.APPROVAL_APPLICATION_APPLY);
+        String key="atomic-fixture-"+UUID.randomUUID();
+        var request=new ApprovalDraftRequest(formKey,formKey,Map.of("reason","stable atomic value"));
+        var first=approvals.applyAgentApplication(owner.id(),tenant,request,key);
+        var replay=approvals.applyAgentApplication(owner.id(),tenant,request,key);
+        assertThat(replay.id()).isEqualTo(first.id());
+        assertThat(replay.version()).isEqualTo(first.version());
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM approval_application WHERE applicant_user_id=?",Long.class,owner.id())).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM workflow_instance WHERE applicant_id=? AND business_type='GENERIC_APPROVAL'",Long.class,owner.id())).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM business_audit_log WHERE actor_user_id=? AND resource_type='GENERIC_APPROVAL' AND result='SUCCESS'",Long.class,owner.id())).isEqualTo(2);
+        assertThatThrownBy(()->approvals.applyAgentApplication(owner.id(),tenant,
+                new ApprovalDraftRequest(formKey,formKey,Map.of("reason","changed value")),key))
+                .isInstanceOfSatisfying(BusinessException.class,error->assertThat(error.getErrorCode()).isEqualTo(ErrorCode.IDEMPOTENCY_CONFLICT.getErrorCode()));
+    }
+
+    @Test void atomicExpenseReplayKeepsOneWorkflowAndRejectsChangedAmount() throws Exception {
+        prepare(ToolCode.EXPENSE_APPLY);
+        String key="atomic-expense-"+UUID.randomUUID();
+        var command=new ExpenseAgentDraftCommand(new java.math.BigDecimal("88.50"),"TRAVEL",
+                java.time.LocalDate.now().minusDays(1),"SYNTHETIC-INVOICE","controlled generic value");
+        var first=expenses.applyAgentExpense(owner.id(),tenant,command,key);
+        var replay=expenses.applyAgentExpense(owner.id(),tenant,command,key);
+        assertThat(replay).isEqualTo(first);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM approval_application WHERE applicant_user_id=? AND form_key='expense-application'",Long.class,owner.id())).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM workflow_instance WHERE applicant_id=? AND business_type='GENERIC_APPROVAL'",Long.class,owner.id())).isEqualTo(1);
+        assertThatThrownBy(()->expenses.applyAgentExpense(owner.id(),tenant,new ExpenseAgentDraftCommand(
+                new java.math.BigDecimal("99.50"),command.category(),command.expenseDate(),command.invoiceNumber(),command.reason()),key))
+                .isInstanceOfSatisfying(BusinessException.class,error->assertThat(error.getErrorCode()).isEqualTo(ErrorCode.IDEMPOTENCY_CONFLICT.getErrorCode()));
+    }
+
+    @Test void atomicExpenseWithMissingRequiredTemplateFieldLeavesNoDraft() throws Exception {
+        prepare(ToolCode.EXPENSE_APPLY);
+        var command=new ExpenseAgentDraftCommand(new java.math.BigDecimal("88.50"),"TRAVEL",
+                java.time.LocalDate.now().minusDays(1),null,"controlled generic value");
+        assertThatThrownBy(()->expenses.applyAgentExpense(owner.id(),tenant,command,"missing-invoice-"+UUID.randomUUID()))
+                .isInstanceOf(BusinessException.class);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM approval_application WHERE applicant_user_id=?",Long.class,owner.id())).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM workflow_instance WHERE applicant_id=? AND business_type='GENERIC_APPROVAL'",Long.class,owner.id())).isZero();
+    }
+
     private Task prepare(ToolCode code) throws Exception {
         var permissions=new LinkedHashSet<>(catalog.find(code.code()).orElseThrow().requiredPermissions());
         var routes=pages.businessPageIdsForTool(code.code()).stream().sorted().toList();
@@ -227,13 +298,20 @@ class AgentApprovalWriteIntegrationTest extends AbstractIsolatedAgentIntegration
         permissions.add("agent:tool:"+code.code());
         owner=http.createAndLogin(tenant,List.copyOf(permissions));
         approver=LeaveWriteFixture.linkedApprover(jdbc,tenant,owner.id());
+        if(code==ToolCode.EXPENSE_APPLY) {
+            formKey="expense-application"; version=0; application=0; initialStatus="DRAFT";
+            var expense=json.createObjectNode().put("amount",88.50).put("category","TRAVEL")
+                    .put("expenseDate",java.time.LocalDate.now().minusDays(1).toString())
+                    .put("invoiceNumber","SYNTHETIC-INVOICE").put("reason","controlled generic value");
+            return freeze(code,routes,expense);
+        }
         formKey="approval-it-"+UUID.randomUUID().toString().replace("-","");
         long form=jdbc.queryForObject("INSERT INTO approval_form(tenant_id,form_key,form_name,schema_json,status,created_by) VALUES (?,?,?,'{\"fields\":[{\"name\":\"reason\",\"label\":\"Reason\",\"type\":\"textarea\",\"required\":true}]}','ENABLED',?) RETURNING id",Long.class,tenant,formKey,formKey,owner.id());
         var nodes=json.createArrayNode();
         nodes.addObject().put("approveType","USER").put("targetKey",Long.toString(approver));
         long process=jdbc.queryForObject("INSERT INTO approval_process(tenant_id,process_key,process_name,form_id,node_json,status,created_by) VALUES (?,?,?,?,?,'ENABLED',?) RETURNING id",Long.class,tenant,formKey,formKey,form,nodes.toString(),owner.id());
         var args=json.createObjectNode(); version=0; application=0; initialStatus="DRAFT";
-        if(code==ToolCode.APPROVAL_APPLICATION_CREATE_DRAFT) args.put("formKey",formKey).put("processKey",formKey);
+        if(code==ToolCode.APPROVAL_APPLICATION_CREATE_DRAFT || code==ToolCode.APPROVAL_APPLICATION_APPLY) args.put("formKey",formKey).put("processKey",formKey);
         else {
             application=jdbc.queryForObject("INSERT INTO approval_application(tenant_id,applicant_user_id,form_id,process_id,form_key,form_name,title,data_json,status) VALUES (?,?,?,?,?,?,?,'{\"reason\":\"existing fixture\"}','DRAFT') RETURNING id",Long.class,tenant,owner.id(),form,process,formKey,formKey,formKey);
             if(List.of(ToolCode.APPROVAL_APPLICATION_WITHDRAW,ToolCode.APPROVAL_APPLICATION_REMIND,ToolCode.APPROVAL_APPLICATION_REOPEN).contains(code)) {
@@ -243,10 +321,18 @@ class AgentApprovalWriteIntegrationTest extends AbstractIsolatedAgentIntegration
             }
             args.put("applicationId",application).put("version",version);
         }
-        if(code==ToolCode.APPROVAL_APPLICATION_CREATE_DRAFT || code==ToolCode.APPROVAL_APPLICATION_UPDATE_DRAFT)
+        if(code==ToolCode.APPROVAL_APPLICATION_CREATE_DRAFT || code==ToolCode.APPROVAL_APPLICATION_UPDATE_DRAFT || code==ToolCode.APPROVAL_APPLICATION_APPLY)
             args.putArray("fields").addObject().put("name","reason").put("value","controlled generic value");
+        return freeze(code,routes,args);
+    }
+    private Task freeze(ToolCode code,List<String> routes,com.fasterxml.jackson.databind.JsonNode args) {
         jdbc.update("UPDATE agent_tool SET enabled=true WHERE tenant_id IS NULL AND code=?",code.code());
         jdbc.update("DELETE FROM agent_page_action_policy WHERE tenant_id=? AND page_id=? AND tool_code=?",tenant,routes.get(0),code.code());
+        assertThat(jdbc.queryForObject("SELECT schema_hash FROM agent_tool WHERE tenant_id IS NULL AND code=?",String.class,code.code()))
+                .as("persisted schema contract: %s",code.code()).isEqualTo(catalog.find(code.code()).orElseThrow().schemaHash());
+        assertThat(registry.resolveAvailability(tenant,code.code()).status().name())
+                .as("fixture runtime availability: %s; platform=%s; tenant=%s",code.code(),policies.platformTool(code.code()),policies.tenantTool(tenant,code.code())).isEqualTo("AVAILABLE");
+        assertThat(pages.allowsTool(routes.get(0),code.code(),access.resolveActiveUser(owner.id()).permissions())).as("fixture entry permissions: %s",code.code()).isTrue();
         return new FrozenWriteTaskFixture(jdbc,json,hashing,catalog).create(tenant,owner.id(),routes.get(0),code.code(),args);
     }
     private void installTransactionProbe() {

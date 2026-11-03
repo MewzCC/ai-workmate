@@ -50,6 +50,7 @@ import java.util.Optional;
  */
 public interface AdminAssetsService {
     PageResponse<com.aiworkmate.dto.BusinessUserOption> visitorHostOptions(Long userId, String keyword, int page, int size);
+    PageResponse<com.aiworkmate.dto.BusinessUserOption> visitorHostOptions(Long userId, Long expectedTenantId, String keyword, int page, int size);
     java.util.List<com.aiworkmate.dto.AssetAssignmentOption> assetDepartments(Long userId);
     PageResponse<com.aiworkmate.dto.AssetAssignmentOption> assetDepartmentOptions(Long userId, String keyword, int page, int size);
     PageResponse<com.aiworkmate.dto.AssetAssignmentOption> assetCustodians(Long userId, Long departmentId, int page, int size);

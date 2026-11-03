@@ -98,12 +98,19 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
     @Override
     @Transactional(readOnly = true)
     public PageResponse<com.aiworkmate.dto.BusinessUserOption> visitorHostOptions(Long userId, String keyword, int page, int size) {
+        return visitorHostOptions(userId, null, keyword, page, size);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<com.aiworkmate.dto.BusinessUserOption> visitorHostOptions(Long userId, Long expectedTenantId, String keyword, int page, int size) {
         ResolvedUserAccess actor = requirePermission(userId, "visitor:create");
+        if (expectedTenantId != null && !expectedTenantId.equals(actor.tenantId()))
+            throw new BusinessException(ErrorCode.RESOURCE_FORBIDDEN);
         var query = new com.aiworkmate.service.model.BusinessCandidateQuery(keyword, page, size);
         return PageResponse.of(userMapper.selectBusinessUserOptions(actor.tenantId(), null, null, query.keyword(), query.size(), query.offset()),
                 userMapper.countBusinessUserOptions(actor.tenantId(), null, null, query.keyword()), query.page(), query.size());
     }
-
 
     @Override
     @Transactional(readOnly = true)

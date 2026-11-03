@@ -41,6 +41,11 @@ final class AgentReadCatalogFixture {
                 args.put("keyword", label);
             }
             case HR_CHANGE_QUERY -> jdbc.update("INSERT INTO employee_change(tenant_id,employee_user_id,applicant_user_id,review_approver_user_id,change_type,effective_date,reason) VALUES (?,?,?,?,'ONBOARDING',CURRENT_DATE,?)", tenant, user, user, user, label);
+            case HR_CHANGE_REVIEWER_QUERY -> {
+                candidate();
+                args.put("keyword", label);
+            }
+            case VISITOR_HOST_QUERY -> args.put("keyword", label);
             case ATTENDANCE_QUERY -> {
                 jdbc.update("INSERT INTO attendance_record(tenant_id,user_id,clock_date,clock_in_time,status) VALUES (?,?,CURRENT_DATE,CURRENT_TIMESTAMP,'NORMAL')", tenant, user);
                 args.put("resource", "RECORDS").put("from", LocalDate.now().toString()).put("to", LocalDate.now().toString());
@@ -60,6 +65,10 @@ final class AgentReadCatalogFixture {
                 long application = LeaveReadFixture.pending(jdbc, tenant, applicant, user);
                 long task = jdbc.queryForObject("SELECT id FROM workflow_task WHERE tenant_id=? AND business_type='LEAVE_APPLICATION' AND business_id=? AND assignee_user_id=?", Long.class, tenant, application, user);
                 args.put("taskId", task).put("keyword", label);
+            }
+            case PAGE_UI_PREPARE -> {
+                args.put("pageId", "access-control").put("code", "ui.refreshPage");
+                evidence = "ui.refreshPage";
             }
             case APPROVAL_RULE_DEFINITION_QUERY -> {
                 long rule = id("INSERT INTO approval_rule(tenant_id,rule_key,rule_name,rule_type,condition_json,action_json,status,created_by) VALUES (?,?,?,'AMOUNT_THRESHOLD','{\"logic\":\"AND\",\"conditions\":[{\"field\":\"amount\",\"op\":\"gte\",\"value\":\"100\"}]}','{\"appendNode\":\"FINANCE_REVIEW\",\"enabled\":true,\"mode\":\"OR_SIGN\"}','DISABLED',?) RETURNING id", tenant, label, label, user);
@@ -134,6 +143,7 @@ final class AgentReadCatalogFixture {
 
     Input prepareForPage(ToolCode code, String page) {
         var input = prepare(code);
+        if (code == ToolCode.PAGE_UI_PREPARE) return new Input(input.arguments().put("pageId", page), input.evidence());
         if (code != ToolCode.ATTENDANCE_QUERY) return input;
         var args = input.arguments();
         return switch (page) {

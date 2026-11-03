@@ -69,7 +69,8 @@ class PageCapabilityServiceImplTest {
         assertEquals(List.of("SELF"), response.effectiveDataScopes());
         assertEquals(List.of("ui.applyFilter", "ui.navigate", "ui.openDetail", "ui.refreshPage"),
                 response.uiCommands());
-        assertEquals(5, response.contextSchema().fields().size());
+        assertEquals(List.of("status", "from", "to", "page", "size", "uiFormSession", "uiRecordId", "uiRecordVersion", "uiViewKey"),
+                response.contextSchema().fields().stream().map(PageCapabilityResponse.ContextField::name).toList());
         assertEquals("status", response.contextSchema().fields().get(0).name());
         assertEquals("STRING", response.contextSchema().fields().get(0).valueType());
         assertEquals(500, response.contextSchema().fields().get(0).maxLength());

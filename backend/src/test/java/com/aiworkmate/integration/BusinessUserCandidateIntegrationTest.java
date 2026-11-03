@@ -24,6 +24,8 @@ class BusinessUserCandidateIntegrationTest extends AbstractIsolatedAgentIntegrat
     @Autowired JdbcTemplate jdbc;
     @Autowired ObjectMapper json;
     @Autowired PasswordEncoder passwords;
+    @Autowired com.aiworkmate.service.EmployeeChangeService changes;
+    @Autowired com.aiworkmate.service.AdminAssetsService assets;
     private AgentHttpTestFixture http;
     private long tenant;
     private AgentHttpTestFixture.Actor visitor, manager;
@@ -102,6 +104,17 @@ class BusinessUserCandidateIntegrationTest extends AbstractIsolatedAgentIntegrat
     @Test void refusesInvalidPagingAndOverlongNames() throws Exception {
         for (String query : List.of("page=0", "page=10001", "size=101", "keyword=" + "x".repeat(121))) {
             data(host(visitor, query), 400); data(reviewers(manager, query), 400);
+        }
+    }
+    @Test void agentCandidatesBindTheExpectedTenantInsideTheDomain() {
+        assertThat(assets.visitorHostOptions(visitor.id(), tenant, marker, 1, 20).records()).isEmpty();
+        assertThat(changes.reviewerOptions(manager.id(), tenant, marker, 1, 20).records()).isEmpty();
+        for (Runnable query : List.<Runnable>of(
+                () -> assets.visitorHostOptions(visitor.id(), tenant + 1, marker, 1, 20),
+                () -> changes.reviewerOptions(manager.id(), tenant + 1, marker, 1, 20))) {
+            org.assertj.core.api.Assertions.assertThatThrownBy(query::run).isInstanceOfSatisfying(
+                    com.aiworkmate.common.BusinessException.class,
+                    failure -> assertThat(failure.getErrorCode()).isEqualTo(com.aiworkmate.common.ErrorCode.RESOURCE_FORBIDDEN.getErrorCode()));
         }
     }
     private long person(long ownerTenant, String label, int status) {

@@ -12,6 +12,7 @@ import java.util.Optional;
 
 public interface EmployeeChangeService {
     PageResponse<com.aiworkmate.dto.BusinessUserOption> reviewerOptions(Long userId, String keyword, int page, int size);
+    PageResponse<com.aiworkmate.dto.BusinessUserOption> reviewerOptions(Long userId, Long expectedTenantId, String keyword, int page, int size);
     PageResponse<EmployeeChangeResponse> list(Long userId, String status, String changeType,
                                               String keyword, int page, int size);
     EmployeeChangeResponse detail(Long userId, Long id);

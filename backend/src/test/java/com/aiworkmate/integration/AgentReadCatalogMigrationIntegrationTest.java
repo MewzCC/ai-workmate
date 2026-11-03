@@ -60,6 +60,7 @@ class AgentReadCatalogMigrationIntegrationTest extends AbstractIsolatedAgentInte
         ((ObjectNode)oldAttendance.at("/properties/settings/properties")).remove("version");
         jdbc.update("UPDATE agent_tool SET output_schema=?::jsonb,schema_hash=? WHERE code='attendance.query'",oldAttendance.toString(),"sha256:4ff357d3836da753f0c32d3774ea04ba3cf83d1c6b8708de548e8ff711348d60");
         jdbc.update("UPDATE agent_tool SET required_permissions='[\"leave:remind\"]'::jsonb WHERE code='leave.remind'");
+        jdbc.update("UPDATE agent_tool SET schema_hash='sha256:ce17ae535efa0de9beed88a10c326cafc7831f98176523b4bf52d6a0cfd7d371' WHERE tenant_id IS NULL AND code='expense.apply'");
         var replayVersions=jdbc.queryForList("SELECT version FROM flyway_schema_history WHERE version::numeric>=202610260915 ORDER BY installed_rank",String.class);
         assertThat(replayVersions).contains("202610260915","202610260916","202610260917","202610260918","202610260919","202610260920","202610261500");
         assertThat(jdbc.update("DELETE FROM flyway_schema_history WHERE version::numeric>=202610260915")).isEqualTo(replayVersions.size());
@@ -95,6 +96,7 @@ class AgentReadCatalogMigrationIntegrationTest extends AbstractIsolatedAgentInte
     }
 
     private void assertCurrentContracts() {
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM agent_tool WHERE tenant_id IS NULL AND code IN ('expense.apply','approval.application.apply') AND enabled", Long.class)).isZero();
         org.assertj.core.api.SoftAssertions.assertSoftly(soft -> {
             for (var definition : catalog.all()) {
                 String code = definition.code();
