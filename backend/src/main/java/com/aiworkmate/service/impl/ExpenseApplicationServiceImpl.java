@@ -44,6 +44,19 @@ public class ExpenseApplicationServiceImpl implements ExpenseApplicationService 
 
     @Override
     @Transactional
+    public ExpenseAgentLifecycleReceipt applyAgentExpense(Long userId, Long expectedTenantId, ExpenseAgentDraftCommand command, String operationKey) {
+        ResolvedUserAccess actor = requireLifecycleAccess(userId, "approval:create");
+        if (!Objects.equals(expectedTenantId, actor.tenantId()) || !actor.permissions().contains("route:expense"))
+            throw new BusinessException(ErrorCode.PERMISSION_DENIED);
+        requireLifecycleAccess(userId, "approval:submit");
+        requireOperationKey(operationKey);
+        if (command == null || command.amount() == null || command.category() == null || command.expenseDate() == null
+                || command.reason() == null || command.reason().isBlank()) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        return lifecycleReceipt(approvalService.applyAgentApplication(userId, expectedTenantId, request(command), operationKey));
+    }
+
+    @Override
+    @Transactional
     public ExpenseAgentDraftReceipt createAgentDraft(
             Long userId, ExpenseAgentDraftCommand command, String operationKey) {
         requireOperationKey(operationKey);

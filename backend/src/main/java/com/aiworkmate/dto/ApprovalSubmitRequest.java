@@ -16,6 +16,8 @@ import java.util.Map;
 public record ApprovalSubmitRequest(
         @NotBlank @Size(max = 64) String formKey,
         @Size(max = 64) String processKey,
-        @NotNull @Size(max = 100) Map<String, Object> formData
+        @NotNull @Size(max = 100)
+        @com.fasterxml.jackson.databind.annotation.JsonDeserialize(using = ExactFormDataDeserializer.class)
+        Map<String, Object> formData
 ) {
 }

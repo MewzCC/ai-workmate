@@ -20,6 +20,13 @@ public final class ApprovalApplicationAgentDomainToolAdapter implements Approval
     private final GenericApprovalService approvalService;
 
     @Override
+    public WriteResult apply(ToolActorContext context, Draft command, ToolOperationKey operationKey) {
+        var result = approvalService.applyAgentApplication(context.userId(), context.tenantId(),
+                new ApprovalDraftRequest(command.formKey(), command.processKey(), formData(command.fields())), operationKey.value());
+        return new WriteResult(result.id(), result.formKey(), result.status(), result.version());
+    }
+
+    @Override
     public com.aiworkmate.agent.tool.port.ToolPage<Summary> mine(ToolActorContext context, Query query) {
         var page = approvalService.mineForAgent(context.userId(), query.status(), query.formKey(), query.page(), query.size());
         return new com.aiworkmate.agent.tool.port.ToolPage<>(page.records().stream().map(this::summary).toList(),

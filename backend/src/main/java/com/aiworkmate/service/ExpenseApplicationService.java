@@ -8,6 +8,7 @@ import java.util.Optional;
 
 /** Expense-specific application boundary backed by the generic approval domain. */
 public interface ExpenseApplicationService {
+    ExpenseAgentLifecycleReceipt applyAgentExpense(Long userId, Long expectedTenantId, ExpenseAgentDraftCommand command, String operationKey);
     ExpenseAgentDraftReceipt createAgentDraft(
             Long userId, ExpenseAgentDraftCommand command, String operationKey);
 

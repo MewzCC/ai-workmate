@@ -46,9 +46,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
+import java.math.BigDecimal;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
@@ -129,6 +131,34 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
         return createDraftInternal(actor, request, operationKey);
     }
 
+    @Override
+    @Transactional
+    public ApprovalApplicationResponse applyAgentApplication(Long userId, Long expectedTenantId, ApprovalDraftRequest request, String operationKey) {
+        ResolvedUserAccess actor = requirePermission(userId, "route:approval-start");
+        if (!java.util.Objects.equals(expectedTenantId, actor.tenantId())
+                || !actor.permissions().containsAll(Set.of("approval:create", "approval:submit")))
+            throw new BusinessException(ErrorCode.PERMISSION_DENIED);
+        if (request == null || request.formKey() == null || request.formData() == null
+                || operationKey == null || operationKey.isBlank() || operationKey.length() > 128)
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        User applicant = userMapper.lockActiveApplicant(actor.tenantId(), actor.userId());
+        if (applicant == null || !actor.tenantId().equals(applicant.getTenantId()) || !Integer.valueOf(1).equals(applicant.getStatus()))
+            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        ApprovalApplication existing = applicationMapper.findAgentOperation(actor.tenantId(), actor.userId(), operationKey);
+        if (existing != null) {
+            ApprovalForm form = requireEnabledForm(actor, request.formKey(), "AGENT_APPLY_REPLAY");
+            ApprovalProcess process = resolveProcess(actor.tenantId(), form.getId(), request.processKey());
+            if (!"PENDING".equals(existing.getStatus()) || !Integer.valueOf(1).equals(existing.getVersion())
+                    || process == null || !java.util.Objects.equals(existing.getFormId(), form.getId())
+                    || !java.util.Objects.equals(existing.getProcessId(), process.getId())
+                    || !sameFormDataJson(existing.getDataJson(), writeJson(validateFormData(form, request.formData(), true))))
+                throw new BusinessException(ErrorCode.IDEMPOTENCY_CONFLICT);
+            return response(actor, requireView(actor.tenantId(), existing.getId()), null);
+        }
+        var draft = createDraftInternal(actor, request, operationKey);
+        return submitDraftInternal(actor, draft.id(), new VersionRequest(draft.version()));
+    }
+
     private ApprovalApplicationResponse createDraftInternal(
             ResolvedUserAccess actor, ApprovalDraftRequest request, String operationKey) {
         ApprovalForm form = requireEnabledForm(actor, request.formKey(), "DRAFT_CREATE");
@@ -175,7 +205,7 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
         if (!"DRAFT".equals(existing.getStatus())
                 || !java.util.Objects.equals(existing.getFormId(), form.getId())
                 || !java.util.Objects.equals(existing.getProcessId(), processId)
-                || !java.util.Objects.equals(existing.getDataJson(), dataJson)) {
+                || !sameFormDataJson(existing.getDataJson(), dataJson)) {
             throw new BusinessException(ErrorCode.IDEMPOTENCY_CONFLICT);
         }
         return response(actor, requireView(actor.tenantId(), existing.getId()), null);
@@ -980,13 +1010,16 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
     private void checkValueType(FieldDef def, Object value) {
         String type = def.type() == null ? "text" : def.type();
         switch (type) {
-            case "number", "amount" -> {
+            case "number", "amount", "money" -> {
                 if (!isNumeric(value)) {
                     throw new BusinessException(ErrorCode.REQUEST_INVALID,
                             "validation.approval.submit.valueInvalid");
                 }
-                double numericValue = Double.parseDouble(String.valueOf(value));
-                if (!Double.isFinite(numericValue) || (def.min() != null && numericValue < def.min())) {
+                BigDecimal numericValue;
+                try { numericValue = new BigDecimal(String.valueOf(value)); }
+                catch (NumberFormatException invalid) { throw invalidValue(); }
+                if (!Double.isFinite(numericValue.doubleValue())
+                        || (def.min() != null && numericValue.compareTo(def.min()) < 0)) {
                     throw invalidValue();
                 }
             }
@@ -1057,7 +1090,9 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
     private Map<String, FieldDef> parseSchemaFields(String schemaJson) {
         Map<String, FieldDef> defs = new LinkedHashMap<>();
         try {
-            JsonNode root = objectMapper.readTree(schemaJson == null ? "{}" : schemaJson);
+            JsonNode root = objectMapper.reader()
+                    .with(com.fasterxml.jackson.databind.DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS)
+                    .readTree(schemaJson == null ? "{}" : schemaJson);
             JsonNode fields = root.path("fields");
             if (!fields.isArray()) {
                 return defs;
@@ -1071,8 +1106,8 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
                 if (field.path("options").isArray()) {
                     field.path("options").forEach(option -> options.add(option.asText()));
                 }
-                Double min = field.has("min") && field.path("min").isNumber()
-                        ? field.path("min").asDouble() : null;
+                BigDecimal min = field.has("min") && field.path("min").isNumber()
+                        ? field.path("min").decimalValue() : null;
                 defs.put(name, new FieldDef(
                         name,
                         field.path("label").asText(name),
@@ -1220,12 +1255,28 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
         }
     }
 
+    private boolean sameFormDataJson(String stored, String expected) {
+        try {
+            var reader = objectMapper.reader()
+                    .with(com.fasterxml.jackson.databind.DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS)
+                    .with(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
+                    .with(com.fasterxml.jackson.core.JsonParser.Feature.STRICT_DUPLICATE_DETECTION);
+            JsonNode left = reader.readTree(stored), right = reader.readTree(expected);
+            return left != null && right != null && left.equals((a, b) ->
+                    a.isNumber() && b.isNumber() ? a.decimalValue().compareTo(b.decimalValue()) : a.equals(b) ? 0 : 1, right);
+        } catch (Exception invalid) {
+            throw new BusinessException(ErrorCode.IDEMPOTENCY_CONFLICT);
+        }
+    }
+
     private Map<String, Object> readJson(String dataJson) {
         try {
             if (dataJson == null || dataJson.isBlank()) {
                 return Map.of();
             }
-            return objectMapper.readValue(dataJson, new TypeReference<LinkedHashMap<String, Object>>() { });
+            return objectMapper.readerFor(new TypeReference<LinkedHashMap<String, Object>>() { })
+                    .with(com.fasterxml.jackson.databind.DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS)
+                    .readValue(dataJson);
         } catch (Exception e) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID,
                     "validation.approval.json.invalid");
@@ -1261,7 +1312,7 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
     }
 
     private record FieldDef(String name, String label, String type, boolean required,
-                            List<String> options, Double min) {
+                            List<String> options, BigDecimal min) {
     }
 
     private record DefinitionSnapshot(String formSchema,
