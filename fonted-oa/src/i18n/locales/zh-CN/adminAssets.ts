@@ -27,6 +27,9 @@ export default {
     assetCode: '资产编码',
     name: '资产名称',
     category: '分类',
+    categoryOption: { it: 'IT设备', furniture: '办公家具', vehicle: '车辆' },
+    purchaseDatePlaceholder: 'YYYY-MM-DD',
+    detailLoadFailed: '资产详情加载失败，请重试',
     specification: '规格型号',
     status: '状态',
     statusOption: {

@@ -27,6 +27,9 @@ export default {
     assetCode: 'Asset Code',
     name: 'Asset Name',
     category: 'Category',
+    categoryOption: { it: 'IT Equipment', furniture: 'Office Furniture', vehicle: 'Vehicle' },
+    purchaseDatePlaceholder: 'YYYY-MM-DD',
+    detailLoadFailed: 'Unable to load asset details. Please retry.',
     specification: 'Specification',
     status: 'Status',
     statusOption: {

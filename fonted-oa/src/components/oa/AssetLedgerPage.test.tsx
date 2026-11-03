@@ -5,7 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { AuthProvider, useAuth } from '@/components/auth/AuthProvider';
 import type { AssetLedger } from '@/lib/adminAssetsApi';
 
-const api = vi.hoisted(() => ({ listAssets: vi.fn(), getAsset: vi.fn(), returnAsset: vi.fn(), updateAsset: vi.fn(), createAsset: vi.fn() }));
+const api = vi.hoisted(() => ({ listAssets: vi.fn(), getAsset: vi.fn(), returnAsset: vi.fn(), updateAsset: vi.fn(), createAsset: vi.fn(), assetDepartments: vi.fn(), assetCustodians: vi.fn() }));
 const auth = vi.hoisted(() => ({ me: vi.fn() }));
 vi.mock('@/lib/authApi', async (load) => {
   const original = await load<typeof import('@/lib/authApi')>();
@@ -22,13 +22,15 @@ const asset: AssetLedger = { id: 9, assetCode: 'A1', name: 'Test asset', categor
   history: [], createdAt: '2026-10-20T09:00:00', updatedAt: '2026-10-20T09:00:00', canEdit: true, canDelete: true };
 function authUser(permissions: string[], permissionVersion: number) {
   return { id: 7, tenantId: 1, name: 'Test user', email: 'test@example.invalid', role: 'EMPLOYEE',
-    roles: ['EMPLOYEE'], permissions, dataScopes: ['SELF'], permissionVersion };
+    roles: ['EMPLOYEE'], permissions: ['assets:read', ...permissions], dataScopes: ['SELF'], permissionVersion };
 }
 function AuthVersion() { return <output aria-label="auth-version">{useAuth().user?.permissionVersion ?? 0}</output>; }
 function renderPage(path = '/oa/asset-ledger') { return render(<MemoryRouter initialEntries={[path]}><AuthProvider><App><AssetLedgerPage /><AuthVersion /></App></AuthProvider></MemoryRouter>); }
 beforeEach(() => {
   vi.clearAllMocks();
   auth.me.mockResolvedValue(authUser(['asset:write'], 1));
+  api.assetDepartments.mockResolvedValue([]);
+  api.assetCustodians.mockResolvedValue({ records: [], total: 0 });
   api.listAssets.mockResolvedValue({ records: [asset], total: 1, page: 1, size: 10 });
   api.getAsset.mockResolvedValue({ ...asset, id: 23, name: 'Actual saved asset', version: 3 });
 });
@@ -39,7 +41,7 @@ it('publishes the selected asset version only while the editor is open', async (
   render(<MemoryRouter><AuthProvider><App><PageAgentContextProvider pageId="asset-ledger"><AssetLedgerPage /><ContextSnapshot /></PageAgentContextProvider></App></AuthProvider></MemoryRouter>);
   fireEvent.click(await screen.findByRole('button', { name: '编辑' }));
   await waitFor(() => expect(JSON.parse(screen.getByLabelText('asset-context').textContent || '{}')).toMatchObject({ assetId: 9, version: 0 }));
-  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /Cancel|取\s*消/ }));
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /Cancel|取\s*消|关\s*闭/ }));
   await waitFor(() => expect(JSON.parse(screen.getByLabelText('asset-context').textContent || '{}')).not.toHaveProperty('assetId'));
 });
 
@@ -90,7 +92,7 @@ it('does not reopen a closed record when an already submitted asset operation co
   const modal = (await screen.findByText('资产归还')).closest('[role="dialog"]') as HTMLElement;
   fireEvent.click(within(modal).getByRole('button', { name: /OK|确\s*定/ }));
   await waitFor(() => expect(api.returnAsset).toHaveBeenCalledWith(23, expect.objectContaining({ version: 0 })));
-  fireEvent.click(within(modal).getByRole('button', { name: /Cancel|取\s*消/ }));
+  fireEvent.click(within(modal).getByRole('button', { name: /Cancel|取\s*消|关\s*闭/ }));
   const drawer = screen.getByText(/In use asset/).closest('[role="dialog"]') as HTMLElement;
   fireEvent.click(within(drawer).getByRole('button', { name: /Close|关\s*闭/ }));
   await act(async () => complete({ ...asset, id: 23, name: 'Late operation result', version: 1 }));
@@ -114,15 +116,13 @@ it('hides creation and stale editable-row actions without the real write permiss
   expect(screen.queryByRole('button', { name: '编辑' })).toBeNull();
 });
 
-it('disables the open asset editor when the server permission snapshot changes', async () => {
+it('closes the private asset editor when the server permission snapshot changes', async () => {
   renderPage();
   fireEvent.click(await screen.findByRole('button', { name: '编辑' }));
   auth.me.mockResolvedValue(authUser([], 2));
   fireEvent.focus(window);
   await waitFor(() => expect(screen.getByLabelText('auth-version').textContent).toBe('2'));
-  const save = within(screen.getByRole('dialog')).getByRole('button', { name: /保\s*存/ });
-  expect(save.hasAttribute('disabled')).toBe(true);
-  fireEvent.click(save);
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   expect(api.updateAsset).not.toHaveBeenCalled();
   expect(api.createAsset).not.toHaveBeenCalled();
 });
