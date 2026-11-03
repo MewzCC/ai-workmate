@@ -50,6 +50,11 @@ export default {
   dayUnit: 'day(s)',
   hourUnit: 'hour(s)',
   form: {
+    kicker: 'OA · LEAVE REQUEST',
+    approverPagingHint: 'Search eligible approvers in the current tenant and scroll for more. The server rechecks eligibility.',
+    startInPast: 'The start date cannot be before today. Adjust it before saving or submitting.',
+    startPeriodLabel: 'Start half-day',
+    endPeriodLabel: 'End half-day',
     notEditableDraft: 'This application is not an editable draft',
     draftSaved: 'Leave draft saved',
     submitConfirmTitle: 'Confirm submission of leave request?',

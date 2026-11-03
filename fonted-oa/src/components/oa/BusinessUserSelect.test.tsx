@@ -87,3 +87,12 @@ it('retries a failed first load on opening instead of inventing a successful sel
   await screen.findByText('Candidate 9');
   expect(query).toHaveBeenCalledTimes(2);
 });
+
+it('shows a domain-supplied current selection outside the loaded page and removes it when inactive', async () => {
+  query.mockResolvedValue({ records: [person(2)], total: 30 });
+  const content = (active: boolean) => <ConfigProvider><BusinessUserSelect value={99} selectedOption={person(99)} active={active}
+    scopeKey="selection-owner" query={query} /></ConfigProvider>;
+  const page = render(content(true)); await screen.findByText('Candidate 99');
+  await waitFor(() => expect(query).toHaveBeenCalledTimes(1));
+  page.rerender(content(false)); expect(screen.queryByText('Candidate 99')).toBeNull();
+});

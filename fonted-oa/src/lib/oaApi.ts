@@ -468,9 +468,10 @@ export const agentTaskApi = {
 
 export const leaveApi = {
   approvalContext: () => request<LeaveApprovalContext>('/leave-applications/approval-context'),
-  approverCandidates: (keyword?: string) =>
+  approverCandidates: (params: string | { keyword?: string; page?: number; size?: number } = {}) =>
     request<PageResponse<ApproverCandidate>>(
-      `/leave-applications/approver-candidates${queryString({ keyword, page: 1, size: 100 })}`,
+      `/leave-applications/approver-candidates${queryString(typeof params === 'string'
+        ? { keyword: params, page: 1, size: 100 } : { ...params, page: params.page ?? 1, size: params.size ?? 100 })}`,
     ),
   create: (payload: LeaveApplicationPayload) =>
     request<LeaveApplication>('/leave-applications', {

@@ -6,10 +6,11 @@ import { message } from '@/lib/antdMessage';
 import { formatOaApiError } from '@/lib/oaApi';
 
 /** Domain-supplied, permission-filtered candidates; never fetches the global employee directory. */
-export function BusinessUserSelect({ value, onChange, query, active, scopeKey, placeholder, disabled, ...fieldProps }: {
+export function BusinessUserSelect({ value, onChange, query, active, scopeKey, placeholder, disabled, selectedOption, ...fieldProps }: {
   value?: number; onChange?: (value: number | undefined) => void; active: boolean; scopeKey: string; placeholder?: string;
   query: (params: { keyword?: string; page: number; size: number }) => Promise<{ records: BusinessUserOption[]; total: number }>;
   disabled?: boolean;
+  selectedOption?: BusinessUserOption;
 } & Pick<SelectProps<number>, 'id' | 'aria-label' | 'aria-describedby' | 'aria-invalid' | 'onBlur' | 'onFocus'>) {
   const [search, setSearch] = useState('');
   const [options, setOptions] = useState<BusinessUserOption[]>([]);
@@ -46,9 +47,12 @@ export function BusinessUserSelect({ value, onChange, query, active, scopeKey, p
     const timer = window.setTimeout(() => { void load(1); }, search ? 250 : 0);
     return () => { window.clearTimeout(timer); request.current += 1; currentScope.current = undefined; };
   }, [load, scope, search]);
+  const visibleOptions = optionsScope === scope ? options : [];
+  const displayed = active && selectedOption && selectedOption.id === value && !visibleOptions.some(item => item.id === value)
+    ? [selectedOption, ...visibleOptions] : visibleOptions;
   return <Select key={`${scopeKey}:${active}`} {...fieldProps} value={value} onChange={onChange} showSearch allowClear filterOption={false} placeholder={placeholder}
     disabled={!active || disabled ? true : undefined} loading={loading} onSearch={setSearch} searchValue={search}
-    options={(optionsScope === scope ? options : []).map(item => ({ value: item.id, label: item.name }))}
+    options={displayed.map(item => ({ value: item.id, label: item.name }))}
     notFoundContent={loading ? <Spin size="small" /> : undefined}
     onOpenChange={open => { if (open && failed && !busy.current) void load(1); }}
     onPopupScroll={event => {

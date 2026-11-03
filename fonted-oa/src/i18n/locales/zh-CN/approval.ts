@@ -50,6 +50,11 @@ export default {
   dayUnit: '天',
   hourUnit: '小时',
   form: {
+    kicker: 'OA · 请假申请',
+    approverPagingHint: '按姓名搜索当前租户的有效审批人，滚动可继续加载；最终资格由服务端重新校验。',
+    startInPast: '开始日期不能早于今天，请调整后保存或提交。',
+    startPeriodLabel: '开始时段',
+    endPeriodLabel: '结束时段',
     notEditableDraft: '当前申请不是可编辑草稿',
     draftSaved: '请假草稿已保存',
     submitConfirmTitle: '确认提交请假申请？',
