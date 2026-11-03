@@ -88,6 +88,18 @@
     </select>
 
     <!-- 我的通用申请：按创建时间倒序 -->
+    <select id="selectOwnedView" resultType="com.aiworkmate.dto.ApprovalApplicationView">
+        SELECT <include refid="approvalApplicationIdentityColumns"/>,
+               <include refid="approvalApplicationSnapshotColumns"/>,
+               <include refid="approvalApplicationStateColumns"/>
+        FROM approval_application a
+        <include refid="approvalApplicationViewJoins"/>
+        WHERE a.tenant_id = #{tenantId}
+          AND a.applicant_user_id = #{applicantUserId}
+          AND a.id = #{id}
+    </select>
+
+    <!-- My applications retain the same bounded list projection. -->
     <select id="selectMine"
             resultType="com.aiworkmate.dto.ApprovalApplicationView">
         SELECT <include refid="approvalApplicationIdentityColumns"/>,

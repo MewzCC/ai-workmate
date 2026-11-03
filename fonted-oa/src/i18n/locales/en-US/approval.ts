@@ -1,4 +1,13 @@
 export default {
+  genericApplications: {
+    currentDraftNotice: 'Draft fields use the current form definition. The historical version is frozen on submission.',
+    leaveTab: 'Leave requests', genericTab: 'Generic applications', title: 'My generic applications',
+    description: 'View your applications, drafts and historical fields. Edit, submit, withdraw or reopen according to their current state.',
+    application: 'Application', status: 'Status', submittedAt: 'Submitted at', version: 'Version', formKey: 'Filter by form key', create: 'Start application',
+    submit: 'Submit for approval', cancel: 'Cancel draft', withdraw: 'Withdraw application', reopen: 'Reopen for editing', remind: 'Send reminder',
+    confirm: 'Confirm {{action}} for application #{{id}}?', actionDone: '{{action}} completed. Check the current state.',
+    invalidResult: 'The application ID or returned result is invalid. Refresh and check the business state.', redacted: 'This field is outside the current display scope',
+  },
   leaveType: {
     ANNUAL: 'Annual Leave',
     PERSONAL: 'Personal Leave',

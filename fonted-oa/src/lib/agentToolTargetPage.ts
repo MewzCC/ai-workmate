@@ -1,7 +1,7 @@
 import type { AgentTaskDetail, OaMenuItem } from '@/types/oa';
 import { findMenu } from './navigationTree';
 
-export type AgentRecordKind = 'dictionary-type' | 'dictionary-item';
+export type AgentRecordKind = 'dictionary-type' | 'dictionary-item' | 'generic-application';
 export type AgentPageNavigator = (pageId: string, recordId?: number, recordKind?: AgentRecordKind) => boolean;
 
 /** Only completed results select a page; arguments and output URLs never select records. */
@@ -13,7 +13,8 @@ export function agentTaskNavigationTarget(detail: Pick<AgentTaskDetail, 'status'
   // The todo page cannot yet reproduce historical-status or date-filtered queries.
   if (last.toolCode === 'todo.query' && ((last.arguments?.status != null && last.arguments.status !== 'PENDING')
       || last.arguments?.from != null || last.arguments?.to != null)) return null;
-  const recordKind = DICTIONARY_RECORD_KINDS.get(last.toolCode);
+  const recordKind = last.toolCode.startsWith('approval.application.') && last.toolCode !== 'approval.application.template.query'
+    ? 'generic-application' : DICTIONARY_RECORD_KINDS.get(last.toolCode);
   return { pageId: agentToolTargetPage(last.toolCode), recordId: agentToolTargetRecordId(last.toolCode, last.result),
     ...(recordKind ? { recordKind } : {}) };
 }
@@ -146,7 +147,9 @@ const RECORD_ID_FIELDS: ReadonlyMap<string, string> = new Map([
     .map((code): [string, string] => [code, 'budgetId']),
   ...['supplier.createDraft', 'supplier.updateDraft', 'supplier.updateStatus']
     .map((code): [string, string] => [code, 'supplierId']),
-  ...['expense.createDraft', 'expense.updateDraft', 'expense.submitDraft', 'expense.withdraw', 'expense.reopen', 'expense.cancelDraft', 'expense.remind']
+  ...['approval.application.apply', 'approval.application.createDraft', 'approval.application.updateDraft', 'approval.application.submitDraft',
+    'approval.application.cancelDraft', 'approval.application.withdraw', 'approval.application.reopen', 'approval.application.remind',
+    'expense.apply', 'expense.createDraft', 'expense.updateDraft', 'expense.submitDraft', 'expense.withdraw', 'expense.reopen', 'expense.cancelDraft', 'expense.remind']
     .map((code): [string, string] => [code, 'applicationId']),
   ...['contract.createDraft', 'contract.updateDraft', 'contract.updateStatus', 'contract.updateFulfillment',
     'contract.recordPayment', 'contract.remind'].map((code): [string, string] => [code, 'contractId']),
@@ -155,6 +158,12 @@ const RECORD_ID_FIELDS: ReadonlyMap<string, string> = new Map([
 /** Selection comes from the completed result, never model arguments or a supplied URL. */
 export function agentToolTargetRecordId(toolCode: string, result: unknown): number | undefined {
   if (!result || typeof result !== 'object' || Array.isArray(result)) return undefined;
+  if (toolCode === 'approval.application.detail.query') {
+    const application = (result as Record<string, unknown>).application;
+    if (!application || typeof application !== 'object' || Array.isArray(application)) return undefined;
+    const id = (application as Record<string, unknown>).applicationId;
+    return typeof id === 'number' && Number.isSafeInteger(id) && id > 0 ? id : undefined;
+  }
   const field = RECORD_ID_FIELDS.get(toolCode);
   if (!field) return undefined;
   const id = (result as Record<string, unknown>)[field];
@@ -165,6 +174,12 @@ export function agentToolTargetRecordId(toolCode: string, result: unknown): numb
 export function resolveAgentToolTargetPath(pageId: string, recordId: number | undefined, menus: OaMenuItem[], recordKind?: AgentRecordKind): string | null {
   const target = findMenu(pageId, menus);
   if (!target || target.type !== 'page' || !target.visible) return null;
+  if (recordKind === 'generic-application') {
+    const entry = findMenu('approval-start', menus);
+    if (pageId !== 'my-applications' || entry?.type !== 'page' || !entry.visible
+        || recordId !== undefined && (!Number.isSafeInteger(recordId) || recordId <= 0)) return null;
+    return `/oa/my-applications?kind=generic${recordId === undefined ? '' : `&id=${recordId}`}`;
+  }
   if (recordKind && pageId !== 'dictionary') return null;
   if (recordId !== undefined) {
     if (!Number.isSafeInteger(recordId) || recordId <= 0) return null;

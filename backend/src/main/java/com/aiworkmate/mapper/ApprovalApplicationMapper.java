@@ -20,6 +20,10 @@ public interface ApprovalApplicationMapper extends BaseMapper<ApprovalApplicatio
             @Param("tenantId") Long tenantId,
             @Param("id") Long id);
 
+    ApprovalApplicationView selectOwnedView(@Param("tenantId") Long tenantId,
+                                          @Param("applicantUserId") Long applicantUserId,
+                                          @Param("id") Long id);
+
     List<ApprovalApplicationView> selectMine(
             @Param("tenantId") Long tenantId,
             @Param("userId") Long userId,

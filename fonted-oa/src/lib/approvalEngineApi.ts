@@ -184,6 +184,12 @@ export interface ApprovalApplication {
 // ==================== API 封装 ====================
 
 export const approvalEngineApi = {
+  ownApplicationFields: (id: number, fieldPage = 1) => request<{
+    application: { applicationId: number; formName: string; formKey: string; status: ApprovalApplication['status']; version: number };
+    schemaSource: string; formVersion: number | null;
+    fields: { name: string; label: string; type: string; values: string[]; redacted: boolean }[];
+    fieldsTotal: number; fieldPage: number;
+  }>(`/approval-applications/mine/${id}/fields${queryString({ fieldPage })}`),
   listApplicationTemplates: (params: { keyword?: string; formKey?: string; page?: number; size?: number } = {}) =>
     request<PageResponse<ApprovalApplicationTemplate>>(`/approval-config/application-templates${queryString(params)}`),
   // ---------- 表单定义 ----------

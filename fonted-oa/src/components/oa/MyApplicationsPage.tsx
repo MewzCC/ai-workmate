@@ -1,17 +1,18 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useRouter } from '@/lib/nextCompat';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { useRouter, useSearchParams } from '@/lib/nextCompat';
 import {
   Avatar,
+  Alert,
   Button,
   Card,
   Empty,
-  Modal,
   Segmented,
   Space,
   Tag,
   Tooltip,
+  Tabs,
   Typography,
 } from 'antd';
 import { message } from '@/lib/antdMessage';
@@ -22,40 +23,97 @@ import { OaIcon } from '@/components/OaIcon';
 import { useTranslation } from 'react-i18next';
 import i18n from '@/i18n';
 import ResponsiveTable from './ResponsiveTable';
+import { usePermission } from '@/hooks/usePermission';
+import GenericApplicationsPanel from './GenericApplicationsPanel';
+import { useAuth } from '@/components/auth/AuthProvider';
+import { usePublishPageAgentContext } from './PageAgentContext';
+import { useRegisterPageUiCommands, useRegisterPageUiViews } from './PageUiCommandBridge';
+import { requireUiFieldTypes } from '@/lib/preparedPageUiCommand';
+import { requireUiPagination } from '@/hooks/usePageUiEditorCommands';
+import { useScopedOverview } from '@/hooks/useScopedOverview';
+import { useAsyncActionGuard } from '@/hooks/useAsyncActionGuard';
+import { useAsyncFormAction } from '@/hooks/useAsyncFormAction';
+import { useScopedModalConfirm } from '@/hooks/useScopedModalConfirm';
+import { useUiFormPreview } from './UiFormPreview';
 
 const STATUS_FILTER_KEYS: (LeaveStatus | '')[] = [
   '', 'DRAFT', 'PENDING', 'APPROVED', 'REJECTED', 'WITHDRAWN',
 ];
 
 export default function MyApplicationsPage() {
-  const router = useRouter();
   const { t } = useTranslation();
-  const [records, setRecords] = useState<LeaveApplication[]>([]);
+  const router = useRouter();
+  const params = useSearchParams();
+  const { allowed: genericAllowed } = usePermission(['approval:mine:read', 'route:approval-start']);
+  const { allowed: leaveAllowed } = usePermission('leave:read:self');
+  const active = genericAllowed && (params.get('kind') === 'generic' || !leaveAllowed) ? 'generic' : 'leave';
+  useRegisterPageUiViews(active, [...(leaveAllowed ? ['leave'] : []), ...(genericAllowed ? ['generic'] : [])], kind => {
+    router.push(kind === 'generic' ? '/oa/my-applications?kind=generic' : '/oa/my-applications');
+  });
+  if (!leaveAllowed && !genericAllowed) return <Alert type="warning" showIcon title={t('oa.ai.noPermission')} />;
+  return <Tabs className="oa-application-tabs" activeKey={active}
+    onChange={(kind) => router.push(kind === 'generic' ? '/oa/my-applications?kind=generic' : '/oa/my-applications')}
+    items={[
+      ...(leaveAllowed ? [{ key: 'leave', label: t('approval.genericApplications.leaveTab'), children: active === 'leave' ? <LeaveApplicationsPanel /> : null }] : []),
+      ...(genericAllowed ? [{ key: 'generic', label: t('approval.genericApplications.genericTab'), children: active === 'generic' ? <GenericApplicationsPanel /> : null }] : []),
+    ]} />;
+}
+
+function LeaveApplicationsPanel() {
+  const router = useRouter();
+  const { user } = useAuth();
+  const { t } = useTranslation();
+  const { allowed, hasPermission } = usePermission('leave:read:self');
   const [status, setStatus] = useState<LeaveStatus | undefined>();
-  const [loading, setLoading] = useState(true);
-  const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
+  const [size, setSize] = useState(20);
   const [actingId, setActingId] = useState<number>();
+  const detailRequest = useRef(0);
+  usePublishPageAgentContext({ status, page, size });
 
   const statusOptions = STATUS_FILTER_KEYS.map((value) => ({
     value,
     label: value ? t(`approval.status.${value}`) : t('approval.myApplications.statusFilterAll'),
   }));
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const result = await leaveApi.mine({ status, page, size: 20 });
-      setRecords(result.records);
-      setTotal(result.total);
-    } catch (error) {
-      message.error(formatOaApiError(error));
-    } finally {
-      setLoading(false);
-    }
-  }, [page, status]);
+  const query = useCallback(async () => {
+    if (!allowed) return null;
+    const result = await leaveApi.mine({ status, page, size });
+    if (result.records.some(item => item.applicantUserId !== user?.id)) throw new Error(t('approval.genericApplications.invalidResult'));
+    return result;
+  }, [allowed, page, size, status, t, user?.id]);
+  const { data, loading, error, load, scope, isCurrent } = useScopedOverview(query);
+  const records = useMemo(() => allowed ? data?.records ?? [] : [], [allowed, data]);
+  const total = allowed ? data?.total ?? 0 : 0;
+  const { capture } = useAsyncActionGuard(scope);
+  const action = useAsyncFormAction(scope);
+  const confirm = useScopedModalConfirm(scope);
+  const preview = useUiFormPreview(scope);
 
-  useEffect(() => { void load(); }, [load]);
+  useRegisterPageUiCommands({
+    'ui.refreshPage': async () => { if (!allowed || !isCurrent() || !await load()) throw new Error('PAGE_UI_FIELD_REJECTED'); },
+    'ui.applyFilter': ({ payload: { filters } }) => {
+      if (!allowed || !isCurrent()) throw new Error('PAGE_UI_FIELD_REJECTED');
+      requireUiFieldTypes(filters, { status: STATUS_FILTER_KEYS, page: 'number', size: 'number' }); requireUiPagination(filters);
+      if (typeof filters.size === 'number' && filters.size > 50) throw new Error('PAGE_UI_FIELD_REJECTED');
+      if (filters.status !== undefined) setStatus((filters.status || undefined) as LeaveStatus | undefined);
+      setPage(Number(filters.page ?? 1));
+      if (typeof filters.size === 'number') setSize(filters.size);
+    },
+    'ui.openDetail': async ({ payload: { recordId } }) => {
+      const current = capture();
+      if (!allowed || !isCurrent() || !current() || typeof recordId !== 'number' || !Number.isSafeInteger(recordId) || recordId < 1) throw new Error('PAGE_UI_FIELD_REJECTED');
+      const id = recordId;
+      const request = ++detailRequest.current;
+      const item = await leaveApi.detail(id);
+      if (request !== detailRequest.current || !current() || !isCurrent()) throw new Error('PAGE_UI_COMMAND_REJECTED');
+      if (item.id !== id || item.applicantUserId !== user?.id) throw new Error('PAGE_UI_FIELD_REJECTED');
+      if (item.canEdit && hasPermission('leave:create') && hasPermission('route:leave-application')) router.push(`/oa/leave-application?id=${id}`);
+      else if (item.taskId) router.push(`/oa/approval-tasks/${item.taskId}?from=my-applications`);
+      else preview({ id: `#${item.id}`, status: t(`approval.status.${item.status}`), reason: item.reason },
+        { id: t('approval.genericApplications.application'), status: t('approval.genericApplications.status'), reason: t('approval.form.reasonLabel') });
+    },
+  }, null, 'leave-applications');
 
   const pageMetrics = useMemo(() => ({
     pending: records.filter((item) => item.status === 'PENDING').length,
@@ -64,44 +122,56 @@ export default function MyApplicationsPage() {
   }), [records]);
 
   const withdraw = (item: LeaveApplication) => {
-    Modal.confirm({
+    if (!allowed || !isCurrent() || !item.canWithdraw || !hasPermission('leave:withdraw')) return;
+    confirm({
       title: t('approval.myApplications.withdrawConfirmTitle'),
       content: t('approval.myApplications.withdrawConfirmContent'),
       okText: t('approval.myApplications.withdrawConfirmOk'),
       okButtonProps: { danger: true },
       onOk: async () => {
+        const write = action.begin(); if (!write || !isCurrent()) return;
         setActingId(item.id);
         try {
-          await leaveApi.withdraw(item.id, item.version);
+          const result = await leaveApi.withdraw(item.id, item.version);
+          if (!write.current() || !isCurrent()) return;
+          if (result.id !== item.id || result.applicantUserId !== user?.id || result.status !== 'WITHDRAWN' || result.version <= item.version)
+            throw new Error(t('approval.genericApplications.invalidResult'));
           message.success(t('approval.myApplications.withdrawSuccess'));
           await load();
         } catch (error) {
+          if (!write.current() || !isCurrent()) return;
           message.error(formatOaApiError(error));
           await load();
         } finally {
-          setActingId(undefined);
+          if (write.current()) setActingId(undefined);
+          write.finish();
         }
       },
     });
   };
 
   const remind = (item: LeaveApplication) => {
-    Modal.confirm({
+    if (!allowed || !isCurrent() || !item.canRemind || !hasPermission('leave:remind')) return;
+    confirm({
       title: t('approval.myApplications.remindConfirmTitle'),
       content: t('approval.myApplications.remindConfirmContent', {
         name: item.approverName || t('approval.myApplications.approverFallback'),
       }),
       okText: t('approval.myApplications.remindConfirmOk'),
       onOk: async () => {
+        const write = action.begin(); if (!write || !isCurrent()) return;
         setActingId(item.id);
         try {
-          await leaveApi.remind(item.id, item.version);
+          const result = await leaveApi.remind(item.id, item.version);
+          if (!write.current() || !isCurrent()) return;
+          if (result.id !== item.id || result.applicantUserId !== user?.id || result.status !== 'PENDING' || result.version <= item.version)
+            throw new Error(t('approval.genericApplications.invalidResult'));
           message.success(t('approval.myApplications.remindSuccess'));
         } catch (error) {
-          message.error(formatOaApiError(error));
+          if (write.current() && isCurrent()) message.error(formatOaApiError(error));
         } finally {
-          setActingId(undefined);
-          await load();
+          if (write.current() && isCurrent()) { setActingId(undefined); await load(); }
+          write.finish();
         }
       },
     });
@@ -171,20 +241,22 @@ export default function MyApplicationsPage() {
       fixed: 'right',
       render: (_, item) => (
         <Space>
-          {item.canEdit && (
+          {item.canEdit && hasPermission('leave:create') && hasPermission('route:leave-application') && (
             <Button
               size="small"
+              disabled={action.busy}
               icon={<OaIcon name="edit" />}
               onClick={() => router.push(`/oa/leave-application?id=${item.id}`)}
             >
               {t('approval.myApplications.editButton')}
             </Button>
           )}
-          {item.canWithdraw && (
+          {item.canWithdraw && hasPermission('leave:withdraw') && (
             <Button
               size="small"
               danger
-              loading={actingId === item.id}
+              disabled={action.busy}
+              loading={action.busy && actingId === item.id}
               onClick={() => withdraw(item)}
             >
               {t('approval.myApplications.withdrawButton')}
@@ -199,8 +271,8 @@ export default function MyApplicationsPage() {
             >
               <Button
                 size="small"
-                disabled={!item.canRemind}
-                loading={actingId === item.id}
+                disabled={!item.canRemind || !hasPermission('leave:remind') || action.busy}
+                loading={action.busy && actingId === item.id}
                 onClick={() => remind(item)}
               >
                 {t('approval.myApplications.remindButton', { count: item.reminderCount })}
@@ -229,14 +301,14 @@ export default function MyApplicationsPage() {
           <Typography.Title level={2}>{t('approval.myApplications.title')}</Typography.Title>
           <Typography.Paragraph>{t('approval.myApplications.description')}</Typography.Paragraph>
         </div>
-        <Button
+        {hasPermission('leave:create') && hasPermission('route:leave-application') && <Button
           type="primary"
           size="large"
           icon={<OaIcon name="add" />}
           onClick={() => router.push('/oa/leave-application')}
         >
           {t('approval.myApplications.newLeave')}
-        </Button>
+        </Button>}
       </header>
 
       <div className="leave-metric-strip">
@@ -253,28 +325,31 @@ export default function MyApplicationsPage() {
           <Segmented
             block
             value={status || ''}
+            disabled={!allowed}
             options={statusOptions}
             onChange={(value) => {
               setStatus((value || undefined) as LeaveStatus | undefined);
               setPage(1);
             }}
           />
-          <Button icon={<OaIcon name="reload" />} onClick={() => void load()}>{t('common.refresh')}</Button>
+          <Button disabled={!allowed} icon={<OaIcon name="reload" />} onClick={() => void load()}>{t('common.refresh')}</Button>
         </div>
+        {!allowed && <Alert type="warning" showIcon title={t('oa.ai.noPermission')} />}
+        {error !== undefined && <Alert type="error" showIcon title={formatOaApiError(error)} action={<Button onClick={() => void load()}>{t('common.retry')}</Button>} />}
         <ResponsiveTable
           rowKey="id"
           columns={columns}
           dataSource={records}
-          loading={loading}
+          loading={loading && allowed}
           locale={{ emptyText: <Empty description={t('approval.myApplications.empty')} /> }}
           scroll={{ x: 1080 }}
           pagination={{
             current: page,
-            pageSize: 20,
+            pageSize: size,
             total,
             showSizeChanger: false,
             showTotal: (value) => t('common.total', { count: value }),
-            onChange: setPage,
+            onChange: (next, count) => { setPage(next); setSize(count); },
           }}
         />
       </Card>

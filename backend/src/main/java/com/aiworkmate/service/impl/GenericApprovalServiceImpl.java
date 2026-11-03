@@ -711,12 +711,12 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
     @Override
     @Transactional(readOnly = true)
     public com.aiworkmate.dto.ApprovalApplicationAgentDetailResponse detailMineForAgent(Long userId, Long id, int fieldPage) {
-        if (fieldPage < 1 || fieldPage > 2) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        if (id == null || id < 1 || fieldPage < 1 || fieldPage > 2) throw new BusinessException(ErrorCode.REQUEST_INVALID);
         ResolvedUserAccess actor = requirePermission(userId, "approval:mine:read");
         if (!actor.permissions().contains("route:approval-start")) {
             throw new BusinessException(ErrorCode.PERMISSION_DENIED);
         }
-        ApprovalApplicationView view = applicationMapper.selectView(actor.tenantId(), id);
+        ApprovalApplicationView view = applicationMapper.selectOwnedView(actor.tenantId(), actor.userId(), id);
         if (view == null) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
         // The general page detail permits assignees/auditors; Agent self-detail intentionally does not.
         if (!actor.userId().equals(view.applicantUserId())) throw new BusinessException(ErrorCode.RESOURCE_FORBIDDEN);

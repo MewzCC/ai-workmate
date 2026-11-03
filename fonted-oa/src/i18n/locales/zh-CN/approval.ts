@@ -1,4 +1,13 @@
 export default {
+  genericApplications: {
+    currentDraftNotice: '草稿字段按当前表单定义展示；提交后才冻结历史版本。',
+    leaveTab: '请假申请', genericTab: '通用申请', title: '我的通用申请',
+    description: '查看本人通用表单申请、草稿和历史字段，按实际状态编辑、提交、撤回或重新申请。',
+    application: '申请', status: '状态', submittedAt: '提交时间', version: '版本', formKey: '按表单标识筛选', create: '发起申请',
+    submit: '提交审批', cancel: '取消草稿', withdraw: '撤回申请', reopen: '修改后重提', remind: '催办',
+    confirm: '确认{{action}}申请 #{{id}}？', actionDone: '{{action}}已完成，请以当前状态为准。',
+    invalidResult: '申请编号或返回结果无效，请刷新并核对业务状态。', redacted: '此字段不在当前可展示范围内',
+  },
   leaveType: {
     ANNUAL: '年假',
     PERSONAL: '事假',

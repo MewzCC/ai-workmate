@@ -621,7 +621,7 @@ class GenericApprovalServiceImplTest {
     void agentDetailUsesFrozenSchemaWithoutReadingCurrentConfiguration() {
         when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(new ResolvedUserAccess(USER_ID, "applicant", TENANT_ID,
                 "EMPLOYEE", List.of("EMPLOYEE"), List.of("approval:mine:read", "route:approval-start"), List.of("SELF"), 1L));
-        when(applicationMapper.selectView(TENANT_ID, 10L)).thenReturn(view("PENDING", 2));
+        when(applicationMapper.selectOwnedView(TENANT_ID, USER_ID, 10L)).thenReturn(view("PENDING", 2));
         var result = service.detailMineForAgent(USER_ID, 10L, 1);
         assertThat(result.schemaSource()).isEqualTo("SNAPSHOT");
         assertThat(result.formVersion()).isEqualTo(7);
@@ -635,7 +635,7 @@ class GenericApprovalServiceImplTest {
                 "SYSTEM_ADMIN", List.of("SYSTEM_ADMIN"), List.of("approval:mine:read", "route:approval-start", "audit:read"), List.of("TENANT"), 1L));
         var other = org.mockito.Mockito.mock(ApprovalApplicationView.class);
         when(other.applicantUserId()).thenReturn(9999L);
-        when(applicationMapper.selectView(TENANT_ID, 10L)).thenReturn(other);
+        when(applicationMapper.selectOwnedView(TENANT_ID, USER_ID, 10L)).thenReturn(other);
         assertThatThrownBy(() -> service.detailMineForAgent(USER_ID, 10L, 1)).isInstanceOf(BusinessException.class)
                 .extracting("errorCode").isEqualTo("RESOURCE_FORBIDDEN");
         org.mockito.Mockito.verifyNoInteractions(formMapper, actionLogMapper);
@@ -655,7 +655,7 @@ class GenericApprovalServiceImplTest {
                 .mapToObj(index -> "{\"name\":\"field" + index + "\",\"type\":\"text\"}")
                 .collect(java.util.stream.Collectors.joining(","));
         when(view.formSchemaSnapshot()).thenReturn("{\"fields\":[" + fields + "]}");
-        when(applicationMapper.selectView(TENANT_ID, 10L)).thenReturn(view);
+        when(applicationMapper.selectOwnedView(TENANT_ID, USER_ID, 10L)).thenReturn(view);
         var first = service.detailMineForAgent(USER_ID, 10L, 1);
         var second = service.detailMineForAgent(USER_ID, 10L, 2);
         assertThat(first.fields()).hasSize(50);
