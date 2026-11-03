@@ -1,19 +1,28 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import { Button, Card, Empty, Space, Spin, Tag, Typography } from 'antd';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Alert, Button, Card, Empty, Modal, Space, Spin, Tag, Typography } from 'antd';
 import type { TableProps } from 'antd';
 import { message } from '@/lib/antdMessage';
 import { OaIcon } from '@/components/OaIcon';
 import { useTranslation } from 'react-i18next';
 import {
   fetchUnreadCount,
+  getNotification,
   listNotifications,
   markAllNotificationsRead,
   markNotificationRead,
   type NotificationItem,
 } from '@/lib/notificationApi';
 import ResponsiveTable from './ResponsiveTable';
+import { useRegisterPageUiCommands } from './PageUiCommandBridge';
+import { usePublishPageAgentContext } from './PageAgentContext';
+import { usePermission } from '@/hooks/usePermission';
+import { useScopedOverview } from '@/hooks/useScopedOverview';
+import { requireUiFieldTypes } from '@/lib/preparedPageUiCommand';
+import { requireUiPagination } from '@/hooks/usePageUiEditorCommands';
+import { useAsyncActionGuard } from '@/hooks/useAsyncActionGuard';
+import { useAsyncFormAction } from '@/hooks/useAsyncFormAction';
 
 const TYPE_COLOR: Record<string, string> = {
   approval: 'blue',
@@ -24,53 +33,72 @@ const TYPE_COLOR: Record<string, string> = {
 
 export default function NotificationPage() {
   const { t } = useTranslation();
-  const [loading, setLoading] = useState(true);
-  const [items, setItems] = useState<NotificationItem[]>([]);
-  const [total, setTotal] = useState(0);
+  const { allowed } = usePermission('notification:read:self');
   const [page, setPage] = useState(1);
-  const [unread, setUnread] = useState(0);
-  const [size] = useState(20);
+  const [size, setSize] = useState(20);
+  usePublishPageAgentContext({ page, size });
 
-  const load = useCallback(async (currentPage: number) => {
-    setLoading(true);
-    try {
-      const [pageResult, unreadCount] = await Promise.all([
-        listNotifications(currentPage, 20),
-        fetchUnreadCount(),
-      ]);
-      setItems(pageResult.records);
-      setTotal(pageResult.total);
-      setUnread(unreadCount);
-    } catch (error) {
-      message.error(error instanceof Error ? error.message : t('pages.notification.loadFailed'));
-    } finally {
-      setLoading(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const query = useCallback(async () => {
+    if (!allowed) return null;
+    const [result, unread] = await Promise.all([listNotifications(page, size), fetchUnreadCount()]);
+    return { ...result, unread };
+  }, [allowed, page, size]);
+  const { data, loading, error, load, scope, isCurrent } = useScopedOverview(query);
+  const { capture } = useAsyncActionGuard(scope);
+  const write = useAsyncFormAction(scope);
+  const detailRequest = useRef(0);
+  const [detail, setDetail] = useState<{ scope: string; item: NotificationItem }>();
+  const visibleDetail = allowed && detail?.scope === scope ? detail.item : undefined;
+  useEffect(() => { setDetail(undefined); }, [scope, allowed]);
+  const items = allowed ? data?.records ?? [] : [];
+  const total = allowed ? data?.total ?? 0 : 0;
+  const unread = allowed ? data?.unread ?? 0 : 0;
+  const openDetail = async (recordId: string | number) => {
+    const current = capture();
+    if (!allowed || !current() || !isCurrent() || typeof recordId !== 'number' || !Number.isSafeInteger(recordId) || recordId < 1)
+      throw new Error('PAGE_UI_FIELD_REJECTED');
+    const ticket = ++detailRequest.current;
+    setDetail(undefined);
+    const item = await getNotification(recordId);
+    if (!current() || !isCurrent() || ticket !== detailRequest.current) throw new Error('PAGE_UI_COMMAND_REJECTED');
+    if (item.id !== recordId) throw new Error('PAGE_UI_FIELD_REJECTED');
+    setDetail({ scope, item });
+  };
 
-  useEffect(() => {
-    void load(page);
-  }, [load, page]);
+  useRegisterPageUiCommands({
+    'ui.refreshPage': async () => { if (!allowed || !isCurrent() || !await load()) throw new Error('PAGE_UI_FIELD_REJECTED'); },
+    'ui.applyFilter': ({ payload: { filters } }) => {
+      if (!allowed || !isCurrent()) throw new Error('PAGE_UI_FIELD_REJECTED');
+      requireUiFieldTypes(filters, { page: 'number', size: 'number' });
+      requireUiPagination(filters);
+      if (typeof filters.size === 'number') setSize(filters.size);
+      setPage(Number(filters.page ?? 1));
+    },
+    'ui.openDetail': ({ payload: { recordId } }) => openDetail(recordId),
+  });
 
   const handleRead = async (item: NotificationItem) => {
-    if (item.read) return;
+    if (!allowed || item.read) return;
+    const action = write.begin(); if (!action || !isCurrent()) return;
     try {
       await markNotificationRead(item.id);
-      await load(page);
+      if (action.current() && isCurrent()) await load();
     } catch (error) {
-      message.error(error instanceof Error ? error.message : t('pages.notification.markReadFailed'));
-    }
+      if (action.current() && isCurrent()) message.error(error instanceof Error ? error.message : t('pages.notification.markReadFailed'));
+    } finally { action.finish(); }
   };
 
   const handleReadAll = async () => {
+    if (!allowed) return;
+    const action = write.begin(); if (!action || !isCurrent()) return;
     try {
       await markAllNotificationsRead();
+      if (!action.current() || !isCurrent()) return;
       message.success(t('pages.notification.markAllReadSuccess'));
-      await load(page);
+      await load();
     } catch (error) {
-      message.error(error instanceof Error ? error.message : t('pages.notification.operationFailed'));
-    }
+      if (action.current() && isCurrent()) message.error(error instanceof Error ? error.message : t('pages.notification.operationFailed'));
+    } finally { action.finish(); }
   };
 
   const columns: TableProps<NotificationItem>['columns'] = [
@@ -79,8 +107,8 @@ export default function NotificationPage() {
       dataIndex: 'type',
       width: 90,
       render: (type: string) => {
-        const color = TYPE_COLOR[type] || 'default';
-        const labelKey = `pages.notification.type.${type}`;
+        const color = TYPE_COLOR[type.toLowerCase()] || 'default';
+        const labelKey = `pages.notification.type.${type.toLowerCase()}`;
         const label = t(labelKey);
         return <Tag color={color}>{label === labelKey ? type : label}</Tag>;
       },
@@ -107,13 +135,13 @@ export default function NotificationPage() {
     {
       title: t('common.actions'),
       key: 'action',
-      width: 110,
+      width: 180,
       render: (_, item) =>
-        item.read ? (
+        <Space><Button size="small" onClick={() => { void openDetail(item.id).catch(failure => { if (isCurrent()) message.error(failure instanceof Error ? failure.message : t('common.loadingFailed')); }); }}>{t('common.view')}</Button>{item.read ? (
           <Typography.Text type="secondary">{t('pages.notification.read')}</Typography.Text>
         ) : (
-          <Button size="small" onClick={() => void handleRead(item)}>{t('pages.notification.markRead')}</Button>
-        ),
+          <Button size="small" disabled={write.busy || !allowed} onClick={() => void handleRead(item)}>{t('pages.notification.markRead')}</Button>
+        )}</Space>,
     },
   ];
 
@@ -130,15 +158,18 @@ export default function NotificationPage() {
           </div>
         </Space>
         <Space>
-          <Button icon={<OaIcon name="reload" />} onClick={() => void load(page)}>{t('common.refresh')}</Button>
-          <Button type="primary" disabled={unread === 0} onClick={() => void handleReadAll()}>
+          <Button icon={<OaIcon name="reload" />} disabled={!allowed} onClick={() => void load()}>{t('common.refresh')}</Button>
+          {allowed && <Button type="primary" loading={write.busy} disabled={unread === 0 || write.busy} onClick={() => void handleReadAll()}>
             {t('pages.notification.markAllRead')}
-          </Button>
+          </Button>}
         </Space>
       </div>
 
       <Card className="oa-domain-card" size="small">
-        <Spin spinning={loading}>
+        {!allowed && <Alert type="warning" showIcon title={t('oa.ai.noPermission')} />}
+        {allowed && error !== undefined && <Alert type="error" showIcon title={t('common.loadingFailed')}
+          action={<Button onClick={() => void load()}>{t('common.retry')}</Button>} />}
+        <Spin spinning={loading && allowed}>
           <ResponsiveTable<NotificationItem>
             rowKey="id"
             columns={columns}
@@ -147,8 +178,9 @@ export default function NotificationPage() {
               current: page,
               pageSize: size,
               total,
-              showSizeChanger: false,
-              onChange: setPage,
+              showSizeChanger: true,
+              pageSizeOptions: [10, 20, 50, 100],
+              onChange: (next, nextSize) => { setPage(next); setSize(nextSize); },
             }}
             locale={{
               emptyText: <Empty description={t('pages.notification.empty')} image={Empty.PRESENTED_IMAGE_SIMPLE} />,
@@ -156,6 +188,9 @@ export default function NotificationPage() {
           />
         </Spin>
       </Card>
+      {visibleDetail && <Modal open title={visibleDetail.title} footer={null} destroyOnHidden onCancel={() => { detailRequest.current++; setDetail(undefined); }}>
+        <Typography.Paragraph style={{ whiteSpace: 'pre-wrap' }}>{visibleDetail.content}</Typography.Paragraph>
+      </Modal>}
     </section>
   );
 }

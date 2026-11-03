@@ -1,9 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useRouter } from '@/lib/nextCompat';
 import {
   Avatar,
+  Alert,
   Button,
   Card,
   DatePicker,
@@ -22,47 +23,69 @@ import ResponsiveTable from './ResponsiveTable';
 import { OaIcon } from '@/components/OaIcon';
 import { useTranslation } from 'react-i18next';
 import { usePublishPageAgentContext } from './PageAgentContext';
+import { useRegisterPageUiCommands } from './PageUiCommandBridge';
+import { requireUiFieldTypes } from '@/lib/preparedPageUiCommand';
+import { requireUiPagination, uiDateRange } from '@/hooks/usePageUiEditorCommands';
+import { useScopedOverview } from '@/hooks/useScopedOverview';
+import { usePermission } from '@/hooks/usePermission';
+import { useAsyncActionGuard } from '@/hooks/useAsyncActionGuard';
 
 const { RangePicker } = DatePicker;
 
 export default function TodoListPage() {
   const router = useRouter();
   const { t } = useTranslation();
-  const [records, setRecords] = useState<TodoItem[]>([]);
+  const { allowed } = usePermission('todo:read');
   const [status, setStatus] = useState('PENDING');
   const [range, setRange] = useState<[string, string]>();
-  const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
-  const [total, setTotal] = useState(0);
+  const [size, setSize] = useState(20);
 
   usePublishPageAgentContext({
     status,
     from: range?.[0],
     to: range?.[1],
     page,
-    size: 20,
+    size,
   });
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const result = await todoApi.list({
+  const query = useCallback(async () => {
+    if (!allowed) return null;
+    return todoApi.list({
         status: status || undefined,
         from: range?.[0],
         to: range?.[1],
         page,
-        size: 20,
+        size,
       });
-      setRecords(result.records);
-      setTotal(result.total);
-    } catch (error) {
-      message.error(formatOaApiError(error));
-    } finally {
-      setLoading(false);
-    }
-  }, [page, range, status]);
+  }, [allowed, page, range, status, size]);
+  const { data, loading, error, load, scope, isCurrent } = useScopedOverview(query);
+  const records = useMemo<TodoItem[]>(() => allowed ? data?.records ?? [] : [], [allowed, data]);
+  const total = allowed ? data?.total ?? 0 : 0;
+  const { capture } = useAsyncActionGuard(scope);
+  const openDetail = async (recordId: string | number) => {
+    const current = capture();
+    if (!current() || !allowed || !isCurrent() || typeof recordId !== 'number' || !Number.isSafeInteger(recordId) || recordId < 1)
+      throw new Error('PAGE_UI_FIELD_REJECTED');
+    await todoApi.detail(recordId);
+    if (!current() || !isCurrent()) throw new Error('PAGE_UI_COMMAND_REJECTED');
+    router.push(`/oa/approval-tasks/${recordId}?from=todo`);
+  };
 
-  useEffect(() => { void load(); }, [load]);
+  useRegisterPageUiCommands({
+    'ui.refreshPage': async () => { if (!allowed || !isCurrent() || !await load()) throw new Error('PAGE_UI_FIELD_REJECTED'); },
+    'ui.applyFilter': ({ payload: { filters } }) => {
+      if (!allowed || !isCurrent()) throw new Error('PAGE_UI_FIELD_REJECTED');
+      requireUiFieldTypes(filters, { status: ['', 'PENDING', 'APPROVED', 'REJECTED', 'CANCELLED'], from: 'string', to: 'string', page: 'number', size: 'number' });
+      requireUiPagination(filters);
+      if (typeof filters.size === 'number' && filters.size > 50) throw new Error('PAGE_UI_FIELD_REJECTED');
+      const nextRange = uiDateRange(filters, range);
+      if (filters.status !== undefined) setStatus(String(filters.status));
+      if (typeof filters.size === 'number') setSize(filters.size);
+      setRange(nextRange); setPage(Number(filters.page ?? 1));
+    },
+    'ui.openDetail': ({ payload: { recordId } }) => openDetail(recordId),
+  });
 
   const overdueCount = useMemo(() => records.filter((item) => item.overdue).length, [records]);
 
@@ -125,7 +148,8 @@ export default function TodoListPage() {
         <Button
           type={item.status === 'PENDING' ? 'primary' : 'link'}
           size="small"
-          onClick={() => router.push(`/oa/approval-tasks/${item.id}?from=todo`)}
+          disabled={!allowed}
+          onClick={() => { void openDetail(item.id).catch(failure => { if (isCurrent()) message.error(formatOaApiError(failure)); }); }}
         >
           {item.status === 'PENDING' ? t('pages.todo.actionProcess') : t('pages.todo.actionView')}
         </Button>
@@ -154,6 +178,7 @@ export default function TodoListPage() {
         <div className="todo-toolbar">
           <Segmented
             value={status}
+            disabled={!allowed}
             options={[
               { value: 'PENDING', label: t('pages.todo.statusPending') },
               { value: 'APPROVED', label: t('pages.todo.statusApproved') },
@@ -166,21 +191,26 @@ export default function TodoListPage() {
           <Space wrap>
             <RangePicker
               showTime
+              disabled={!allowed}
+              value={range ? [dayjs(range[0]), dayjs(range[1])] : null}
               onChange={(dates) => {
                 setRange(dates?.[0] && dates[1]
-                  ? [dates[0].toISOString(), dates[1].toISOString()]
+                  ? [dates[0].format('YYYY-MM-DDTHH:mm:ss'), dates[1].format('YYYY-MM-DDTHH:mm:ss')]
                   : undefined);
                 setPage(1);
               }}
             />
-            <Button icon={<OaIcon name="reload" />} onClick={() => void load()}>{t('common.refresh')}</Button>
+            <Button disabled={!allowed} icon={<OaIcon name="reload" />} onClick={() => void load()}>{t('common.refresh')}</Button>
           </Space>
         </div>
+        {!allowed && <Alert type="warning" showIcon title={t('oa.ai.noPermission')} />}
+        {allowed && error !== undefined && <Alert type="error" showIcon title={t('common.loadingFailed')}
+          description={formatOaApiError(error)} action={<Button onClick={() => void load()}>{t('common.retry')}</Button>} />}
         <ResponsiveTable
           rowKey="id"
           columns={columns}
           dataSource={records}
-          loading={loading}
+          loading={loading && allowed}
           locale={{
             emptyText: (
               <Empty
@@ -191,11 +221,12 @@ export default function TodoListPage() {
           scroll={{ x: 1020 }}
           pagination={{
             current: page,
-            pageSize: 20,
+            pageSize: size,
             total,
-            showSizeChanger: false,
+            showSizeChanger: true,
+            pageSizeOptions: [10, 20, 50],
             showTotal: (value) => t('pages.todo.totalTasks', { count: value }),
-            onChange: setPage,
+            onChange: (next, nextSize) => { setPage(next); setSize(nextSize); },
           }}
         />
       </Card>

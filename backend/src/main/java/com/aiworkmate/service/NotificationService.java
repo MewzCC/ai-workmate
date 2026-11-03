@@ -30,6 +30,8 @@ public interface NotificationService {
 
     PageResponse<NotificationResponse> list(long userId, int page, int size);
 
+    NotificationResponse detail(long userId, long notificationId);
+
     long unreadCount(long userId);
 
     void markRead(long userId, long notificationId);

@@ -52,6 +52,11 @@ export async function fetchUnreadCount(): Promise<number> {
   return result.unread;
 }
 
+export async function getNotification(id: number): Promise<NotificationItem> {
+  if (!Number.isSafeInteger(id) || id < 1) throw new Error(i18n.t('errors.notification.requestFailed'));
+  return request(`/notifications/${id}`);
+}
+
 export async function markNotificationRead(id: number): Promise<void> {
   await request(`/notifications/${id}/read`, { method: 'PATCH' });
 }

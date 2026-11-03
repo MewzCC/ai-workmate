@@ -141,6 +141,18 @@ public class NotificationServiceImpl implements NotificationService {
     }
 
     @Override
+    public NotificationResponse detail(long userId, long notificationId) {
+        ResolvedUserAccess access = requireNotificationAccess(userId);
+        if (notificationId < 1) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        Notification notification = notificationMapper.selectOne(new LambdaQueryWrapper<Notification>()
+                .eq(Notification::getId, notificationId)
+                .eq(Notification::getTenantId, access.tenantId())
+                .eq(Notification::getUserId, access.userId()));
+        if (notification == null) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        return toResponse(notification);
+    }
+
+    @Override
     public long unreadCount(long userId) {
         ResolvedUserAccess access = requireNotificationAccess(userId);
         Long count = notificationMapper.selectCount(new LambdaQueryWrapper<Notification>()
