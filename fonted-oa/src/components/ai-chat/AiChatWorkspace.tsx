@@ -15,6 +15,9 @@ import ChatWindow from './ChatWindow';
 import { OaIcon } from '@/components/OaIcon';
 import { useRouter } from '@/lib/nextCompat';
 import { getPageCapabilities } from '@/lib/oaApi';
+import { useRegisterPageUiCommands } from '@/components/oa/PageUiCommandBridge';
+import { useApplyPageUiTask } from '@/hooks/useApplyPageUiTask';
+import { useAsyncActionGuard } from '@/hooks/useAsyncActionGuard';
 
 const SIDEBAR_COLLAPSED_KEY = 'workmeta-ai-chat-sidebar-collapsed';
 /** 收起侧栏时最近会话快捷跳转的上限（LRU，最近使用优先） */
@@ -30,6 +33,23 @@ export default function AiChatWorkspace({ role }: AiChatWorkspaceProps) {
   const { t } = useTranslation();
   const router = useRouter();
   const store = useAiChatStore();
+  const { capture: captureUiAction } = useAsyncActionGuard('ai-workspace');
+  useRegisterPageUiCommands({ 'ui.refreshPage': async () => {
+    const current = captureUiAction();
+    await store.loadConversations();
+    if (!current()) throw new Error('PAGE_UI_COMMAND_REJECTED');
+    if (store.activeId) await store.resumeOperation(store.activeId);
+  }, 'ui.openDetail': async ({ payload: { recordId } }) => {
+    const current = captureUiAction();
+    const id = Number(recordId);
+    if (!Number.isSafeInteger(id) || id < 1) throw new Error('PAGE_UI_FIELD_REJECTED');
+    await store.loadConversations();
+    if (!current()) throw new Error('PAGE_UI_COMMAND_REJECTED');
+    if (!useAiChatStore.getState().conversations.some(item => item.id === id)) throw new Error('PAGE_UI_FIELD_REJECTED');
+    await store.selectConversation(id);
+  } });
+  const currentOperation = store.activeId ? store.operationTasks[store.activeId] : undefined;
+  useApplyPageUiTask(currentOperation);
   const [mobileSessionsOpen, setMobileSessionsOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [kbOptions, setKbOptions] = useState<KnowledgeBase[]>([]);

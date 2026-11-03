@@ -3,7 +3,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { usePathname, useRouter } from '@/lib/nextCompat';
-import { ConfigProvider, Layout, Spin, theme as antdTheme } from 'antd';
+import { App as AntdApp, ConfigProvider, Layout, Spin, theme as antdTheme } from 'antd';
 import { message } from '@/lib/antdMessage';
 import type { OaMenuItem, OaRole, OaTheme } from '@/types/oa';
 import { findMenu, firstPage, flattenPages, toMenuItem } from '@/lib/navigationTree';
@@ -21,6 +21,7 @@ import { useAiChatStore } from '@/store/aiChatStore';
 import { OaPageRenderer } from './OaPageRenderer';
 import PageAgentLauncher, { type PageAgentLauncherHandle } from './PageAgentLauncher';
 import { PageAgentContextObserver, PageAgentContextProvider, type PageAgentContextSnapshot } from './PageAgentContext';
+import { PageUiCommandBridge } from './PageUiCommandBridge';
 const KnowledgeBasePage = lazy(() => import('./KnowledgeBasePage'));
 
 const { Content } = Layout;
@@ -423,6 +424,14 @@ export default function AdminLayout() {
   };
 
   return (
+    <PageUiCommandBridge key={`${user?.tenantId ?? 'none'}:${userId ?? 'guest'}`} pageId={selectedMenu.id}
+      refresh={() => setPageRevision((revision) => revision + 1)}
+      navigate={(pageId, recordId) => {
+        const path = resolveAgentToolTargetPath(pageId, recordId, menus);
+        if (!path) return false;
+        router.push(path);
+        return true;
+      }}>
     <ConfigProvider
       theme={{
         algorithm: currentTheme.dark ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
@@ -458,6 +467,7 @@ export default function AdminLayout() {
         },
       }}
     >
+      <AntdApp component={false}>
         <div className={`oa-shell ${collapsed ? 'oa-shell-collapsed' : ''} ${wallpaper ? 'oa-has-wallpaper' : ''} ${selectedMenu.id === 'ai-workspace' ? 'oa-chat-page' : ''}`}>
           <div
             className={`oa-sider-mask ${collapsed ? '' : 'is-visible'}`}
@@ -584,7 +594,9 @@ export default function AdminLayout() {
           />
 
         </div>
+      </AntdApp>
     </ConfigProvider>
+    </PageUiCommandBridge>
   );
 }
 

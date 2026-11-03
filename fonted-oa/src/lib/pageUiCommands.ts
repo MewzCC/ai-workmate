@@ -9,17 +9,19 @@ const PAGE_ID_PATTERN = /^[a-z][a-z0-9-]{1,59}$/;
 const FORBIDDEN_KEYS = new Set([
   'userId', 'tenantId', 'role', 'roles', 'permission', 'permissions', 'dataScope',
   'url', 'uri', 'sql', 'file', 'filePath', 'path', 'script', 'className', 'beanName',
-]);
+  '__proto__', 'prototype', 'constructor', 'token', 'password', 'secret',
+].map(name => name.toLowerCase()));
 
 type Scalar = string | number | boolean | null;
+export interface UiFormContext { sessionId: string; recordId?: number; version?: number }
 
 export type PageUiCommand =
   | { code: 'ui.navigate'; pageId: string; payload: { targetPageId: string } }
   | { code: 'ui.applyFilter'; pageId: string; payload: { filters: Record<string, Scalar> } }
   | { code: 'ui.openDetail'; pageId: string; payload: { recordId: string | number } }
   | { code: 'ui.openCreateForm'; pageId: string; payload: Record<string, never> }
-  | { code: 'ui.fillForm'; pageId: string; payload: { values: Record<string, Scalar> } }
-  | { code: 'ui.previewSubmission'; pageId: string; payload: Record<string, never> }
+  | { code: 'ui.fillForm'; pageId: string; payload: { values: Record<string, Scalar>; formContext?: UiFormContext } }
+  | { code: 'ui.previewSubmission'; pageId: string; payload: { formContext?: UiFormContext } }
   | { code: 'ui.refreshPage'; pageId: string; payload: Record<string, never> };
 
 export interface PageUiCommandPolicy {
@@ -74,14 +76,27 @@ export function parsePageUiCommand(input: unknown, policy: PageUiCommandPolicy):
     return { code, pageId, payload: { recordId: payload.recordId } };
   }
   if (code === 'ui.fillForm') {
-    if (!hasOnlyKeys(payload, ['values']) || !isScalarMap(payload.values)) fail();
-    return { code, pageId, payload: { values: { ...payload.values } } };
+    if (!Object.keys(payload).every((key) => ['values', 'formContext'].includes(key)) || !isScalarMap(payload.values)
+        || payload.formContext !== undefined && !isUiFormContext(payload.formContext)) fail();
+    return { code, pageId, payload: { values: { ...payload.values }, ...(payload.formContext ? { formContext: payload.formContext as UiFormContext } : {}) } };
   }
-  if (code === 'ui.openCreateForm' || code === 'ui.previewSubmission' || code === 'ui.refreshPage') {
+  if (code === 'ui.previewSubmission') {
+    if (!Object.keys(payload).every((key) => key === 'formContext') || payload.formContext !== undefined && !isUiFormContext(payload.formContext)) fail();
+    return { code, pageId, payload: payload.formContext ? { formContext: payload.formContext as UiFormContext } : {} };
+  }
+  if (code === 'ui.openCreateForm' || code === 'ui.refreshPage') {
     if (!hasOnlyKeys(payload, [])) fail();
     return { code, pageId, payload: {} } as PageUiCommand;
   }
   fail();
+}
+
+export function isUiFormContext(value: unknown): value is UiFormContext {
+  if (!isObject(value) || !Object.keys(value).every((key) => ['sessionId', 'recordId', 'version'].includes(key))
+      || typeof value.sessionId !== 'string' || !/^[a-zA-Z0-9_-]{16,64}$/.test(value.sessionId)) return false;
+  if (value.recordId === undefined && value.version === undefined) return true;
+  return typeof value.recordId === 'number' && Number.isSafeInteger(value.recordId) && value.recordId > 0
+    && typeof value.version === 'number' && Number.isInteger(value.version) && value.version >= 0 && value.version <= 2147483646;
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -111,7 +126,7 @@ function isRecordId(value: unknown): value is string | number {
 function containsForbiddenKey(value: unknown): boolean {
   if (Array.isArray(value)) return value.some(containsForbiddenKey);
   if (!isObject(value)) return false;
-  return Object.entries(value).some(([key, item]) => FORBIDDEN_KEYS.has(key) || containsForbiddenKey(item));
+  return Object.entries(value).some(([key, item]) => FORBIDDEN_KEYS.has(key.toLowerCase()) || containsForbiddenKey(item));
 }
 
 function fail(): never {
