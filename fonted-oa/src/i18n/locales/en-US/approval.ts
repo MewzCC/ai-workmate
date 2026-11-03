@@ -437,6 +437,8 @@ export default {
     snapshotUnavailable: 'No form snapshot is available for this historical request',
   },
   formPage: {
+    unsupportedControl: 'No controlled editor is available for {{field}}. Ask an administrator to update the template; text cannot replace attachments or organization selectors.',
+    invalidNumeric: 'Enter a valid number that meets the template minimum.',
     missingKeyTitle: 'No template selected',
     missingKeyDesc: 'Pick an approval item from "New Request" to fill in this page.',
     backToStart: 'Go to New Request',

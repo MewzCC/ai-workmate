@@ -437,6 +437,8 @@ export default {
     snapshotUnavailable: '该历史申请没有可用的表单快照',
   },
   formPage: {
+    unsupportedControl: '字段 {{field}} 暂无受控填写组件，请联系管理员调整模板；不能以文本代替附件或组织选择。',
+    invalidNumeric: '请输入有效数字，并满足模板规定的最小值。',
     missingKeyTitle: '未指定申请模板',
     missingKeyDesc: '请从「发起审批」选择一个审批事项进入本页填写。',
     backToStart: '前往发起审批',

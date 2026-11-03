@@ -1,266 +1,21 @@
-'use client';
-
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useRouter, useSearchParams } from '@/lib/nextCompat';
-import {
-  Alert,
-  Avatar,
-  Button,
-  Card,
-  DatePicker,
-  Divider,
-  Empty,
-  Form,
-  Input,
-  InputNumber,
-  Modal,
-  Result,
-  Space,
-  Spin,
-  Steps,
-  Tag,
-  TimePicker,
-  Typography,
-} from 'antd';
+import { Alert, Avatar, Button, Card, Divider, Empty, Form, Result, Space, Spin, Steps, Typography } from 'antd';
 import { useTranslation } from 'react-i18next';
-import dayjs, { type Dayjs } from 'dayjs';
-import {
-  approvalEngineApi,
-  type ApprovalApplication,
-  type ApprovalForm,
-  type ApprovalProcess,
-  type ApprovalProcessNode,
-} from '@/lib/approvalEngineApi';
-import { formatOaApiError } from '@/lib/oaApi';
-import { OaIcon } from '@/components/OaIcon';
 import { useAuth } from '@/components/auth/AuthProvider';
-import { message } from '@/lib/antdMessage';
+import { OaIcon } from '@/components/OaIcon';
+import { useGenericApplicationForm } from '@/hooks/useGenericApplicationForm';
+import { renderApplicationField, supportedApplicationField } from './approvalFormFields';
 
-/**
- * 通用申请页：按 form_key 动态渲染 approval_form 表单，
- * 走通用提交接口 /api/approval-applications。
- * 布局对齐 LeaveFormPage（左表单 + 右流程预览），请假页保持独立不受影响。
- */
-
-interface SchemaField {
-  name?: string;
-  label?: string;
-  type?: string;
-  required?: boolean;
-}
-
-/** 在线填写暂不支持、降级为文本输入并提示的复杂类型。 */
-const FALLBACK_TEXT_TYPES = new Set(['dateRange', 'user', 'department', 'file', 'image', 'table']);
-
-/** 审批人类型 → i18n key 后缀（approval.designer.approveType.*）。 */
 const APPROVE_TYPE_LABEL_KEYS: Record<string, string> = {
-  DIRECT_MANAGER: 'directManager',
-  DEPARTMENT: 'department',
-  USER: 'user',
-  SELF: 'self',
-  MULTI_LEVEL: 'multiLevel',
-  ROLE: 'role',
+  DIRECT_MANAGER: 'directManager', DEPARTMENT: 'department', USER: 'user',
+  SELF: 'self', MULTI_LEVEL: 'multiLevel', ROLE: 'role',
 };
 
-function parseSchemaFields(schemaJson: string): SchemaField[] {
-  try {
-    const parsed = JSON.parse(schemaJson) as { fields?: SchemaField[] };
-    return Array.isArray(parsed.fields) ? parsed.fields.filter((f) => f && f.name) : [];
-  } catch {
-    return [];
-  }
-}
-
-function parseNodes(nodeJson: string): ApprovalProcessNode[] {
-  try {
-    const parsed = JSON.parse(nodeJson);
-    return Array.isArray(parsed) ? (parsed as ApprovalProcessNode[]) : [];
-  } catch {
-    return [];
-  }
-}
-
 export default function ApprovalFormPage() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const { t } = useTranslation();
-  const { user } = useAuth();
-  const formKey = searchParams.get('formKey') || '';
-  const draftId = Number(searchParams.get('draftId')) || undefined;
+  const { t } = useTranslation(), { user } = useAuth();
+  const { form, formKey, formDef, process, fields, nodes, draft, loading, loadError, load,
+    allowed, editable, busy, confirming, canSubmit, canCancel, changed, saveDraft, cancelDraft, submit, backToStart } = useGenericApplicationForm();
 
-  const [form] = Form.useForm<Record<string, unknown>>();
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string>();
-  const [formDef, setFormDef] = useState<ApprovalForm | null>(null);
-  const [process, setProcess] = useState<ApprovalProcess | null>(null);
-  const [draft, setDraft] = useState<ApprovalApplication | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [savingDraft, setSavingDraft] = useState(false);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setLoadError(undefined);
-    setFormDef(null);
-    setProcess(null);
-    setDraft(null);
-    try {
-      const [formPage, processPage, loadedDraft] = await Promise.all([
-        approvalEngineApi.listForms({ status: 'ENABLED', page: 1, size: 100 }),
-        approvalEngineApi.listProcesses({ status: 'ENABLED', page: 1, size: 100 }),
-        draftId ? approvalEngineApi.getApplication(draftId) : Promise.resolve(null),
-      ]);
-      const matched = formPage.records.find((item) => item.formKey === formKey) || null;
-      if (loadedDraft && (loadedDraft.status !== 'DRAFT' || loadedDraft.formKey !== formKey)) {
-        throw new Error(t('approval.formPage.draftUnavailable'));
-      }
-      setFormDef(matched);
-      setProcess(matched
-        ? processPage.records.find((item) => item.formId === matched.id) || null
-        : null);
-      setDraft(loadedDraft);
-    } catch (err) {
-      setLoadError(formatOaApiError(err));
-    } finally {
-      setLoading(false);
-    }
-  }, [draftId, formKey, t]);
-
-  useEffect(() => {
-    if (!formKey) {
-      setFormDef(null);
-      setProcess(null);
-      setLoading(false);
-      return;
-    }
-    void load();
-  }, [formKey, load]);
-
-  // 切换表单时清空旧值；编辑草稿时按字段类型恢复日期与时间控件。
-  useEffect(() => {
-    form.resetFields();
-    if (draft && formDef) {
-      form.setFieldsValue(restoreFormValues(draft.dataJson, parseSchemaFields(formDef.schemaJson)));
-    }
-  }, [draft, formDef, form]);
-
-  const fields = useMemo(
-    () => (formDef ? parseSchemaFields(formDef.schemaJson) : []),
-    [formDef],
-  );
-  const nodes = useMemo(
-    () => (process ? parseNodes(process.nodeJson) : []),
-    [process],
-  );
-
-  const backToStart = () => router.push('/oa/approval-start');
-
-  const draftPayload = () => ({
-    formKey: formDef?.formKey || formKey,
-    processKey: process?.processKey,
-    formData: normalizeFormValues(form.getFieldsValue(true), fields),
-  });
-
-  const saveDraft = async () => {
-    if (!formDef) return;
-    setSavingDraft(true);
-    try {
-      const saved = draft
-        ? await approvalEngineApi.updateDraft(draft.id, {
-          processKey: process?.processKey,
-          formData: draftPayload().formData,
-          version: draft.version,
-        })
-        : await approvalEngineApi.createDraft(draftPayload());
-      setDraft(saved);
-      if (!draft) {
-        router.replace(`/oa/approval-form?formKey=${encodeURIComponent(formDef.formKey)}&draftId=${saved.id}`);
-      }
-      message.success(t('approval.formPage.draftSaved'));
-    } catch (error) {
-      message.error(formatOaApiError(error));
-    } finally {
-      setSavingDraft(false);
-    }
-  };
-
-  const cancelDraft = () => {
-    if (!draft) return;
-    Modal.confirm({
-      title: t('approval.formPage.cancelDraftTitle'),
-      content: t('approval.formPage.cancelDraftContent'),
-      okText: t('approval.formPage.cancelDraftOk'),
-      okButtonProps: { danger: true },
-      cancelText: t('common.cancel'),
-      onOk: async () => {
-        try {
-          await approvalEngineApi.cancelDraft(draft.id, draft.version);
-          message.success(t('approval.formPage.draftCancelled'));
-          backToStart();
-        } catch (error) {
-          message.error(formatOaApiError(error));
-        }
-      },
-    });
-  };
-
-  const handleSubmitClick = async () => {
-    if (!formDef) return;
-    try {
-      await form.validateFields();
-    } catch {
-      return; // 校验错误已由表单项内联展示
-    }
-    const values = form.getFieldsValue();
-    Modal.confirm({
-      title: t('approval.formPage.confirmTitle'),
-      width: 520,
-      content: (
-        <div className="approval-template-fields">
-          <div>
-            <Typography.Text>{t('approval.start.boundProcess')}</Typography.Text>
-            <Tag>{process?.processName || '-'}</Tag>
-          </div>
-          {fields
-            .filter((field) => values[field.name as string] !== undefined && values[field.name as string] !== '')
-            .map((field) => (
-              <div key={field.name}>
-                <Typography.Text>{field.label || field.name}</Typography.Text>
-                <Typography.Text type="secondary">
-                  {formatValueForConfirm(values[field.name as string], field.type)}
-                </Typography.Text>
-              </div>
-            ))}
-        </div>
-      ),
-      okText: t('approval.formPage.confirmOk'),
-      cancelText: t('common.cancel'),
-      onOk: async () => {
-        setSubmitting(true);
-        try {
-          if (draft) {
-            const saved = await approvalEngineApi.updateDraft(draft.id, {
-              processKey: process?.processKey,
-              formData: normalizeFormValues(values, fields),
-              version: draft.version,
-            });
-            await approvalEngineApi.submitDraft(saved.id, saved.version);
-          } else {
-            await approvalEngineApi.submitApplication({
-              formKey: formDef.formKey,
-              processKey: process?.processKey,
-              formData: normalizeFormValues(values, fields),
-            });
-          }
-          message.success(t('approval.formPage.submitSuccess'));
-          backToStart();
-        } catch (error) {
-          message.error(formatOaApiError(error));
-        } finally {
-          setSubmitting(false);
-        }
-      },
-    });
-  };
+  if (!allowed) return <Alert type="warning" showIcon title={t('oa.ai.noPermission')} />;
 
   // ---------- 缺少 formKey ----------
   if (!formKey) {
@@ -342,7 +97,7 @@ export default function ApprovalFormPage() {
             {fields.length === 0 && !loading ? (
               <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('approval.start.emptyFields')} />
             ) : (
-              <Form form={form} layout="vertical" className="leave-enterprise-form" requiredMark="optional">
+              <Form form={form} layout="vertical" className="leave-enterprise-form" requiredMark="optional" disabled={!editable || busy || confirming} onValuesChange={changed}>
                 {fields.map((field) => {
                   if (field.type === 'divider') return null;
                   const label = field.label || field.name || '';
@@ -351,14 +106,20 @@ export default function ApprovalFormPage() {
                       key={field.name}
                       name={field.name}
                       label={label}
-                      rules={field.required
-                        ? [{ required: true, message: t('approval.start.fieldRequired', { field: label }) }]
-                        : undefined}
-                      extra={FALLBACK_TEXT_TYPES.has(field.type || '')
-                        ? t('approval.start.unsupportedFieldAlert', { field: label })
+                      rules={[
+                        ...(field.required ? [{ required: true, message: t('approval.start.fieldRequired', { field: label }) }] : []),
+                        ...(['number', 'amount', 'money'].includes(field.type) ? [{ validator: (_: unknown, value: unknown) => {
+                          if (value === undefined || value === null || value === '') return Promise.resolve();
+                          const number = Number(value);
+                          return /^-?\d+(\.\d+)?([eE][+-]?\d+)?$/.test(String(value)) && Number.isFinite(number) && (field.min == null || number >= field.min)
+                            ? Promise.resolve() : Promise.reject(new Error(t('approval.formPage.invalidNumeric')));
+                        } }] : []),
+                      ]}
+                      extra={!supportedApplicationField(field)
+                        ? t('approval.formPage.unsupportedControl', { field: label })
                         : undefined}
                     >
-                      {renderFieldControl(field)}
+                      {renderApplicationField(field)}
                     </Form.Item>
                   );
                 })}
@@ -368,11 +129,11 @@ export default function ApprovalFormPage() {
                     {draft ? t('approval.formPage.footerDraft') : t('approval.formPage.footerConfirm')}
                   </Typography.Text>
                   <Space wrap>
-                    {draft && <Button size="large" danger onClick={cancelDraft}>{t('approval.formPage.cancelDraft')}</Button>}
+                    {draft?.canCancel && canCancel && <Button size="large" danger disabled={busy || confirming} onClick={cancelDraft}>{t('approval.formPage.cancelDraft')}</Button>}
                     <Button
                       size="large"
-                      loading={savingDraft}
-                      disabled={submitting || fields.length === 0}
+                      loading={busy}
+                      disabled={!editable || busy || confirming || fields.length === 0}
                       onClick={() => void saveDraft()}
                     >
                       {t('approval.formPage.saveDraft')}
@@ -381,9 +142,9 @@ export default function ApprovalFormPage() {
                       size="large"
                       type="primary"
                       icon={<OaIcon name="send" />}
-                      loading={submitting}
-                      disabled={!process || fields.length === 0}
-                      onClick={() => void handleSubmitClick()}
+                      loading={busy}
+                      disabled={!canSubmit || busy || confirming || !process || fields.length === 0}
+                      onClick={() => void submit()}
                     >
                       {t('approval.start.submit')}
                     </Button>
@@ -401,7 +162,7 @@ export default function ApprovalFormPage() {
               </div>
               <Typography.Title level={4}>{t('approval.formPage.previewTitle')}</Typography.Title>
               <Typography.Paragraph>
-                {process?.description || t('approval.formPage.previewDescription')}
+                {t('approval.formPage.previewDescription')}
               </Typography.Paragraph>
             </div>
 
@@ -473,64 +234,4 @@ export default function ApprovalFormPage() {
       </Spin>
     </section>
   );
-}
-
-function renderFieldControl(field: SchemaField) {
-  switch (field.type) {
-    case 'textarea':
-      return <Input.TextArea rows={4} maxLength={500} showCount />;
-    case 'number':
-    case 'money':
-      return <InputNumber style={{ width: '100%' }} />;
-    case 'date':
-      return <DatePicker style={{ width: '100%' }} />;
-    case 'time':
-      return <TimePicker style={{ width: '100%' }} format="HH:mm" />;
-    default:
-      return <Input maxLength={200} />;
-  }
-}
-
-/** 把表单值规整为后端 schema 校验可接受的 JSON 标量。 */
-function normalizeFormValues(
-  values: Record<string, unknown>,
-  fields: SchemaField[],
-): Record<string, unknown> {
-  const data: Record<string, unknown> = {};
-  fields.forEach((field) => {
-    const value = values[field.name as string];
-    if (value === undefined || value === null || value === '') return;
-    if (dayjs.isDayjs(value)) {
-      const day = value as Dayjs;
-      data[field.name as string] = field.type === 'time' ? day.format('HH:mm') : day.format('YYYY-MM-DD');
-      return;
-    }
-    data[field.name as string] = value;
-  });
-  return data;
-}
-
-function formatValueForConfirm(value: unknown, type?: string): string {
-  if (value == null || value === '') return '-';
-  if (dayjs.isDayjs(value)) {
-    const day = value as Dayjs;
-    return type === 'time' ? day.format('HH:mm') : day.format('YYYY-MM-DD');
-  }
-  return String(value);
-}
-
-function restoreFormValues(dataJson: string, fields: SchemaField[]): Record<string, unknown> {
-  try {
-    const parsed = JSON.parse(dataJson) as Record<string, unknown>;
-    const restored: Record<string, unknown> = { ...parsed };
-    fields.forEach((field) => {
-      const value = field.name ? parsed[field.name] : undefined;
-      if (typeof value === 'string' && (field.type === 'date' || field.type === 'time')) {
-        restored[field.name as string] = dayjs(value, field.type === 'time' ? 'HH:mm' : 'YYYY-MM-DD');
-      }
-    });
-    return restored;
-  } catch {
-    return {};
-  }
 }
