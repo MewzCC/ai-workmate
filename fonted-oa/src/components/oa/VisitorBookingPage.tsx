@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Button,
   Card,
@@ -10,6 +10,7 @@ import {
   Input,
   InputNumber,
   Modal,
+  Select,
   Space,
   Spin,
   Tabs,
@@ -27,8 +28,12 @@ import {
   type VisitorBookingStatus,
 } from '@/lib/adminAssetsApi';
 import { formatOaApiError } from '@/lib/oaApi';
+import { useAdminAssetApprovalQueue } from '@/hooks/useAdminAssetApprovalQueue';
+import { isFormValidationError, useAsyncFormAction } from '@/hooks/useAsyncFormAction';
+import { usePublishPageAgentContext } from './PageAgentContext';
 import AdminAssetsPageShell from './AdminAssetsPageShell';
 import ResponsiveTable from './ResponsiveTable';
+import { BusinessUserSelect } from './BusinessUserSelect';
 
 const STATUS_TAG_COLOR: Record<VisitorBookingStatus, string> = {
   PENDING: 'processing',
@@ -55,66 +60,38 @@ interface BookingFormValues {
 
 export default function VisitorBookingPage() {
   const { t } = useTranslation();
-  const [activeTab, setActiveTab] = useState('mine');
-  const [mine, setMine] = useState<VisitorBooking[]>([]);
-  const [pending, setPending] = useState<VisitorBooking[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
-  const [size, setSize] = useState(10);
+  const { activeTab, mine, pending, loading, total, page, size, setPage, setSize,
+    loadMine, refresh, captureScope, handleTabChange, status, changeStatus, canCreate, canDecide, scope } = useAdminAssetApprovalQueue({
+    pageId: 'visitor-booking', readPermission: 'visitor:read:self', createPermission: 'visitor:create',
+    statuses: Object.keys(STATUS_TAG_COLOR) as VisitorBookingStatus[],
+    mine: adminAssetsApi.listMyVisitorBookings, pending: adminAssetsApi.listPendingVisitorBookings,
+  });
 
   const [createOpen, setCreateOpen] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
+  const createAction = useAsyncFormAction(scope);
+  const submitting = createAction.busy;
   const [form] = Form.useForm<BookingFormValues>();
-
+  const openCreate = () => { if (!canCreate || !captureScope()()) return; createAction.reset(); form.resetFields(); setCreateOpen(true); };
+  usePublishPageAgentContext({ queue: activeTab.toUpperCase(), status, page, size });
   const [decideTarget, setDecideTarget] = useState<VisitorBooking | null>(null);
   const [decideOpen, setDecideOpen] = useState(false);
-  const [deciding, setDeciding] = useState(false);
+  const decideAction = useAsyncFormAction(scope);
+  const deciding = decideAction.busy;
   const [decideForm] = Form.useForm<{ comment?: string }>();
 
-  const loadMine = useCallback(async (p = page, s = size) => {
-    setLoading(true);
-    try {
-      const res = await adminAssetsApi.listMyVisitorBookings({ page: p, size: s });
-      setMine(res.records);
-      setTotal(res.total);
-    } catch (err) {
-      message.error(formatOaApiError(err));
-    } finally {
-      setLoading(false);
-    }
-  }, [page, size]);
-
-  const loadPending = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await adminAssetsApi.listPendingVisitorBookings({ page: 1, size: 100 });
-      setPending(res.records);
-    } catch (err) {
-      message.error(formatOaApiError(err));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
-    loadMine(1);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const handleTabChange = (key: string) => {
-    setActiveTab(key);
-    if (key === 'pending') {
-      loadPending();
-    } else {
-      loadMine(1);
-    }
-  };
+    setCreateOpen(false); setDecideOpen(false); setDecideTarget(null);
+    form.resetFields(); decideForm.resetFields();
+  }, [scope, form, decideForm]);
 
   const handleCreate = async () => {
+    if (!canCreate || submitting) return;
+    const action = createAction.begin();
+    if (!action) return;
+    const isActorCurrent = captureScope();
     try {
       const values = await form.validateFields();
-      setSubmitting(true);
+      if (!action.current()) return;
       const payload: VisitorBookingPayload = {
         visitorName: values.visitorName,
         visitorCompany: values.visitorCompany,
@@ -129,25 +106,30 @@ export default function VisitorBookingPage() {
         partySize: values.partySize,
       };
       await adminAssetsApi.submitVisitorBooking(payload);
-      message.success(t('adminAssets.visitor.submitSuccess'));
-      setCreateOpen(false);
-      form.resetFields();
-      await loadMine(1);
+      if (action.current()) {
+        message.success(t('adminAssets.visitor.submitSuccess'));
+        setCreateOpen(false); form.resetFields();
+      }
+      if (isActorCurrent()) await refresh();
     } catch (err) {
-      if (err instanceof Error && err.name === 'ValidationError') return;
+      if (!action.current()) return;
+      if (isFormValidationError(err)) return;
       message.error(formatOaApiError(err));
     } finally {
-      setSubmitting(false);
+      action.finish();
     }
   };
 
   const handleWithdraw = async (record: VisitorBooking) => {
+    const current = captureScope();
+    if (!current() || !record.canWithdraw) return;
     try {
       await adminAssetsApi.withdrawVisitorBooking(record.id, { version: record.version });
+      if (!current()) return;
       message.success(t('adminAssets.visitor.withdrawSuccess'));
-      await loadMine(page);
+      await refresh();
     } catch (err) {
-      message.error(formatOaApiError(err));
+      if (current()) message.error(formatOaApiError(err));
     }
   };
 
@@ -155,50 +137,58 @@ export default function VisitorBookingPage() {
     record: VisitorBooking,
     action: 'checkIn' | 'arrive' | 'leave' | 'noShow',
   ) => {
+    const current = captureScope();
+    if (!current() || !({ checkIn: record.canCheckIn, arrive: record.canMarkVisited, leave: record.canLeave, noShow: record.canMarkNoShow })[action]) return;
     try {
       const payload = { version: record.version };
       if (action === 'checkIn') await adminAssetsApi.checkInVisitor(record.id, payload);
       if (action === 'arrive') await adminAssetsApi.markVisitorArrived(record.id, payload);
       if (action === 'leave') await adminAssetsApi.leaveVisitor(record.id, payload);
       if (action === 'noShow') await adminAssetsApi.markVisitorNoShow(record.id, payload);
+      if (!current()) return;
       message.success(t(`adminAssets.visitor.visitAction.${action}Success`));
-      await loadMine(page);
+      await refresh();
     } catch (err) {
-      message.error(formatOaApiError(err));
+      if (current()) message.error(formatOaApiError(err));
     }
   };
 
   const openDecide = (record: VisitorBooking) => {
+    if (!canDecide || !record.canDecide || !captureScope()()) return;
+    decideAction.reset();
     setDecideTarget(record);
     decideForm.resetFields();
     setDecideOpen(true);
   };
 
   const handleDecide = async (action: 'approve' | 'reject') => {
-    if (!decideTarget || !decideTarget.taskId) return;
+    if (!canDecide || deciding || !decideTarget || !decideTarget.taskId) return;
+    const operation = decideAction.begin();
+    if (!operation) return;
+    const current = captureScope();
     try {
       const values = await decideForm.validateFields();
-      setDeciding(true);
+      if (!operation.current()) return;
       const payload = {
         version: decideTarget.taskVersion ?? 0,
         comment: values.comment,
       };
       if (action === 'approve') {
         await adminAssetsApi.approveVisitorBooking(decideTarget.taskId, payload);
-        message.success(t('adminAssets.visitor.approveSuccess'));
       } else {
         await adminAssetsApi.rejectVisitorBooking(decideTarget.taskId, payload);
-        message.success(t('adminAssets.visitor.rejectSuccess'));
       }
-      setDecideOpen(false);
-      setDecideTarget(null);
-      decideForm.resetFields();
-      await loadPending();
+      if (operation.current()) {
+        message.success(t(`adminAssets.visitor.${action === 'approve' ? 'approveSuccess' : 'rejectSuccess'}`));
+        setDecideOpen(false); setDecideTarget(null); decideForm.resetFields();
+      }
+      if (current()) await refresh();
     } catch (err) {
-      if (err instanceof Error && err.name === 'ValidationError') return;
+      if (!operation.current()) return;
+      if (isFormValidationError(err)) return;
       message.error(formatOaApiError(err));
     } finally {
-      setDeciding(false);
+      operation.finish();
     }
   };
 
@@ -340,14 +330,17 @@ export default function VisitorBookingPage() {
       eyebrow={t('adminAssets.eyebrow')}
       title={t('adminAssets.visitor.title')}
       description={t('adminAssets.visitor.description')}
-      actions={
-        <Button type="primary" onClick={() => setCreateOpen(true)}>
+      actions={canCreate &&
+        <Button type="primary" onClick={openCreate}>
           {t('adminAssets.visitor.create')}
         </Button>
       }
     >
       <Spin spinning={loading}>
         <Card className="oa-admin-assets-card oa-admin-assets-card--fill" variant="outlined">
+          {activeTab === 'mine' && <Select allowClear value={status} onChange={changeStatus} style={{ width: 180 }}
+            aria-label={t('adminAssets.common.status')} placeholder={t('adminAssets.common.status')}
+            options={(Object.keys(STATUS_TAG_COLOR) as VisitorBookingStatus[]).map(value => ({ value, label: t(`adminAssets.visitor.status.${value}`) }))} />}
           <Tabs
             activeKey={activeTab}
             onChange={handleTabChange}
@@ -390,21 +383,22 @@ export default function VisitorBookingPage() {
                   />
                 ),
               },
-            ]}
+            ].filter(item => item.key !== 'pending' || canDecide)}
           />
         </Card>
 
         <Modal
           title={t('adminAssets.visitor.create')}
-          open={createOpen}
-          onCancel={() => setCreateOpen(false)}
+          open={createOpen && canCreate}
+          onCancel={() => { createAction.reset(); setCreateOpen(false); }}
           onOk={handleCreate}
-          confirmLoading={submitting}
+          okButtonProps={{ loading: submitting }}
+          cancelText={t(submitting ? 'common.close' : 'common.cancel')}
           okText={t('adminAssets.common.submit')}
           destroyOnClose
           width={560}
         >
-          <Form form={form} layout="vertical" initialValues={{ partySize: 1 }}>
+          <Form form={form} disabled={submitting} layout="vertical" initialValues={{ partySize: 1 }}>
             <Form.Item
               name="visitorName"
               label={t('adminAssets.visitor.visitorName')}
@@ -430,7 +424,8 @@ export default function VisitorBookingPage() {
               label={t('adminAssets.visitor.hostUserId')}
               rules={[{ required: true, message: t('adminAssets.common.fieldRequired') }]}
             >
-              <InputNumber style={{ width: '100%' }} min={1} />
+              <BusinessUserSelect query={adminAssetsApi.visitorHostOptions} active={createOpen && canCreate} disabled={submitting}
+                scopeKey={scope} placeholder={t('adminAssets.visitor.hostUserId')} />
             </Form.Item>
             <Form.Item
               name="expectedVisitAt"
@@ -453,8 +448,9 @@ export default function VisitorBookingPage() {
 
         <Modal
           title={t('adminAssets.visitor.decideTitle')}
-          open={decideOpen}
+          open={decideOpen && canDecide}
           onCancel={() => {
+            decideAction.reset();
             setDecideOpen(false);
             setDecideTarget(null);
           }}
@@ -494,7 +490,7 @@ export default function VisitorBookingPage() {
               </p>
             </div>
           )}
-          <Form form={decideForm} layout="vertical">
+          <Form form={decideForm} disabled={deciding} layout="vertical">
             <Form.Item name="comment" label={t('adminAssets.common.approverComment')}>
               <Input.TextArea rows={3} maxLength={500} showCount />
             </Form.Item>

@@ -140,7 +140,7 @@ export default {
     visitorCompany: 'Company',
     visitorPhone: 'Phone',
     purpose: 'Purpose',
-    hostUserId: 'Host ID',
+    hostUserId: 'Host',
     expectedVisitAt: 'Expected Visit',
     expectedLeaveAt: 'Expected Leave',
     plateNumber: 'Plate No.',

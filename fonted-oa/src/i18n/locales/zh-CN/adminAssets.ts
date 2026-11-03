@@ -140,7 +140,7 @@ export default {
     visitorCompany: '访客公司',
     visitorPhone: '联系电话',
     purpose: '来访事由',
-    hostUserId: '接待人 ID',
+    hostUserId: '接待人',
     expectedVisitAt: '预计到访时间',
     expectedLeaveAt: '预计离开时间',
     plateNumber: '车牌号',
