@@ -1,9 +1,10 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { ConfigProvider } from 'antd';
 import { bindAuthResponseIdentity } from '@/lib/authEvents';
 import { OaApiError, type LeaveApplication } from '@/lib/oaApi';
 const auth = vi.hoisted(() => ({ user: { id: 7, tenantId: 1, permissionVersion: 1, permissions: ['approval:act'], roles: ['USER'], dataScopes: ['SELF'] } }));
-const api = vi.hoisted(() => ({ detail: vi.fn(), approve: vi.fn(), reject: vi.fn(), copyTo: vi.fn(), transfer: vi.fn(), addSign: vi.fn(), participantCandidates: vi.fn(), success: vi.fn(), error: vi.fn() }));
+const api = vi.hoisted(() => ({ detail: vi.fn(), approve: vi.fn(), reject: vi.fn(), copyTo: vi.fn(), transfer: vi.fn(), addSign: vi.fn(), participantOptions: vi.fn(), success: vi.fn(), error: vi.fn() }));
 vi.mock('@/components/auth/AuthProvider', () => ({ useAuth: () => ({ user: auth.user }) }));
 vi.mock('@/lib/oaApi', async load => ({ ...await load<typeof import('@/lib/oaApi')>(), todoApi: api }));
 vi.mock('@/lib/antdMessage', () => ({ message: { error: api.error, success: api.success } }));
@@ -20,7 +21,7 @@ beforeEach(() => { vi.clearAllMocks(); auth.user = { ...auth.user, id: 7, permis
   api.detail.mockResolvedValue(application()); api.approve.mockResolvedValue({ ...application(), status: 'APPROVED', version: 2 });
   api.reject.mockResolvedValue({ ...application(), status: 'REJECTED', version: 2 });
   for (const operation of [api.copyTo, api.transfer, api.addSign]) operation.mockResolvedValue({ ...application(), version: 2 });
-  api.participantCandidates.mockResolvedValue([{ id: 11, name: 'Candidate', canApprove: true }]); });
+  api.participantOptions.mockImplementation(async (_id: number, params: { page: number; size: number }) => ({ records: [{ id: 11, name: 'Candidate', canApprove: true }], total: 1, ...params })); });
 afterEach(cleanup);
 
 it.each([
@@ -89,15 +90,47 @@ it.each(['closed', 'owner', 'not-assigned', 'read-only'] as const)('hides write 
   const p = props(); if (variant === 'closed') p.application.taskStatus = 'CANCELLED';
   if (variant === 'owner') p.application.applicantUserId = 7; if (variant === 'not-assigned') p.application.approverUserId = 99;
   if (variant === 'read-only') auth.user.permissions = [];
-  render(<ApprovalTaskActions {...p} />); expect(screen.queryByRole('button', { name: '审批通过' })).toBeNull(); expect(api.participantCandidates).not.toHaveBeenCalled();
+  render(<ApprovalTaskActions {...p} />); expect(screen.queryByRole('button', { name: '审批通过' })).toBeNull(); expect(api.participantOptions).not.toHaveBeenCalled();
 });
-it('searches candidates on the server, filters non-approvers and exposes read failures', async () => {
-  api.participantCandidates.mockResolvedValueOnce([{ id: 12, name: 'Read-only user', canApprove: false }, { id: 11, name: 'Candidate', canApprove: true }]);
+it('uses server-side eligibility and search and exposes candidate read failures', async () => {
   render(<ApprovalTaskActions {...props()} />); fireEvent.click(screen.getByRole('button', { name: /转\s*交/ }));
-  await waitFor(() => expect(api.participantCandidates).toHaveBeenCalledWith(42, undefined)); fireEvent.mouseDown(screen.getByRole('combobox'));
-  expect(screen.queryByText('Read-only user')).toBeNull();
-  api.participantCandidates.mockRejectedValueOnce(new OaApiError('Candidate service unavailable', 503, 'SERVICE_UNAVAILABLE'));
+  await waitFor(() => expect(api.participantOptions).toHaveBeenCalledWith(42, { keyword: undefined, page: 1, size: 20, approversOnly: true }));
+  fireEvent.mouseDown(screen.getByRole('combobox')); await screen.findByText('Candidate');
+  api.participantOptions.mockRejectedValueOnce(new OaApiError('Candidate service unavailable', 503, 'SERVICE_UNAVAILABLE'));
   fireEvent.change(screen.getByRole('combobox'), { target: { value: 'Other' } });
-  await waitFor(() => expect(api.participantCandidates).toHaveBeenLastCalledWith(42, 'Other'));
+  await waitFor(() => expect(api.participantOptions).toHaveBeenLastCalledWith(42, { keyword: 'Other', page: 1, size: 20, approversOnly: true }));
   await screen.findByText('Candidate service unavailable'); expect(api.transfer).not.toHaveBeenCalled();
+});
+it('refuses an ineligible approval target returned by an inconsistent server page', async () => {
+  api.participantOptions.mockResolvedValueOnce({ records: [{ id: 12, name: 'Read-only user', canApprove: false }], total: 1, page: 1, size: 20 });
+  render(<ApprovalTaskActions {...props()} />); fireEvent.click(screen.getByRole('button', { name: /转\s*交/ }));
+  await waitFor(() => expect(api.error).toHaveBeenCalled()); fireEvent.mouseDown(screen.getByRole('combobox'));
+  expect(screen.queryByText('Read-only user')).toBeNull(); expect(api.transfer).not.toHaveBeenCalled();
+});
+it('loads four real pages and can select an approver beyond the former fifty-person window', async () => {
+  api.participantOptions.mockImplementation(async (_id: number, params: { page: number; size: number }) => ({
+    records: Array.from({ length: Math.min(20, 65 - (params.page - 1) * 20) }, (_, index) => ({
+      id: 101 + (params.page - 1) * 20 + index, name: `Candidate ${1 + (params.page - 1) * 20 + index}`, canApprove: true,
+    })), total: 65, ...params,
+  }));
+  render(<ConfigProvider virtual={false}><ApprovalTaskActions {...props()} /></ConfigProvider>);
+  fireEvent.click(screen.getByRole('button', { name: '前加签' }));
+  await waitFor(() => expect(api.participantOptions).toHaveBeenCalledTimes(1)); fireEvent.mouseDown(screen.getByRole('combobox'));
+  for (let page = 2; page <= 4; page++) {
+    fireEvent.scroll(document.querySelector('.rc-virtual-list-holder')!);
+    await waitFor(() => expect(api.participantOptions).toHaveBeenCalledWith(42, { keyword: undefined, page, size: 20, approversOnly: true }));
+    await screen.findByText(`Candidate ${page === 4 ? 65 : page * 20}`);
+  }
+  fireEvent.click(screen.getByText('Candidate 65')); fireEvent.change(screen.getByLabelText('操作理由'), { target: { value: 'Synthetic late-page selection' } });
+  fireEvent.click(screen.getByRole('button', { name: '确认前加签' }));
+  await waitFor(() => expect(api.addSign).toHaveBeenCalledWith(42, 165, 2, 'PRE', 'Synthetic late-page selection'));
+});
+it('does not apply late candidates from a closed dialog to a new action', async () => {
+  const late = deferred<{ records: { id: number; name: string; canApprove: boolean }[]; total: number; page: number; size: number }>();
+  api.participantOptions.mockReturnValueOnce(late.promise); render(<ApprovalTaskActions {...props()} />);
+  fireEvent.click(screen.getByRole('button', { name: /抄\s*送/ })); await waitFor(() => expect(api.participantOptions).toHaveBeenCalledTimes(1));
+  fireEvent.click(screen.getByRole('button', { name: /取\s*消/ })); fireEvent.click(screen.getByRole('button', { name: /转\s*交/ }));
+  await waitFor(() => expect(api.participantOptions).toHaveBeenCalledTimes(2));
+  await act(async () => { late.resolve({ records: [{ id: 99, name: 'Stale candidate', canApprove: true }], total: 1, page: 1, size: 20 }); });
+  fireEvent.mouseDown(screen.getByRole('combobox')); await screen.findByText('Candidate'); expect(screen.queryByText('Stale candidate')).toBeNull();
 });

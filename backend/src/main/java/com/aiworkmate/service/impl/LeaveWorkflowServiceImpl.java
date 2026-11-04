@@ -563,36 +563,35 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
     @Transactional(readOnly = true)
     public List<ApprovalParticipantResponse> participantCandidates(
             Long userId, Long taskId, String keyword) {
+        return participantCandidates(userId, null, taskId,
+                new com.aiworkmate.service.model.BusinessCandidateQuery(keyword, 1, 50), false).records();
+    }
+
+    @Override
+    @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
+    public PageResponse<ApprovalParticipantResponse> participantCandidates(
+            Long userId, Long expectedTenantId, Long taskId,
+            com.aiworkmate.service.model.BusinessCandidateQuery query, boolean approversOnly) {
         ResolvedUserAccess actor = requirePermission(userId, "approval:act");
-        WorkflowTask task = requireAssignedTask(actor, taskId);
-        if (!"PENDING".equals(task.getStatus())) {
-            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID);
-        }
-        String normalizedKeyword = normalize(keyword);
-        if (normalizedKeyword != null && normalizedKeyword.length() > 64) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID);
-        }
-        LambdaQueryWrapper<User> query = new LambdaQueryWrapper<User>()
-                .eq(User::getTenantId, actor.tenantId())
-                .eq(User::getStatus, 1)
-                .ne(User::getId, actor.userId())
-                .orderByAsc(User::getId)
-                .last("LIMIT 50");
-        if (normalizedKeyword != null) {
-            query.and(q -> q.like(User::getDisplayName, normalizedKeyword)
-                    .or().like(User::getUsername, normalizedKeyword));
-        }
-        return userMapper.selectList(query).stream()
-                .map(user -> {
-                    ResolvedUserAccess targetAccess = userAccessService.resolveActiveUser(user.getId());
-                    boolean canApprove = actor.tenantId().equals(targetAccess.tenantId())
-                            && targetAccess.permissions().contains("approval:act");
-                    return new ApprovalParticipantResponse(
-                            user.getId(), displayName(user),
-                            AvatarUrls.build(user.getId(), user.getAvatar(), user.getUpdatedAt()),
-                            canApprove);
-                })
-                .toList();
+        if (expectedTenantId != null && !expectedTenantId.equals(actor.tenantId()))
+            throw new BusinessException(ErrorCode.RESOURCE_FORBIDDEN);
+        if (query == null || query.size() > 50 || query.keyword() != null && query.keyword().length() > 64
+                || taskId == null || taskId < 1) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        WorkflowTask task = taskMapper.selectLeaveTaskForRead(actor.tenantId(), taskId);
+        if (task == null) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        if (!actor.userId().equals(task.getAssigneeUserId())) throw new BusinessException(ErrorCode.RESOURCE_FORBIDDEN);
+        if (!"PENDING".equals(task.getStatus())) throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID);
+        LeaveApplication application = requirePendingApplication(actor, task);
+        if (!task.getInstanceId().equals(application.getWorkflowInstanceId())) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        WorkflowInstance instance = instanceMapper.selectById(task.getInstanceId());
+        if (instance == null || !"RUNNING".equals(instance.getStatus())) throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID);
+        long total = userMapper.countApprovalParticipants(actor.tenantId(), "approval:act", actor.userId(),
+                application.getApplicantUserId(), approversOnly, query.keyword());
+        var rows = userMapper.selectApprovalParticipants(actor.tenantId(), "approval:act", actor.userId(),
+                application.getApplicantUserId(), approversOnly, query.keyword(), query.size(), query.offset());
+        return PageResponse.of(rows.stream().map(row -> new ApprovalParticipantResponse(row.id(), row.name(),
+                AvatarUrls.build(row.id(), row.avatar(), row.updatedAt()), row.canApprove())).toList(),
+                total, query.page(), query.size());
     }
 
     @Override

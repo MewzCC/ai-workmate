@@ -24,16 +24,16 @@ public class AgentApprovalMetadataReadToolDefinitions {
     }
 
     public static final String INPUT_1 = """
-            {"type":"object","additionalProperties":false,"required":["taskId"],"properties":{"taskId":{"type":"integer","minimum":1},"keyword":{"type":"string","maxLength":64}}}
+            {"type":"object","additionalProperties":false,"required":["taskId"],"properties":{"taskId":{"type":"integer","minimum":1},"keyword":{"type":"string","maxLength":64},"page":{"type":"integer","minimum":1,"maximum":10000},"size":{"type":"integer","minimum":1,"maximum":50},"approversOnly":{"type":"boolean"}}}
             """.strip();
     public static final String OUTPUT_1 = """
-            {"type":"object","additionalProperties":false,"required":["items"],"properties":{"items":{"type":"array","maxItems":50,"items":{"type":"object","additionalProperties":false,"required":["id","name","canApprove"],"properties":{"id":{"type":"integer","minimum":1},"name":{"type":"string","maxLength":120},"canApprove":{"type":"boolean"}}}}}}
+            {"type":"object","additionalProperties":false,"required":["items","total","page","size","approversOnly"],"properties":{"items":{"type":"array","maxItems":50,"items":{"type":"object","additionalProperties":false,"required":["id","name","canApprove"],"properties":{"id":{"type":"integer","minimum":1},"name":{"type":"string","maxLength":120},"canApprove":{"type":"boolean"}}}},"total":{"type":"integer","minimum":0},"page":{"type":"integer","minimum":1,"maximum":10000},"size":{"type":"integer","minimum":1,"maximum":50},"approversOnly":{"type":"boolean"}}}
             """.strip();
 
     @Bean
     ToolDefinition approvalMetadataRead1(ObjectMapper mapper) throws JsonProcessingException {
         return ToolDefinitionFactory.read(ToolCode.APPROVAL_TASK_PARTICIPANTS_QUERY, "Query assigned approval participants",
-                "Lists up to 50 eligible collaboration candidates for one pending task assigned to the actor.",
+                "Pages collaboration candidates for your assigned pending task; optionally restricts to eligible approvers before pagination.",
                 "Read candidates for an assigned pending task; select an approver for transfer or add-sign without granting permission.", mapper.readTree(INPUT_1), mapper.readTree(OUTPUT_1),
                 Set.of("approval:act"), OwnershipPolicy.ASSIGNED_TO_SELF, 50, 32768, 15000);
     }

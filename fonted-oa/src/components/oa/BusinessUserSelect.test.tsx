@@ -96,3 +96,20 @@ it('shows a domain-supplied current selection outside the loaded page and remove
   await waitFor(() => expect(query).toHaveBeenCalledTimes(1));
   page.rerender(content(false)); expect(screen.queryByText('Candidate 99')).toBeNull();
 });
+
+it('retries a failed later page without dropping the previously loaded candidates', async () => {
+  query.mockResolvedValueOnce({ records: Array.from({ length: 20 }, (_, i) => person(i + 1)), total: 21 })
+    .mockRejectedValueOnce(new Error('Synthetic second-page failure'))
+    .mockResolvedValueOnce({ records: [person(21)], total: 21 });
+  render(view()); await waitFor(() => expect(query).toHaveBeenCalledTimes(1)); fireEvent.mouseDown(screen.getByLabelText('Synthetic host'));
+  await screen.findByText('Candidate 1'); fireEvent.scroll(document.querySelector('.rc-virtual-list-holder')!);
+  await screen.findByRole('button', { name: /重\s*试/ });
+  expect(screen.getByText('Candidate 1')).toBeTruthy(); fireEvent.click(screen.getByRole('button', { name: /重\s*试/ }));
+  await screen.findByText('Candidate 21'); expect(query).toHaveBeenLastCalledWith({ keyword: undefined, page: 2, size: 20 });
+  expect(query).toHaveBeenCalledTimes(3);
+});
+it('respects a domain-specific search length bound before calling the API', async () => {
+  render(<BusinessUserSelect active scopeKey="bounded-search" query={query} maxSearchLength={64} aria-label="Bounded candidate" />);
+  await waitFor(() => expect(query).toHaveBeenCalledTimes(1)); fireEvent.change(screen.getByLabelText('Bounded candidate'), { target: { value: 'x'.repeat(80) } });
+  await waitFor(() => expect(query).toHaveBeenLastCalledWith({ keyword: 'x'.repeat(64), page: 1, size: 20 }));
+});

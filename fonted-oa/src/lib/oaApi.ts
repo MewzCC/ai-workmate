@@ -521,6 +521,8 @@ export const todoApi = {
     request<ApprovalParticipant[]>(
       `/approval-tasks/${id}/participant-candidates${queryString({ keyword })}`,
     ),
+  participantOptions: (id: number, params: { keyword?: string; page?: number; size?: number; approversOnly?: boolean } = {}) =>
+    request<PageResponse<ApprovalParticipant>>(`/approval-tasks/${id}/participant-options${queryString({ ...params, approversOnly: params.approversOnly?.toString() })}`),
   transfer: (id: number, targetUserId: number, version: number, reason: string) =>
     request<LeaveApplication>(`/approval-tasks/${id}/transfer`, {
       method: 'POST',

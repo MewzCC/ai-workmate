@@ -137,7 +137,7 @@ export default {
     actionSubject: 'Application #{{id}} · Task #{{task}} · Node version {{version}}',
     changedBeforeAction: 'The task has changed. Review the refreshed node before continuing.',
     resultUnknown: 'The operation result is uncertain. Check the business state and approval history before acting again.',
-    participantSearchHint: 'Up to 50 matching users are shown per search. Enter a name to narrow the server query.',
+    participantSearchHint: 'Search eligible participants for this task by name and scroll for more. The server rechecks eligibility when you act.',
     backToDashboard: 'Back to Dashboard',
     backToTodo: 'Back to Tasks',
     backToMyApplications: 'Back to My Requests',

@@ -1,11 +1,12 @@
-import { useCallback, useState } from 'react';
-import { Alert, Button, Form, Input, Modal, Select, Space, Typography } from 'antd';
+import { useCallback, useRef, useState } from 'react';
+import { Alert, Button, Form, Input, Modal, Space, Typography } from 'antd';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { usePermission } from '@/hooks/usePermission';
 import { useAsyncActionGuard } from '@/hooks/useAsyncActionGuard';
 import { isFormValidationError, useAsyncFormAction } from '@/hooks/useAsyncFormAction';
-import { useScopedOverview } from '@/hooks/useScopedOverview';
+import { BusinessUserSelect } from './BusinessUserSelect';
+import type { BusinessUserOption } from '@/lib/adminAssetsApi';
 import { formatOaApiError, OaApiError, todoApi, type LeaveApplication } from '@/lib/oaApi';
 import { message } from '@/lib/antdMessage';
 import { OaIcon } from '@/components/OaIcon';
@@ -25,18 +26,27 @@ export default function ApprovalTaskActions(props: Props) {
 
 function TaskActions({ application: item, scope, isCurrent, loading, reload, onMoved, onUpdated, compact }: Props) {
   const { t } = useTranslation();
-  const [mode, setMode] = useState<Mode>(), [search, setSearch] = useState('');
+  const [mode, setMode] = useState<Mode>();
   const [form] = Form.useForm<{ comment?: string; targetUserId?: number; reason?: string }>();
   const action = useAsyncFormAction(scope), dialog = useAsyncActionGuard(`${scope}:${mode}`);
+  const { capture: captureDialog } = dialog;
   const collaboration = mode && !['approve', 'reject'].includes(mode);
-  const query = useCallback(async () => {
-    if (!collaboration || !mode || !isCurrent()) return null;
-    const rows = await todoApi.participantCandidates(item.taskId!, search.trim() || undefined);
-    return rows.filter(candidate => mode === 'copy' || candidate.canApprove && candidate.id !== item.applicantUserId);
-  }, [collaboration, isCurrent, item.applicantUserId, item.taskId, mode, search]);
-  const candidates = useScopedOverview(query);
-  const close = () => { if (action.busy) return; dialog.invalidate(); setMode(undefined); setSearch(''); form.resetFields(); };
-  const open = (next: Mode) => { if (!isCurrent() || loading || action.busy) return; dialog.invalidate(); form.resetFields(); setSearch(''); setMode(next); };
+  const knownCandidates = useRef(new Map<number, BusinessUserOption>());
+  const selectedId = Form.useWatch('targetUserId', form);
+  const query = useCallback(async (params: { keyword?: string; page: number; size: number }) => {
+    const current = captureDialog();
+    if (!collaboration || !mode || !isCurrent() || !current()) throw new Error('PAGE_UI_COMMAND_REJECTED');
+    const result = await todoApi.participantOptions(item.taskId!, { ...params, approversOnly: mode !== 'copy' });
+    if (!current() || !isCurrent()) throw new Error('PAGE_UI_COMMAND_REJECTED');
+    if (result.page !== params.page || result.size !== params.size || !Number.isSafeInteger(result.total) || result.total < 0
+        || result.records.length > params.size || result.records.some(row => !Number.isSafeInteger(row.id) || row.id < 1
+          || typeof row.name !== 'string' || row.name.length < 1 || mode !== 'copy' && (!row.canApprove || row.id === item.applicantUserId)))
+      throw new Error('PAGE_UI_FIELD_REJECTED');
+    result.records.forEach(row => knownCandidates.current.set(row.id, row));
+    return result;
+  }, [collaboration, captureDialog, isCurrent, item.applicantUserId, item.taskId, mode]);
+  const close = () => { if (action.busy) return; dialog.invalidate(); setMode(undefined); knownCandidates.current.clear(); form.resetFields(); };
+  const open = (next: Mode) => { if (!isCurrent() || loading || action.busy) return; dialog.invalidate(); form.resetFields(); knownCandidates.current.clear(); setMode(next); };
   const submit = async () => {
     if (!mode || loading || !isCurrent()) return;
     const write = action.begin(), current = dialog.capture(); if (!write) return;
@@ -46,7 +56,7 @@ function TaskActions({ application: item, scope, isCurrent, loading, reload, onM
       const values = await form.validateFields();
       if (!valid()) return;
       if (collaboration && (!Number.isSafeInteger(values.targetUserId) || values.targetUserId! < 1
-          || !candidates.data?.some(row => row.id === values.targetUserId))) throw new Error(t('approval.approvalDetail.participantRequired'));
+          || !knownCandidates.current.has(values.targetUserId!))) throw new Error(t('approval.approvalDetail.participantRequired'));
       const latest = await todoApi.detail(item.taskId!);
       if (!valid()) return;
       if (latest.id !== item.id || latest.version !== item.version || latest.taskId !== item.taskId || latest.taskVersion !== item.taskVersion
@@ -90,8 +100,9 @@ function TaskActions({ application: item, scope, isCurrent, loading, reload, onM
     </div>
     <Modal className="approval-decision-modal" open={Boolean(mode)}
       title={mode && t(`approval.approvalDetail.${mode}ModalTitle`)}
+      cancelText={t('common.cancel')}
       okText={mode && t(`approval.approvalDetail.${mode}ModalOk`)} confirmLoading={action.busy}
-      okButtonProps={{ danger: mode === 'reject', disabled: loading || Boolean(collaboration && (!candidates.data || candidates.loading || candidates.error)) }}
+      okButtonProps={{ danger: mode === 'reject', disabled: loading }}
       cancelButtonProps={{ disabled: action.busy }} closable={!action.busy} maskClosable={!action.busy} keyboard={!action.busy}
       onCancel={close} onOk={() => void submit()}>
       <Alert showIcon type={mode === 'reject' || mode === 'transfer' || mode === 'preSign' ? 'warning' : 'info'}
@@ -100,14 +111,11 @@ function TaskActions({ application: item, scope, isCurrent, loading, reload, onM
       <Form form={form} layout="vertical" disabled={action.busy || loading}>
         {collaboration ? <>
           <Alert type="info" showIcon message={t('approval.approvalDetail.participantSearchHint')} />
-          {candidates.error != null && <Alert type="error" showIcon message={formatOaApiError(candidates.error)}
-            action={<Button onClick={() => void candidates.load()}>{t('common.retry')}</Button>} />}
           <Form.Item name="targetUserId" label={t('approval.approvalDetail.participantLabel')}
             rules={[{ required: true, message: t('approval.approvalDetail.participantRequired') }]}>
-            <Select showSearch allowClear filterOption={false} loading={candidates.loading} searchValue={search}
-              onSearch={value => { setSearch(value.slice(0, 64)); form.setFieldValue('targetUserId', undefined); }}
-              placeholder={t('approval.approvalDetail.participantPlaceholder')}
-              options={(candidates.data ?? []).map(row => ({ value: row.id, label: row.name }))} />
+            <BusinessUserSelect query={query} active={Boolean(collaboration)} scopeKey={`${scope}:${mode}`}
+              disabled={action.busy || loading} maxSearchLength={64} selectedOption={selectedId == null ? undefined : knownCandidates.current.get(selectedId)}
+              placeholder={t('approval.approvalDetail.participantPlaceholder')} />
           </Form.Item>
           <Form.Item name="reason" label={t('approval.approvalDetail.collaborationReasonLabel')}
             rules={[{ required: true, whitespace: true, message: t('approval.approvalDetail.collaborationReasonRequired') }, { max: 500 }]}>

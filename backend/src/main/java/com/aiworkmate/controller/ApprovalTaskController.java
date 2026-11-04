@@ -78,6 +78,16 @@ public class ApprovalTaskController {
         return Result.ok(service.participantCandidates(user.userId(), id, keyword));
     }
 
+    @GetMapping("/{id}/participant-options")
+    public Result<PageResponse<ApprovalParticipantResponse>> participantOptions(
+            @AuthenticationPrincipal AuthenticatedUser user, @PathVariable Long id,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(defaultValue = "1") int page, @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "false") boolean approversOnly) {
+        return Result.ok(service.participantCandidates(user.userId(), null, id,
+                new com.aiworkmate.service.model.BusinessCandidateQuery(keyword, page, size), approversOnly));
+    }
+
     @PostMapping("/{id}/transfer")
     public Result<LeaveApplicationResponse> transfer(
             @AuthenticationPrincipal AuthenticatedUser user,

@@ -11,15 +11,7 @@ import org.apache.ibatis.annotations.Param;
 public interface UserMapper extends BaseMapper<User> {
 
     // Match UserAccessService's assigned roles, legacy-role fallback and SUPER_ADMIN semantics.
-    String BUSINESS_USER_OPTION_FILTER = """
-            FROM app_user u
-            WHERE u.tenant_id = #{tenantId} AND u.status = 1
-            <if test="excludedUserId != null">AND u.id != #{excludedUserId}</if>
-            <if test="keyword != null">
-              AND (COALESCE(NULLIF(u.display_name, ''), u.username) ILIKE CONCAT('%', #{keyword}, '%'))
-            </if>
-            <if test="requiredPermission != null">
-              AND (
+    String BUSINESS_USER_PERMISSION_EXPRESSION = """
                 EXISTS (SELECT 1 FROM rbac_role_permission rp
                   WHERE rp.tenant_id = u.tenant_id AND rp.permission_code = #{requiredPermission}
                     AND (EXISTS (SELECT 1 FROM user_role ur WHERE ur.tenant_id = u.tenant_id
@@ -31,9 +23,41 @@ public interface UserMapper extends BaseMapper<User> {
                           AND ur.user_id = u.id AND ur.role_code = 'SUPER_ADMIN')
                       OR (NOT EXISTS (SELECT 1 FROM user_role ur WHERE ur.tenant_id = u.tenant_id AND ur.user_id = u.id)
                           AND u.role = 'SUPER_ADMIN')))
-              )
-            </if>
             """;
+
+    String BUSINESS_USER_OPTION_FILTER = """
+            FROM app_user u
+            WHERE u.tenant_id = #{tenantId} AND u.status = 1
+            <if test="excludedUserId != null">AND u.id != #{excludedUserId}</if>
+            <if test="keyword != null">
+              AND (COALESCE(NULLIF(u.display_name, ''), u.username) ILIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+            <if test="requiredPermission != null">AND (
+            """ + BUSINESS_USER_PERMISSION_EXPRESSION + ")</if>";
+
+    String APPROVAL_PARTICIPANT_FILTER = """
+            FROM app_user u
+            WHERE u.tenant_id = #{tenantId} AND u.status = 1 AND u.id != #{excludedUserId}
+            <if test="keyword != null">
+              AND (u.display_name ILIKE CONCAT('%', #{keyword}, '%') OR u.username ILIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+            <if test="approversOnly">AND u.id != #{applicantId} AND (
+            """ + BUSINESS_USER_PERMISSION_EXPRESSION + ")</if>";
+
+    @Select("<script>SELECT u.id, COALESCE(NULLIF(TRIM(u.display_name), ''), u.username) AS name, "
+            + "u.avatar, u.updated_at, (u.id != #{applicantId} AND (" + BUSINESS_USER_PERMISSION_EXPRESSION + ")) AS can_approve "
+            + APPROVAL_PARTICIPANT_FILTER + " ORDER BY u.id LIMIT #{limit} OFFSET #{offset}</script>")
+    java.util.List<com.aiworkmate.dto.ApprovalParticipantRow> selectApprovalParticipants(
+            @Param("tenantId") Long tenantId, @Param("requiredPermission") String requiredPermission,
+            @Param("excludedUserId") Long excludedUserId, @Param("applicantId") Long applicantId,
+            @Param("approversOnly") boolean approversOnly, @Param("keyword") String keyword,
+            @Param("limit") int limit, @Param("offset") long offset);
+
+    @Select("<script>SELECT COUNT(*) " + APPROVAL_PARTICIPANT_FILTER + "</script>")
+    long countApprovalParticipants(@Param("tenantId") Long tenantId,
+            @Param("requiredPermission") String requiredPermission, @Param("excludedUserId") Long excludedUserId,
+            @Param("applicantId") Long applicantId, @Param("approversOnly") boolean approversOnly,
+            @Param("keyword") String keyword);
 
     @Select("<script>SELECT u.id, COALESCE(NULLIF(u.display_name, ''), u.username) AS name "
             + BUSINESS_USER_OPTION_FILTER + " ORDER BY u.id LIMIT #{limit} OFFSET #{offset}</script>")

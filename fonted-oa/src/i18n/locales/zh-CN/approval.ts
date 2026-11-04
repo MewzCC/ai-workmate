@@ -137,7 +137,7 @@ export default {
     actionSubject: '申请 #{{id}} · 任务 #{{task}} · 节点版本 {{version}}',
     changedBeforeAction: '任务已变更，请核对刷新后的节点再操作。',
     resultUnknown: '操作结果暂时无法确认，请先核对业务状态和审批记录，避免重复操作。',
-    participantSearchHint: '每次最多展示 50 位匹配用户，请输入姓名缩小服务端查询范围。',
+    participantSearchHint: '按姓名搜索当前任务的有效协作人，向下滚动可继续加载；最终资格由服务端重新校验。',
     backToDashboard: '返回工作台',
     backToTodo: '返回待办',
     backToMyApplications: '返回我的申请',

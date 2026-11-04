@@ -12,10 +12,24 @@ import java.util.Locale;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class ApprovalMetadataResultPresenterTest {
+    @ParameterizedTest @ValueSource(strings = { "zh-CN", "en-US" })
+    void presentsParticipantTotalsAndAnExplicitNextPageWithoutClaimingTheWindowIsComplete(String language) throws Exception {
+        LocaleContextHolder.setLocale(Locale.forLanguageTag(language));
+        String answer = AgentReadResultPresenter.present("approval.task.participants.query", json.readTree("""
+                {"items":[{"id":65,"name":"Late-page approver","canApprove":true}],"total":65,"page":3,"size":20,"approversOnly":true}
+                """));
+        assertThat(answer).contains("65", "3", "4", "Late-page approver").doesNotContain("agent.participants.");
+        assertThat(answer).contains(MessageUtils.resolve("agent.participants.nextPage", 4));
+    }
+    @org.junit.jupiter.api.Test
+    void rejectsPartialPaginationMetadataInsteadOfInventingATotal() throws Exception {
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> AgentReadResultPresenter.present("approval.task.participants.query", json.readTree("{\"items\":[],\"page\":2}")))
+                .isInstanceOf(com.aiworkmate.common.BusinessException.class);
+    }
     private final ObjectMapper json = new ObjectMapper();
     @BeforeEach void setup() {
         var source = new ResourceBundleMessageSource(); source.setBasename("i18n/messages"); source.setDefaultEncoding("UTF-8");
-        source.setFallbackToSystemLocale(false); new MessageUtils(source);
+        source.setFallbackToSystemLocale(false); new MessageUtils(source).init();
     }
     @AfterEach void cleanup() { LocaleContextHolder.resetLocaleContext(); }
     @ParameterizedTest @ValueSource(strings = { "zh-CN", "en-US" })

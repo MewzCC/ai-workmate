@@ -221,7 +221,14 @@ public final class AgentReadResultPresenter {
 
     private static String approvalParticipants(JsonNode result) {
         if (result == null || !result.path("items").isArray()) throw new BusinessException(ErrorCode.REQUEST_INVALID);
-        StringBuilder answer = new StringBuilder(MessageUtils.resolve("agent.participants.header", result.path("items").size()));
+        boolean paged = result.has("total") || result.has("page") || result.has("size");
+        if (paged && (!result.path("total").canConvertToLong() || !result.path("total").isIntegralNumber() || result.path("total").asLong() < 0
+                || !result.path("page").isInt() || result.path("page").asInt() < 1 || result.path("page").asInt() > 10000
+                || !result.path("size").isInt() || result.path("size").asInt() < 1 || result.path("size").asInt() > 50
+                || result.path("items").size() > result.path("size").asInt())) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        StringBuilder answer = new StringBuilder(paged
+                ? MessageUtils.resolve("agent.participants.pageHeader", result.path("total").asLong(), result.path("page").asInt(), result.path("items").size())
+                : MessageUtils.resolve("agent.participants.header", result.path("items").size()));
         int shown = 0;
         for (JsonNode candidate : result.path("items")) {
             if (shown >= MAX_ITEMS || answer.length() > 850) break;
@@ -231,6 +238,8 @@ public final class AgentReadResultPresenter {
             shown++;
         }
         if (shown < result.path("items").size()) answer.append('\n').append(MessageUtils.resolve("agent.result.more", result.path("items").size() - shown));
+        if (paged && (long) result.path("page").asInt() * result.path("size").asInt() < result.path("total").asLong())
+            answer.append('\n').append(MessageUtils.resolve("agent.participants.nextPage", result.path("page").asInt() + 1));
         return answer.substring(0, Math.min(MAX_LENGTH, answer.length()));
     }
 
