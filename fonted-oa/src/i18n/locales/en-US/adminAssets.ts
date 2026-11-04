@@ -27,6 +27,9 @@ export default {
     assetCode: 'Asset Code',
     name: 'Asset Name',
     category: 'Category',
+    categoryOption: { it: 'IT Equipment', furniture: 'Office Furniture', vehicle: 'Vehicle' },
+    purchaseDatePlaceholder: 'YYYY-MM-DD',
+    detailLoadFailed: 'Unable to load asset details. Please retry.',
     specification: 'Specification',
     status: 'Status',
     statusOption: {
@@ -140,7 +143,7 @@ export default {
     visitorCompany: 'Company',
     visitorPhone: 'Phone',
     purpose: 'Purpose',
-    hostUserId: 'Host ID',
+    hostUserId: 'Host',
     expectedVisitAt: 'Expected Visit',
     expectedLeaveAt: 'Expected Leave',
     plateNumber: 'Plate No.',

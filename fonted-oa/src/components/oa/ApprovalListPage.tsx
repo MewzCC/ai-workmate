@@ -1,8 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useRouter } from '@/lib/nextCompat';
+import { useMemo } from 'react';
 import {
+  Alert,
   Avatar,
   Button,
   Card,
@@ -15,17 +15,10 @@ import {
   Tag,
   Typography,
 } from 'antd';
-import { message } from '@/lib/antdMessage';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
-import {
-  approvalApi,
-  formatOaApiError,
-  type ApprovalStatusCount,
-  type LeaveApplication,
-  type LeaveStatus,
-  type LeaveType,
-} from '@/lib/oaApi';
+import { formatOaApiError, type LeaveApplication, type LeaveStatus, type LeaveType } from '@/lib/oaApi';
+import { useApprovalListPage, APPROVAL_STATUS_KEYS, APPROVAL_LEAVE_TYPES } from '@/hooks/useApprovalListPage';
 import { OaIcon } from '@/components/OaIcon';
 import { leaveTypeLabel, StatusTag } from './MyApplicationsPage';
 import ApprovalDetailDrawer from './ApprovalDetailDrawer';
@@ -34,60 +27,14 @@ import { useTranslation } from 'react-i18next';
 
 const { RangePicker } = DatePicker;
 
-const STATUS_FILTER_KEYS: (LeaveStatus | '')[] = [
-  '', 'PENDING', 'APPROVED', 'REJECTED', 'WITHDRAWN', 'DRAFT',
-];
-
-const LEAVE_TYPE_KEYS: LeaveType[] = [
-  'ANNUAL', 'PERSONAL', 'SICK', 'MARRIAGE', 'MATERNITY',
-  'PATERNITY', 'BEREAVEMENT', 'COMPENSATORY', 'OTHER',
-];
-
 export default function ApprovalListPage() {
-  const router = useRouter();
   const { t } = useTranslation();
-  const [records, setRecords] = useState<LeaveApplication[]>([]);
-  const [stats, setStats] = useState<ApprovalStatusCount[]>([]);
-  const [status, setStatus] = useState<LeaveStatus | undefined>();
-  const [keyword, setKeyword] = useState('');
-  const [leaveType, setLeaveType] = useState<LeaveType | undefined>();
-  const [range, setRange] = useState<[string, string]>();
-  const [loading, setLoading] = useState(true);
-  const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
-  const [drawerTaskId, setDrawerTaskId] = useState<number | null>(null);
-
-  const statusOptions = STATUS_FILTER_KEYS.map((value) => ({
-    value,
-    label: value ? t(`approval.status.${value}`) : t('common.all'),
+  const model = useApprovalListPage();
+  const { allowed, canAct, records, stats, status, setStatus, search, setSearch, leaveType, setLeaveType,
+    range, setRange, loading, total, page, setPage, size, setSize, drawerTaskId, closeDetail, tryOpen, load, error } = model;
+  const statusOptions = APPROVAL_STATUS_KEYS.map(value => ({
+    value, label: value ? t(`approval.status.${value}`) : t('common.all'),
   }));
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [list, counts] = await Promise.all([
-        approvalApi.list({
-          status,
-          keyword: keyword || undefined,
-          leaveType,
-          from: range?.[0],
-          to: range?.[1],
-          page,
-          size: 20,
-        }),
-        approvalApi.stats(),
-      ]);
-      setRecords(list.records);
-      setTotal(list.total);
-      setStats(counts);
-    } catch (error) {
-      message.error(formatOaApiError(error));
-    } finally {
-      setLoading(false);
-    }
-  }, [keyword, leaveType, page, range, status]);
-
-  useEffect(() => { void load(); }, [load]);
 
   const metricCount = useMemo(() => (value: LeaveStatus) =>
     stats.find((item) => item.status === value)?.count ?? 0,
@@ -173,12 +120,12 @@ export default function ApprovalListPage() {
       width: 120,
       fixed: 'right',
       render: (_, item) => (
-        item.canApprove && item.taskId
+        item.canApprove && canAct && item.taskId
           ? (
             <Button type="primary" size="small"
               onClick={(event) => {
                 event.stopPropagation();
-                router.push(`/oa/approval-tasks/${item.taskId}?from=approval-list`);
+                tryOpen(item.taskId!, true);
               }}>
               {t('approval.approvalList.actionProcess')}
             </Button>
@@ -188,7 +135,7 @@ export default function ApprovalListPage() {
               <Button type="link" size="small"
                 onClick={(event) => {
                   event.stopPropagation();
-                  router.push(`/oa/approval-tasks/${item.taskId}?from=approval-list`);
+                  tryOpen(item.taskId!, true);
                 }}>
                 {t('approval.approvalList.actionView')}
               </Button>
@@ -204,7 +151,7 @@ export default function ApprovalListPage() {
     <section className="leave-list-workbench">
       <header className="leave-list-hero approval-list-hero">
         <div>
-          <span className="leave-list-hero__kicker">APPROVAL DESK</span>
+          <span className="leave-list-hero__kicker">{t('approval.approvalList.kicker')}</span>
           <Typography.Title level={2}>{t('approval.approvalList.title')}</Typography.Title>
           <Typography.Paragraph>{t('approval.approvalList.description')}</Typography.Paragraph>
         </div>
@@ -227,9 +174,13 @@ export default function ApprovalListPage() {
       </div>
 
       <Card className="leave-list-card" variant="borderless">
+        {!allowed && <Alert showIcon type="warning" message={t('oa.ai.noPermission')} />}
+        {error != null && <Alert showIcon type="error" message={formatOaApiError(error)}
+          action={<Button onClick={() => void load()}>{t('common.retry')}</Button>} />}
         <div className="leave-list-toolbar">
           <Segmented
             block
+            disabled={!allowed}
             value={status || ''}
             options={statusOptions}
             onChange={(value) => {
@@ -241,24 +192,29 @@ export default function ApprovalListPage() {
             <Input.Search
               placeholder={t('approval.approvalList.searchPlaceholder')}
               allowClear
+              disabled={!allowed}
               style={{ width: 220 }}
-              value={keyword}
-              onChange={(e) => setKeyword(e.target.value)}
-              onSearch={() => setPage(1)}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              maxLength={120}
+              onSearch={(value) => model.applySearch(value)}
             />
             <Select
               allowClear
+              disabled={!allowed}
               placeholder={t('approval.approvalList.typeFilterPlaceholder')}
               style={{ width: 150 }}
               value={leaveType}
               onChange={(value) => { setLeaveType(value as LeaveType | undefined); setPage(1); }}
-              options={LEAVE_TYPE_KEYS.map((value) => ({
+              options={APPROVAL_LEAVE_TYPES.map((value) => ({
                 value,
                 label: leaveTypeLabel(value),
               }))}
             />
             <RangePicker
               showTime
+              disabled={!allowed}
+              value={range ? [dayjs(range[0]), dayjs(range[1])] : null}
               onChange={(dates) => {
                 if (dates?.[0] && dates[1]) {
                   // from 原样保留：纯日期选择时即为当日 00:00:00，显式选了时间则准确到分
@@ -291,26 +247,28 @@ export default function ApprovalListPage() {
           scroll={{ x: 1100 }}
           onRow={(item) => ({
             onClick: () => {
-              if (item.taskId) setDrawerTaskId(item.taskId);
+              if (item.taskId) tryOpen(item.taskId);
             },
             className: 'approval-table-row-clickable',
           })}
           pagination={{
             current: page,
-            pageSize: 20,
+            pageSize: size,
             total,
-            showSizeChanger: false,
+            showSizeChanger: true,
+            pageSizeOptions: ['10', '20', '50'],
             showTotal: (value) => t('common.total', { count: value }),
-            onChange: setPage,
+            onChange: (nextPage, nextSize) => { setPage(nextPage); setSize(nextSize); },
           }}
         />
       </Card>
       <ApprovalDetailDrawer
+        key={`${model.scope}:${drawerTaskId}`}
         taskId={drawerTaskId}
         open={drawerTaskId != null}
+        onUpdated={() => void load()}
         onClose={() => {
-          setDrawerTaskId(null);
-          void load();
+          closeDetail();
         }}
       />
     </section>

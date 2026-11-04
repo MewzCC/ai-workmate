@@ -38,8 +38,10 @@ afterEach(cleanup);
 
 it('publishes only the selected visible employee after validating URL selection', async () => {
   renderPage('/oa/employee-files?id=999');
-  await waitFor(() => expect(JSON.parse(screen.getByLabelText('employee-context').textContent || '{}')).toEqual({ employeeId: 1 }));
+  await screen.findByText('员工乙');
+  expect(JSON.parse(screen.getByLabelText('employee-context').textContent || '{}')).toEqual({});
   expect(api.detail).not.toHaveBeenCalledWith(999);
+  expect(api.detail).not.toHaveBeenCalledWith(1);
   fireEvent.click(screen.getByText('员工乙'));
   await waitFor(() => expect(JSON.parse(screen.getByLabelText('employee-context').textContent || '{}')).toEqual({ employeeId: 2 }));
 });

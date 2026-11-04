@@ -1,3 +1,9 @@
+.oa-application-tabs { display: flex; flex-direction: column; min-width: 0; min-height: 0; height: 100%; }
+.oa-application-tabs > .ant-tabs-content-holder,
+.oa-application-tabs > .ant-tabs-content-holder > .ant-tabs-content,
+.oa-application-tabs .ant-tabs-tabpane-active { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; }
+.oa-application-tabs .ant-tabs-tabpane-active > .oa-domain-page,
+.oa-application-tabs .ant-tabs-tabpane-active > .leave-list-workbench { flex: 1; min-width: 0; min-height: 0; }
 /* Enterprise authentication */
 .auth-page { position: relative; display: grid; min-height: 100dvh; place-items: center; overflow-x: hidden; overflow-y: auto; padding: 18px; color: #202937; background: radial-gradient(circle at 16% 18%, rgba(146,202,241,.42), transparent 35%), radial-gradient(circle at 82% 10%, rgba(208,228,248,.62), transparent 30%), linear-gradient(135deg, #e4f1fa 0%, #f2f7fb 55%, #e9f1f7 100%); }
 .auth-ambient { position: absolute; width: 36vw; height: 36vw; border-radius: 50%; filter: blur(54px); opacity: .34; pointer-events: none; animation: auth-float 14s ease-in-out infinite alternate; }

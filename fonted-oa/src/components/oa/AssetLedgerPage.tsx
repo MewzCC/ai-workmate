@@ -21,6 +21,7 @@ import {
 } from 'antd';
 import { message } from '@/lib/antdMessage';
 import { useTranslation } from 'react-i18next';
+import i18n from '@/i18n';
 import dayjs from 'dayjs';
 import type { ColumnsType } from 'antd/es/table';
 import {
@@ -31,14 +32,24 @@ import {
   type AssetOperationPayload,
   type AssetOperationType,
   type AssetStatus,
+  type AssetAssignmentOption,
 } from '@/lib/adminAssetsApi';
-import { hrApi, type OrganizationOverview } from '@/lib/hrApi';
+import { collectPagedRecords } from '@/lib/collectPagedRecords';
+import { AuthResponseScopeError } from '@/lib/authEvents';
+import { parseRecordId } from '@/lib/recordSelection';
 import { formatOaApiError } from '@/lib/oaApi';
 import { usePermission } from '@/hooks/usePermission';
 import { useRouter, useSearchParams } from '@/lib/nextCompat';
 import AdminAssetsPageShell from './AdminAssetsPageShell';
 import ResponsiveTable from './ResponsiveTable';
 import { usePublishPageAgentContext } from './PageAgentContext';
+import { useRegisterPageUiCommands } from './PageUiCommandBridge';
+import { requireUiFieldTypes } from '@/lib/preparedPageUiCommand';
+import { showUiFormPreview } from './UiFormPreview';
+import { usePageUiFormContext } from '@/hooks/usePageUiFormContext';
+import { useAuth } from '@/components/auth/AuthProvider';
+import { useAsyncActionGuard } from '@/hooks/useAsyncActionGuard';
+import { isFormValidationError, useAsyncFormAction } from '@/hooks/useAsyncFormAction';
 
 const STATUS_TAG_COLOR: Record<AssetStatus, string> = {
   IN_USE: 'success',
@@ -61,9 +72,17 @@ type OperationFormValues = Omit<AssetOperationPayload, 'version'> & {
 export default function AssetLedgerPage() {
   const { t } = useTranslation();
   const { allowed: canManage, permissionVersion } = usePermission('asset:write');
+  const { allowed: canRead } = usePermission('assets:read');
+  const { user } = useAuth();
+  const actorScope = `${user?.tenantId}:${user?.id}:${permissionVersion}:${canRead}:${canManage}`;
+  const { capture: capturePage } = useAsyncActionGuard(actorScope);
+  const editorAction = useAsyncFormAction(actorScope);
+  const operationAction = useAsyncFormAction(actorScope);
+  const resetEditor = editorAction.reset, resetOperation = operationAction.reset;
   const router = useRouter();
   const requestedId = useSearchParams().get('id');
   const detailRequest = useRef(0);
+  const listRequest = useRef(0);
   const [data, setData] = useState<AssetLedger[]>([]);
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
@@ -72,17 +91,24 @@ export default function AssetLedgerPage() {
   const [keyword, setKeyword] = useState('');
   const [category, setCategory] = useState<string | undefined>(undefined);
   const [status, setStatus] = useState<string | undefined>(undefined);
+  const [applied, setApplied] = useState<{ scope: string; keyword: string; category?: string; status?: string; page: number; size: number }>({
+    scope: actorScope, keyword: '', page: 1, size: 10,
+  });
 
   const [editOpen, setEditOpen] = useState(false);
   const [editing, setEditing] = useState<AssetLedger | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const submitting = editorAction.busy;
   const [form] = Form.useForm<AssetFormValues>();
+  const uiForm = usePageUiFormContext(editOpen && canManage && !submitting, editing?.id, editing?.version, actorScope);
   const [operationForm] = Form.useForm<OperationFormValues>();
-  const [overview, setOverview] = useState<OrganizationOverview>();
+  const [departmentOptions, setDepartments] = useState<{ scope: string; rows: AssetAssignmentOption[] }>();
+  const departments = departmentOptions?.scope === actorScope ? departmentOptions.rows : [];
+  const [custodianOptions, setCustodians] = useState<{ scope: string; rows: AssetAssignmentOption[] }>();
+  const [optionsLoading, setOptionsLoading] = useState(false);
   const [detail, setDetail] = useState<AssetLedger | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [operationType, setOperationType] = useState<AssetOperationType>();
-  const [operating, setOperating] = useState(false);
+  const operating = operationAction.busy;
   const targetDepartmentId = Form.useWatch('targetDepartmentId', operationForm);
   const actualDepartmentId = Form.useWatch('actualDepartmentId', operationForm);
   const inventoryResult = Form.useWatch('inventoryResult', operationForm);
@@ -91,38 +117,84 @@ export default function AssetLedgerPage() {
   usePublishPageAgentContext({
     assetId: selectedAsset?.id,
     version: selectedAsset?.version,
-    keyword: keyword || undefined,
-    category,
-    status,
-    page,
-    size,
+    keyword: applied.scope === actorScope ? applied.keyword || undefined : undefined,
+    category: applied.scope === actorScope ? applied.category : undefined,
+    status: applied.scope === actorScope ? applied.status : undefined,
+    page: applied.scope === actorScope ? applied.page : 1,
+    size: applied.scope === actorScope ? applied.size : 10,
   });
 
-  const load = useCallback(async (p = page, s = size) => {
+  const load = useCallback(async (p = page, s = size, filters?: { keyword: string; category?: string; status?: string }) => {
+    const isCurrent = capturePage();
+    if (!isCurrent()) return;
+    if (!user?.id || !canRead) { setLoading(false); return; }
+    const request = ++listRequest.current;
+    const draft = filters ?? { keyword, category, status };
+    const query = { keyword: draft.keyword.trim(), category: draft.category || undefined, status: draft.status || undefined };
     setLoading(true);
     try {
       const res = await adminAssetsApi.listAssets({
-        keyword: keyword || undefined,
-        category,
-        status: status as AssetStatus | undefined,
+        keyword: query.keyword || undefined,
+        category: query.category || undefined,
+        status: query.status as AssetStatus | undefined,
         page: p,
         size: s,
       });
+      if (request !== listRequest.current || !isCurrent()) return;
       setData(res.records);
       setTotal(res.total);
+      setApplied({ ...query, scope: actorScope, page: p, size: s });
     } catch (err) {
-      message.error(formatOaApiError(err));
+      if (request === listRequest.current && isCurrent()) { setData([]); setTotal(0); message.error(formatOaApiError(err)); }
     } finally {
-      setLoading(false);
+      if (request === listRequest.current && isCurrent()) setLoading(false);
     }
-  }, [keyword, category, status, page, size]);
+  }, [keyword, category, status, page, size, capturePage, actorScope, user?.id, canRead]);
+  const latestLoad = useRef(load); latestLoad.current = load;
+  const latestRefresh = useRef(() => load());
+  latestRefresh.current = () => applied.scope === actorScope ? load(applied.page, applied.size, applied) : load(1, 10, { keyword: '' });
 
   useEffect(() => {
-    setPage(1);
-    load(1);
-    hrApi.overview().then(setOverview).catch(() => undefined);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [permissionVersion]);
+    resetEditor(); resetOperation();
+    ++detailRequest.current;
+    setData([]); setTotal(0); setDetail(null); setDetailLoading(false);
+    setEditing(null); setEditOpen(false); setOperationType(undefined);
+    form.resetFields(); operationForm.resetFields();
+    setKeyword(''); setCategory(undefined); setStatus(undefined); setPage(1); setSize(10);
+    void latestLoad.current(1, 10, { keyword: '' });
+  }, [actorScope, resetEditor, resetOperation, form, operationForm]);
+
+  useEffect(() => {
+    let current = true;
+    const isActorCurrent = capturePage();
+    setDepartments(undefined);
+    if (canManage) adminAssetsApi.assetDepartments().then((rows) => {
+      if (current && isActorCurrent()) setDepartments({ scope: actorScope, rows });
+    }).catch((error) => { if (current && isActorCurrent()) message.error(formatOaApiError(error)); });
+    return () => { current = false; };
+  }, [canManage, actorScope, capturePage]);
+
+  const assignmentDepartmentId = operationType === 'INVENTORY' ? actualDepartmentId : targetDepartmentId;
+  const assignmentScope = `${actorScope}:${operationType}:${assignmentDepartmentId}`;
+  const custodians = custodianOptions?.scope === assignmentScope ? custodianOptions.rows : [];
+  useEffect(() => {
+    let active = true;
+    const isActorCurrent = capturePage();
+    const current = () => active && isActorCurrent();
+    setCustodians(undefined);
+    setOptionsLoading(false);
+    if (canManage && operationType && assignmentDepartmentId) {
+      setOptionsLoading(true);
+      collectPagedRecords((page, size) => {
+        if (!current()) throw new AuthResponseScopeError();
+        return adminAssetsApi.assetCustodians(assignmentDepartmentId, page, size);
+      })
+        .then((rows) => { if (current()) setCustodians({ scope: assignmentScope, rows }); })
+        .catch((error) => { if (current()) message.error(formatOaApiError(error)); })
+        .finally(() => { if (current()) setOptionsLoading(false); });
+    }
+    return () => { active = false; };
+  }, [canManage, actorScope, operationType, assignmentDepartmentId, assignmentScope, capturePage]);
 
   const handleSearch = () => {
     setPage(1);
@@ -130,12 +202,47 @@ export default function AssetLedgerPage() {
   };
 
   const openCreate = () => {
+    if (!canManage || !capturePage()()) return;
+    resetEditor();
+    uiForm.renew();
     setEditing(null);
     form.resetFields();
     setEditOpen(true);
   };
 
+  useRegisterPageUiCommands({
+    'ui.applyFilter': async ({ payload: { filters } }) => {
+      requireUiFieldTypes(filters, { keyword: 'string', category: 'string', status: ['', 'IDLE', 'IN_USE', 'REPAIRING', 'SCRAPPED'], page: 'number', size: 'number' });
+      const next = { keyword: String(filters.keyword ?? applied.keyword), category: String(filters.category ?? applied.category ?? ''), status: String(filters.status ?? applied.status ?? '') };
+      const nextPage = Number(filters.page ?? 1), nextSize = Number(filters.size ?? size);
+      if (!Number.isInteger(nextPage) || nextPage < 1 || nextPage > 10000 || !Number.isInteger(nextSize) || nextSize < 1 || nextSize > 100)
+        throw new Error('PAGE_UI_FIELD_REJECTED');
+      setKeyword(next.keyword); setCategory(next.category || undefined); setStatus(next.status || undefined); setPage(nextPage); setSize(nextSize);
+      await load(nextPage, nextSize, next);
+    },
+    'ui.refreshPage': async () => { await latestRefresh.current(); },
+    ...(canManage ? {
+      'ui.openCreateForm': () => openCreate(),
+      'ui.fillForm': async ({ payload: { values } }: Extract<import('@/lib/pageUiCommands').PageUiCommand, { code: 'ui.fillForm' }>) => {
+        if (!editOpen) throw new Error('PAGE_UI_FORM_CONTEXT_REQUIRED');
+        requireUiFieldTypes(values, { assetCode: 'string', name: 'string', category: 'string', specification: 'string',
+          ...(!editing ? { departmentId: 'number' as const } : {}), purchaseDate: 'string', originalValue: 'number', remark: 'string' });
+        form.setFieldsValue(values as Partial<AssetFormValues>);
+        await form.validateFields(Object.keys(values));
+      },
+      'ui.previewSubmission': async () => {
+        if (!editOpen) throw new Error('PAGE_UI_FORM_CLOSED');
+        const values = await form.validateFields();
+        showUiFormPreview(values, Object.fromEntries(['assetCode', 'name', 'category', 'specification', 'purchaseDate', 'originalValue', 'remark']
+          .map((name) => [name, t(`adminAssets.asset.${name}`)])));
+      },
+    } : {}),
+  }, uiForm.context);
+
   const openEdit = (record: AssetLedger) => {
+    if (!canManage || !record.canEdit || !capturePage()()) return;
+    resetEditor();
+    uiForm.renew();
     setEditing(record);
     form.setFieldsValue({
       assetCode: record.assetCode,
@@ -152,32 +259,39 @@ export default function AssetLedgerPage() {
   };
 
   const loadDetail = useCallback(async (id: number) => {
+    const isCurrent = capturePage();
+    if (!isCurrent() || !canRead) return;
+    resetOperation();
     const request = ++detailRequest.current;
     setDetail(null);
     setOperationType(undefined);
     setDetailLoading(true);
     try {
       const result = await adminAssetsApi.getAsset(id);
-      if (request === detailRequest.current) setDetail(result);
+      if (request === detailRequest.current && isCurrent()) {
+        if (result.id !== id) throw new Error(i18n.t('adminAssets.asset.detailLoadFailed'));
+        setDetail(result);
+      }
     } catch (err) {
-      if (request === detailRequest.current) message.error(formatOaApiError(err));
+      if (request === detailRequest.current && isCurrent()) message.error(formatOaApiError(err));
     } finally {
-      if (request === detailRequest.current) setDetailLoading(false);
+      if (request === detailRequest.current && isCurrent()) setDetailLoading(false);
     }
-  }, []);
+  }, [capturePage, resetOperation, canRead]);
 
   useEffect(() => {
     const sequence = detailRequest;
-    const id = Number(requestedId);
+    const id = parseRecordId(requestedId);
     setDetail(null);
     setDetailLoading(false);
-    if (requestedId && Number.isSafeInteger(id) && id > 0) void loadDetail(id);
+    if (id) void loadDetail(id);
     return () => { ++sequence.current; };
   }, [requestedId, permissionVersion, loadDetail]);
 
   const openDetail = (record: AssetLedger) => loadDetail(record.id);
 
   const closeDetail = () => {
+    resetOperation();
     ++detailRequest.current;
     setDetail(null);
     setDetailLoading(false);
@@ -186,6 +300,8 @@ export default function AssetLedgerPage() {
   };
 
   const openOperation = (type: AssetOperationType) => {
+    if (!canManage || !detail?.canEdit || !capturePage()()) return;
+    resetOperation();
     setOperationType(type);
     operationForm.resetFields();
     if (type === 'INVENTORY' && detail) {
@@ -199,12 +315,15 @@ export default function AssetLedgerPage() {
   };
 
   const handleOperation = async () => {
-    if (!canManage || !detail || !operationType) return;
+    if (!canManage || !detail?.canEdit || !operationType || operating) return;
+    const action = operationAction.begin();
+    if (!action) return;
+    const isCurrent = action.current;
+    const isActorCurrent = capturePage();
     const request = detailRequest.current;
     try {
       const values = await operationForm.validateFields();
-      if (request !== detailRequest.current) return;
-      setOperating(true);
+      if (request !== detailRequest.current || !isCurrent()) return;
       const payload = { ...values, version: detail.version };
       let updated: AssetLedger;
       switch (operationType) {
@@ -229,25 +348,31 @@ export default function AssetLedgerPage() {
           version: detail.version, reason: values.reason || '',
         }); break;
       }
-      if (request === detailRequest.current) {
+      if (request === detailRequest.current && isCurrent()) {
         setDetail(updated);
         setData((current) => current.map((item) => item.id === updated.id ? updated : item));
         setOperationType(undefined);
+        message.success(t(`adminAssets.asset.operation.${operationType}.success`));
       }
-      message.success(t(`adminAssets.asset.operation.${operationType}.success`));
+      if (isActorCurrent()) await latestRefresh.current();
     } catch (err) {
-      if (err instanceof Error && err.name === 'ValidationError') return;
+      if (!isCurrent() || request !== detailRequest.current) return;
+      if (isFormValidationError(err)) return;
       message.error(formatOaApiError(err));
     } finally {
-      setOperating(false);
+      action.finish();
     }
   };
 
   const handleSubmit = async () => {
-    if (!canManage) return;
+    if (!canManage || submitting) return;
+    const action = editorAction.begin();
+    if (!action) return;
+    const isCurrent = action.current;
+    const isActorCurrent = capturePage();
     try {
       const values = await form.validateFields();
-      setSubmitting(true);
+      if (!isCurrent()) return;
       const payload: AssetLedgerPayload = {
         ...values,
         purchaseDate: values.purchaseDate || undefined,
@@ -255,29 +380,34 @@ export default function AssetLedgerPage() {
       };
       if (editing) {
         await adminAssetsApi.updateAsset(editing.id, payload);
-        message.success(t('adminAssets.asset.updateSuccess'));
       } else {
         await adminAssetsApi.createAsset(payload);
-        message.success(t('adminAssets.asset.createSuccess'));
       }
-      setEditOpen(false);
-      await load(page);
+      if (isCurrent()) {
+        message.success(t(editing ? 'adminAssets.asset.updateSuccess' : 'adminAssets.asset.createSuccess'));
+        setEditOpen(false);
+      }
+      if (isActorCurrent()) await latestRefresh.current();
     } catch (err) {
-      if (err instanceof Error && err.name === 'ValidationError') return;
+      if (!isCurrent()) return;
+      if (isFormValidationError(err)) return;
       message.error(formatOaApiError(err));
     } finally {
-      setSubmitting(false);
+      action.finish();
     }
   };
 
   const handleDelete = async (id: number) => {
     if (!canManage) return;
+    const isCurrent = capturePage();
+    if (!isCurrent()) return;
     try {
       await adminAssetsApi.deleteAsset(id);
+      if (!isCurrent()) return;
       message.success(t('adminAssets.asset.deleteSuccess'));
-      await load(page);
+      await latestRefresh.current();
     } catch (err) {
-      message.error(formatOaApiError(err));
+      if (isCurrent()) message.error(formatOaApiError(err));
     }
   };
 
@@ -365,9 +495,9 @@ export default function AssetLedgerPage() {
               value={category}
               onChange={(v) => setCategory(v)}
               options={[
-                { value: 'IT设备', label: 'IT设备' },
-                { value: '办公家具', label: '办公家具' },
-                { value: '车辆', label: '车辆' },
+                { value: 'IT设备', label: t('adminAssets.asset.categoryOption.it') },
+                { value: '办公家具', label: t('adminAssets.asset.categoryOption.furniture') },
+                { value: '车辆', label: t('adminAssets.asset.categoryOption.vehicle') },
                 { value: '其他', label: t('adminAssets.common.other') },
               ]}
             />
@@ -387,7 +517,7 @@ export default function AssetLedgerPage() {
           <ResponsiveTable
             rowKey="id"
             columns={columns}
-            dataSource={data}
+            dataSource={applied.scope === actorScope ? data : []}
             size="middle"
             style={{ marginTop: 16 }}
             pagination={{
@@ -398,7 +528,7 @@ export default function AssetLedgerPage() {
               onChange: (p, s) => {
                 setPage(p);
                 setSize(s);
-                load(p, s);
+                load(p, s, applied);
               },
             }}
             locale={{ emptyText: <Empty description={t('adminAssets.common.noData')} /> }}
@@ -408,16 +538,16 @@ export default function AssetLedgerPage() {
 
       <Modal
         title={editing ? t('adminAssets.asset.edit') : t('adminAssets.asset.create')}
-        open={editOpen}
-        onCancel={() => setEditOpen(false)}
+        open={editOpen && canManage}
+        onCancel={() => { resetEditor(); setEditOpen(false); }}
         onOk={handleSubmit}
-        okButtonProps={{ disabled: !canManage }}
-        confirmLoading={submitting}
+        okButtonProps={{ disabled: !canManage, loading: submitting }}
+        cancelText={t(submitting ? 'common.close' : 'common.cancel')}
         okText={t('adminAssets.common.save')}
         destroyOnClose
         width={560}
       >
-        <Form form={form} layout="vertical">
+        <Form form={form} disabled={submitting} layout="vertical" onValuesChange={uiForm.renew}>
           <Form.Item
             name="assetCode"
             label={t('adminAssets.asset.assetCode')}
@@ -444,13 +574,13 @@ export default function AssetLedgerPage() {
           </Form.Item>
           {!editing && (
             <Form.Item name="departmentId" label={t('adminAssets.asset.department')}>
-              <Select allowClear options={(overview?.departments || []).map((department) => ({
+              <Select allowClear options={departments.map((department) => ({
                 value: department.id, label: department.name,
               }))} />
             </Form.Item>
           )}
           <Form.Item name="purchaseDate" label={t('adminAssets.asset.purchaseDate')}>
-            <Input placeholder="YYYY-MM-DD" />
+            <Input placeholder={t('adminAssets.asset.purchaseDatePlaceholder')} />
           </Form.Item>
           <Form.Item name="originalValue" label={t('adminAssets.asset.originalValue')}>
             <InputNumber style={{ width: '100%' }} min={0} precision={2} />
@@ -557,21 +687,21 @@ export default function AssetLedgerPage() {
 
       <Modal
         title={operationType ? t(`adminAssets.asset.operation.${operationType}.title`) : ''}
-        open={operationType !== undefined}
-        onCancel={() => setOperationType(undefined)}
+        open={operationType !== undefined && canManage}
+        onCancel={() => { resetOperation(); setOperationType(undefined); }}
         onOk={() => void handleOperation()}
-        okButtonProps={{ disabled: !canManage }}
-        confirmLoading={operating}
+        okButtonProps={{ disabled: !canManage, loading: operating }}
+        cancelText={t(operating ? 'common.close' : 'common.cancel')}
         destroyOnClose
       >
-        <Form form={operationForm} layout="vertical">
+        <Form form={operationForm} disabled={operating} layout="vertical">
           {(operationType === 'CLAIM' || operationType === 'TRANSFER') && (
             <Form.Item
               name="targetDepartmentId"
               label={t('adminAssets.asset.targetDepartment')}
               rules={[{ required: true, message: t('adminAssets.common.fieldRequired') }]}
             >
-              <Select options={(overview?.departments || []).filter((department) =>
+              <Select onChange={() => operationForm.setFieldValue('targetOwnerUserId', undefined)} options={departments.filter((department) =>
                 operationType !== 'TRANSFER' || department.id !== detail?.departmentId)
                 .map((department) => ({ value: department.id, label: department.name }))} />
             </Form.Item>
@@ -582,9 +712,9 @@ export default function AssetLedgerPage() {
               label={t('adminAssets.asset.targetOwner')}
               rules={[{ required: true, message: t('adminAssets.common.fieldRequired') }]}
             >
-              <Select showSearch optionFilterProp="label" options={(overview?.employees || [])
-                .filter((employee) => employee.status === 1 && employee.departmentId === targetDepartmentId)
-                .map((employee) => ({ value: employee.id, label: `${employee.name} · ${employee.email}` }))} />
+              <Select loading={optionsLoading} showSearch optionFilterProp="label" options={custodians
+                .filter((employee) => employee.departmentId === targetDepartmentId)
+                .map((employee) => ({ value: employee.id, label: employee.name }))} />
             </Form.Item>
           )}
           {operationType === 'INVENTORY' && (
@@ -606,14 +736,14 @@ export default function AssetLedgerPage() {
                 }))} />
               </Form.Item>
               <Form.Item name="actualDepartmentId" label={t('adminAssets.asset.actualDepartment')}>
-                <Select allowClear options={(overview?.departments || []).map((department) => ({
+                <Select allowClear onChange={() => operationForm.setFieldValue('actualOwnerUserId', undefined)} options={departments.map((department) => ({
                   value: department.id, label: department.name,
                 }))} />
               </Form.Item>
               <Form.Item name="actualOwnerUserId" label={t('adminAssets.asset.actualOwner')}>
-                <Select allowClear showSearch optionFilterProp="label" options={(overview?.employees || [])
-                  .filter((employee) => employee.status === 1 && employee.departmentId === actualDepartmentId)
-                  .map((employee) => ({ value: employee.id, label: `${employee.name} · ${employee.email}` }))} />
+                <Select loading={optionsLoading} allowClear showSearch optionFilterProp="label" options={custodians
+                  .filter((employee) => employee.departmentId === actualDepartmentId)
+                  .map((employee) => ({ value: employee.id, label: employee.name }))} />
               </Form.Item>
             </>
           )}

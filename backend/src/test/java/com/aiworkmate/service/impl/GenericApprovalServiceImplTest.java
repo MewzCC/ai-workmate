@@ -295,6 +295,7 @@ class GenericApprovalServiceImplTest {
         when(formMapper.selectOne(any())).thenReturn(form());
         when(processMapper.selectOne(any())).thenReturn(process());
         when(leaveMapper.resolveApprover(TENANT_ID, USER_ID)).thenReturn(2002L);
+        eligibleApprover();
         when(applicationMapper.selectGenericDefinitionId(TENANT_ID)).thenReturn(3L);
         when(instanceMapper.insert(any(WorkflowInstance.class))).thenAnswer(invocation -> {
             WorkflowInstance value = invocation.getArgument(0);
@@ -314,7 +315,7 @@ class GenericApprovalServiceImplTest {
         assertThat(response.status()).isEqualTo("PENDING");
         verify(instanceMapper).insert(any(WorkflowInstance.class));
         verify(taskMapper).insert(any(WorkflowTask.class));
-        verify(notificationService).publish(TENANT_ID, 2002L,
+        verify(notificationService).publishTransactional(TENANT_ID, 2002L,
                 NotificationService.TYPE_APPROVAL, "新的「费用报销」待审批",
                 "员工通过发起审批模板提交了申请，请及时处理", "generic-approval", 10L);
         verify(auditService).recordTransactional(TENANT_ID, USER_ID, "GENERIC_APPROVAL", "10",
@@ -327,6 +328,7 @@ class GenericApprovalServiceImplTest {
         when(formMapper.selectOne(any())).thenReturn(form());
         when(processMapper.selectOne(any())).thenReturn(process());
         when(leaveMapper.resolveApprover(TENANT_ID, USER_ID)).thenReturn(2002L);
+        eligibleApprover();
         when(applicationMapper.selectGenericDefinitionId(TENANT_ID)).thenReturn(3L);
         when(instanceMapper.insert(any(WorkflowInstance.class))).thenAnswer(invocation -> {
             WorkflowInstance value = invocation.getArgument(0);
@@ -382,6 +384,7 @@ class GenericApprovalServiceImplTest {
         when(processMapper.selectOne(any())).thenReturn(process());
         when(ruleMapper.selectList(any())).thenReturn(List.of(rule));
         when(leaveMapper.resolveApprover(TENANT_ID, USER_ID)).thenReturn(2002L);
+        eligibleApprover();
         when(applicationMapper.selectGenericDefinitionId(TENANT_ID)).thenReturn(3L);
         when(applicationMapper.insert(any(ApprovalApplication.class))).thenAnswer(invocation -> {
             ApprovalApplication value = invocation.getArgument(0);
@@ -447,7 +450,7 @@ class GenericApprovalServiceImplTest {
         assertThat(response.canWithdraw()).isFalse();
         verify(taskMapper).update(any(), any());
         verify(instanceMapper).update(any(), any());
-        verify(notificationService).publish(TENANT_ID, 2002L,
+        verify(notificationService).publishTransactional(TENANT_ID, 2002L,
                 NotificationService.TYPE_APPROVAL, "审批申请已撤回",
                 "申请人已撤回「费用报销」，原待办已取消", "generic-approval", 10L);
         verify(auditService).recordTransactional(TENANT_ID, USER_ID, "GENERIC_APPROVAL", "10",
@@ -621,7 +624,7 @@ class GenericApprovalServiceImplTest {
     void agentDetailUsesFrozenSchemaWithoutReadingCurrentConfiguration() {
         when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(new ResolvedUserAccess(USER_ID, "applicant", TENANT_ID,
                 "EMPLOYEE", List.of("EMPLOYEE"), List.of("approval:mine:read", "route:approval-start"), List.of("SELF"), 1L));
-        when(applicationMapper.selectView(TENANT_ID, 10L)).thenReturn(view("PENDING", 2));
+        when(applicationMapper.selectOwnedView(TENANT_ID, USER_ID, 10L)).thenReturn(view("PENDING", 2));
         var result = service.detailMineForAgent(USER_ID, 10L, 1);
         assertThat(result.schemaSource()).isEqualTo("SNAPSHOT");
         assertThat(result.formVersion()).isEqualTo(7);
@@ -635,7 +638,7 @@ class GenericApprovalServiceImplTest {
                 "SYSTEM_ADMIN", List.of("SYSTEM_ADMIN"), List.of("approval:mine:read", "route:approval-start", "audit:read"), List.of("TENANT"), 1L));
         var other = org.mockito.Mockito.mock(ApprovalApplicationView.class);
         when(other.applicantUserId()).thenReturn(9999L);
-        when(applicationMapper.selectView(TENANT_ID, 10L)).thenReturn(other);
+        when(applicationMapper.selectOwnedView(TENANT_ID, USER_ID, 10L)).thenReturn(other);
         assertThatThrownBy(() -> service.detailMineForAgent(USER_ID, 10L, 1)).isInstanceOf(BusinessException.class)
                 .extracting("errorCode").isEqualTo("RESOURCE_FORBIDDEN");
         org.mockito.Mockito.verifyNoInteractions(formMapper, actionLogMapper);
@@ -655,7 +658,7 @@ class GenericApprovalServiceImplTest {
                 .mapToObj(index -> "{\"name\":\"field" + index + "\",\"type\":\"text\"}")
                 .collect(java.util.stream.Collectors.joining(","));
         when(view.formSchemaSnapshot()).thenReturn("{\"fields\":[" + fields + "]}");
-        when(applicationMapper.selectView(TENANT_ID, 10L)).thenReturn(view);
+        when(applicationMapper.selectOwnedView(TENANT_ID, USER_ID, 10L)).thenReturn(view);
         var first = service.detailMineForAgent(USER_ID, 10L, 1);
         var second = service.detailMineForAgent(USER_ID, 10L, 2);
         assertThat(first.fields()).hasSize(50);
@@ -672,11 +675,41 @@ class GenericApprovalServiceImplTest {
         org.mockito.Mockito.verifyNoInteractions(applicationMapper);
     }
 
+    @Test
+    void capabilityFlagsFollowLiveBusinessPermissionsAndRouteRevocation() {
+        when(applicationMapper.selectView(TENANT_ID, 10L)).thenReturn(view("DRAFT", 0));
+        assertThat(service.detail(USER_ID, 10L).canEditDraft()).isTrue();
+        assertThat(service.detail(USER_ID, 10L).canCancel()).isTrue();
+        when(applicationMapper.selectView(TENANT_ID, 10L)).thenReturn(view("PENDING", 2));
+        assertThat(service.detail(USER_ID, 10L).canWithdraw()).isTrue();
+        assertThat(service.detail(USER_ID, 10L).canRemind()).isTrue();
+        for (List<String> permissions : List.of(List.of("route:approval-start"),
+                List.of("approval:create", "approval:cancel", "approval:withdraw", "approval:remind"))) {
+            when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(new ResolvedUserAccess(
+                    USER_ID, "applicant", TENANT_ID, "EMPLOYEE", List.of("EMPLOYEE"), permissions, List.of("SELF"), 2L));
+            when(applicationMapper.selectView(TENANT_ID, 10L)).thenReturn(view("DRAFT", 0));
+            var draft = service.detail(USER_ID, 10L);
+            assertThat(draft.canEditDraft()).isFalse();
+            assertThat(draft.canCancel()).isFalse();
+            when(applicationMapper.selectView(TENANT_ID, 10L)).thenReturn(view("PENDING", 2));
+            var pending = service.detail(USER_ID, 10L);
+            assertThat(pending.canWithdraw()).isFalse();
+            assertThat(pending.canRemind()).isFalse();
+        }
+    }
+
+    private void eligibleApprover() {
+        User reviewer = new User(); reviewer.setId(2002L); reviewer.setTenantId(TENANT_ID); reviewer.setStatus(1);
+        when(userMapper.selectById(2002L)).thenReturn(reviewer);
+        when(userAccessService.resolveActiveUser(2002L)).thenReturn(new ResolvedUserAccess(2002L, "reviewer", TENANT_ID,
+                "MANAGER", List.of("MANAGER"), List.of("approval:act"), List.of("SELF"), 1L));
+    }
+
     private ResolvedUserAccess access() {
         return new ResolvedUserAccess(USER_ID, "applicant", TENANT_ID, "EMPLOYEE",
                 List.of("EMPLOYEE"),
                 List.of("route:approval-start", "approval:create", "approval:submit", "approval:withdraw",
-                        "approval:reopen", "approval:cancel"),
+                        "approval:reopen", "approval:cancel", "approval:remind"),
                 List.of("SELF"), 1L);
     }
 

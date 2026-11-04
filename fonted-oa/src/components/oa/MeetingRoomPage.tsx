@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Button,
   Card,
@@ -30,6 +30,10 @@ import AdminAssetsPageShell from './AdminAssetsPageShell';
 import MeetingBookingPanel from './MeetingBookingPanel';
 import ResponsiveTable from './ResponsiveTable';
 import { usePublishPageAgentContext } from './PageAgentContext';
+import { useRegisterPageUiCommands } from './PageUiCommandBridge';
+import { requireUiFieldTypes } from '@/lib/preparedPageUiCommand';
+import { showUiFormPreview } from './UiFormPreview';
+import { usePageUiFormContext } from '@/hooks/usePageUiFormContext';
 
 const STATUS_TAG_COLOR: Record<MeetingRoomStatus, string> = {
   OPEN: 'success',
@@ -60,22 +64,26 @@ export default function MeetingRoomPage() {
 
   const [submitting, setSubmitting] = useState(false);
   const [form] = Form.useForm<MeetingRoomPayload>();
+  const uiForm = usePageUiFormContext(editOpen && !submitting, editing?.id, editing?.version);
+  const listRequest = useRef(0);
 
-  const load = useCallback(async (p = page, s = size) => {
+  const load = useCallback(async (p = page, s = size, filters?: { keyword: string; status?: string }) => {
+    const request = ++listRequest.current;
     setLoading(true);
     try {
       const res = await adminAssetsApi.listMeetingRooms({
-        keyword: keyword || undefined,
-        status: status as MeetingRoomStatus | undefined,
+        keyword: (filters ? filters.keyword : keyword) || undefined,
+        status: ((filters ? filters.status : status) || undefined) as MeetingRoomStatus | undefined,
         page: p,
         size: s,
       });
+      if (request !== listRequest.current) return;
       setData(res.records);
       setTotal(res.total);
     } catch (err) {
-      message.error(formatOaApiError(err));
+      if (request === listRequest.current) { setData([]); setTotal(0); message.error(formatOaApiError(err)); }
     } finally {
-      setLoading(false);
+      if (request === listRequest.current) setLoading(false);
     }
   }, [keyword, status, page, size]);
 
@@ -91,12 +99,42 @@ export default function MeetingRoomPage() {
   };
 
   const openCreate = () => {
+    uiForm.renew();
     setEditing(null);
     form.resetFields();
     setEditOpen(true);
   };
 
+  useRegisterPageUiCommands({
+    'ui.applyFilter': async ({ payload: { filters } }) => {
+      requireUiFieldTypes(filters, { keyword: 'string', roomStatus: ['', 'OPEN', 'CLOSED'], page: 'number', size: 'number' });
+      const next = { keyword: String(filters.keyword ?? keyword), status: String(filters.roomStatus ?? status ?? '') };
+      const nextPage = Number(filters.page ?? 1), nextSize = Number(filters.size ?? size);
+      if (!Number.isInteger(nextPage) || nextPage < 1 || nextPage > 10000 || !Number.isInteger(nextSize) || nextSize < 1 || nextSize > 100)
+        throw new Error('PAGE_UI_FIELD_REJECTED');
+      setKeyword(next.keyword); setStatus(next.status || undefined); setPage(nextPage); setSize(nextSize);
+      await load(nextPage, nextSize, next);
+    },
+    'ui.refreshPage': async () => { await load(); },
+    ...(canManage ? {
+      'ui.openCreateForm': () => openCreate(),
+      'ui.fillForm': async ({ payload: { values } }: Extract<import('@/lib/pageUiCommands').PageUiCommand, { code: 'ui.fillForm' }>) => {
+        if (!editOpen) throw new Error('PAGE_UI_FORM_CONTEXT_REQUIRED');
+        requireUiFieldTypes(values, { code: 'string', name: 'string', location: 'string', capacity: 'number', facilities: 'string', status: ['OPEN', 'CLOSED'], remark: 'string' });
+        form.setFieldsValue(values as Partial<MeetingRoomPayload>);
+        await form.validateFields(Object.keys(values));
+      },
+      'ui.previewSubmission': async () => {
+        if (!editOpen) throw new Error('PAGE_UI_FORM_CLOSED');
+        const values = await form.validateFields();
+        showUiFormPreview(values, Object.fromEntries(['code', 'name', 'location', 'capacity', 'facilities', 'status', 'remark']
+          .map((name) => [name, t(`adminAssets.meeting.${name}`)])));
+      },
+    } : {}),
+  }, uiForm.context);
+
   const openEdit = (record: MeetingRoom) => {
+    uiForm.renew();
     setEditing(record);
     form.setFieldsValue({
       code: record.code,
@@ -272,7 +310,7 @@ export default function MeetingRoomPage() {
         destroyOnClose
         width={520}
       >
-        <Form form={form} layout="vertical" initialValues={{ status: 'OPEN', capacity: 0 }}>
+        <Form form={form} layout="vertical" initialValues={{ status: 'OPEN', capacity: 0 }} onValuesChange={uiForm.renew}>
           <Form.Item
             name="code"
             label={t('adminAssets.meeting.code')}

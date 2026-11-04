@@ -17,4 +17,7 @@ public class AiTaskPlanRequest {
 
     private JsonNode pageContext;
 
+    @jakarta.validation.constraints.Positive(message = "validation.agent.conversationId.positive")
+    private Long conversationId;
+
 }

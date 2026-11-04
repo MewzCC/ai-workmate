@@ -125,6 +125,10 @@ public class ApprovalEngineServiceImpl implements ApprovalEngineService {
                 .eq(ApprovalForm::getTenantId, actor.tenantId()).eq(ApprovalForm::getId, id)
                 .eq(ApprovalForm::getDeleted, false));
         if (form == null) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        return formDefinition(form);
+    }
+
+    private ApprovalFormDefinitionResponse formDefinition(ApprovalForm form) {
         JsonNode root = normalizedAgentFormSchema(form.getSchemaJson());
         List<AgentFormField> fields = requirePublishableFormSchema(root.toString());
         requireAgentFormDraft(form.getFormKey(), form.getFormName(), null, fields, true);
@@ -137,6 +141,45 @@ public class ApprovalEngineServiceImpl implements ApprovalEngineService {
         }
         return new ApprovalFormDefinitionResponse(form.getId(), form.getFormKey(), form.getFormName(),
                 form.getStatus(), form.getVersion(), result);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public com.aiworkmate.common.PageResponse<com.aiworkmate.dto.ApprovalApplicationTemplateResponse> applicationTemplates(
+            Long userId, Long expectedTenantId, String keyword, String formKey, int page, int size) {
+        ResolvedUserAccess actor = requirePermission(userId, "approval:create");
+        if (!actor.tenantId().equals(expectedTenantId) || !actor.permissions().contains("route:approval-start"))
+            throw new BusinessException(ErrorCode.PERMISSION_DENIED);
+        var candidateQuery = new com.aiworkmate.service.model.BusinessCandidateQuery(keyword, page, size);
+        String kw = candidateQuery.keyword();
+        String key = normalize(formKey);
+        if (key != null && !key.matches("^[a-z][a-z0-9_-]{0,63}$")) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        var query = baseFormQuery(actor.tenantId(), kw, "ENABLED");
+        if (key != null) query.eq(ApprovalForm::getFormKey, key);
+        long total = formMapper.selectCount(query);
+        List<ApprovalForm> forms = formMapper.selectList(query.orderByAsc(ApprovalForm::getId)
+                .last("LIMIT " + size + " OFFSET " + candidateQuery.offset()));
+        List<com.aiworkmate.dto.ApprovalApplicationTemplateResponse> items = new java.util.ArrayList<>();
+        for (ApprovalForm form : forms) {
+            ApprovalProcess process = processMapper.selectOne(new LambdaQueryWrapper<ApprovalProcess>()
+                    .eq(ApprovalProcess::getTenantId, actor.tenantId()).eq(ApprovalProcess::getFormId, form.getId())
+                    .eq(ApprovalProcess::getStatus, "ENABLED").eq(ApprovalProcess::getDeleted, false)
+                    .orderByAsc(ApprovalProcess::getId).last("LIMIT 1"));
+            com.aiworkmate.dto.ApprovalApplicationTemplateResponse.Process preview = null;
+            if (process != null) {
+                var nodes = new java.util.ArrayList<com.aiworkmate.dto.ApprovalApplicationTemplateResponse.Node>();
+                if (key != null) {
+                    for (var node : requirePublishableProcess(process))
+                        nodes.add(new com.aiworkmate.dto.ApprovalApplicationTemplateResponse.Node(node.nodeName(), node.approveType()));
+                }
+                preview = new com.aiworkmate.dto.ApprovalApplicationTemplateResponse.Process(process.getId(),
+                        process.getProcessKey(), process.getProcessName(), process.getVersion(), nodes);
+            }
+            items.add(new com.aiworkmate.dto.ApprovalApplicationTemplateResponse(form.getId(), form.getFormKey(),
+                    form.getFormName(), form.getDescription(), form.getVersion(),
+                    key == null ? List.of() : formDefinition(form).fields(), preview));
+        }
+        return PageResponse.of(items, total, page, size);
     }
 
     private JsonNode normalizedAgentFormSchema(String json) {
@@ -1070,13 +1113,29 @@ public class ApprovalEngineServiceImpl implements ApprovalEngineService {
                         node.timeoutEnabled(), node.timeoutHours(), node.timeoutAction())).toList()));
     }
 
-    private void requirePublishableProcess(ApprovalProcess process) {
-        if (process.getNodeJson() == null || process.getNodeJson().isBlank()) {
+    @Override
+    @Transactional(readOnly = true)
+    public com.aiworkmate.dto.ApprovalProcessDefinitionResponse readProcessDefinitionAgent(Long userId, Long expectedTenantId, Long id) {
+        ResolvedUserAccess actor = requirePermission(userId, "approval:read");
+        if (!actor.tenantId().equals(expectedTenantId)) throw new BusinessException(ErrorCode.PERMISSION_DENIED);
+        if (id == null || id < 1) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        ApprovalProcess process = requireProcess(actor.tenantId(), id);
+        var nodes = requirePublishableProcess(process);
+        return new com.aiworkmate.dto.ApprovalProcessDefinitionResponse(process.getId(), process.getProcessKey(),
+                process.getProcessName(), process.getFormId(), process.getStatus(), process.getVersion(), nodes);
+    }
+
+    private List<ApprovalProcessAgentDraftRequest.Node> requirePublishableProcess(ApprovalProcess process) {
+        if (process.getNodeJson() == null || process.getNodeJson().isBlank()
+                || process.getNodeJson().getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 65536) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.approval.json.invalid");
         }
         try {
-            JsonNode nodesJson = objectMapper.readTree(process.getNodeJson());
-            if (nodesJson == null || !nodesJson.isArray()) {
+            JsonNode nodesJson = objectMapper.reader()
+                    .with(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
+                    .with(com.fasterxml.jackson.core.JsonParser.Feature.STRICT_DUPLICATE_DETECTION)
+                    .readTree(process.getNodeJson());
+            if (nodesJson == null || !nodesJson.isArray() || nodesJson.size() < 3 || nodesJson.size() > 20) {
                 throw new BusinessException(ErrorCode.REQUEST_INVALID,
                         "validation.approval.json.invalid");
             }
@@ -1095,6 +1154,7 @@ public class ApprovalEngineServiceImpl implements ApprovalEngineService {
             requireAgentProcessDraft(new ApprovalProcessAgentDraftRequest(
                     process.getProcessKey(), process.getProcessName(), process.getDescription(),
                     process.getFormId(), List.copyOf(nodes)));
+            return List.copyOf(nodes);
         } catch (JsonProcessingException exception) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.approval.json.invalid");
         }

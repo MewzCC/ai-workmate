@@ -44,6 +44,14 @@ public class ApprovalConfigController {
 
     private final ApprovalEngineService service;
 
+    @GetMapping("/application-templates")
+    public Result<PageResponse<com.aiworkmate.dto.ApprovalApplicationTemplateResponse>> applicationTemplates(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @RequestParam(required = false) String keyword, @RequestParam(required = false) String formKey,
+            @RequestParam(defaultValue = "1") int page, @RequestParam(defaultValue = "20") int size) {
+        return Result.ok(service.applicationTemplates(user.userId(), user.tenantId(), keyword, formKey, page, size));
+    }
+
     // ==================== 表单引擎 ====================
 
     @GetMapping("/forms")

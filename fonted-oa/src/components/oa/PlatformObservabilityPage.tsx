@@ -10,6 +10,9 @@ import type { EChartsCoreOption } from 'echarts/core';
 import dayjs from 'dayjs';
 import { OaIcon } from '@/components/OaIcon';
 import { usePermission } from '@/hooks/usePermission';
+import { useRegisterPageUiCommands } from './PageUiCommandBridge';
+import { usePublishPageAgentContext } from './PageAgentContext';
+import { requireUiFieldTypes } from '@/lib/preparedPageUiCommand';
 import { formatOaApiError } from '@/lib/oaApi';
 import { downloadDashboardExport } from '@/lib/dashboardApi';
 import {
@@ -309,6 +312,16 @@ export default function PlatformObservabilityPage() {
     }
   }, [range]);
   useEffect(() => { void load(); }, [load]);
+  usePublishPageAgentContext({ range, autoRefresh, showComparison });
+  useRegisterPageUiCommands({ 'ui.refreshPage': async () => {
+    await Promise.all([load(), loadPreferences(), loadThresholds()]);
+    if (showComparison) setComparisonRetry(value => value + 1);
+  }, 'ui.applyFilter': ({ payload: { filters } }) => {
+    requireUiFieldTypes(filters, { range: ['24h', '7d', '30d'], autoRefresh: 'boolean', showComparison: 'boolean' });
+    if (filters.range !== undefined) setRange(filters.range as ObservabilityRange);
+    if (filters.autoRefresh !== undefined) setAutoRefresh(Boolean(filters.autoRefresh));
+    if (filters.showComparison !== undefined) setShowComparison(Boolean(filters.showComparison));
+  } });
   useEffect(() => {
     if (!autoRefresh) return;
     const timer = window.setInterval(() => {

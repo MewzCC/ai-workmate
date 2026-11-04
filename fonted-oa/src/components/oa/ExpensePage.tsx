@@ -19,6 +19,9 @@ import { usePermission } from '@/hooks/usePermission';
 import { useRouter, useSearchParams } from '@/lib/nextCompat';
 import { parseRecordId } from '@/lib/recordSelection';
 import { usePublishPageAgentContext } from './PageAgentContext';
+import { usePageUiFormContext } from '@/hooks/usePageUiFormContext';
+import { usePageUiEditorCommands, requireUiPagination } from '@/hooks/usePageUiEditorCommands';
+import { requireUiFieldTypes } from '@/lib/preparedPageUiCommand';
 
 type ExpenseStatus = ApprovalApplication['status'];
 type ExpenseValues = Omit<ExpenseFormData, 'expenseDate'> & { expenseDate?: Dayjs };
@@ -48,6 +51,7 @@ export default function ExpensePage() {
   const [page, setPage] = useState(1); const [size, setSize] = useState(20); const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true); const [saving, setSaving] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false); const [editing, setEditing] = useState<ApprovalApplication>();
+  const uiForm = usePageUiFormContext(editorOpen && !saving && dataScope === scope, editing?.id, editing?.version, scope);
   const [detailOpen, setDetailOpen] = useState(false); const [detailLoading, setDetailLoading] = useState(false);
   const [detail, setDetail] = useState<ApprovalApplication>();
   const listRequest = useRef(0); const detailRequest = useRef(0); const editorRequest = useRef(0); const scopeRequest = useRef(0);
@@ -99,10 +103,12 @@ export default function ExpensePage() {
   const closeDetail = () => { clearDetail(); if (requestedId) router.replace('/oa/expense'); };
   const openCreate = () => {
     if (!canWrite) return;
+    uiForm.renew();
     editorRequest.current += 1; clearDetail(); setSaving(false); setEditing(undefined); form.resetFields(); setEditorOpen(true);
   };
   const openEdit = (record: ApprovalApplication) => {
     if (!canWrite || !record.canEditDraft || !isExpense(record)) return;
+    uiForm.renew();
     editorRequest.current += 1; clearDetail(); setSaving(false);
     const data = parseExpenseData(record); setEditing(record);
     form.setFieldsValue({ ...data, expenseDate: data.expenseDate ? dayjs(data.expenseDate) : undefined });
@@ -112,6 +118,19 @@ export default function ExpensePage() {
     ...values, amount: values.amount == null ? undefined : Number(values.amount),
     expenseDate: values.expenseDate?.format('YYYY-MM-DD'), invoiceNumber: values.invoiceNumber?.trim(), reason: values.reason?.trim(),
   });
+  usePageUiEditorCommands({ form, open: editorOpen, canEdit: canWrite && (!editing || editing.canEditDraft), context: uiForm.context, create: openCreate,
+    fields: { amount: 'number', category: CATEGORIES, expenseDate: { date: 'date' }, invoiceNumber: 'string', reason: 'string' },
+    labels: Object.fromEntries(['amount', 'category', 'expenseDate', 'invoiceNumber', 'reason'].map((name) => [name, t(`expense.form.${name}`)])),
+    commands: {
+      'ui.refreshPage': async () => { await load(); },
+      'ui.applyFilter': ({ payload: { filters } }) => {
+        requireUiFieldTypes(filters, { status: ['', ...STATUSES], page: 'number', size: 'number' }); requireUiPagination(filters);
+        if (filters.status !== undefined) setStatus((filters.status || undefined) as ExpenseStatus | undefined);
+        setPage(Number(filters.page ?? 1)); if (filters.size !== undefined) setSize(Number(filters.size));
+      },
+    },
+  });
+
   const save = async (submit: boolean) => {
     if (!canWrite || saving || (editing && (!editing.canEditDraft || !isExpense(editing)))) return;
     const target = editing; const request = editorRequest.current; const identity = scopeRequest.current;
@@ -211,7 +230,7 @@ export default function ExpensePage() {
           showTotal: (count) => t('common.total', { count }), onChange: (next, nextSize) => { setPage(next); setSize(nextSize); } }} /></Card>
     <Drawer width="min(680px, 100vw)" open={editorOpen && dataScope === scope} title={t(editing ? 'expense.form.editTitle' : 'expense.form.createTitle')} onClose={closeEditor}
       extra={<Space><Button disabled={!canWrite} loading={saving} onClick={() => void save(false)}>{t('expense.saveDraft')}</Button><Button disabled={!canWrite} type="primary" loading={saving} onClick={() => void save(true)}>{t('expense.submit')}</Button></Space>}>
-      <ExpenseForm form={form} disabled={!canWrite} />
+      <ExpenseForm form={form} disabled={!canWrite} onValuesChange={uiForm.renew} />
     </Drawer>
     <Drawer width="min(760px, 100vw)" open={detailOpen && dataScope === scope} loading={detailLoading} title={t('expense.detail.title')} onClose={closeDetail}>
       {detail && dataScope === scope ? <ExpenseDetail record={detail} canWrite={canWrite} money={money} date={date} onEdit={openEdit} onAct={act} /> : <Empty description={t('expense.empty')} />}
@@ -219,9 +238,9 @@ export default function ExpensePage() {
   </section>;
 }
 
-function ExpenseForm({ form, disabled }: { form: ReturnType<typeof Form.useForm<ExpenseValues>>[0]; disabled: boolean }) {
+function ExpenseForm({ form, disabled, onValuesChange }: { form: ReturnType<typeof Form.useForm<ExpenseValues>>[0]; disabled: boolean; onValuesChange: () => void }) {
   const { t } = useTranslation();
-  return <Form form={form} disabled={disabled} layout="vertical" className="oa-expense-form" requiredMark="optional">
+  return <Form form={form} disabled={disabled} layout="vertical" className="oa-expense-form" requiredMark="optional" onValuesChange={onValuesChange}>
     <div className="oa-expense-form-grid"><Form.Item name="amount" label={t('expense.form.amount')} rules={[{ required: true, message: t('expense.form.required') }]}><InputNumber min={0.01} precision={2} className="oa-expense-full-control" /></Form.Item>
       <Form.Item name="category" label={t('expense.form.category')} rules={[{ required: true, message: t('expense.form.required') }]}><Select options={CATEGORIES.map((value) => ({ value, label: t(`expense.category.${value}`) }))} /></Form.Item>
       <Form.Item name="expenseDate" label={t('expense.form.expenseDate')} rules={[{ required: true, message: t('expense.form.required') }]}><DatePicker className="oa-expense-full-control" /></Form.Item>

@@ -46,9 +46,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
+import java.math.BigDecimal;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
@@ -57,16 +59,15 @@ import java.util.regex.Pattern;
  *
  * <p>安全与一致性边界：
  * <ul>
- *   <li>提交需 {@code route:approval-start} 权限（与发起审批页面可见权限一致），
- *       按认证 userId 实时解析角色；</li>
+ *   <li>写操作同时校验 {@code route:approval-start} 和对应业务权限，
+ *       按认证 userId 实时解析角色；直接提交还需创建权限；</li>
  *   <li>表单必须启用、未软删除，流程必须启用且绑定该表单，否则明确报错，
  *       禁止伪造提交成功；</li>
  *   <li>{@code formData} 按 {@code schema_json} 白名单校验：未知字段拒绝、
  *       必填缺失拒绝、类型（数字/日期/时间/文本）逐项校验并限制总长度；</li>
- *   <li>审批人按流程首节点解析：DIRECT_MANAGER 复用请假链路的
- *       「直属上级/部门默认审批人」SQL，USER 取指定用户，ROLE 取同角色最小 id；
- *       其余节点类型（SELF/MULTI_LEVEL/DEPARTMENT 等）当前不支持，直接返回
- *       能力不可用错误，不做静默降级；</li>
+ *   <li>提交时解析并冻结有序审批节点，跳过 START/END 框架节点；支持主管、
+ *       指定用户及角色/部门顺序组，并校验同租户有效审批资格；未实现的节点和
+ *       多人并行模式明确拒绝，不做静默降级；</li>
  *   <li>申请单、工作流实例、首个待办在同一事务内落库，并写入动作流水、
  *       业务审计并向受理人发送站内通知。</li>
  * </ul>
@@ -106,7 +107,7 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
     @Override
     @Transactional
     public ApprovalApplicationResponse createDraft(Long userId, ApprovalDraftRequest request) {
-        ResolvedUserAccess actor = requirePermission(userId, "route:approval-start");
+        ResolvedUserAccess actor = requireApplicationAccess(userId, "approval:create");
         return createDraftInternal(actor, request, null);
     }
 
@@ -127,6 +128,34 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
         }
         return createDraftInternal(actor, request, operationKey);
+    }
+
+    @Override
+    @Transactional
+    public ApprovalApplicationResponse applyAgentApplication(Long userId, Long expectedTenantId, ApprovalDraftRequest request, String operationKey) {
+        ResolvedUserAccess actor = requirePermission(userId, "route:approval-start");
+        if (!java.util.Objects.equals(expectedTenantId, actor.tenantId())
+                || !actor.permissions().containsAll(Set.of("approval:create", "approval:submit")))
+            throw new BusinessException(ErrorCode.PERMISSION_DENIED);
+        if (request == null || request.formKey() == null || request.formData() == null
+                || operationKey == null || operationKey.isBlank() || operationKey.length() > 128)
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        User applicant = userMapper.lockActiveApplicant(actor.tenantId(), actor.userId());
+        if (applicant == null || !actor.tenantId().equals(applicant.getTenantId()) || !Integer.valueOf(1).equals(applicant.getStatus()))
+            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        ApprovalApplication existing = applicationMapper.findAgentOperation(actor.tenantId(), actor.userId(), operationKey);
+        if (existing != null) {
+            ApprovalForm form = requireEnabledForm(actor, request.formKey(), "AGENT_APPLY_REPLAY");
+            ApprovalProcess process = resolveProcess(actor.tenantId(), form.getId(), request.processKey());
+            if (!"PENDING".equals(existing.getStatus()) || !Integer.valueOf(1).equals(existing.getVersion())
+                    || process == null || !java.util.Objects.equals(existing.getFormId(), form.getId())
+                    || !java.util.Objects.equals(existing.getProcessId(), process.getId())
+                    || !sameFormDataJson(existing.getDataJson(), writeJson(validateFormData(form, request.formData(), true))))
+                throw new BusinessException(ErrorCode.IDEMPOTENCY_CONFLICT);
+            return response(actor, requireView(actor.tenantId(), existing.getId()), null);
+        }
+        var draft = createDraftInternal(actor, request, operationKey);
+        return submitDraftInternal(actor, draft.id(), new VersionRequest(draft.version()));
     }
 
     private ApprovalApplicationResponse createDraftInternal(
@@ -175,7 +204,7 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
         if (!"DRAFT".equals(existing.getStatus())
                 || !java.util.Objects.equals(existing.getFormId(), form.getId())
                 || !java.util.Objects.equals(existing.getProcessId(), processId)
-                || !java.util.Objects.equals(existing.getDataJson(), dataJson)) {
+                || !sameFormDataJson(existing.getDataJson(), dataJson)) {
             throw new BusinessException(ErrorCode.IDEMPOTENCY_CONFLICT);
         }
         return response(actor, requireView(actor.tenantId(), existing.getId()), null);
@@ -186,7 +215,7 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
     public ApprovalApplicationResponse updateDraft(Long userId,
                                                    Long id,
                                                    ApprovalDraftUpdateRequest request) {
-        ResolvedUserAccess actor = requirePermission(userId, "route:approval-start");
+        ResolvedUserAccess actor = requireApplicationAccess(userId, "approval:create");
         return updateDraftInternal(actor, id, request);
     }
 
@@ -236,7 +265,7 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
     @Override
     @Transactional
     public ApprovalApplicationResponse submitDraft(Long userId, Long id, VersionRequest request) {
-        ResolvedUserAccess actor = requirePermission(userId, "route:approval-start");
+        ResolvedUserAccess actor = requireApplicationAccess(userId, "approval:submit");
         return submitDraftInternal(actor, id, request);
     }
 
@@ -252,6 +281,8 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
 
     private ApprovalApplicationResponse submitDraftInternal(
             ResolvedUserAccess actor, Long id, VersionRequest request) {
+        requireOwnedApplication(actor, id);
+        applicationMapper.lockApplication(actor.tenantId(), id);
         ApprovalApplication application = requireOwnedApplication(actor, id);
         requireDraft(application);
         if (!request.version().equals(application.getVersion())) {
@@ -263,12 +294,12 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
         ApprovalProcess process = resolveEnabledProcess(
                 actor.tenantId(), form.getId(), application.getProcessId());
         DefinitionSnapshot snapshot = createDefinitionSnapshot(actor.tenantId(), form, process);
-        Long approverId = requireApprover(actor, form, process);
+        GenericApprovalPlan plan = executionPlan(actor, process);
         Long definitionId = requireDefinition(actor.tenantId());
         LocalDateTime now = LocalDateTime.now();
 
         WorkflowInstance instance = createInstance(actor, application.getId(), definitionId, now);
-        WorkflowTask task = createTask(actor, application.getId(), instance.getId(), approverId, now);
+        WorkflowTask task = createTask(actor, application.getId(), instance.getId(), plan.steps().get(0), now);
         int updated = applicationMapper.update(null, new LambdaUpdateWrapper<ApprovalApplication>()
                 .eq(ApprovalApplication::getId, id)
                 .eq(ApprovalApplication::getTenantId, actor.tenantId())
@@ -291,17 +322,18 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
             throw new BusinessException(ErrorCode.VERSION_CONFLICT);
         }
 
+        freezeExecution(actor, application, form, snapshot, plan, instance.getId(), writeJson(formData), now);
         insertAction(actor, instance.getId(), task.getId(), "SUBMIT", "DRAFT", "PENDING", null);
         auditService.recordTransactional(actor.tenantId(), actor.userId(), BUSINESS_TYPE,
                 id.toString(), "SUBMIT", "SUCCESS", "提交通用表单草稿：" + form.getFormName());
-        publishApprovalNotification(actor, approverId, form, id);
+        publishApprovalNotification(actor, plan.steps().get(0).assigneeUserId(), form, id);
         return response(actor, requireView(actor.tenantId(), id), null);
     }
 
     @Override
     @Transactional
     public ApprovalApplicationResponse cancelDraft(Long userId, Long id, VersionRequest request) {
-        ResolvedUserAccess actor = requirePermission(userId, "route:approval-start");
+        ResolvedUserAccess actor = requireApplicationAccess(userId, "approval:cancel");
         return cancelDraftInternal(actor, id, request);
     }
 
@@ -341,7 +373,7 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
     @Override
     @Transactional
     public ApprovalApplicationResponse withdraw(Long userId, Long id, VersionRequest request) {
-        ResolvedUserAccess actor = requirePermission(userId, "route:approval-start");
+        ResolvedUserAccess actor = requireApplicationAccess(userId, "approval:withdraw");
         return withdrawInternal(actor, id, request);
     }
 
@@ -417,7 +449,7 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
                 "WITHDRAW", "PENDING", "WITHDRAWN", "申请人主动撤回");
         auditService.recordTransactional(actor.tenantId(), actor.userId(), BUSINESS_TYPE,
                 id.toString(), "WITHDRAW", "SUCCESS", "撤回通用审批申请");
-        notificationService.publish(actor.tenantId(), task.getAssigneeUserId(),
+        notificationService.publishTransactional(actor.tenantId(), task.getAssigneeUserId(),
                 NotificationService.TYPE_APPROVAL,
                 "审批申请已撤回",
                 "申请人已撤回「" + application.getFormName() + "」，原待办已取消",
@@ -429,7 +461,9 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
     @Override
     @Transactional
     public ApprovalApplicationResponse remind(Long userId, Long id, VersionRequest request) {
-        ResolvedUserAccess actor = requirePermission(userId, "route:approval-start");
+        ResolvedUserAccess actor = requireApplicationAccess(userId, "approval:remind");
+        requireOwnedApplication(actor, id);
+        applicationMapper.lockApplication(actor.tenantId(), id);
         ApprovalApplication application = requireOwnedApplication(actor, id);
         if (!"PENDING".equals(application.getStatus())) {
             throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID,
@@ -486,7 +520,7 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
     @Override
     @Transactional
     public ApprovalApplicationResponse reopen(Long userId, Long id, VersionRequest request) {
-        ResolvedUserAccess actor = requirePermission(userId, "route:approval-start");
+        ResolvedUserAccess actor = requireApplicationAccess(userId, "approval:reopen");
         return reopenInternal(actor, id, request);
     }
 
@@ -537,7 +571,10 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
     @Override
     @Transactional
     public ApprovalApplicationResponse submit(Long userId, ApprovalSubmitRequest request) {
-        ResolvedUserAccess actor = requirePermission(userId, "route:approval-start");
+        ResolvedUserAccess actor = requireApplicationAccess(userId, "approval:submit");
+        if (!actor.permissions().contains("approval:create")) {
+            throw new BusinessException(ErrorCode.PERMISSION_DENIED);
+        }
         String formKey = request.formKey().trim();
         ApprovalForm form = requireEnabledForm(actor, formKey, "SUBMIT");
 
@@ -550,21 +587,8 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
         }
 
         Map<String, Object> formData = validateFormData(form, request.formData(), true);
-        Long approverId = resolveFirstApprover(actor, process);
-        if (approverId == null) {
-            auditService.record(actor.tenantId(), actor.userId(), BUSINESS_TYPE,
-                    form.getId().toString(), "SUBMIT", "FAILURE", "未解析到有效审批人");
-            throw new BusinessException(ErrorCode.APPROVER_NOT_CONFIGURED);
-        }
-        if (approverId.equals(actor.userId())) {
-            throw new BusinessException(ErrorCode.APPROVER_NOT_CONFIGURED,
-                    "validation.approval.submit.approverSelf");
-        }
-        Long definitionId = applicationMapper.selectGenericDefinitionId(actor.tenantId());
-        if (definitionId == null) {
-            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID,
-                    "validation.approval.submit.definitionMissing");
-        }
+        GenericApprovalPlan plan = executionPlan(actor, process);
+        Long definitionId = requireDefinition(actor.tenantId());
 
         LocalDateTime now = LocalDateTime.now();
         ApprovalApplication application = new ApprovalApplication();
@@ -589,42 +613,20 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
         application.setUpdatedAt(now);
         applicationMapper.insert(application);
 
-        WorkflowInstance instance = new WorkflowInstance();
-        instance.setTenantId(actor.tenantId());
-        instance.setDefinitionId(definitionId);
-        instance.setBusinessType(BUSINESS_TYPE);
-        instance.setBusinessId(application.getId());
-        instance.setApplicantId(actor.userId());
-        instance.setStatus("RUNNING");
-        instance.setVersion(0);
-        instance.setStartedAt(now);
-        instance.setCreatedAt(now);
-        instance.setUpdatedAt(now);
-        instanceMapper.insert(instance);
-
-        WorkflowTask task = new WorkflowTask();
-        task.setTenantId(actor.tenantId());
-        task.setInstanceId(instance.getId());
-        task.setBusinessType(BUSINESS_TYPE);
-        task.setBusinessId(application.getId());
-        task.setAssigneeUserId(approverId);
-        task.setStatus("PENDING");
-        task.setVersion(0);
-        task.setDueAt(approvalDueHours > 0 ? now.plusHours(approvalDueHours) : null);
-        task.setCreatedAt(now);
-        task.setUpdatedAt(now);
-        taskMapper.insert(task);
+        WorkflowInstance instance = createInstance(actor, application.getId(), definitionId, now);
+        WorkflowTask task = createTask(actor, application.getId(), instance.getId(), plan.steps().get(0), now);
 
         applicationMapper.update(null, new LambdaUpdateWrapper<ApprovalApplication>()
                 .eq(ApprovalApplication::getId, application.getId())
                 .eq(ApprovalApplication::getTenantId, actor.tenantId())
                 .set(ApprovalApplication::getWorkflowInstanceId, instance.getId())
                 .set(ApprovalApplication::getUpdatedAt, now));
+        freezeExecution(actor, application, form, snapshot, plan, instance.getId(), application.getDataJson(), now);
         insertAction(actor, instance.getId(), task.getId(), "SUBMIT", "NONE", "PENDING", null);
-        auditService.record(actor.tenantId(), actor.userId(), BUSINESS_TYPE,
+        auditService.recordTransactional(actor.tenantId(), actor.userId(), BUSINESS_TYPE,
                 application.getId().toString(), "SUBMIT", "SUCCESS",
                 "提交通用表单申请：" + form.getFormName());
-        notificationService.publish(actor.tenantId(), approverId,
+        notificationService.publishTransactional(actor.tenantId(), plan.steps().get(0).assigneeUserId(),
                 NotificationService.TYPE_APPROVAL,
                 "新的「" + form.getFormName() + "」待审批",
                 "员工通过发起审批模板提交了申请，请及时处理",
@@ -681,12 +683,12 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
     @Override
     @Transactional(readOnly = true)
     public com.aiworkmate.dto.ApprovalApplicationAgentDetailResponse detailMineForAgent(Long userId, Long id, int fieldPage) {
-        if (fieldPage < 1 || fieldPage > 2) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        if (id == null || id < 1 || fieldPage < 1 || fieldPage > 2) throw new BusinessException(ErrorCode.REQUEST_INVALID);
         ResolvedUserAccess actor = requirePermission(userId, "approval:mine:read");
         if (!actor.permissions().contains("route:approval-start")) {
             throw new BusinessException(ErrorCode.PERMISSION_DENIED);
         }
-        ApprovalApplicationView view = applicationMapper.selectView(actor.tenantId(), id);
+        ApprovalApplicationView view = applicationMapper.selectOwnedView(actor.tenantId(), actor.userId(), id);
         if (view == null) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
         // The general page detail permits assignees/auditors; Agent self-detail intentionally does not.
         if (!actor.userId().equals(view.applicantUserId())) throw new BusinessException(ErrorCode.RESOURCE_FORBIDDEN);
@@ -819,22 +821,6 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
         }
     }
 
-    private Long requireApprover(ResolvedUserAccess actor,
-                                 ApprovalForm form,
-                                 ApprovalProcess process) {
-        Long approverId = resolveFirstApprover(actor, process);
-        if (approverId == null) {
-            auditService.record(actor.tenantId(), actor.userId(), BUSINESS_TYPE,
-                    form.getId().toString(), "SUBMIT", "FAILURE", "未解析到有效审批人");
-            throw new BusinessException(ErrorCode.APPROVER_NOT_CONFIGURED);
-        }
-        if (approverId.equals(actor.userId())) {
-            throw new BusinessException(ErrorCode.APPROVER_NOT_CONFIGURED,
-                    "validation.approval.submit.approverSelf");
-        }
-        return approverId;
-    }
-
     private Long requireDefinition(Long tenantId) {
         Long definitionId = applicationMapper.selectGenericDefinitionId(tenantId);
         if (definitionId == null) {
@@ -866,17 +852,18 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
     private WorkflowTask createTask(ResolvedUserAccess actor,
                                     Long applicationId,
                                     Long instanceId,
-                                    Long approverId,
+                                    GenericApprovalPlan.Step step,
                                     LocalDateTime now) {
         WorkflowTask task = new WorkflowTask();
         task.setTenantId(actor.tenantId());
         task.setInstanceId(instanceId);
         task.setBusinessType(BUSINESS_TYPE);
         task.setBusinessId(applicationId);
-        task.setAssigneeUserId(approverId);
+        task.setAssigneeUserId(step.assigneeUserId());
+        task.setProcessNodeIndex(step.index()); task.setProcessNodeName(step.name());
         task.setStatus("PENDING");
         task.setVersion(0);
-        task.setDueAt(approvalDueHours > 0 ? now.plusHours(approvalDueHours) : null);
+        task.setDueAt(step.dueHours() > 0 ? now.plusHours(step.dueHours()) : null);
         task.setCreatedAt(now);
         task.setUpdatedAt(now);
         taskMapper.insert(task);
@@ -887,7 +874,7 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
                                              Long approverId,
                                              ApprovalForm form,
                                              Long applicationId) {
-        notificationService.publish(actor.tenantId(), approverId,
+        notificationService.publishTransactional(actor.tenantId(), approverId,
                 NotificationService.TYPE_APPROVAL,
                 "新的「" + form.getFormName() + "」待审批",
                 "员工通过发起审批模板提交了申请，请及时处理",
@@ -980,13 +967,16 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
     private void checkValueType(FieldDef def, Object value) {
         String type = def.type() == null ? "text" : def.type();
         switch (type) {
-            case "number", "amount" -> {
+            case "number", "amount", "money" -> {
                 if (!isNumeric(value)) {
                     throw new BusinessException(ErrorCode.REQUEST_INVALID,
                             "validation.approval.submit.valueInvalid");
                 }
-                double numericValue = Double.parseDouble(String.valueOf(value));
-                if (!Double.isFinite(numericValue) || (def.min() != null && numericValue < def.min())) {
+                BigDecimal numericValue;
+                try { numericValue = new BigDecimal(String.valueOf(value)); }
+                catch (NumberFormatException invalid) { throw invalidValue(); }
+                if (!Double.isFinite(numericValue.doubleValue())
+                        || (def.min() != null && numericValue.compareTo(def.min()) < 0)) {
                     throw invalidValue();
                 }
             }
@@ -1057,7 +1047,9 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
     private Map<String, FieldDef> parseSchemaFields(String schemaJson) {
         Map<String, FieldDef> defs = new LinkedHashMap<>();
         try {
-            JsonNode root = objectMapper.readTree(schemaJson == null ? "{}" : schemaJson);
+            JsonNode root = objectMapper.reader()
+                    .with(com.fasterxml.jackson.databind.DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS)
+                    .readTree(schemaJson == null ? "{}" : schemaJson);
             JsonNode fields = root.path("fields");
             if (!fields.isArray()) {
                 return defs;
@@ -1071,8 +1063,8 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
                 if (field.path("options").isArray()) {
                     field.path("options").forEach(option -> options.add(option.asText()));
                 }
-                Double min = field.has("min") && field.path("min").isNumber()
-                        ? field.path("min").asDouble() : null;
+                BigDecimal min = field.has("min") && field.path("min").isNumber()
+                        ? field.path("min").decimalValue() : null;
                 defs.put(name, new FieldDef(
                         name,
                         field.path("label").asText(name),
@@ -1088,52 +1080,45 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
         return defs;
     }
 
-    /** 解析流程首节点审批人。 */
-    private Long resolveFirstApprover(ResolvedUserAccess actor, ApprovalProcess process) {
-        JsonNode nodes;
-        try {
-            nodes = objectMapper.readTree(process.getNodeJson());
-        } catch (Exception e) {
-            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID,
-                    "validation.approval.submit.processNodesInvalid");
-        }
-        if (!nodes.isArray() || nodes.isEmpty()) {
-            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID,
-                    "validation.approval.submit.processNodesInvalid");
-        }
-        JsonNode first = nodes.get(0);
-        String approveType = first.path("approveType").asText("DIRECT_MANAGER");
-        String targetKey = first.path("targetKey").asText("");
-        return switch (approveType) {
-            case "DIRECT_MANAGER" -> leaveMapper.resolveApprover(actor.tenantId(), actor.userId());
-            case "USER" -> resolveUserApprover(actor, targetKey);
-            case "ROLE" -> targetKey.isBlank()
-                    ? null
-                    : applicationMapper.resolveRoleApprover(actor.tenantId(), targetKey.trim(), actor.userId());
-            default -> throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID,
-                    "validation.approval.submit.nodeTypeUnsupported");
-        };
+    private GenericApprovalPlan executionPlan(ResolvedUserAccess actor, ApprovalProcess process) {
+        return GenericApprovalPlan.compile(objectMapper, process.getNodeJson(), approvalDueHours, node -> {
+            String type = node.path("approveType").asText("DIRECT_MANAGER"), target = node.path("targetKey").asText("").trim();
+            java.util.List<Long> users;
+            if (type.equals("DIRECT_MANAGER")) {
+                Long user = leaveMapper.resolveApprover(actor.tenantId(), actor.userId());
+                users = user == null ? List.of() : List.of(user);
+            } else if (type.equals("USER")) {
+                try { users = List.of(Long.parseLong(target)); } catch (NumberFormatException invalid) { throw GenericApprovalPlan.unsupported(); }
+            } else if (type.equals("ROLE") || type.equals("DEPARTMENT")) {
+                if (target.isBlank() || target.length() > 80) throw GenericApprovalPlan.unsupported();
+                Long department = null;
+                if (type.equals("DEPARTMENT")) { try { department = Long.parseLong(target); } catch (NumberFormatException invalid) { throw GenericApprovalPlan.unsupported(); } }
+                users = userMapper.selectWorkflowAssignees(actor.tenantId(), actor.userId(), "approval:act", type.equals("ROLE") ? target : null, department);
+                // Legacy role nodes selected one representative; explicit sequential groups freeze every eligible member.
+                if (!node.has("mode") && !users.isEmpty()) users = List.of(users.get(0));
+            } else throw GenericApprovalPlan.unsupported();
+            if (users.isEmpty() || users.size() > 50) throw new BusinessException(ErrorCode.APPROVER_NOT_CONFIGURED);
+            for (Long id : users) {
+                User user = userMapper.selectById(id);
+                ResolvedUserAccess access = null;
+                if (user != null && !actor.userId().equals(id) && actor.tenantId().equals(user.getTenantId()) && Integer.valueOf(1).equals(user.getStatus())) {
+                    try { access = userAccessService.resolveActiveUser(id); }
+                    catch (BusinessException unavailable) { throw new BusinessException(ErrorCode.APPROVER_NOT_CONFIGURED); }
+                }
+                if (user == null || !actor.tenantId().equals(user.getTenantId()) || !Integer.valueOf(1).equals(user.getStatus())
+                        || access == null || !actor.tenantId().equals(access.tenantId()) || !access.permissions().contains("approval:act"))
+                    throw new BusinessException(ErrorCode.APPROVER_NOT_CONFIGURED);
+            }
+            return users;
+        });
     }
 
-    private Long resolveUserApprover(ResolvedUserAccess actor, String targetKey) {
-        if (targetKey.isBlank()) {
-            return null;
-        }
-        long approverId;
-        try {
-            approverId = Long.parseLong(targetKey.trim());
-        } catch (NumberFormatException e) {
-            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID,
-                    "validation.approval.submit.nodeTargetInvalid");
-        }
-        User approver = userMapper.selectById(approverId);
-        if (approver == null
-                || !actor.tenantId().equals(approver.getTenantId())
-                || approver.getStatus() == null
-                || approver.getStatus() != 1) {
-            return null;
-        }
-        return approver.getId();
+    private void freezeExecution(ResolvedUserAccess actor, ApprovalApplication application, ApprovalForm form,
+                                 DefinitionSnapshot snapshot, GenericApprovalPlan plan, Long instanceId, String data, LocalDateTime submittedAt) {
+        applicationMapper.insertExecution(new com.aiworkmate.dto.ApprovalExecutionSnapshot(instanceId, actor.tenantId(),
+                application.getId(), actor.userId(), form.getFormKey(), form.getFormName(), application.getTitle(), data,
+                snapshot.formSchema(), snapshot.formVersion(), snapshot.processNodes(), snapshot.processVersion(), snapshot.rules(),
+                writeJson(plan), 0, 0, submittedAt));
     }
 
     private void insertAction(ResolvedUserAccess actor,
@@ -1168,7 +1153,7 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
         LocalDateTime remindAvailableAt = view.lastRemindedAt() == null
                 ? null
                 : view.lastRemindedAt().plusMinutes(Math.max(1, reminderIntervalMinutes));
-        boolean canRemind = applicant
+        boolean canRemind = applicant && actor.permissions().contains("approval:remind")
                 && actor.permissions().contains("route:approval-start")
                 && "PENDING".equals(view.status())
                 && "PENDING".equals(view.taskStatus())
@@ -1201,9 +1186,9 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
                 view.taskAssigneeName(),
                 view.workflowStatus(),
                 timeline == null ? null : List.copyOf(timeline),
-                applicant && "PENDING".equals(view.status()),
-                applicant && "DRAFT".equals(view.status()),
-                applicant && "DRAFT".equals(view.status()),
+                applicant && actor.permissions().contains("route:approval-start") && "PENDING".equals(view.status()) && actor.permissions().contains("approval:withdraw"),
+                applicant && actor.permissions().contains("route:approval-start") && "DRAFT".equals(view.status()) && actor.permissions().contains("approval:create"),
+                applicant && actor.permissions().contains("route:approval-start") && "DRAFT".equals(view.status()) && actor.permissions().contains("approval:cancel"),
                 view.submittedAt(),
                 view.completedAt(),
                 view.createdAt(),
@@ -1220,12 +1205,28 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
         }
     }
 
+    private boolean sameFormDataJson(String stored, String expected) {
+        try {
+            var reader = objectMapper.reader()
+                    .with(com.fasterxml.jackson.databind.DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS)
+                    .with(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
+                    .with(com.fasterxml.jackson.core.JsonParser.Feature.STRICT_DUPLICATE_DETECTION);
+            JsonNode left = reader.readTree(stored), right = reader.readTree(expected);
+            return left != null && right != null && left.equals((a, b) ->
+                    a.isNumber() && b.isNumber() ? a.decimalValue().compareTo(b.decimalValue()) : a.equals(b) ? 0 : 1, right);
+        } catch (Exception invalid) {
+            throw new BusinessException(ErrorCode.IDEMPOTENCY_CONFLICT);
+        }
+    }
+
     private Map<String, Object> readJson(String dataJson) {
         try {
             if (dataJson == null || dataJson.isBlank()) {
                 return Map.of();
             }
-            return objectMapper.readValue(dataJson, new TypeReference<LinkedHashMap<String, Object>>() { });
+            return objectMapper.readerFor(new TypeReference<LinkedHashMap<String, Object>>() { })
+                    .with(com.fasterxml.jackson.databind.DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS)
+                    .readValue(dataJson);
         } catch (Exception e) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID,
                     "validation.approval.json.invalid");
@@ -1248,6 +1249,14 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
         return access;
     }
 
+    private ResolvedUserAccess requireApplicationAccess(Long userId, String permission) {
+        ResolvedUserAccess actor = requirePermission(userId, "route:approval-start");
+        if (!actor.permissions().contains(permission)) {
+            throw new BusinessException(ErrorCode.PERMISSION_DENIED);
+        }
+        return actor;
+    }
+
     private ResolvedUserAccess requirePermission(Long userId, String permission) {
         ResolvedUserAccess access = requireAccess(userId);
         if (!access.permissions().contains(permission)) {
@@ -1261,7 +1270,7 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
     }
 
     private record FieldDef(String name, String label, String type, boolean required,
-                            List<String> options, Double min) {
+                            List<String> options, BigDecimal min) {
     }
 
     private record DefinitionSnapshot(String formSchema,

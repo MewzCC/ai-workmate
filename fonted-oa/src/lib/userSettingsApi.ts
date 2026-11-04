@@ -1,6 +1,6 @@
 import { buildApiHeaders } from '@/lib/apiHeaders';
 import i18n from '@/i18n';
-import { notifyAuthResponseStatus } from '@/lib/authEvents';
+import { authenticatedFetch as fetch, notifyAuthResponseStatus, readAuthenticatedJson } from '@/lib/authEvents';
 
 const BASE = '/api';
 
@@ -23,9 +23,9 @@ export interface ChatPreferences {
 }
 
 async function parse<T>(response: Response): Promise<T> {
-  const body = await response.json().catch(() => null) as ApiResult<T> | null;
+  const body = await readAuthenticatedJson(response) as ApiResult<T> | null;
   if (!response.ok || !body || body.code !== 200) {
-    notifyAuthResponseStatus(response.status);
+    notifyAuthResponseStatus(response.status, response);
     throw new Error(body?.message || i18n.t('errors.requestFailed'));
   }
   return body.data as T;

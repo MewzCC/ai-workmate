@@ -1,6 +1,6 @@
 import i18n from '@/i18n';
 import { buildApiHeaders } from '@/lib/apiHeaders';
-import { notifyAuthResponseStatus } from '@/lib/authEvents';
+import { authenticatedFetch as fetch, notifyAuthResponseStatus, readAuthenticatedJson } from '@/lib/authEvents';
 
 interface ApiResult<T> {
   code: number;
@@ -35,9 +35,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     credentials: 'include',
     headers: buildApiHeaders(Boolean(init?.body), init?.headers),
   });
-  const body = (await response.json().catch(() => null)) as ApiResult<T> | null;
+  const body = (await readAuthenticatedJson(response)) as ApiResult<T> | null;
   if (!response.ok || !body || body.code !== 200) {
-    notifyAuthResponseStatus(response.status);
+    notifyAuthResponseStatus(response.status, response);
     throw new Error(body?.message || i18n.t('errors.notification.requestFailed'));
   }
   return body.data as T;
@@ -50,6 +50,11 @@ export async function listNotifications(page = 1, size = 20): Promise<Notificati
 export async function fetchUnreadCount(): Promise<number> {
   const result = await request<{ unread: number }>('/notifications/unread-count');
   return result.unread;
+}
+
+export async function getNotification(id: number): Promise<NotificationItem> {
+  if (!Number.isSafeInteger(id) || id < 1) throw new Error(i18n.t('errors.notification.requestFailed'));
+  return request(`/notifications/${id}`);
 }
 
 export async function markNotificationRead(id: number): Promise<void> {

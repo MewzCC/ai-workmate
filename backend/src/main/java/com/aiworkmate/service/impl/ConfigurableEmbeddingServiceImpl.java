@@ -37,7 +37,7 @@ public class ConfigurableEmbeddingServiceImpl implements EmbeddingService {
     @Override
     public EmbeddingResult embed(List<String> texts) {
         if (!properties.isEnabled()) {
-            throw new BusinessException(ErrorCode.EMBEDDING_UNAVAILABLE, "向量模型能力未启用");
+            throw new BusinessException(ErrorCode.EMBEDDING_UNAVAILABLE, "validation.runtime.embedding.disabled");
         }
         return selectedClient().embed(texts);
     }
@@ -51,14 +51,14 @@ public class ConfigurableEmbeddingServiceImpl implements EmbeddingService {
     private EmbeddingProviderClient selectedClient() {
         if (properties.getDimension() != STORAGE_DIMENSION) {
             throw new BusinessException(ErrorCode.EMBEDDING_UNAVAILABLE,
-                    "EMBEDDING_DIMENSION 必须与数据库 vector(1024) 保持一致");
+                    "validation.runtime.embedding.storageDimensionInvalid");
         }
         String provider = properties.getProvider() == null
                 ? "" : properties.getProvider().strip().toLowerCase(Locale.ROOT);
         EmbeddingProviderClient client = clients.get(provider);
         if (client == null) {
             throw new BusinessException(ErrorCode.EMBEDDING_UNAVAILABLE,
-                    "不支持的向量模型 Provider：" + provider);
+                    "validation.runtime.embedding.providerUnsupported", provider);
         }
         return client;
     }

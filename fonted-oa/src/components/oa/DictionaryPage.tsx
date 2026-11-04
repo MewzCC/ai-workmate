@@ -18,6 +18,10 @@ import { usePermission } from '@/hooks/usePermission';
 import { useRouter, useSearchParams } from '@/lib/nextCompat';
 import { parseRecordId } from '@/lib/recordSelection';
 import { usePublishPageAgentContext } from './PageAgentContext';
+import { useRegisterPageUiCommands, useRegisterPageUiViews } from './PageUiCommandBridge';
+import { requireUiFieldTypes } from '@/lib/preparedPageUiCommand';
+import { requireUiPagination, usePageUiEditorCommands } from '@/hooks/usePageUiEditorCommands';
+import { usePageUiFormContext } from '@/hooks/usePageUiFormContext';
 
 type Editor = { kind: 'type'; record?: DictionaryType } | { kind: 'item'; type: DictionaryType; record?: DictionaryItem };
 type Selection = { type: DictionaryType; item?: DictionaryItem };
@@ -82,6 +86,17 @@ export default function DictionaryPage() {
   const dismissConfirmation = useCallback(() => { confirmationEpoch.current += 1; confirmation.current?.destroy(); confirmation.current = undefined; }, []);
   const router = useRouter(); const params = useSearchParams();
   const requestedType = params.get('typeId'); const requestedItem = params.get('itemId');
+  useRegisterPageUiViews(selectedId ? 'items' : 'types', ['types', 'items'], async (view, filters) => {
+    if (!canRead) throw new Error('PAGE_UI_FIELD_REJECTED');
+    if (view === 'types') { router.replace('/oa/dictionary'); setParent(undefined); setItems([]); setTotal(0); }
+    else {
+      const id = parseRecordId(String(filters.dictionaryTypeId ?? selectedId ?? ''));
+      if (!id) throw new Error('PAGE_UI_FIELD_REJECTED');
+      const result = await readSelection({ kind: 'type', id });
+      if (activeScope.current !== scope) throw new Error('PAGE_UI_FIELD_REJECTED');
+      setDataScope(scope); setParent(result.type); setPage(1); router.replace(`/oa/dictionary?typeId=${id}`);
+    }
+  }, selectedId ? String(selectedId) : '');
   const activeSelection = dataScope !== scope ? undefined : editor
     ? editor.kind === 'item' ? { type: editor.type, item: editor.record } : editor.record ? { type: editor.record } : undefined
     : detailOpen ? detail : undefined;
@@ -138,8 +153,8 @@ export default function DictionaryPage() {
     else { itemForm.resetFields(); itemForm.setFieldsValue(editor.record ? { ...editor.record } : { sortOrder: 0 }); }
   }, [editor, editorLoading, typeForm, itemForm]);
 
-  const loadSelection = useCallback(async (selection: Target) => {
-    if (!canRead) return;
+  const loadSelection = useCallback(async (selection: Target, reportError = true) => {
+    if (!canRead) { if (!reportError) throw new Error('PAGE_UI_FIELD_REJECTED'); return; }
     dismissConfirmation(); const request = ++selectionRequest.current; target.current = selection;
     setDetail(undefined); setDetailOpen(true); setDetailLoading(true);
     try {
@@ -147,9 +162,29 @@ export default function DictionaryPage() {
       if (request !== selectionRequest.current || activeScope.current !== scope) return;
       setDetail(result); setParent(result.type);
     } catch (error) { if (request === selectionRequest.current && activeScope.current === scope) {
-      target.current = undefined; setDetailOpen(false); setDetail(undefined); message.error(formatOaApiError(error));
+      target.current = undefined; setDetailOpen(false); setDetail(undefined);
+      if (!reportError) throw error;
+      message.error(formatOaApiError(error));
     } } finally { if (request === selectionRequest.current && activeScope.current === scope) setDetailLoading(false); }
   }, [canRead, scope, dismissConfirmation]);
+  useRegisterPageUiCommands({ 'ui.refreshPage': async () => { await Promise.all([loadTypes(), loadItems()]); },
+    'ui.applyFilter': ({ payload: { filters } }) => {
+      if (!canRead) throw new Error('PAGE_UI_FIELD_REJECTED');
+      requireUiFieldTypes(filters, { dictionaryTypeId: 'number', typeKeyword: 'string', keyword: 'string', status: ['', 'ACTIVE', 'DISABLED'], page: 'number', size: 'number' });
+      requireUiPagination(filters);
+      if (filters.dictionaryTypeId !== undefined && filters.dictionaryTypeId !== selectedId) throw new Error('PAGE_UI_FIELD_REJECTED');
+      if (filters.typeKeyword !== undefined) setTypeKeyword(String(filters.typeKeyword));
+      if (filters.keyword !== undefined) { setItemKeyword(String(filters.keyword)); setItemSearch(String(filters.keyword)); }
+      if (filters.status !== undefined) setItemStatus(String(filters.status));
+      if (filters.size !== undefined) setSize(Number(filters.size));
+      setPage(Number(filters.page ?? 1));
+    },
+    'ui.openDetail': async ({ payload: { recordId } }) => {
+      const id = parseRecordId(String(recordId));
+      if (!id) throw new Error('PAGE_UI_FIELD_REJECTED');
+      await loadSelection({ kind: selectedId ? 'item' : 'type', id }, false);
+    },
+  }, null, selectedId ? `dictionary-items:${selectedId}` : 'dictionary-types');
   const closeWindows = () => {
     dismissConfirmation(); selectionRequest.current += 1; editorRequest.current += 1; target.current = undefined;
     setDetail(undefined); setDetailOpen(false); setDetailLoading(false); setEditor(undefined); setEditorLoading(false); setSaving(false);
@@ -190,6 +225,23 @@ export default function DictionaryPage() {
   };
   const openType = (record?: DictionaryType) => void openEditor('type', record);
   const openItem = (record?: DictionaryItem) => void openEditor('item', record);
+  const typeUiForm = usePageUiFormContext(editor?.kind === 'type' && !editorLoading && !saving,
+    editor?.kind === 'type' ? editor.record?.id : undefined, editor?.kind === 'type' ? editor.record?.version : undefined, `${scope}:${editorRequest.current}`);
+  const itemUiForm = usePageUiFormContext(editor?.kind === 'item' && !editorLoading && !saving,
+    editor?.kind === 'item' ? editor.record?.id : undefined, editor?.kind === 'item' ? editor.record?.version : undefined, `${scope}:${editorRequest.current}`);
+  const dictionaryView = selectedId ? `dictionary-items:${selectedId}` : 'dictionary-types';
+  usePageUiEditorCommands({ form: typeForm, open: editor?.kind === 'type' && !saving && !editorLoading,
+    canEdit: canManage && (editor ? editor.kind === 'type' : !selectedId), context: typeUiForm.context, viewKey: dictionaryView,
+    create: !selectedId ? async () => { typeUiForm.renew(); await openEditor('type'); } : undefined,
+    fields: { ...(!editor?.record ? { code: 'string' as const } : {}), name: 'string', sortOrder: 'number', description: 'string' },
+    labels: { code: t('dictionary.code'), name: t('dictionary.name'), sortOrder: t('dictionary.sortOrder'), description: t('dictionary.descriptionField') },
+  });
+  usePageUiEditorCommands({ form: itemForm, open: editor?.kind === 'item' && !saving && !editorLoading,
+    canEdit: canManageItems && (editor ? editor.kind === 'item' : Boolean(selectedId)), context: itemUiForm.context, viewKey: dictionaryView,
+    create: selectedId ? async () => { itemUiForm.renew(); await openEditor('item'); } : undefined,
+    fields: { ...(!editor?.record ? { value: 'string' as const } : {}), label: 'string', sortOrder: 'number', description: 'string' },
+    labels: { value: t('dictionary.value'), label: t('dictionary.label'), sortOrder: t('dictionary.sortOrder'), description: t('dictionary.descriptionField') },
+  });
   const refresh = async () => {
     const identity = scope; const current = target.current; const request = selectionRequest.current;
     await Promise.all([latestTypes.current(), latestItems.current()]);
@@ -328,12 +380,12 @@ export default function DictionaryPage() {
 
     <Drawer width={520} open={Boolean(editor) && canRead && dataScope === scope} loading={editorLoading} title={editor?.kind === 'type' ? t(editor.record ? 'dictionary.editType' : 'dictionary.addType') : t(editor?.record ? 'dictionary.editItem' : 'dictionary.addItem')}
       onClose={close} extra={<Button type="primary" loading={saving} disabled={!canManage || editorLoading} onClick={() => void save()}>{t('common.save')}</Button>}>
-      {editor?.kind === 'type' ? <Form form={typeForm} layout="vertical">
+      {editor?.kind === 'type' ? <Form form={typeForm} layout="vertical" onValuesChange={typeUiForm.renew}>
         <Form.Item name="code" label={t('dictionary.code')} extra={t('dictionary.codeHint')} rules={[{ required: true }, { pattern: /^[A-Z][A-Z0-9_]{1,63}$/ }]}><Input disabled={Boolean(editor.record)} maxLength={64} /></Form.Item>
         <Form.Item name="name" label={t('dictionary.name')} rules={[{ required: true }]}><Input maxLength={120} placeholder={t('dictionary.nameHint')} /></Form.Item>
         <Form.Item name="sortOrder" label={t('dictionary.sortOrder')}><InputNumber min={0} max={9999} className="oa-dictionary-number" /></Form.Item>
         <Form.Item name="description" label={t('dictionary.descriptionField')}><Input.TextArea rows={5} maxLength={500} showCount placeholder={t('dictionary.descriptionHint')} /></Form.Item>
-      </Form> : <Form form={itemForm} layout="vertical">
+      </Form> : <Form form={itemForm} layout="vertical" onValuesChange={itemUiForm.renew}>
         <Form.Item name="value" label={t('dictionary.value')} extra={t('dictionary.valueHint')} rules={[{ required: true }, { pattern: /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/ }]}><Input disabled={Boolean(editor?.record)} maxLength={128} /></Form.Item>
         <Form.Item name="label" label={t('dictionary.label')} rules={[{ required: true }]}><Input maxLength={160} placeholder={t('dictionary.labelHint')} /></Form.Item>
         <Form.Item name="sortOrder" label={t('dictionary.sortOrder')}><InputNumber min={0} max={9999} className="oa-dictionary-number" /></Form.Item>

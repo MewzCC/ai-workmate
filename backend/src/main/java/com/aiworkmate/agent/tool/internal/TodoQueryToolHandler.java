@@ -31,11 +31,12 @@ public final class TodoQueryToolHandler extends TypedReadToolHandler<TodoToolPor
         if (from != null && to != null && from.isAfter(to)) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID);
         }
-        int page = pageNumber(arguments, Integer.MAX_VALUE);
+        int page = pageNumber(arguments, 10000);
         int size = pageSize(arguments);
         String status = optionalText(arguments, "status");
 
-        return new TodoToolPort.Query(status, from, to, page, size);
+        String type=optionalText(arguments,"businessType");
+        return new TodoToolPort.Query(status, from, to, page, size, type==null ? "ALL" : type);
     }
 
     @Override protected TodoToolPort.Page invoke(TrustedToolContext context, TodoToolPort.Query query) {

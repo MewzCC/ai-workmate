@@ -31,6 +31,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+@org.junit.jupiter.api.extension.ExtendWith(com.aiworkmate.common.LocalizedMessagesExtension.class)
 class UserProfileServiceImplTest {
 
     private static final byte[] ONE_PIXEL_PNG = Base64.getDecoder().decode(
@@ -145,7 +146,7 @@ class UserProfileServiceImplTest {
 
         assertThatThrownBy(() -> profileService.uploadWallpaper(1001L, file))
                 .isInstanceOf(BusinessException.class)
-                .hasMessage("壁纸大小不能超过 5MB");
+                .hasMessage("壁纸大小不能超过 4B");
 
         verifyNoInteractions(userMapper);
         verifyNoInteractions(objectStorageService);

@@ -102,6 +102,18 @@ class AccessControlControllerSecurityTest {
         verifyNoInteractions(accessControlService);
     }
 
+    @Test
+    void shouldAcceptRegisteredHierarchicalPermissionGrammarForTheAuthenticatedAdministrator() throws Exception {
+        resolveUserWithPermissions(List.of("access:manage"));
+        mockMvc.perform(put("/api/admin/access-control/roles/EMPLOYEE/permissions")
+                        .header("Authorization", "Bearer " + TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"permissionCodes\":[\"notification:read:self\",\"agent:tool:approval.form.patchDraftField\",\"route:messages\"]}"))
+                .andExpect(status().isOk());
+        verify(accessControlService).updateRolePermissions(1001L, "EMPLOYEE", Set.of(
+                "notification:read:self", "agent:tool:approval.form.patchDraftField", "route:messages"));
+    }
+
     private void resolveUserWithPermissions(List<String> permissions) {
         when(userAccessService.resolveActiveUser(1001L))
                 .thenReturn(new ResolvedUserAccess(

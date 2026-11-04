@@ -1,4 +1,8 @@
+import { marketingZh } from './marketing';
+import { architectureZh } from './architecture';
 export default {
+  architecture: architectureZh,
+  marketing: marketingZh,
   common: {
     login: '登录',
     tryNow: '立即尝试',

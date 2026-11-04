@@ -7,6 +7,8 @@ import java.util.List;
 public interface ApprovalConfigurationToolPort {
     Page query(ToolActorContext context, Query query);
     FormDefinition readFormDefinition(ToolActorContext context, long formId);
+    ProcessDefinition readProcessDefinition(ToolActorContext context, long processId);
+    Templates applicationTemplates(ToolActorContext context, TemplateQuery query);
     RuleDefinition readRuleDefinition(ToolActorContext context, long ruleId);
     FormDraftResult createFormDraft(ToolActorContext context, FormDraft command);
     FormDraftResult updateFormDraft(ToolActorContext context, FormDraftUpdate command);
@@ -28,6 +30,15 @@ public interface ApprovalConfigurationToolPort {
     }
 
     record Query(Resource resource, String keyword, String status, int page, int size) { }
+
+    record TemplateQuery(String keyword, String formKey, int page, int size) { }
+    record Templates(List<Template> items, long total, int page, int size) {
+        public Templates { items = List.copyOf(items); }
+    }
+    record Template(long formId, String formKey, String formName, int version, List<FormDefinitionField> fields,
+                    String processKey, String processName, Integer processVersion) {
+        public Template { fields = List.copyOf(fields); }
+    }
 
     record Page(List<Item> items, long total, int page, int size) {
         public Page { items = List.copyOf(items); }
@@ -83,6 +94,11 @@ public interface ApprovalConfigurationToolPort {
 
     record ProcessNode(String nodeType, String nodeName, String approveType, String targetKey,
                        String mode, Boolean timeoutEnabled, Integer timeoutHours, String timeoutAction) { }
+
+    record ProcessDefinition(long processId, String processKey, String processName, Long formId,
+                             String status, int version, List<ProcessNode> nodes) {
+        public ProcessDefinition { nodes = List.copyOf(nodes); }
+    }
 
     record ProcessDraftResult(long processId, String processKey, String status, int version,
                               LocalDateTime updatedAt) implements ToolWriteReceipt { }

@@ -29,6 +29,11 @@ import { formatOaApiError } from '@/lib/oaApi';
 import { usePermission } from '@/hooks/usePermission';
 import AttendancePageShell from './AttendancePageShell';
 import ResponsiveTable from './ResponsiveTable';
+import { collectPagedRecords } from '@/lib/collectPagedRecords';
+import { usePageUiFormContext } from '@/hooks/usePageUiFormContext';
+import { usePageUiEditorCommands, requireUiPagination } from '@/hooks/usePageUiEditorCommands';
+import { requireUiFieldTypes } from '@/lib/preparedPageUiCommand';
+import { usePublishPageAgentContext } from './PageAgentContext';
 
 const STATUS_TAG_COLOR: Record<AttendanceReissueStatus, string> = {
   PENDING: 'processing',
@@ -58,6 +63,8 @@ export default function AttendanceReissuePage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [form] = Form.useForm<ReissueFormValues>();
+  const uiForm = usePageUiFormContext(createOpen && !submitting);
+  usePublishPageAgentContext({ scope: activeTab === 'pending' ? 'PENDING' : 'MINE', page, size });
 
   const [decideTarget, setDecideTarget] = useState<AttendanceReissue | null>(null);
   const [decideOpen, setDecideOpen] = useState(false);
@@ -80,8 +87,8 @@ export default function AttendanceReissuePage() {
   const loadPending = async () => {
     setLoading(true);
     try {
-      const res = await attendanceApi.listPendingReissues({ page: 1, size: 100 });
-      setPending(res.records);
+      const records = await collectPagedRecords((page, size) => attendanceApi.listPendingReissues({ page, size }));
+      setPending(records);
     } catch (err) {
       message.error(formatOaApiError(err));
     } finally {
@@ -102,6 +109,23 @@ export default function AttendanceReissuePage() {
       loadMine(1);
     }
   };
+
+  usePageUiEditorCommands({ form, open: createOpen, canEdit: canApply, context: uiForm.context,
+    create: () => { uiForm.renew(); form.resetFields(); form.setFieldsValue({ clockType: 'CLOCK_IN' }); setCreateOpen(true); },
+    fields: { clockDate: { date: 'date' }, clockType: ['CLOCK_IN', 'CLOCK_OUT'], reason: 'string' },
+    labels: { clockDate: t('attendance.common.date'), clockType: t('attendance.reissue.clockType'), reason: t('attendance.reissue.reason') },
+    commands: {
+      'ui.refreshPage': async () => { if (activeTab === 'pending' && canDecide) await loadPending(); else await loadMine(); },
+      'ui.applyFilter': async ({ payload: { filters } }) => {
+        requireUiFieldTypes(filters, { scope: ['MINE', 'PENDING'], page: 'number', size: 'number' }); requireUiPagination(filters);
+        const scope = String(filters.scope ?? (activeTab === 'pending' ? 'PENDING' : 'MINE'));
+        if (scope === 'PENDING' && !canDecide) throw new Error('PAGE_UI_FIELD_REJECTED');
+        const nextPage = Number(filters.page ?? 1), nextSize = Number(filters.size ?? size);
+        setActiveTab(scope === 'PENDING' ? 'pending' : 'mine'); setPage(nextPage); setSize(nextSize);
+        if (scope === 'PENDING') await loadPending(); else await loadMine(nextPage, nextSize);
+      },
+    },
+  });
 
   const handleCreate = async () => {
     if (!canApply || submitting) return;
@@ -249,7 +273,7 @@ export default function AttendanceReissuePage() {
       title={t('attendance.reissue.title')}
       description={t('attendance.reissue.description')}
       actions={(
-        canApply ? <Button type="primary" onClick={() => setCreateOpen(true)}>
+        canApply ? <Button type="primary" onClick={() => { uiForm.renew(); form.resetFields(); form.setFieldsValue({ clockType: 'CLOCK_IN' }); setCreateOpen(true); }}>
           {t('attendance.reissue.create')}
         </Button> : null
       )}
@@ -314,7 +338,7 @@ export default function AttendanceReissuePage() {
         okText={t('attendance.reissue.submit')}
         destroyOnHidden
       >
-        <Form form={form} layout="vertical" initialValues={{ clockType: 'CLOCK_IN' }}>
+        <Form form={form} layout="vertical" initialValues={{ clockType: 'CLOCK_IN' }} onValuesChange={uiForm.renew}>
           <Form.Item
             name="clockDate"
             label={t('attendance.common.date')}

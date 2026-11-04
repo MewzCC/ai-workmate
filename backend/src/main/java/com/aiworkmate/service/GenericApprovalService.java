@@ -14,6 +14,8 @@ import com.aiworkmate.dto.VersionRequest;
  * 校验后提交，绑定启用流程并生成工作流实例与首个审批待办。
  */
 public interface GenericApprovalService {
+    /** One transaction: validate, create a self-owned draft, freeze definitions and submit it. */
+    ApprovalApplicationResponse applyAgentApplication(Long userId, Long expectedTenantId, ApprovalDraftRequest request, String operationKey);
 
     /** 保存一份未提交草稿；必填字段可暂缺，不创建工作流或待办。 */
     ApprovalApplicationResponse createDraft(Long userId, ApprovalDraftRequest request);

@@ -3,7 +3,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { usePathname, useRouter } from '@/lib/nextCompat';
-import { ConfigProvider, Layout, Spin, theme as antdTheme } from 'antd';
+import { App as AntdApp, ConfigProvider, Layout, Spin, theme as antdTheme } from 'antd';
 import { message } from '@/lib/antdMessage';
 import type { OaMenuItem, OaRole, OaTheme } from '@/types/oa';
 import { findMenu, firstPage, flattenPages, toMenuItem } from '@/lib/navigationTree';
@@ -21,6 +21,7 @@ import { useAiChatStore } from '@/store/aiChatStore';
 import { OaPageRenderer } from './OaPageRenderer';
 import PageAgentLauncher, { type PageAgentLauncherHandle } from './PageAgentLauncher';
 import { PageAgentContextObserver, PageAgentContextProvider, type PageAgentContextSnapshot } from './PageAgentContext';
+import { PageUiCommandBridge } from './PageUiCommandBridge';
 const KnowledgeBasePage = lazy(() => import('./KnowledgeBasePage'));
 
 const { Content } = Layout;
@@ -169,7 +170,10 @@ export default function AdminLayout() {
   const agentLauncherRef = useRef<PageAgentLauncherHandle>(null);
   const [themeName, setThemeName] = useState(() => readStorage('workmeta-oa-theme', 'enterprise-blue'));
   const [aiMiniEnabled, setAiMiniEnabled] = useState(() => readStorage('workmeta-oa-ai-mini-enabled', 'false') === 'true');
-  const [wallpaper, setWallpaper] = useState<string | null>(null);
+  const wallpaperIdentity = `${user?.tenantId}:${userId}`;
+  const [wallpaperState, setWallpaperState] = useState<{ identity: string; url: string | null }>({ identity: wallpaperIdentity, url: null });
+  const wallpaper = wallpaperState.identity === wallpaperIdentity ? wallpaperState.url : null;
+  const setWallpaper = useCallback((url: string | null) => setWallpaperState({ identity: wallpaperIdentity, url }), [wallpaperIdentity]);
   const [wallpaperOpacity, setWallpaperOpacity] = useState(() => Number(readStorage('workmeta-oa-wallpaper-opacity', '0.28')));
   const [wallpaperBlur, setWallpaperBlur] = useState(() => Number(readStorage('workmeta-oa-wallpaper-blur', '4')));
   const [openTabs, setOpenTabs] = useState<OaPageTab[]>([]);
@@ -215,7 +219,7 @@ export default function AdminLayout() {
 
   useEffect(() => {
     let active = true;
-    if (!user) {
+    if (!userId) {
       setWallpaper(null);
       return;
     }
@@ -229,16 +233,9 @@ export default function AdminLayout() {
           return;
         }
 
-        const legacyWallpaper = window.localStorage.getItem('workmeta-oa-wallpaper');
-        if (!legacyWallpaper?.startsWith('data:image/')) {
-          setWallpaper(null);
-          return;
-        }
-        const file = await fetch(legacyWallpaper).then((response) => response.blob());
-        const migrated = await profileApi.uploadWallpaper(file);
-        if (!active) return;
-        setWallpaper(migrated.wallpaperUrl);
-        window.localStorage.removeItem('workmeta-oa-wallpaper');
+        // Legacy Base64 has no authenticated owner; never upload it into a later account.
+        // Keep it untouched locally until the user explicitly replaces the wallpaper.
+        setWallpaper(null);
       } catch (error) {
         if (!active) return;
         setWallpaper(null);
@@ -249,7 +246,7 @@ export default function AdminLayout() {
     return () => {
       active = false;
     };
-  }, [user]);
+  }, [userId, wallpaperIdentity, setWallpaper, t]);
 
   useEffect(() => {
     if (!navigationLoaded) return;
@@ -423,6 +420,14 @@ export default function AdminLayout() {
   };
 
   return (
+    <PageUiCommandBridge key={`${user?.tenantId ?? 'none'}:${userId ?? 'guest'}`} pageId={selectedMenu.id}
+      refresh={() => setPageRevision((revision) => revision + 1)}
+      navigate={(pageId, recordId) => {
+        const path = resolveAgentToolTargetPath(pageId, recordId, menus);
+        if (!path) return false;
+        router.push(path);
+        return true;
+      }}>
     <ConfigProvider
       theme={{
         algorithm: currentTheme.dark ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
@@ -458,6 +463,7 @@ export default function AdminLayout() {
         },
       }}
     >
+      <AntdApp component={false}>
         <div className={`oa-shell ${collapsed ? 'oa-shell-collapsed' : ''} ${wallpaper ? 'oa-has-wallpaper' : ''} ${selectedMenu.id === 'ai-workspace' ? 'oa-chat-page' : ''}`}>
           <div
             className={`oa-sider-mask ${collapsed ? '' : 'is-visible'}`}
@@ -559,8 +565,8 @@ export default function AdminLayout() {
             pageContext={agentPageContext?.pageId === selectedMenu.id ? agentPageContext.snapshot : undefined}
             miniEnabled={aiMiniEnabled}
             onPageRefresh={() => setPageRevision((revision) => revision + 1)}
-            onNavigatePage={(pageId, recordId, recordKind) => {
-              const path = resolveAgentToolTargetPath(pageId, recordId, menus, recordKind);
+            onNavigatePage={(pageId, recordId, recordKind, todoQuery) => {
+              const path = resolveAgentToolTargetPath(pageId, recordId, menus, recordKind, todoQuery);
               if (!path) return false;
               router.push(path);
               return true;
@@ -584,7 +590,9 @@ export default function AdminLayout() {
           />
 
         </div>
+      </AntdApp>
     </ConfigProvider>
+    </PageUiCommandBridge>
   );
 }
 

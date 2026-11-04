@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Badge,
   Button,
@@ -35,9 +35,12 @@ import {
   type MeetingRoom,
 } from '@/lib/adminAssetsApi';
 import { formatOaApiError } from '@/lib/oaApi';
+import { collectPagedRecords } from '@/lib/collectPagedRecords';
+import { isFormValidationError, useAsyncFormAction } from '@/hooks/useAsyncFormAction';
 import { OaIcon } from '@/components/OaIcon';
 import ResponsiveTable from './ResponsiveTable';
 import { usePublishPageAgentContext } from './PageAgentContext';
+import { useAuth } from '@/components/auth/AuthProvider';
 
 interface Props {
   rooms: MeetingRoom[];
@@ -54,6 +57,13 @@ interface BookingFormValues {
 
 export default function MeetingBookingPanel({ rooms, canManage }: Props) {
   const { t, i18n } = useTranslation();
+  const { user } = useAuth();
+  const canReadMine = user?.permissions.includes('meeting:read:self') ?? false;
+  const canBook = user?.permissions.includes('meeting:book') ?? false;
+  const canCancelOwn = user?.permissions.includes('meeting:cancel') ?? false;
+  const identity = `${user?.tenantId}:${user?.id}:${user?.permissionVersion}`;
+  const activeIdentity = useRef<string | undefined>(identity); activeIdentity.current = identity;
+  const [dataIdentity, setDataIdentity] = useState(identity);
   const [mine, setMine] = useState<MeetingBooking[]>([]);
   const [adminRows, setAdminRows] = useState<MeetingBooking[]>([]);
   const [loading, setLoading] = useState(true);
@@ -63,45 +73,72 @@ export default function MeetingBookingPanel({ rooms, canManage }: Props) {
   const [calendarValue, setCalendarValue] = useState(() => dayjs().locale(calendarLocale));
   const [selectedDate, setSelectedDate] = useState(() => dayjs().locale(calendarLocale));
   const [bookingOpen, setBookingOpen] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
+  const { busy: submitting, begin: beginBooking, reset: resetBooking } = useAsyncFormAction(identity);
   const [form] = Form.useForm<BookingFormValues>();
+  const loadSequence = useRef(0);
+  const bookingSession = useRef(0);
+  const rangeFrom = calendarValue.startOf('month').subtract(7, 'day').format('YYYY-MM-DDTHH:mm:ss');
+  const rangeTo = calendarValue.endOf('month').add(7, 'day').format('YYYY-MM-DDTHH:mm:ss');
 
   usePublishPageAgentContext({
-    from: calendarValue.startOf('month').toISOString(),
-    to: calendarValue.endOf('month').toISOString(),
+    from: calendarValue.startOf('month').format('YYYY-MM-DDTHH:mm:ss'),
+    to: calendarValue.endOf('month').format('YYYY-MM-DDTHH:mm:ss'),
     bookingStatus: 'BOOKED',
   });
 
   const load = useCallback(async () => {
+    if (activeIdentity.current !== identity) return;
+    const sequence = ++loadSequence.current;
     setLoading(true);
+    setMine([]);
+    setAdminRows([]);
     try {
-      const myResponse = await adminAssetsApi.listMyMeetingBookings({ page: 1, size: 100 });
-      setMine(myResponse.records);
-      if (canManage) {
-        const adminResponse = await adminAssetsApi.listAdminMeetingBookings({ page: 1, size: 100 });
-        setAdminRows(adminResponse.records);
-      } else {
-        setAdminRows([]);
-        setScope('mine');
-      }
+      const params = { from: rangeFrom, to: rangeTo };
+      const [myRows, allRows] = await Promise.all([
+        canReadMine ? collectPagedRecords((page, size) => adminAssetsApi.listMyMeetingBookings({ ...params, page, size })) : Promise.resolve([]),
+        canManage ? collectPagedRecords((page, size) => adminAssetsApi.listAdminMeetingBookings({ ...params, page, size })) : Promise.resolve([]),
+      ]);
+      if (sequence !== loadSequence.current || activeIdentity.current !== identity) return;
+      setDataIdentity(identity);
+      setMine(myRows);
+      setAdminRows(allRows);
+      if (!canManage) setScope('mine');
     } catch (err) {
-      message.error(formatOaApiError(err));
+      if (sequence === loadSequence.current && activeIdentity.current === identity) message.error(formatOaApiError(err));
     } finally {
-      setLoading(false);
+      if (sequence === loadSequence.current && activeIdentity.current === identity) setLoading(false);
     }
-  }, [canManage]);
+  }, [canManage, canReadMine, rangeFrom, rangeTo, identity]);
+  const latestLoad = useRef(load); latestLoad.current = load;
 
+  const invalidateLoad = useCallback(() => { loadSequence.current++; activeIdentity.current = undefined; }, []);
   useEffect(() => {
+    activeIdentity.current = identity;
     void load();
-  }, [load]);
+    return invalidateLoad;
+  }, [load, identity, invalidateLoad]);
+  useEffect(() => {
+    bookingSession.current++;
+    setBookingOpen(false); resetBooking(); form.resetFields(); setScope('mine');
+  }, [identity, form, resetBooking]);
 
-  const rows = scope === 'admin' ? adminRows : mine;
+  const visibleScope = canManage && !canReadMine ? 'admin' : scope;
+  const rows = useMemo(() => dataIdentity === identity
+    ? visibleScope === 'admin' && canManage ? adminRows : canReadMine ? mine : []
+    : [], [dataIdentity, identity, visibleScope, canManage, canReadMine, adminRows, mine]);
   const calendarRows = useMemo(() => rows.filter((row) => row.status === 'BOOKED'), [rows]);
   const bookingsByDate = useMemo(() => calendarRows.reduce<Record<string, MeetingBooking[]>>((result, row) => {
-    const dateKey = dayjs(row.startAt).format('YYYY-MM-DD');
-    (result[dateKey] ||= []).push(row);
+    const from = dayjs(rangeFrom);
+    const to = dayjs(rangeTo);
+    let date = dayjs(row.startAt).startOf('day');
+    if (date.isBefore(from)) date = from.startOf('day');
+    const end = dayjs(row.endAt);
+    while (date.isBefore(end) && !date.isAfter(to)) {
+      (result[date.format('YYYY-MM-DD')] ||= []).push(row);
+      date = date.add(1, 'day');
+    }
     return result;
-  }, {}), [calendarRows]);
+  }, {}), [calendarRows, rangeFrom, rangeTo]);
   const selectedRows = bookingsByDate[selectedDate.format('YYYY-MM-DD')] || [];
 
   useEffect(() => {
@@ -110,6 +147,9 @@ export default function MeetingBookingPanel({ rooms, canManage }: Props) {
   }, [calendarLocale]);
 
   const openBooking = (date?: Dayjs) => {
+    if (!canBook) return;
+    bookingSession.current++;
+    resetBooking();
     form.resetFields();
     const bookingDate = date?.startOf('day').isBefore(dayjs().startOf('day')) ? dayjs() : date;
     const startAt = bookingDate
@@ -123,9 +163,13 @@ export default function MeetingBookingPanel({ rooms, canManage }: Props) {
   };
 
   const submitBooking = async () => {
+    if (!canBook) return;
+    const attempt = beginBooking();
+    if (!attempt) return;
+    const session = bookingSession.current;
     try {
       const values = await form.validateFields();
-      setSubmitting(true);
+      if (!attempt.current() || activeIdentity.current !== identity || session !== bookingSession.current) return;
       const payload: MeetingBookingPayload = {
         roomId: values.roomId,
         title: values.title,
@@ -135,24 +179,30 @@ export default function MeetingBookingPanel({ rooms, canManage }: Props) {
         attendeeCount: values.attendeeCount,
       };
       await adminAssetsApi.createMeetingBooking(payload);
-      setBookingOpen(false);
-      message.success(t('adminAssets.meeting.booking.createSuccess'));
-      await load();
+      if (activeIdentity.current !== identity) return;
+      if (session === bookingSession.current) {
+        setBookingOpen(false);
+        message.success(t('adminAssets.meeting.booking.createSuccess'));
+      }
+      await latestLoad.current();
     } catch (err) {
-      if (err instanceof Error && err.name === 'ValidationError') return;
+      if (activeIdentity.current !== identity || session !== bookingSession.current) return;
+      if (isFormValidationError(err)) return;
       message.error(formatOaApiError(err));
     } finally {
-      setSubmitting(false);
+      attempt.finish();
     }
   };
 
   const cancelBooking = async (booking: MeetingBooking) => {
+    if (!(canManage || canCancelOwn) || activeIdentity.current !== identity) return;
     try {
       await adminAssetsApi.cancelMeetingBooking(booking.id, { version: booking.version });
+      if (activeIdentity.current !== identity) return;
       message.success(t('adminAssets.meeting.booking.cancelSuccess'));
-      await load();
+      await latestLoad.current();
     } catch (err) {
-      message.error(formatOaApiError(err));
+      if (activeIdentity.current === identity) message.error(formatOaApiError(err));
     }
   };
 
@@ -196,7 +246,7 @@ export default function MeetingBookingPanel({ rooms, canManage }: Props) {
     {
       title: t('adminAssets.common.action'),
       key: 'action',
-      render: (_, row) => row.canCancel ? (
+      render: (_, row) => row.canCancel && (canManage || canCancelOwn) ? (
         <Popconfirm
           title={t('adminAssets.meeting.booking.cancelConfirm')}
           onConfirm={() => void cancelBooking(row)}
@@ -211,7 +261,7 @@ export default function MeetingBookingPanel({ rooms, canManage }: Props) {
     <Card
       className="oa-admin-assets-card"
       title={t('adminAssets.meeting.booking.sectionTitle')}
-      extra={<Button type="primary" onClick={() => openBooking()}>{t('adminAssets.meeting.booking.create')}</Button>}
+      extra={canBook && <Button type="primary" onClick={() => openBooking()}>{t('adminAssets.meeting.booking.create')}</Button>}
     >
       <Space className="oa-meeting-booking-toolbar" wrap>
         <Segmented
@@ -222,9 +272,9 @@ export default function MeetingBookingPanel({ rooms, canManage }: Props) {
             { value: 'list', label: t('adminAssets.meeting.booking.listView') },
           ]}
         />
-        {canManage && (
+        {canManage && canReadMine && (
           <Segmented
-            value={scope}
+                value={visibleScope}
             onChange={(value) => setScope(value as 'mine' | 'admin')}
             options={[
               { value: 'mine', label: t('adminAssets.meeting.booking.mine') },
@@ -262,7 +312,7 @@ export default function MeetingBookingPanel({ rooms, canManage }: Props) {
                           {value.locale(calendarLocale).format(t('adminAssets.meeting.booking.monthFormat'))}
                         </Typography.Title>
                         <Typography.Text type="secondary">
-                          {t('adminAssets.meeting.booking.monthSummary', { count: calendarRows.filter((row) => dayjs(row.startAt).isSame(value, 'month')).length })}
+                          {t('adminAssets.meeting.booking.monthSummary', { count: calendarRows.filter((row) => dayjs(row.startAt).isBefore(value.add(1, 'month').startOf('month')) && dayjs(row.endAt).isAfter(value.startOf('month'))).length })}
                         </Typography.Text>
                       </div>
                       <Space wrap size={8}>
@@ -359,14 +409,14 @@ export default function MeetingBookingPanel({ rooms, canManage }: Props) {
                   </List.Item>
                 )}
               />
-              <Button
+              {canBook && <Button
                 block
                 type="primary"
                 icon={<OaIcon name="add" />}
                 onClick={() => openBooking(selectedDate)}
               >
                 {t('adminAssets.meeting.booking.bookSelectedDate')}
-              </Button>
+              </Button>}
             </aside>
           </div>
         ) : (
@@ -382,13 +432,14 @@ export default function MeetingBookingPanel({ rooms, canManage }: Props) {
 
       <Modal
         title={t('adminAssets.meeting.booking.create')}
-        open={bookingOpen}
-        onCancel={() => setBookingOpen(false)}
+        open={bookingOpen && canBook}
+        onCancel={() => { bookingSession.current++; setBookingOpen(false); resetBooking(); }}
         onOk={() => void submitBooking()}
-        confirmLoading={submitting}
+        okButtonProps={{ loading: submitting }}
+        cancelText={t(submitting ? 'common.close' : 'common.cancel')}
         destroyOnClose
       >
-        <Form form={form} layout="vertical">
+        <Form form={form} disabled={submitting} layout="vertical">
           <Form.Item
             name="roomId"
             label={t('adminAssets.meeting.booking.room')}

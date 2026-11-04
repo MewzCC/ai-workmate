@@ -64,7 +64,7 @@ public class MinioStorageService implements ObjectStorageService {
                     .build());
         } catch (Exception ex) {
             log.error("MinIO putObject failed, key={}", key, ex);
-            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "对象存储写入失败");
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "validation.runtime.storage.writeFailed");
         }
     }
 
@@ -136,7 +136,7 @@ public class MinioStorageService implements ObjectStorageService {
             bucketReady.set(true);
         } catch (Exception ex) {
             log.error("MinIO bucket ensure failed, bucket={}", properties.getBucket(), ex);
-            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "对象存储不可用");
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "validation.runtime.storage.unavailable");
         }
     }
 
@@ -166,7 +166,7 @@ public class MinioStorageService implements ObjectStorageService {
                 return response;
             } catch (Exception ex) {
                 log.error("MinIO getObject failed, key={}", key, ex);
-                throw new BusinessException(ErrorCode.SYSTEM_ERROR, "对象存储读取失败");
+                throw new BusinessException(ErrorCode.SYSTEM_ERROR, "validation.runtime.storage.readFailed");
             }
         }
 

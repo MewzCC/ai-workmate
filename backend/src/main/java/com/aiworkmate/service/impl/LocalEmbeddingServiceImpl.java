@@ -45,7 +45,7 @@ public class LocalEmbeddingServiceImpl implements EmbeddingProviderClient {
     @Override
     public EmbeddingResult embed(List<String> texts) {
         if (texts == null || texts.isEmpty() || texts.stream().anyMatch(text -> text == null || text.isBlank())) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "向量化文本不能为空");
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.runtime.embedding.textEmpty");
         }
 
         long startedAt = System.nanoTime();
@@ -67,7 +67,7 @@ public class LocalEmbeddingServiceImpl implements EmbeddingProviderClient {
             log.warn("Local embedding request failed, endpoint={}, textCount={}",
                     properties.getLocalBaseUrl(), texts.size(), ex);
             throw new BusinessException(ErrorCode.EMBEDDING_UNAVAILABLE,
-                    "无法连接本地向量模型，请确认 18080 服务已启动");
+                    "validation.runtime.embedding.localUnavailable");
         } catch (RuntimeException ex) {
             log.error("Local embedding request failed unexpectedly, textCount={}", texts.size(), ex);
             throw new BusinessException(ErrorCode.EMBEDDING_RESPONSE_INVALID);
@@ -83,19 +83,19 @@ public class LocalEmbeddingServiceImpl implements EmbeddingProviderClient {
                 || response.embeddings().size() != expectedCount
                 || response.dim() != properties.getDimension()) {
             throw new BusinessException(ErrorCode.EMBEDDING_RESPONSE_INVALID,
-                    "向量模型返回数量或维度不符合配置");
+                    "validation.runtime.embedding.localResponseInvalid");
         }
         for (List<Double> values : response.embeddings()) {
             if (values == null || values.size() != properties.getDimension()) {
                 throw new BusinessException(ErrorCode.EMBEDDING_RESPONSE_INVALID,
-                        "向量模型返回的向量维度不一致");
+                        "validation.runtime.embedding.localDimensionsInconsistent");
             }
             float[] vector = new float[values.size()];
             for (int index = 0; index < values.size(); index++) {
                 Double value = values.get(index);
                 if (value == null || !Double.isFinite(value)) {
                     throw new BusinessException(ErrorCode.EMBEDDING_RESPONSE_INVALID,
-                            "向量模型返回了非法数值");
+                            "validation.runtime.embedding.valuesInvalid");
                 }
                 vector[index] = value.floatValue();
             }
@@ -107,7 +107,7 @@ public class LocalEmbeddingServiceImpl implements EmbeddingProviderClient {
         String normalized = baseUrl == null ? "" : baseUrl.strip().replaceAll("/+$", "");
         if (normalized.isBlank()) {
             throw new BusinessException(ErrorCode.EMBEDDING_UNAVAILABLE,
-                    "EMBEDDING_LOCAL_BASE_URL 尚未配置");
+                    "validation.runtime.embedding.localEndpointMissing");
         }
         return normalized + path;
     }

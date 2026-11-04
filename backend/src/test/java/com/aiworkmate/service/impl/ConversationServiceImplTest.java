@@ -36,12 +36,15 @@ class ConversationServiceImplTest {
     @Mock
     private AttachmentService attachmentService;
 
+    @Mock
+    private com.aiworkmate.agent.task.AgentTaskMapper agentTaskMapper;
+
     @InjectMocks
     private ConversationServiceImpl conversationService;
 
     private ConversationServiceImpl serviceWithObjectMapper() {
         return new ConversationServiceImpl(conversationMapper, messageMapper, attachmentService,
-                new ObjectMapper().registerModule(new ParameterNamesModule()));
+                new ObjectMapper().registerModule(new ParameterNamesModule()), agentTaskMapper);
     }
 
     @Test

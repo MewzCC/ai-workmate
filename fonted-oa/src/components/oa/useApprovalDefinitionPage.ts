@@ -9,6 +9,9 @@ import { useRouter, useSearchParams } from '@/lib/nextCompat';
 import { formatOaApiError, type PageResponse } from '@/lib/oaApi';
 import { parseRecordId } from '@/lib/recordSelection';
 import { usePublishPageAgentContext } from './PageAgentContext';
+import { useRegisterPageUiCommands } from './PageUiCommandBridge';
+import { requireUiFieldTypes } from '@/lib/preparedPageUiCommand';
+import { requireUiPagination } from '@/hooks/usePageUiEditorCommands';
 
 interface DefinitionRecord { id: number; version: number; canEdit: boolean; canDelete: boolean }
 interface DefinitionPayload { status: ApprovalConfigStatus; version?: number }
@@ -107,8 +110,8 @@ export function useApprovalDefinitionPage<T extends DefinitionRecord, P extends 
   }, [api, canRead, keyword, status, page, scope]);
   const latestLoad = useRef(load); latestLoad.current = load;
   useEffect(() => { void load(); }, [load]);
-  const loadDetail = useCallback(async (id: number) => {
-    if (!canRead) return;
+  const loadDetail = useCallback(async (id: number, reportError = true) => {
+    if (!canRead) { if (!reportError) throw new Error('PAGE_UI_FIELD_REJECTED'); return; }
     dismissConfirmation();
     const request = ++detailRequest.current;
     selectedId.current = id; setDetail(undefined); setDetailOpen(true); setDetailLoading(true);
@@ -120,10 +123,29 @@ export function useApprovalDefinitionPage<T extends DefinitionRecord, P extends 
     } catch (error) {
       if (request === detailRequest.current && activeScope.current === scope) {
         selectedId.current = undefined; setDetail(undefined); setDetailOpen(false);
+        if (!reportError) throw error;
         message.error(formatOaApiError(error));
       }
     } finally { if (request === detailRequest.current && activeScope.current === scope) setDetailLoading(false); }
   }, [api, canRead, scope, dismissConfirmation]);
+  useRegisterPageUiCommands({
+    'ui.refreshPage': load,
+    'ui.openDetail': async ({ payload: { recordId } }) => {
+      const id = parseRecordId(String(recordId));
+      if (!id) throw new Error('PAGE_UI_FIELD_REJECTED');
+      await loadDetail(id, false);
+    },
+    'ui.applyFilter': ({ payload: { filters } }) => {
+      if (!canRead) throw new Error('PAGE_UI_FIELD_REJECTED');
+      requireUiFieldTypes(filters, { keyword: 'string', status: ['ENABLED', 'DISABLED'], page: 'number', size: 'number' });
+      requireUiPagination(filters);
+      if (filters.size !== undefined && filters.size !== 20) throw new Error('PAGE_UI_FIELD_REJECTED');
+      closeWindows();
+      if (filters.keyword !== undefined) { setKeyword(String(filters.keyword)); setSearch(String(filters.keyword)); }
+      if (filters.status !== undefined) setStatus(filters.status as ApprovalConfigStatus);
+      setPage(Number(filters.page ?? 1));
+    },
+  });
   useEffect(() => {
     closeWindows();
     const id = parseRecordId(requestedId);

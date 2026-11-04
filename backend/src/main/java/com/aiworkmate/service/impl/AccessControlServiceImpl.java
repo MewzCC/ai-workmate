@@ -75,12 +75,12 @@ public class AccessControlServiceImpl implements AccessControlService {
         assertRoleExists(normalizedRole);
         String previousRole = accessControlMapper.selectUserRole(userId);
         if (previousRole == null) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "用户不存在");
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.access.userMissing");
         }
         if (SUPER_ADMIN.equals(previousRole)
                 && !SUPER_ADMIN.equals(normalizedRole)
                 && accessControlMapper.countActiveSuperAdmins() <= 1) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "必须至少保留一名超级管理员");
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.access.superAdminRequired");
         }
         accessControlMapper.updateUserRole(userId, normalizedRole);
         accessControlMapper.insertAudit(operatorUserId, "ASSIGN_USER_ROLE", "USER",
@@ -104,21 +104,21 @@ public class AccessControlServiceImpl implements AccessControlService {
                 .map(value -> value.trim().toUpperCase())
                 .collect(java.util.stream.Collectors.toUnmodifiableSet());
         if (normalized.isEmpty()) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "用户至少需要一个角色");
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.access.roleRequired");
         }
         if (!tenantId.equals(accessControlMapper.selectUserTenantId(userId))) {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
         }
         for (String roleCode : normalized) {
             if (accessControlMapper.countRoleForTenant(tenantId, roleCode) == 0) {
-                throw new BusinessException(ErrorCode.REQUEST_INVALID, "角色不存在：" + roleCode);
+                throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.access.roleMissing");
             }
         }
         List<String> previous = accessControlMapper.selectUserRoleCodes(tenantId, userId);
         if (previous.contains(SUPER_ADMIN)
                 && !normalized.contains(SUPER_ADMIN)
                 && accessControlMapper.countActiveSuperAdminsForTenant(tenantId) <= 1) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "必须至少保留一名有效超级管理员");
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.access.activeSuperAdminRequired");
         }
         accessControlMapper.deleteUserRoles(tenantId, userId);
         accessControlMapper.insertUserRoles(tenantId, userId, normalized);
@@ -144,14 +144,14 @@ public class AccessControlServiceImpl implements AccessControlService {
         }
         if (accessControlMapper.countDepartment(tenantId, departmentId) == 0
                 || accessControlMapper.countPosition(tenantId, positionId) == 0) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "部门或岗位不存在");
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.access.organizationMissing");
         }
         if (approverUserId != null) {
             if (approverUserId.equals(userId)) {
-                throw new BusinessException(ErrorCode.REQUEST_INVALID, "审批人不能是用户本人");
+                throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.access.selfApproverForbidden");
             }
             if (accessControlMapper.countActiveUser(tenantId, approverUserId) == 0) {
-                throw new BusinessException(ErrorCode.REQUEST_INVALID, "审批人不存在或已停用");
+                throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.access.approverUnavailable");
             }
         }
         accessControlMapper.updateUserOrganization(
@@ -171,7 +171,7 @@ public class AccessControlServiceImpl implements AccessControlService {
         if (status == 0
                 && current.roles().contains(SUPER_ADMIN)
                 && accessControlMapper.countActiveSuperAdminsForTenant(tenantId) <= 1) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "最后一名有效超级管理员不能停用");
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.access.lastSuperAdminDisableForbidden");
         }
         accessControlMapper.updateUserStatus(tenantId, userId, status);
         accessControlMapper.insertAudit(operatorUserId, "UPDATE_USER_STATUS", "USER",
@@ -188,11 +188,11 @@ public class AccessControlServiceImpl implements AccessControlService {
                                              Long parentId,
                                              Long defaultApproverUserId) {
         if (parentId != null && accessControlMapper.countDepartment(tenantId, parentId) == 0) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "上级部门不存在");
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.access.parentDepartmentMissing");
         }
         if (defaultApproverUserId != null
                 && accessControlMapper.countActiveUser(tenantId, defaultApproverUserId) == 0) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "默认审批人不存在或已停用");
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.access.defaultApproverUnavailable");
         }
         String normalizedCode = code.trim().toUpperCase();
         accessControlMapper.saveDepartment(
@@ -225,21 +225,21 @@ public class AccessControlServiceImpl implements AccessControlService {
     @Transactional
     public void deleteDepartment(Long operatorUserId, Long tenantId, Long departmentId) {
         if (accessControlMapper.countDepartment(tenantId, departmentId) == 0) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "部门不存在");
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.access.departmentMissing");
         }
         if (accessControlMapper.countChildDepartments(tenantId, departmentId) > 0) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "该部门下存在子部门，请先调整子部门");
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.access.departmentHasChildren");
         }
         if (accessControlMapper.countUsersInDepartment(tenantId, departmentId) > 0) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "该部门下仍有用户，请先调整用户部门");
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.access.departmentHasUsers");
         }
         DepartmentResponse current = accessControlMapper.selectDepartments(tenantId).stream()
                 .filter(item -> item.id().equals(departmentId))
                 .findFirst()
-                .orElseThrow(() -> new BusinessException(ErrorCode.REQUEST_INVALID, "部门不存在"));
+                .orElseThrow(() -> new BusinessException(ErrorCode.REQUEST_INVALID, "validation.access.departmentMissing"));
         int affected = accessControlMapper.deleteDepartment(tenantId, departmentId);
         if (affected == 0) {
-            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "删除部门失败");
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "validation.access.departmentDeleteFailed");
         }
         accessControlMapper.insertAudit(operatorUserId, "DELETE_DEPARTMENT", "DEPARTMENT",
                 current.code(), current.name(), null);
@@ -251,18 +251,18 @@ public class AccessControlServiceImpl implements AccessControlService {
     @Transactional
     public void deletePosition(Long operatorUserId, Long tenantId, Long positionId) {
         if (accessControlMapper.countPosition(tenantId, positionId) == 0) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "岗位不存在");
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.access.positionMissing");
         }
         if (accessControlMapper.countUsersInPosition(tenantId, positionId) > 0) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "该岗位下仍有用户，请先调整用户岗位");
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.access.positionHasUsers");
         }
         PositionResponse current = accessControlMapper.selectPositions(tenantId).stream()
                 .filter(item -> item.id().equals(positionId))
                 .findFirst()
-                .orElseThrow(() -> new BusinessException(ErrorCode.REQUEST_INVALID, "岗位不存在"));
+                .orElseThrow(() -> new BusinessException(ErrorCode.REQUEST_INVALID, "validation.access.positionMissing"));
         int affected = accessControlMapper.deletePosition(tenantId, positionId);
         if (affected == 0) {
-            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "删除岗位失败");
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "validation.access.positionDeleteFailed");
         }
         accessControlMapper.insertAudit(operatorUserId, "DELETE_POSITION", "POSITION",
                 current.code(), current.name(), null);
@@ -278,16 +278,16 @@ public class AccessControlServiceImpl implements AccessControlService {
         String normalizedRole = roleCode.trim().toUpperCase();
         Long tenantId = accessControlMapper.selectUserTenantId(operatorUserId);
         if (tenantId == null || accessControlMapper.countRoleForTenant(tenantId, normalizedRole) == 0) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "角色不存在");
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.access.roleMissing");
         }
         if (SUPER_ADMIN.equals(normalizedRole)) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "超级管理员始终拥有全部权限");
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.access.superAdminPermissionsFixed");
         }
 
         Set<String> requested = new TreeSet<>(permissionCodes);
         Set<String> available = Set.copyOf(accessControlMapper.selectAllPermissionCodesForTenant(tenantId));
         if (!available.containsAll(requested)) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "包含不存在的权限编码");
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.access.unknownPermission");
         }
 
         List<String> previous = accessControlMapper.selectPermissionCodesForRoles(
@@ -338,7 +338,7 @@ public class AccessControlServiceImpl implements AccessControlService {
         for (Long userId : added) {
             if (usersById.get(userId).status() != 1) {
                 throw new BusinessException(
-                        ErrorCode.REQUEST_INVALID, "停用用户不能新增到角色");
+                        ErrorCode.REQUEST_INVALID, "validation.runtime.access.inactiveRoleUser");
             }
         }
 
@@ -351,7 +351,7 @@ public class AccessControlServiceImpl implements AccessControlService {
             }
             if (user.roles().size() <= 1) {
                 throw new BusinessException(
-                        ErrorCode.REQUEST_INVALID, "不能移除用户的唯一角色");
+                        ErrorCode.REQUEST_INVALID, "validation.runtime.access.lastRole");
             }
         }
 
@@ -362,7 +362,7 @@ public class AccessControlServiceImpl implements AccessControlService {
                     .count();
             if (remainingActiveSuperAdmins == 0) {
                 throw new BusinessException(
-                        ErrorCode.REQUEST_INVALID, "必须至少保留一名有效超级管理员");
+                        ErrorCode.REQUEST_INVALID, "validation.access.activeSuperAdminRequired");
             }
         }
 
@@ -399,7 +399,7 @@ public class AccessControlServiceImpl implements AccessControlService {
             throw new BusinessException(ErrorCode.AUTH_REQUIRED);
         }
         if (accessControlMapper.countRoleForTenant(tenantId, normalizedCode) > 0) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "角色编码已存在");
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.access.duplicateRoleCode");
         }
         accessControlMapper.insertRoleForTenant(
                 tenantId, normalizedCode, name.trim(), description.trim());
@@ -457,13 +457,13 @@ public class AccessControlServiceImpl implements AccessControlService {
     private void validateRoute(SaveRouteRequest request, String routeKey, boolean page) {
         String parentKey = normalizeNullable(request.parentKey());
         if (routeKey.equals(parentKey)) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "路由不能将自身设为父级");
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.access.selfParentRoute");
         }
         if (parentKey != null && accessControlMapper.countRoute(parentKey) == 0) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "父级路由不存在");
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.access.parentRouteMissing");
         }
         if (page && (request.path() == null || request.componentKey() == null)) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "页面路由必须配置路径和组件");
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.access.pageComponentRequired");
         }
         if (page && Boolean.TRUE.equals(request.enabled())) {
             String componentKey = request.componentKey().trim().toUpperCase();
@@ -481,10 +481,10 @@ public class AccessControlServiceImpl implements AccessControlService {
             }
         }
         if (!page && (request.path() != null || request.componentKey() != null)) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "分组和菜单不能配置页面路径或组件");
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.access.directoryComponentForbidden");
         }
         if (page && accessControlMapper.countOtherRoutePath(routeKey, request.path().trim()) > 0) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "页面路径已被其他路由使用");
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.access.duplicateRoutePath");
         }
     }
 
@@ -494,7 +494,7 @@ public class AccessControlServiceImpl implements AccessControlService {
 
     private void assertRoleExists(String roleCode) {
         if (accessControlMapper.countRole(roleCode) == 0) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "角色不存在");
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.access.roleMissing");
         }
     }
 

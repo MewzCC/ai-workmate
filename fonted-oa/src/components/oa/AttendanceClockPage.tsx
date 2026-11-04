@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, Card, Empty, Modal, Spin, Tag } from 'antd';
 import { message } from '@/lib/antdMessage';
 import { useTranslation } from 'react-i18next';
@@ -17,6 +17,10 @@ import {
 import { formatOaApiError, getServerTime } from '@/lib/oaApi';
 import AttendancePageShell from './AttendancePageShell';
 import ResponsiveTable from './ResponsiveTable';
+import { useAuth } from '@/components/auth/AuthProvider';
+import { useRegisterPageUiCommands } from './PageUiCommandBridge';
+import { usePublishPageAgentContext } from './PageAgentContext';
+import { showUiFormPreview } from './UiFormPreview';
 
 const STATUS_TAG_COLOR: Record<AttendanceStatus, string> = {
   NORMAL: 'success',
@@ -58,6 +62,10 @@ function formatTime(value?: string | null): string {
 
 export default function AttendanceClockPage() {
   const { t } = useTranslation();
+  const { user } = useAuth();
+  const scope = `${user?.tenantId}:${user?.id}:${user?.permissionVersion}`;
+  const activeScope = useRef<string | undefined>(scope); activeScope.current = scope;
+  const request = useRef(0);
   const [status, setStatus] = useState<AttendanceTodayStatus | null>(null);
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [settings, setSettings] = useState<AttendanceSettings | null>(null);
@@ -101,6 +109,7 @@ export default function AttendanceClockPage() {
   }, [serverOffsetMs]);
 
   const loadAll = useCallback(async () => {
+    const ticket = ++request.current;
     setLoading(true);
     try {
       const [today, week, cfg] = await Promise.all([
@@ -112,19 +121,34 @@ export default function AttendanceClockPage() {
         }),
         attendanceApi.getSettings(),
       ]);
+      if (ticket !== request.current || activeScope.current !== scope) return;
       setStatus(today);
       setRecords(week.records);
       setSettings(cfg);
     } catch (err) {
+      if (ticket !== request.current || activeScope.current !== scope) return;
+      setStatus(null); setRecords([]); setSettings(null);
       message.error(formatOaApiError(err));
     } finally {
-      setLoading(false);
+      if (ticket === request.current && activeScope.current === scope) setLoading(false);
     }
-  }, []);
+  }, [scope]);
 
   useEffect(() => {
+    activeScope.current = scope; setStatus(null); setRecords([]); setSettings(null);
     void loadAll();
-  }, [loadAll]);
+    return () => { activeScope.current = undefined; request.current += 1; };
+  }, [loadAll, scope]);
+  usePublishPageAgentContext({ resource: 'TODAY' });
+  useRegisterPageUiCommands({ 'ui.refreshPage': loadAll,
+    'ui.openDetail': ({ payload: { recordId } }) => {
+      const record = records.find(item => item.id === Number(recordId));
+      if (!record) throw new Error('PAGE_UI_FIELD_REJECTED');
+      showUiFormPreview({ date: record.clockDate, status: t(`attendance.status.${record.status}`),
+        clockIn: formatTime(record.clockInTime), clockOut: formatTime(record.clockOutTime) },
+      { date: t('attendance.common.date'), status: t('attendance.common.status'), clockIn: t('attendance.clock.clockInTime'), clockOut: t('attendance.clock.clockOutTime') });
+    },
+  });
 
   const askConfirm = async (content: string): Promise<boolean> =>
     new Promise<boolean>((resolve) => {
@@ -139,7 +163,7 @@ export default function AttendanceClockPage() {
     });
 
   const handleClock = async (clockType: AttendanceClockType) => {
-    if (!settings || clocking) return;
+    if (!settings || clocking || !user?.permissions.includes('attendance:clock')) return;
     const nowMin = now.hour() * 60 + now.minute();
     const startMin = toMin(settings.workStartTime);
     const endMin = toMin(settings.workEndTime);
@@ -158,19 +182,20 @@ export default function AttendanceClockPage() {
         confirmed = await askConfirm(t('attendance.clock.confirmEarlyClockOut', { time: out }));
       }
     }
-    if (!confirmed) return;
+    if (!confirmed || activeScope.current !== scope) return;
 
     setClocking(true);
     try {
       await attendanceApi.clock({ clockType });
+      if (activeScope.current !== scope) return;
       message.success(
         t(`attendance.clock.${clockType === 'CLOCK_IN' ? 'clockInSuccess' : 'clockOutSuccess'}`),
       );
       await loadAll();
     } catch (err) {
-      message.error(formatOaApiError(err));
+      if (activeScope.current === scope) message.error(formatOaApiError(err));
     } finally {
-      setClocking(false);
+      if (activeScope.current === scope) setClocking(false);
     }
   };
 
@@ -253,7 +278,7 @@ export default function AttendanceClockPage() {
                     type="primary"
                     shape="circle"
                     className="oa-clock-circle"
-                    disabled={!action}
+                    disabled={!action || !user?.permissions.includes('attendance:clock')}
                     loading={clocking}
                     onClick={() => action && void handleClock(action)}
                   >

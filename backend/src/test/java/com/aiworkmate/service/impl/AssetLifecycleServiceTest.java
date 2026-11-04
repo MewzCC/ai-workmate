@@ -92,6 +92,7 @@ class AssetLifecycleServiceTest {
         AssetLedger after = asset("IN_USE", 20L, OWNER_ID, 3);
         when(assetMapper.selectById(ASSET_ID)).thenReturn(before, after);
         when(accessControlMapper.countDepartment(TENANT_ID, 20L)).thenReturn(1);
+        when(accessControlMapper.lockActiveAssetDepartment(TENANT_ID, 20L)).thenReturn(20L);
         when(userMapper.selectById(OWNER_ID)).thenReturn(owner(20L));
         when(assetMapper.update(any(), any())).thenReturn(1);
         when(operationMapper.insert(any(AssetOperation.class))).thenAnswer(invocation -> {
@@ -122,7 +123,7 @@ class AssetLifecycleServiceTest {
         when(operationMapper.findAgentOperation(any(), any(), anyString())).thenReturn(null);
         when(assetMapper.selectById(ASSET_ID)).thenReturn(asset("IDLE", 10L, null, 2));
         when(userMapper.selectById(OWNER_ID)).thenReturn(owner(20L));
-        when(accessControlMapper.countDepartment(TENANT_ID, 20L)).thenReturn(1);
+        when(accessControlMapper.lockActiveAssetDepartment(TENANT_ID, 20L)).thenReturn(20L);
         when(assetMapper.update(any(), any())).thenReturn(1);
         when(operationMapper.insert(any(AssetOperation.class))).thenReturn(1);
 

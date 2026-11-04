@@ -60,6 +60,7 @@ class AgentReadCatalogMigrationIntegrationTest extends AbstractIsolatedAgentInte
         ((ObjectNode)oldAttendance.at("/properties/settings/properties")).remove("version");
         jdbc.update("UPDATE agent_tool SET output_schema=?::jsonb,schema_hash=? WHERE code='attendance.query'",oldAttendance.toString(),"sha256:4ff357d3836da753f0c32d3774ea04ba3cf83d1c6b8708de548e8ff711348d60");
         jdbc.update("UPDATE agent_tool SET required_permissions='[\"leave:remind\"]'::jsonb WHERE code='leave.remind'");
+        jdbc.update("UPDATE agent_tool SET schema_hash='sha256:ce17ae535efa0de9beed88a10c326cafc7831f98176523b4bf52d6a0cfd7d371' WHERE tenant_id IS NULL AND code='expense.apply'");
         var replayVersions=jdbc.queryForList("SELECT version FROM flyway_schema_history WHERE version::numeric>=202610260915 ORDER BY installed_rank",String.class);
         assertThat(replayVersions).contains("202610260915","202610260916","202610260917","202610260918","202610260919","202610260920","202610261500");
         assertThat(jdbc.update("DELETE FROM flyway_schema_history WHERE version::numeric>=202610260915")).isEqualTo(replayVersions.size());
@@ -70,6 +71,9 @@ class AgentReadCatalogMigrationIntegrationTest extends AbstractIsolatedAgentInte
         String starter = role(tenant, "START_"+suffix, "route:approval-start");
         String member = role(tenant, "MEMBER_"+suffix, null);
         long direct = user(tenant, manager), assigned = user(tenant, member), unassigned = user(tenant, starter);
+        String assetRole = role(tenant, "ASSET_" + suffix, "asset:write");
+        long assetUser = user(tenant, assetRole);
+        jdbc.update("INSERT INTO user_role(tenant_id,user_id,role_code) VALUES (?,?,?)", tenant, assetUser, assetRole);
         jdbc.update("INSERT INTO user_role(tenant_id,user_id,role_code) VALUES (?,?,?)", tenant, assigned, manager);
         long otherTenant = jdbc.queryForObject("INSERT INTO tenant(code,name) VALUES (?,'synthetic other tenant') RETURNING id", Long.class, "UPGRADE_"+suffix);
         String otherManager = role(otherTenant, "OTHER_"+suffix, "access:manage");
@@ -85,16 +89,34 @@ class AgentReadCatalogMigrationIntegrationTest extends AbstractIsolatedAgentInte
         assertThat(version(assigned)).isEqualTo(2);
         assertThat(version(unassigned)).isEqualTo(1);
         assertThat(version(otherUser)).isEqualTo(1);
+        assertThat(version(assetUser)).isEqualTo(2);
+        assertThat(jdbc.queryForList("SELECT permission_code FROM rbac_role_permission WHERE tenant_id=? AND role_code=?", String.class, tenant, assetRole))
+                .contains("agent:tool:asset.department.query", "agent:tool:asset.custodian.query");
 
         // A new Flyway instance validates checksums and executes nothing after the upgrade.
         flyway().validate();
         assertThat(flyway().migrate().migrationsExecuted).isZero();
         assertThat(flyway().info().pending()).isEmpty();
+        assertThat(version(assetUser)).isEqualTo(2);
         assertThat(version(direct)).isEqualTo(2);
         assertThat(version(assigned)).isEqualTo(2);
     }
 
     private void assertCurrentContracts() {
+        assertThat(jdbc.queryForObject("SELECT enabled FROM agent_tool WHERE tenant_id IS NULL AND code='expense.apply'", Boolean.class)).isFalse();
+        org.assertj.core.api.SoftAssertions.assertSoftly(soft -> {
+            for (var definition : catalog.all()) {
+                String code = definition.code();
+                soft.assertThat(jdbc.queryForObject("SELECT schema_hash FROM agent_tool WHERE tenant_id IS NULL AND code=?", String.class, code))
+                        .as("runtime schema hash: %s", code).isEqualTo(definition.schemaHash());
+                try {
+                    soft.assertThat(json.readTree(jdbc.queryForObject("SELECT parameters_schema::text FROM agent_tool WHERE tenant_id IS NULL AND code=?", String.class, code)))
+                            .as("runtime input schema: %s", code).isEqualTo(definition.inputSchema());
+                    soft.assertThat(json.readTree(jdbc.queryForObject("SELECT output_schema::text FROM agent_tool WHERE tenant_id IS NULL AND code=?", String.class, code)))
+                            .as("runtime output schema: %s", code).isEqualTo(definition.outputSchema());
+                } catch (Exception invalid) { throw new AssertionError("Invalid persisted schema: " + code, invalid); }
+            }
+        });
         assertThat(jdbc.queryForObject("SELECT required_permissions='[\"leave:read:self\",\"leave:remind\"]'::jsonb FROM agent_tool WHERE tenant_id IS NULL AND code='leave.remind'",Boolean.class)).isTrue();
         assertThat(jdbc.queryForObject("SELECT permission_code FROM rbac_route WHERE route_key='approval-form'", String.class)).isEqualTo("route:approval-form");
         assertThat(jdbc.queryForObject("SELECT schema_hash FROM agent_tool WHERE tenant_id IS NULL AND code='visitor.query'", String.class))

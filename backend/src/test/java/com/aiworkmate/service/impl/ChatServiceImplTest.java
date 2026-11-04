@@ -29,6 +29,7 @@ import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 @ExtendWith(MockitoExtension.class)
+@org.junit.jupiter.api.extension.ExtendWith(com.aiworkmate.common.LocalizedMessagesExtension.class)
 class ChatServiceImplTest {
 
     @Mock private ChatClient chatClient;

@@ -7,6 +7,7 @@ import java.time.LocalDateTime;
 /** Typed boundary for the expense domain and a future expense service adapter. */
 public interface ExpenseToolPort {
     ToolPage<Expense> expenses(ToolActorContext context, ExpenseQuery query);
+    ExpenseLifecycleResult applyExpense(ToolActorContext context, ExpenseDraft command, ToolOperationKey operationKey);
     ExpenseDraftResult createExpenseDraft(
             ToolActorContext context, ExpenseDraft command, ToolOperationKey operationKey);
     ToolWriteVerification<ExpenseDraftResult> findExpenseDraft(

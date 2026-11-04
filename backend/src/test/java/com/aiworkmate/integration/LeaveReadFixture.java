@@ -19,6 +19,7 @@ final class LeaveReadFixture {
                 """, Long.class, tenant, tenant, application, applicant);
         jdbc.update("INSERT INTO workflow_task(tenant_id,instance_id,business_type,business_id,assignee_user_id,status) VALUES (?,?,'LEAVE_APPLICATION',?,?,'PENDING')",
                 tenant, instance, application, approver);
+        jdbc.update("UPDATE leave_application SET workflow_instance_id=? WHERE id=?", instance, application);
         return application;
     }
 }

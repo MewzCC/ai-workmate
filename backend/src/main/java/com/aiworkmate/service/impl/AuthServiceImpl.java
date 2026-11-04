@@ -74,7 +74,7 @@ public class AuthServiceImpl implements AuthService {
         verificationCodeService.verifyEmailCode(CodeScene.REGISTER, email, request.emailCode());
         loginProtectionService.claimRegistration(request.requestId());
         if (findByEmail(email) != null) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "暂时无法创建账号，请检查信息后重试");
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.runtime.auth.createFailed");
         }
         LocalDateTime now = LocalDateTime.now();
         User user = new User();
@@ -85,7 +85,7 @@ public class AuthServiceImpl implements AuthService {
         user.setRole("EMPLOYEE");
         Long tenantId = userMapper.selectDefaultTenantId();
         if (tenantId == null) {
-            throw new BusinessException(ErrorCode.AUTH_SERVICE_UNAVAILABLE, "默认租户尚未初始化");
+            throw new BusinessException(ErrorCode.AUTH_SERVICE_UNAVAILABLE, "validation.runtime.auth.tenantMissing");
         }
         user.setTenantId(tenantId);
         user.setDepartmentId(userMapper.selectDefaultDepartmentId(tenantId));

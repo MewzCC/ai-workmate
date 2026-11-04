@@ -56,6 +56,20 @@ describe('Agent tool business navigation', () => {
   });
   const completed: AgentTaskDetailStep = { sequence: 1, toolCode: 'todo.query', status: 'SUCCEEDED', riskLevel: 'L0',
     arguments: {}, result: { items: [], total: 0 }, resultSummary: '真实空结果', errorCode: null, startedAt: null, finishedAt: null };
+  it('does not treat a prepared browser command as an already applied navigation', () => {
+    const step = { ...completed, toolCode: 'page.ui.prepare', result: { pageId: 'todo', code: 'ui.navigate', targetPageId: 'dictionary', fields: [] } };
+    expect(agentTaskNavigationTarget({ status: 'SUCCEEDED', steps: [step] })).toBeNull();
+  });
+  it('routes asset candidates to the authorized ledger without selecting a candidate as an asset', () => {
+    const menus: OaMenuItem[] = [{ id: 'asset-ledger', name: 'Assets', type: 'page', visible: true, sort: 1 }];
+    for (const toolCode of ['asset.department.query', 'asset.custodian.query']) {
+      const step = { ...completed, toolCode, result: { items: [{ id: 11, name: 'Synthetic' }], total: 1, page: 1, size: 20 } };
+      const target = agentTaskNavigationTarget({ status: 'SUCCEEDED', steps: [step] });
+      expect(target).toEqual({ pageId: 'asset-ledger', recordId: undefined });
+      expect(resolveAgentToolTargetPath(target!.pageId, target!.recordId, menus)).toBe('/oa/asset-ledger');
+      expect(resolveAgentToolTargetPath(target!.pageId, target!.recordId, [])).toBeNull();
+    }
+  });
   it('distinguishes dictionary parent and child receipts without trusting output URLs or arguments', () => {
     const menus: OaMenuItem[] = [{ id: 'dictionary', name: 'Dictionary', type: 'page', visible: true, sort: 1 }];
     for (const kind of ['type', 'item']) for (const operation of ['create', 'update', 'updateStatus']) {
@@ -171,7 +185,8 @@ describe('Agent tool business navigation', () => {
   it('assigns every registered business tool to an explicit page', () => {
     const pages = backendOaPages();
     for (const toolCode of backendToolCodes()) {
-      if (toolCode.startsWith('agentTask.')) continue;
+      // UI preparation is applied by the registered browser bridge, not a fixed business-result route.
+      if (toolCode.startsWith('agentTask.') || toolCode === 'page.ui.prepare') continue;
       const targetPage = agentToolTargetPage(toolCode);
       expect(targetPage, toolCode).not.toBe('ai-tasks');
       expect(pages.has(targetPage), `${toolCode} -> ${targetPage}`).toBe(true);

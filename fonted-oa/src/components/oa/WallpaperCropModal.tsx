@@ -57,10 +57,10 @@ export default function WallpaperCropModal({
       open={open}
       destroyOnHidden
       mask={{ closable: !confirming }}
-      closable={!confirming}
+      closable
       onCancel={onCancel}
       footer={[
-        <Button key="cancel" disabled={confirming} onClick={onCancel}>{t('common.cancel')}</Button>,
+        <Button key="cancel" onClick={onCancel}>{t(confirming ? 'common.close' : 'common.cancel')}</Button>,
         <Button
           key="confirm"
           type="primary"

@@ -1,8 +1,19 @@
 import { request, queryString, type PageResponse, type WorkflowTimelineItem } from '@/lib/oaApi';
+export type ApprovalApplicationAgentField = Awaited<ReturnType<typeof approvalEngineApi.ownApplicationFields>>['fields'][number];
 
 // ==================== 表单引擎 ====================
 
 export type ApprovalConfigStatus = 'ENABLED' | 'DISABLED';
+
+export interface ApprovalApplicationTemplate {
+  formId: number;
+  formKey: string;
+  formName: string;
+  description?: string | null;
+  version: number;
+  fields: { name: string; label: string; type: string; required: boolean; placeholder?: string | null; options: string[]; width: string; min?: number | null }[];
+  process?: { id: number; processKey: string; processName: string; version: number; nodes: { nodeName: string; approveType?: string | null }[] } | null;
+}
 
 export interface ApprovalFormPayload {
   formKey: string;
@@ -174,6 +185,14 @@ export interface ApprovalApplication {
 // ==================== API 封装 ====================
 
 export const approvalEngineApi = {
+  ownApplicationFields: (id: number, fieldPage = 1) => request<{
+    application: { applicationId: number; formName: string; formKey: string; status: ApprovalApplication['status']; version: number; submittedAt?: string | null };
+    schemaSource: string; formVersion: number | null;
+    fields: { name: string; label: string; type: string; values: string[]; redacted: boolean }[];
+    fieldsTotal: number; fieldPage: number;
+  }>(`/approval-applications/mine/${id}/fields${queryString({ fieldPage })}`),
+  listApplicationTemplates: (params: { keyword?: string; formKey?: string; page?: number; size?: number } = {}) =>
+    request<PageResponse<ApprovalApplicationTemplate>>(`/approval-config/application-templates${queryString(params)}`),
   // ---------- 表单定义 ----------
   getForm: (id: number) => request<ApprovalForm>(`/approval-config/forms/${id}`),
   listForms: (params: {

@@ -42,4 +42,13 @@ class ApprovalApplicationAgentFieldProjectionTest {
         assertThatThrownBy(() -> ApprovalApplicationAgentFieldProjection.project(mapper, schema,
                 "{\"x\":\"" + "a".repeat(501) + "\"}" )).isInstanceOf(BusinessException.class);
     }
+
+    @Test void moneyProjectionPreservesExactDecimalDigitsAndRejectsAmbiguousJson() {
+        String schema = "{\"fields\":[{\"name\":\"amount\",\"type\":\"money\"},{\"name\":\"bankAccount\",\"type\":\"money\"}]}";
+        var fields = ApprovalApplicationAgentFieldProjection.project(mapper, schema, "{\"amount\":9007199254740993.01,\"bankAccount\":1234567}");
+        assertThat(fields.get(0).values()).containsExactly("9007199254740993.01");
+        assertThat(fields.get(1).redacted()).isTrue(); assertThat(fields.get(1).values()).isEmpty();
+        for (String data : new String[]{"{\"amount\":1,\"amount\":2}", "{} {}"})
+            assertThatThrownBy(() -> ApprovalApplicationAgentFieldProjection.project(mapper,schema,data)).isInstanceOf(BusinessException.class);
+    }
 }

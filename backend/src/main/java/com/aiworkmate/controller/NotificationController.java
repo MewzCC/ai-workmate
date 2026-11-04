@@ -39,6 +39,11 @@ public class NotificationController {
         return Result.ok(new UnreadCountResponse(notificationService.unreadCount(user.userId())));
     }
 
+    @GetMapping("/{id}")
+    public Result<NotificationResponse> detail(@AuthenticationPrincipal AuthenticatedUser user, @PathVariable long id) {
+        return Result.ok(notificationService.detail(user.userId(), id));
+    }
+
     @PatchMapping("/{id}/read")
     public Result<Void> markRead(@AuthenticationPrincipal AuthenticatedUser user,
                                  @PathVariable long id) {

@@ -15,7 +15,9 @@ import com.aiworkmate.dto.ApprovalProcessResponse;
 import com.aiworkmate.agent.tool.port.ApprovalConfigurationToolPort;
 import com.aiworkmate.dto.LeaveApplicationResponse;
 import com.aiworkmate.dto.NotificationResponse;
-import com.aiworkmate.dto.TodoResponse;
+import com.aiworkmate.dto.UnifiedTodoResponse;
+import com.aiworkmate.dto.TodoQueryResult;
+import com.aiworkmate.service.TodoQueryService;
 import com.aiworkmate.dto.OrganizationOverviewResponse;
 import com.aiworkmate.dto.DepartmentResponse;
 import com.aiworkmate.dto.PositionResponse;
@@ -69,6 +71,7 @@ class AgentDomainToolAdaptersTest {
         verify(approvalEngineService).patchFormDraftFieldAgent(7L, 91L, 11L, request);
     }
     @Mock private LeaveWorkflowService leaveWorkflowService;
+    @Mock private TodoQueryService todoQueries;
     @Mock private KnowledgeService knowledgeService;
     @Mock private KnowledgeBaseService knowledgeBaseService;
     @Mock private NotificationService notificationService;
@@ -91,7 +94,7 @@ class AgentDomainToolAdaptersTest {
 
     @BeforeEach
     void setUp() {
-        todoAdapter = new TodoAgentDomainToolAdapter(leaveWorkflowService);
+        todoAdapter = new TodoAgentDomainToolAdapter(todoQueries);
         leaveAdapter = new LeaveAgentDomainToolAdapter(leaveWorkflowService);
         approvalConfigurationAdapter = new ApprovalConfigurationAgentDomainToolAdapter(approvalEngineService);
         approvalTaskAdapter = new ApprovalTaskAgentDomainToolAdapter(leaveWorkflowService);
@@ -131,11 +134,11 @@ class AgentDomainToolAdaptersTest {
     @Test
     void forwardsTrustedTodoQueryAndMapsOnlyPortFields() {
         LocalDateTime now = LocalDateTime.of(2026, 9, 12, 9, 0);
-        when(leaveWorkflowService.todos(7L, "PENDING", now, now.plusDays(1), 2, 30))
-                .thenReturn(PageResponse.of(List.of(new TodoResponse(
+        when(todoQueries.mine(7L,91L,"ALL", "PENDING", now, now.plusDays(1), 2, 30))
+                .thenReturn(new TodoQueryResult(List.of(new UnifiedTodoResponse(
                         1L, 2L, 3L, "申请人", "ANNUAL", 2, "PENDING", 4,
-                        now, now.plusDays(1), false, "internal-avatar", now, "/private/avatar")),
-                        1, 2, 30));
+                        now, now.plusDays(1), false, "internal-avatar", now, "/private/avatar","LEAVE_APPLICATION","LV-000002",null,true)),
+                        1, 2, 30,"ALL","PENDING",now,now.plusDays(1)));
 
         TodoToolPort.Page result = todoAdapter.query(context,
                 new TodoToolPort.Query("PENDING", now, now.plusDays(1), 2, 30));
@@ -146,13 +149,13 @@ class AgentDomainToolAdaptersTest {
     }
 
     @Test
-    void defaultsUnfilteredTodoQueryToPendingLikeMyTodoPage() {
-        when(leaveWorkflowService.todos(7L, "PENDING", null, null, 1, 20))
-                .thenReturn(PageResponse.of(List.of(), 0, 1, 20));
+    void delegatesDefaultTodoScopeToTheAuthorizingDomain() {
+        when(todoQueries.mine(7L,91L,"ALL", null, null, null, 1, 20))
+                .thenReturn(new TodoQueryResult(List.of(), 0, 1, 20,"ALL","PENDING",null,null));
         TodoToolPort.Page result = todoAdapter.query(context,
                 new TodoToolPort.Query(null, null, null, 1, 20));
         assertThat(result.total()).isZero();
-        verify(leaveWorkflowService).todos(7L, "PENDING", null, null, 1, 20);
+        verify(todoQueries).mine(7L,91L,"ALL", null, null, null, 1, 20);
     }
 
     @Test

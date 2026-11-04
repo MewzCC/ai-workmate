@@ -1,197 +1,31 @@
-'use client';
-
-import { useEffect, useMemo, useState } from 'react';
-import { useRouter, useSearchParams } from '@/lib/nextCompat';
-import {
-  Alert,
-  Avatar,
-  Button,
-  Card,
-  DatePicker,
-  Form,
-  Input,
-  Modal,
-  Select,
-  Space,
-  Spin,
-  Typography,
-} from 'antd';
-import { message } from '@/lib/antdMessage';
-import type { Dayjs } from 'dayjs';
-import dayjs from 'dayjs';
-import {
-  formatOaApiError,
-  leaveApi,
-  type HalfDayPeriod,
-  type ApproverCandidate,
-  type LeaveApplication,
-  type LeaveApplicationPayload,
-  type LeaveApprovalContext,
-  type LeaveType,
-} from '@/lib/oaApi';
+import { Alert, Button, Card, DatePicker, Form, Input, Select, Space, Spin, Typography } from 'antd';
+import dayjs, { type Dayjs } from 'dayjs';
+import { useTranslation } from 'react-i18next';
+import { formatOaApiError } from '@/lib/oaApi';
+import { LEAVE_TYPE_KEYS, PERIOD_KEYS, calculateHalfDays, isDateBeforeToday } from '@/lib/leaveFormValues';
+import { useLeaveApplicationForm } from '@/hooks/useLeaveApplicationForm';
 import { OaIcon } from '@/components/OaIcon';
 import LeaveWorkflowPanel from './LeaveWorkflowPanel';
-import { useTranslation } from 'react-i18next';
-import i18n from '@/i18n';
+import { BusinessUserSelect } from './BusinessUserSelect';
 
-interface FormValues {
-  leaveType: LeaveType;
-  approverUserId: number;
-  startDate: Dayjs;
-  startPeriod: HalfDayPeriod;
-  endDate: Dayjs;
-  endPeriod: HalfDayPeriod;
-  reason: string;
-}
-
-const LEAVE_TYPE_KEYS: LeaveType[] = [
-  'ANNUAL', 'PERSONAL', 'SICK', 'MARRIAGE', 'MATERNITY',
-  'PATERNITY', 'BEREAVEMENT', 'COMPENSATORY', 'OTHER',
-];
-
-const PERIOD_KEYS: HalfDayPeriod[] = ['AM', 'PM'];
+export { calculateHalfDays, isDateBeforeToday } from '@/lib/leaveFormValues';
 
 export default function LeaveFormPage() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
   const { t } = useTranslation();
-  const editingId = Number(searchParams.get('id')) || undefined;
-  const [form] = Form.useForm<FormValues>();
-  const [application, setApplication] = useState<LeaveApplication | null>(null);
-  const [context, setContext] = useState<LeaveApprovalContext | null>(null);
-  const [approvers, setApprovers] = useState<ApproverCandidate[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const values = Form.useWatch([], form);
-
-  const leaveTypeOptions = LEAVE_TYPE_KEYS.map((value) => ({
-    value,
-    label: t(`approval.leaveType.${value}`),
-  }));
-  const periodOptions = PERIOD_KEYS.map((value) => ({
-    value,
-    label: t(`approval.period.${value}`),
-  }));
-
-  useEffect(() => {
-    const today = dayjs();
-    form.setFieldsValue({
-      leaveType: 'ANNUAL',
-      startDate: today,
-      startPeriod: 'AM',
-      endDate: today,
-      endPeriod: 'PM',
-    });
-
-    const requests: Promise<unknown>[] = [
-      Promise.all([leaveApi.approvalContext(), leaveApi.approverCandidates()]).then(([nextContext, page]) => {
-        setContext(nextContext);
-        setApprovers(page.records);
-        if (!editingId && nextContext.approverUserId) {
-          form.setFieldValue('approverUserId', nextContext.approverUserId);
-        }
-      }),
-    ];
-    if (editingId) {
-      requests.push(
-        leaveApi.detail(editingId).then((item) => {
-          if (!item.canEdit) throw new Error(t('approval.form.notEditableDraft'));
-          setApplication(item);
-          form.setFieldsValue({
-            leaveType: item.leaveType,
-            approverUserId: item.approverUserId,
-            startDate: dayjs(item.startDate),
-            startPeriod: item.startPeriod,
-            endDate: dayjs(item.endDate),
-            endPeriod: item.endPeriod,
-            reason: item.reason,
-          });
-        }),
-      );
-    }
-    Promise.all(requests)
-      .catch((error) => message.error(error instanceof Error ? error.message : formatOaApiError(error)))
-      .finally(() => setLoading(false));
-  }, [editingId, form]);
-
-  const duration = useMemo(() => calculateHalfDays(values), [values]);
-  const selectedApprover = useMemo(
-    () => approvers.find((a) => a.id === values?.approverUserId) ?? null,
-    [approvers, values?.approverUserId],
-  );
-
-  const persist = async (): Promise<LeaveApplication> => {
-    const valid = await form.validateFields();
-    const payload: LeaveApplicationPayload = {
-      leaveType: valid.leaveType,
-      approverUserId: valid.approverUserId,
-      startDate: valid.startDate.format('YYYY-MM-DD'),
-      startPeriod: valid.startPeriod,
-      endDate: valid.endDate.format('YYYY-MM-DD'),
-      endPeriod: valid.endPeriod,
-      reason: valid.reason.trim(),
-      version: application?.version,
-    };
-    return application
-      ? leaveApi.update(application.id, payload)
-      : leaveApi.create(payload);
-  };
-
-  const saveDraft = async () => {
-    setSaving(true);
-    try {
-      const saved = await persist();
-      setApplication(saved);
-      message.success(t('approval.form.draftSaved'));
-      router.replace(`/oa/leave-application?id=${saved.id}`);
-    } catch (error) {
-      message.error(formatOaApiError(error));
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const submit = async () => {
-    let valid: FormValues;
-    try {
-      valid = await form.validateFields();
-    } catch {
-      return;
-    }
-    Modal.confirm({
-      title: t('approval.form.submitConfirmTitle'),
-      content: t('approval.form.submitConfirmContent', {
-        start: valid.startDate.format('YYYY-MM-DD'),
-        startPeriod: periodLabel(valid.startPeriod),
-        end: valid.endDate.format('YYYY-MM-DD'),
-        endPeriod: periodLabel(valid.endPeriod),
-        days: duration / 2,
-      }),
-      okText: t('approval.form.submitConfirmOk'),
-      cancelText: t('approval.form.submitConfirmCancel'),
-      onOk: async () => {
-        setSaving(true);
-        try {
-          const saved = await persist();
-          const submitted = await leaveApi.submit(saved.id, saved.version);
-          setApplication(submitted);
-          message.success(t('approval.form.submitSuccess'));
-          router.push('/oa/my-applications');
-        } catch (error) {
-          message.error(formatOaApiError(error));
-        } finally {
-          setSaving(false);
-        }
-      },
-    });
-  };
+  const { form, application, context, duration, selectedApprover, allowed, editable, loading, error, load, scope,
+    saving, confirming, changed, queryCandidates, activeCandidates, saveDraft, submit } = useLeaveApplicationForm();
+  const leaveTypeOptions = LEAVE_TYPE_KEYS.map(value => ({ value, label: t(`approval.leaveType.${value}`) }));
+  const periodOptions = PERIOD_KEYS.map(value => ({ value, label: t(`approval.period.${value}`) }));
+  if (!allowed) return <Alert type="warning" showIcon title={t('oa.ai.noPermission')} />;
+  if (error !== undefined) return <Card><Alert type="error" showIcon title={formatOaApiError(error)}
+    action={<Button onClick={() => void load()}>{t('common.retry')}</Button>} /></Card>;
 
   return (
     <section className="leave-workbench">
       <header className="leave-page-hero">
         <div>
           <div className="leave-page-hero__kicker">
-            <span>OA · LEAVE REQUEST</span>
+            <span>{t('approval.form.kicker')}</span>
           </div>
           <Typography.Title level={2}>
             {application ? t('approval.form.titleEdit') : t('approval.form.titleCreate')}
@@ -217,17 +51,7 @@ export default function LeaveFormPage() {
               </div>
             </div>
 
-            {!approvers.length && !loading && (
-              <Alert
-                className="leave-inline-alert"
-                showIcon
-                type="error"
-                title={t('approval.form.approvalChainMissing')}
-                description={t('approval.form.approvalChainMissingDesc')}
-              />
-            )}
-
-            <Form form={form} layout="vertical" className="leave-enterprise-form">
+            <Form form={form} layout="vertical" className="leave-enterprise-form" disabled={!editable || saving || confirming} onValuesChange={changed}>
               <Form.Item name="leaveType" label={t('approval.form.leaveTypeLabel')} rules={[{ required: true }]}>
                 <Select size="large" options={leaveTypeOptions} placeholder={t('approval.form.leaveTypePlaceholder')} />
               </Form.Item>
@@ -236,27 +60,11 @@ export default function LeaveFormPage() {
                 name="approverUserId"
                 label={t('approval.form.approverLabel')}
                 rules={[{ required: true, message: t('approval.form.approverRequired') }]}
-                extra={t('approval.form.approverExtra')}
+                extra={t('approval.form.approverPagingHint')}
               >
-                <Select
-                  size="large"
-                  showSearch
-                  optionFilterProp="label"
-                  placeholder={t('approval.form.approverSearchPlaceholder')}
-                  notFoundContent={t('approval.form.approverNotFound')}
-                  options={approvers.map((approver) => ({
-                    value: approver.id,
-                    label: `${approver.name} · ${approver.departmentName || t('approval.form.departmentUnset')} · ${approver.positionName || t('approval.form.positionUnset')}${approver.recommended ? t('approval.form.approverRecommended') : ''}`,
-                    avatarUrl: approver.avatarUrl,
-                    name: approver.name,
-                  }))}
-                  optionRender={(option) => (
-                    <Space>
-                      <Avatar size="small" src={option.data.avatarUrl || undefined}>{option.data.name.slice(0, 1).toUpperCase()}</Avatar>
-                      <span>{option.data.label}</span>
-                    </Space>
-                  )}
-                />
+                <BusinessUserSelect active={activeCandidates} scopeKey={scope} query={queryCandidates}
+                  selectedOption={selectedApprover ? { id: selectedApprover.id, name: selectedApprover.name } : undefined}
+                  placeholder={t('approval.form.approverSearchPlaceholder')} />
               </Form.Item>
 
               <div className="leave-time-range">
@@ -265,8 +73,11 @@ export default function LeaveFormPage() {
                   <Typography.Text strong>{t('approval.form.startTime')}</Typography.Text>
                 </div>
                 <div className="leave-time-range__fields">
-                  <Form.Item name="startDate" rules={[{ required: true, message: t('approval.form.startDateRequired') }]}>
+                  <Form.Item name="startDate" rules={[{ required: true, message: t('approval.form.startDateRequired') },
+                    { validator: (_, value: Dayjs | undefined) => !value || value.isValid() && !isDateBeforeToday(value)
+                      ? Promise.resolve() : Promise.reject(new Error(t('approval.form.startInPast'))) } ]}>
                     <DatePicker
+                      aria-label={t('approval.form.startTime')}
                       size="large"
                       className="leave-control-full"
                       format={t('common.dateFormat')}
@@ -280,7 +91,7 @@ export default function LeaveFormPage() {
                     />
                   </Form.Item>
                   <Form.Item name="startPeriod" rules={[{ required: true }]}>
-                    <Select size="large" options={periodOptions} />
+                    <Select aria-label={t('approval.form.startPeriodLabel')} size="large" options={periodOptions} />
                   </Form.Item>
                 </div>
                 <div className="leave-time-range__line" />
@@ -289,8 +100,10 @@ export default function LeaveFormPage() {
                   <Typography.Text strong>{t('approval.form.endTime')}</Typography.Text>
                 </div>
                 <div className="leave-time-range__fields">
-                  <Form.Item name="endDate" rules={[{ required: true, message: t('approval.form.endDateRequired') }]}>
+                  <Form.Item name="endDate" dependencies={['startDate', 'startPeriod', 'endPeriod']} rules={[{ required: true, message: t('approval.form.endDateRequired') },
+                    { validator: () => calculateHalfDays(form.getFieldsValue()) > 0 ? Promise.resolve() : Promise.reject(new Error(t('approval.form.durationInvalid'))) } ]}>
                     <DatePicker
+                      aria-label={t('approval.form.endTime')}
                       size="large"
                       className="leave-control-full"
                       format={t('common.dateFormat')}
@@ -302,7 +115,7 @@ export default function LeaveFormPage() {
                     />
                   </Form.Item>
                   <Form.Item name="endPeriod" rules={[{ required: true }]}>
-                    <Select size="large" options={periodOptions} />
+                    <Select aria-label={t('approval.form.endPeriodLabel')} size="large" options={periodOptions} />
                   </Form.Item>
                 </div>
               </div>
@@ -341,6 +154,7 @@ export default function LeaveFormPage() {
                     size="large"
                     icon={<OaIcon name="save" />}
                     loading={saving}
+                    disabled={!editable || saving || confirming}
                     onClick={() => void saveDraft()}
                   >
                     {t('approval.form.saveDraft')}
@@ -350,7 +164,7 @@ export default function LeaveFormPage() {
                     type="primary"
                     icon={<OaIcon name="send" />}
                     loading={saving}
-                    disabled={duration <= 0 || !approvers.length}
+                    disabled={!editable || saving || confirming || duration <= 0 || !selectedApprover}
                     onClick={() => void submit()}
                   >
                     {t('approval.form.submit')}
@@ -361,8 +175,8 @@ export default function LeaveFormPage() {
           </Card>
 
           <LeaveWorkflowPanel
-            application={application}
-            context={context}
+            application={application ? { ...application, approverName: selectedApprover?.name, approverAvatarUrl: selectedApprover?.avatarUrl } : null}
+            context={context ? { ...context, approverName: selectedApprover?.name, approverUserId: selectedApprover?.id } : null}
             durationDays={duration > 0 ? duration / 2 : 0}
             selectedApprover={selectedApprover}
           />
@@ -370,20 +184,4 @@ export default function LeaveFormPage() {
       </Spin>
     </section>
   );
-}
-
-export function calculateHalfDays(values?: Partial<FormValues>): number {
-  if (!values?.startDate || !values.endDate || !values.startPeriod || !values.endPeriod) return 0;
-  const days = values.endDate.startOf('day').diff(values.startDate.startOf('day'), 'day');
-  const startSlot = values.startPeriod === 'PM' ? 1 : 0;
-  const endSlot = values.endPeriod === 'PM' ? 1 : 0;
-  return days * 2 + endSlot - startSlot + 1;
-}
-
-export function isDateBeforeToday(date: Dayjs, today: Dayjs = dayjs()): boolean {
-  return date.startOf('day').isBefore(today.startOf('day'));
-}
-
-function periodLabel(period: HalfDayPeriod) {
-  return i18n.t('approval.period.' + period);
 }

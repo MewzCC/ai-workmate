@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Card, DatePicker, Empty, Spin, Statistic, } from 'antd';
 import { message } from '@/lib/antdMessage';
 import { useTranslation } from 'react-i18next';
@@ -16,34 +16,58 @@ import { formatOaApiError } from '@/lib/oaApi';
 import { useAuth } from '@/components/auth/AuthProvider';
 import AttendancePageShell from './AttendancePageShell';
 import ResponsiveTable from './ResponsiveTable';
+import { useRegisterPageUiCommands } from './PageUiCommandBridge';
+import { usePublishPageAgentContext } from './PageAgentContext';
+import { requireUiFieldTypes } from '@/lib/preparedPageUiCommand';
 
 export default function AttendanceStatisticsPage() {
   const { t } = useTranslation();
   const { user } = useAuth();
   const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'SYSTEM_ADMIN';
-  const [stats, setStats] = useState<AttendanceStatistics | null>(null);
+  const [storedStats, setStats] = useState<AttendanceStatistics | null>(null);
   const [loading, setLoading] = useState(true);
   const [month, setMonth] = useState<Dayjs>(dayjs());
+  const scope = `${user?.tenantId}:${user?.id}:${user?.permissionVersion}`;
+  const activeScope = useRef<string | undefined>(scope); activeScope.current = scope;
+  const request = useRef(0);
+  const [dataScope, setDataScope] = useState(scope);
+  const stats = dataScope === scope ? storedStats : null;
 
   const load = async (m = month) => {
+    const ticket = ++request.current;
     setLoading(true);
     try {
       const res = await attendanceApi.getStatistics({
         year: m.year(),
         month: m.month() + 1,
       });
-      setStats(res);
+      if (ticket !== request.current || activeScope.current !== scope) return;
+      setStats(res); setDataScope(scope);
     } catch (err) {
+      if (ticket !== request.current || activeScope.current !== scope) return;
+      setStats(null);
       message.error(formatOaApiError(err));
     } finally {
-      setLoading(false);
+      if (ticket === request.current && activeScope.current === scope) setLoading(false);
     }
   };
 
+  const initialLoad = useRef(load); initialLoad.current = load;
   useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    activeScope.current = scope; setStats(null); void initialLoad.current();
+    return () => { request.current += 1; activeScope.current = undefined; };
+  }, [scope]);
+  usePublishPageAgentContext({ resource: 'STATISTICS', year: month.year(), month: month.month() + 1 });
+  useRegisterPageUiCommands({ 'ui.refreshPage': () => load(),
+    'ui.applyFilter': async ({ payload: { filters } }) => {
+      requireUiFieldTypes(filters, { resource: ['STATISTICS'], year: 'number', month: 'number' });
+      const year = Number(filters.year ?? month.year()), selectedMonth = Number(filters.month ?? month.month() + 1);
+      if (!Number.isInteger(year) || year < 2000 || year > 2100 || !Number.isInteger(selectedMonth) || selectedMonth < 1 || selectedMonth > 12)
+        throw new Error('PAGE_UI_FIELD_REJECTED');
+      const next = dayjs(`${year}-${String(selectedMonth).padStart(2, '0')}-01`);
+      setMonth(next); await load(next);
+    },
+  });
 
   const teamColumns: ColumnsType<AttendanceTeamMemberStats> = [
     {

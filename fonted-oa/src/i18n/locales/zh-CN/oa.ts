@@ -220,6 +220,15 @@ export default {
   },
 
   ai: {
+    uiApplied: '已应用界面操作。本指令只改变界面状态，不执行业务提交。',
+    uiNotApplied: '界面操作未应用：页面已切换、权限已变化或该控件尚未注册。',
+    uiBusy: '另一个界面操作正在应用，请稍后重试。',
+    uiSessionLimit: '本次登录已达到界面操作记录上限。请刷新页面后重新发起，历史指令不会自动重放。',
+    uiApply: '应用界面操作',
+    uiPreviewTitle: '未提交表单预览',
+    uiStaleForm: '表单已关闭、已修改或已切换记录，旧界面指令未应用。请基于当前表单重新发起。',
+    uiStaleView: '当前页面的业务视图已变化，旧界面指令未应用。请在需要操作的视图重新发起。',
+    uiFormInvalid: '表单校验未通过，请查看表单中的提示；没有提交业务。',
     openPanel: '打开 AI 操作面板',
     panelTitle: 'AI 操作面板',
     placeholder: '例如：查询我的待办，并按截止时间排序',
@@ -289,7 +298,7 @@ export default {
     executionCompletedMessage: '任务执行完成',
     status: {
       RECEIVED: '已接收', PLANNING: '规划中', PLAN_READY: '计划就绪', WAITING_CONFIRMATION: '等待确认',
-      QUEUED: '已入队', RUNNING: '执行中', SUCCEEDED: '已成功', PARTIALLY_SUCCEEDED: '部分成功',
+      QUEUED: '已入队', RUNNING: '执行中', SUCCEEDED: '已成功', PARTIALLY_SUCCEEDED: '结果待核对',
       FAILED: '失败', TIMED_OUT: '已超时', REJECTED: '已拒绝', EXPIRED: '已过期', CANCELLED: '已取消',
     },
     events: {

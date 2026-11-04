@@ -50,7 +50,7 @@ describe('AI Workspace governed OA operations', () => {
 
     await useAiChatStore.getState().send('查询本周会议室');
 
-    expect(api.planAiTask).toHaveBeenCalledWith({ input: '查询本周会议室', pageId: 'ai-workspace' });
+    expect(api.planAiTask).toHaveBeenCalledWith({ input: '查询本周会议室', pageId: 'ai-workspace', conversationId: 3 });
     expect(api.classifyAiIntent).not.toHaveBeenCalled();
     expect(api.executeAiTask).toHaveBeenCalledWith('task-1', { planVersion: 1, planHash: 'hash' });
     expect(api.appendAgentResult).toHaveBeenCalledWith(3, 'task-1');
@@ -100,7 +100,7 @@ describe('AI Workspace governed OA operations', () => {
     ]);
     await useAiChatStore.getState().send(input);
     expect(api.classifyAiIntent).toHaveBeenCalledWith(input, expect.any(AbortSignal));
-    expect(api.planAiTask).toHaveBeenCalledWith({ input, pageId: 'ai-workspace' });
+    expect(api.planAiTask).toHaveBeenCalledWith({ input, pageId: 'ai-workspace', conversationId: 3 });
     expect(api.appendAgentResult).toHaveBeenCalledWith(3, 'task-1');
     expect(useAiChatStore.getState().messagesByConversation[3][1].content).toBe('真实业务结果');
     expect(api.sendChat).not.toHaveBeenCalled();

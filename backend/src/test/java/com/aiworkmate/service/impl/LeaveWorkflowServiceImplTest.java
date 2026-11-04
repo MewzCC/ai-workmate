@@ -174,7 +174,7 @@ class LeaveWorkflowServiceImplTest {
         when(userAccessService.resolveActiveUser(APPLICANT_ID)).thenReturn(applicantAccess());
         WorkflowTask task = pendingTask();
         task.setAssigneeUserId(APPROVER_ID);
-        when(taskMapper.selectById(30L)).thenReturn(task);
+        stubReadTask(task);
         when(leaveMapper.selectView(TENANT_ID, 10L))
                 .thenReturn(view("PENDING", APPROVER_ID, 30L, 0, "PENDING", 1));
 
@@ -189,7 +189,7 @@ class LeaveWorkflowServiceImplTest {
         when(userAccessService.resolveActiveUser(9999L)).thenReturn(unrelatedAccess());
         WorkflowTask task = pendingTask();
         task.setAssigneeUserId(APPROVER_ID);
-        when(taskMapper.selectById(30L)).thenReturn(task);
+        stubReadTask(task);
         when(leaveMapper.selectView(TENANT_ID, 10L))
                 .thenReturn(view("PENDING", APPROVER_ID, 30L, 0, "PENDING", 1));
 
@@ -204,7 +204,7 @@ class LeaveWorkflowServiceImplTest {
         when(userAccessService.resolveActiveUser(copiedUserId))
                 .thenReturn(unrelatedTargetAccess(copiedUserId));
         WorkflowTask task = pendingTask();
-        when(taskMapper.selectById(30L)).thenReturn(task);
+        stubReadTask(task);
         when(leaveMapper.selectView(TENANT_ID, 10L))
                 .thenReturn(view("PENDING", APPROVER_ID, 30L, 0, "PENDING", 1));
         when(actionLogMapper.countTargetAction(TENANT_ID, 20L, copiedUserId, "CC"))
@@ -909,6 +909,13 @@ class LeaveWorkflowServiceImplTest {
         leave.setDurationHalfDays(2);
         leave.setReason("家庭事务");
         return leave;
+    }
+
+    private void stubReadTask(WorkflowTask task) {
+        when(taskMapper.selectLeaveTaskForRead(TENANT_ID, task.getId())).thenReturn(task);
+        User assignee = new User(); assignee.setId(APPROVER_ID); assignee.setTenantId(TENANT_ID);
+        assignee.setUsername("Synthetic reviewer");
+        when(userMapper.selectOne(any())).thenReturn(assignee);
     }
 
     private WorkflowTask pendingTask() {

@@ -1,7 +1,7 @@
 import type { ChatAttachment, ChatConversation, ChatMessage, ChatStreamEvent } from '@/types/chat';
 import { buildApiHeaders } from '@/lib/apiHeaders';
 import i18n from '@/i18n';
-import { notifyAuthResponseStatus } from '@/lib/authEvents';
+import { AuthResponseScopeError, authenticatedFetch as fetch, assertAuthResponseCurrent, captureAuthDataScope, captureAuthResponseScope, notifyAuthResponseStatus, readAuthenticatedJson, readAuthenticatedBlob, readAuthenticatedText, readAuthenticatedChunk } from '@/lib/authEvents';
 
 const BASE = '/api';
 
@@ -25,9 +25,9 @@ function headers(json = true): HeadersInit {
 }
 
 async function parse<T>(response: Response): Promise<T> {
-  const body = await response.json().catch(() => null) as ApiResult<T> | null;
+  const body = await readAuthenticatedJson(response) as ApiResult<T> | null;
   if (!response.ok || !body || body.code !== 200) {
-    notifyAuthResponseStatus(response.status);
+    notifyAuthResponseStatus(response.status, response);
     throw new ChatApiError(body?.message || i18n.t('errors.requestFailed'), response.status, body?.errorCode, body?.traceId);
   }
   return body.data as T;
@@ -64,6 +64,10 @@ export async function appendAgentResult(conversationId: number, taskId: string):
   }));
 }
 
+export async function latestConversationAgentTask(conversationId: number): Promise<import('@/types/oa').AgentTaskDetail | null> {
+  return parse(await fetch(`${BASE}/conversations/${conversationId}/agent-task`, { headers: headers(false), cache: 'no-store' }));
+}
+
 export async function uploadAttachment(
   conversationId: number,
   file: File,
@@ -75,6 +79,8 @@ export async function uploadAttachment(
   return new Promise<ChatAttachment>((resolve, reject) => {
     // fetch 不暴露上传进度，改用 XHR 上报 onprogress
     const xhr = new XMLHttpRequest();
+    const responseScope = captureAuthResponseScope();
+    const dataCurrent = captureAuthDataScope();
     xhr.open('POST', `${BASE}/attachments`);
     xhr.withCredentials = true;
     const requestHeaders = buildApiHeaders(false);
@@ -82,18 +88,20 @@ export async function uploadAttachment(
       xhr.setRequestHeader(name, value);
     }
     xhr.upload.onprogress = (event) => {
-      if (event.lengthComputable && onProgress) {
+      if (dataCurrent() && event.lengthComputable && onProgress) {
         onProgress(Math.min(99, Math.round((event.loaded / event.total) * 100)));
       }
     };
     xhr.onload = () => {
+      const wasCurrent = dataCurrent();
+      notifyAuthResponseStatus(xhr.status, responseScope);
+      if (!wasCurrent) { reject(new AuthResponseScopeError()); return; }
       let body: ApiResult<ChatAttachment> | null = null;
       try {
         body = JSON.parse(xhr.responseText) as ApiResult<ChatAttachment>;
       } catch {
         body = null;
       }
-      notifyAuthResponseStatus(xhr.status);
       if (xhr.status >= 200 && xhr.status < 300 && body && body.code === 200) {
         resolve(body.data as ChatAttachment);
       } else {
@@ -108,16 +116,16 @@ export async function uploadAttachment(
 
 export async function loadAttachmentContent(id: number, signal?: AbortSignal): Promise<string> {
   const response = await fetch(`${BASE}/attachments/${id}/content`, { headers: headers(false), signal });
-  notifyAuthResponseStatus(response.status);
+  notifyAuthResponseStatus(response.status, response);
   if (!response.ok) throw new ChatApiError(i18n.t('errors.chat.attachmentLoadFailed'), response.status);
-  return URL.createObjectURL(await response.blob());
+  return URL.createObjectURL(await readAuthenticatedBlob(response));
 }
 
 export async function loadAttachmentText(id: number, signal?: AbortSignal): Promise<string> {
   const response = await fetch(`${BASE}/attachments/${id}/content`, { headers: headers(false), signal });
-  notifyAuthResponseStatus(response.status);
+  notifyAuthResponseStatus(response.status, response);
   if (!response.ok) throw new ChatApiError(i18n.t('errors.chat.markdownLoadFailed'), response.status);
-  return response.text();
+  return readAuthenticatedText(response);
 }
 
 export async function updateMessageFeedback(messageId: number, feedback: 'like' | 'dislike' | 'none'): Promise<void> {
@@ -149,15 +157,21 @@ export async function streamChat(
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true }).replaceAll('\r\n', '\n');
-    const events = buffer.split('\n\n');
-    buffer = events.pop() || '';
-    events.forEach((event) => parseSseEvent(event, onEvent));
-  }
-  if (buffer.trim()) parseSseEvent(buffer, onEvent);
+  try {
+    for (;;) {
+      if (signal.aborted) throw new DOMException('', 'AbortError');
+      const { done, value } = await readAuthenticatedChunk(response, reader);
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true }).replaceAll('\r\n', '\n');
+      const events = buffer.split('\n\n');
+      buffer = events.pop() || '';
+      events.forEach((event) => {
+        if (signal.aborted) throw new DOMException('', 'AbortError');
+        assertAuthResponseCurrent(response); parseSseEvent(event, onEvent);
+      });
+    }
+    if (buffer.trim()) { assertAuthResponseCurrent(response); parseSseEvent(buffer, onEvent); }
+  } finally { void reader.cancel().catch(() => undefined); }
 }
 
 export async function sendChat(request: ChatRequestPayload, signal?: AbortSignal): Promise<string> {

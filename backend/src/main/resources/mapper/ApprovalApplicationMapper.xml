@@ -3,6 +3,29 @@
         PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.aiworkmate.mapper.ApprovalApplicationMapper">
+    <insert id="insertExecution">
+        INSERT INTO approval_execution(instance_id,tenant_id,application_id,applicant_user_id,form_key,form_name,title,
+            data_json,form_schema,form_version,process_nodes,process_version,rules,plan_json,current_node_index,version,submitted_at)
+        VALUES(#{snapshot.instanceId},#{snapshot.tenantId},#{snapshot.applicationId},#{snapshot.applicantUserId},#{snapshot.formKey},#{snapshot.formName},#{snapshot.title},
+            #{snapshot.dataJson},#{snapshot.formSchema},#{snapshot.formVersion},#{snapshot.processNodes},#{snapshot.processVersion},#{snapshot.rules},#{snapshot.planJson},#{snapshot.currentNodeIndex},#{snapshot.version},#{snapshot.submittedAt})
+    </insert>
+    <select id="selectExecution" resultType="com.aiworkmate.dto.ApprovalExecutionSnapshot">
+        SELECT e.instance_id,e.tenant_id,e.application_id,e.applicant_user_id,e.form_key,e.form_name,e.title,e.data_json,
+            e.form_schema,e.form_version,e.process_nodes,e.process_version,e.rules,e.plan_json,e.current_node_index,e.version,e.submitted_at
+        FROM approval_execution e
+        JOIN workflow_instance wi ON wi.id=e.instance_id AND wi.tenant_id=e.tenant_id AND wi.business_type='GENERIC_APPROVAL'
+            AND wi.business_id=e.application_id AND wi.applicant_id=e.applicant_user_id
+        JOIN approval_application a ON a.id=e.application_id AND a.tenant_id=e.tenant_id AND a.applicant_user_id=e.applicant_user_id
+        WHERE e.tenant_id=#{tenantId} AND e.instance_id=#{instanceId}
+    </select>
+    <!-- A writer may commit while this lock waits; discard earlier session reads before rechecking state. -->
+    <select id="lockApplication" resultType="com.aiworkmate.entity.ApprovalApplication" flushCache="true" useCache="false">
+        SELECT * FROM approval_application WHERE tenant_id=#{tenantId} AND id=#{id} FOR UPDATE
+    </select>
+    <update id="advanceExecution">
+        UPDATE approval_execution SET current_node_index=#{next},version=version+1
+        WHERE tenant_id=#{tenantId} AND instance_id=#{instanceId} AND version=#{version}
+    </update>
 
     <select id="findAgentOperation" resultType="com.aiworkmate.entity.ApprovalApplication">
         SELECT *
@@ -88,6 +111,18 @@
     </select>
 
     <!-- 我的通用申请：按创建时间倒序 -->
+    <select id="selectOwnedView" resultType="com.aiworkmate.dto.ApprovalApplicationView">
+        SELECT <include refid="approvalApplicationIdentityColumns"/>,
+               <include refid="approvalApplicationSnapshotColumns"/>,
+               <include refid="approvalApplicationStateColumns"/>
+        FROM approval_application a
+        <include refid="approvalApplicationViewJoins"/>
+        WHERE a.tenant_id = #{tenantId}
+          AND a.applicant_user_id = #{applicantUserId}
+          AND a.id = #{id}
+    </select>
+
+    <!-- My applications retain the same bounded list projection. -->
     <select id="selectMine"
             resultType="com.aiworkmate.dto.ApprovalApplicationView">
         SELECT <include refid="approvalApplicationIdentityColumns"/>,

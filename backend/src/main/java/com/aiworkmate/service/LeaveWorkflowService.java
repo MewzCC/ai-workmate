@@ -65,6 +65,9 @@ public interface LeaveWorkflowService {
 
     List<ApprovalParticipantResponse> participantCandidates(Long userId, Long taskId, String keyword);
 
+    PageResponse<ApprovalParticipantResponse> participantCandidates(Long userId, Long expectedTenantId,
+            Long taskId, com.aiworkmate.service.model.BusinessCandidateQuery query, boolean approversOnly);
+
     LeaveApplicationResponse transfer(Long userId, Long taskId, ApprovalParticipantRequest request);
 
     LeaveApplicationResponse copyTo(Long userId, Long taskId, ApprovalParticipantRequest request);

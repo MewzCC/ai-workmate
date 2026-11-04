@@ -95,6 +95,87 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class AdminAssetsServiceImpl implements AdminAssetsService {
 
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<com.aiworkmate.dto.BusinessUserOption> visitorHostOptions(Long userId, String keyword, int page, int size) {
+        return visitorHostOptions(userId, null, keyword, page, size);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<com.aiworkmate.dto.BusinessUserOption> visitorHostOptions(Long userId, Long expectedTenantId, String keyword, int page, int size) {
+        ResolvedUserAccess actor = requirePermission(userId, "visitor:create");
+        if (expectedTenantId != null && !expectedTenantId.equals(actor.tenantId()))
+            throw new BusinessException(ErrorCode.RESOURCE_FORBIDDEN);
+        var query = new com.aiworkmate.service.model.BusinessCandidateQuery(keyword, page, size);
+        return PageResponse.of(userMapper.selectBusinessUserOptions(actor.tenantId(), null, null, query.keyword(), query.size(), query.offset()),
+                userMapper.countBusinessUserOptions(actor.tenantId(), null, null, query.keyword()), query.page(), query.size());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<com.aiworkmate.dto.AssetAssignmentOption> assetDepartments(Long userId) {
+        ResolvedUserAccess actor = requirePermission(userId, "asset:write");
+        return accessControlMapper.selectDepartments(actor.tenantId()).stream()
+                .filter(department -> Integer.valueOf(1).equals(department.status()))
+                .map(department -> new com.aiworkmate.dto.AssetAssignmentOption(department.id(), department.name(), null)).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<com.aiworkmate.dto.AssetAssignmentOption> assetDepartmentOptions(Long userId, String keyword, int page, int size) {
+        return assetDepartmentOptions(userId, null, keyword, page, size);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<com.aiworkmate.dto.AssetAssignmentOption> assetDepartmentOptions(Long userId, Long expectedTenantId, String keyword, int page, int size) {
+        ResolvedUserAccess actor = requirePermission(userId, "asset:write");
+        if (expectedTenantId != null && !expectedTenantId.equals(actor.tenantId()))
+            throw new BusinessException(ErrorCode.RESOURCE_FORBIDDEN);
+        String search = assetCandidateKeyword(keyword, page, size);
+        return PageResponse.of(accessControlMapper.selectAssetDepartmentOptions(actor.tenantId(), search, size, (page - 1L) * size),
+                accessControlMapper.countAssetDepartmentOptions(actor.tenantId(), search), page, size);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<com.aiworkmate.dto.AssetAssignmentOption> assetCustodians(Long userId, Long departmentId, int page, int size) {
+        return assetCustodianOptions(userId, departmentId, null, page, size);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<com.aiworkmate.dto.AssetAssignmentOption> assetCustodianOptions(Long userId, Long departmentId, String keyword, int page, int size) {
+        return assetCustodianOptions(userId, null, departmentId, keyword, page, size);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<com.aiworkmate.dto.AssetAssignmentOption> assetCustodianOptions(Long userId, Long expectedTenantId, Long departmentId, String keyword, int page, int size) {
+        ResolvedUserAccess actor = requirePermission(userId, "asset:write");
+        if (expectedTenantId != null && !expectedTenantId.equals(actor.tenantId()))
+            throw new BusinessException(ErrorCode.RESOURCE_FORBIDDEN);
+        String search = assetCandidateKeyword(keyword, page, size);
+        if (departmentId == null || departmentId < 1)
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        if (accessControlMapper.countActiveAssetDepartment(actor.tenantId(), departmentId) != 1)
+            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        var query = new LambdaQueryWrapper<User>().eq(User::getTenantId, actor.tenantId())
+                .eq(User::getDepartmentId, departmentId).eq(User::getStatus, 1);
+        if (search != null) query.and(name -> name.like(User::getDisplayName, search).or().like(User::getUsername, search));
+        long total = userMapper.selectCount(query);
+        var rows = userMapper.selectList(query.select(User::getId, User::getDisplayName, User::getUsername, User::getDepartmentId)
+                .orderByAsc(User::getId).last("LIMIT " + size + " OFFSET " + ((page - 1L) * size)));
+        return PageResponse.of(rows.stream().map(user -> new com.aiworkmate.dto.AssetAssignmentOption(user.getId(),
+                user.getDisplayName() == null || user.getDisplayName().isBlank() ? user.getUsername() : user.getDisplayName(),
+                user.getDepartmentId())).toList(), total, page, size);
+    }
+
+    private String assetCandidateKeyword(String keyword, int page, int size) {
+        return new com.aiworkmate.service.model.BusinessCandidateQuery(keyword, page, size).keyword();
+    }
+
     private static final String BUSINESS_VISITOR = "VISITOR_BOOKING";
     private static final String BUSINESS_SEAL = "SEAL_USAGE";
 
@@ -191,7 +272,7 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
 
     private AssetLedger createAssetRecord(ResolvedUserAccess actor, AssetLedgerRequest request) {
         validateAssetMetadataFields(assetFields(request), true);
-        if (request.departmentId() != null) requireDepartment(actor.tenantId(), request.departmentId());
+        if (request.departmentId() != null) requireAssignmentDepartment(actor.tenantId(), request.departmentId());
         if (assetMapper.exists(new LambdaQueryWrapper<AssetLedger>()
                 .eq(AssetLedger::getTenantId, actor.tenantId())
                 .eq(AssetLedger::getAssetCode, request.assetCode().trim())
@@ -369,6 +450,7 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
                 || request.targetDepartmentId() == null) {
             throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID, "oa.asset.claim.invalid");
         }
+        requireAssignmentDepartment(actor.tenantId(), request.targetDepartmentId());
         requireOwnerInDepartment(actor.tenantId(), request.targetOwnerUserId(), request.targetDepartmentId());
         applyAssetOperation(actor, asset, request.version(), request.reason(), "CLAIM", "IN_USE",
                 request.targetDepartmentId(), request.targetOwnerUserId());
@@ -495,7 +577,7 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
                 || request.targetDepartmentId().equals(asset.getDepartmentId())) {
             throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID, "oa.asset.transfer.invalid");
         }
-        requireDepartment(actor.tenantId(), request.targetDepartmentId());
+        requireAssignmentDepartment(actor.tenantId(), request.targetDepartmentId());
         Long targetOwner = request.targetOwnerUserId();
         if ("IN_USE".equals(asset.getStatus())) {
             if (targetOwner == null) {
@@ -1921,6 +2003,12 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
         return a;
     }
 
+    private void requireAssignmentDepartment(Long tenantId, Long departmentId) {
+        if (accessControlMapper.lockActiveAssetDepartment(tenantId, departmentId) == null) {
+            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        }
+    }
+
     private void requireDepartment(Long tenantId, Long departmentId) {
         if (accessControlMapper.countDepartment(tenantId, departmentId) != 1) {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
@@ -1943,7 +2031,7 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
                 || !Integer.valueOf(1).equals(owner.getStatus()) || owner.getDepartmentId() == null) {
             throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID, "oa.asset.owner.invalid");
         }
-        requireDepartment(tenantId, owner.getDepartmentId());
+        requireAssignmentDepartment(tenantId, owner.getDepartmentId());
         return owner;
     }
 

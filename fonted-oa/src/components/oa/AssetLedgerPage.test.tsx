@@ -1,140 +1,143 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { App } from 'antd';
-import { MemoryRouter } from 'react-router-dom';
+import { App, ConfigProvider } from 'antd';
+import zhCN from 'antd/locale/zh_CN';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { AuthProvider, useAuth } from '@/components/auth/AuthProvider';
 import type { AssetLedger } from '@/lib/adminAssetsApi';
-
-const api = vi.hoisted(() => ({ listAssets: vi.fn(), getAsset: vi.fn(), returnAsset: vi.fn(), updateAsset: vi.fn(), createAsset: vi.fn() }));
-const auth = vi.hoisted(() => ({ me: vi.fn() }));
-vi.mock('@/lib/authApi', async (load) => {
-  const original = await load<typeof import('@/lib/authApi')>();
-  return { ...original, authApi: { ...original.authApi, me: auth.me } };
-});
-vi.mock('@/lib/adminAssetsApi', async (load) => ({
-  ...await load<typeof import('@/lib/adminAssetsApi')>(), adminAssetsApi: api,
-}));
-vi.mock('@/lib/hrApi', () => ({ hrApi: { overview: vi.fn().mockResolvedValue({ departments: [], positions: [], employees: [] }) } }));
-import AssetLedgerPage from './AssetLedgerPage';
+import type { PageUiCommandHandlers } from '@/lib/pageUiCommands';
 import { PageAgentContextProvider, usePageAgentContextSnapshot } from './PageAgentContext';
 
-const asset: AssetLedger = { id: 9, assetCode: 'A1', name: 'Test asset', category: 'Device', status: 'IDLE', version: 0,
-  history: [], createdAt: '2026-10-20T09:00:00', updatedAt: '2026-10-20T09:00:00', canEdit: true, canDelete: true };
-function authUser(permissions: string[], permissionVersion: number) {
-  return { id: 7, tenantId: 1, name: 'Test user', email: 'test@example.invalid', role: 'EMPLOYEE',
-    roles: ['EMPLOYEE'], permissions, dataScopes: ['SELF'], permissionVersion };
+const auth = vi.hoisted(() => ({ user: { id: 7, tenantId: 1, permissionVersion: 1, permissions: ['assets:read', 'asset:write'] } }));
+const api = vi.hoisted(() => ({ listAssets: vi.fn(), getAsset: vi.fn(), updateAsset: vi.fn(), createAsset: vi.fn(),
+  returnAsset: vi.fn(), assetDepartments: vi.fn(), assetCustodians: vi.fn() }));
+const messages = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
+const ui = vi.hoisted(() => { const handlers: PageUiCommandHandlers = {}; return { handlers }; });
+vi.mock('@/components/auth/AuthProvider', () => ({ useAuth: () => ({ user: auth.user, refresh: vi.fn() }) }));
+vi.mock('@/lib/adminAssetsApi', () => ({ adminAssetsApi: api }));
+vi.mock('@/lib/antdMessage', () => ({ message: messages }));
+vi.mock('@/lib/nextCompat', () => ({ useRouter: () => ({ replace: vi.fn() }), useSearchParams: () => new URLSearchParams() }));
+vi.mock('./PageUiCommandBridge', () => ({ useRegisterPageUiCommands: (handlers: PageUiCommandHandlers) => { ui.handlers = handlers; } }));
+import AssetLedgerPage from './AssetLedgerPage';
+
+function asset(id = 1, name = '测试资产'): AssetLedger { return { id, name, assetCode: `AS-${id}`, category: '设备', status: 'IN_USE',
+  version: 4, history: [], canEdit: true, canDelete: false, createdAt: '2026-10-30T10:00:00', updatedAt: '2026-10-30T10:00:00' }; }
+function deferred<T>() { let resolve!: (value: T) => void; let reject!: (error: Error) => void;
+  const promise = new Promise<T>((done, fail) => { resolve = done; reject = fail; }); return { promise, resolve, reject }; }
+function Snapshot() { return <output aria-label="asset-context">{JSON.stringify(usePageAgentContextSnapshot())}</output>; }
+function Tree() { return <ConfigProvider locale={zhCN}><App><PageAgentContextProvider pageId="asset-ledger"><AssetLedgerPage /><Snapshot /></PageAgentContextProvider></App></ConfigProvider>; }
+function context() { return JSON.parse(screen.getByLabelText('asset-context').textContent || '{}'); }
+// AntD's test-mode ID generator reuses "test-id" across portals; inspect each dialog's actual title.
+async function findDialog(title: string) { return waitFor(() => {
+  const dialog = screen.getAllByRole('dialog').find(item => within(item).queryByText(title));
+  expect(dialog).toBeTruthy(); return dialog!;
+}); }
+async function command(code: 'ui.refreshPage' | 'ui.applyFilter', filters: Record<string, string> = {}) {
+  await act(async () => { if (code === 'ui.applyFilter') await ui.handlers[code]?.({ pageId: 'asset-ledger', code, payload: { filters } });
+    else await ui.handlers[code]?.({ pageId: 'asset-ledger', code, payload: {} }); });
 }
-function AuthVersion() { return <output aria-label="auth-version">{useAuth().user?.permissionVersion ?? 0}</output>; }
-function renderPage(path = '/oa/asset-ledger') { return render(<MemoryRouter initialEntries={[path]}><AuthProvider><App><AssetLedgerPage /><AuthVersion /></App></AuthProvider></MemoryRouter>); }
 beforeEach(() => {
-  vi.clearAllMocks();
-  auth.me.mockResolvedValue(authUser(['asset:write'], 1));
-  api.listAssets.mockResolvedValue({ records: [asset], total: 1, page: 1, size: 10 });
-  api.getAsset.mockResolvedValue({ ...asset, id: 23, name: 'Actual saved asset', version: 3 });
+  vi.clearAllMocks(); auth.user = { id: 7, tenantId: 1, permissionVersion: 1, permissions: ['assets:read', 'asset:write'] };
+  api.listAssets.mockResolvedValue({ records: [asset()], total: 1, page: 1, size: 10 });
+  api.getAsset.mockResolvedValue(asset()); api.assetDepartments.mockResolvedValue([]);
+  api.assetCustodians.mockResolvedValue({ records: [], total: 0, page: 1, size: 100 });
 });
 afterEach(cleanup);
 
-function ContextSnapshot() { return <output aria-label="asset-context">{JSON.stringify(usePageAgentContextSnapshot())}</output>; }
-it('publishes the selected asset version only while the editor is open', async () => {
-  render(<MemoryRouter><AuthProvider><App><PageAgentContextProvider pageId="asset-ledger"><AssetLedgerPage /><ContextSnapshot /></PageAgentContextProvider></App></AuthProvider></MemoryRouter>);
-  fireEvent.click(await screen.findByRole('button', { name: '编辑' }));
-  await waitFor(() => expect(JSON.parse(screen.getByLabelText('asset-context').textContent || '{}')).toMatchObject({ assetId: 9, version: 0 }));
-  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /Cancel|取\s*消/ }));
-  await waitFor(() => expect(JSON.parse(screen.getByLabelText('asset-context').textContent || '{}')).not.toHaveProperty('assetId'));
+it('publishes only applied filters and refreshes without silently submitting a draft search', async () => {
+  render(<Tree />); await screen.findByText('测试资产');
+  const search = screen.getByPlaceholderText('搜索编码 / 名称 / 规格');
+  fireEvent.change(search, { target: { value: '未提交条件' } });
+  expect(context().keyword).toBeUndefined();
+  await command('ui.refreshPage');
+  expect(api.listAssets.mock.lastCall?.[0].keyword).toBeUndefined();
+  await command('ui.applyFilter', { keyword: '正式条件' });
+  expect(context().keyword).toBe('正式条件');
+  fireEvent.change(search, { target: { value: '另一个草稿' } });
+  await command('ui.refreshPage');
+  expect(api.listAssets.mock.lastCall?.[0].keyword).toBe('正式条件');
+  expect(context().keyword).toBe('正式条件');
 });
 
-it('opens the actual asset returned by the server for an explicit route selection', async () => {
-  renderPage('/oa/asset-ledger?id=23');
-  expect(await screen.findByRole('dialog')).toBeTruthy();
-  await waitFor(() => expect(api.getAsset).toHaveBeenCalledWith(23));
-  expect(screen.getByText(/Actual saved asset/)).toBeTruthy();
-  expect(api.updateAsset).not.toHaveBeenCalled();
-  expect(api.createAsset).not.toHaveBeenCalled();
+it('does not close a new editor or erase its draft when an earlier save finishes', async () => {
+  const pending = deferred<AssetLedger>(); api.updateAsset.mockReturnValueOnce(pending.promise);
+  render(<Tree />); await screen.findByText('测试资产');
+  fireEvent.click(screen.getByRole('button', { name: '编辑' }));
+  let dialog = await findDialog('编辑资产');
+  fireEvent.click(within(dialog).getByRole('button', { name: '保 存' }));
+  await waitFor(() => expect(api.updateAsset).toHaveBeenCalledWith(1, expect.objectContaining({ version: 4 })));
+  await waitFor(() => expect(within(dialog).getByLabelText('资产名称')).toBeDisabled());
+  fireEvent.click(await within(dialog).findByRole('button', { name: '关 闭' }));
+  fireEvent.click(screen.getByRole('button', { name: '新增资产' }));
+  dialog = await findDialog('新增资产');
+  fireEvent.change(within(dialog).getByLabelText('资产名称'), { target: { value: '新表单草稿' } });
+  await act(async () => pending.resolve({ ...asset(), version: 5 }));
+  expect(await findDialog('新增资产')).toBeTruthy();
+  expect((within(dialog).getByLabelText('资产名称') as HTMLInputElement).value).toBe('新表单草稿');
+  expect(messages.success).not.toHaveBeenCalled();
+  await waitFor(() => expect(api.listAssets).toHaveBeenCalledTimes(2));
 });
 
-it('does not treat a malformed route ID as an asset selection', async () => {
-  renderPage('/oa/asset-ledger?id=9007199254740992');
-  await screen.findByText('Test asset');
-  expect(api.getAsset).not.toHaveBeenCalled();
-  expect(screen.queryByRole('dialog')).toBeNull();
+it('preserves the current editor draft on a version conflict', async () => {
+  api.updateAsset.mockRejectedValueOnce(new Error('Synthetic version conflict'));
+  render(<Tree />); await screen.findByText('测试资产');
+  fireEvent.click(screen.getByRole('button', { name: '编辑' }));
+  const dialog = await findDialog('编辑资产');
+  fireEvent.change(within(dialog).getByLabelText('资产名称'), { target: { value: '等待核对版本的草稿' } });
+  fireEvent.click(within(dialog).getByRole('button', { name: '保 存' }));
+  await waitFor(() => expect(messages.error).toHaveBeenCalled());
+  expect((within(dialog).getByLabelText('资产名称') as HTMLInputElement).value).toBe('等待核对版本的草稿');
+  expect(messages.success).not.toHaveBeenCalled();
+  expect(api.listAssets).toHaveBeenCalledTimes(1);
 });
 
-it('closes a failed detail load rather than showing a stale or invented asset', async () => {
-  api.getAsset.mockRejectedValue(new Error('Denied'));
-  renderPage('/oa/asset-ledger?id=23');
-  await waitFor(() => expect(api.getAsset).toHaveBeenCalledWith(23));
+it('ignores a completed operation after its detail is closed and another asset is opened', async () => {
+  const pending = deferred<AssetLedger>(); api.returnAsset.mockReturnValueOnce(pending.promise);
+  api.listAssets.mockResolvedValue({ records: [asset(), asset(2, '第二资产')], total: 2, page: 1, size: 10 });
+  render(<Tree />); await screen.findByText('第二资产');
+  fireEvent.click(screen.getAllByRole('button', { name: '资产详情' })[0]);
+  const detail = await findDialog('AS-1 · 测试资产');
+  fireEvent.click(within(detail).getByRole('button', { name: '办理归还' }));
+  const operation = await findDialog('资产归还');
+  fireEvent.click(within(operation).getByRole('button', { name: '确 定' }));
+  await waitFor(() => expect(api.returnAsset).toHaveBeenCalledWith(1, expect.objectContaining({ version: 4 })));
+  fireEvent.click(await within(operation).findByRole('button', { name: '关 闭' }));
+  fireEvent.click(within(detail).getByRole('button', { name: '关闭' }));
+  api.getAsset.mockResolvedValueOnce(asset(2, '第二资产'));
+  fireEvent.click(screen.getAllByRole('button', { name: '资产详情' })[1]);
+  await findDialog('AS-2 · 第二资产');
+  await act(async () => pending.resolve({ ...asset(), status: 'IDLE', version: 5 }));
+  expect(await findDialog('AS-2 · 第二资产')).toBeTruthy();
+  expect(messages.success).not.toHaveBeenCalled();
+});
+
+it('clears private data and rejects late saves and reads after permission revocation', async () => {
+  const pending = deferred<AssetLedger>(), list = deferred<{ records: AssetLedger[]; total: number }>();
+  api.updateAsset.mockReturnValueOnce(pending.promise);
+  const view = render(<Tree />); await screen.findByText('测试资产');
+  fireEvent.click(screen.getByRole('button', { name: '编辑' }));
+  const dialog = await findDialog('编辑资产');
+  fireEvent.click(within(dialog).getByRole('button', { name: '保 存' }));
+  await waitFor(() => expect(api.updateAsset).toHaveBeenCalledTimes(1));
+  api.listAssets.mockReturnValueOnce(list.promise);
+  let refresh!: Promise<void>;
+  await act(async () => { refresh = Promise.resolve(ui.handlers['ui.refreshPage']?.({ pageId: 'asset-ledger', code: 'ui.refreshPage', payload: {} })).then(() => undefined); });
+  await waitFor(() => expect(api.listAssets).toHaveBeenCalledTimes(2));
+  auth.user = { ...auth.user, permissionVersion: 2, permissions: [] };
+  view.rerender(<Tree />);
   await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-  expect(screen.queryByText(/Actual saved asset/)).toBeNull();
-  expect(api.updateAsset).not.toHaveBeenCalled();
+  expect(screen.queryByText('测试资产')).toBeNull();
+  await act(async () => { pending.resolve({ ...asset(), version: 5 }); list.resolve({ records: [asset(9, '旧身份数据')], total: 1 }); await refresh; });
+  expect(screen.queryByText('旧身份数据')).toBeNull();
+  expect(messages.success).not.toHaveBeenCalled();
+  expect(api.listAssets).toHaveBeenCalledTimes(2);
 });
 
-it('ignores a late detail response after the user closes the selected record', async () => {
-  let complete!: (value: AssetLedger) => void;
-  api.getAsset.mockReturnValue(new Promise<AssetLedger>((resolve) => { complete = resolve; }));
-  renderPage('/oa/asset-ledger?id=23');
-  const drawer = await screen.findByRole('dialog');
-  fireEvent.click(within(drawer).getByRole('button', { name: /Close|关\s*闭/ }));
-  await act(async () => complete({ ...asset, id: 23, name: 'Late private asset' }));
-  expect(screen.queryByText(/Late private asset/)).toBeNull();
-  expect(screen.queryByRole('dialog')).toBeNull();
-});
-
-it('does not reopen a closed record when an already submitted asset operation completes later', async () => {
-  let complete!: (value: AssetLedger) => void;
-  api.returnAsset.mockReturnValue(new Promise<AssetLedger>((resolve) => { complete = resolve; }));
-  api.getAsset.mockResolvedValue({ ...asset, id: 23, name: 'In use asset', status: 'IN_USE' });
-  renderPage('/oa/asset-ledger?id=23');
-  // Initial authentication refreshes the protected route detail before actions become available.
-  await waitFor(() => expect(screen.getByLabelText('auth-version').textContent).toBe('1'), { timeout: 3000 });
-  fireEvent.click(await screen.findByRole('button', { name: '办理归还' }, { timeout: 3000 }));
-  const modal = (await screen.findByText('资产归还')).closest('[role="dialog"]') as HTMLElement;
-  fireEvent.click(within(modal).getByRole('button', { name: /OK|确\s*定/ }));
-  await waitFor(() => expect(api.returnAsset).toHaveBeenCalledWith(23, expect.objectContaining({ version: 0 })));
-  fireEvent.click(within(modal).getByRole('button', { name: /Cancel|取\s*消/ }));
-  const drawer = screen.getByText(/In use asset/).closest('[role="dialog"]') as HTMLElement;
-  fireEvent.click(within(drawer).getByRole('button', { name: /Close|关\s*闭/ }));
-  await act(async () => complete({ ...asset, id: 23, name: 'Late operation result', version: 1 }));
-  expect(screen.queryByText(/Late operation result/)).toBeNull();
-  expect(screen.queryByRole('dialog')).toBeNull();
-});
-
-it('lets a writer create the first asset without requiring an editable data row', async () => {
-  api.listAssets.mockResolvedValue({ records: [], total: 0, page: 1, size: 10 });
-  renderPage();
-  fireEvent.click(await screen.findByRole('button', { name: '新增资产' }));
-  expect(within(screen.getByRole('dialog')).getByLabelText('资产编码')).toBeTruthy();
-});
-
-it('hides creation and stale editable-row actions without the real write permission', async () => {
-  auth.me.mockResolvedValue(authUser([], 2));
-  renderPage();
-  await screen.findByText('Test asset');
-  await waitFor(() => expect(screen.getByLabelText('auth-version').textContent).toBe('2'));
-  expect(screen.queryByRole('button', { name: '新增资产' })).toBeNull();
-  expect(screen.queryByRole('button', { name: '编辑' })).toBeNull();
-});
-
-it('disables the open asset editor when the server permission snapshot changes', async () => {
-  renderPage();
-  fireEvent.click(await screen.findByRole('button', { name: '编辑' }));
-  auth.me.mockResolvedValue(authUser([], 2));
-  fireEvent.focus(window);
-  await waitFor(() => expect(screen.getByLabelText('auth-version').textContent).toBe('2'));
-  const save = within(screen.getByRole('dialog')).getByRole('button', { name: /保\s*存/ });
-  expect(save.hasAttribute('disabled')).toBe(true);
-  fireEvent.click(save);
-  expect(api.updateAsset).not.toHaveBeenCalled();
-  expect(api.createAsset).not.toHaveBeenCalled();
-});
-
-it('refreshes stale resource flags after write permission is granted without signing in again', async () => {
-  auth.me.mockResolvedValue(authUser([], 1));
-  api.listAssets.mockResolvedValue({ records: [{ ...asset, canEdit: false }], total: 1, page: 1, size: 10 });
-  renderPage();
-  await screen.findByText('Test asset');
-  expect(screen.queryByRole('button', { name: '编辑' })).toBeNull();
-  api.listAssets.mockResolvedValue({ records: [asset], total: 1, page: 1, size: 10 });
-  auth.me.mockResolvedValue(authUser(['asset:write'], 2));
-  fireEvent.focus(window);
-  expect(await screen.findByRole('button', { name: '编辑' })).toBeTruthy();
+it('does not refresh or notify after a pending save outlives the page', async () => {
+  const pending = deferred<AssetLedger>(); api.updateAsset.mockReturnValueOnce(pending.promise);
+  const view = render(<Tree />); await screen.findByText('测试资产');
+  fireEvent.click(screen.getByRole('button', { name: '编辑' }));
+  const dialog = await findDialog('编辑资产');
+  fireEvent.click(within(dialog).getByRole('button', { name: '保 存' }));
+  await waitFor(() => expect(api.updateAsset).toHaveBeenCalledTimes(1));
+  view.unmount(); await act(async () => pending.resolve({ ...asset(), version: 5 }));
+  expect(messages.success).not.toHaveBeenCalled(); expect(api.listAssets).toHaveBeenCalledTimes(1);
 });

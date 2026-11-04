@@ -10,6 +10,14 @@ import java.util.List;
 
 @Mapper
 public interface ApprovalApplicationMapper extends BaseMapper<ApprovalApplication> {
+    void insertExecution(@Param("snapshot") com.aiworkmate.dto.ApprovalExecutionSnapshot snapshot);
+
+    com.aiworkmate.dto.ApprovalExecutionSnapshot selectExecution(@Param("tenantId") Long tenantId, @Param("instanceId") Long instanceId);
+
+    ApprovalApplication lockApplication(@Param("tenantId") Long tenantId, @Param("id") Long id);
+
+    int advanceExecution(@Param("tenantId") Long tenantId, @Param("instanceId") Long instanceId,
+                         @Param("version") int version, @Param("next") int next);
 
     ApprovalApplication findAgentOperation(
             @Param("tenantId") Long tenantId,
@@ -19,6 +27,10 @@ public interface ApprovalApplicationMapper extends BaseMapper<ApprovalApplicatio
     ApprovalApplicationView selectView(
             @Param("tenantId") Long tenantId,
             @Param("id") Long id);
+
+    ApprovalApplicationView selectOwnedView(@Param("tenantId") Long tenantId,
+                                          @Param("applicantUserId") Long applicantUserId,
+                                          @Param("id") Long id);
 
     List<ApprovalApplicationView> selectMine(
             @Param("tenantId") Long tenantId,

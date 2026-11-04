@@ -12,8 +12,9 @@ import type {
 import { buildApiHeaders } from '@/lib/apiHeaders';
 import { uuid } from '@/lib/uuid';
 import i18n from '@/i18n';
-import { notifyAuthResponseStatus } from '@/lib/authEvents';
+import { authenticatedFetch as fetch, assertAuthResponseCurrent, captureAuthResponseScope, isAuthResponseCurrent, notifyAuthResponseStatus, readAuthenticatedJson, readAuthenticatedChunk } from '@/lib/authEvents';
 import { requirePageUiCommandCodes } from '@/lib/pageUiCommands';
+import { requireTodoQuery, type TodoQueryFilters } from '@/lib/todoQuery';
 
 const BASE = '/api';
 
@@ -44,7 +45,7 @@ export class OaApiError extends Error {
 }
 
 async function parseResult<T>(res: Response): Promise<T> {
-  const json = await res.json().catch(() => null) as ApiResult<T> | null;
+  const json = await readAuthenticatedJson(res) as ApiResult<T> | null;
   if (!res.ok || !json || json.code !== 200) {
     const status = res.status || 500;
     const error = new OaApiError(
@@ -54,7 +55,7 @@ async function parseResult<T>(res: Response): Promise<T> {
       json?.requestId,
       json?.traceId,
     );
-    notifyAuthResponseStatus(status);
+    notifyAuthResponseStatus(status, res);
     throw error;
   }
   // DELETE 等空数据响应的 data 为 null，属正常成功场景（chatApi.parse 同此处理）
@@ -226,6 +227,7 @@ export function subscribeAiTaskEvents(
   handlers: AiTaskEventSubscription,
 ): () => void {
   const controller = new AbortController();
+  const responseScope = captureAuthResponseScope();
   const seenIds = new Set<string>();
   const seenOrder: string[] = [];
   let lastEventId = '';
@@ -233,7 +235,8 @@ export function subscribeAiTaskEvents(
 
   const connect = async () => {
     let retryMilliseconds = 750;
-    while (!controller.signal.aborted && !terminal) {
+    while (!controller.signal.aborted && !terminal && isAuthResponseCurrent(responseScope)) {
+      let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
       try {
         const headers: Record<string, string> = { Accept: 'text/event-stream' };
         if (lastEventId) headers['Last-Event-ID'] = lastEventId;
@@ -245,19 +248,20 @@ export function subscribeAiTaskEvents(
           signal: controller.signal,
         });
         if (!response.ok || !response.body) {
-          notifyAuthResponseStatus(response.status);
+          notifyAuthResponseStatus(response.status, response);
           throw new OaApiError(statusMessage(response.status), response.status, statusErrorCode(response.status));
         }
+        assertAuthResponseCurrent(response);
         handlers.onConnected?.();
         retryMilliseconds = 750;
-        const reader = response.body.getReader();
+        reader = response.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
         while (!controller.signal.aborted && !terminal) {
-          const { done, value } = await reader.read();
+          const { done, value } = await readAuthenticatedChunk(response, reader);
           buffer += decoder.decode(value, { stream: !done }).replaceAll('\r\n', '\n');
           let boundary = buffer.indexOf('\n\n');
-          while (boundary >= 0) {
+          while (boundary >= 0 && !controller.signal.aborted && !terminal && isAuthResponseCurrent(responseScope)) {
             const event = parseSseFrame(buffer.slice(0, boundary));
             buffer = buffer.slice(boundary + 2);
             if (event && (!event.id || !seenIds.has(event.id))) {
@@ -267,6 +271,7 @@ export function subscribeAiTaskEvents(
                 seenOrder.push(event.id);
                 if (seenOrder.length > 512) seenIds.delete(seenOrder.shift() as string);
               }
+              assertAuthResponseCurrent(response);
               handlers.onEvent(event);
               terminal = isTerminalEvent(event);
             }
@@ -275,7 +280,7 @@ export function subscribeAiTaskEvents(
           if (done) break;
         }
       } catch (error) {
-        if (controller.signal.aborted) return;
+        if (controller.signal.aborted || !isAuthResponseCurrent(responseScope)) return;
         const apiError = error instanceof OaApiError
           ? error
           : new OaApiError(i18n.t('errors.oa.serviceUnavailable'), 0, 'SERVICE_UNAVAILABLE');
@@ -283,8 +288,8 @@ export function subscribeAiTaskEvents(
           handlers.onError(apiError);
           return;
         }
-      }
-      if (!terminal && !controller.signal.aborted) {
+      } finally { if (reader) void reader.cancel().catch(() => undefined); }
+      if (!terminal && !controller.signal.aborted && isAuthResponseCurrent(responseScope)) {
         await retryDelay(retryMilliseconds, controller.signal);
         retryMilliseconds = Math.min(retryMilliseconds * 2, 5_000);
       }
@@ -395,13 +400,36 @@ export interface TodoItem {
   applicantUserId: number;
   applicantName: string;
   applicantAvatarUrl?: string | null;
-  leaveType: LeaveType;
-  durationHalfDays: number;
+  leaveType: LeaveType | null;
+  durationHalfDays: number | null;
   status: string;
   version: number;
   submittedAt: string;
   dueAt?: string;
   overdue: boolean;
+  businessType: 'LEAVE_APPLICATION' | 'GENERIC_APPROVAL';
+  title: string;
+  nodeName?: string | null;
+  detailAvailable: boolean;
+}
+
+export type TodoQueryPage = PageResponse<TodoItem> & TodoQueryFilters;
+
+function isTodoItem(value: unknown): value is TodoItem {
+  if (!value || typeof value !== 'object') return false;
+  const row = value as Record<string, unknown>;
+  const positive = (id: unknown) => typeof id === 'number' && Number.isSafeInteger(id) && id > 0;
+  return positive(row.id) && positive(row.applicationId) && positive(row.applicantUserId)
+    && typeof row.applicantName === 'string' && row.applicantName.length <= 120
+    && ['LEAVE_APPLICATION', 'GENERIC_APPROVAL'].includes(String(row.businessType))
+    && typeof row.title === 'string' && row.title.length > 0 && row.title.length <= 200
+    && ['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED'].includes(String(row.status))
+    && typeof row.version === 'number' && Number.isSafeInteger(row.version) && row.version >= 0
+    && typeof row.detailAvailable === 'boolean' && typeof row.overdue === 'boolean'
+    && (row.applicantAvatarUrl == null || typeof row.applicantAvatarUrl === 'string' && new RegExp(`^/api/users/${row.applicantUserId}/avatar/content\\?v=-?\\d+$`).test(row.applicantAvatarUrl))
+    && (row.leaveType == null || typeof row.leaveType === 'string' && row.leaveType.length <= 40)
+    && (row.durationHalfDays == null || typeof row.durationHalfDays === 'number' && Number.isSafeInteger(row.durationHalfDays) && row.durationHalfDays > 0)
+    && (row.businessType !== 'GENERIC_APPROVAL' || row.leaveType == null && row.durationHalfDays == null);
 }
 
 export interface WorkflowTimelineItem {
@@ -465,9 +493,10 @@ export const agentTaskApi = {
 
 export const leaveApi = {
   approvalContext: () => request<LeaveApprovalContext>('/leave-applications/approval-context'),
-  approverCandidates: (keyword?: string) =>
+  approverCandidates: (params: string | { keyword?: string; page?: number; size?: number } = {}) =>
     request<PageResponse<ApproverCandidate>>(
-      `/leave-applications/approver-candidates${queryString({ keyword, page: 1, size: 100 })}`,
+      `/leave-applications/approver-candidates${queryString(typeof params === 'string'
+        ? { keyword: params, page: 1, size: 100 } : { ...params, page: params.page ?? 1, size: params.size ?? 100 })}`,
     ),
   create: (payload: LeaveApplicationPayload) =>
     request<LeaveApplication>('/leave-applications', {
@@ -500,8 +529,23 @@ export const leaveApi = {
 };
 
 export const todoApi = {
-  list: (params: { status?: string; from?: string; to?: string; page?: number; size?: number } = {}) =>
-    request<PageResponse<TodoItem>>(`/todos${queryString(params)}`),
+  list: async (params: Partial<TodoQueryFilters> = {}): Promise<TodoQueryPage> => {
+    const filters = requireTodoQuery(params);
+    const value = await request<TodoQueryPage>(`/todos${queryString({ ...filters })}`);
+    if (!value || typeof value.businessType !== 'string' || typeof value.status !== 'string'
+        || typeof value.page !== 'number' || typeof value.size !== 'number') throw new OaApiError(i18n.t('common.incompletePageData'), 502, 'INVALID_RESPONSE');
+    const actual = requireTodoQuery(value);
+    if (actual.businessType !== filters.businessType || actual.status !== filters.status || actual.page !== filters.page || actual.size !== filters.size
+        || actual.from !== filters.from || actual.to !== filters.to
+        || !Array.isArray(value.records) || value.records.length > filters.size || !Number.isSafeInteger(value.total) || value.total < value.records.length
+        || !value.records.every(isTodoItem)) throw new OaApiError(i18n.t('common.incompletePageData'), 502, 'INVALID_RESPONSE');
+    return { ...value, ...actual };
+  },
+  summary: async (id: number) => {
+    const item = await request<TodoItem>(`/todos/${id}/summary`);
+    if (!isTodoItem(item) || item.id !== id) throw new OaApiError(i18n.t('common.incompletePageData'), 502, 'INVALID_RESPONSE');
+    return item;
+  },
   detail: (id: number) => request<LeaveApplication>(`/todos/${id}`),
   approve: (id: number, version: number, comment?: string) =>
     request<LeaveApplication>(`/approval-tasks/${id}/approve`, {
@@ -517,6 +561,8 @@ export const todoApi = {
     request<ApprovalParticipant[]>(
       `/approval-tasks/${id}/participant-candidates${queryString({ keyword })}`,
     ),
+  participantOptions: (id: number, params: { keyword?: string; page?: number; size?: number; approversOnly?: boolean } = {}) =>
+    request<PageResponse<ApprovalParticipant>>(`/approval-tasks/${id}/participant-options${queryString({ ...params, approversOnly: params.approversOnly?.toString() })}`),
   transfer: (id: number, targetUserId: number, version: number, reason: string) =>
     request<LeaveApplication>(`/approval-tasks/${id}/transfer`, {
       method: 'POST',

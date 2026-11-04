@@ -1,4 +1,5 @@
 export default {
+  incompletePageData: 'The full data set could not be loaded. Narrow the range or refresh and retry.',
   confirm: 'OK',
   cancel: 'Cancel',
   save: 'Save',

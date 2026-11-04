@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useState } from 'react';
+import { Fragment, useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, Card, Drawer, Empty, Image, Radio, Slider, Space, Spin, Switch, Tag, Typography, Upload } from 'antd';
 import { message } from '@/lib/antdMessage';
@@ -11,6 +11,9 @@ import { createCroppedWallpaper, createWallpaperSource, releaseWallpaperSource }
 import { profileApi } from '@/lib/profileApi';
 import WallpaperCropModal from './WallpaperCropModal';
 import { OaIcon } from '@/components/OaIcon';
+import { useAuth } from '@/components/auth/AuthProvider';
+import { useAsyncFormAction } from '@/hooks/useAsyncFormAction';
+import { useAsyncActionGuard } from '@/hooks/useAsyncActionGuard';
 
 interface AppearanceDrawerProps {
   open: boolean;
@@ -30,19 +33,31 @@ interface AppearanceDrawerProps {
 
 export default function AppearanceDrawer(props: AppearanceDrawerProps) {
   const { t } = useTranslation();
-  const [saving, setSaving] = useState(false);
-  const [processingWallpaper, setProcessingWallpaper] = useState(false);
+  const { user } = useAuth();
+  const scope = `${user?.tenantId}:${user?.id}:${props.open}`;
+  const action = useAsyncFormAction(scope);
+  const { capture } = useAsyncActionGuard(scope);
+  const processingWallpaper = action.busy;
   const [cropSource, setCropSource] = useState<string | null>(null);
+  const source = useRef(cropSource); source.current = cropSource;
+  useLayoutEffect(() => {
+    const ownedSource = source;
+    setCropSource(null);
+    return () => { releaseWallpaperSource(ownedSource.current); };
+  }, [scope]);
 
   const closeCropper = () => {
+    action.reset();
     releaseWallpaperSource(cropSource);
     setCropSource(null);
   };
+  const closeDrawer = () => { closeCropper(); props.onClose(); };
 
   const uploadProps: UploadProps = {
     accept: 'image/*',
     showUploadList: false,
     beforeUpload: (file) => {
+      if (!capture()() || !props.open || !user || action.busy) return Upload.LIST_IGNORE;
       try {
         closeCropper();
         setCropSource(createWallpaperSource(file));
@@ -54,40 +69,49 @@ export default function AppearanceDrawer(props: AppearanceDrawerProps) {
   };
 
   const applyCrop = async (crop: Area, rotation: number) => {
-    if (!cropSource) return;
-    setProcessingWallpaper(true);
+    if (!cropSource || !props.open || !user) return;
+    const attempt = action.begin();
+    if (!attempt) return;
     try {
       const result = await createCroppedWallpaper(cropSource, crop, rotation);
+      if (!attempt.current()) return;
       const wallpaperFile = await fetch(result).then((response) => response.blob());
+      if (!attempt.current()) return;
       const uploaded = await profileApi.uploadWallpaper(wallpaperFile);
+      if (!attempt.current()) return;
       props.onWallpaperChange(uploaded.wallpaperUrl);
       window.localStorage.removeItem('workmeta-oa-wallpaper');
       closeCropper();
       message.success(t('oa.appearance.wallpaperProcessed'));
     } catch (error) {
+      if (!attempt.current()) return;
       message.error(error instanceof Error ? error.message : t('oa.appearance.wallpaperProcessFailed'));
     } finally {
-      setProcessingWallpaper(false);
+      attempt.finish();
     }
   };
 
   const clearWallpaper = async () => {
-    setProcessingWallpaper(true);
+    if (!props.open || !user) return;
+    const attempt = action.begin();
+    if (!attempt) return;
     try {
       await profileApi.deleteWallpaper();
+      if (!attempt.current()) return;
       window.localStorage.removeItem('workmeta-oa-wallpaper');
       props.onWallpaperChange(null);
       message.success(t('oa.appearance.wallpaperCleared'));
     } catch (error) {
+      if (!attempt.current()) return;
       message.error(error instanceof Error ? error.message : t('oa.appearance.wallpaperClearFailed'));
     } finally {
-      setProcessingWallpaper(false);
+      attempt.finish();
     }
   };
 
   return (
     <Fragment>
-      <Drawer title={t('oa.appearance.title')} size="default" styles={{ wrapper: { width: 420 } }} open={props.open} onClose={props.onClose}>
+      <Drawer title={t('oa.appearance.title')} size="default" styles={{ wrapper: { width: 420 } }} open={props.open && Boolean(user)} onClose={closeDrawer}>
         <Space orientation="vertical" size={20} className="oa-drawer-stack">
           <section>
             <Typography.Title level={5}>{t('oa.appearance.themeSection')}</Typography.Title>
@@ -130,13 +154,13 @@ export default function AppearanceDrawer(props: AppearanceDrawerProps) {
               </Spin>
             </div>
             <Space wrap>
-              <Upload {...uploadProps}>
+              <Upload {...uploadProps} disabled={processingWallpaper}>
                 <Button icon={<OaIcon name="upload" />} disabled={processingWallpaper}>{t('oa.appearance.uploadCrop')}</Button>
               </Upload>
               <Button
                 icon={<OaIcon name="edit" />}
                 disabled={!props.wallpaper || processingWallpaper}
-                onClick={() => setCropSource(props.wallpaper)}
+                onClick={() => { if (capture()()) { action.reset(); setCropSource(props.wallpaper); } }}
               >
                 {t('oa.appearance.recrop')}
               </Button>
@@ -159,22 +183,14 @@ export default function AppearanceDrawer(props: AppearanceDrawerProps) {
 
           <Button
             type="primary"
-            loading={saving}
-            onClick={() => {
-              setSaving(true);
-              window.setTimeout(() => {
-                setSaving(false);
-                message.success(t('oa.appearance.saveSuccess'));
-                props.onClose();
-              }, 450);
-            }}
+            onClick={closeDrawer}
           >
-            {t('oa.appearance.save')}
+            {t('common.close')}
           </Button>
         </Space>
       </Drawer>
       <WallpaperCropModal
-        open={Boolean(cropSource)}
+        open={Boolean(cropSource) && props.open && Boolean(user)}
         source={cropSource}
         confirming={processingWallpaper}
         onCancel={closeCropper}

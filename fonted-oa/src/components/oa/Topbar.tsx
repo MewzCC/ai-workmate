@@ -9,7 +9,7 @@ import type { OaRole } from '@/types/oa';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { OaIcon } from '@/components/OaIcon';
 import { useRouter } from '@/lib/nextCompat';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { usePermission } from '@/hooks/usePermission';
 import { defaultDashboardExportRange, downloadDashboardExport, exportDashboard } from '@/lib/dashboardApi';
 import { formatOaApiError } from '@/lib/oaApi';
@@ -19,6 +19,9 @@ import { useLocale } from '@/i18n/useLocale';
 import type { AppLocale } from '@/i18n';
 import { SUPPORTED_LANGUAGES } from '@/i18n/languages';
 import HelpDrawer from './HelpDrawer';
+import { useAsyncActionGuard } from '@/hooks/useAsyncActionGuard';
+import { useAsyncFormAction } from '@/hooks/useAsyncFormAction';
+import { isAuthResponseIdentity } from '@/lib/authEvents';
 import {
   fetchUnreadCount,
   listNotifications,
@@ -48,60 +51,91 @@ export default function Topbar({ role, pageId, pageTitle, onOpenAppearance, onOp
   const [helpOpen, setHelpOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [notifyItems, setNotifyItems] = useState<NotificationItem[]>([]);
-  const [exporting, setExporting] = useState(false);
-  const { allowed: hasExportPermission } = usePermission('data:export');
+  const { allowed: hasExportPermission, hasPermission, permissionVersion } = usePermission('data:export');
   const canExportDashboard = pageId === 'dashboard' && hasExportPermission;
+  const identity = `${user?.tenantId}:${user?.id}`;
+  const scope = `${identity}:${permissionVersion}`;
+  const canReadNotifications = hasPermission('notification:read:self');
+  const canOpenMessages = canReadNotifications && hasPermission('route:messages');
+  const { capture } = useAsyncActionGuard(scope);
+  const exportAction = useAsyncFormAction(`${scope}:${canExportDashboard}`);
+  const logoutAction = useAsyncFormAction(identity);
+  const exporting = exportAction.busy;
+  const notificationRequest = useRef(0);
+  const [notificationScope, setNotificationScope] = useState(scope);
+  const visibleItems = notificationScope === scope && canReadNotifications ? notifyItems : [];
+  const visibleUnread = notificationScope === scope && canReadNotifications ? unreadCount : 0;
 
   const loadNotifications = useCallback(async () => {
+    const current = capture();
+    if (!current() || !canReadNotifications) return;
+    const request = ++notificationRequest.current;
     try {
       const [pageResult, unread] = await Promise.all([
         listNotifications(1, 5),
         fetchUnreadCount(),
       ]);
+      if (!current() || request !== notificationRequest.current) return;
       setNotifyItems(pageResult.records);
       setUnreadCount(unread);
+      setNotificationScope(scope);
     } catch {
-      // 通知接口异常时保持现状，不打断顶栏
+      if (current() && request === notificationRequest.current) { setNotifyItems([]); setUnreadCount(0); }
     }
-  }, []);
+  }, [capture, canReadNotifications, scope]);
 
   useEffect(() => {
+    const ownedRequest = notificationRequest;
+    setNotifyItems([]); setUnreadCount(0); setNotificationScope(scope);
+    if (!canReadNotifications) return;
     void loadNotifications();
     const timer = window.setInterval(() => void loadNotifications(), NOTIFY_POLL_INTERVAL_MS);
-    return () => window.clearInterval(timer);
-  }, [loadNotifications]);
+    return () => { window.clearInterval(timer); ownedRequest.current++; };
+  }, [loadNotifications, canReadNotifications, scope]);
+  useEffect(() => { setProfileOpen(false); setHelpOpen(false); }, [identity]);
 
   const handleNotifyItemClick = async (item: NotificationItem) => {
+    const current = capture();
+    if (!current() || !canOpenMessages) return;
     if (!item.read) {
       try {
         await markNotificationRead(item.id);
+        if (!current()) return;
         setUnreadCount((current) => Math.max(0, current - 1));
         setNotifyItems((current) => current.map((entry) => entry.id === item.id ? { ...entry, read: true } : entry));
       } catch {
+        if (!current()) return;
         // 已读标记失败不阻断跳转
       }
     }
-    router.push('/oa/messages');
+    if (current()) router.push('/oa/messages');
   };
 
   const handleLogout = async () => {
-    await logout();
-    router.replace('/oa/auth');
+    if (!user) return;
+    const attempt = logoutAction.begin();
+    if (!attempt) return;
+    try {
+      if (await logout() && isAuthResponseIdentity(null)) router.replace('/oa/auth');
+    } catch (error) { if (attempt.current()) message.error(formatOaApiError(error)); }
+    finally { attempt.finish(); }
   };
 
   const handleHelp = () => setHelpOpen(true);
   const handleNewFlow = () => onOpenAi(t('oa.topbar.newFlowPrompt'));
   const handleExport = async () => {
     if (!canExportDashboard || exporting) return;
-    setExporting(true);
+    const attempt = exportAction.begin();
+    if (!attempt) return;
     try {
       const response = await exportDashboard(defaultDashboardExportRange(7));
+      if (!attempt.current()) return;
       downloadDashboardExport(response);
       message.success(t('dashboard.messages.exported', { count: response.rowCount }));
     } catch (cause) {
-      message.error(formatOaApiError(cause));
+      if (attempt.current()) message.error(formatOaApiError(cause));
     } finally {
-      setExporting(false);
+      attempt.finish();
     }
   };
 
@@ -110,17 +144,18 @@ export default function Topbar({ role, pageId, pageTitle, onOpenAppearance, onOp
     <div className="oa-notify-panel">
       <div className="oa-notify-panel-head">
         <span className="oa-notify-panel-title">{t('oa.topbar.notifyCenter')}</span>
-        <span className="oa-notify-panel-badge">{t('oa.topbar.unreadCount', { count: unreadCount })}</span>
+        <span className="oa-notify-panel-badge">{t('oa.topbar.unreadCount', { count: visibleUnread })}</span>
       </div>
       <ul className="oa-notify-panel-list">
-        {notifyItems.length === 0 ? (
+        {visibleItems.length === 0 ? (
           <li className="oa-notify-empty">{t('oa.topbar.noNotifications')}</li>
-        ) : notifyItems.map((item) => (
+        ) : visibleItems.map((item) => (
           <li
             key={item.id}
             className="oa-notify-item"
             role="button"
-            tabIndex={0}
+            tabIndex={canOpenMessages ? 0 : -1}
+            aria-disabled={!canOpenMessages}
             onClick={() => void handleNotifyItemClick(item)}
             onKeyDown={(event) => {
               if (event.key === 'Enter' || event.key === ' ') {
@@ -140,11 +175,11 @@ export default function Topbar({ role, pageId, pageTitle, onOpenAppearance, onOp
           </li>
         ))}
       </ul>
-      <div className="oa-notify-panel-foot">
+      {canOpenMessages && <div className="oa-notify-panel-foot">
         <Button type="link" className="oa-notify-link" onClick={() => router.push('/oa/messages')}>
           {t('oa.topbar.viewAll')}
         </Button>
-      </div>
+      </div>}
     </div>
   );
 
@@ -152,7 +187,7 @@ export default function Topbar({ role, pageId, pageTitle, onOpenAppearance, onOp
     { key: 'profile', icon: <OaIcon name="avatar" />, label: t('oa.topbar.profile') },
     { key: 'appearance', icon: <OaIcon name="appearance" />, label: t('oa.topbar.appearance') },
     { type: 'divider' },
-    { key: 'logout', icon: <OaIcon name="logout" />, label: t('oa.topbar.logout'), danger: true },
+    { key: 'logout', icon: <OaIcon name="logout" />, label: t('oa.topbar.logout'), danger: true, disabled: logoutAction.busy },
   ];
 
   const onAvatarMenuClick: MenuProps['onClick'] = ({ key }) => {
@@ -164,7 +199,7 @@ export default function Topbar({ role, pageId, pageTitle, onOpenAppearance, onOp
   // 移动端"更多"菜单：业务功能 + 语言选择（子菜单，与 PC 下拉一致）+ 个人/外观/退出
   const moreMenuItems: MenuProps['items'] = [
     { key: 'newFlow', icon: <OaIcon name="add" />, label: t('oa.topbar.newFlow') },
-    { key: 'notify', icon: <OaIcon name="notification" />, label: t('oa.topbar.notify') },
+    ...(canOpenMessages ? [{ key: 'notify', icon: <OaIcon name="notification" />, label: t('oa.topbar.notify') }] : []),
     ...(canExportDashboard ? [{ key: 'export', icon: <OaIcon name="export" />, label: t('oa.topbar.exportBoard') }] : []),
     { key: 'help', icon: <OaIcon name="help" />, label: t('oa.topbar.help') },
     { type: 'divider' },
@@ -182,12 +217,12 @@ export default function Topbar({ role, pageId, pageTitle, onOpenAppearance, onOp
     { key: 'profile', icon: <OaIcon name="avatar" />, label: t('oa.topbar.profile') },
     { key: 'appearance', icon: <OaIcon name="appearance" />, label: t('oa.topbar.appearance') },
     { type: 'divider' },
-    { key: 'logout', icon: <OaIcon name="logout" />, label: t('oa.topbar.logout'), danger: true },
+    { key: 'logout', icon: <OaIcon name="logout" />, label: t('oa.topbar.logout'), danger: true, disabled: logoutAction.busy },
   ];
 
   const onMoreMenuClick: MenuProps['onClick'] = ({ key }) => {
     if (key === 'newFlow') handleNewFlow();
-    else if (key === 'notify') router.push('/oa/messages');
+    else if (key === 'notify' && canOpenMessages) router.push('/oa/messages');
     else if (key === 'export') void handleExport();
     else if (key === 'help') handleHelp();
     else if (key.startsWith('lang-')) changeLanguage(key.slice('lang-'.length) as AppLocale);
@@ -236,7 +271,7 @@ export default function Topbar({ role, pageId, pageTitle, onOpenAppearance, onOp
         </Dropdown>
 
         {/* 桌面端通知（hover 下拉） */}
-        <Dropdown
+        {canReadNotifications && <Dropdown
           popupRender={() => notifyContent}
           trigger={['hover']}
           placement="bottomRight"
@@ -244,9 +279,9 @@ export default function Topbar({ role, pageId, pageTitle, onOpenAppearance, onOp
         >
           <Button type="text" className="oa-notify-trigger" aria-label={t('oa.topbar.notifications')}>
             <OaIcon name="notification" />
-            {unreadCount > 0 && <span className="oa-notify-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>}
+            {visibleUnread > 0 && <span className="oa-notify-badge">{visibleUnread > 99 ? '99+' : visibleUnread}</span>}
           </Button>
-        </Dropdown>
+        </Dropdown>}
 
         {/* 桌面端头像 */}
         <Dropdown
@@ -261,7 +296,7 @@ export default function Topbar({ role, pageId, pageTitle, onOpenAppearance, onOp
           </Button>
         </Dropdown>
       </div>
-      <ProfileSettingsModal open={profileOpen} onClose={() => setProfileOpen(false)} />
+      <ProfileSettingsModal key={`${user?.tenantId}:${user?.id}`} open={profileOpen} onClose={() => setProfileOpen(false)} />
       <HelpDrawer open={helpOpen} role={role} onClose={() => setHelpOpen(false)} onOpenAi={onOpenAi} />
     </Header>
   );

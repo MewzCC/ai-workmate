@@ -48,6 +48,9 @@ class PhaseOneApiSecurityTest {
     private LeaveWorkflowService leaveWorkflowService;
 
     @MockBean
+    private com.aiworkmate.service.TodoQueryService todoQueries;
+
+    @MockBean
     private AuditQueryService auditQueryService;
 
     @MockBean

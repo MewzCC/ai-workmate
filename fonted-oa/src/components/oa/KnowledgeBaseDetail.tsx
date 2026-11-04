@@ -37,9 +37,14 @@ import {
   type KnowledgeDocument,
   type KnowledgeSearchItem,
 } from '@/lib/knowledgeApi';
-import { useRouter } from '@/lib/nextCompat';
+import { useRouter, useSearchParams } from '@/lib/nextCompat';
 import { useTranslation } from 'react-i18next';
 import DocumentDetailDrawer from './DocumentDetailDrawer';
+import { useRegisterPageUiCommands, useRegisterPageUiViews } from './PageUiCommandBridge';
+import { usePageUiEditorCommands, requireUiPagination } from '@/hooks/usePageUiEditorCommands';
+import { usePageUiFormContext } from '@/hooks/usePageUiFormContext';
+import { usePublishPageAgentContext } from './PageAgentContext';
+import { requireUiFieldTypes } from '@/lib/preparedPageUiCommand';
 
 const { TextArea } = Input;
 const { Dragger } = Upload;
@@ -128,6 +133,8 @@ function OverviewTab({ base, embedding }: OverviewTabProps) {
 interface DocsTabProps {
   kbId: number;
   onChanged: () => void;
+  active: boolean;
+  onSectionChange: (section: string) => void;
 }
 
 interface CreateFormValues {
@@ -135,7 +142,7 @@ interface CreateFormValues {
   content: string;
 }
 
-function DocsTab({ kbId, onChanged }: DocsTabProps) {
+function DocsTab({ kbId, onChanged, active, onSectionChange }: DocsTabProps) {
   const { t } = useTranslation();
   const [embedding, setEmbedding] = useState<EmbeddingStatus | null>(null);
   const [documents, setDocuments] = useState<KnowledgeDocument[]>([]);
@@ -152,6 +159,7 @@ function DocsTab({ kbId, onChanged }: DocsTabProps) {
   const [reindexingId, setReindexingId] = useState<number | null>(null);
   const [selectedRowKeys, setSelectedRowKeys] = useState<Key[]>([]);
   const [detailDocumentId, setDetailDocumentId] = useState<number | null>(null);
+  const uiForm = usePageUiFormContext(active && createModalOpen && createMode === 'text' && !creating, undefined, undefined, `knowledge-docs:${kbId}`);
 
   const loadEmbedding = useCallback(async () => {
     try {
@@ -180,6 +188,7 @@ function DocsTab({ kbId, onChanged }: DocsTabProps) {
   }, [loadEmbedding, loadDocuments]);
 
   const openCreate = (mode: CreateMode) => {
+    uiForm.renew();
     createForm.resetFields();
     setCreateMode(mode);
     setUploadFileList([]);
@@ -187,6 +196,27 @@ function DocsTab({ kbId, onChanged }: DocsTabProps) {
     setUploadStatus('');
     setCreateModalOpen(true);
   };
+  usePublishPageAgentContext(active ? { kbId, page, size: 20, section: 'docs' } : {});
+  usePageUiEditorCommands({ form: createForm, open: active && createModalOpen && createMode === 'text' && !creating,
+    canEdit: active && (!createModalOpen || createMode === 'text'), context: uiForm.context,
+    viewKey: active ? `knowledge-docs:${kbId}` : undefined, create: () => openCreate('text'),
+    fields: { filename: 'string', content: 'string' }, labels: { filename: t('knowledge.docsFieldFilename'), content: t('knowledge.docsFieldContent') },
+    commands: !active ? {} : {
+      'ui.refreshPage': loadDocuments,
+      'ui.applyFilter': ({ payload: { filters } }) => {
+        requireUiFieldTypes(filters, { kbId: 'number', page: 'number', size: 'number', section: ['overview', 'docs', 'query', 'settings'] }); requireUiPagination(filters);
+        if (filters.kbId !== undefined && filters.kbId !== kbId) throw new Error('PAGE_UI_FIELD_REJECTED');
+        if (filters.size !== undefined && filters.size !== 20) throw new Error('PAGE_UI_FIELD_REJECTED');
+        if (filters.section !== undefined && filters.section !== 'docs') onSectionChange(String(filters.section));
+        setPage(Number(filters.page ?? 1));
+      },
+      'ui.openDetail': ({ payload: { recordId } }) => {
+        const id = Number(recordId);
+        if (!Number.isSafeInteger(id) || id < 1 || !documents.some(document => document.id === id)) throw new Error('PAGE_UI_FIELD_REJECTED');
+        setDetailDocumentId(id);
+      },
+    },
+  });
 
   const closeCreate = () => {
     setCreateModalOpen(false);
@@ -536,7 +566,7 @@ function DocsTab({ kbId, onChanged }: DocsTabProps) {
             )}
           </>
         ) : (
-          <Form form={createForm} layout="vertical">
+          <Form form={createForm} layout="vertical" onValuesChange={uiForm.renew}>
             <Form.Item
               name="filename"
               label={t('knowledge.docsFieldFilename')}
@@ -581,9 +611,11 @@ function DocsTab({ kbId, onChanged }: DocsTabProps) {
 
 interface QueryTabProps {
   kbId: number;
+  active: boolean;
+  onSectionChange: (section: string) => void;
 }
 
-function QueryTab({ kbId }: QueryTabProps) {
+function QueryTab({ kbId, active, onSectionChange }: QueryTabProps) {
   const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState('');
   const [resultLimit, setResultLimit] = useState(10);
@@ -611,6 +643,20 @@ function QueryTab({ kbId }: QueryTabProps) {
       setSearching(false);
     }
   };
+  usePublishPageAgentContext(active ? { kbId, section: 'query', query: searchQuery, topK: resultLimit, minScore: minScore ?? undefined } : {});
+  useRegisterPageUiCommands(!active ? {} : {
+    'ui.refreshPage': runSearch,
+    'ui.applyFilter': ({ payload: { filters } }) => {
+      requireUiFieldTypes(filters, { kbId: 'number', query: 'string', topK: 'number', minScore: 'number', section: ['overview', 'docs', 'query', 'settings'] });
+      if (filters.kbId !== undefined && filters.kbId !== kbId) throw new Error('PAGE_UI_FIELD_REJECTED');
+      if (filters.topK !== undefined && (!Number.isInteger(filters.topK) || Number(filters.topK) < 1 || Number(filters.topK) > 20)
+          || filters.minScore !== undefined && (Number(filters.minScore) < 0 || Number(filters.minScore) > 1)) throw new Error('PAGE_UI_FIELD_REJECTED');
+      if (filters.query !== undefined) setSearchQuery(String(filters.query));
+      if (filters.topK !== undefined) setResultLimit(Number(filters.topK));
+      if (filters.minScore !== undefined) setMinScore(Number(filters.minScore));
+      if (filters.section !== undefined && filters.section !== 'query') onSectionChange(String(filters.section));
+    },
+  }, null, active ? `knowledge-query:${kbId}` : undefined);
 
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
@@ -700,12 +746,27 @@ interface SettingsFormValues {
 interface SettingsTabProps {
   base: KnowledgeBase;
   onSaved: () => void;
+  active: boolean;
 }
 
-function SettingsTab({ base, onSaved }: SettingsTabProps) {
+function SettingsTab({ base, onSaved, active }: SettingsTabProps) {
   const { t } = useTranslation();
   const [saving, setSaving] = useState(false);
   const [settingsForm] = Form.useForm<SettingsFormValues>();
+  const uiForm = usePageUiFormContext(active && !saving, undefined, undefined, `${base.id}:${base.updatedAt}`);
+  usePageUiEditorCommands({ form: settingsForm, open: active && !saving, canEdit: active, context: uiForm.context,
+    viewKey: active ? `knowledge-base:${base.id}:settings` : undefined,
+    fields: { name: 'string', icon: oaKnowledgeBaseIconOptions.map(option => option.value), description: 'string',
+      chunkSize: 'number', chunkOverlap: 'number', denseTopK: 'number', sparseTopK: 'number' },
+    labels: { name: t('common.name'), icon: t('knowledge.fieldIcon'), description: t('knowledge.fieldDescription'),
+      chunkSize: t('knowledge.settingsChunkSizeLabel'), chunkOverlap: t('knowledge.settingsChunkOverlapLabel'),
+      denseTopK: t('knowledge.settingsDenseTopKLabel'), sparseTopK: t('knowledge.settingsSparseTopKLabel') },
+  });
+  useEffect(() => {
+    settingsForm.setFieldsValue({ name: base.name, icon: (base.icon || 'knowledge-base') as OaIconName,
+      description: base.description ?? undefined, chunkSize: base.chunkSize, chunkOverlap: base.chunkOverlap,
+      denseTopK: base.denseTopK, sparseTopK: base.sparseTopK });
+  }, [base, settingsForm]);
 
   const submitSettings = async () => {
     const values = await settingsForm.validateFields();
@@ -733,6 +794,7 @@ function SettingsTab({ base, onSaved }: SettingsTabProps) {
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
       <Form
         form={settingsForm}
+        onValuesChange={uiForm.renew}
         layout="vertical"
         style={{ maxWidth: 560 }}
         initialValues={{
@@ -851,10 +913,17 @@ function SettingsTab({ base, onSaved }: SettingsTabProps) {
 
 export default function KnowledgeBaseDetail({ kbId }: { kbId: number }) {
   const router = useRouter();
+  const requestedSection = useSearchParams().get('section');
+  const initialSection = ['overview', 'docs', 'query', 'settings'].includes(requestedSection ?? '') ? requestedSection! : 'overview';
   const { t } = useTranslation();
   const [base, setBase] = useState<KnowledgeBase | null>(null);
   const [loading, setLoading] = useState(true);
   const [embedding, setEmbedding] = useState<EmbeddingStatus | null>(null);
+  const [section, setSection] = useState(initialSection);
+  useEffect(() => { setSection(initialSection); }, [initialSection, kbId]);
+  useRegisterPageUiViews(section, ['list', 'overview', 'docs', 'query', 'settings'], view => {
+    if (view === 'list') router.push('/oa/knowledge-base'); else setSection(view);
+  }, String(kbId));
 
   const loadBase = useCallback(async () => {
     setLoading(true);
@@ -879,6 +948,15 @@ export default function KnowledgeBaseDetail({ kbId }: { kbId: number }) {
     void loadBase();
     void loadEmbedding();
   }, [loadBase, loadEmbedding]);
+  usePublishPageAgentContext({ kbId, section });
+  useRegisterPageUiCommands(section === 'docs' || section === 'query' ? {} : {
+    'ui.refreshPage': async () => { await Promise.all([loadBase(), loadEmbedding()]); },
+    'ui.applyFilter': ({ payload: { filters } }) => {
+      requireUiFieldTypes(filters, { kbId: 'number', section: ['overview', 'docs', 'query', 'settings'] });
+      if (filters.kbId !== undefined && filters.kbId !== kbId) throw new Error('PAGE_UI_FIELD_REJECTED');
+      if (filters.section !== undefined) setSection(String(filters.section));
+    },
+  }, null, section === 'docs' || section === 'query' ? undefined : `knowledge-base:${kbId}:${section}`);
 
   if (loading && !base) {
     return (
@@ -931,12 +1009,13 @@ export default function KnowledgeBaseDetail({ kbId }: { kbId: number }) {
 
       <Card className="oa-domain-card">
         <Tabs
-          defaultActiveKey="overview"
+          activeKey={section}
+          onChange={setSection}
           items={[
             { key: 'overview', label: t('knowledge.tabOverview'), children: <OverviewTab base={base} embedding={embedding} /> },
-            { key: 'docs', label: t('knowledge.tabDocuments'), children: <DocsTab kbId={kbId} onChanged={loadBase} /> },
-            { key: 'query', label: t('knowledge.tabQuery'), children: <QueryTab kbId={kbId} /> },
-            { key: 'settings', label: t('knowledge.tabSettings'), children: <SettingsTab base={base} onSaved={loadBase} /> },
+            { key: 'docs', label: t('knowledge.tabDocuments'), children: <DocsTab kbId={kbId} onChanged={loadBase} active={section === 'docs'} onSectionChange={setSection} /> },
+            { key: 'query', label: t('knowledge.tabQuery'), children: <QueryTab kbId={kbId} active={section === 'query'} onSectionChange={setSection} /> },
+            { key: 'settings', label: t('knowledge.tabSettings'), children: <SettingsTab base={base} onSaved={loadBase} active={section === 'settings'} /> },
           ]}
         />
       </Card>

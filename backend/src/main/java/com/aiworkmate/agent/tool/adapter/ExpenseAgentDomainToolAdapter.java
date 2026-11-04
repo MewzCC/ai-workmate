@@ -18,6 +18,10 @@ public class ExpenseAgentDomainToolAdapter implements ExpenseToolPort {
     private final ExpenseQueryService expenseQueryService;
     private final ExpenseApplicationService expenseApplicationService;
 
+    @Override public ExpenseLifecycleResult applyExpense(ToolActorContext context, ExpenseDraft command, ToolOperationKey operationKey) {
+        return lifecycleResult(expenseApplicationService.applyAgentExpense(context.userId(), context.tenantId(), toDomain(command), operationKey.value()));
+    }
+
     @Override public ToolPage<Expense> expenses(ToolActorContext context, ExpenseQuery query) {
         if (query.applicationId() != null) {
             return new ToolPage<>(List.of(expense(

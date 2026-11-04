@@ -24,6 +24,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(AgentChatResultController.class)
@@ -31,6 +32,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class AgentChatResultControllerSecurityTest {
     @Autowired MockMvc mvc;
     @MockBean AgentChatResultService resultService;
+    @MockBean com.aiworkmate.agent.task.AgentTaskApiService taskApiService;
     @MockBean JwtUtil jwtUtil;
     @MockBean UserAccessService userAccessService;
 
@@ -41,6 +43,21 @@ class AgentChatResultControllerSecurityTest {
         when(userAccessService.resolveActiveUser(42L)).thenReturn(new ResolvedUserAccess(
                 42L, "employee", 9L, "EMPLOYEE", List.of("EMPLOYEE"),
                 List.of("route:ai-workspace", "todo:read", "agent:tool:todo.query"), List.of("SELF"), 1L));
+    }
+
+    @Test
+    void rejectsAnonymousTaskRecovery() throws Exception {
+        mvc.perform(get("/api/conversations/3/agent-task")).andExpect(status().isUnauthorized());
+        verifyNoInteractions(resultService, taskApiService);
+    }
+
+    @Test
+    void recoversOnlyThroughTheCurrentAuthenticatedConversationOwner() throws Exception {
+        mvc.perform(get("/api/conversations/3/agent-task").header("Authorization", "Bearer valid"))
+                .andExpect(status().isOk());
+        verify(resultService).latestTask(argThat(user -> user.userId() == 42L && user.tenantId() == 9L),
+                org.mockito.ArgumentMatchers.eq(3L));
+        verifyNoInteractions(taskApiService);
     }
 
     @Test

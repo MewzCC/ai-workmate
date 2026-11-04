@@ -27,6 +27,7 @@ public interface ApprovalApplicationToolPort {
                    boolean canRemind) { }
 
     WriteResult createDraft(ToolActorContext context, Draft command, ToolOperationKey operationKey);
+    WriteResult apply(ToolActorContext context, Draft command, ToolOperationKey operationKey);
 
     WriteResult updateDraft(ToolActorContext context, long applicationId, int version, DraftUpdate command);
 

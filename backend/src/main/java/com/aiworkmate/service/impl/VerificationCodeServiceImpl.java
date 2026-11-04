@@ -142,7 +142,7 @@ public class VerificationCodeServiceImpl implements VerificationCodeService {
 
     @Override
     public void verifyEmailCode(CodeScene scene, String email, String code) {
-        verify(emailKey(scene, normalizeEmail(email)), code, properties.getEmailCodeMaxAttempts(), "邮箱验证码");
+        verify(emailKey(scene, normalizeEmail(email)), code, properties.getEmailCodeMaxAttempts(), "validation.runtime.auth.emailCode");
     }
 
     @Override
@@ -150,17 +150,17 @@ public class VerificationCodeServiceImpl implements VerificationCodeService {
         if (captchaId == null || captchaId.isBlank() || code == null || code.isBlank()) {
             throw new BusinessException(ErrorCode.AUTH_CAPTCHA_REQUIRED);
         }
-        verify(CAPTCHA_PREFIX + captchaId, code.toLowerCase(), properties.getEmailCodeMaxAttempts(), "图形验证码");
+        verify(CAPTCHA_PREFIX + captchaId, code.toLowerCase(), properties.getEmailCodeMaxAttempts(), "validation.runtime.auth.captcha");
     }
 
-    private void verify(String key, String code, int maxAttempts, String label) {
+    private void verify(String key, String code, int maxAttempts, String labelKey) {
         Long result = withRedisResult(() -> redisTemplate.execute(
                 VERIFY_SCRIPT, List.of(key), hash(code), String.valueOf(maxAttempts)));
         if (result == null || result == -1) {
-            throw new BusinessException(ErrorCode.AUTH_CODE_EXPIRED, label + "已过期，请重新获取");
+            throw new BusinessException(ErrorCode.AUTH_CODE_EXPIRED, labelKey + ".expired");
         }
         if (result == 0) {
-            throw new BusinessException(ErrorCode.AUTH_CODE_INVALID, label + "错误或尝试次数过多");
+            throw new BusinessException(ErrorCode.AUTH_CODE_INVALID, labelKey + ".invalid");
         }
     }
 
@@ -182,7 +182,7 @@ public class VerificationCodeServiceImpl implements VerificationCodeService {
         ));
         if (retryAfter != null && retryAfter > 0) {
             throw new BusinessException(ErrorCode.RATE_LIMITED,
-                    "请求过于频繁，请在 " + retryAfter + " 秒后重试");
+                    "validation.runtime.auth.rateLimited", retryAfter);
         }
         return new SendQuotaReservation(keys);
     }
@@ -225,7 +225,7 @@ public class VerificationCodeServiceImpl implements VerificationCodeService {
             action.run();
         } catch (DataAccessException ex) {
             log.error("Redis verification state is unavailable", ex);
-            throw new BusinessException(ErrorCode.AUTH_SERVICE_UNAVAILABLE, "认证服务暂时不可用，请稍后重试");
+            throw new BusinessException(ErrorCode.AUTH_SERVICE_UNAVAILABLE, "validation.runtime.auth.unavailable");
         }
     }
 
@@ -234,7 +234,7 @@ public class VerificationCodeServiceImpl implements VerificationCodeService {
             return action.get();
         } catch (DataAccessException ex) {
             log.error("Redis verification state is unavailable", ex);
-            throw new BusinessException(ErrorCode.AUTH_SERVICE_UNAVAILABLE, "认证服务暂时不可用，请稍后重试");
+            throw new BusinessException(ErrorCode.AUTH_SERVICE_UNAVAILABLE, "validation.runtime.auth.unavailable");
         }
     }
 

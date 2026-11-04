@@ -25,7 +25,7 @@ public final class AiModelCatalog {
         }
         String normalized = model.strip();
         if (!SUPPORTED_MODELS.contains(normalized)) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "不支持的 AI 模型");
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.chat.model.invalid");
         }
         return normalized;
     }

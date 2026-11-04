@@ -112,4 +112,11 @@ public class ApprovalApplicationController {
             @PathVariable Long id) {
         return Result.ok(service.detail(user.userId(), id));
     }
+
+    @GetMapping("/mine/{id}/fields")
+    public Result<com.aiworkmate.dto.ApprovalApplicationAgentDetailResponse> ownFields(
+            @AuthenticationPrincipal AuthenticatedUser user, @PathVariable Long id,
+            @RequestParam(defaultValue = "1") int fieldPage) {
+        return Result.ok(service.detailMineForAgent(user.userId(), id, fieldPage));
+    }
 }

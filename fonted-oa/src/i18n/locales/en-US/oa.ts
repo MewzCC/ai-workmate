@@ -220,6 +220,15 @@ export default {
   },
 
   ai: {
+    uiApplied: 'The page interaction was applied. This command only changes UI state and does not submit business data.',
+    uiNotApplied: 'The page interaction was not applied: the page or permissions changed, or this control has no registered handler.',
+    uiBusy: 'Another page interaction is being applied. Try again shortly.',
+    uiSessionLimit: 'This session reached its page interaction record limit. Refresh the page and make a new request; historical commands are not replayed automatically.',
+    uiApply: 'Apply page interaction',
+    uiPreviewTitle: 'Unsubmitted form preview',
+    uiStaleForm: 'The form was closed, changed, or switched to another record. The old interaction was not applied. Request a new action for the current form.',
+    uiStaleView: 'The business view changed. The old interaction was not applied. Request a new action in the intended view.',
+    uiFormInvalid: 'Form validation failed. Check the inline field messages; no business action was submitted.',
     openPanel: 'Open AI panel',
     panelTitle: 'AI Panel',
     placeholder: 'e.g. Query my tasks and sort them by due date',
@@ -289,7 +298,7 @@ export default {
     executionCompletedMessage: 'Task execution completed',
     status: {
       RECEIVED: 'Received', PLANNING: 'Planning', PLAN_READY: 'Plan ready', WAITING_CONFIRMATION: 'Awaiting confirmation',
-      QUEUED: 'Queued', RUNNING: 'Running', SUCCEEDED: 'Succeeded', PARTIALLY_SUCCEEDED: 'Partially succeeded',
+      QUEUED: 'Queued', RUNNING: 'Running', SUCCEEDED: 'Succeeded', PARTIALLY_SUCCEEDED: 'Outcome needs review',
       FAILED: 'Failed', TIMED_OUT: 'Timed out', REJECTED: 'Rejected', EXPIRED: 'Expired', CANCELLED: 'Cancelled',
     },
     events: {

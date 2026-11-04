@@ -554,7 +554,7 @@ final class ExpenseDraftPostgresVerifier {
     private static ResolvedUserAccess actor(long userId, long tenantId, long version) {
         return new ResolvedUserAccess(
                 userId, "expense-user", tenantId, "EMPLOYEE", List.of("EMPLOYEE"),
-                List.of("route:approval-start", "approval:create", "approval:withdraw", "approval:reopen", "approval:cancel", "approval:remind"),
+                List.of("route:approval-start", "approval:create", "approval:submit", "approval:withdraw", "approval:reopen", "approval:cancel", "approval:remind"),
                 List.of("SELF"), version);
     }
 

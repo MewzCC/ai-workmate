@@ -1,7 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import { Alert, App as AntdApp, Button, Card, Descriptions, Drawer, Empty, Select, Space, Table, Tag, Typography } from 'antd';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Alert, App as AntdApp, Button, Card, DatePicker, Descriptions, Drawer, Empty, Select, Space, Table, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import { useTranslation } from 'react-i18next';
@@ -10,6 +10,11 @@ import { agentTaskApi, formatOaApiError } from '@/lib/oaApi';
 import { OaIcon } from '@/components/OaIcon';
 import ResponsiveTable from './ResponsiveTable';
 import { canCancelAgentTask, cancelAgentTask } from '@/lib/agentTaskCancellation';
+import { useAuth } from '@/components/auth/AuthProvider';
+import { useRegisterPageUiCommands } from './PageUiCommandBridge';
+import { usePublishPageAgentContext } from './PageAgentContext';
+import { requireUiFieldTypes } from '@/lib/preparedPageUiCommand';
+import { requireUiPagination, uiDateRange } from '@/hooks/usePageUiEditorCommands';
 
 const STATUS_VALUES: AgentTaskStatus[] = [
   'RECEIVED', 'PLANNING', 'PLAN_READY', 'WAITING_CONFIRMATION', 'QUEUED', 'RUNNING',
@@ -31,13 +36,22 @@ function formatTime(value?: string | null): string {
 export default function AiTaskCenterPage() {
   const { t } = useTranslation();
   const { message, modal } = AntdApp.useApp();
-  const [records, setRecords] = useState<AgentTaskSummary[]>([]);
+  const { user } = useAuth();
+  const scope = `${user?.tenantId}:${user?.id}:${user?.permissionVersion}`;
+  const activeScope = useRef<string | undefined>(scope); activeScope.current = scope;
+  const listRequest = useRef(0), detailRequest = useRef(0);
+  const cancellationConfirmation = useRef<{ destroy: () => void } | undefined>(undefined);
+  const [dataScope, setDataScope] = useState(scope);
+  const [storedRecords, setRecords] = useState<AgentTaskSummary[]>([]);
   const [status, setStatus] = useState('');
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
-  const [detail, setDetail] = useState<AgentTaskDetail | null>(null);
+  const [storedDetail, setDetail] = useState<AgentTaskDetail | null>(null);
+  const detail = dataScope === scope ? storedDetail : null;
+  const records = dataScope === scope ? storedRecords : [];
+  const [range, setRange] = useState<[string, string]>();
   const [cancellingTaskId, setCancellingTaskId] = useState<string | null>(null);
   const formatTaskError = (errorCode?: string | null) => errorCode
     ? t(`pages.agentTasks.errors.${errorCode}`, {
@@ -46,52 +60,86 @@ export default function AiTaskCenterPage() {
     : '-';
 
   const load = useCallback(async () => {
+    const ticket = ++listRequest.current;
     setLoading(true);
     try {
-      const response = await agentTaskApi.list({ status: status || undefined, page, size: 20 });
-      setRecords(response.records);
+      const response = await agentTaskApi.list({ status: status || undefined, from: range?.[0], to: range?.[1], page, size: 20 });
+      if (ticket !== listRequest.current || activeScope.current !== scope) return;
+      setDataScope(scope); setRecords(response.records);
       setTotal(response.total);
     } catch (error) {
+      if (ticket !== listRequest.current || activeScope.current !== scope) return;
+      setRecords([]); setTotal(0);
       message.error(formatOaApiError(error));
     } finally {
-      setLoading(false);
+      if (ticket === listRequest.current && activeScope.current === scope) setLoading(false);
     }
-  }, [message, page, status]);
+  }, [message, page, status, range, scope]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    activeScope.current = scope; setRecords([]); setTotal(0); setDetail(null);
+    return () => { listRequest.current += 1; detailRequest.current += 1; activeScope.current = undefined; cancellationConfirmation.current?.destroy(); };
+  }, [scope]);
+  useEffect(() => { void load(); return () => { listRequest.current += 1; }; }, [load]);
 
-  const openDetail = async (taskId: string) => {
+  const openDetail = async (taskId: string, reportError = true) => {
+    if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(taskId)) throw new Error('PAGE_UI_FIELD_REJECTED');
+    const ticket = ++detailRequest.current;
+    setDetail(null);
     setDetailLoading(true);
     try {
-      setDetail(await agentTaskApi.detail(taskId));
+      const result = await agentTaskApi.detail(taskId);
+      if (ticket !== detailRequest.current || activeScope.current !== scope) return;
+      if (result.taskId.toLowerCase() !== taskId.toLowerCase()) throw new Error('RESOURCE_MISMATCH');
+      setDataScope(scope); setDetail(result);
     } catch (error) {
+      if (ticket !== detailRequest.current || activeScope.current !== scope) return;
+      if (!reportError) throw error;
       message.error(formatOaApiError(error));
     } finally {
-      setDetailLoading(false);
+      if (ticket === detailRequest.current && activeScope.current === scope) setDetailLoading(false);
     }
   };
+  usePublishPageAgentContext({ status: status || undefined, from: range?.[0], to: range?.[1], page, size: 20 });
+  useRegisterPageUiCommands({ 'ui.refreshPage': load,
+    'ui.openDetail': ({ payload: { recordId } }) => openDetail(String(recordId), false),
+    'ui.applyFilter': ({ payload: { filters } }) => {
+      requireUiFieldTypes(filters, { status: ['', ...STATUS_VALUES], from: 'string', to: 'string', page: 'number', size: 'number' });
+      requireUiPagination(filters);
+      if (filters.size !== undefined && filters.size !== 20) throw new Error('PAGE_UI_FIELD_REJECTED');
+      const dates = uiDateRange(filters, range);
+      if (filters.status !== undefined) setStatus(String(filters.status));
+      if (filters.from !== undefined || filters.to !== undefined) setRange(dates);
+      setPage(Number(filters.page ?? 1));
+    },
+  });
 
   const cancelTask = (task: Pick<AgentTaskSummary, 'taskId' | 'status'>) => {
-    modal.confirm({
+    cancellationConfirmation.current?.destroy();
+    cancellationConfirmation.current = modal.confirm({
       title: t('pages.agentTasks.cancelTitle'),
       content: t('pages.agentTasks.cancelContent', { taskId: task.taskId }),
       okText: t('pages.agentTasks.cancelConfirm'),
       cancelText: t('common.cancel'),
       okButtonProps: { danger: true },
       onOk: async () => {
+        if (activeScope.current !== scope) throw new Error(t('oa.ai.uiNotApplied'));
+        detailRequest.current += 1; setDetailLoading(false);
         setCancellingTaskId(task.taskId);
         try {
           const outcome = await cancelAgentTask(task.taskId);
+          if (activeScope.current !== scope) return;
           const nextDetail = outcome.detail;
           setDetail((current) => current?.taskId === task.taskId ? nextDetail : current);
           if (outcome.cancelled) message.success(t('pages.agentTasks.cancelSuccess'));
           else message.info(t('oa.ai.cancelNoLongerPossible'));
           await load();
         } catch (error) {
+          if (activeScope.current !== scope) return;
           message.error(formatOaApiError(error));
           throw error;
         } finally {
-          setCancellingTaskId(null);
+          if (activeScope.current === scope) setCancellingTaskId(null);
         }
       },
     });
@@ -159,6 +207,9 @@ export default function AiTaskCenterPage() {
           onChange={(value) => { setStatus(value); setPage(1); }}
         />
         <Button icon={<OaIcon name="reload" />} onClick={() => void load()}>{t('common.refresh')}</Button>
+        <DatePicker.RangePicker showTime value={range ? [dayjs(range[0]), dayjs(range[1])] : null}
+          aria-label={t('pages.agentTasks.columnCreatedAt')}
+          onChange={dates => { setRange(dates?.[0] && dates[1] ? [dates[0].format('YYYY-MM-DDTHH:mm:ss'), dates[1].format('YYYY-MM-DDTHH:mm:ss')] : undefined); setPage(1); }} />
       </div>
       <ResponsiveTable
         rowKey="taskId"
@@ -171,7 +222,7 @@ export default function AiTaskCenterPage() {
       />
     </Card>
 
-    <Drawer title={t('pages.agentTasks.detailTitle')} styles={{ wrapper: { width: 660 } }} open={Boolean(detail) || detailLoading} loading={detailLoading} onClose={() => setDetail(null)}>
+    <Drawer title={t('pages.agentTasks.detailTitle')} styles={{ wrapper: { width: 660 } }} open={Boolean(detail) || detailLoading} loading={detailLoading} onClose={() => { detailRequest.current += 1; setDetail(null); setDetailLoading(false); }}>
       {detail && <Space orientation="vertical" size={18} className="agent-task-detail">
         {detail.errorCode && <Alert type="error" showIcon title={t('pages.agentTasks.errorTitle')} description={formatTaskError(detail.errorCode)} />}
         <Descriptions size="small" column={1} items={[

@@ -46,13 +46,13 @@ afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 it('does not publish a guessed first type or fetch its items before an explicit selection', async () => {
   render(view()); await screen.findByText('测试类型甲');
-  expect(context()).toEqual({ page: 1, size: 20 }); expect(api.listItems).not.toHaveBeenCalled();
+  expect(context()).toEqual({ page: 1, size: 20, uiViewKey: 'dictionary::types' }); expect(api.listItems).not.toHaveBeenCalled();
 });
 it('locates an item outside the current type list through its protected parent and independent version', async () => {
   api.listTypes.mockResolvedValue({ records: [other], canManage: true });
   render(view('/oa/dictionary?itemId=21'));
   await waitFor(() => expect(context()).toEqual({ dictionaryTypeId: 11, typeCode: 'FIXTURE', typeVersion: 3,
-    dictionaryItemId: 21, itemValue: 'FIRST', version: 4, page: 1, size: 20 }));
+    dictionaryItemId: 21, itemValue: 'FIRST', version: 4, page: 1, size: 20, uiViewKey: 'dictionary:11:items' }));
   expect(within(screen.getByRole('dialog')).getByText('测试字典项')).toBeTruthy();
   expect(api.listItems).toHaveBeenCalledWith(11, expect.anything());
   fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Close' }));

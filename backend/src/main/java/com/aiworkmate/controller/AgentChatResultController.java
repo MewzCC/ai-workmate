@@ -15,6 +15,14 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class AgentChatResultController {
     private final AgentChatResultService service;
+    private final com.aiworkmate.agent.task.AgentTaskApiService taskApi;
+
+    @org.springframework.web.bind.annotation.GetMapping("/{conversationId}/agent-task")
+    public Result<com.aiworkmate.dto.AgentTaskDetailResponse> latest(@PathVariable Long conversationId,
+                                                                  @AuthenticationPrincipal AuthenticatedUser user) {
+        var task = service.latestTask(user, conversationId);
+        return Result.ok(task == null ? null : taskApi.detail(user, task.getTaskNo()));
+    }
 
     @PostMapping("/{conversationId}/agent-results/{taskId}")
     public Result<String> append(@PathVariable Long conversationId, @PathVariable String taskId,

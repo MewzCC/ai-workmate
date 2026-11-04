@@ -1,4 +1,8 @@
+import { marketingEn } from './marketing';
+import { architectureEn } from './architecture';
 export default {
+  architecture: architectureEn,
+  marketing: marketingEn,
   common: {
     login: 'Sign in',
     tryNow: 'Try now',

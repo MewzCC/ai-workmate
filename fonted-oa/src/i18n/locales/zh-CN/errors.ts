@@ -3,6 +3,7 @@ export default {
   requestFailed: '请求失败',
   networkError: '网络错误',
   unknown: '未知错误',
+  authResponseStale: '身份或权限已变化，本次结果已停止展示；请核对任务或业务记录。',
 
   oa: {
     serviceUnavailable: '无法连接 OA 服务，请确认后端已经启动',

@@ -184,7 +184,7 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
     public LeaveApplicationResponse updateDraft(Long userId, Long id, LeaveApplicationRequest request) {
         ResolvedUserAccess actor = requirePermission(userId, "leave:create");
         if (request.version() == null) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "更新草稿必须携带 version");
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.leave.draftVersionRequired");
         }
         LeaveApplication current = requireOwnedLeave(actor, id);
         requireState(current, "DRAFT");
@@ -355,7 +355,7 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
         }
         Long definitionId = leaveMapper.selectLeaveDefinitionId(actor.tenantId());
         if (definitionId == null) {
-            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID, "请假流程定义不可用");
+            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID, "validation.leave.processUnavailable");
         }
         LocalDateTime now = LocalDateTime.now();
         LambdaUpdateWrapper<LeaveApplication> update = new LambdaUpdateWrapper<LeaveApplication>()
@@ -541,13 +541,7 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
     @Transactional(readOnly = true)
     public LeaveApplicationResponse todoDetail(Long userId, Long taskId) {
         ResolvedUserAccess actor = requireAccess(userId);
-        WorkflowTask task = taskMapper.selectById(taskId);
-        if (task == null || !actor.tenantId().equals(task.getTenantId())) {
-            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
-        }
-        LeaveApplicationView view = requireView(actor.tenantId(), task.getBusinessId());
-        assertCanRead(actor, view, task.getInstanceId());
-        return response(actor, view);
+        return response(actor, requireLeaveTaskRead(actor, taskId).application());
     }
 
     @Override
@@ -560,7 +554,7 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
     @Transactional
     public LeaveApplicationResponse reject(Long userId, Long taskId, ApprovalDecisionRequest request) {
         if (request.comment() == null || request.comment().isBlank()) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "退回意见不能为空");
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.leave.rejectionCommentRequired");
         }
         return decide(userId, taskId, request, false);
     }
@@ -569,36 +563,35 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
     @Transactional(readOnly = true)
     public List<ApprovalParticipantResponse> participantCandidates(
             Long userId, Long taskId, String keyword) {
+        return participantCandidates(userId, null, taskId,
+                new com.aiworkmate.service.model.BusinessCandidateQuery(keyword, 1, 50), false).records();
+    }
+
+    @Override
+    @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
+    public PageResponse<ApprovalParticipantResponse> participantCandidates(
+            Long userId, Long expectedTenantId, Long taskId,
+            com.aiworkmate.service.model.BusinessCandidateQuery query, boolean approversOnly) {
         ResolvedUserAccess actor = requirePermission(userId, "approval:act");
-        WorkflowTask task = requireAssignedTask(actor, taskId);
-        if (!"PENDING".equals(task.getStatus())) {
-            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID);
-        }
-        String normalizedKeyword = normalize(keyword);
-        if (normalizedKeyword != null && normalizedKeyword.length() > 64) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID);
-        }
-        LambdaQueryWrapper<User> query = new LambdaQueryWrapper<User>()
-                .eq(User::getTenantId, actor.tenantId())
-                .eq(User::getStatus, 1)
-                .ne(User::getId, actor.userId())
-                .orderByAsc(User::getId)
-                .last("LIMIT 50");
-        if (normalizedKeyword != null) {
-            query.and(q -> q.like(User::getDisplayName, normalizedKeyword)
-                    .or().like(User::getUsername, normalizedKeyword));
-        }
-        return userMapper.selectList(query).stream()
-                .map(user -> {
-                    ResolvedUserAccess targetAccess = userAccessService.resolveActiveUser(user.getId());
-                    boolean canApprove = actor.tenantId().equals(targetAccess.tenantId())
-                            && targetAccess.permissions().contains("approval:act");
-                    return new ApprovalParticipantResponse(
-                            user.getId(), displayName(user),
-                            AvatarUrls.build(user.getId(), user.getAvatar(), user.getUpdatedAt()),
-                            canApprove);
-                })
-                .toList();
+        if (expectedTenantId != null && !expectedTenantId.equals(actor.tenantId()))
+            throw new BusinessException(ErrorCode.RESOURCE_FORBIDDEN);
+        if (query == null || query.size() > 50 || query.keyword() != null && query.keyword().length() > 64
+                || taskId == null || taskId < 1) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        WorkflowTask task = taskMapper.selectLeaveTaskForRead(actor.tenantId(), taskId);
+        if (task == null) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        if (!actor.userId().equals(task.getAssigneeUserId())) throw new BusinessException(ErrorCode.RESOURCE_FORBIDDEN);
+        if (!"PENDING".equals(task.getStatus())) throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID);
+        LeaveApplication application = requirePendingApplication(actor, task);
+        if (!task.getInstanceId().equals(application.getWorkflowInstanceId())) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        WorkflowInstance instance = instanceMapper.selectById(task.getInstanceId());
+        if (instance == null || !"RUNNING".equals(instance.getStatus())) throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID);
+        long total = userMapper.countApprovalParticipants(actor.tenantId(), "approval:act", actor.userId(),
+                application.getApplicantUserId(), approversOnly, query.keyword());
+        var rows = userMapper.selectApprovalParticipants(actor.tenantId(), "approval:act", actor.userId(),
+                application.getApplicantUserId(), approversOnly, query.keyword(), query.size(), query.offset());
+        return PageResponse.of(rows.stream().map(row -> new ApprovalParticipantResponse(row.id(), row.name(),
+                AvatarUrls.build(row.id(), row.avatar(), row.updatedAt()), row.canApprove())).toList(),
+                total, query.page(), query.size());
     }
 
     @Override
@@ -762,12 +755,7 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
     @Transactional(readOnly = true)
     public List<WorkflowTimelineResponse> timeline(Long userId, Long taskId) {
         ResolvedUserAccess actor = requireAccess(userId);
-        WorkflowTask task = taskMapper.selectById(taskId);
-        if (task == null || !actor.tenantId().equals(task.getTenantId())) {
-            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
-        }
-        LeaveApplicationView view = requireView(actor.tenantId(), task.getBusinessId());
-        assertCanRead(actor, view, task.getInstanceId());
+        WorkflowTask task = requireLeaveTaskRead(actor, taskId).task();
         return actionLogMapper.selectTimeline(actor.tenantId(), task.getInstanceId()).stream()
                 .map(entry -> new WorkflowTimelineResponse(
                         entry.id(), entry.actorUserId(), entry.actorName(),
@@ -794,7 +782,7 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
             auditService.record(actor.tenantId(), actor.userId(), BUSINESS_TYPE,
                     application.getId().toString(), approved ? "APPROVE" : "REJECT",
                     "DENIED", "申请人不能审批自己的申请");
-            throw new BusinessException(ErrorCode.RESOURCE_FORBIDDEN, "申请人不能审批自己的申请");
+            throw new BusinessException(ErrorCode.RESOURCE_FORBIDDEN, "validation.leave.selfApprovalForbidden");
         }
         LocalDateTime now = LocalDateTime.now();
         String taskStatus = approved ? "APPROVED" : "REJECTED";
@@ -940,6 +928,29 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
             throw new BusinessException(ErrorCode.VERSION_CONFLICT);
         }
         return task;
+    }
+
+    private record LeaveTaskRead(WorkflowTask task, LeaveApplicationView application) { }
+
+    private LeaveTaskRead requireLeaveTaskRead(ResolvedUserAccess actor, Long taskId) {
+        if (taskId == null || taskId < 1) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        WorkflowTask task = taskMapper.selectLeaveTaskForRead(actor.tenantId(), taskId);
+        if (task == null) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        LeaveApplicationView view = requireView(actor.tenantId(), task.getBusinessId());
+        User assignee = userMapper.selectOne(new LambdaQueryWrapper<User>()
+                .select(User::getId, User::getTenantId, User::getUsername, User::getDisplayName, User::getAvatar, User::getUpdatedAt)
+                .eq(User::getTenantId, actor.tenantId()).eq(User::getId, task.getAssigneeUserId()));
+        if (assignee == null) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        String name = assignee.getDisplayName() == null || assignee.getDisplayName().isBlank() ? assignee.getUsername() : assignee.getDisplayName();
+        // General application views prefer the current node; this API must describe the requested node.
+        LeaveApplicationView selected = new LeaveApplicationView(view.id(), view.applicantUserId(), view.applicantName(),
+                task.getAssigneeUserId(), name, view.leaveType(), view.startDate(), view.startPeriod(), view.endDate(), view.endPeriod(),
+                view.durationHalfDays(), view.reason(), view.status(), view.version(), task.getId(), task.getVersion(), task.getStatus(),
+                task.getDueAt(), task.getReminderCount(), task.getLastRemindedAt(), view.workflowStatus(), view.submittedAt(),
+                view.completedAt(), view.createdAt(), view.updatedAt(), view.applicantAvatar(), view.applicantUpdatedAt(),
+                assignee.getAvatar(), assignee.getUpdatedAt());
+        if (!actor.userId().equals(task.getAssigneeUserId())) assertCanRead(actor, view, task.getInstanceId());
+        return new LeaveTaskRead(task, selected);
     }
 
     private WorkflowTask requireAssignedTask(ResolvedUserAccess actor, Long taskId) {
@@ -1089,6 +1100,7 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
                 applicant && "PENDING".equals(view.status())
                         && actor.permissions().contains("leave:withdraw"),
                 approver && "PENDING".equals(view.status())
+                        && "PENDING".equals(view.taskStatus())
                         && actor.permissions().contains("approval:act")
                         && !applicant,
                 AvatarUrls.build(view.applicantUserId(), view.applicantAvatar(), view.applicantUpdatedAt()),
@@ -1207,7 +1219,7 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
 
     private int calculateDuration(LeaveApplicationRequest request) {
         if (request.startDate().isBefore(LocalDate.now())) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "开始日期不能早于今天");
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.leave.startDateInPast");
         }
         return HalfDayCalculator.calculate(
                 request.startDate(), request.startPeriod(), request.endDate(), request.endPeriod());
@@ -1230,7 +1242,7 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
         if (approverUserId == null || leaveMapper.countEligibleApprover(
                 actor.tenantId(), actor.userId(), approverUserId) != 1) {
             throw new BusinessException(ErrorCode.APPROVER_NOT_CONFIGURED,
-                    "所选审批人不在有效审批范围内，请重新选择");
+                    "validation.runtime.approval.approverOutOfScope");
         }
     }
 

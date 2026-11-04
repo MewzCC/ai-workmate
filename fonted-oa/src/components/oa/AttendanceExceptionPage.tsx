@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Card, DatePicker, Empty, Spin, Tag } from 'antd';
 import { message } from '@/lib/antdMessage';
 import { useTranslation } from 'react-i18next';
@@ -16,6 +16,10 @@ import { formatOaApiError } from '@/lib/oaApi';
 import { useAuth } from '@/components/auth/AuthProvider';
 import AttendancePageShell from './AttendancePageShell';
 import ResponsiveTable from './ResponsiveTable';
+import { useRegisterPageUiCommands } from './PageUiCommandBridge';
+import { usePublishPageAgentContext } from './PageAgentContext';
+import { requireUiFieldTypes } from '@/lib/preparedPageUiCommand';
+import { requireUiPagination, uiDateRange } from '@/hooks/usePageUiEditorCommands';
 
 const { RangePicker } = DatePicker;
 
@@ -40,8 +44,14 @@ export default function AttendanceExceptionPage() {
     dayjs().startOf('month'),
     dayjs(),
   ]);
+  const scope = `${user?.tenantId}:${user?.id}:${user?.permissionVersion}`;
+  const activeScope = useRef<string | undefined>(scope); activeScope.current = scope;
+  const request = useRef(0);
+  const [dataScope, setDataScope] = useState(scope);
 
   const load = async (p = page, s = size, r = range) => {
+    const ticket = ++request.current;
+    setPage(p); setSize(s);
     setLoading(true);
     try {
       const res = await attendanceApi.listExceptions({
@@ -50,19 +60,33 @@ export default function AttendanceExceptionPage() {
         page: p,
         size: s,
       });
-      setRecords(res.records);
+      if (ticket !== request.current || activeScope.current !== scope) return;
+      setDataScope(scope); setRecords(res.records);
       setTotal(res.total);
     } catch (err) {
+      if (ticket !== request.current || activeScope.current !== scope) return;
+      setRecords([]); setTotal(0);
       message.error(formatOaApiError(err));
     } finally {
-      setLoading(false);
+      if (ticket === request.current && activeScope.current === scope) setLoading(false);
     }
   };
-
+  const initialLoad = useRef(load); initialLoad.current = load;
   useEffect(() => {
-    load(1);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    activeScope.current = scope;
+    setRecords([]); setTotal(0); void initialLoad.current(1);
+    return () => { request.current += 1; activeScope.current = undefined; };
+  }, [scope]);
+  usePublishPageAgentContext({ resource: 'EXCEPTIONS', from: range[0].format('YYYY-MM-DD'), to: range[1].format('YYYY-MM-DD'), page, size });
+  useRegisterPageUiCommands({ 'ui.refreshPage': () => load(),
+    'ui.applyFilter': async ({ payload: { filters } }) => {
+      requireUiFieldTypes(filters, { resource: ['EXCEPTIONS'], from: 'string', to: 'string', page: 'number', size: 'number' });
+      requireUiPagination(filters);
+      const dates = uiDateRange(filters, [range[0].format('YYYY-MM-DD'), range[1].format('YYYY-MM-DD')]);
+      const next: [Dayjs, Dayjs] = dates ? [dayjs(dates[0]), dayjs(dates[1])] : range;
+      setRange(next); await load(Number(filters.page ?? 1), Number(filters.size ?? size), next);
+    },
+  });
 
   const columns: ColumnsType<AttendanceRecord> = [
     {
@@ -144,7 +168,7 @@ export default function AttendanceExceptionPage() {
           <ResponsiveTable
             rowKey="id"
             columns={columns}
-            dataSource={records}
+            dataSource={dataScope === scope ? records : []}
             size="middle"
             scroll={{ x: 900 }}
             pagination={{

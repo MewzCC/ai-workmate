@@ -148,6 +148,10 @@ export function usePageAgentContextSnapshot(): PageAgentContextSnapshot {
   return useContext(PageAgentContextState)?.snapshot ?? EMPTY_CONTEXT;
 }
 
+export function usePageAgentPageId(): string | null {
+  return useContext(PageAgentContextState)?.pageId ?? null;
+}
+
 /** 将页面筛选上下文送到持久挂载的 AI 入口，切页时不保留旧页面上下文。 */
 export function PageAgentContextObserver({ onChange }: { onChange: (snapshot: PageAgentContextSnapshot) => void }) {
   const snapshot = usePageAgentContextSnapshot();

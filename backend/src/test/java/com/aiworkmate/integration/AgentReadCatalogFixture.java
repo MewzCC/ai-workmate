@@ -24,6 +24,12 @@ final class AgentReadCatalogFixture {
         ObjectNode args = json.createObjectNode();
         String evidence = label;
         switch (code) {
+            case APPROVAL_GENERIC_TASK_DETAIL_QUERY -> {
+                long applicant = id("INSERT INTO app_user(tenant_id,username,display_name,password) VALUES (?,?,?,'synthetic fixture') RETURNING id", tenant, label + "-generic-owner", label);
+                var submission = GenericTaskReadFixture.pending(jdbc, json, tenant, applicant, user, label,
+                        "{\"fields\":[{\"name\":\"reason\",\"type\":\"text\"}]}", json.createObjectNode().put("reason", label).toString());
+                args.put("taskId", submission.taskId());
+            }
             case TODO_QUERY, APPROVAL_TASK_QUERY -> {
                 long applicant = id("INSERT INTO app_user(tenant_id,username,display_name,password) VALUES (?,?,?,'synthetic fixture') RETURNING id", tenant, label + "-applicant", label);
                 LeaveReadFixture.pending(jdbc, tenant, applicant, user);
@@ -41,6 +47,21 @@ final class AgentReadCatalogFixture {
                 args.put("keyword", label);
             }
             case HR_CHANGE_QUERY -> jdbc.update("INSERT INTO employee_change(tenant_id,employee_user_id,applicant_user_id,review_approver_user_id,change_type,effective_date,reason) VALUES (?,?,?,?,'ONBOARDING',CURRENT_DATE,?)", tenant, user, user, user, label);
+            case HR_CHANGE_REVIEWER_QUERY -> {
+                candidate();
+                args.put("keyword", label);
+            }
+            case VISITOR_HOST_QUERY -> args.put("keyword", label);
+            case ASSET_DEPARTMENT_QUERY -> {
+                id("INSERT INTO department(tenant_id,code,name) VALUES (?,?,?) RETURNING id", tenant, label, label);
+                args.put("keyword", label);
+            }
+            case ASSET_CUSTODIAN_QUERY -> {
+                long department = id("INSERT INTO department(tenant_id,code,name) VALUES (?,?,?) RETURNING id", tenant, label, label);
+                long person = candidate();
+                jdbc.update("UPDATE app_user SET department_id=? WHERE id=?", department, person);
+                args.put("departmentId", department).put("keyword", label);
+            }
             case ATTENDANCE_QUERY -> {
                 jdbc.update("INSERT INTO attendance_record(tenant_id,user_id,clock_date,clock_in_time,status) VALUES (?,?,CURRENT_DATE,CURRENT_TIMESTAMP,'NORMAL')", tenant, user);
                 args.put("resource", "RECORDS").put("from", LocalDate.now().toString()).put("to", LocalDate.now().toString());
@@ -48,6 +69,23 @@ final class AgentReadCatalogFixture {
             }
             case APPROVAL_CONFIGURATION_QUERY -> { form(); args.put("resource", "FORM").put("keyword", label); }
             case APPROVAL_FORM_DEFINITION_QUERY -> args.put("formId", form());
+            case APPROVAL_PROCESS_DEFINITION_QUERY -> args.put("processId", process(form()));
+            case APPROVAL_APPLICATION_TEMPLATE_QUERY -> {
+                long form = form();
+                jdbc.update("UPDATE approval_form SET status='ENABLED' WHERE id=?", form);
+                process(form);
+                args.put("formKey", label);
+            }
+            case APPROVAL_TASK_PARTICIPANTS_QUERY -> {
+                long applicant = candidate();
+                long application = LeaveReadFixture.pending(jdbc, tenant, applicant, user);
+                long task = jdbc.queryForObject("SELECT id FROM workflow_task WHERE tenant_id=? AND business_type='LEAVE_APPLICATION' AND business_id=? AND assignee_user_id=?", Long.class, tenant, application, user);
+                args.put("taskId", task).put("keyword", label);
+            }
+            case PAGE_UI_PREPARE -> {
+                args.put("pageId", "access-control").put("code", "ui.refreshPage");
+                evidence = "ui.refreshPage";
+            }
             case APPROVAL_RULE_DEFINITION_QUERY -> {
                 long rule = id("INSERT INTO approval_rule(tenant_id,rule_key,rule_name,rule_type,condition_json,action_json,status,created_by) VALUES (?,?,?,'AMOUNT_THRESHOLD','{\"logic\":\"AND\",\"conditions\":[{\"field\":\"amount\",\"op\":\"gte\",\"value\":\"100\"}]}','{\"appendNode\":\"FINANCE_REVIEW\",\"enabled\":true,\"mode\":\"OR_SIGN\"}','DISABLED',?) RETURNING id", tenant, label, label, user);
                 args.put("ruleId", rule);
@@ -121,6 +159,7 @@ final class AgentReadCatalogFixture {
 
     Input prepareForPage(ToolCode code, String page) {
         var input = prepare(code);
+        if (code == ToolCode.PAGE_UI_PREPARE) return new Input(input.arguments().put("pageId", page), input.evidence());
         if (code != ToolCode.ATTENDANCE_QUERY) return input;
         var args = input.arguments();
         return switch (page) {
@@ -141,6 +180,20 @@ final class AgentReadCatalogFixture {
 
     private long form() {
         return id("INSERT INTO approval_form(tenant_id,form_key,form_name,schema_json,status,created_by) VALUES (?,?,?,'{\"fields\":[{\"name\":\"reason\",\"label\":\"Reason\",\"type\":\"textarea\",\"required\":true}]}','DISABLED',?) RETURNING id", tenant, label, label, user);
+    }
+
+    private long candidate() {
+        String role = jdbc.queryForObject("SELECT role FROM app_user WHERE id=?", String.class, user);
+        return id("INSERT INTO app_user(tenant_id,username,display_name,password,role) VALUES (?,?,?,'synthetic fixture',?) RETURNING id", tenant, label + "-candidate", label, role);
+    }
+
+    private long process(long form) {
+        var nodes = json.createArrayNode();
+        nodes.addObject().put("nodeType", "START").put("nodeName", "Start");
+        nodes.addObject().put("nodeType", "APPROVAL").put("nodeName", label).put("approveType", "USER")
+                .put("targetKey", Long.toString(user)).put("mode", "SEQUENTIAL");
+        nodes.addObject().put("nodeType", "END").put("nodeName", "End");
+        return id("INSERT INTO approval_process(tenant_id,process_key,process_name,form_id,node_json,status,created_by) VALUES (?,?,?,?,?,'ENABLED',?) RETURNING id", tenant, label, label, form, nodes.toString(), user);
     }
 
     private long room() { return id("INSERT INTO meeting_room(tenant_id,code,name,capacity) VALUES (?,?,?,8) RETURNING id", tenant, label, label); }

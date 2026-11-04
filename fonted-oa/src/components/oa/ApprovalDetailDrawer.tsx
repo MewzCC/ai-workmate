@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { useRouter } from '@/lib/nextCompat';
 import {
   Alert,
@@ -10,24 +10,16 @@ import {
   Descriptions,
   Drawer,
   Empty,
-  Form,
-  Input,
-  Modal,
   Space,
   Spin,
   Tag,
   Timeline,
   Typography,
 } from 'antd';
-import { message } from '@/lib/antdMessage';
 import dayjs from 'dayjs';
-import {
-  formatOaApiError,
-  OaApiError,
-  todoApi,
-  type LeaveApplication,
-  type WorkflowTimelineItem,
-} from '@/lib/oaApi';
+import { formatOaApiError } from '@/lib/oaApi';
+import { useApprovalTaskDetail } from '@/hooks/useApprovalTaskDetail';
+import ApprovalTaskActions from './ApprovalTaskActions';
 import { OaIcon } from '@/components/OaIcon';
 import { leaveTypeLabel, periodLabel, StatusTag } from './MyApplicationsPage';
 import LeaveWorkflowPanel from './LeaveWorkflowPanel';
@@ -43,71 +35,17 @@ export default function ApprovalDetailDrawer({
   taskId,
   open,
   onClose,
+  onUpdated,
 }: {
   taskId: number | null;
   open: boolean;
   onClose: () => void;
+  onUpdated?: () => void;
 }) {
   const router = useRouter();
   const { t } = useTranslation();
-  const [application, setApplication] = useState<LeaveApplication>();
-  const [timeline, setTimeline] = useState<WorkflowTimelineItem[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [decision, setDecision] = useState<'approve' | 'reject'>();
-  const [saving, setSaving] = useState(false);
-  const [form] = Form.useForm<{ comment?: string }>();
-
-  const load = useCallback(async (id: number) => {
-    setLoading(true);
-    try {
-      const [detail, events] = await Promise.all([
-        todoApi.detail(id),
-        todoApi.timeline(id),
-      ]);
-      setApplication(detail);
-      setTimeline(events);
-    } catch (error) {
-      message.error(formatOaApiError(error));
-      setApplication(undefined);
-      setTimeline([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (open && taskId != null) {
-      setDecision(undefined);
-      form.resetFields();
-      void load(taskId);
-    } else if (!open) {
-      setApplication(undefined);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, taskId]);
-
-  const submitDecision = async () => {
-    if (taskId == null || application?.taskVersion == null || application.taskVersion < 0) return;
-    const values = await form.validateFields();
-    setSaving(true);
-    try {
-      if (decision === 'reject') {
-        await todoApi.reject(taskId, application.taskVersion, values.comment!.trim());
-        message.success(t('approval.approvalDetail.rejectSuccess'));
-      } else {
-        await todoApi.approve(taskId, application.taskVersion, values.comment?.trim());
-        message.success(t('approval.approvalDetail.approveSuccess'));
-      }
-      setDecision(undefined);
-      form.resetFields();
-      await load(taskId);
-    } catch (error) {
-      message.error(formatOaApiError(error));
-      if (error instanceof OaApiError && error.status === 409) await load(taskId);
-    } finally {
-      setSaving(false);
-    }
-  };
+  const detail = useApprovalTaskDetail(taskId, open);
+  const { application, timeline, loading, error, load } = detail;
 
   const businessInfo = useMemo(() => {
     if (!application) return null;
@@ -146,7 +84,7 @@ export default function ApprovalDetailDrawer({
         className="approval-drawer"
         title={(
           <div className="approval-drawer__title">
-            <span>LEAVE APPROVAL · #{taskId}</span>
+            <span>{t('approval.approvalDetail.kicker', { id: taskId })}</span>
             <Typography.Text strong>{t('approval.approvalDetail.title')}</Typography.Text>
             {application && <StatusTag status={application.status} />}
           </div>
@@ -158,6 +96,7 @@ export default function ApprovalDetailDrawer({
           taskId != null && (
             <Button
               type="link"
+              disabled={!application || loading}
               icon={<OaIcon name="more" />}
               onClick={() => {
                 onClose();
@@ -169,6 +108,8 @@ export default function ApprovalDetailDrawer({
           )
         }
       >
+        {error != null && <Alert type="error" showIcon message={formatOaApiError(error)}
+          action={<Button onClick={() => void load()}>{t('common.retry')}</Button>} />}
         <Spin spinning={loading}>
           {!application ? (
             <Empty description={t('approval.approvalDetail.empty')} />
@@ -247,61 +188,13 @@ export default function ApprovalDetailDrawer({
                 )}
               </Card>
 
-              {application.canApprove && (
-                <div className="approval-decision-bar">
-                  <div>
-                    <Typography.Text strong>{t('approval.approvalDetail.decisionBarTitle')}</Typography.Text>
-                    <Typography.Text type="secondary">{t('approval.approvalDetail.decisionBarHint')}</Typography.Text>
-                  </div>
-                  <Space>
-                    <Button danger onClick={() => setDecision('reject')}>
-                      {t('approval.approvalDetail.rejectButton')}
-                    </Button>
-                    <Button type="primary" icon={<OaIcon name="approval" />} onClick={() => setDecision('approve')}>
-                      {t('approval.approvalDetail.approveButton')}
-                    </Button>
-                  </Space>
-                </div>
-              )}
+              <ApprovalTaskActions application={application} scope={detail.scope} isCurrent={detail.isCurrent}
+                loading={loading} reload={load} onMoved={onClose} onUpdated={onUpdated} compact />
             </div>
           )}
         </Spin>
       </Drawer>
 
-      <Modal
-        className="approval-decision-modal"
-        title={decision === 'reject' ? t('approval.approvalDetail.rejectModalTitle') : t('approval.approvalDetail.approveModalTitle')}
-        open={Boolean(decision)}
-        okText={decision === 'reject' ? t('approval.approvalDetail.rejectModalOk') : t('approval.approvalDetail.approveModalOk')}
-        okButtonProps={{ danger: decision === 'reject', loading: saving }}
-        onCancel={() => { setDecision(undefined); form.resetFields(); }}
-        onOk={() => void submitDecision()}
-      >
-        <Alert
-          showIcon
-          type={decision === 'reject' ? 'warning' : 'info'}
-          message={decision === 'reject'
-            ? t('approval.approvalDetail.rejectAlertMessage')
-            : t('approval.approvalDetail.approveAlertMessage')}
-        />
-        <Form form={form} layout="vertical" style={{ marginTop: 14 }}>
-          <Form.Item
-            name="comment"
-            label={t('approval.approvalDetail.commentLabel')}
-            rules={[
-              { required: decision === 'reject', whitespace: true, message: t('approval.approvalDetail.commentRejectRequired') },
-              { max: 500 },
-            ]}
-          >
-            <Input.TextArea
-              rows={5}
-              showCount
-              maxLength={500}
-              placeholder={decision === 'reject' ? t('approval.approvalDetail.commentRejectPlaceholder') : t('approval.approvalDetail.commentApprovePlaceholder')}
-            />
-          </Form.Item>
-        </Form>
-      </Modal>
     </>
   );
 }

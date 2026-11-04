@@ -11,6 +11,8 @@ import { OaIcon } from '@/components/OaIcon';
 import AgentPlanPreview from './AgentPlanPreview';
 import { agentTaskNavigationTarget, type AgentPageNavigator } from '@/lib/agentToolTargetPage';
 import { canCancelAgentTask, cancelAgentTask } from '@/lib/agentTaskCancellation';
+import { usePageUiCommandBridge } from './PageUiCommandBridge';
+import { captureAuthDataScope } from '@/lib/authEvents';
 
 interface AIOperationDrawerProps {
   open: boolean;
@@ -61,6 +63,7 @@ function resultPage(result: unknown): { total: number; empty: boolean } | null {
 
 export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageContext, initialPrompt, onClose, onOpenChangeComplete, onExecutionCompleted, onNavigatePage }: AIOperationDrawerProps) {
   const { t } = useTranslation();
+  const uiBridge = usePageUiCommandBridge();
   const { message, modal } = AntdApp.useApp();
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<ChatLine[]>([]);
@@ -165,9 +168,17 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageC
 
   const acceptResult = (detail: AgentTaskDetail) => {
     const taskId = detail.taskId;
+    const hasUiCommand = detail.steps.some((step) => step.toolCode === 'page.ui.prepare');
     setResultDetail(detail);
     setTaskStatus(detail.status);
-    notifyExecutionCompleted(detail.taskId, detail.status);
+    if (!hasUiCommand)
+      notifyExecutionCompleted(detail.taskId, detail.status);
+    if (uiBridge && hasUiCommand && detail.status === 'SUCCEEDED') {
+      const current = captureAuthDataScope();
+      void uiBridge.applyTask(detail).then((changed) => {
+        if (changed && current()) message.success(t('oa.ai.uiApplied'));
+      }).catch((error) => { if (current()) message.error(error instanceof Error ? error.message : t('oa.ai.uiNotApplied')); });
+    }
     const successfulSteps = detail.status === 'SUCCEEDED'
       ? detail.steps.filter((step) => step.status === 'SUCCEEDED' && step.resultSummary)
       : [];
@@ -176,10 +187,11 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageC
       setMessages((previous) => [...previous, {
         role: 'assistant', content: successfulSteps.map((step) => step.resultSummary).join('\n\n'),
       }]);
-      const target = agentTaskNavigationTarget(detail);
+      const target = hasUiCommand ? null : agentTaskNavigationTarget(detail);
       if (target) {
         // The layout callback applies current navigation permissions; tool output is not a URL.
-        if (target.recordId === undefined) onNavigatePage?.(target.pageId);
+        if (target.todoQuery) onNavigatePage?.(target.pageId, undefined, undefined, target.todoQuery);
+        else if (target.recordId === undefined) onNavigatePage?.(target.pageId);
         else if (target.recordKind) onNavigatePage?.(target.pageId, target.recordId, target.recordKind);
         else onNavigatePage?.(target.pageId, target.recordId);
       }
@@ -299,7 +311,7 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageC
     }
   };
 
-  const beginEventStream = (taskId: string) => {
+  const beginEventStream = (taskId: string, hasUiCommand = false) => {
     stopEventStream();
     const stream = eventStreamRequestRef.current;
     unsubscribeRef.current = subscribeAiTaskEvents(taskId, {
@@ -315,11 +327,13 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageC
           if (loadedResultTaskRef.current !== taskId) {
             loadedResultTaskRef.current = taskId;
             void loadResult(taskId);
-            if (status === 'SUCCEEDED' || status === 'PARTIALLY_SUCCEEDED') {
+            if (status === 'SUCCEEDED') {
               message.success(t('oa.ai.executionCompletedMessage'));
+            } else if (status === 'PARTIALLY_SUCCEEDED') {
+              message.warning(t('chat.operationResultUnknown'));
             }
           }
-          notifyExecutionCompleted(taskId, status);
+          if (!hasUiCommand) notifyExecutionCompleted(taskId, status);
         }
       },
       onError: (error) => {
@@ -357,7 +371,7 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageC
       refreshedTaskRef.current = null;
       setExecution(data);
       setTaskStatus((current) => current === 'RUNNING' && data.status === 'QUEUED' ? current : data.status);
-      beginEventStream(data.taskId);
+      beginEventStream(data.taskId, acceptedPlan.steps.some((step) => step.toolCode === 'page.ui.prepare'));
       message.success(t('oa.ai.executionQueued'));
     } catch (error) {
       if (request !== executionRequestRef.current) return;

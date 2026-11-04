@@ -1,11 +1,14 @@
 import { request, queryString, type PageResponse } from '@/lib/oaApi';
 import { buildApiHeaders } from '@/lib/apiHeaders';
-import { notifyAuthResponseStatus } from '@/lib/authEvents';
+import { authenticatedFetch as fetch, notifyAuthResponseStatus, readAuthenticatedJson, readAuthenticatedBlob } from '@/lib/authEvents';
 import i18n from '@/i18n';
 
 // ==================== 资产台账 ====================
 
 export type AssetStatus = 'IN_USE' | 'IDLE' | 'REPAIRING' | 'SCRAPPED';
+
+export interface AssetAssignmentOption { id: number; name: string; departmentId: number | null }
+export interface BusinessUserOption { id: number; name: string }
 
 export interface AssetLedgerPayload {
   assetCode: string;
@@ -299,6 +302,9 @@ export interface ApprovalDecisionPayload {
 const PREFIX = '/admin-assets';
 
 export const adminAssetsApi = {
+  assetDepartments: () => request<AssetAssignmentOption[]>(`${PREFIX}/assets/assignment/departments`),
+  assetCustodians: (departmentId: number, page: number, size: number) =>
+    request<PageResponse<AssetAssignmentOption>>(`${PREFIX}/assets/assignment/custodians${queryString({ departmentId, page, size })}`),
   // ---------- 资产台账 ----------
   listAssets: (params: {
     keyword?: string;
@@ -421,6 +427,8 @@ export const adminAssetsApi = {
     }),
 
   // ---------- 访客预约 ----------
+  visitorHostOptions: (params: { keyword?: string; page: number; size: number }) =>
+    request<PageResponse<BusinessUserOption>>(`${PREFIX}/visitor-bookings/host-options${queryString(params)}`),
   submitVisitorBooking: (payload: VisitorBookingPayload) =>
     request<VisitorBooking>(`${PREFIX}/visitor-bookings`, {
       method: 'POST',
@@ -529,27 +537,33 @@ export const adminAssetsApi = {
   listSealUsageDocuments: (id: number) =>
     request<SealUsageDocument[]>(`${PREFIX}/seal-usages/${id}/documents`),
 
-  uploadSealUsageDocument: async (id: number, file: File): Promise<SealUsageDocument> => {
+  uploadSealUsageDocument: async (id: number, file: File, isCurrent: () => boolean = () => true): Promise<SealUsageDocument> => {
+    if (!isCurrent()) throw new DOMException('', 'AbortError');
     const body = new FormData();
     body.append('file', file);
     const res = await fetch(`/api${PREFIX}/seal-usages/${id}/documents`, {
       method: 'POST', credentials: 'include', headers: buildApiHeaders(false), body,
     });
-    notifyAuthResponseStatus(res.status);
-    const json = await res.json().catch(() => null) as ApiResult<SealUsageDocument> | null;
+    if (!isCurrent()) throw new DOMException('', 'AbortError');
+    notifyAuthResponseStatus(res.status, res);
+    const json = await readAuthenticatedJson(res) as ApiResult<SealUsageDocument> | null;
     if (!res.ok || !json || json.code !== 200 || json.data === null) {
       throw new Error(json?.message || i18n.t('adminAssets.seal.document.uploadFailed'));
     }
     return json.data;
   },
 
-  downloadSealUsageDocument: async (document: SealUsageDocument): Promise<void> => {
+  downloadSealUsageDocument: async (document: SealUsageDocument, isCurrent: () => boolean = () => true): Promise<void> => {
+    if (!isCurrent()) return;
     const res = await fetch(document.contentUrl, {
       credentials: 'include', headers: buildApiHeaders(false),
     });
-    notifyAuthResponseStatus(res.status);
+    if (!isCurrent()) return;
+    notifyAuthResponseStatus(res.status, res);
     if (!res.ok) throw new Error(i18n.t('adminAssets.seal.document.downloadFailed'));
-    const url = URL.createObjectURL(await res.blob());
+    const blob = await readAuthenticatedBlob(res);
+    if (!isCurrent()) return;
+    const url = URL.createObjectURL(blob);
     const link = window.document.createElement('a');
     link.href = url;
     link.download = document.displayName;

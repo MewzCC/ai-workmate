@@ -18,6 +18,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+@org.junit.jupiter.api.extension.ExtendWith(com.aiworkmate.common.LocalizedMessagesExtension.class)
 class TikaFileParserServiceImplTest {
 
     private static final Long USER_ID = 1001L;

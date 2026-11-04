@@ -1,6 +1,7 @@
 package com.aiworkmate.service.impl;
 
 import com.aiworkmate.common.BusinessException;
+import com.aiworkmate.common.FileSizeLimit;
 import com.aiworkmate.common.ErrorCode;
 import com.aiworkmate.config.UploadProperties;
 import com.aiworkmate.dto.AttachmentResponse;
@@ -53,7 +54,7 @@ public class AttachmentServiceImpl implements AttachmentService {
                 objectStorageService.store(storageName, file.getInputStream(), file.getSize(), parsed.mimeType());
             } catch (IOException ex) {
                 log.error("Attachment stream read failed", ex);
-                throw new BusinessException(ErrorCode.SYSTEM_ERROR, "附件保存失败");
+                throw new BusinessException(ErrorCode.SYSTEM_ERROR, "validation.runtime.attachment.saveFailed");
             }
             Attachment attachment;
             try {
@@ -90,7 +91,7 @@ public class AttachmentServiceImpl implements AttachmentService {
                 .eq(Attachment::getConversationId, conversationId)
                 .isNull(Attachment::getMessageId));
         if (attachments.size() != distinctIds.size()) {
-            throw new BusinessException(ErrorCode.RESOURCE_FORBIDDEN, "附件不存在、已使用或不属于当前会话");
+            throw new BusinessException(ErrorCode.RESOURCE_FORBIDDEN, "validation.runtime.attachment.bindingForbidden");
         }
         return attachments;
     }
@@ -152,35 +153,35 @@ public class AttachmentServiceImpl implements AttachmentService {
             return temp;
         } catch (IOException ex) {
             log.error("Attachment temp storage failed", ex);
-            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "附件保存失败");
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "validation.runtime.attachment.saveFailed");
         }
     }
 
     private void validateBasicFile(MultipartFile file) {
         if (file == null || file.isEmpty()) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "上传文件不能为空");
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.runtime.file.empty");
         }
         if (file.getSize() > properties.getFileMaxBytes()) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "文件不能超过 20MB");
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.runtime.file.tooLarge", FileSizeLimit.describe(properties.getFileMaxBytes()));
         }
     }
 
     private void validateSize(long size, boolean image) {
         if (image && size > properties.getImageMaxBytes()) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "图片不能超过 10MB");
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.runtime.file.imageTooLarge", FileSizeLimit.describe(properties.getImageMaxBytes()));
         }
     }
 
     private void requireConversationOwner(Long userId, Long conversationId) {
         Long count = conversationMapper.selectCount(new LambdaQueryWrapper<Conversation>()
                 .eq(Conversation::getId, conversationId).eq(Conversation::getUserId, userId));
-        if (count == 0) throw new BusinessException(ErrorCode.RESOURCE_FORBIDDEN, "无权访问该会话");
+        if (count == 0) throw new BusinessException(ErrorCode.RESOURCE_FORBIDDEN, "validation.runtime.attachment.conversationForbidden");
     }
 
     private Attachment findOwned(Long userId, Long attachmentId) {
         Attachment attachment = attachmentMapper.selectOne(new LambdaQueryWrapper<Attachment>()
                 .eq(Attachment::getId, attachmentId).eq(Attachment::getUserId, userId));
-        if (attachment == null) throw new BusinessException(ErrorCode.RESOURCE_FORBIDDEN, "无权访问该附件");
+        if (attachment == null) throw new BusinessException(ErrorCode.RESOURCE_FORBIDDEN, "validation.runtime.attachment.forbidden");
         return attachment;
     }
 

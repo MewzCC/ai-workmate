@@ -27,6 +27,9 @@ export default {
     assetCode: '资产编码',
     name: '资产名称',
     category: '分类',
+    categoryOption: { it: 'IT设备', furniture: '办公家具', vehicle: '车辆' },
+    purchaseDatePlaceholder: 'YYYY-MM-DD',
+    detailLoadFailed: '资产详情加载失败，请重试',
     specification: '规格型号',
     status: '状态',
     statusOption: {
@@ -140,7 +143,7 @@ export default {
     visitorCompany: '访客公司',
     visitorPhone: '联系电话',
     purpose: '来访事由',
-    hostUserId: '接待人 ID',
+    hostUserId: '接待人',
     expectedVisitAt: '预计到访时间',
     expectedLeaveAt: '预计离开时间',
     plateNumber: '车牌号',

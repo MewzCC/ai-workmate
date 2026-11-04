@@ -67,7 +67,8 @@ class AgentReadCatalogIntegrationTest extends AbstractIsolatedAgentIntegrationTe
             var capability = pages.find(page).orElseThrow();
             assertThat(capability.componentKey()).as(page).isEqualTo(route.get("component_key"));
             assertThat(capability.readTools()).as(page).isNotEmpty();
-            String tool = capability.readTools().stream().map(reference -> reference.toolCode()).sorted().findFirst().orElseThrow();
+            String tool = capability.readTools().stream().map(reference -> reference.toolCode())
+                    .filter(code -> !ToolCode.PAGE_UI_PREPARE.code().equals(code)).sorted().findFirst().orElseThrow();
             return Arguments.of(page,ToolCode.fromCode(tool));
         });
     }
@@ -83,7 +84,7 @@ class AgentReadCatalogIntegrationTest extends AbstractIsolatedAgentIntegrationTe
     }
 
     @Test void theReadMatrixMatchesTheCodeOwnedCatalogAndKeepsWritesDisabled() {
-        assertThat(readTools().map(ToolCode::code).toList()).hasSize(41)
+        assertThat(readTools().map(ToolCode::code).toList()).hasSize(50)
                 .containsExactlyInAnyOrderElementsOf(catalog.all().stream().filter(tool -> !ToolCode.fromCode(tool.code()).isWrite()).map(tool -> tool.code()).toList());
         assertThat(runtime.isWriteToolsEnabled()).isFalse();
     }

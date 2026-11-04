@@ -50,10 +50,10 @@ public class ApiEmbeddingProviderClient implements EmbeddingProviderClient {
     public EmbeddingResult embed(List<String> texts) {
         if (properties.getApiKey() == null || properties.getApiKey().isBlank()) {
             throw new BusinessException(ErrorCode.EMBEDDING_UNAVAILABLE,
-                    "EMBEDDING_API_KEY 尚未配置");
+                    "validation.runtime.embedding.keyMissing");
         }
         if (texts == null || texts.isEmpty() || texts.stream().anyMatch(text -> text == null || text.isBlank())) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "向量化文本不能为空");
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.runtime.embedding.textEmpty");
         }
 
         long startedAt = System.nanoTime();
@@ -76,7 +76,7 @@ public class ApiEmbeddingProviderClient implements EmbeddingProviderClient {
             log.warn("Embedding API request failed, endpoint={}, model={}, textCount={}",
                     properties.getApiBaseUrl(), model(), texts.size(), ex);
             throw new BusinessException(ErrorCode.EMBEDDING_UNAVAILABLE,
-                    "远程向量模型 API 暂时不可用");
+                    "validation.runtime.embedding.remoteUnavailable");
         } catch (RuntimeException ex) {
             log.error("Embedding API returned invalid response, model={}, textCount={}",
                     model(), texts.size(), ex);
@@ -101,7 +101,7 @@ public class ApiEmbeddingProviderClient implements EmbeddingProviderClient {
     private void appendValidated(List<float[]> target, ApiEmbeddingResponse response, int expectedCount) {
         if (response == null || response.data() == null || response.data().size() != expectedCount) {
             throw new BusinessException(ErrorCode.EMBEDDING_RESPONSE_INVALID,
-                    "远程向量模型返回数量不符合请求");
+                    "validation.runtime.embedding.remoteCountInvalid");
         }
         List<ApiEmbeddingItem> ordered = response.data().stream()
                 .sorted(Comparator.comparingInt(ApiEmbeddingItem::index))
@@ -110,19 +110,19 @@ public class ApiEmbeddingProviderClient implements EmbeddingProviderClient {
             ApiEmbeddingItem item = ordered.get(itemIndex);
             if (item.index() != itemIndex) {
                 throw new BusinessException(ErrorCode.EMBEDDING_RESPONSE_INVALID,
-                        "远程向量模型返回的索引不连续");
+                        "validation.runtime.embedding.remoteIndicesInvalid");
             }
             List<Double> values = item.embedding();
             if (values == null || values.size() != properties.getDimension()) {
                 throw new BusinessException(ErrorCode.EMBEDDING_RESPONSE_INVALID,
-                        "远程向量模型返回维度不符合配置");
+                        "validation.runtime.embedding.remoteDimensionInvalid");
             }
             float[] vector = new float[values.size()];
             for (int index = 0; index < values.size(); index++) {
                 Double value = values.get(index);
                 if (value == null || !Double.isFinite(value)) {
                     throw new BusinessException(ErrorCode.EMBEDDING_RESPONSE_INVALID,
-                            "远程向量模型返回了非法数值");
+                            "validation.runtime.embedding.remoteValuesInvalid");
                 }
                 vector[index] = value.floatValue();
             }
@@ -135,7 +135,7 @@ public class ApiEmbeddingProviderClient implements EmbeddingProviderClient {
                 ? "" : properties.getApiBaseUrl().strip().replaceAll("/+$", "");
         if (baseUrl.isBlank()) {
             throw new BusinessException(ErrorCode.EMBEDDING_UNAVAILABLE,
-                    "EMBEDDING_API_BASE_URL 尚未配置");
+                    "validation.runtime.embedding.remoteEndpointMissing");
         }
         return baseUrl + "/embeddings";
     }

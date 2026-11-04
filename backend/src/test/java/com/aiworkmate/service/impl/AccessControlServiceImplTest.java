@@ -22,6 +22,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+@org.junit.jupiter.api.extension.ExtendWith(com.aiworkmate.common.LocalizedMessagesExtension.class)
 class AccessControlServiceImplTest {
 
     @Mock

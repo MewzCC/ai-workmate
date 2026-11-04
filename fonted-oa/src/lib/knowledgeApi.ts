@@ -1,6 +1,6 @@
 import i18n from '@/i18n';
 import { buildApiHeaders } from '@/lib/apiHeaders';
-import { notifyAuthResponseStatus } from '@/lib/authEvents';
+import { AuthResponseScopeError, authenticatedFetch as fetch, captureAuthDataScope, captureAuthResponseScope, notifyAuthResponseStatus, readAuthenticatedJson } from '@/lib/authEvents';
 
 interface ApiResult<T> {
   code: number;
@@ -126,8 +126,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
     headers: buildApiHeaders(!isFormData, init?.headers),
   });
-  const result = await response.json().catch(() => null) as ApiResult<T> | null;
-  notifyAuthResponseStatus(response.status);
+  const result = await readAuthenticatedJson(response) as ApiResult<T> | null;
+  notifyAuthResponseStatus(response.status, response);
   return resolveResult(result, response.ok, init?.method === 'DELETE');
 }
 
@@ -139,21 +139,25 @@ function requestWithProgress<T>(
 ): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
+    const responseScope = captureAuthResponseScope();
+    const dataCurrent = captureAuthDataScope();
     xhr.open('POST', `/api/knowledge${path}`);
     xhr.withCredentials = true;
     xhr.upload.onprogress = (event) => {
-      if (event.lengthComputable && onProgress) {
+      if (dataCurrent() && event.lengthComputable && onProgress) {
         onProgress(Math.min(99, Math.round((event.loaded / event.total) * 100)));
       }
     };
     xhr.onload = () => {
+      const wasCurrent = dataCurrent();
+      notifyAuthResponseStatus(xhr.status, responseScope);
+      if (!wasCurrent) { reject(new AuthResponseScopeError()); return; }
       let result: ApiResult<T> | null = null;
       try {
         result = JSON.parse(xhr.responseText) as ApiResult<T>;
       } catch {
         result = null;
       }
-      notifyAuthResponseStatus(xhr.status);
       try {
         resolve(resolveResult(result, xhr.status >= 200 && xhr.status < 300, false));
       } catch (error) {

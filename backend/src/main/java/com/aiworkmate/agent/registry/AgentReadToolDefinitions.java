@@ -110,11 +110,11 @@ public class AgentReadToolDefinitions {
             """.strip();
 
     public static final String TODO_QUERY_INPUT_SCHEMA = """
-            {"type":"object","additionalProperties":false,"properties":{"status":{"type":"string","enum":["PENDING","APPROVED","REJECTED","CANCELLED"]},"from":{"type":"string","minLength":16,"maxLength":32},"to":{"type":"string","minLength":16,"maxLength":32},"page":{"type":"integer","minimum":1,"maximum":10000},"size":{"type":"integer","minimum":1,"maximum":50}}}
+            {"type":"object","additionalProperties":false,"properties":{"businessType":{"type":"string","enum":["ALL","LEAVE_APPLICATION","GENERIC_APPROVAL"]},"status":{"type":"string","enum":["ALL","PENDING","APPROVED","REJECTED","CANCELLED"]},"from":{"type":"string","minLength":16,"maxLength":32},"to":{"type":"string","minLength":16,"maxLength":32},"page":{"type":"integer","minimum":1,"maximum":10000},"size":{"type":"integer","minimum":1,"maximum":50}}}
             """.strip();
 
     public static final String TODO_QUERY_OUTPUT_SCHEMA = """
-            {"type":"object","additionalProperties":false,"required":["items","total","page","size"],"properties":{"items":{"type":"array","maxItems":50,"items":{"type":"object","additionalProperties":false,"required":["id","applicationId","applicantName","leaveType","durationHalfDays","status","version","overdue"],"properties":{"id":{"type":"integer","minimum":1},"applicationId":{"type":"integer","minimum":1},"applicantName":{"type":"string","maxLength":120},"leaveType":{"type":"string","maxLength":40},"durationHalfDays":{"type":"integer","minimum":1},"status":{"type":"string","enum":["PENDING","APPROVED","REJECTED","CANCELLED"]},"version":{"type":"integer","minimum":0},"submittedAt":{"type":"string","maxLength":32},"dueAt":{"type":"string","maxLength":32},"overdue":{"type":"boolean"}}}},"total":{"type":"integer","minimum":0},"page":{"type":"integer","minimum":1},"size":{"type":"integer","minimum":1,"maximum":50}}}
+            {"type":"object","additionalProperties":false,"required":["items","total","page","size","businessType","status"],"properties":{"items":{"type":"array","maxItems":50,"items":{"type":"object","additionalProperties":false,"required":["id","applicationId","applicantName","status","version","overdue","businessType","title","detailAvailable"],"properties":{"id":{"type":"integer","minimum":1},"applicationId":{"type":"integer","minimum":1},"applicantName":{"type":"string","maxLength":120},"leaveType":{"type":"string","maxLength":40},"durationHalfDays":{"type":"integer","minimum":1},"status":{"type":"string","enum":["PENDING","APPROVED","REJECTED","CANCELLED"]},"version":{"type":"integer","minimum":0},"submittedAt":{"type":"string","maxLength":32},"dueAt":{"type":"string","maxLength":32},"overdue":{"type":"boolean"},"businessType":{"type":"string","enum":["LEAVE_APPLICATION","GENERIC_APPROVAL"]},"title":{"type":"string","maxLength":200},"nodeName":{"type":"string","maxLength":80},"detailAvailable":{"type":"boolean"}}}},"total":{"type":"integer","minimum":0},"page":{"type":"integer","minimum":1,"maximum":10000},"size":{"type":"integer","minimum":1,"maximum":50},"businessType":{"type":"string","enum":["ALL","LEAVE_APPLICATION","GENERIC_APPROVAL"]},"status":{"type":"string","enum":["ALL","PENDING","APPROVED","REJECTED","CANCELLED"]},"from":{"type":"string","maxLength":32},"to":{"type":"string","maxLength":32}}}
             """.strip();
 
     public static final String LEAVE_MINE_INPUT_SCHEMA = """
@@ -274,8 +274,8 @@ public class AgentReadToolDefinitions {
         return ToolDefinitionFactory.read(
                 ToolCode.TODO_QUERY,
                 "Query my approval tasks",
-                "Returns approval tasks assigned to the authenticated user in the authenticated tenant.",
-                "Display a bounded, read-only list of the current user's approval tasks.",
+                "Returns both leave and generic approval tasks assigned to the authenticated user in the authenticated tenant, with an optional businessType filter and the applied query.",
+                "Display the current user's real approval inbox; defaults to pending tasks across both supported business types.",
                 objectMapper.readTree(TODO_QUERY_INPUT_SCHEMA),
                 objectMapper.readTree(TODO_QUERY_OUTPUT_SCHEMA),
                 Set.of("todo:read"),

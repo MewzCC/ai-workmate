@@ -188,6 +188,13 @@ describe('Phase 2 task API contracts', () => {
 });
 
 describe('审批协作 API contracts', () => {
+  it('reads a bounded participant page with server-side eligibility filtering', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(result({ records: [], total: 65, page: 4, size: 20 }));
+    const response = await todoApi.participantOptions(9, { keyword: 'name', page: 4, size: 20, approversOnly: true });
+    expect(response.total).toBe(65);
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/approval-tasks/9/participant-options?keyword=name&page=4&size=20&approversOnly=true');
+    expect(fetchMock.mock.calls[0][1]).toEqual(expect.objectContaining({ credentials: 'include' }));
+  });
   it('uses authenticated versioned requests for transfer, copy, and add-sign', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch')
       .mockResolvedValueOnce(result([{ id: 8, name: '接收人', canApprove: true }]))

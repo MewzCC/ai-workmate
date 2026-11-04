@@ -10,6 +10,9 @@ import { formatOaApiError } from '@/lib/oaApi';
 import { pageActionApi, type PageActionItem, type PageActionOverview } from '@/lib/pageActionApi';
 import { agentToolTranslationKey } from '@/lib/agentToolPresentation';
 import ResponsiveTable from './ResponsiveTable';
+import { useRegisterPageUiCommands } from './PageUiCommandBridge';
+import { usePublishPageAgentContext } from './PageAgentContext';
+import { requireUiFieldTypes } from '@/lib/preparedPageUiCommand';
 
 interface PolicyForm { reason: string }
 
@@ -20,6 +23,7 @@ export default function PageActionsPage() {
   const [saving, setSaving] = useState(false);
   const [pageId, setPageId] = useState<string>();
   const [keyword, setKeyword] = useState('');
+  const [enabledFilter, setEnabledFilter] = useState<'true' | 'false' | 'ALL'>('ALL');
   const [pending, setPending] = useState<{ action: PageActionItem; enabled: boolean }>();
   const [form] = Form.useForm<PolicyForm>();
 
@@ -42,8 +46,21 @@ export default function PageActionsPage() {
   const actions = useMemo(() => {
     const normalized = keyword.trim().toLowerCase();
     return (data?.pages.find((page) => page.pageId === pageId)?.actions || []).filter((action) =>
-      !normalized || `${action.toolCode} ${action.name} ${action.description}`.toLowerCase().includes(normalized));
-  }, [data?.pages, keyword, pageId]);
+      (enabledFilter === 'ALL' || action.enabled === (enabledFilter === 'true'))
+      && (!normalized || `${action.toolCode} ${action.name} ${action.description}`.toLowerCase().includes(normalized)));
+  }, [data?.pages, keyword, pageId, enabledFilter]);
+  usePublishPageAgentContext({ targetPageId: pageId, keyword: keyword || undefined, enabled: enabledFilter });
+  useRegisterPageUiCommands({ 'ui.refreshPage': load,
+    'ui.applyFilter': ({ payload: { filters } }) => {
+      requireUiFieldTypes(filters, { targetPageId: 'string', keyword: 'string', enabled: ['true', 'false', 'ALL'] });
+      if (filters.targetPageId !== undefined) {
+        if (!data?.pages.some(item => item.pageId === filters.targetPageId)) throw new Error('PAGE_UI_FIELD_REJECTED');
+        setPageId(String(filters.targetPageId));
+      }
+      if (filters.keyword !== undefined) setKeyword(String(filters.keyword));
+      if (filters.enabled !== undefined) setEnabledFilter(filters.enabled as 'true' | 'false' | 'ALL');
+    },
+  });
 
   const save = async () => {
     if (!pending) return;
@@ -107,6 +124,8 @@ export default function PageActionsPage() {
         <div className="oa-page-actions-toolbar">
           <Select value={pageId} onChange={setPageId} options={(data?.pages || []).map((page) => ({ value: page.pageId, label: t(`oa.menu.${page.pageId}`, { defaultValue: page.pageId }) }))} aria-label={t('pageActions.pageSelect')} />
           <Input allowClear value={keyword} onChange={(event) => setKeyword(event.target.value)} prefix={<OaIcon name="search" />} placeholder={t('pageActions.search')} />
+          <Select value={enabledFilter} onChange={setEnabledFilter} aria-label={t('pageActions.columns.status')}
+            options={[{ value: 'ALL', label: t('common.all') }, { value: 'true', label: t('pageActions.enabled') }, { value: 'false', label: t('pageActions.disabled') }]} />
         </div>
         <ResponsiveTable<PageActionItem> rowKey={(action) => `${action.pageId}:${action.toolCode}`} columns={columns} dataSource={actions} loading={loading} pagination={false} locale={{ emptyText: t('pageActions.empty') }} />
       </Card>

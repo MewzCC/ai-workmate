@@ -4,13 +4,14 @@ const api = vi.hoisted(() => ({ cancel: vi.fn(), detail: vi.fn() }));
 vi.mock('./oaApi', async (original) => ({ ...await original<typeof import('./oaApi')>(), agentTaskApi: api }));
 import { OaApiError } from './oaApi';
 import { canCancelAgentTask, cancelAgentTask } from './agentTaskCancellation';
+import { bindAuthResponseIdentity, invalidateAuthResponses } from './authEvents';
 const taskId = 'isolated-task';
 const detail: AgentTaskDetail = {
   taskId, pageId: 'todo', input: 'synthetic read', pageContext: {}, plan: {}, planHash: null, planVersion: 1,
   riskLevel: 'L0', status: 'CANCELLED', steps: [], timeoutAt: null,
   createdAt: '2026-10-25T09:00:00', updatedAt: '2026-10-25T09:01:00', finishedAt: '2026-10-25T09:01:00', errorCode: null,
 };
-beforeEach(() => { vi.resetAllMocks(); });
+beforeEach(() => { vi.resetAllMocks(); invalidateAuthResponses(); bindAuthResponseIdentity('synthetic:actor-a', 'initial'); });
 
 it('only permits cancellation before execution', () => {
   expect(['PLAN_READY', 'WAITING_CONFIRMATION', 'QUEUED'].map(canCancelAgentTask)).toEqual([true, true, true]);
@@ -57,4 +58,24 @@ it('rejects another task returned during reconciliation', async () => {
 it.each([{ ...detail, status: 'UNKNOWN' }, { ...detail, steps: undefined }])('rejects malformed reconciliation detail', async (current) => {
   api.cancel.mockRejectedValue(new Error('network')); api.detail.mockResolvedValue(current);
   await expect(cancelAgentTask(taskId)).rejects.toThrow();
+});
+
+it.each(['identity', 'permissions'])('never reconciles an old command under a changed %s scope', async change => {
+  let reject!: (reason: Error) => void;
+  api.cancel.mockReturnValueOnce(new Promise((_, fail) => { reject = fail; }));
+  const pending = cancelAgentTask(taskId);
+  const assertion = expect(pending).rejects.toMatchObject({ code: 'AUTH_SCOPE_CHANGED' });
+  bindAuthResponseIdentity(change === 'identity' ? 'synthetic:actor-b' : 'synthetic:actor-a', 'changed');
+  reject(new Error('Delayed transport error'));
+  await assertion;
+  expect(api.cancel).toHaveBeenCalledTimes(1); expect(api.detail).not.toHaveBeenCalled();
+});
+
+it('discards a delayed cancellation receipt without claiming the command was undone', async () => {
+  let resolve!: (value: AgentTaskDetail) => void;
+  api.cancel.mockReturnValueOnce(new Promise(done => { resolve = done; }));
+  const pending = cancelAgentTask(taskId);
+  const assertion = expect(pending).rejects.toMatchObject({ code: 'AUTH_SCOPE_CHANGED' });
+  bindAuthResponseIdentity('synthetic:actor-b'); resolve(detail); await assertion;
+  expect(api.cancel).toHaveBeenCalledTimes(1); expect(api.detail).not.toHaveBeenCalled();
 });

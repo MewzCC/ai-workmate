@@ -7,6 +7,7 @@ const allPermissions = [
   'access:manage', 'data:export', 'dictionary:manage', 'tenant:config:manage',
   'data:permission:manage', 'ai:permission:manage', 'workbench:finance:manage',
   'workbench:integration:manage', 'workbench:settings:manage',
+  'todo:read',
 ];
 
 const user = {
@@ -33,23 +34,23 @@ test('42 个启用页面在真实浏览器中均可进入且接口失败时不�
   expect(enabledOaRoutes).toHaveLength(42);
   expect(new Set(enabledOaRoutes.map((route) => route.componentKey)))
     .toEqual(new Set(ENABLED_PAGE_COMPONENT_KEYS));
-  await mockOaBackend(page);
-  const pageErrors: string[] = [];
-  page.on('pageerror', (error) => pageErrors.push(error.message));
-
-  for (const route of enabledOaRoutes) {
-    await test.step(`${route.routeKey} -> ${route.componentKey}`, async () => {
-      await page.goto(`/oa/${route.routeKey}`);
-      await expect(page.locator('.oa-shell')).toBeVisible();
-      await expect(page.locator('.oa-page-transition > *').first()).toBeVisible();
-      await expect(page.getByTestId('unsupported-component')).toHaveCount(0);
-      await expect(page).toHaveURL(new RegExp(`/oa/${route.routeKey}$`));
-      await expectBodyWithinViewport(page);
-    });
-  }
-
-  expect(pageErrors).toEqual([]);
 });
+
+for (const route of enabledOaRoutes) {
+  test(`${route.routeKey} -> ${route.componentKey}：接口失败时不白屏`, async ({ page }) => {
+    await mockOaBackend(page);
+    const pageErrors: string[] = [];
+    page.on('pageerror', (error) => pageErrors.push(error.message));
+    await page.goto(`/oa/${route.routeKey}`);
+    await expect(page.locator('.oa-shell')).toBeVisible();
+    await expect(page.locator('.oa-page-transition > *').first()).toBeVisible();
+    await expect(page.getByTestId('unsupported-component')).toHaveCount(0);
+    await expect(page).toHaveURL(new RegExp(`/oa/${route.routeKey}$`));
+    await expectBodyWithinViewport(page);
+
+    expect(pageErrors).toEqual([]);
+  });
+}
 
 test('空待办展示真实空态且页面填充可用工作区', async ({ page }) => {
   await mockOaBackend(page, { emptyTodos: true });
