@@ -119,7 +119,7 @@ public class PageCapabilityCatalog {
                         tool(AGENT_TASK_MINE_QUERY), tool(AGENT_TASK_CANCEL)),
                 page(OaPage.TODO, OwnershipPolicy.ASSIGNED_TO_SELF, LIST_COMMANDS,
                         context(text("businessType"),text("status"), text("from"), text("to"), number("page"), number("size")),
-                        tool(TODO_QUERY)),
+                        tool(TODO_QUERY), tool(APPROVAL_GENERIC_TASK_DETAIL_QUERY)),
                 page(OaPage.MESSAGES, OwnershipPolicy.SELF, LIST_COMMANDS,
                         context(number("notificationId"), number("page"), number("size")),
                         tool(NOTIFICATION_MINE), tool(NOTIFICATION_MARK_READ)),

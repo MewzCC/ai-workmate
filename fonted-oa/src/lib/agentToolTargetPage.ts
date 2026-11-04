@@ -2,7 +2,7 @@ import type { AgentTaskDetail, OaMenuItem } from '@/types/oa';
 import { findMenu } from './navigationTree';
 import { requireTodoQuery, todoQueryPath, type TodoQueryFilters } from './todoQuery';
 
-export type AgentRecordKind = 'dictionary-type' | 'dictionary-item' | 'generic-application';
+export type AgentRecordKind = 'dictionary-type' | 'dictionary-item' | 'generic-application' | 'generic-task';
 export type AgentPageNavigator = (pageId: string, recordId?: number, recordKind?: AgentRecordKind, todoQuery?: TodoQueryFilters) => boolean;
 
 /** Only completed results select a page; arguments and output URLs never select records. */
@@ -11,6 +11,10 @@ export function agentTaskNavigationTarget(detail: Pick<AgentTaskDetail, 'status'
       || detail.steps.some((step) => step.status !== 'SUCCEEDED' || step.result == null)) return null;
   const last = detail.steps[detail.steps.length - 1];
   if (last.toolCode === 'page.ui.prepare') return null;
+  if (last.toolCode === 'approval.genericTask.detail.query') {
+    const recordId = agentToolTargetRecordId(last.toolCode, last.result);
+    return recordId === undefined ? null : { pageId: 'todo', recordId, recordKind: 'generic-task' };
+  }
   if (last.toolCode === 'todo.query' && last.result && typeof last.result === 'object' && !Array.isArray(last.result)
       && 'businessType' in last.result) {
     const result = last.result as Record<string, unknown>;
@@ -36,6 +40,7 @@ const EXACT_TARGETS: Record<string, string> = {
   'agentTask.mine.query': 'ai-tasks',
   'agentTask.cancel': 'ai-tasks',
   'todo.query': 'todo',
+  'approval.genericTask.detail.query': 'todo',
   'dashboard.overview.query': 'dashboard',
   'dashboard.preferences.update': 'dashboard',
   'knowledge.search': 'knowledge-base',
@@ -137,6 +142,7 @@ const DICTIONARY_RECORD_KINDS: ReadonlyMap<string, AgentRecordKind> = new Map(
     .map((operation): [string, AgentRecordKind] => [`dictionary.${kind}.${operation}`, `dictionary-${kind}`])),
 );
 const RECORD_ID_FIELDS: ReadonlyMap<string, string> = new Map([
+  ['approval.genericTask.detail.query', 'taskId'],
   ...['approval.rule.definition.query', 'approval.rule.createDraft', 'approval.rule.updateDraft', 'approval.rule.patchDraftCondition', 'approval.rule.enableDraft']
     .map((code): [string, string] => [code, 'ruleId']),
   ...['approval.form.definition.query', 'approval.form.createDraft', 'approval.form.updateDraft', 'approval.form.patchDraftField', 'approval.form.publishDraft']
@@ -190,6 +196,10 @@ export function resolveAgentToolTargetPath(pageId: string, recordId: number | un
     if (pageId !== 'my-applications' || entry?.type !== 'page' || !entry.visible
         || recordId !== undefined && (!Number.isSafeInteger(recordId) || recordId <= 0)) return null;
     return `/oa/my-applications?kind=generic${recordId === undefined ? '' : `&id=${recordId}`}`;
+  }
+  if (recordKind === 'generic-task') {
+    if (pageId !== 'todo' || recordId === undefined || !Number.isSafeInteger(recordId) || recordId <= 0) return null;
+    return `/oa/todo?kind=generic&taskId=${recordId}`;
   }
   if (recordKind && pageId !== 'dictionary') return null;
   if (recordId !== undefined) {

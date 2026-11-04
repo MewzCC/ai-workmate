@@ -24,7 +24,12 @@ class PageActionPolicyResolverTest {
 
         PageActionPolicyResolver resolver = new PageActionPolicyResolver(catalog, mapper);
 
-        assertThat(resolver.enabledToolCodes(9L, "todo-list")).containsExactly("page.ui.prepare");
+        assertThat(resolver.enabledToolCodes(9L, "todo-list")).containsExactlyInAnyOrder("page.ui.prepare", "approval.genericTask.detail.query");
         verify(mapper).selectByTenantAndPage(9L, "todo");
+        AgentPageActionPolicy detail = new AgentPageActionPolicy();
+        detail.setToolCode("approval.genericTask.detail.query");
+        detail.setEnabled(false);
+        when(mapper.selectByTenantAndPage(9L, "todo")).thenReturn(List.of(policy, detail));
+        assertThat(resolver.enabledToolCodes(9L, "todo-list")).containsExactly("page.ui.prepare");
     }
 }

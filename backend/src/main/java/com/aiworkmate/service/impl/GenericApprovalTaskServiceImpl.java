@@ -67,16 +67,27 @@ public class GenericApprovalTaskServiceImpl implements GenericApprovalTaskServic
     @Override @Transactional(readOnly=true)
     public GenericApprovalTaskDetail detail(Long userId, Long expectedTenantId, Long taskId, int fieldPage) {
         ResolvedUserAccess actor = actor(userId, expectedTenantId);
-        if (fieldPage < 1 || fieldPage > 2) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        return readDetail(actor, taskId, fieldPage, 50, false);
+    }
+
+    @Override @Transactional(readOnly=true, isolation=org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
+    public GenericApprovalTaskDetail detailAssignedForAgent(Long userId, Long expectedTenantId, Long taskId, int fieldPage) {
+        ResolvedUserAccess actor = actor(userId, expectedTenantId);
+        permission(actor, "todo:read");
+        return readDetail(actor, taskId, fieldPage, AGENT_FIELD_PAGE_SIZE, true);
+    }
+
+    private GenericApprovalTaskDetail readDetail(ResolvedUserAccess actor, Long taskId, int fieldPage, int pageSize, boolean assignedOnly) {
+        if (fieldPage < 1 || fieldPage > (100 + pageSize - 1) / pageSize) throw new BusinessException(ErrorCode.REQUEST_INVALID);
         WorkflowTask task = task(actor, taskId);
-        ApprovalExecutionSnapshot snapshot = applications.selectExecution(actor.tenantId(), task.getInstanceId());
-        if (snapshot == null || snapshot.formSchema() == null || snapshot.submittedAt() == null) throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID, "validation.genericApproval.snapshotUnavailable");
+        if (assignedOnly && !actor.userId().equals(task.getAssigneeUserId())) throw new BusinessException(ErrorCode.RESOURCE_FORBIDDEN);
+        var application = applications.selectById(task.getBusinessId());
+        ApprovalExecutionSnapshot snapshot = snapshot(actor, task, application);
         if (!actor.userId().equals(task.getAssigneeUserId()) && !actor.userId().equals(snapshot.applicantUserId())
                 && !actor.permissions().contains("audit:read") && actions.countTargetAction(actor.tenantId(), task.getInstanceId(), actor.userId(), "CC") == 0)
             throw new BusinessException(ErrorCode.RESOURCE_FORBIDDEN);
         var fields = ApprovalApplicationAgentFieldProjection.project(json, snapshot.formSchema(), snapshot.dataJson());
         WorkflowInstance instance = instances.selectById(task.getInstanceId());
-        var application = applications.selectById(task.getBusinessId());
         boolean canReject = writable(actor, task, application, instance);
         String blocked = null;
         if (canReject) {
@@ -91,9 +102,9 @@ public class GenericApprovalTaskServiceImpl implements GenericApprovalTaskServic
                 : "RUNNING".equals(instance.getStatus()) ? "PENDING"
                 : tasks.selectCount(new LambdaQueryWrapper<WorkflowTask>().eq(WorkflowTask::getTenantId, actor.tenantId())
                     .eq(WorkflowTask::getInstanceId, instance.getId()).eq(WorkflowTask::getBusinessType, TYPE).eq(WorkflowTask::getStatus, "REJECTED")) > 0 ? "REJECTED" : "APPROVED";
-        int start = Math.min(fields.size(), (fieldPage - 1) * 50);
+        int start = Math.min(fields.size(), (fieldPage - 1) * pageSize);
         return new GenericApprovalTaskDetail(queries.item(actor.tenantId(), taskId), instance.getStatus(), businessStatus,
-                fields.subList(start, Math.min(fields.size(), start + 50)), fields.size(), fieldPage,
+                fields.subList(start, Math.min(fields.size(), start + pageSize)), fields.size(), fieldPage,
                 canReject && blocked == null, canReject, blocked, actions.selectTimeline(actor.tenantId(), task.getInstanceId()));
     }
 
@@ -119,8 +130,7 @@ public class GenericApprovalTaskServiceImpl implements GenericApprovalTaskServic
         task = task(actor, taskId);
         WorkflowInstance instance = instances.selectById(task.getInstanceId());
         if (!writable(actor, task, application, instance) || !Objects.equals(task.getVersion(), request.version())) throw new BusinessException(ErrorCode.VERSION_CONFLICT);
-        ApprovalExecutionSnapshot snapshot = applications.selectExecution(actor.tenantId(), task.getInstanceId());
-        if (snapshot == null || snapshot.formSchema() == null || snapshot.submittedAt() == null) throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID, "validation.genericApproval.snapshotUnavailable");
+        ApprovalExecutionSnapshot snapshot = snapshot(actor, task, application);
         if (snapshot.planJson() != null) executable(task, snapshot);
         GenericApprovalPlan.Step next = null;
         if (approved) {
@@ -174,6 +184,15 @@ public class GenericApprovalTaskServiceImpl implements GenericApprovalTaskServic
                 "generic-approval", application.getId());
         return detail(userId, expectedTenantId, taskId, 1);
     }
+    private ApprovalExecutionSnapshot snapshot(ResolvedUserAccess actor, WorkflowTask task, ApprovalApplication application) {
+        ApprovalExecutionSnapshot snapshot = applications.selectExecution(actor.tenantId(), task.getInstanceId());
+        if (snapshot == null || snapshot.formSchema() == null || snapshot.submittedAt() == null || application == null
+                || !actor.tenantId().equals(snapshot.tenantId()) || !task.getInstanceId().equals(snapshot.instanceId())
+                || !task.getBusinessId().equals(snapshot.applicationId()) || !application.getApplicantUserId().equals(snapshot.applicantUserId()))
+            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID, "validation.genericApproval.snapshotUnavailable");
+        return snapshot;
+    }
+
     private GenericApprovalPlan executable(WorkflowTask task, ApprovalExecutionSnapshot snapshot) {
         GenericApprovalPlan plan = GenericApprovalPlan.decode(json, snapshot.planJson());
         if (snapshot.currentNodeIndex() >= plan.steps().size() || task.getProcessNodeIndex() == null || task.getProcessNodeIndex() != snapshot.currentNodeIndex()

@@ -11,6 +11,14 @@ import java.util.stream.Collectors;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class PageCapabilityCatalogTest {
+    @Test void assignedGenericTaskReadsRequireTheTodoRouteEvenFromTheWorkspace() {
+        var catalog = new PageCapabilityCatalog();
+        String tool = ToolCode.APPROVAL_GENERIC_TASK_DETAIL_QUERY.code();
+        assertThat(catalog.allowsTool("todo", tool, Set.of("route:todo"))).isTrue();
+        assertThat(catalog.allowsTool("ai-workspace", tool, Set.of("route:ai-workspace"))).isFalse();
+        assertThat(catalog.allowsTool("ai-workspace", tool, Set.of("route:ai-workspace", "route:todo"))).isTrue();
+        assertThat(catalog.allowsTool("dashboard", tool, Set.of("route:dashboard", "route:todo"))).isFalse();
+    }
     @org.junit.jupiter.api.Test void genericApplicationReadsRequireTheExistingCompanionEntryRoute() {
         var catalog = new PageCapabilityCatalog();
         for (String code : java.util.List.of("approval.application.mine.query", "approval.application.detail.query")) {
@@ -81,7 +89,7 @@ class PageCapabilityCatalogTest {
                 .containsExactlyInAnyOrderElementsOf(knownTools);
         assertThat(catalog.find("todo").orElseThrow().readTools().stream().filter(reference -> reference.code() != ToolCode.PAGE_UI_PREPARE).toList())
                 .extracting(PageToolReference::code)
-                .containsExactly(ToolCode.TODO_QUERY);
+                .containsExactly(ToolCode.TODO_QUERY, ToolCode.APPROVAL_GENERIC_TASK_DETAIL_QUERY);
         assertThat(catalog.find("dashboard").orElseThrow().readTools().stream().filter(reference -> reference.code() != ToolCode.PAGE_UI_PREPARE).toList())
                 .extracting(PageToolReference::code)
                 .contains(ToolCode.USER_PERMISSION_MINE_QUERY, ToolCode.DASHBOARD_OVERVIEW_QUERY);

@@ -40,6 +40,7 @@ public final class AgentReadResultPresenter {
         if ("approval.application.template.query".equals(toolCode)) return applicationTemplates(result);
         if ("approval.process.definition.query".equals(toolCode)) return processDefinition(result);
         if ("approval.task.participants.query".equals(toolCode)) return approvalParticipants(result);
+        if ("approval.genericTask.detail.query".equals(toolCode)) return genericTaskDetail(result);
         if ("todo.query".equals(toolCode)) return todo(result);
         if ("userPermission.mine.query".equals(toolCode)) return userPermissions(result);
         if ("dashboard.overview.query".equals(toolCode)) return dashboard(result);
@@ -387,6 +388,31 @@ public final class AgentReadResultPresenter {
         return answer.toString();
     }
 
+    private static String genericTaskDetail(JsonNode result) {
+        if (result == null || !result.isObject() || !result.path("taskId").canConvertToLong()
+                || result.path("taskId").asLong() < 1 || !result.path("fields").isArray()
+                || result.path("fieldPageSize").asInt() != 4 || result.path("fields").size() > 4
+                || result.path("fieldPage").asInt() < 1 || result.path("fieldPage").asInt() > 25
+                || result.path("fieldsTotal").asInt(-1) < 0 || result.path("fieldsTotal").asInt() > 100
+                || !List.of("PENDING", "APPROVED", "REJECTED", "CANCELLED").contains(result.path("status").asText())
+                || !List.of("PENDING", "APPROVED", "REJECTED", "WITHDRAWN", "CANCELLED").contains(result.path("applicationStatus").asText()))
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        StringBuilder answer = new StringBuilder(MessageUtils.resolve("agent.genericTask.heading",
+                Long.toString(result.path("taskId").asLong()), plain(result.path("title").asText()), plain(result.path("applicantName").asText())));
+        answer.append('\n').append(MessageUtils.resolve("agent.genericTask.node", plain(result.path("nodeName").asText()),
+                MessageUtils.resolve("agent.application.status." + result.path("status").asText()), result.path("version").asInt()));
+        answer.append('\n').append(MessageUtils.resolve("agent.genericTask.application", Long.toString(result.path("applicationId").asLong()),
+                MessageUtils.resolve("agent.application.status." + result.path("applicationStatus").asText())));
+        int page = result.path("fieldPage").asInt(), total = result.path("fieldsTotal").asInt();
+        answer.append('\n').append(MessageUtils.resolve("agent.genericTask.page", page, total, 4));
+        if (page * 4 < total) answer.append('\n').append(MessageUtils.resolve("agent.genericTask.next", page + 1));
+        answer.append('\n').append(MessageUtils.resolve("agent.genericTask.actions",
+                MessageUtils.resolve(result.path("canApprove").asBoolean() ? "agent.genericTask.available" : "agent.genericTask.unavailable"),
+                MessageUtils.resolve(result.path("canReject").asBoolean() ? "agent.genericTask.available" : "agent.genericTask.unavailable")));
+        if (result.path("blockedReason").isTextual()) answer.append('\n').append(plain(result.path("blockedReason").asText()));
+        return detailFields(answer, result);
+    }
+
     private static String applicationDetail(JsonNode result) {
         if (result == null || !result.path("application").isObject() || !result.path("fields").isArray()) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID);
@@ -397,6 +423,10 @@ public final class AgentReadResultPresenter {
                 MessageUtils.resolve("agent.application.status." + application.path("status").asText()),
                 application.path("version").asInt()));
         answer.append('\n').append(MessageUtils.resolve("agent.application.schema." + result.path("schemaSource").asText()));
+        return detailFields(answer, result);
+    }
+
+    private static String detailFields(StringBuilder answer, JsonNode result) {
         int shown = 0;
         for (JsonNode field : result.path("fields")) {
             if (shown >= MAX_ITEMS || answer.length() > 750) break;
