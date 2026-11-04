@@ -1,4 +1,10 @@
 export default {
+  genericTasks: {
+    title: '通用审批待办', description: '按冻结的流程顺序处理通用申请，历史详情按原流程实例展示。',
+    leaveTab: '请假待办', genericTab: '通用申请待办', agentPending: '本页已接通人工通用审批；Agent 通用审批读写入口将在后续批次统一接通。',
+    empty: '当前筛选下暂无通用审批任务', invalidId: '任务编号无效', request: '申请单', node: '审批节点',
+    legacyTitle: '历史申请', legacyNode: '历史节点', snapshotMissing: '历史快照不可用', detailTitle: '通用审批任务 #{{id}}', confirmTitle: '确认处理当前通用审批节点',
+  },
   genericApplications: {
     currentDraftNotice: '草稿字段按当前表单定义展示；提交后才冻结历史版本。',
     leaveTab: '请假申请', genericTab: '通用申请', title: '我的通用申请',

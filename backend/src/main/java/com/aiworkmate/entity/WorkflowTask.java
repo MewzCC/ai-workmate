@@ -19,6 +19,8 @@ public class WorkflowTask {
     private Long assigneeUserId;
     private Long parentTaskId;
     private String addSignMode;
+    private Integer processNodeIndex;
+    private String processNodeName;
     private String status;
     private String decisionComment;
     private LocalDateTime dueAt;

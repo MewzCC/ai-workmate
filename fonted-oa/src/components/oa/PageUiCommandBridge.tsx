@@ -222,7 +222,7 @@ export function useRegisterPageUiCommands(handlers: PageUiCommandHandlers, formC
   currentForm.current = formContext;
   const currentView = useRef(viewKey);
   currentView.current = viewKey;
-  usePublishPageAgentContext({ uiViewKey: ['my-applications', 'knowledge-base', 'dictionary'].includes(pageId ?? '') ? undefined : viewKey });
+  usePublishPageAgentContext({ uiViewKey: ['my-applications', 'knowledge-base', 'dictionary', 'todo'].includes(pageId ?? '') ? undefined : viewKey });
   const codesKey = Object.keys(handlers).sort().join(',');
   useEffect(() => {
     if (!bridge || !pageId) return;

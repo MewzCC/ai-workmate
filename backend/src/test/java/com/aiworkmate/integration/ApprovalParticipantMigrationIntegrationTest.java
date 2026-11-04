@@ -86,6 +86,7 @@ class ApprovalParticipantMigrationIntegrationTest extends AbstractIsolatedAgentI
         assertThat(json.readTree(jdbc.queryForObject("SELECT output_schema::text FROM agent_tool WHERE code=? AND " + where, String.class, CODE))).isEqualTo(definition.outputSchema());
     }
     private Flyway flyway() {
-        return Flyway.configure().dataSource(dataSource).schemas(ENVIRONMENT.schema()).defaultSchema(ENVIRONMENT.schema()).locations("classpath:db/migration").load();
+        // Only this owned fixture replays a removed historical entry after newer migrations have run.
+        return Flyway.configure().dataSource(dataSource).schemas(ENVIRONMENT.schema()).defaultSchema(ENVIRONMENT.schema()).outOfOrder(true).locations("classpath:db/migration").load();
     }
 }

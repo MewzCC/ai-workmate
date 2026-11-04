@@ -13,15 +13,18 @@ import java.util.Set;
 
 /** Projects values through the historical schema; field text is data, never executable instructions. */
 final class ApprovalApplicationAgentFieldProjection {
-    private static final Set<String> TYPES = Set.of("text", "textarea", "number", "amount", "date", "time", "select");
+    private static final Set<String> TYPES = Set.of("text", "textarea", "number", "amount", "money", "date", "dateRange", "time", "select", "radio", "checkbox");
     private static final Set<String> SECRET_NAMES = Set.of("password", "secret", "token", "authorization", "jwt",
             "apikey", "credential", "cookie", "sessionid", "salary", "bankaccount", "idcard");
     private ApprovalApplicationAgentFieldProjection() { }
 
     static List<Field> project(ObjectMapper mapper, String schema, String data) {
         try {
-            JsonNode root = mapper.readTree(schema);
-            JsonNode values = mapper.readTree(data);
+            var reader = mapper.reader().with(com.fasterxml.jackson.databind.DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS)
+                    .with(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
+                    .with(com.fasterxml.jackson.core.JsonParser.Feature.STRICT_DUPLICATE_DETECTION);
+            JsonNode root = reader.readTree(schema);
+            JsonNode values = reader.readTree(data);
             if (root == null || !root.path("fields").isArray() || root.path("fields").size() > 100
                     || values == null || !values.isObject()) throw invalid();
             List<Field> result = new ArrayList<>();

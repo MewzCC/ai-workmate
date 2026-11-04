@@ -1,4 +1,5 @@
 import { request, queryString, type PageResponse, type WorkflowTimelineItem } from '@/lib/oaApi';
+export type ApprovalApplicationAgentField = Awaited<ReturnType<typeof approvalEngineApi.ownApplicationFields>>['fields'][number];
 
 // ==================== 表单引擎 ====================
 

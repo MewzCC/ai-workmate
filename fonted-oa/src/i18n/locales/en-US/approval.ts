@@ -1,4 +1,10 @@
 export default {
+  genericTasks: {
+    title: 'Generic approval inbox', description: 'Process requests in their frozen order and read history from the original workflow attempt.',
+    leaveTab: 'Leave tasks', genericTab: 'Generic request tasks', agentPending: 'Human generic approvals are connected. Unified Agent read/write entry points are being delivered in a later batch.',
+    empty: 'No generic approval tasks match these filters', invalidId: 'Invalid task ID', request: 'Request', node: 'Approval node',
+    legacyTitle: 'Historical request', legacyNode: 'Historical node', snapshotMissing: 'Historical snapshot unavailable', detailTitle: 'Generic approval task #{{id}}', confirmTitle: 'Confirm this generic approval decision',
+  },
   genericApplications: {
     currentDraftNotice: 'Draft fields use the current form definition. The historical version is frozen on submission.',
     leaveTab: 'Leave requests', genericTab: 'Generic applications', title: 'My generic applications',

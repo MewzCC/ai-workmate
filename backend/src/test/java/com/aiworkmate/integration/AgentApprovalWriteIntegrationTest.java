@@ -308,7 +308,7 @@ class AgentApprovalWriteIntegrationTest extends AbstractIsolatedAgentIntegration
         formKey="approval-it-"+UUID.randomUUID().toString().replace("-","");
         long form=jdbc.queryForObject("INSERT INTO approval_form(tenant_id,form_key,form_name,schema_json,status,created_by) VALUES (?,?,?,'{\"fields\":[{\"name\":\"reason\",\"label\":\"Reason\",\"type\":\"textarea\",\"required\":true}]}','ENABLED',?) RETURNING id",Long.class,tenant,formKey,formKey,owner.id());
         var nodes=json.createArrayNode();
-        nodes.addObject().put("approveType","USER").put("targetKey",Long.toString(approver));
+        nodes.addObject().put("nodeName","Review").put("approveType","USER").put("targetKey",Long.toString(approver));
         long process=jdbc.queryForObject("INSERT INTO approval_process(tenant_id,process_key,process_name,form_id,node_json,status,created_by) VALUES (?,?,?,?,?,'ENABLED',?) RETURNING id",Long.class,tenant,formKey,formKey,form,nodes.toString(),owner.id());
         var args=json.createObjectNode(); version=0; application=0; initialStatus="DRAFT";
         if(code==ToolCode.APPROVAL_APPLICATION_CREATE_DRAFT || code==ToolCode.APPROVAL_APPLICATION_APPLY) args.put("formKey",formKey).put("processKey",formKey);

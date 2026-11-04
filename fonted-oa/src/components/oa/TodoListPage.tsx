@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useMemo, useState } from 'react';
-import { useRouter } from '@/lib/nextCompat';
+import { useRouter, useSearchParams } from '@/lib/nextCompat';
 import {
   Avatar,
   Alert,
@@ -12,6 +12,7 @@ import {
   Segmented,
   Space,
   Tag,
+  Tabs,
   Typography,
 } from 'antd';
 import { message } from '@/lib/antdMessage';
@@ -23,7 +24,8 @@ import ResponsiveTable from './ResponsiveTable';
 import { OaIcon } from '@/components/OaIcon';
 import { useTranslation } from 'react-i18next';
 import { usePublishPageAgentContext } from './PageAgentContext';
-import { useRegisterPageUiCommands } from './PageUiCommandBridge';
+import { useRegisterPageUiCommands, useRegisterPageUiViews } from './PageUiCommandBridge';
+import GenericApprovalInbox from './GenericApprovalInbox';
 import { requireUiFieldTypes } from '@/lib/preparedPageUiCommand';
 import { requireUiPagination, uiDateRange } from '@/hooks/usePageUiEditorCommands';
 import { useScopedOverview } from '@/hooks/useScopedOverview';
@@ -33,6 +35,15 @@ import { useAsyncActionGuard } from '@/hooks/useAsyncActionGuard';
 const { RangePicker } = DatePicker;
 
 export default function TodoListPage() {
+  const { t } = useTranslation(), router = useRouter(), params = useSearchParams();
+  const active = params.get('kind') === 'generic' ? 'generic' : 'leave';
+  useRegisterPageUiViews(active, ['leave', 'generic'], view => router.push(view === 'generic' ? '/oa/todo?kind=generic' : '/oa/todo'));
+  return <Tabs className="oa-application-tabs" activeKey={active} onChange={view => router.push(view === 'generic' ? '/oa/todo?kind=generic' : '/oa/todo')}
+    items={[{ key: 'leave', label: t('approval.genericTasks.leaveTab'), children: active === 'leave' ? <LeaveTodoListPage /> : null },
+      { key: 'generic', label: t('approval.genericTasks.genericTab'), children: active === 'generic' ? <GenericApprovalInbox /> : null }]} />;
+}
+
+function LeaveTodoListPage() {
   const router = useRouter();
   const { t } = useTranslation();
   const { allowed } = usePermission('todo:read');
@@ -85,7 +96,7 @@ export default function TodoListPage() {
       setRange(nextRange); setPage(Number(filters.page ?? 1));
     },
     'ui.openDetail': ({ payload: { recordId } }) => openDetail(recordId),
-  });
+  }, null, 'leave');
 
   const overdueCount = useMemo(() => records.filter((item) => item.overdue).length, [records]);
 

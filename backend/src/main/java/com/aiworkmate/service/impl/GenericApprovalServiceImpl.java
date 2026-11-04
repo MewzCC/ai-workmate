@@ -65,10 +65,9 @@ import java.util.regex.Pattern;
  *       禁止伪造提交成功；</li>
  *   <li>{@code formData} 按 {@code schema_json} 白名单校验：未知字段拒绝、
  *       必填缺失拒绝、类型（数字/日期/时间/文本）逐项校验并限制总长度；</li>
- *   <li>审批人按流程首节点解析：DIRECT_MANAGER 复用请假链路的
- *       「直属上级/部门默认审批人」SQL，USER 取指定用户，ROLE 取同角色最小 id；
- *       其余节点类型（SELF/MULTI_LEVEL/DEPARTMENT 等）当前不支持，直接返回
- *       能力不可用错误，不做静默降级；</li>
+ *   <li>提交时解析并冻结有序审批节点，跳过 START/END 框架节点；支持主管、
+ *       指定用户及角色/部门顺序组，并校验同租户有效审批资格；未实现的节点和
+ *       多人并行模式明确拒绝，不做静默降级；</li>
  *   <li>申请单、工作流实例、首个待办在同一事务内落库，并写入动作流水、
  *       业务审计并向受理人发送站内通知。</li>
  * </ul>
@@ -282,6 +281,8 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
 
     private ApprovalApplicationResponse submitDraftInternal(
             ResolvedUserAccess actor, Long id, VersionRequest request) {
+        requireOwnedApplication(actor, id);
+        applicationMapper.lockApplication(actor.tenantId(), id);
         ApprovalApplication application = requireOwnedApplication(actor, id);
         requireDraft(application);
         if (!request.version().equals(application.getVersion())) {
@@ -293,12 +294,12 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
         ApprovalProcess process = resolveEnabledProcess(
                 actor.tenantId(), form.getId(), application.getProcessId());
         DefinitionSnapshot snapshot = createDefinitionSnapshot(actor.tenantId(), form, process);
-        Long approverId = requireApprover(actor, form, process);
+        GenericApprovalPlan plan = executionPlan(actor, process);
         Long definitionId = requireDefinition(actor.tenantId());
         LocalDateTime now = LocalDateTime.now();
 
         WorkflowInstance instance = createInstance(actor, application.getId(), definitionId, now);
-        WorkflowTask task = createTask(actor, application.getId(), instance.getId(), approverId, now);
+        WorkflowTask task = createTask(actor, application.getId(), instance.getId(), plan.steps().get(0), now);
         int updated = applicationMapper.update(null, new LambdaUpdateWrapper<ApprovalApplication>()
                 .eq(ApprovalApplication::getId, id)
                 .eq(ApprovalApplication::getTenantId, actor.tenantId())
@@ -321,10 +322,11 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
             throw new BusinessException(ErrorCode.VERSION_CONFLICT);
         }
 
+        freezeExecution(actor, application, form, snapshot, plan, instance.getId(), writeJson(formData), now);
         insertAction(actor, instance.getId(), task.getId(), "SUBMIT", "DRAFT", "PENDING", null);
         auditService.recordTransactional(actor.tenantId(), actor.userId(), BUSINESS_TYPE,
                 id.toString(), "SUBMIT", "SUCCESS", "提交通用表单草稿：" + form.getFormName());
-        publishApprovalNotification(actor, approverId, form, id);
+        publishApprovalNotification(actor, plan.steps().get(0).assigneeUserId(), form, id);
         return response(actor, requireView(actor.tenantId(), id), null);
     }
 
@@ -447,7 +449,7 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
                 "WITHDRAW", "PENDING", "WITHDRAWN", "申请人主动撤回");
         auditService.recordTransactional(actor.tenantId(), actor.userId(), BUSINESS_TYPE,
                 id.toString(), "WITHDRAW", "SUCCESS", "撤回通用审批申请");
-        notificationService.publish(actor.tenantId(), task.getAssigneeUserId(),
+        notificationService.publishTransactional(actor.tenantId(), task.getAssigneeUserId(),
                 NotificationService.TYPE_APPROVAL,
                 "审批申请已撤回",
                 "申请人已撤回「" + application.getFormName() + "」，原待办已取消",
@@ -460,6 +462,8 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
     @Transactional
     public ApprovalApplicationResponse remind(Long userId, Long id, VersionRequest request) {
         ResolvedUserAccess actor = requireApplicationAccess(userId, "approval:remind");
+        requireOwnedApplication(actor, id);
+        applicationMapper.lockApplication(actor.tenantId(), id);
         ApprovalApplication application = requireOwnedApplication(actor, id);
         if (!"PENDING".equals(application.getStatus())) {
             throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID,
@@ -583,21 +587,8 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
         }
 
         Map<String, Object> formData = validateFormData(form, request.formData(), true);
-        Long approverId = resolveFirstApprover(actor, process);
-        if (approverId == null) {
-            auditService.record(actor.tenantId(), actor.userId(), BUSINESS_TYPE,
-                    form.getId().toString(), "SUBMIT", "FAILURE", "未解析到有效审批人");
-            throw new BusinessException(ErrorCode.APPROVER_NOT_CONFIGURED);
-        }
-        if (approverId.equals(actor.userId())) {
-            throw new BusinessException(ErrorCode.APPROVER_NOT_CONFIGURED,
-                    "validation.approval.submit.approverSelf");
-        }
-        Long definitionId = applicationMapper.selectGenericDefinitionId(actor.tenantId());
-        if (definitionId == null) {
-            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID,
-                    "validation.approval.submit.definitionMissing");
-        }
+        GenericApprovalPlan plan = executionPlan(actor, process);
+        Long definitionId = requireDefinition(actor.tenantId());
 
         LocalDateTime now = LocalDateTime.now();
         ApprovalApplication application = new ApprovalApplication();
@@ -622,42 +613,20 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
         application.setUpdatedAt(now);
         applicationMapper.insert(application);
 
-        WorkflowInstance instance = new WorkflowInstance();
-        instance.setTenantId(actor.tenantId());
-        instance.setDefinitionId(definitionId);
-        instance.setBusinessType(BUSINESS_TYPE);
-        instance.setBusinessId(application.getId());
-        instance.setApplicantId(actor.userId());
-        instance.setStatus("RUNNING");
-        instance.setVersion(0);
-        instance.setStartedAt(now);
-        instance.setCreatedAt(now);
-        instance.setUpdatedAt(now);
-        instanceMapper.insert(instance);
-
-        WorkflowTask task = new WorkflowTask();
-        task.setTenantId(actor.tenantId());
-        task.setInstanceId(instance.getId());
-        task.setBusinessType(BUSINESS_TYPE);
-        task.setBusinessId(application.getId());
-        task.setAssigneeUserId(approverId);
-        task.setStatus("PENDING");
-        task.setVersion(0);
-        task.setDueAt(approvalDueHours > 0 ? now.plusHours(approvalDueHours) : null);
-        task.setCreatedAt(now);
-        task.setUpdatedAt(now);
-        taskMapper.insert(task);
+        WorkflowInstance instance = createInstance(actor, application.getId(), definitionId, now);
+        WorkflowTask task = createTask(actor, application.getId(), instance.getId(), plan.steps().get(0), now);
 
         applicationMapper.update(null, new LambdaUpdateWrapper<ApprovalApplication>()
                 .eq(ApprovalApplication::getId, application.getId())
                 .eq(ApprovalApplication::getTenantId, actor.tenantId())
                 .set(ApprovalApplication::getWorkflowInstanceId, instance.getId())
                 .set(ApprovalApplication::getUpdatedAt, now));
+        freezeExecution(actor, application, form, snapshot, plan, instance.getId(), application.getDataJson(), now);
         insertAction(actor, instance.getId(), task.getId(), "SUBMIT", "NONE", "PENDING", null);
-        auditService.record(actor.tenantId(), actor.userId(), BUSINESS_TYPE,
+        auditService.recordTransactional(actor.tenantId(), actor.userId(), BUSINESS_TYPE,
                 application.getId().toString(), "SUBMIT", "SUCCESS",
                 "提交通用表单申请：" + form.getFormName());
-        notificationService.publish(actor.tenantId(), approverId,
+        notificationService.publishTransactional(actor.tenantId(), plan.steps().get(0).assigneeUserId(),
                 NotificationService.TYPE_APPROVAL,
                 "新的「" + form.getFormName() + "」待审批",
                 "员工通过发起审批模板提交了申请，请及时处理",
@@ -852,22 +821,6 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
         }
     }
 
-    private Long requireApprover(ResolvedUserAccess actor,
-                                 ApprovalForm form,
-                                 ApprovalProcess process) {
-        Long approverId = resolveFirstApprover(actor, process);
-        if (approverId == null) {
-            auditService.record(actor.tenantId(), actor.userId(), BUSINESS_TYPE,
-                    form.getId().toString(), "SUBMIT", "FAILURE", "未解析到有效审批人");
-            throw new BusinessException(ErrorCode.APPROVER_NOT_CONFIGURED);
-        }
-        if (approverId.equals(actor.userId())) {
-            throw new BusinessException(ErrorCode.APPROVER_NOT_CONFIGURED,
-                    "validation.approval.submit.approverSelf");
-        }
-        return approverId;
-    }
-
     private Long requireDefinition(Long tenantId) {
         Long definitionId = applicationMapper.selectGenericDefinitionId(tenantId);
         if (definitionId == null) {
@@ -899,17 +852,18 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
     private WorkflowTask createTask(ResolvedUserAccess actor,
                                     Long applicationId,
                                     Long instanceId,
-                                    Long approverId,
+                                    GenericApprovalPlan.Step step,
                                     LocalDateTime now) {
         WorkflowTask task = new WorkflowTask();
         task.setTenantId(actor.tenantId());
         task.setInstanceId(instanceId);
         task.setBusinessType(BUSINESS_TYPE);
         task.setBusinessId(applicationId);
-        task.setAssigneeUserId(approverId);
+        task.setAssigneeUserId(step.assigneeUserId());
+        task.setProcessNodeIndex(step.index()); task.setProcessNodeName(step.name());
         task.setStatus("PENDING");
         task.setVersion(0);
-        task.setDueAt(approvalDueHours > 0 ? now.plusHours(approvalDueHours) : null);
+        task.setDueAt(step.dueHours() > 0 ? now.plusHours(step.dueHours()) : null);
         task.setCreatedAt(now);
         task.setUpdatedAt(now);
         taskMapper.insert(task);
@@ -920,7 +874,7 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
                                              Long approverId,
                                              ApprovalForm form,
                                              Long applicationId) {
-        notificationService.publish(actor.tenantId(), approverId,
+        notificationService.publishTransactional(actor.tenantId(), approverId,
                 NotificationService.TYPE_APPROVAL,
                 "新的「" + form.getFormName() + "」待审批",
                 "员工通过发起审批模板提交了申请，请及时处理",
@@ -1126,52 +1080,45 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
         return defs;
     }
 
-    /** 解析流程首节点审批人。 */
-    private Long resolveFirstApprover(ResolvedUserAccess actor, ApprovalProcess process) {
-        JsonNode nodes;
-        try {
-            nodes = objectMapper.readTree(process.getNodeJson());
-        } catch (Exception e) {
-            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID,
-                    "validation.approval.submit.processNodesInvalid");
-        }
-        if (!nodes.isArray() || nodes.isEmpty()) {
-            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID,
-                    "validation.approval.submit.processNodesInvalid");
-        }
-        JsonNode first = nodes.get(0);
-        String approveType = first.path("approveType").asText("DIRECT_MANAGER");
-        String targetKey = first.path("targetKey").asText("");
-        return switch (approveType) {
-            case "DIRECT_MANAGER" -> leaveMapper.resolveApprover(actor.tenantId(), actor.userId());
-            case "USER" -> resolveUserApprover(actor, targetKey);
-            case "ROLE" -> targetKey.isBlank()
-                    ? null
-                    : applicationMapper.resolveRoleApprover(actor.tenantId(), targetKey.trim(), actor.userId());
-            default -> throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID,
-                    "validation.approval.submit.nodeTypeUnsupported");
-        };
+    private GenericApprovalPlan executionPlan(ResolvedUserAccess actor, ApprovalProcess process) {
+        return GenericApprovalPlan.compile(objectMapper, process.getNodeJson(), approvalDueHours, node -> {
+            String type = node.path("approveType").asText("DIRECT_MANAGER"), target = node.path("targetKey").asText("").trim();
+            java.util.List<Long> users;
+            if (type.equals("DIRECT_MANAGER")) {
+                Long user = leaveMapper.resolveApprover(actor.tenantId(), actor.userId());
+                users = user == null ? List.of() : List.of(user);
+            } else if (type.equals("USER")) {
+                try { users = List.of(Long.parseLong(target)); } catch (NumberFormatException invalid) { throw GenericApprovalPlan.unsupported(); }
+            } else if (type.equals("ROLE") || type.equals("DEPARTMENT")) {
+                if (target.isBlank() || target.length() > 80) throw GenericApprovalPlan.unsupported();
+                Long department = null;
+                if (type.equals("DEPARTMENT")) { try { department = Long.parseLong(target); } catch (NumberFormatException invalid) { throw GenericApprovalPlan.unsupported(); } }
+                users = userMapper.selectWorkflowAssignees(actor.tenantId(), actor.userId(), "approval:act", type.equals("ROLE") ? target : null, department);
+                // Legacy role nodes selected one representative; explicit sequential groups freeze every eligible member.
+                if (!node.has("mode") && !users.isEmpty()) users = List.of(users.get(0));
+            } else throw GenericApprovalPlan.unsupported();
+            if (users.isEmpty() || users.size() > 50) throw new BusinessException(ErrorCode.APPROVER_NOT_CONFIGURED);
+            for (Long id : users) {
+                User user = userMapper.selectById(id);
+                ResolvedUserAccess access = null;
+                if (user != null && !actor.userId().equals(id) && actor.tenantId().equals(user.getTenantId()) && Integer.valueOf(1).equals(user.getStatus())) {
+                    try { access = userAccessService.resolveActiveUser(id); }
+                    catch (BusinessException unavailable) { throw new BusinessException(ErrorCode.APPROVER_NOT_CONFIGURED); }
+                }
+                if (user == null || !actor.tenantId().equals(user.getTenantId()) || !Integer.valueOf(1).equals(user.getStatus())
+                        || access == null || !actor.tenantId().equals(access.tenantId()) || !access.permissions().contains("approval:act"))
+                    throw new BusinessException(ErrorCode.APPROVER_NOT_CONFIGURED);
+            }
+            return users;
+        });
     }
 
-    private Long resolveUserApprover(ResolvedUserAccess actor, String targetKey) {
-        if (targetKey.isBlank()) {
-            return null;
-        }
-        long approverId;
-        try {
-            approverId = Long.parseLong(targetKey.trim());
-        } catch (NumberFormatException e) {
-            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID,
-                    "validation.approval.submit.nodeTargetInvalid");
-        }
-        User approver = userMapper.selectById(approverId);
-        if (approver == null
-                || !actor.tenantId().equals(approver.getTenantId())
-                || approver.getStatus() == null
-                || approver.getStatus() != 1) {
-            return null;
-        }
-        return approver.getId();
+    private void freezeExecution(ResolvedUserAccess actor, ApprovalApplication application, ApprovalForm form,
+                                 DefinitionSnapshot snapshot, GenericApprovalPlan plan, Long instanceId, String data, LocalDateTime submittedAt) {
+        applicationMapper.insertExecution(new com.aiworkmate.dto.ApprovalExecutionSnapshot(instanceId, actor.tenantId(),
+                application.getId(), actor.userId(), form.getFormKey(), form.getFormName(), application.getTitle(), data,
+                snapshot.formSchema(), snapshot.formVersion(), snapshot.processNodes(), snapshot.processVersion(), snapshot.rules(),
+                writeJson(plan), 0, 0, submittedAt));
     }
 
     private void insertAction(ResolvedUserAccess actor,

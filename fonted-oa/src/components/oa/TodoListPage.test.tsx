@@ -9,10 +9,10 @@ const api = vi.hoisted(() => ({ list: vi.fn(), detail: vi.fn(), push: vi.fn(), e
 const ui = vi.hoisted(() => ({ handlers: {} as PageUiCommandHandlers }));
 vi.mock('@/components/auth/AuthProvider', () => ({ useAuth: () => ({ user: auth.user }) }));
 vi.mock('@/lib/oaApi', async load => ({ ...await load<typeof import('@/lib/oaApi')>(), todoApi: { list: api.list, detail: api.detail } }));
-vi.mock('@/lib/nextCompat', () => ({ useRouter: () => ({ push: api.push }) }));
+vi.mock('@/lib/nextCompat', () => ({ useRouter: () => ({ push: api.push }), useSearchParams: () => new URLSearchParams() }));
 vi.mock('@/lib/antdMessage', () => ({ message: { error: api.error } }));
 vi.mock('./MyApplicationsPage', () => ({ leaveTypeLabel: (type: string) => type }));
-vi.mock('./PageUiCommandBridge', () => ({ useRegisterPageUiCommands: (handlers: PageUiCommandHandlers) => { ui.handlers = handlers; } }));
+vi.mock('./PageUiCommandBridge', () => ({ useRegisterPageUiViews: vi.fn(), useRegisterPageUiCommands: (handlers: PageUiCommandHandlers) => { ui.handlers = handlers; } }));
 import TodoListPage from './TodoListPage';
 
 const row = (name: string) => ({ id: 3, applicationId: 9, applicantUserId: 8, applicantName: name, leaveType: 'PERSONAL',
