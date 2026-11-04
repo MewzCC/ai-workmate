@@ -1,6 +1,7 @@
 package com.aiworkmate.service.impl;
 
 import com.aiworkmate.common.BusinessException;
+import com.aiworkmate.common.FileSizeLimit;
 import com.aiworkmate.common.ErrorCode;
 import com.aiworkmate.common.PageResponse;
 import com.aiworkmate.config.EmbeddingProperties;
@@ -97,7 +98,7 @@ public class KnowledgeServiceImpl implements KnowledgeService {
         String filename = request.filename().strip();
         String content = request.content().strip();
         if (content.length() > properties.getMaxDocumentChars()) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "文档内容超过允许的最大长度");
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.runtime.knowledge.contentTooLong");
         }
         return createFromContent(userId, request.kbId(), filename, content, "TEXT",
                 (long) content.getBytes(StandardCharsets.UTF_8).length);
@@ -123,7 +124,7 @@ public class KnowledgeServiceImpl implements KnowledgeService {
             }
             String content = parsed.extractedText() == null ? "" : parsed.extractedText().strip();
             if (content.isBlank()) {
-                throw new BusinessException(ErrorCode.REQUEST_INVALID, "无法从文件中提取文本内容");
+                throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.runtime.knowledge.extractEmpty");
             }
             if (content.length() > properties.getMaxDocumentChars()) {
                 content = content.substring(0, properties.getMaxDocumentChars());
@@ -148,14 +149,14 @@ public class KnowledgeServiceImpl implements KnowledgeService {
             if (STATUS_READY.equals(existing.getStatus())) {
                 return toResponse(existing);
             }
-            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID, "相同文档正在处理");
+            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID, "validation.runtime.knowledge.processing");
         }
 
         List<String> chunks = knowledgeChunker.split(content,
                 knowledgeBase.getChunkSize() == null ? 1000 : knowledgeBase.getChunkSize(),
                 knowledgeBase.getChunkOverlap() == null ? 120 : knowledgeBase.getChunkOverlap());
         if (chunks.isEmpty()) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "文档内容不能为空");
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.runtime.knowledge.textEmpty");
         }
         EmbeddingResult embeddings = embeddingService.embed(chunks);
         validateEmbeddingResult(descriptor, embeddings, chunks.size());
@@ -208,12 +209,12 @@ public class KnowledgeServiceImpl implements KnowledgeService {
         KnowledgeDocument duplicate = findByHash(access, document.getKbId(), document.getContentHash(), descriptor);
         if (duplicate != null && !duplicate.getId().equals(documentId)) {
             throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID,
-                    "当前向量模型下已存在相同文档，无需重复重建");
+                    "validation.runtime.knowledge.alreadyRebuilt");
         }
 
         List<String> chunks = documentMapper.selectChunkContents(access.tenantId(), access.userId(), documentId);
         if (chunks.isEmpty()) {
-            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID, "文档没有可重建的分块");
+            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID, "validation.runtime.knowledge.noChunks");
         }
         EmbeddingResult embeddings = embeddingService.embed(chunks);
         validateEmbeddingResult(descriptor, embeddings, chunks.size());
@@ -222,7 +223,7 @@ public class KnowledgeServiceImpl implements KnowledgeService {
                     index, vectorLiteral(embeddings.vectors().get(index)),
                     descriptor.provider(), descriptor.model());
             if (updated != 1) {
-                throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID, "文档分块已发生变化，请重试");
+                throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID, "validation.runtime.knowledge.chunksChanged");
             }
         }
         document.setEmbeddingProvider(descriptor.provider());
@@ -561,10 +562,10 @@ public class KnowledgeServiceImpl implements KnowledgeService {
 
     private void validateUploadFile(MultipartFile file) {
         if (file == null || file.isEmpty()) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "上传文件不能为空");
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.runtime.file.empty");
         }
         if (file.getSize() > uploadProperties.getFileMaxBytes()) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "文件不能超过 20MB");
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.runtime.file.tooLarge", FileSizeLimit.describe(uploadProperties.getFileMaxBytes()));
         }
     }
 
@@ -575,7 +576,7 @@ public class KnowledgeServiceImpl implements KnowledgeService {
             return temp;
         } catch (IOException ex) {
             log.error("Knowledge document temp storage failed", ex);
-            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "文件保存失败，请稍后重试");
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "validation.runtime.file.saveFailed");
         }
     }
 
@@ -623,17 +624,17 @@ public class KnowledgeServiceImpl implements KnowledgeService {
                 || !expected.model().equals(actual.model())
                 || actual.vectors().size() != count) {
             throw new BusinessException(ErrorCode.EMBEDDING_RESPONSE_INVALID,
-                    "向量模型返回结果与当前配置不一致");
+                    "validation.runtime.embedding.resultMismatch");
         }
         for (float[] vector : actual.vectors()) {
             if (vector == null || vector.length != expected.dimension()) {
                 throw new BusinessException(ErrorCode.EMBEDDING_RESPONSE_INVALID,
-                        "向量模型返回维度与当前配置不一致");
+                        "validation.runtime.embedding.dimensionMismatch");
             }
             for (float value : vector) {
                 if (!Float.isFinite(value)) {
                     throw new BusinessException(ErrorCode.EMBEDDING_RESPONSE_INVALID,
-                            "向量模型返回了非法数值");
+                            "validation.runtime.embedding.valuesInvalid");
                 }
             }
         }
@@ -653,7 +654,7 @@ public class KnowledgeServiceImpl implements KnowledgeService {
                     "source", filename,
                     "chunkIndex", chunkIndex));
         } catch (JsonProcessingException ex) {
-            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "知识分块元数据序列化失败");
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "validation.runtime.knowledge.metadataInvalid");
         }
     }
 

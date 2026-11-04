@@ -26,7 +26,7 @@ public class MailDeliveryServiceImpl implements MailDeliveryService {
     @Override
     public void sendVerificationCode(String email, CodeScene scene, String code, long ttlSeconds) {
         if (properties.getMailFromEmail().isBlank()) {
-            throw new BusinessException(ErrorCode.AUTH_SERVICE_UNAVAILABLE, "SMTP 发件人尚未配置");
+            throw new BusinessException(ErrorCode.AUTH_SERVICE_UNAVAILABLE, "validation.runtime.auth.mailUnconfigured");
         }
         try {
             MimeMessage message = mailSender.createMimeMessage();
@@ -41,7 +41,7 @@ public class MailDeliveryServiceImpl implements MailDeliveryService {
             throw ex;
         } catch (Exception ex) {
             log.error("Verification email delivery failed, scene={}, emailDomain={}", scene.value(), domainOf(email), ex);
-            throw new BusinessException(ErrorCode.AUTH_SERVICE_UNAVAILABLE, "验证码邮件发送失败，请稍后重试");
+            throw new BusinessException(ErrorCode.AUTH_SERVICE_UNAVAILABLE, "validation.runtime.auth.mailFailed");
         }
     }
 

@@ -168,7 +168,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         if (knowledgeBase.getChunkOverlap() != null
                 && knowledgeBase.getChunkSize() != null
                 && knowledgeBase.getChunkOverlap() >= knowledgeBase.getChunkSize()) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "分块重叠必须小于分块大小");
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.runtime.knowledge.overlapInvalid");
         }
     }
 

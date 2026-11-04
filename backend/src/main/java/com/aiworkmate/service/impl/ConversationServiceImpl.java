@@ -115,7 +115,7 @@ public class ConversationServiceImpl implements ConversationService {
     public void updateFeedback(Long userId, Long messageId, String feedback) {
         Message message = messageMapper.selectById(messageId);
         if (message == null || !"assistant".equals(message.getRole())) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "只能评价 AI 回复");
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.chat.feedback.assistantOnly");
         }
         requireOwned(userId, message.getConversationId());
         message.setFeedback("none".equals(feedback) ? null : feedback);
@@ -125,7 +125,7 @@ public class ConversationServiceImpl implements ConversationService {
     private Conversation requireOwned(Long userId, Long conversationId) {
         Conversation conversation = conversationMapper.selectOne(new LambdaQueryWrapper<Conversation>()
                 .eq(Conversation::getId, conversationId).eq(Conversation::getUserId, userId));
-        if (conversation == null) throw new BusinessException(ErrorCode.RESOURCE_FORBIDDEN, "无权访问该会话");
+        if (conversation == null) throw new BusinessException(ErrorCode.RESOURCE_FORBIDDEN, "validation.chat.conversation.forbidden");
         return conversation;
     }
 

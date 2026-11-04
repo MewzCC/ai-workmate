@@ -44,7 +44,7 @@ public class LoginProtectionServiceImpl implements LoginProtectionService {
         Long ttl = redis(() -> redisTemplate.getExpire(lockKey(account, clientIp), TimeUnit.SECONDS));
         if (ttl != null && ttl > 0) {
             throw new BusinessException(ErrorCode.AUTH_ACCOUNT_LOCKED,
-                    "登录尝试过多，请在 " + ttl + " 秒后重试");
+                    "validation.runtime.auth.lockedRetry", ttl);
         }
     }
 
@@ -65,7 +65,7 @@ public class LoginProtectionServiceImpl implements LoginProtectionService {
         log.warn("Password login failed, accountDomain={}, clientIp={}", domainOf(account), clientIp);
         if (result != null && result == -1) {
             throw new BusinessException(ErrorCode.AUTH_ACCOUNT_LOCKED,
-                    "登录尝试过多，账号与当前网络已临时锁定");
+                    "validation.runtime.auth.locked");
         }
     }
 
@@ -79,7 +79,7 @@ public class LoginProtectionServiceImpl implements LoginProtectionService {
         Boolean claimed = redis(() -> redisTemplate.opsForValue().setIfAbsent(
                 REGISTER_PREFIX + requestId, "1", 10, TimeUnit.MINUTES));
         if (!Boolean.TRUE.equals(claimed)) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "请勿重复提交注册申请");
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.runtime.auth.registrationDuplicate");
         }
     }
 
@@ -105,7 +105,7 @@ public class LoginProtectionServiceImpl implements LoginProtectionService {
             return operation.get();
         } catch (DataAccessException ex) {
             log.error("Redis login protection state is unavailable", ex);
-            throw new BusinessException(ErrorCode.AUTH_SERVICE_UNAVAILABLE, "认证服务暂时不可用，请稍后重试");
+            throw new BusinessException(ErrorCode.AUTH_SERVICE_UNAVAILABLE, "validation.runtime.auth.unavailable");
         }
     }
 }

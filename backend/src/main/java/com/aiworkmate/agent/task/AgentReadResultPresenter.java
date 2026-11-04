@@ -55,7 +55,8 @@ public final class AgentReadResultPresenter {
         if (toolCode == null || toolCode.isBlank() || result == null || (!result.isObject() && !result.isArray())) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID);
         }
-        StringBuilder answer = new StringBuilder(MessageUtils.resolve("agent.result.completed", plain(toolCode)));
+        StringBuilder answer = new StringBuilder(MessageUtils.resolve("agent.result.completed",
+                translatedOr("agent.result.tool." + toolCode.replace('.', '_'), "agent.result.operation")));
         if (List.of("accessGovernance.query", "dataPermission.query", "aiPermission.query").contains(toolCode)) {
             for (String collection : List.of("roles", "policies", "tools")) {
                 if (result.path(collection + "Truncated").asBoolean()) {
@@ -604,19 +605,63 @@ public final class AgentReadResultPresenter {
     private static void collect(List<String> fields, String prefix, JsonNode node, int depth) {
         if (fields.size() >= MAX_FIELDS || depth > 2 || node == null || node.isNull()) return;
         if (node.isValueNode()) {
-            fields.add((prefix.isBlank() ? "value" : plain(prefix)) + ": " + plain(node.asText()));
+            fields.add(fieldLabel(prefix.isBlank() ? "value" : prefix) + ": " + fieldValue(prefix, node));
             return;
         }
         if (node.isArray()) {
-            fields.add((prefix.isBlank() ? "items" : plain(prefix)) + ": " + node.size());
+            List<String> samples = new ArrayList<>();
+            for (JsonNode item : node) {
+                if (samples.size() == 3) break;
+                if (item.isValueNode()) samples.add(plain(item.asText()));
+                else for (String name : List.of("name", "title", "label", "departmentName", "positionName", "code", "roleCode", "toolCode")) {
+                    if (item.path(name).isValueNode() && !item.path(name).isNull()) { samples.add(plain(item.path(name).asText())); break; }
+                }
+            }
+            String summary = MessageUtils.resolve("agent.result.collection", node.size());
+            if (!samples.isEmpty()) summary += MessageUtils.resolve("agent.result.samples", String.join("; ", samples));
+            fields.add(fieldLabel(prefix.isBlank() ? "items" : prefix) + ": " + summary);
             return;
         }
-        Iterator<Map.Entry<String, JsonNode>> iterator = node.fields();
+        List<Map.Entry<String, JsonNode>> entries = new ArrayList<>();
+        node.fields().forEachRemaining(entries::add);
+        entries.sort(java.util.Comparator.comparingInt(entry -> fieldPriority(entry.getKey())));
+        Iterator<Map.Entry<String, JsonNode>> iterator = entries.iterator();
         while (iterator.hasNext() && fields.size() < MAX_FIELDS) {
             Map.Entry<String, JsonNode> entry = iterator.next();
             if ("items".equals(entry.getKey())) continue;
             String path = prefix.isBlank() ? entry.getKey() : prefix + "." + entry.getKey();
             collect(fields, path, entry.getValue(), depth + 1);
         }
+    }
+
+    private static int fieldPriority(String name) {
+        if ("id".equals(name) || name.endsWith("Id")) return 0;
+        if (List.of("name", "title", "formName", "processName", "applicantName").contains(name)) return 1;
+        if ("status".equals(name)) return 2;
+        if ("version".equals(name)) return 3;
+        return 4;
+    }
+
+    private static String fieldLabel(String path) {
+        return java.util.Arrays.stream(path.split("\\."))
+                .map(name -> translatedOr("agent.result.field." + name, "agent.result.field.detail"))
+                .collect(java.util.stream.Collectors.joining(" / "));
+    }
+
+    private static String fieldValue(String path, JsonNode value) {
+        if (value.isBoolean()) return MessageUtils.resolve(value.booleanValue() ? "agent.result.yes" : "agent.result.no");
+        String name = path.substring(path.lastIndexOf('.') + 1);
+        if (value.isTextual() && List.of("status", "action", "operation", "sideEffect", "riskLevel", "maxRiskLevel").contains(name)) {
+            String raw = value.asText();
+            String key = "agent.result.enum." + raw;
+            String resolved = MessageUtils.resolve(key);
+            if (!key.equals(resolved)) return resolved;
+        }
+        return plain(value.asText());
+    }
+
+    private static String translatedOr(String key, String fallback) {
+        String text = MessageUtils.resolve(key);
+        return text.equals(key) ? MessageUtils.resolve(fallback) : text;
     }
 }

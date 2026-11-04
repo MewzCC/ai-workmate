@@ -55,7 +55,7 @@ public class NotificationServiceImpl implements NotificationService {
     public void publish(long tenantId, long userId, String type, String title, String content,
                         String bizType, Long bizId) {
         if (content == null || content.isBlank()) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "通知内容不能为空");
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.notification.contentRequired");
         }
         QueueMessage message = new QueueMessage(tenantId, userId, type, title, content, bizType, bizId);
         try {
@@ -171,7 +171,7 @@ public class NotificationServiceImpl implements NotificationService {
                 .eq(Notification::getTenantId, access.tenantId())
                 .eq(Notification::getUserId, access.userId()));
         if (notification == null) {
-            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "通知不存在");
+            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "validation.notification.notFound");
         }
         int updated = notificationMapper.update(null, new LambdaUpdateWrapper<Notification>()
                 .eq(Notification::getId, notificationId)
@@ -235,7 +235,7 @@ public class NotificationServiceImpl implements NotificationService {
         try {
             return objectMapper.writeValueAsString(message);
         } catch (JsonProcessingException ex) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "通知消息序列化失败");
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.notification.serializationFailed");
         }
     }
 
@@ -243,7 +243,7 @@ public class NotificationServiceImpl implements NotificationService {
         try {
             return objectMapper.readValue(raw, QueueMessage.class);
         } catch (JsonProcessingException ex) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "通知消息解析失败");
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.notification.parseFailed");
         }
     }
 

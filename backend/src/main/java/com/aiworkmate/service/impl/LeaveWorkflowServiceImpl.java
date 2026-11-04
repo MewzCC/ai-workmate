@@ -184,7 +184,7 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
     public LeaveApplicationResponse updateDraft(Long userId, Long id, LeaveApplicationRequest request) {
         ResolvedUserAccess actor = requirePermission(userId, "leave:create");
         if (request.version() == null) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "更新草稿必须携带 version");
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.leave.draftVersionRequired");
         }
         LeaveApplication current = requireOwnedLeave(actor, id);
         requireState(current, "DRAFT");
@@ -355,7 +355,7 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
         }
         Long definitionId = leaveMapper.selectLeaveDefinitionId(actor.tenantId());
         if (definitionId == null) {
-            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID, "请假流程定义不可用");
+            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID, "validation.leave.processUnavailable");
         }
         LocalDateTime now = LocalDateTime.now();
         LambdaUpdateWrapper<LeaveApplication> update = new LambdaUpdateWrapper<LeaveApplication>()
@@ -554,7 +554,7 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
     @Transactional
     public LeaveApplicationResponse reject(Long userId, Long taskId, ApprovalDecisionRequest request) {
         if (request.comment() == null || request.comment().isBlank()) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "退回意见不能为空");
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.leave.rejectionCommentRequired");
         }
         return decide(userId, taskId, request, false);
     }
@@ -782,7 +782,7 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
             auditService.record(actor.tenantId(), actor.userId(), BUSINESS_TYPE,
                     application.getId().toString(), approved ? "APPROVE" : "REJECT",
                     "DENIED", "申请人不能审批自己的申请");
-            throw new BusinessException(ErrorCode.RESOURCE_FORBIDDEN, "申请人不能审批自己的申请");
+            throw new BusinessException(ErrorCode.RESOURCE_FORBIDDEN, "validation.leave.selfApprovalForbidden");
         }
         LocalDateTime now = LocalDateTime.now();
         String taskStatus = approved ? "APPROVED" : "REJECTED";
@@ -1219,7 +1219,7 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
 
     private int calculateDuration(LeaveApplicationRequest request) {
         if (request.startDate().isBefore(LocalDate.now())) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "开始日期不能早于今天");
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.leave.startDateInPast");
         }
         return HalfDayCalculator.calculate(
                 request.startDate(), request.startPeriod(), request.endDate(), request.endPeriod());
@@ -1242,7 +1242,7 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
         if (approverUserId == null || leaveMapper.countEligibleApprover(
                 actor.tenantId(), actor.userId(), approverUserId) != 1) {
             throw new BusinessException(ErrorCode.APPROVER_NOT_CONFIGURED,
-                    "所选审批人不在有效审批范围内，请重新选择");
+                    "validation.runtime.approval.approverOutOfScope");
         }
     }
 

@@ -23,6 +23,7 @@ public class BusinessException extends RuntimeException {
     private final String errorCode;
     private final HttpStatus status;
     private final String messageKey;
+    private final Object[] messageArguments;
 
     public BusinessException(HttpStatus status, String message) {
         super(message);
@@ -30,6 +31,7 @@ public class BusinessException extends RuntimeException {
         this.code = status.value();
         this.errorCode = null;
         this.messageKey = null;
+        this.messageArguments = new Object[0];
     }
 
     public BusinessException(ErrorCode errorCode) {
@@ -41,12 +43,20 @@ public class BusinessException extends RuntimeException {
      *                   否则视为已解析文案直接展示（向后兼容历史调用）。
      */
     public BusinessException(ErrorCode errorCode, String messageKey) {
+        this(errorCode, messageKey, new Object[0]);
+    }
+
+    /** Resolve parameterized messages lazily in the locale of the handling request. */
+    public BusinessException(ErrorCode errorCode, String messageKey, Object... messageArguments) {
         super(messageKey);
         this.status = errorCode.getStatus();
         this.code = errorCode.getCode();
         this.errorCode = errorCode.getErrorCode();
         this.messageKey = messageKey;
+        this.messageArguments = messageArguments == null ? new Object[0] : messageArguments.clone();
     }
+
+    public Object[] getMessageArguments() { return messageArguments.clone(); }
 
     @Override
     public String getMessage() {
@@ -55,7 +65,7 @@ public class BusinessException extends RuntimeException {
         }
         // 仅对符合 i18n key 命名规则的 messageKey 走 MessageSource 解析
         if (looksLikeMessageKey(messageKey)) {
-            return MessageUtils.resolve(messageKey);
+            return MessageUtils.resolve(messageKey, messageArguments);
         }
         return messageKey;
     }

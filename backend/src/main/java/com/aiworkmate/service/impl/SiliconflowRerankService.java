@@ -56,10 +56,10 @@ public class SiliconflowRerankService implements RerankService {
     @Override
     public List<RankedItem> rerank(String query, List<String> documents, int topN) {
         if (!configured()) {
-            throw new BusinessException(ErrorCode.EMBEDDING_UNAVAILABLE, "重排服务未配置");
+            throw new BusinessException(ErrorCode.EMBEDDING_UNAVAILABLE, "validation.runtime.rerank.unconfigured");
         }
         if (query == null || query.isBlank() || documents == null || documents.isEmpty()) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "重排的查询与文档不能为空");
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.runtime.rerank.inputEmpty");
         }
         long startedAt = System.nanoTime();
         try {
@@ -74,7 +74,7 @@ public class SiliconflowRerankService implements RerankService {
                     .retrieve()
                     .body(RerankResponse.class);
             if (response == null || response.results() == null) {
-                throw new BusinessException(ErrorCode.EMBEDDING_RESPONSE_INVALID, "重排服务返回为空");
+                throw new BusinessException(ErrorCode.EMBEDDING_RESPONSE_INVALID, "validation.runtime.rerank.responseEmpty");
             }
             List<RankedItem> ranked = response.results().stream()
                     .map(item -> new RankedItem(item.index(), item.relevanceScore()))
@@ -87,7 +87,7 @@ public class SiliconflowRerankService implements RerankService {
         } catch (RestClientException ex) {
             log.warn("Rerank API request failed, endpoint={}, model={}, documentCount={}",
                     rerankProperties.getApiBaseUrl(), model(), documents.size(), ex);
-            throw new BusinessException(ErrorCode.EMBEDDING_UNAVAILABLE, "重排服务暂时不可用");
+            throw new BusinessException(ErrorCode.EMBEDDING_UNAVAILABLE, "validation.runtime.rerank.unavailable");
         } catch (RuntimeException ex) {
             log.error("Rerank API returned invalid response, model={}, documentCount={}",
                     model(), documents.size(), ex);
@@ -107,7 +107,7 @@ public class SiliconflowRerankService implements RerankService {
         String baseUrl = rerankProperties.getApiBaseUrl() == null
                 ? "" : rerankProperties.getApiBaseUrl().strip().replaceAll("/+$", "");
         if (baseUrl.isBlank()) {
-            throw new BusinessException(ErrorCode.EMBEDDING_UNAVAILABLE, "RERANK_API_BASE_URL 尚未配置");
+            throw new BusinessException(ErrorCode.EMBEDDING_UNAVAILABLE, "validation.runtime.rerank.endpointMissing");
         }
         return baseUrl + "/rerank";
     }

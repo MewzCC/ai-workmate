@@ -159,7 +159,9 @@ class AgentChatResultServiceTest {
         assertThat(captured.getAllValues().get(0).getContent()).isEqualTo("预订会议室");
         assertThat(captured.getAllValues().get(1).getSourceTaskNo()).isEqualTo("task");
         assertThat(captured.getAllValues().get(1).getSourceToolCode()).isEqualTo("meeting.book");
-        assertThat(captured.getAllValues().get(1).getContent()).contains("bookingId: 88", "status: BOOKED");
+        assertThat(captured.getAllValues().get(1).getContent())
+                .contains(com.aiworkmate.common.MessageUtils.resolve("agent.result.field.bookingId") + ": 88")
+                .contains(com.aiworkmate.common.MessageUtils.resolve("agent.result.enum.BOOKED"));
         assertThat(captured.getAllValues().get(1).getRole()).isEqualTo("assistant");
         verify(conversations).updateById(owned);
     }

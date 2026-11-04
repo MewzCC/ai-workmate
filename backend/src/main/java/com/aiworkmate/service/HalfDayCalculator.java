@@ -20,7 +20,7 @@ public final class HalfDayCalculator {
                 "PM".equals(endPeriod) ? 1 : 0);
         long halfDays = endSlot - startSlot + 1;
         if (halfDays <= 0 || halfDays > Integer.MAX_VALUE) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "请假结束时间不得早于开始时间");
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.runtime.leave.invalidRange");
         }
         return (int) halfDays;
     }

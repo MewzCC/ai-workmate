@@ -71,7 +71,7 @@ public class TikaFileParserServiceImpl implements FileParserService {
                 return new ParsedFile(mimeType, limit(text), false);
             }
             if (!DOCUMENT_TYPES.contains(mimeType)) {
-                throw new BusinessException(ErrorCode.REQUEST_INVALID, "不支持该文件类型：" + mimeType);
+                throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.runtime.file.unsupportedType", mimeType);
             }
             String text = tika.parseToString(path).strip();
             return new ParsedFile(mimeType, limit(text), false);
@@ -79,7 +79,7 @@ public class TikaFileParserServiceImpl implements FileParserService {
             throw ex;
         } catch (Exception ex) {
             log.error("Attachment parsing failed, filename={}", filename, ex);
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "文件内容解析失败，请检查文件是否损坏或加密");
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.runtime.file.parseFailed");
         }
     }
 

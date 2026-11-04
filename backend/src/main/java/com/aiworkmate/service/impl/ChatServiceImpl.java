@@ -213,7 +213,7 @@ public class ChatServiceImpl implements ChatService {
     private Conversation requireOwnedConversation(Long userId, Long conversationId) {
         Conversation conversation = conversationMapper.selectOne(new LambdaQueryWrapper<Conversation>()
                 .eq(Conversation::getId, conversationId).eq(Conversation::getUserId, userId));
-        if (conversation == null) throw new BusinessException(ErrorCode.RESOURCE_FORBIDDEN, "无权访问该会话");
+        if (conversation == null) throw new BusinessException(ErrorCode.RESOURCE_FORBIDDEN, "validation.chat.conversation.forbidden");
         return conversation;
     }
 
@@ -266,7 +266,7 @@ public class ChatServiceImpl implements ChatService {
     private void ensureProviderConfigured() {
         if (!aiRuntimeProperties.configured()) {
             throw new BusinessException(ErrorCode.AI_CHAT_UNAVAILABLE,
-                    "AI_API_KEY 尚未在服务端配置，聊天能力不可用");
+                    "validation.runtime.chat.providerMissing");
         }
     }
 }

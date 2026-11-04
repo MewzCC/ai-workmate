@@ -1,6 +1,7 @@
 package com.aiworkmate.service.impl;
 
 import com.aiworkmate.common.BusinessException;
+import com.aiworkmate.common.FileSizeLimit;
 import com.aiworkmate.common.ErrorCode;
 import com.aiworkmate.config.ProfileProperties;
 import com.aiworkmate.dto.AuthUserResponse;
@@ -93,7 +94,7 @@ public class UserProfileServiceImpl implements UserProfileService {
         String mimeType = detectMimeType(file);
         String extension = AVATAR_EXTENSIONS.get(mimeType);
         if (extension == null) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "头像仅支持 JPG、PNG 或 WebP");
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.runtime.profile.avatarType");
         }
 
         User user = requireActiveUser(userId);
@@ -104,12 +105,12 @@ public class UserProfileServiceImpl implements UserProfileService {
         } catch (IOException ex) {
             objectStorageService.delete(storageName);
             log.error("User avatar stream read failed, userId={}", userId, ex);
-            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "头像保存失败，请稍后重试");
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "validation.runtime.profile.avatarSaveFailed");
         } catch (RuntimeException ex) {
             objectStorageService.delete(storageName);
             log.error("User avatar storage failed, userId={}", userId, ex);
             throw ex instanceof BusinessException ? ex
-                    : new BusinessException(ErrorCode.SYSTEM_ERROR, "头像保存失败，请稍后重试");
+                    : new BusinessException(ErrorCode.SYSTEM_ERROR, "validation.runtime.profile.avatarSaveFailed");
         }
         try {
             user.setAvatar(storageName);
@@ -144,7 +145,7 @@ public class UserProfileServiceImpl implements UserProfileService {
     public AvatarContent loadAvatar(Long userId) {
         User user = requireActiveUser(userId);
         if (user.getAvatar() == null || user.getAvatar().isBlank()) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "尚未设置头像");
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.runtime.profile.avatarMissing");
         }
         String storageName = user.getAvatar();
         String mimeType = resolveMimeType(storageName);
@@ -161,7 +162,7 @@ public class UserProfileServiceImpl implements UserProfileService {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
         }
         if (target.getAvatar() == null || target.getAvatar().isBlank()) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "尚未设置头像");
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.runtime.profile.avatarMissing");
         }
         String storageName = target.getAvatar();
         String mimeType = resolveMimeType(storageName);
@@ -183,7 +184,7 @@ public class UserProfileServiceImpl implements UserProfileService {
         String mimeType = detectMimeType(file);
         String extension = AVATAR_EXTENSIONS.get(mimeType);
         if (extension == null) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "壁纸仅支持 JPG、PNG 或 WebP");
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.runtime.profile.wallpaperType");
         }
 
         User user = requireActiveUser(userId);
@@ -194,12 +195,12 @@ public class UserProfileServiceImpl implements UserProfileService {
         } catch (IOException ex) {
             objectStorageService.delete(storageName);
             log.error("User wallpaper stream read failed, userId={}", userId, ex);
-            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "壁纸保存失败，请稍后重试");
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "validation.runtime.profile.wallpaperSaveFailed");
         } catch (RuntimeException ex) {
             objectStorageService.delete(storageName);
             log.error("User wallpaper storage failed, userId={}", userId, ex);
             throw ex instanceof BusinessException ? ex
-                    : new BusinessException(ErrorCode.SYSTEM_ERROR, "壁纸保存失败，请稍后重试");
+                    : new BusinessException(ErrorCode.SYSTEM_ERROR, "validation.runtime.profile.wallpaperSaveFailed");
         }
 
         try {
@@ -235,7 +236,7 @@ public class UserProfileServiceImpl implements UserProfileService {
     public AvatarContent loadWallpaper(Long userId) {
         User user = requireActiveUser(userId);
         if (user.getWallpaper() == null || user.getWallpaper().isBlank()) {
-            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "尚未设置壁纸");
+            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "validation.runtime.profile.wallpaperMissing");
         }
         String storageName = user.getWallpaper();
         return new AvatarContent(objectStorageService.load(storageName), resolveMimeType(storageName));
@@ -243,19 +244,19 @@ public class UserProfileServiceImpl implements UserProfileService {
 
     private void validateSize(MultipartFile file) {
         if (file == null || file.isEmpty()) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "请选择头像文件");
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.runtime.profile.avatarEmpty");
         }
         if (file.getSize() > properties.getAvatarMaxBytes()) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "头像大小不能超过 2MB");
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.runtime.profile.avatarTooLarge", FileSizeLimit.describe(properties.getAvatarMaxBytes()));
         }
     }
 
     private void validateWallpaperSize(MultipartFile file) {
         if (file == null || file.isEmpty()) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "请选择壁纸文件");
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.runtime.profile.wallpaperEmpty");
         }
         if (file.getSize() > properties.getWallpaperMaxBytes()) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "壁纸大小不能超过 5MB");
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.runtime.profile.wallpaperTooLarge", FileSizeLimit.describe(properties.getWallpaperMaxBytes()));
         }
     }
 
@@ -263,7 +264,7 @@ public class UserProfileServiceImpl implements UserProfileService {
         try (InputStream input = file.getInputStream()) {
             return tika.detect(input, file.getOriginalFilename());
         } catch (IOException ex) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "无法识别头像文件");
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.runtime.profile.avatarUnrecognized");
         }
     }
 
@@ -275,7 +276,7 @@ public class UserProfileServiceImpl implements UserProfileService {
                 .findFirst()
                 .orElse(null);
         if (mime == null) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID, "头像文件类型无效");
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.runtime.profile.avatarInvalid");
         }
         return mime;
     }
