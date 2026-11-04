@@ -1,249 +1,83 @@
 # AI WorkMate
 
-AI WorkMate 是一个面向企业协同场景的 AI 助手与 OA 工作台平台。项目采用两个独立 Vite SPA、一个 Spring Boot 模块化单体，以及 PostgreSQL/pgvector、Redis、MinIO 等基础设施，当前已覆盖认证、动态权限、审批、人事、行政资产、知识库、流式 AI 对话和受控 Agent 执行链路。
+[![Phase 1 CI](https://github.com/MewzCC/ai-workmate/actions/workflows/phase-1-ci.yml/badge.svg?branch=feature%2Fzcc)](https://github.com/MewzCC/ai-workmate/actions/workflows/phase-1-ci.yml)
 
-## 系统架构
+**企业 OA 工作台、AI 对话与受控 Agent 执行平台。**
 
-[打开 Archify 交互式系统架构图](docs/architecture/ai-workmate-system-architecture.html) · [查看架构图规格](docs/architecture/ai-workmate-system-architecture.archify.json) · [查看视觉检查报告](docs/architecture/ai-workmate-system-architecture.visual-check.html)
+在同一个工作台中处理审批、人事、资产和考勤，管理知识库，通过 AI 查询业务信息、准备表单及执行经过授权的单步写操作。项目包含两个独立前端和一个 Spring Boot 模块化单体，支持本地开发与 Docker Compose 部署。
 
-![AI WorkMate 系统架构](docs/architecture/ai-workmate-system-architecture.visual-check.2048x1320.light.png)
+[界面预览](#界面预览) · [业务能力](#业务能力) · [快速开始](#快速开始) · [测试与-ci](#测试与-ci) · [文档](#文档)
 
-核心边界如下：
+> 当前代码包含 **42 个 OA 页面组件、152 个 Agent 工具定义（50 读 / 102 写）**。登记、配置启用、用户授权和业务验收是不同状态；实际可用能力以服务端配置与实时权限为准。项目仍在迭代，待验收范围见[问题基线](docs/roadmap/oa-agent-issue-baseline-20261026.md)。
 
-- `fronted-main`：营销官网，独立运行于 `3000`。
-- `fonted-oa`：企业 OA 工作台，独立运行于 `3001`，根路径 `/` 跳转到 `/oa`。
-- `backend`：Java 17 + Spring Boot 3 模块化单体，统一提供 REST、SSE、认证、领域服务、RAG 和 Agent 任务能力。
-- Agent Runtime：Planner 与 Worker 不能直接调用工具处理器；所有 Agent 工具执行必须经过进程内 `ToolGateway.execute(stepId, workerLease)`。
-- PostgreSQL + pgvector：承载业务数据、RBAC、会话、知识向量、Agent 任务快照与审计；Schema 由 Flyway 独占管理。
-- Redis：用于登录保护、验证码、缓存及运行时辅助能力。
-- MinIO：保存聊天附件、员工档案、印章文件、头像和壁纸等对象。
-- OCR：PaddleOCR + PyMuPDF 可选服务，用于图片和扫描版 PDF 文字提取。
+## 界面预览
 
-## 核心能力
+以下为真实运行页面截图。OA 使用一次性隔离 PostgreSQL / Redis 环境和合成演示账号；资产、通知及会话内容仅用于展示，不包含真实用户资料。AI 截图中的示例答复由夹具写入，不代表真实模型调用或业务执行。
 
-### 企业身份与权限
+### 平台观测看板
 
-- 密码登录、邮箱验证码登录、注册、重置密码、图形验证码和登录失败保护。
-- Spring Security + JWT 无状态鉴权；除认证与系统健康接口外，业务 API 默认要求认证。
-- 后端根据认证用户实时解析角色、权限、数据范围和租户，不依赖前端隐藏按钮保证安全。
-- 动态菜单由 `GET /api/navigation` 返回；权限后台支持角色、成员、组织、权限和动态路由配置。
-- 中文与英文国际化，两个前端共享 `workmeta-locale`，后端错误消息按 `Accept-Language` 返回。
+![平台观测看板：调用流量、运行指标与 ECharts 图表](docs/images/readme/platform-observability.jpg)
 
-### OA 工作台
+<details>
+<summary><strong>AI 工作空间：会话与消息阅读</strong></summary>
 
-- 驾驶舱、待办、通知、考勤打卡、补卡、异常、统计和考勤设置。
-- 通用审批的草稿、提交、撤回、重新发起、转交、抄送、加签、催办和审批时间线。
-- 审批表单、流程和规则配置，并在申请时冻结定义快照。
-- 人事组织、员工档案、附件和入转调离流程。
-- 资产领用、归还、调拨、维修、盘点和报废。
-- 会议室预约与冲突检测、访客预约与到访生命周期、印章申请与实际用印归还。
-- 动态菜单、访问页签、主题、壁纸、个人资料和服务端用户设置。
-- Ant Design 业务组件、ECharts 图表和响应式中后台布局。
+![AI 工作空间：服务端会话与消息展示](docs/images/readme/ai-workspace.jpg)
 
-### AI Chat 与知识库
+</details>
 
-- 独立 `/oa/ai-workspace` 页面，包含会话列表、消息区、附件、引用和流式输入体验。
-- 对话与消息服务端持久化，SSE 流式回复，认证用户只能访问自己的资源。
-- 文档上传、解析、分块、向量化、pgvector 检索和 PostgreSQL 全文检索。
-- 可配置本地或 OpenAI 兼容 Embedding 服务，以及可选 Rerank 服务。
-- 图片和扫描版 PDF 可通过可选 OCR 服务提取文字；能力不可用时返回真实错误，不伪造成功。
+<details>
+<summary><strong>企业驾驶舱：业务指标与工作入口</strong></summary>
 
-### 受控 Agent
+![企业驾驶舱：当前账号指标与待办摘要](docs/images/readme/dashboard.jpg)
 
-- 持久化任务、步骤、事件、租约 Worker、幂等、取消、恢复、保留清理和 SSE 进度。
-- 当前代码登记 152 个工具：50 个只读、102 个受控写，覆盖审批、人事、资产、会议、访客、用印、财务、知识库、设置和平台观测。登记数量不代表运行启用或验收数量，详见[全页面工具交付清单](docs/roadmap/all-page-agent-tool-delivery.md)。
-- 每个任务最多一个写步骤，并按风险要求确认；新增通用申请、费用原子提交工具默认保持关闭，需独立验收与发布。
-- Tool Gateway 重新校验任务快照、租户、用户、实时权限、Worker 租约、attempt、哈希、确认、预算、Kill Switch 和审计。
-- 工具 Handler 只能通过固定注册表分派；领域 Service 再次校验租户、所有权、权限和业务状态。
-- SQL、代码执行、文件系统、任意 URL、权限修改、删除、批量操作、敏感导出、外部消息和后台自治属于永久禁止能力。
-- Agent 与写工具默认关闭；数据库策略只能进一步收紧能力，不能绕过代码安全上限。
+</details>
 
-当前问题与剩余验收见 [OA 与 Agent 问题基线](docs/roadmap/oa-agent-issue-baseline-20261026.md)；本轮按用户要求停止扩展，收尾情况见 [工作树提交记录](docs/roadmap/batches/20261104-worktree-closeout.md)。[R3–R4 验收记录](docs/roadmap/r3-r4-business-closure-acceptance.md)保留对应历史提交的结果，不能代替本轮验收。安全设计详见 [Phase 2 Agent 安全边界](docs/roadmap/phase-2-agent-security-boundary.md)、[Tool Gateway 架构](docs/architecture/agent-tool-gateway.md) 和 [Agent 任务引擎](docs/architecture/agent-task-engine.md)。
+<details>
+<summary><strong>资产台账：状态、保管人与业务操作</strong></summary>
 
-## 技术栈
+![资产台账：隔离测试库中的演示资产](docs/images/readme/asset-ledger.jpg)
 
-| 层级 | 技术 |
+</details>
+
+<details>
+<summary><strong>独立营销官网</strong></summary>
+
+![AI WorkMate 营销官网](docs/images/readme/marketing.jpg)
+
+</details>
+
+## 业务能力
+
+| 领域 | 当前代码提供的能力 |
 | --- | --- |
-| 营销官网 | Vite 5、React 18、TypeScript、Tailwind CSS、Ant Design、Zustand、i18next |
-| OA 工作台 | Vite 5、React 19、TypeScript、React Router、Ant Design、ECharts、G6、Zustand、i18next |
-| 后端 | Java 17、Spring Boot 3.3.5、Spring Security、Spring AI 1.0、Bean Validation |
-| 数据访问 | MyBatis-Plus 3.5、PostgreSQL 16、pgvector、Flyway |
-| 基础设施 | Redis 7、MinIO、Docker Compose、Nginx |
-| 文件与检索 | Apache Tika、Embedding、pgvector、PostgreSQL 全文检索、可选 Rerank |
-| OCR | FastAPI、PaddleOCR、PyMuPDF，可选启用 |
-| 测试 | JUnit 5、Spring Boot Test、ArchUnit、Testcontainers、Vitest、Playwright |
+| 身份与权限 | 密码及验证码登录、注册、密码重置、JWT Cookie、实时数据库 RBAC、租户与数据范围、动态菜单 |
+| 工作台与观测 | 驾驶舱、我的待办、消息中心、平台观测、ECharts 多类型图表、指标与布局偏好 |
+| 流程审批 | 草稿、提交、撤回、重新提交、顺序审批、转交、抄送、加签、催办、定义快照与审计时间线 |
+| 组织人事 | 组织架构、员工档案、任职历史、档案附件、入职 / 转正 / 调岗 / 离职流程 |
+| 行政资产 | 资产领用、归还、调拨、维修、盘点、报废；会议预约与冲突检测；访客签到离场；用印与归还 |
+| 财务合同 | 费用报销、预算、合同与供应商专属页面及相应业务接口 |
+| 考勤 | 打卡、异常考勤、补卡申请、月度统计、考勤设置 |
+| AI 与知识库 | 独立聊天工作空间、SSE 流式消息、服务端会话持久化、附件、文档解析、向量与全文检索、引用 |
+| 管理与配置 | 角色权限、页面操作、数据权限、AI 工具权限、审计、租户、字典、系统配置 |
+| 界面体验 | 中英文、桌面与移动端、访问页签、明暗主题、自定义壁纸、持续保留的侧边 AI 面板 |
 
-## 仓库结构
+页面使用真实接口；依赖未配置或接口失败时展示错误及不可用状态。上表描述代码覆盖范围，逐项交付与限制见[全页面工具清单](docs/roadmap/all-page-agent-tool-delivery.md)和[阶段收尾记录](docs/roadmap/batches/20261104-worktree-closeout.md)。
+
+### Agent 如何执行业务
 
 ```text
-ai-workmate/
-├─ fronted-main/                  # 营销官网独立 Vite SPA，端口 3000
-├─ fonted-oa/                     # OA 工作台独立 Vite SPA，端口 3001，base=/oa/
-├─ backend/                       # Spring Boot 模块化单体，端口 8080
-│  └─ src/main/
-│     ├─ java/com/aiworkmate/
-│     │  ├─ config/               # Security、AI、存储与框架配置
-│     │  ├─ controller/           # REST/SSE 协议入口
-│     │  ├─ service/              # 领域服务接口与实现
-│     │  ├─ mapper/               # MyBatis-Plus 数据访问
-│     │  ├─ entity/               # 数据库实体
-│     │  ├─ dto/                  # API 请求/响应契约
-│     │  ├─ security/             # JWT 与认证上下文
-│     │  └─ agent/                # Planner、任务引擎、Gateway、Registry、Worker、Handler
-│     └─ resources/
-│        ├─ application.yml
-│        └─ db/migration/         # Flyway 版本化迁移，唯一 Schema 入口
-├─ docker/ocr-service/            # 可选 OCR 服务源码
-├─ docs/                          # 架构、规则、路线图、交付报告与 Skills
-├─ scripts/                       # 部署、数据库验收、OCR 与 Iconfont 工具
-├─ docker-compose.yml             # 基础设施、后端、两个前端和可选 OCR
-├─ start.bat                      # Windows 本地多服务启动器
-├─ .env.example                   # 本地开发配置模板
-└─ .env.docker.example            # Docker 部署配置模板
+用户请求 → 计划与冻结快照 → 风险及确认策略 → Worker 领取任务
+         → Tool Gateway 重新鉴权 → 类型化领域 Port / Adapter
+         → 领域服务校验与事务 → 审计、结构化回执、结果文字及受控导航
 ```
 
-> 目录名 `fronted-main` 和 `fonted-oa` 是当前仓库的既有名称。旧 `frontend` 边界已废弃，不要重新合并两个前端。
+- 所有 Agent 工具调用经过进程内 **Tool Gateway**；Planner、Controller 和 Worker 不能直接调用 Handler。
+- 网关复核租户、用户、实时权限、租约、版本与参数哈希、确认、预算和 Kill Switch；领域服务再次检查资源归属、状态与乐观锁。
+- 一个任务最多一个写步骤，写工具受全局、租户和工具策略共同约束，并按风险要求确认。
+- 页面交互指令只允许代码白名单内的导航、筛选、详情、填表、预览和刷新；准备表单不等于提交业务。
+- 禁止任意 SQL、代码执行、文件系统、任意 URL、权限修改、删除、批量操作、敏感导出、外部消息和后台自治。
 
-## 运行端口
-
-| 服务 | 地址 | 说明 |
-| --- | --- | --- |
-| 营销官网 | <http://localhost:3000> | “立即尝试”进入 OA |
-| OA 工作台 | <http://localhost:3001/oa/> | 独立 SPA |
-| 后端 API | <http://localhost:8080> | REST 与 SSE |
-| 健康检查 | <http://localhost:8080/api/system/health> | 无需认证 |
-| PostgreSQL | `localhost:5432` | 默认开发数据库 `ai_workmate_dev` |
-| Redis | `localhost:6379` | 本地基础设施 |
-| MinIO API / Console | `localhost:9000` / <http://localhost:9001> | 对象存储与管理界面 |
-| OCR | `localhost:8686` | 仅本地独立安装时直接暴露；Compose 内默认只供后端访问 |
-
-## 快速开始
-
-### 前置要求
-
-- Java 17
-- Maven 3.9+
-- Node.js 20+ 与 npm
-- Docker Desktop 或兼容的 Docker Compose 环境
-- PostgreSQL 16 + pgvector、Redis 7、MinIO（推荐直接使用 Compose）
-- 64 位 Python 3.10/3.11（仅本地安装 OCR 时需要）
-
-### 1. 准备本地配置
-
-PowerShell：
-
-```powershell
-Copy-Item .env.example .env
-```
-
-Bash：
-
-```bash
-cp .env.example .env
-```
-
-至少检查并替换：
-
-- `DB_PASSWORD`
-- `JWT_SECRET`（至少 32 字节随机值）
-- `AI_API_KEY`
-- `MINIO_ACCESS_KEY` / `MINIO_SECRET_KEY`
-- 邮箱登录需要的 `SMTP_*`
-- 知识库需要的 `EMBEDDING_*`；默认 `local` 模式要求本地 Embedding 服务运行于 `127.0.0.1:18080`
-
-不要提交 `.env`、`.env.docker`、真实账号、Token、API Key 或生产连接串。
-
-### 2. 启动基础设施
-
-```bash
-docker compose up -d postgres redis minio
-```
-
-后端启动时会自动执行 `backend/src/main/resources/db/migration` 中的 Flyway 迁移，无需手工执行 `init.sql`。
-
-### 3. 启动后端
-
-```bash
-cd backend
-mvn spring-boot:run
-```
-
-### 4. 启动两个前端
-
-分别打开两个终端：
-
-```bash
-cd fronted-main
-npm install
-npm run dev
-```
-
-```bash
-cd fonted-oa
-npm install
-npm run dev
-```
-
-访问 <http://localhost:3000> 或直接打开 <http://localhost:3001/oa/>。
-
-### Windows 一键打开开发服务
-
-首次完成两个前端的 `npm install`，并确保 PostgreSQL、Redis、MinIO 已启动后，可运行：
-
-```powershell
-.\start.bat
-```
-
-启动器会检查 Java、Maven、npm 和 Windows Terminal，释放 `8080`、`3000`、`3001` 端口，然后分别打开后端、官网和 OA 标签页；如已安装 OCR，也会启动 `8686` 服务。
-
-## Docker Compose 全栈部署
-
-```powershell
-Copy-Item .env.docker.example .env.docker
-docker compose --env-file .env.docker up -d --build
-```
-
-必须显式传入 `--env-file .env.docker`，否则 Compose 不会读取该文件中的构建期变量，例如 `VITE_OA_URL`。
-
-默认启动 PostgreSQL、Redis、MinIO、后端、营销官网和 OA。启用可选 OCR：
-
-```bash
-docker compose --env-file .env.docker --profile ocr up -d --build
-```
-
-部署形态支持：
-
-- 分端口：主站 `3000`，OA `3001/oa/`。
-- 同域名反向代理：设置 `VITE_OA_URL=/oa/`，由外部 Nginx 将 `/oa/` 转发到 OA 容器。
-- 独立 OA 域名：将 `VITE_OA_URL` 设置为完整 OA 地址。
-
-生产部署前必须替换模板中的所有密钥和占位值，并启用 HTTPS；`AUTH_COOKIE_SECURE` 应设置为 `true`。
-
-## 可选 OCR
-
-OCR 用于图片与扫描版 PDF 的聊天和知识库文本提取。未启用时主链路仍可运行，但相关识别请求会明确返回能力不可用。
-
-Windows 本地安装：
-
-```powershell
-.\start.bat --install-ocr
-```
-
-Docker 启用方式见上一节。OCR 主要配置：
-
-- `OCR_ENABLED`
-- `OCR_BASE_URL`
-- `OCR_API_KEY`
-- `OCR_USE_GPU`
-- `OCR_MAX_PAGES`
-- `OCR_TIMEOUT_MS`
-- `OCR_MIN_CONFIDENCE`
-
-更多说明见 [OCR 聊天处理链路](docs/architecture/ocr-chat-pipeline.md)。
-
-## Agent 启用说明
-
-Agent 的安全默认值是全部关闭：
+Agent 的环境变量默认关闭：
 
 ```dotenv
 AGENT_ENABLED=false
@@ -252,109 +86,183 @@ AGENT_EXECUTION_ENABLED=false
 AGENT_WRITE_TOOLS_ENABLED=false
 ```
 
-本地验收 Phase 2A 时，可以在受控环境中开启前三项，但还必须在 `agent_tenant_policy` 中显式启用目标租户。环境变量不能覆盖租户策略、Registry、实时权限、风险等级、确认或永久禁止清单。
+开启环境开关不等于获得业务权限或完成写能力发布。启用方式及边界见 [Phase 2 安全规范](docs/roadmap/phase-2-agent-security-boundary.md)与 [Tool Gateway 架构](docs/architecture/agent-tool-gateway.md)。API Key 和模型网关地址仅由服务端配置。
 
-`AGENT_WRITE_TOOLS_ENABLED` 属于 Phase 2B 全局发布门。即使设置为 `true`，写工具仍需租户写策略、工具策略、实时权限和一次性确认全部通过；未经独立人工批准不得在生产启用。
+## 架构与技术栈
 
-## 数据库迁移
+| 部分 | 目录 / 技术 | 默认地址 |
+| --- | --- | --- |
+| 营销官网 | `fronted-main` · Vite 5 / React 18 / TypeScript | <http://localhost:3000> |
+| OA 工作台 | `fonted-oa` · Vite 5 / React 19 / React Router / Ant Design / ECharts / G6 | <http://localhost:3001/oa/> |
+| 后端 | `backend` · Java 17 / Spring Boot 3.3 / Spring AI / Spring Security / MyBatis-Plus | <http://localhost:8080> |
+| 数据与缓存 | PostgreSQL 16 / pgvector / Flyway / Redis 7 | `5432` / `6379` |
+| 对象存储 | MinIO | API `9000` / Console `9001` |
+| 可选服务 | Embedding / Rerank / PaddleOCR / SMTP | 按服务端配置 |
 
-- Flyway 是部署环境 Schema 的唯一入口，迁移位于 `backend/src/main/resources/db/migration`。
-- `V1`–`V4` 是已发布基线，文件名和内容不得修改。
-- 新迁移使用 `VYYYYMMDDHHMM__description.sql`，以分钟粒度递增。
-- 已执行迁移禁止重命名、删除或修改 checksum；修正结构必须新增更高版本的前向迁移。
-- 迁移保持幂等，不在脚本中手写 `BEGIN` / `COMMIT`。
-- `backend/src/main/resources/db/init.sql` 只作为历史手工初始化和 CI 参考，不再自动执行。
+官网和 OA **独立运行、独立构建**。官网入口进入 OA 的 `/oa/`；OA 根路径 `/` 重定向到 `/oa`。仓库目录名 `fronted-main`、`fonted-oa` 沿用既有拼写，旧 `frontend` 不再作为应用边界。
 
-真实 PostgreSQL 验证入口：
+后端当前以模块化单体运行，领域服务、工具 Port / Adapter、执行网关分别组织；尚未作为 Spring Cloud 微服务部署。
 
-```powershell
-.\scripts\verify-p1-postgres.ps1 `
-  -DatabaseUrl 'jdbc:postgresql://localhost:5432/ai_workmate_dev' `
-  -DatabaseUsername 'postgres' `
-  -DatabasePassword '<password>'
+```text
+ai-workmate/
+├── fronted-main/             # 独立营销官网
+├── fonted-oa/                # 独立 OA 工作台
+├── backend/
+│   └── src/main/
+│       ├── java/com/aiworkmate/  # API、领域服务、认证、Agent
+│       └── resources/db/migration/  # Flyway 迁移
+├── docker/ocr-service/       # 可选 OCR 服务
+├── docs/                    # 架构、规则、验收、截图
+├── scripts/                 # 部署与验证脚本
+├── .github/workflows/       # 前后端与浏览器 CI
+└── docker-compose.yml
 ```
 
-## 验证命令
+[查看交互式系统架构图](docs/architecture/ai-workmate-system-architecture.html)
 
-营销官网：
+## 快速开始
+
+### 1. 准备环境与配置
+
+需要 **Java 17、Maven 3.9+、Node.js 20+、npm**。基础设施推荐使用 Docker Compose：PostgreSQL 必须支持 pgvector，文件能力需要 MinIO。
+
+首次运行，复制配置模板并填写本地配置：
 
 ```bash
-cd fronted-main
-npm install
-npm run lint
-npm run build
+cp .env.example .env
 ```
 
-OA 工作台：
+PowerShell 使用 `Copy-Item .env.example .env`。检查 `DB_*`、`REDIS_*`、`JWT_SECRET` 和 `MINIO_*`；JWT 密钥使用至少 32 字节的随机值。AI 对话、知识库、邮件及 OCR 分别需要对应外部服务配置，未配置时相应能力不可用。
+
+完整变量见 [.env.example](.env.example)。不要提交真实 `.env`、账号、密钥、Token 或生产连接信息。
+
+### 2. 启动基础设施与后端
+
+在仓库根目录执行：
 
 ```bash
-cd fonted-oa
-npm install
-npm run lint
-npm run test
-npm run build
+docker compose up -d postgres redis minio
 ```
 
-后端：
+后端终端：
 
 ```bash
 cd backend
-mvn test
+mvn spring-boot:run
 ```
 
-涉及数据库、权限、SSE、Agent Gateway 或写工具的改动，还必须运行相应真实 PostgreSQL、安全失败路径和架构边界测试。没有可用 Java 17、Maven、Docker 或外部模型环境时，应明确记录未执行项，不能把跳过描述为通过。
+默认 `dev` 配置连接本地 `ai_workmate_dev`。后端会自动执行 Flyway 迁移；新环境无需手工运行历史 `init.sql`。
 
-## 重要配置
+### 3. 启动两个前端
 
-| 配置组 | 关键变量 |
+官网终端：
+
+```bash
+cd fronted-main
+npm ci
+npm run dev
+```
+
+OA 终端：
+
+```bash
+cd fonted-oa
+npm ci
+npm run dev
+```
+
+访问 <http://localhost:3000> 或 <http://localhost:3001/oa/>。Windows 多终端启动脚本见 [start.bat](start.bat)。
+
+### 4. 确认服务可访问
+
+```bash
+curl http://localhost:8080/api/system/health
+curl http://localhost:3001/api/system/health
+```
+
+两者应返回成功响应，第二条同时检查 OA 的 API 代理。健康接口表示应用可响应；登录后的业务接口和外部模型、存储服务仍需分别验证。
+
+### Docker 全栈部署
+
+```bash
+cp .env.docker.example .env.docker
+# 编辑 .env.docker，替换占位配置后启动
+docker compose --env-file .env.docker up -d --build
+```
+
+必须传入 `--env-file .env.docker`，以便正确注入后端配置及 `VITE_OA_URL` 等构建变量。支持独立端口、同域 `/oa/` 反代或独立 OA 域名。生产环境需要 HTTPS、随机密钥及安全 Cookie 配置。
+
+可选 OCR：
+
+```bash
+docker compose --env-file .env.docker --profile ocr up -d --build
+```
+
+本地 OCR 安装与配置见 [OCR 聊天处理链路](docs/architecture/ocr-chat-pipeline.md)及 [安装脚本](scripts/install-ocr.ps1)。
+
+## 测试与 CI
+
+[Phase 1 CI](.github/workflows/phase-1-ci.yml) 在 Push、Pull Request 和手动触发时运行：
+
+| 任务 | 验证内容 |
 | --- | --- |
-| 数据库 | `DB_URL`、`DB_USERNAME`、`DB_PASSWORD` |
-| Redis | `REDIS_URL`、`REDIS_PASSWORD`、`REDIS_DATABASE` |
-| JWT / Cookie | `JWT_SECRET`、`AUTH_COOKIE_NAME`、`AUTH_SESSION_TTL`、`AUTH_COOKIE_SECURE` |
-| AI Chat | `AI_API_KEY`、`AI_BASE_URL`、`AI_MODEL` |
-| Agent | `AGENT_ENABLED`、`AGENT_PLANNING_ENABLED`、`AGENT_EXECUTION_ENABLED`、`AGENT_WRITE_TOOLS_ENABLED` |
-| MinIO | `MINIO_ENDPOINT`、`MINIO_ACCESS_KEY`、`MINIO_SECRET_KEY`、`MINIO_BUCKET` |
-| Embedding | `EMBEDDING_ENABLED`、`EMBEDDING_PROVIDER`、`EMBEDDING_LOCAL_*`、`EMBEDDING_API_*` |
-| Rerank | `RERANK_ENABLED`、`RERANK_API_BASE_URL`、`RERANK_API_KEY`、`RERANK_MODEL` |
-| OCR | `OCR_ENABLED`、`OCR_BASE_URL`、`OCR_API_KEY`、`OCR_*` |
-| 邮件 | `SMTP_HOST`、`SMTP_PORT`、`SMTP_USERNAME`、`SMTP_PASSWORD`、`SMTP_FROM_EMAIL` |
+| `backend` | 初始化脚本幂等性、Java 测试、真实 PostgreSQL / 原生 Redis 隔离测试、迁移与安全边界 |
+| `frontends` | 官网 lint / build，OA Vitest / lint / build |
+| `phase-1-e2e` | 安装 Chromium，真实请假审批闭环、42 页异常态、空态、权限变化与四种分辨率 |
 
-完整说明以 [.env.example](.env.example)、[.env.docker.example](.env.docker.example) 和 [application.yml](backend/src/main/resources/application.yml) 为准。
+**2026-11-04 验证基线：**提交 `c4f40ffc` 的[云端流水线全部通过](https://github.com/MewzCC/ai-workmate/actions/runs/41798090422)。后端 2127 项、零失败、零错误、1 项跳过；E2E 50 项全部通过。后端跳过的是旧初始化脚本的 Testcontainers 用例；流水线另以 `psql` 连续执行两次该脚本检查幂等性。这些数字仅对应该提交，不代表所有外部服务或生产场景已验收。
 
-## 文档索引
+前端本地检查：
 
-### 架构
+```bash
+cd fronted-main
+npm ci
+npm run lint
+npm run build
 
-- [系统架构图](docs/architecture/ai-workmate-system-architecture.html)
-- [企业认证架构](docs/architecture/enterprise-auth.md)
-- [AI Chat Workspace](docs/architecture/ai-chat-workspace.md)
-- [Embedding 与 pgvector](docs/architecture/embedding-pgvector.md)
-- [OCR 聊天处理链路](docs/architecture/ocr-chat-pipeline.md)
-- [Agent Tool Gateway](docs/architecture/agent-tool-gateway.md)
-- [Agent 持久任务引擎](docs/architecture/agent-task-engine.md)
+cd ../fonted-oa
+npm ci
+npm run lint
+npm test
+npm run build
+npx playwright install chromium
+npm run test:e2e
+```
 
-### 规则与协作
+真实请假 E2E 需要隔离测试账号及环境变量，配置见工作流；未提供账号时，该业务用例会明确跳过。页面接口失败场景使用测试夹具，不应计作真实业务写入验收。
 
-- [工程规范](docs/rules/engineering-rules.md)
-- [前端规范](docs/rules/frontend-rules.md)
-- [后端规范](docs/rules/backend-rules.md)
-- [Agent 规范](docs/rules/agent-rules.md)
-- [国际化规范](docs/rules/i18n-rules.md)
-- [Git 与提交规范](docs/rules/git-rules.md)
-- [仓库 Agent 入口规范](AGENTS.md)
+后端隔离测试需要先设置下列环境变量，再在 `backend` 执行 `mvn test`：
 
-## 已知限制
+| 变量 | 要求 |
+| --- | --- |
+| `AGENT_TEST_DB_URL` | 本地 PostgreSQL 控制库，例如 `jdbc:postgresql://127.0.0.1:5432/postgres` |
+| `AGENT_TEST_DB_USERNAME` / `AGENT_TEST_DB_PASSWORD` | 本地测试凭据，账号需能创建、清理测试数据库 |
+| `AGENT_TEST_REDIS_BINARY` | 本机 `redis-server` 可执行文件的绝对路径 |
 
-- AI、Embedding、Rerank、SMTP、MinIO 和 OCR 是否可用取决于服务端配置与外部服务状态；健康检查“已配置”不等于真实外部推理成功。
-- OA 仍有较大的前端 chunk，构建可能输出体积警告；后续需要继续做路由级拆包。
-- OCR、Rerank 和 SMTP 是可选能力；未配置时对应功能不可用，但不得回退为伪造成功。
-- Phase 2A/2B 的自动化发布门通过不等于生产授权；Agent 总开关、租户策略和写工具发布门必须独立审批。
-- 文件元数据存放在 PostgreSQL，对象存放在 MinIO；数据库回滚不会自动恢复或删除对象文件。
+夹具创建一次性数据库和独立 Redis 子进程，完成后清理自有资源。缺少必需环境时不得用跳过或 Mock 代替集成验收；CI 中的具体配置可直接参考工作流。
 
-## 协作约定
+### 数据库变更约定
 
-- 修改项目前先阅读 [AGENTS.md](AGENTS.md) 及对应 `docs/rules`、`docs/skills`。
-- 前后端接口变更必须同步更新 DTO、TypeScript 类型、调用方、国际化资源和文档。
-- 不提交密钥、真实账号、生产连接串、数据库转储或用户隐私数据。
-- 安全、鉴权、数据一致性、流式体验和失败路径优先于视觉效果。
-- 新能力必须提供本地验证方式；无法验证时必须说明环境限制。
+- Schema 与种子数据仅通过 `backend/src/main/resources/db/migration` 中的新 Flyway 迁移变更。
+- 新版本使用 `VYYYYMMDDHHMM__description.sql`；已执行迁移不改名、不改内容、不删除历史。
+- 升级检查包含空库、既有库、`validate`、重复启动与零待执行迁移。
+- `db/init.sql` 是历史参考与 CI 幂等性检查入口，不是部署时的 Schema 管理入口。
+
+## 配置与当前限制
+
+- AI、Embedding、Rerank、MinIO、SMTP、OCR 的可用性取决于实际服务及配置。已配置不等于已完成真实推理、上传下载或邮件投递验收。
+- 不提供固定演示登录账号；截图账号仅存在于一次性测试库中。
+- Agent 工具目录不是所有页面读写的完成度证明；部分写工具默认禁用，运行发布需要独立验收。
+- 前端构建仍可能提示较大的资源分块；页面可进入不等于全部控件与移动端组合均已完成业务验收。
+- 对象文件与数据库元数据分别保存在 MinIO 和 PostgreSQL；数据库回滚不会同步恢复对象文件。
+
+## 文档
+
+| 主题 | 入口 |
+| --- | --- |
+| 工程与协作 | [AGENTS.md](AGENTS.md) · [工程规范](docs/rules/engineering-rules.md) · [Git 规范](docs/rules/git-rules.md) |
+| 认证与权限 | [企业认证架构](docs/architecture/enterprise-auth.md) |
+| 聊天与知识库 | [AI Workspace](docs/architecture/ai-chat-workspace.md) · [Embedding / pgvector](docs/architecture/embedding-pgvector.md) · [OCR](docs/architecture/ocr-chat-pipeline.md) |
+| Agent | [安全边界](docs/roadmap/phase-2-agent-security-boundary.md) · [Tool Gateway](docs/architecture/agent-tool-gateway.md) · [任务引擎](docs/architecture/agent-task-engine.md) |
+| 交付与后续验收 | [工具清单](docs/roadmap/all-page-agent-tool-delivery.md) · [问题基线](docs/roadmap/oa-agent-issue-baseline-20261026.md) · [收尾记录](docs/roadmap/batches/20261104-worktree-closeout.md) |
+| 截图来源 | [截图说明](docs/images/readme/README.md) |
