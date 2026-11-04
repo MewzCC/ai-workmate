@@ -38,13 +38,13 @@ afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 it('uses real URL tabs and numeric filters without mounting the leave query', async () => {
   render(tree(true)); await screen.findByText('Frozen request');
-  expect(state.views).toHaveBeenCalledWith('generic', ['leave', 'generic'], expect.any(Function));
+  expect(state.views).toHaveBeenCalledWith('generic', ['all', 'leave', 'generic'], expect.any(Function));
   await act(async () => { await state.handlers['ui.applyFilter']!({ pageId: 'todo', code: 'ui.applyFilter', payload: { filters: { status: 'APPROVED', page: 2, size: 50, from: '2026-11-01', to: '2026-11-03' } } }); });
   await waitFor(() => expect(api.mine).toHaveBeenLastCalledWith({ status: 'APPROVED', page: 2, size: 50, from: '2026-11-01T00:00:00', to: '2026-11-03T00:00:00' }));
   const invalid: Record<string, string | number>[] = [{ size: 51 }, { page: 0 }, { status: 'WAITING' }];
   for (const filters of invalid)
     await expect(async () => state.handlers['ui.applyFilter']!({ pageId: 'todo', code: 'ui.applyFilter', payload: { filters } })).rejects.toThrow();
-  fireEvent.click(screen.getByRole('tab', { name: t('approval.genericTasks.leaveTab') })); expect(api.push).toHaveBeenCalledWith('/oa/todo');
+  fireEvent.click(screen.getByRole('tab', { name: t('approval.genericTasks.leaveTab') })); expect(api.push).toHaveBeenCalledWith('/oa/todo?kind=leave');
 });
 
 it('preflights the protected task before navigating and never guesses a denied detail', async () => {

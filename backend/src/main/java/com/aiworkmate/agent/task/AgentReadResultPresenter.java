@@ -337,8 +337,24 @@ public final class AgentReadResultPresenter {
             throw new BusinessException(ErrorCode.REQUEST_INVALID);
         }
         long total = result.path("total").asLong();
-        if (total == 0) return MessageUtils.resolve("agent.todo.empty");
-        StringBuilder answer = new StringBuilder(MessageUtils.resolve("agent.todo.count", total));
+        boolean unified = result.has("businessType");
+        String scopeLine = "";
+        if (unified) {
+            String type = result.path("businessType").asText(), state = result.path("status").asText();
+            if (!java.util.Set.of("ALL", "LEAVE_APPLICATION", "GENERIC_APPROVAL").contains(type)
+                    || !java.util.Set.of("ALL", "PENDING", "APPROVED", "REJECTED", "CANCELLED").contains(state)
+                    || !result.path("page").isInt() || result.path("page").asInt() < 1 || result.path("page").asInt() > 10000
+                    || !result.path("size").isInt() || result.path("size").asInt() < 1 || result.path("size").asInt() > 50
+                    || total < result.path("items").size() || result.path("items").size() > result.path("size").asInt())
+                throw new BusinessException(ErrorCode.REQUEST_INVALID);
+            scopeLine = MessageUtils.resolve("agent.todo.unified.page",MessageUtils.resolve("agent.todo.unified.scope."+type),
+                    MessageUtils.resolve(state.equals("ALL") ? "agent.todo.unified.allStatuses" : "agent.result.enum."+state),result.path("page").asInt(),result.path("size").asInt());
+            if (result.path("from").isTextual()) scopeLine += " " + MessageUtils.resolve("agent.todo.unified.from",plain(result.path("from").asText()));
+            if (result.path("to").isTextual()) scopeLine += " " + MessageUtils.resolve("agent.todo.unified.to",plain(result.path("to").asText()));
+        }
+        if (total == 0) return unified ? MessageUtils.resolve("agent.todo.unified.empty") + "\n" + scopeLine : MessageUtils.resolve("agent.todo.empty");
+        StringBuilder answer = new StringBuilder(MessageUtils.resolve(unified ? "agent.todo.unified.count" : "agent.todo.count", total));
+        if (unified) answer.append('\n').append(scopeLine);
         int shown = 0;
         for (JsonNode item : result.path("items")) {
             if (shown >= MAX_ITEMS) break;
@@ -346,21 +362,28 @@ public final class AgentReadResultPresenter {
             long id = item.path("id").asLong(-1);
             if (id < 1) throw new BusinessException(ErrorCode.REQUEST_INVALID);
             String applicant = plain(item.path("applicantName").asText(""));
-            String code = plain(item.path("leaveType").asText(""));
-            String key = "agent.todo.leave." + code;
-            String leaveType = MessageUtils.resolve(key);
-            if (key.equals(leaveType)) leaveType = code;
             String due = plain(item.path("dueAt").asText(""));
-            answer.append('\n').append(MessageUtils.resolve("agent.todo.item", shown, id, applicant, leaveType));
-            int halfDays = item.path("durationHalfDays").asInt(0);
-            if (halfDays > 0) {
-                answer.append(' ').append(MessageUtils.resolve("agent.todo.duration",
+            if ("GENERIC_APPROVAL".equals(item.path("businessType").asText())) {
+                String title = plain(item.path("title").asText());
+                if (title.isBlank()) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+                answer.append('\n').append(MessageUtils.resolve("agent.todo.unified.genericItem", shown, id, applicant, title));
+                if (!item.path("nodeName").asText().isBlank()) answer.append(' ').append(MessageUtils.resolve("agent.todo.unified.node",plain(item.path("nodeName").asText())));
+                if (!item.path("detailAvailable").asBoolean()) answer.append(' ').append(MessageUtils.resolve("agent.todo.unified.unavailable"));
+            } else {
+                String code = plain(item.path("leaveType").asText(""));
+                String key = "agent.todo.leave." + code;
+                String leaveType = MessageUtils.resolve(key);
+                if (key.equals(leaveType)) leaveType = code;
+                answer.append('\n').append(MessageUtils.resolve("agent.todo.item", shown, id, applicant, leaveType));
+                int halfDays = item.path("durationHalfDays").asInt(0);
+                if (halfDays > 0) answer.append(' ').append(MessageUtils.resolve("agent.todo.duration",
                         BigDecimal.valueOf(halfDays).divide(BigDecimal.valueOf(2)).stripTrailingZeros().toPlainString()));
             }
+            if (unified) answer.append(' ').append(MessageUtils.resolve("agent.todo.unified.state",MessageUtils.resolve("agent.result.enum."+item.path("status").asText())));
             if (!due.isBlank()) answer.append(' ').append(MessageUtils.resolve("agent.todo.due", due));
             if (item.path("overdue").asBoolean(false)) answer.append(' ').append(MessageUtils.resolve("agent.todo.overdue"));
         }
-        if (total > shown) answer.append('\n').append(MessageUtils.resolve("agent.todo.more", total - shown));
+        if (total > shown) answer.append('\n').append(MessageUtils.resolve(unified ? "agent.todo.unified.more" : "agent.todo.more", total - shown));
         return answer.toString();
     }
 

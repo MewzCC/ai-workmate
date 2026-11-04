@@ -1,15 +1,22 @@
 import type { AgentTaskDetail, OaMenuItem } from '@/types/oa';
 import { findMenu } from './navigationTree';
+import { requireTodoQuery, todoQueryPath, type TodoQueryFilters } from './todoQuery';
 
 export type AgentRecordKind = 'dictionary-type' | 'dictionary-item' | 'generic-application';
-export type AgentPageNavigator = (pageId: string, recordId?: number, recordKind?: AgentRecordKind) => boolean;
+export type AgentPageNavigator = (pageId: string, recordId?: number, recordKind?: AgentRecordKind, todoQuery?: TodoQueryFilters) => boolean;
 
 /** Only completed results select a page; arguments and output URLs never select records. */
-export function agentTaskNavigationTarget(detail: Pick<AgentTaskDetail, 'status' | 'steps'>): { pageId: string; recordId?: number; recordKind?: AgentRecordKind } | null {
+export function agentTaskNavigationTarget(detail: Pick<AgentTaskDetail, 'status' | 'steps'>): { pageId: string; recordId?: number; recordKind?: AgentRecordKind; todoQuery?: TodoQueryFilters } | null {
   if (detail.status !== 'SUCCEEDED' || !detail.steps.length
       || detail.steps.some((step) => step.status !== 'SUCCEEDED' || step.result == null)) return null;
   const last = detail.steps[detail.steps.length - 1];
   if (last.toolCode === 'page.ui.prepare') return null;
+  if (last.toolCode === 'todo.query' && last.result && typeof last.result === 'object' && !Array.isArray(last.result)
+      && 'businessType' in last.result) {
+    const result = last.result as Record<string, unknown>;
+    if (!['businessType', 'status', 'page', 'size'].every(field => Object.prototype.hasOwnProperty.call(result, field))) return null;
+    try { return { pageId: 'todo', todoQuery: requireTodoQuery(result) }; } catch { return null; }
+  }
   // The todo page cannot yet reproduce historical-status or date-filtered queries.
   if (last.toolCode === 'todo.query' && ((last.arguments?.status != null && last.arguments.status !== 'PENDING')
       || last.arguments?.from != null || last.arguments?.to != null)) return null;
@@ -22,7 +29,7 @@ export function agentTaskNavigationTarget(detail: Pick<AgentTaskDetail, 'status'
 export function resolveAgentTaskTargetPath(taskId: string, detail: AgentTaskDetail, menus: OaMenuItem[]): string | null {
   if (detail.taskId !== taskId) return null;
   const target = agentTaskNavigationTarget(detail);
-  return target ? resolveAgentToolTargetPath(target.pageId, target.recordId, menus, target.recordKind) : null;
+  return target ? resolveAgentToolTargetPath(target.pageId, target.recordId, menus, target.recordKind, target.todoQuery) : null;
 }
 
 const EXACT_TARGETS: Record<string, string> = {
@@ -171,9 +178,13 @@ export function agentToolTargetRecordId(toolCode: string, result: unknown): numb
 }
 
 /** Both navigation authorization and URL construction stay in code-owned boundaries. */
-export function resolveAgentToolTargetPath(pageId: string, recordId: number | undefined, menus: OaMenuItem[], recordKind?: AgentRecordKind): string | null {
+export function resolveAgentToolTargetPath(pageId: string, recordId: number | undefined, menus: OaMenuItem[], recordKind?: AgentRecordKind, todoQuery?: TodoQueryFilters): string | null {
   const target = findMenu(pageId, menus);
   if (!target || target.type !== 'page' || !target.visible) return null;
+  if (todoQuery !== undefined) {
+    if (pageId !== 'todo' || recordId !== undefined || recordKind !== undefined) return null;
+    try { return todoQueryPath(todoQuery); } catch { return null; }
+  }
   if (recordKind === 'generic-application') {
     const entry = findMenu('approval-start', menus);
     if (pageId !== 'my-applications' || entry?.type !== 'page' || !entry.visible

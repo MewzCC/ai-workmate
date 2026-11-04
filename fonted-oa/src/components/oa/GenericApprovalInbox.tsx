@@ -33,7 +33,7 @@ export default function GenericApprovalInbox() {
     if (detail.task.id !== value) throw new Error('PAGE_UI_FIELD_REJECTED');
     router.push(`/oa/todo?kind=generic&taskId=${value}`);
   };
-  usePublishPageAgentContext({ status, from: range?.[0], to: range?.[1], page, size });
+  usePublishPageAgentContext({ businessType: 'GENERIC_APPROVAL', status, from: range?.[0], to: range?.[1], page, size });
   useRegisterPageUiCommands({
     'ui.refreshPage': async () => { if (!allowed || !overview.isCurrent() || !await overview.load()) throw new Error('PAGE_UI_FIELD_REJECTED'); },
     'ui.applyFilter': ({ payload: { filters } }) => {

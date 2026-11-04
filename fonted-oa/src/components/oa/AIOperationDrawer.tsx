@@ -190,7 +190,8 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageC
       const target = hasUiCommand ? null : agentTaskNavigationTarget(detail);
       if (target) {
         // The layout callback applies current navigation permissions; tool output is not a URL.
-        if (target.recordId === undefined) onNavigatePage?.(target.pageId);
+        if (target.todoQuery) onNavigatePage?.(target.pageId, undefined, undefined, target.todoQuery);
+        else if (target.recordId === undefined) onNavigatePage?.(target.pageId);
         else if (target.recordKind) onNavigatePage?.(target.pageId, target.recordId, target.recordKind);
         else onNavigatePage?.(target.pageId, target.recordId);
       }

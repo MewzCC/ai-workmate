@@ -1,5 +1,7 @@
 export default {
   genericTasks: {
+    allTab: 'All tasks', businessType: 'Business type', invalidQuery: 'Invalid inbox filters. Reset them and try again.',
+    inboxKicker: 'APPROVAL INBOX', currentPagePending: 'Pending on this page', currentPageOverdue: '{{count}} overdue tasks on this page', genericSubject: '{{name}} · {{title}}',
     title: 'Generic approval inbox', description: 'Process requests in their frozen order and read history from the original workflow attempt.',
     leaveTab: 'Leave tasks', genericTab: 'Generic request tasks', agentPending: 'Human generic approvals are connected. Unified Agent read/write entry points are being delivered in a later batch.',
     empty: 'No generic approval tasks match these filters', invalidId: 'Invalid task ID', request: 'Request', node: 'Approval node',

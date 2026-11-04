@@ -62,9 +62,11 @@ class GenericApprovalExecutionMigrationIntegrationTest extends AbstractIsolatedA
         // This database is verified fixture-owned; simulate the old schema without touching any external deployment.
         jdbc.execute("DROP TABLE approval_execution");
         jdbc.execute("ALTER TABLE workflow_task DROP COLUMN process_node_index, DROP COLUMN process_node_name");
-        assertThat(jdbc.update("DELETE FROM flyway_schema_history WHERE version IN ('202611041230','202611041240')")).isEqualTo(2);
-        assertThat(flyway().info().pending()).hasSize(2);
-        assertThat(flyway().migrate().migrationsExecuted).isEqualTo(2);
+        var replay = jdbc.queryForList("SELECT version FROM flyway_schema_history WHERE version::numeric>=202611041230 ORDER BY installed_rank",String.class);
+        assertThat(replay).contains("202611041230","202611041240");
+        assertThat(jdbc.update("DELETE FROM flyway_schema_history WHERE version::numeric>=202611041230")).isEqualTo(replay.size());
+        assertThat(flyway().info().pending()).hasSize(replay.size());
+        assertThat(flyway().migrate().migrationsExecuted).isEqualTo(replay.size());
         assertThat(jdbc.queryForObject("SELECT data_json FROM approval_execution WHERE instance_id=?",String.class,instance)).contains("Historic payload");
         assertThat(jdbc.queryForObject("SELECT plan_json IS NULL FROM approval_execution WHERE instance_id=?",Boolean.class,instance)).isTrue();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM approval_execution WHERE instance_id=?",Integer.class,unproven)).isZero();

@@ -191,7 +191,7 @@ class AgentReadToolDefinitionsTest {
 
         assertThat(definition.code()).isEqualTo("todo.query");
         assertThat(definition.schemaHash()).isEqualTo(
-                "sha256:5587d07883805ecb5810979e984dc33044c68898a9e9aeed4d07c4f3a9793c69");
+                "sha256:60764cd0dbafbad1eb753e565a3424e70f89b6232c28e411009bf95066037771");
         assertThat(definition.requiredPermissions()).containsExactly("todo:read");
         assertThat(definition.ownershipPolicy()).isEqualTo(OwnershipPolicy.ASSIGNED_TO_SELF);
         assertThat(definition.riskLevel()).isEqualTo(RiskLevel.L0);
@@ -211,6 +211,8 @@ class AgentReadToolDefinitionsTest {
 
         assertThat(validator.valid(definition.inputSchema(),
                 objectMapper.readTree("{\"status\":\"PENDING\",\"page\":1,\"size\":50}"))).isTrue();
+        assertThat(validator.valid(definition.inputSchema(),objectMapper.readTree("{\"businessType\":\"GENERIC_APPROVAL\",\"status\":\"ALL\"}"))).isTrue();
+        assertThat(validator.valid(definition.inputSchema(),objectMapper.readTree("{\"businessType\":\"ARBITRARY_DOMAIN\"}"))).isFalse();
         assertThat(validator.valid(definition.inputSchema(),
                 objectMapper.readTree("{\"userId\":999}"))).isFalse();
         assertThat(validator.valid(definition.inputSchema(),

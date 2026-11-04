@@ -13,6 +13,7 @@ import { buildApiHeaders } from '@/lib/apiHeaders';
 import i18n from '@/i18n';
 import { authenticatedFetch as fetch, assertAuthResponseCurrent, captureAuthResponseScope, isAuthResponseCurrent, notifyAuthResponseStatus, readAuthenticatedJson, readAuthenticatedChunk } from '@/lib/authEvents';
 import { requirePageUiCommandCodes } from '@/lib/pageUiCommands';
+import { requireTodoQuery, type TodoQueryFilters } from '@/lib/todoQuery';
 
 const BASE = '/api';
 
@@ -398,13 +399,36 @@ export interface TodoItem {
   applicantUserId: number;
   applicantName: string;
   applicantAvatarUrl?: string | null;
-  leaveType: LeaveType;
-  durationHalfDays: number;
+  leaveType: LeaveType | null;
+  durationHalfDays: number | null;
   status: string;
   version: number;
   submittedAt: string;
   dueAt?: string;
   overdue: boolean;
+  businessType: 'LEAVE_APPLICATION' | 'GENERIC_APPROVAL';
+  title: string;
+  nodeName?: string | null;
+  detailAvailable: boolean;
+}
+
+export type TodoQueryPage = PageResponse<TodoItem> & TodoQueryFilters;
+
+function isTodoItem(value: unknown): value is TodoItem {
+  if (!value || typeof value !== 'object') return false;
+  const row = value as Record<string, unknown>;
+  const positive = (id: unknown) => typeof id === 'number' && Number.isSafeInteger(id) && id > 0;
+  return positive(row.id) && positive(row.applicationId) && positive(row.applicantUserId)
+    && typeof row.applicantName === 'string' && row.applicantName.length <= 120
+    && ['LEAVE_APPLICATION', 'GENERIC_APPROVAL'].includes(String(row.businessType))
+    && typeof row.title === 'string' && row.title.length > 0 && row.title.length <= 200
+    && ['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED'].includes(String(row.status))
+    && typeof row.version === 'number' && Number.isSafeInteger(row.version) && row.version >= 0
+    && typeof row.detailAvailable === 'boolean' && typeof row.overdue === 'boolean'
+    && (row.applicantAvatarUrl == null || typeof row.applicantAvatarUrl === 'string' && new RegExp(`^/api/users/${row.applicantUserId}/avatar/content\\?v=-?\\d+$`).test(row.applicantAvatarUrl))
+    && (row.leaveType == null || typeof row.leaveType === 'string' && row.leaveType.length <= 40)
+    && (row.durationHalfDays == null || typeof row.durationHalfDays === 'number' && Number.isSafeInteger(row.durationHalfDays) && row.durationHalfDays > 0)
+    && (row.businessType !== 'GENERIC_APPROVAL' || row.leaveType == null && row.durationHalfDays == null);
 }
 
 export interface WorkflowTimelineItem {
@@ -504,8 +528,23 @@ export const leaveApi = {
 };
 
 export const todoApi = {
-  list: (params: { status?: string; from?: string; to?: string; page?: number; size?: number } = {}) =>
-    request<PageResponse<TodoItem>>(`/todos${queryString(params)}`),
+  list: async (params: Partial<TodoQueryFilters> = {}): Promise<TodoQueryPage> => {
+    const filters = requireTodoQuery(params);
+    const value = await request<TodoQueryPage>(`/todos${queryString({ ...filters })}`);
+    if (!value || typeof value.businessType !== 'string' || typeof value.status !== 'string'
+        || typeof value.page !== 'number' || typeof value.size !== 'number') throw new OaApiError(i18n.t('common.incompletePageData'), 502, 'INVALID_RESPONSE');
+    const actual = requireTodoQuery(value);
+    if (actual.businessType !== filters.businessType || actual.status !== filters.status || actual.page !== filters.page || actual.size !== filters.size
+        || actual.from !== filters.from || actual.to !== filters.to
+        || !Array.isArray(value.records) || value.records.length > filters.size || !Number.isSafeInteger(value.total) || value.total < value.records.length
+        || !value.records.every(isTodoItem)) throw new OaApiError(i18n.t('common.incompletePageData'), 502, 'INVALID_RESPONSE');
+    return { ...value, ...actual };
+  },
+  summary: async (id: number) => {
+    const item = await request<TodoItem>(`/todos/${id}/summary`);
+    if (!isTodoItem(item) || item.id !== id) throw new OaApiError(i18n.t('common.incompletePageData'), 502, 'INVALID_RESPONSE');
+    return item;
+  },
   detail: (id: number) => request<LeaveApplication>(`/todos/${id}`),
   approve: (id: number, version: number, comment?: string) =>
     request<LeaveApplication>(`/approval-tasks/${id}/approve`, {
