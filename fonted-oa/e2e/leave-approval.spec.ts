@@ -39,7 +39,7 @@ test('employee submits leave, approver decides, employee sees the result', async
     expect((await submit.json()).data.status).toBe('PENDING');
 
     await login(approver, approverEmail!, approverPassword!);
-    const todos = await approver.get('/api/todos?status=PENDING&page=1&size=100');
+    const todos = await approver.get('/api/todos?businessType=LEAVE_APPLICATION&status=PENDING&page=1&size=50');
     expect(todos.ok()).toBeTruthy();
     const task = (await todos.json()).data.records.find(
       (item: { applicationId: number }) => item.applicationId === draft.id,

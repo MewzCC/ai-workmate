@@ -38,6 +38,7 @@ export const enabledOaRoutes: readonly OaRouteFixture[] = [
   { routeKey: 'api-center', name: '接口联调中心', componentKey: 'API_CENTER', parentKey: 'integration' },
   { routeKey: 'page-actions', name: '页面操作配置', componentKey: 'PAGE_ACTIONS', parentKey: 'integration' },
   { routeKey: 'runtime-logs', name: '运行日志', componentKey: 'RUNTIME_LOGS', parentKey: 'integration' },
+  { routeKey: 'platform-observability', name: '平台观测', componentKey: 'PLATFORM_OBSERVABILITY', parentKey: 'integration' },
   { routeKey: 'sandbox-replay', name: '沙箱回放', componentKey: 'SANDBOX_REPLAY', parentKey: 'integration' },
 
   { routeKey: 'attendance-clock', name: '打卡', componentKey: 'ATTENDANCE_CLOCK', parentKey: 'attendance' },

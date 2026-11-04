@@ -3,13 +3,14 @@ package com.aiworkmate.agent.task;
 import com.aiworkmate.common.BusinessException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.aiworkmate.common.MessageUtils;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.context.support.ResourceBundleMessageSource;
+import org.junit.jupiter.api.extension.ExtendWith;
+import com.aiworkmate.common.LocalizedMessagesExtension;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+@ExtendWith(LocalizedMessagesExtension.class)
 class AgentReadResultPresenterTest {
     @Test void governanceTruncationIsVisibleBeforeGenericFieldBudgetIsExhausted() {
         var result = mapper.createObjectNode().put("toolCount",140).put("roleCount",61)
@@ -271,14 +272,6 @@ class AgentReadResultPresenterTest {
         } finally {
             org.springframework.context.i18n.LocaleContextHolder.resetLocaleContext();
         }
-    }
-
-    @BeforeEach
-    void messages() {
-        ResourceBundleMessageSource source = new ResourceBundleMessageSource();
-        source.setBasename("i18n/messages");
-        source.setDefaultEncoding("UTF-8");
-        new MessageUtils(source).init();
     }
 
     @Test

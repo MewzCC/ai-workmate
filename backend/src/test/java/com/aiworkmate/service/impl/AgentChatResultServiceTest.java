@@ -14,6 +14,8 @@ import com.aiworkmate.security.AuthenticatedUser;
 import com.aiworkmate.service.PageCapabilityService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import com.aiworkmate.common.LocalizedMessagesExtension;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
@@ -25,6 +27,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
+@ExtendWith(LocalizedMessagesExtension.class)
 class AgentChatResultServiceTest {
     private final AgentTaskMapper tasks = mock(AgentTaskMapper.class);
     private final AgentTaskStepMapper steps = mock(AgentTaskStepMapper.class);

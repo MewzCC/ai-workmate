@@ -8,6 +8,11 @@ on:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      AGENT_TEST_DB_URL: jdbc:postgresql://127.0.0.1:5432/postgres
+      AGENT_TEST_DB_USERNAME: postgres
+      AGENT_TEST_DB_PASSWORD: postgres
     services:
       postgres:
         image: pgvector/pgvector:pg16
@@ -44,9 +49,23 @@ jobs:
         run: |
           psql -h localhost -U postgres -d ai_workmate_dev -v ON_ERROR_STOP=1 -f backend/src/main/resources/db/init.sql
           psql -h localhost -U postgres -d ai_workmate_dev -v ON_ERROR_STOP=1 -f backend/src/main/resources/db/init.sql
+      - name: Install isolated test Redis binary
+        run: |
+          if ! command -v redis-server > /dev/null; then
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends redis-server
+          fi
+          echo "AGENT_TEST_REDIS_BINARY=$(command -v redis-server)" >> "$GITHUB_ENV"
       - name: Backend tests
         working-directory: backend
-        run: mvn test
+        run: mvn --batch-mode --no-transfer-progress test
+      - name: Upload backend test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-reports
+          path: backend/target/surefire-reports/*.txt
+          retention-days: 7
 
   frontends:
     runs-on: ubuntu-latest
@@ -75,6 +94,7 @@ jobs:
 
   phase-1-e2e:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     services:
       postgres:
         image: pgvector/pgvector:pg16
@@ -185,6 +205,9 @@ jobs:
           exit 1
       - working-directory: fonted-oa
         run: npm ci
+      - name: Install Chromium and Linux dependencies
+        working-directory: fonted-oa
+        run: npx playwright install --with-deps chromium
       - name: Run Phase 1 approval E2E
         working-directory: fonted-oa
         env:
@@ -194,3 +217,10 @@ jobs:
           E2E_APPROVER_EMAIL: phase1-approver@example.test
           E2E_APPROVER_PASSWORD: Phase1Approver!2026
         run: npm run test:e2e
+      - name: Upload E2E failure screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase-1-e2e-screenshots
+          path: fonted-oa/test-results/**/*.png
+          retention-days: 7
