@@ -541,13 +541,7 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
     @Transactional(readOnly = true)
     public LeaveApplicationResponse todoDetail(Long userId, Long taskId) {
         ResolvedUserAccess actor = requireAccess(userId);
-        WorkflowTask task = taskMapper.selectById(taskId);
-        if (task == null || !actor.tenantId().equals(task.getTenantId())) {
-            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
-        }
-        LeaveApplicationView view = requireView(actor.tenantId(), task.getBusinessId());
-        assertCanRead(actor, view, task.getInstanceId());
-        return response(actor, view);
+        return response(actor, requireLeaveTaskRead(actor, taskId).application());
     }
 
     @Override
@@ -762,12 +756,7 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
     @Transactional(readOnly = true)
     public List<WorkflowTimelineResponse> timeline(Long userId, Long taskId) {
         ResolvedUserAccess actor = requireAccess(userId);
-        WorkflowTask task = taskMapper.selectById(taskId);
-        if (task == null || !actor.tenantId().equals(task.getTenantId())) {
-            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
-        }
-        LeaveApplicationView view = requireView(actor.tenantId(), task.getBusinessId());
-        assertCanRead(actor, view, task.getInstanceId());
+        WorkflowTask task = requireLeaveTaskRead(actor, taskId).task();
         return actionLogMapper.selectTimeline(actor.tenantId(), task.getInstanceId()).stream()
                 .map(entry -> new WorkflowTimelineResponse(
                         entry.id(), entry.actorUserId(), entry.actorName(),
@@ -942,6 +931,29 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
         return task;
     }
 
+    private record LeaveTaskRead(WorkflowTask task, LeaveApplicationView application) { }
+
+    private LeaveTaskRead requireLeaveTaskRead(ResolvedUserAccess actor, Long taskId) {
+        if (taskId == null || taskId < 1) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        WorkflowTask task = taskMapper.selectLeaveTaskForRead(actor.tenantId(), taskId);
+        if (task == null) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        LeaveApplicationView view = requireView(actor.tenantId(), task.getBusinessId());
+        User assignee = userMapper.selectOne(new LambdaQueryWrapper<User>()
+                .select(User::getId, User::getTenantId, User::getUsername, User::getDisplayName, User::getAvatar, User::getUpdatedAt)
+                .eq(User::getTenantId, actor.tenantId()).eq(User::getId, task.getAssigneeUserId()));
+        if (assignee == null) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        String name = assignee.getDisplayName() == null || assignee.getDisplayName().isBlank() ? assignee.getUsername() : assignee.getDisplayName();
+        // General application views prefer the current node; this API must describe the requested node.
+        LeaveApplicationView selected = new LeaveApplicationView(view.id(), view.applicantUserId(), view.applicantName(),
+                task.getAssigneeUserId(), name, view.leaveType(), view.startDate(), view.startPeriod(), view.endDate(), view.endPeriod(),
+                view.durationHalfDays(), view.reason(), view.status(), view.version(), task.getId(), task.getVersion(), task.getStatus(),
+                task.getDueAt(), task.getReminderCount(), task.getLastRemindedAt(), view.workflowStatus(), view.submittedAt(),
+                view.completedAt(), view.createdAt(), view.updatedAt(), view.applicantAvatar(), view.applicantUpdatedAt(),
+                assignee.getAvatar(), assignee.getUpdatedAt());
+        if (!actor.userId().equals(task.getAssigneeUserId())) assertCanRead(actor, view, task.getInstanceId());
+        return new LeaveTaskRead(task, selected);
+    }
+
     private WorkflowTask requireAssignedTask(ResolvedUserAccess actor, Long taskId) {
         WorkflowTask task = taskMapper.selectById(taskId);
         if (task == null || !actor.tenantId().equals(task.getTenantId())) {
@@ -1089,6 +1101,7 @@ public class LeaveWorkflowServiceImpl implements LeaveWorkflowService {
                 applicant && "PENDING".equals(view.status())
                         && actor.permissions().contains("leave:withdraw"),
                 approver && "PENDING".equals(view.status())
+                        && "PENDING".equals(view.taskStatus())
                         && actor.permissions().contains("approval:act")
                         && !applicant,
                 AvatarUrls.build(view.applicantUserId(), view.applicantAvatar(), view.applicantUpdatedAt()),

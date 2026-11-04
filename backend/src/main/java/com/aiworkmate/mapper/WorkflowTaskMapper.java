@@ -13,6 +13,21 @@ import java.util.List;
 @Mapper
 public interface WorkflowTaskMapper extends BaseMapper<WorkflowTask> {
 
+    /** Resolve a leave task only when its tenant, instance, business and users agree. */
+    @Select({
+            "SELECT wt.id, wt.tenant_id, wt.instance_id, wt.business_type, wt.business_id,",
+            "wt.assignee_user_id, wt.status, wt.version, wt.due_at, wt.reminder_count, wt.last_reminded_at",
+            "FROM workflow_task wt",
+            "JOIN workflow_instance wi ON wi.id = wt.instance_id AND wi.tenant_id = wt.tenant_id",
+            "AND wi.business_type = wt.business_type AND wi.business_id = wt.business_id",
+            "JOIN leave_application l ON l.id = wt.business_id AND l.tenant_id = wt.tenant_id",
+            "AND wi.applicant_id = l.applicant_user_id",
+            "JOIN app_user applicant ON applicant.id = l.applicant_user_id AND applicant.tenant_id = wt.tenant_id",
+            "JOIN app_user assignee ON assignee.id = wt.assignee_user_id AND assignee.tenant_id = wt.tenant_id",
+            "WHERE wt.id = #{taskId} AND wt.tenant_id = #{tenantId} AND wt.business_type = 'LEAVE_APPLICATION'"
+    })
+    WorkflowTask selectLeaveTaskForRead(@Param("tenantId") Long tenantId, @Param("taskId") Long taskId);
+
     @Select({
             "<script>",
             "SELECT wt.id, wt.business_id AS applicationId,",
