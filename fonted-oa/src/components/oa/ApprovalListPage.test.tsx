@@ -1,0 +1,41 @@
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { bindAuthResponseIdentity } from '@/lib/authEvents';
+import type { PageUiCommandHandlers } from '@/lib/pageUiCommands';
+const auth = vi.hoisted(() => ({ user: { id: 7, tenantId: 1, permissionVersion: 1, permissions: ['approval:read'], roles: ['ADMIN'], dataScopes: ['TENANT'] } }));
+const api = vi.hoisted(() => ({ list: vi.fn(), stats: vi.fn(), detail: vi.fn(), push: vi.fn(), error: vi.fn() }));
+const ui = vi.hoisted(() => ({ handlers: {} as PageUiCommandHandlers }));
+vi.mock('@/components/auth/AuthProvider', () => ({ useAuth: () => ({ user: auth.user }) }));
+vi.mock('@/lib/oaApi', async load => ({ ...await load<typeof import('@/lib/oaApi')>(), approvalApi: { list: api.list, stats: api.stats }, todoApi: { detail: api.detail } }));
+vi.mock('@/lib/nextCompat', () => ({ useRouter: () => ({ push: api.push }) }));
+vi.mock('@/lib/antdMessage', () => ({ message: { error: api.error } }));
+vi.mock('./MyApplicationsPage', () => ({ leaveTypeLabel: (type: string) => type, StatusTag: ({ status }: { status: string }) => <span>{status}</span> }));
+vi.mock('./PageUiCommandBridge', () => ({ useRegisterPageUiCommands: (handlers: PageUiCommandHandlers) => { ui.handlers = handlers; } }));
+vi.mock('./PageAgentContext', () => ({ usePublishPageAgentContext: vi.fn() }));
+vi.mock('./ApprovalDetailDrawer', () => ({ default: ({ taskId, open }: { taskId: number | null; open: boolean }) => open ? <div>Preview task {taskId}</div> : null }));
+import ApprovalListPage from './ApprovalListPage';
+beforeEach(() => { vi.clearAllMocks(); auth.user = { ...auth.user, permissionVersion: 1, permissions: ['approval:read'] }; bindAuthResponseIdentity('approval-list', 'read');
+  api.list.mockResolvedValue({ records: [{ id: 9, applicantName: 'Synthetic applicant', leaveType: 'PERSONAL', startDate: '2026-11-05', startPeriod: 'AM', endDate: '2026-11-05', endPeriod: 'PM', durationDays: 1, status: 'PENDING', taskId: 42 }], total: 1 });
+  api.stats.mockResolvedValue([{ status: 'PENDING', count: 4 }]); api.detail.mockResolvedValue({ id: 9, taskId: 42 }); });
+afterEach(cleanup);
+it('applies manual search and clear using the current Search value', async () => {
+  render(<ApprovalListPage />); await screen.findByText('Synthetic applicant'); const input = screen.getByPlaceholderText('搜索发起人或事由');
+  fireEvent.change(input, { target: { value: 'specific' } }); expect(api.list).toHaveBeenCalledTimes(1);
+  fireEvent.keyDown(input, { key: 'Enter', code: 'Enter', charCode: 13 });
+  await waitFor(() => expect(api.list).toHaveBeenLastCalledWith(expect.objectContaining({ keyword: 'specific' })));
+  const clear = document.querySelector('.ant-input-clear-icon'); expect(clear).toBeTruthy(); fireEvent.click(clear!);
+  await waitFor(() => expect(api.list).toHaveBeenLastCalledWith(expect.objectContaining({ keyword: undefined })));
+});
+it('shows dates and numeric paging applied by a controlled page command and opens a protected preview', async () => {
+  render(<ApprovalListPage />); await screen.findByText('Synthetic applicant');
+  await act(async () => { await ui.handlers['ui.applyFilter']!({ pageId: 'approval-list', code: 'ui.applyFilter', payload: { filters: { from: '2026-11-01', to: '2026-11-04', size: 50 } } }); });
+  expect(screen.getByDisplayValue('2026-11-01 00:00:00')).toBeTruthy();
+  expect(screen.getByDisplayValue('2026-11-04 00:00:00')).toBeTruthy();
+  fireEvent.click(screen.getByText('Synthetic applicant')); await screen.findByText('Preview task 42'); expect(api.detail).toHaveBeenCalledWith(42);
+});
+it('removes rows and preview immediately when read permission is revoked', async () => {
+  const view = render(<ApprovalListPage />); await screen.findByText('Synthetic applicant'); fireEvent.click(screen.getByText('Synthetic applicant')); await screen.findByText('Preview task 42');
+  auth.user = { ...auth.user, permissionVersion: 2, permissions: [] }; view.rerender(<ApprovalListPage />);
+  expect(screen.queryByText('Synthetic applicant')).toBeNull(); expect(screen.queryByText('Preview task 42')).toBeNull();
+  expect(screen.getByPlaceholderText('搜索发起人或事由').hasAttribute('disabled')).toBe(true);
+});

@@ -133,6 +133,11 @@ export default {
     empty: 'No requests for the current filter',
   },
   approvalDetail: {
+    kicker: 'Leave approval · Task #{{id}}',
+    actionSubject: 'Application #{{id}} · Task #{{task}} · Node version {{version}}',
+    changedBeforeAction: 'The task has changed. Review the refreshed node before continuing.',
+    resultUnknown: 'The operation result is uncertain. Check the business state and approval history before acting again.',
+    participantSearchHint: 'Up to 50 matching users are shown per search. Enter a name to narrow the server query.',
     backToDashboard: 'Back to Dashboard',
     backToTodo: 'Back to Tasks',
     backToMyApplications: 'Back to My Requests',
@@ -208,6 +213,7 @@ export default {
     participantChange: 'Original assignee: {{from}} · Recipient: {{to}}',
   },
   approvalList: {
+    kicker: 'Approval desk',
     title: 'Approval Center',
     description: 'All approval requests in the tenant: filter by status, keyword, request type and time; click a row to preview details.',
     scopeLabel: 'Tenant-wide scope',

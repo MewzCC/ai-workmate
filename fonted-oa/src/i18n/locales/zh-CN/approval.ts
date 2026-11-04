@@ -133,6 +133,11 @@ export default {
     empty: '当前筛选下暂无申请',
   },
   approvalDetail: {
+    kicker: '请假审批 · 任务 #{{id}}',
+    actionSubject: '申请 #{{id}} · 任务 #{{task}} · 节点版本 {{version}}',
+    changedBeforeAction: '任务已变更，请核对刷新后的节点再操作。',
+    resultUnknown: '操作结果暂时无法确认，请先核对业务状态和审批记录，避免重复操作。',
+    participantSearchHint: '每次最多展示 50 位匹配用户，请输入姓名缩小服务端查询范围。',
     backToDashboard: '返回工作台',
     backToTodo: '返回待办',
     backToMyApplications: '返回我的申请',
@@ -208,6 +213,7 @@ export default {
     participantChange: '原处理人：{{from}} · 接收人：{{to}}',
   },
   approvalList: {
+    kicker: '审批工作台',
     title: '审批中心',
     description: '集中查看租户内全部审批单：状态筛选、关键字、审批类型与时间检索，行点击快速预览审批详情。',
     scopeLabel: '全租户范围',
