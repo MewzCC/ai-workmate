@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
-import { Alert, Button, Card, Descriptions, Empty, Input, Modal, Pagination, Select, Space, Spin, Tag, Typography } from 'antd';
+import { Alert, Button, Card, Empty, Input, Select, Space, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useTranslation } from 'react-i18next';
 import { approvalEngineApi, type ApprovalApplication } from '@/lib/approvalEngineApi';
@@ -10,8 +10,8 @@ import { useAuth } from '@/components/auth/AuthProvider';
 import { usePermission } from '@/hooks/usePermission';
 import { useScopedOverview } from '@/hooks/useScopedOverview';
 import { useAsyncActionGuard } from '@/hooks/useAsyncActionGuard';
-import { useAsyncFormAction } from '@/hooks/useAsyncFormAction';
-import { useScopedModalConfirm } from '@/hooks/useScopedModalConfirm';
+import { useGenericApplicationActions, type GenericApplicationAction } from '@/hooks/useGenericApplicationActions';
+import { ApplicationFieldsModal } from './ApplicationFieldsModal';
 import { parseRecordId } from '@/lib/recordSelection';
 import { usePublishPageAgentContext } from './PageAgentContext';
 import { useRegisterPageUiCommands } from './PageUiCommandBridge';
@@ -20,7 +20,6 @@ import { requireUiPagination } from '@/hooks/usePageUiEditorCommands';
 import ResponsiveTable from './ResponsiveTable';
 
 const STATUSES: ApprovalApplication['status'][] = ['DRAFT', 'PENDING', 'APPROVED', 'REJECTED', 'WITHDRAWN', 'CANCELLED'];
-type Action = 'submit' | 'cancel' | 'withdraw' | 'reopen' | 'remind';
 
 export default function GenericApplicationsPanel() {
   const { t } = useTranslation();
@@ -31,8 +30,7 @@ export default function GenericApplicationsPanel() {
   const [page, setPage] = useState(1), [size, setSize] = useState(20);
   const [status, setStatus] = useState<ApprovalApplication['status']>();
   const [formKey, setFormKey] = useState(''), [searchText, setSearchText] = useState('');
-  const [fieldSelection, setFieldSelection] = useState<{ id?: number; page: number }>({ page: 1 });
-  const fieldPage = fieldSelection.id === selectedId ? fieldSelection.page : 1;
+  const [detailRevision, setDetailRevision] = useState(0);
   const query = useCallback(async () => {
     if (!allowed) return null;
     const result = await approvalEngineApi.listMyApplications({ status, formKey: formKey || undefined, page, size });
@@ -41,18 +39,10 @@ export default function GenericApplicationsPanel() {
   }, [allowed, formKey, page, size, status, t, user?.id]);
   const list = useScopedOverview(query);
   const records = allowed ? list.data?.records ?? [] : [];
-  const currentRecords = useRef(records); currentRecords.current = records;
-  const detailQuery = useCallback(async () => {
-    if (!allowed || !selectedId) return null;
-    const result = await approvalEngineApi.ownApplicationFields(selectedId, fieldPage);
-    if (result.application.applicationId !== selectedId || result.fieldPage !== fieldPage || result.fields.length > 50)
-      throw new Error(t('approval.genericApplications.invalidResult'));
-    return result;
-  }, [allowed, selectedId, fieldPage, t]);
-  const selected = useScopedOverview(detailQuery);
-  const detail = allowed ? selected.data : null;
-  const action = useAsyncFormAction(list.scope);
-  const confirm = useScopedModalConfirm(list.scope);
+  const action = useGenericApplicationActions({ scope: list.scope, records, isCurrent: list.isCurrent, reload: list.load,
+    onUpdated: item => { if (selectedId === item.id) setDetailRevision(value => value + 1); },
+    onReopened: item => router.push(`/oa/approval-form?formKey=${encodeURIComponent(item.formKey)}&draftId=${item.id}`),
+  });
   const { capture } = useAsyncActionGuard(list.scope);
   const details = useRef(0);
   usePublishPageAgentContext({ applicationId: selectedId?.toString(), status, formKey: formKey || undefined, page, size });
@@ -82,45 +72,15 @@ export default function GenericApplicationsPanel() {
   }, null, 'generic-applications');
 
   const edit = (item: ApprovalApplication) => router.push(`/oa/approval-form?formKey=${encodeURIComponent(item.formKey)}&draftId=${item.id}`);
-  const may = (item: ApprovalApplication, operation: Action) => allowed && (operation === 'submit' ? item.canEditDraft && hasPermission('approval:submit')
-    : operation === 'cancel' ? item.canCancel && hasPermission('approval:cancel')
-    : operation === 'withdraw' ? item.canWithdraw && hasPermission('approval:withdraw')
-    : operation === 'reopen' ? ['REJECTED', 'WITHDRAWN'].includes(item.status) && hasPermission('approval:reopen')
-    : item.canRemind && hasPermission('approval:remind'));
-  const perform = (item: ApprovalApplication, operation: Action) => {
-    if (!may(item, operation) || !list.isCurrent()) return;
-    confirm({ title: t('approval.genericApplications.confirm', { action: t(`approval.genericApplications.${operation}`), id: item.id }),
-      onOk: async () => {
-        if (!list.isCurrent() || !may(item, operation) || !currentRecords.current.some(row => row.id === item.id && row.version === item.version)) return;
-        const write = action.begin(); if (!write) return;
-        try {
-          const operations = { submit: approvalEngineApi.submitDraft, cancel: approvalEngineApi.cancelDraft,
-            withdraw: approvalEngineApi.withdrawApplication, reopen: approvalEngineApi.reopenApplication, remind: approvalEngineApi.remindApplication };
-          const result = await operations[operation](item.id, item.version);
-          if (!write.current() || !list.isCurrent()) return;
-          const expected = { submit: 'PENDING', cancel: 'CANCELLED', withdraw: 'WITHDRAWN', reopen: 'DRAFT', remind: 'PENDING' }[operation];
-          if (result.id !== item.id || result.applicantUserId !== user?.id || result.formKey !== item.formKey
-              || result.status !== expected || !Number.isInteger(result.version) || result.version <= item.version)
-            throw new Error(t('approval.genericApplications.invalidResult'));
-          message.success(t('approval.genericApplications.actionDone', { action: t(`approval.genericApplications.${operation}`) }));
-          await list.load();
-          if (!write.current()) return;
-          if (selectedId === item.id) await selected.load();
-          if (operation === 'reopen' && hasPermission('approval:create') && hasPermission('route:approval-form')) edit(result);
-        } catch (failure) {
-          if (write.current() && list.isCurrent()) { message.error(formatOaApiError(failure)); await list.load(); }
-        } finally { write.finish(); }
-      } });
-  };
   const columns: ColumnsType<ApprovalApplication> = [
-    { title: t('approval.genericApplications.application'), key: 'application', render: (_, item) => <Button type="link" onClick={() => { void open(item.id).catch(failure => { if (list.isCurrent()) message.error(formatOaApiError(failure)); }); }}>{item.formName} #{item.id}</Button> },
+    { title: t('approval.genericApplications.application'), key: 'application', render: (_, item) => <Button type="link" disabled={action.busy} onClick={() => { void open(item.id).catch(failure => { if (list.isCurrent()) message.error(formatOaApiError(failure)); }); }}>{item.formName} #{item.id}</Button> },
     { title: t('approval.genericApplications.status'), dataIndex: 'status', render: value => <Tag>{t(`approval.status.${value}`)}</Tag> },
     { title: t('approval.genericApplications.submittedAt'), dataIndex: 'submittedAt', render: value => value || '-' },
     { title: t('approval.genericApplications.version'), dataIndex: 'version' },
     { title: t('common.actions'), key: 'actions', render: (_, item) => <Space wrap>
       {item.canEditDraft && hasPermission('approval:create') && hasPermission('route:approval-form') && <Button type="link" disabled={action.busy} onClick={() => edit(item)}>{t('common.edit')}</Button>}
-      {(['submit', 'cancel', 'withdraw', 'reopen', 'remind'] as Action[]).filter(operation => may(item, operation))
-        .map(operation => <Button key={operation} type="link" disabled={action.busy} onClick={() => perform(item, operation)}>{t(`approval.genericApplications.${operation}`)}</Button>)}
+      {(['submit', 'cancel', 'withdraw', 'reopen', 'remind'] as GenericApplicationAction[]).filter(operation => action.can(item, operation))
+        .map(operation => <Button key={operation} type="link" disabled={action.busy} onClick={() => action.perform(item, operation)}>{t(`approval.genericApplications.${operation}`)}</Button>)}
     </Space> },
   ];
   return <section className="oa-domain-page">
@@ -137,14 +97,9 @@ export default function GenericApplicationsPanel() {
         pagination={{ current: page, pageSize: size, total: list.data?.total ?? 0, pageSizeOptions: [10, 20, 50, 100], onChange: (value, count) => { setPage(value); setSize(count); } }}
         locale={{ emptyText: <Empty description={t('common.empty')} /> }} />
     </Card>
-    <Modal open={allowed && Boolean(selectedId)} title={detail?.application.formName || t('approval.genericApplications.application')}
-      onCancel={() => router.replace('/oa/my-applications?kind=generic')} destroyOnHidden
-      footer={<Button onClick={() => router.replace('/oa/my-applications?kind=generic')}>{t('common.close')}</Button>} width={720}>
-      <Spin spinning={selected.loading}>{selected.error !== undefined ? <Alert showIcon type="error" title={formatOaApiError(selected.error)} /> : detail ? <Space orientation="vertical" style={{ width: '100%' }}>
-        <Alert type="info" title={t(detail.schemaSource === 'CURRENT_DRAFT' ? 'approval.genericApplications.currentDraftNotice' : 'approval.start.snapshotNotice')} />
-        <Descriptions size="small" column={1} bordered items={detail.fields.map(field => ({ key: field.name, label: field.label, children: field.redacted ? t('approval.genericApplications.redacted') : field.values.join(', ') || '-' }))} />
-        <Pagination current={fieldPage} pageSize={50} total={detail.fieldsTotal} showSizeChanger={false} onChange={value => setFieldSelection({ id: selectedId, page: value })} />
-      </Space> : null}</Spin>
-    </Modal>
+    <ApplicationFieldsModal id={selectedId} allowed={allowed} scope={list.scope} revision={detailRevision}
+      processVersion={records.find(item => item.id === selectedId)?.processVersionSnapshot}
+      onClose={() => router.replace('/oa/my-applications?kind=generic')} />
+
   </section>;
 }

@@ -185,7 +185,7 @@ export interface ApprovalApplication {
 
 export const approvalEngineApi = {
   ownApplicationFields: (id: number, fieldPage = 1) => request<{
-    application: { applicationId: number; formName: string; formKey: string; status: ApprovalApplication['status']; version: number };
+    application: { applicationId: number; formName: string; formKey: string; status: ApprovalApplication['status']; version: number; submittedAt?: string | null };
     schemaSource: string; formVersion: number | null;
     fields: { name: string; label: string; type: string; values: string[]; redacted: boolean }[];
     fieldsTotal: number; fieldPage: number;
