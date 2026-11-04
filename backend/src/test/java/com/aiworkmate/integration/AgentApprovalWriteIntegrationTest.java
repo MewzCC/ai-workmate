@@ -315,9 +315,21 @@ class AgentApprovalWriteIntegrationTest extends AbstractIsolatedAgentIntegration
         else {
             application=jdbc.queryForObject("INSERT INTO approval_application(tenant_id,applicant_user_id,form_id,process_id,form_key,form_name,title,data_json,status) VALUES (?,?,?,?,?,?,?,'{\"reason\":\"existing fixture\"}','DRAFT') RETURNING id",Long.class,tenant,owner.id(),form,process,formKey,formKey,formKey);
             if(List.of(ToolCode.APPROVAL_APPLICATION_WITHDRAW,ToolCode.APPROVAL_APPLICATION_REMIND,ToolCode.APPROVAL_APPLICATION_REOPEN).contains(code)) {
-                var submitted=approvals.submitDraft(owner.id(),application,new VersionRequest(0));
-                version=submitted.version(); initialStatus="PENDING";
-                if(code==ToolCode.APPROVAL_APPLICATION_REOPEN) { version=approvals.withdraw(owner.id(),application,new VersionRequest(version)).version();initialStatus="WITHDRAWN"; }
+                // Preparing history uses authorized human writes; restore the tool's least privilege before freezing/executing it.
+                var setupPermissions=(code==ToolCode.APPROVAL_APPLICATION_REOPEN
+                        ? List.of("approval:submit","approval:withdraw") : List.of("approval:submit"))
+                        .stream().filter(permission->!permissions.contains(permission)).toList();
+                for(String permission:setupPermissions)
+                    jdbc.update("INSERT INTO rbac_role_permission(tenant_id,role_code,permission_code) VALUES (?,?,?)",tenant,owner.role(),permission);
+                try {
+                    var submitted=approvals.submitDraft(owner.id(),application,new VersionRequest(0));
+                    version=submitted.version(); initialStatus="PENDING";
+                    if(code==ToolCode.APPROVAL_APPLICATION_REOPEN) { version=approvals.withdraw(owner.id(),application,new VersionRequest(version)).version();initialStatus="WITHDRAWN"; }
+                } finally {
+                    for(String permission:setupPermissions)
+                        jdbc.update("DELETE FROM rbac_role_permission WHERE tenant_id=? AND role_code=? AND permission_code=?",tenant,owner.role(),permission);
+                }
+                assertThat(access.resolveActiveUser(owner.id()).permissions()).containsExactlyInAnyOrderElementsOf(permissions);
             }
             args.put("applicationId",application).put("version",version);
         }

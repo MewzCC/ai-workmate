@@ -59,8 +59,8 @@ import java.util.regex.Pattern;
  *
  * <p>安全与一致性边界：
  * <ul>
- *   <li>提交需 {@code route:approval-start} 权限（与发起审批页面可见权限一致），
- *       按认证 userId 实时解析角色；</li>
+ *   <li>写操作同时校验 {@code route:approval-start} 和对应业务权限，
+ *       按认证 userId 实时解析角色；直接提交还需创建权限；</li>
  *   <li>表单必须启用、未软删除，流程必须启用且绑定该表单，否则明确报错，
  *       禁止伪造提交成功；</li>
  *   <li>{@code formData} 按 {@code schema_json} 白名单校验：未知字段拒绝、
@@ -108,7 +108,7 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
     @Override
     @Transactional
     public ApprovalApplicationResponse createDraft(Long userId, ApprovalDraftRequest request) {
-        ResolvedUserAccess actor = requirePermission(userId, "route:approval-start");
+        ResolvedUserAccess actor = requireApplicationAccess(userId, "approval:create");
         return createDraftInternal(actor, request, null);
     }
 
@@ -216,7 +216,7 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
     public ApprovalApplicationResponse updateDraft(Long userId,
                                                    Long id,
                                                    ApprovalDraftUpdateRequest request) {
-        ResolvedUserAccess actor = requirePermission(userId, "route:approval-start");
+        ResolvedUserAccess actor = requireApplicationAccess(userId, "approval:create");
         return updateDraftInternal(actor, id, request);
     }
 
@@ -266,7 +266,7 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
     @Override
     @Transactional
     public ApprovalApplicationResponse submitDraft(Long userId, Long id, VersionRequest request) {
-        ResolvedUserAccess actor = requirePermission(userId, "route:approval-start");
+        ResolvedUserAccess actor = requireApplicationAccess(userId, "approval:submit");
         return submitDraftInternal(actor, id, request);
     }
 
@@ -331,7 +331,7 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
     @Override
     @Transactional
     public ApprovalApplicationResponse cancelDraft(Long userId, Long id, VersionRequest request) {
-        ResolvedUserAccess actor = requirePermission(userId, "route:approval-start");
+        ResolvedUserAccess actor = requireApplicationAccess(userId, "approval:cancel");
         return cancelDraftInternal(actor, id, request);
     }
 
@@ -371,7 +371,7 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
     @Override
     @Transactional
     public ApprovalApplicationResponse withdraw(Long userId, Long id, VersionRequest request) {
-        ResolvedUserAccess actor = requirePermission(userId, "route:approval-start");
+        ResolvedUserAccess actor = requireApplicationAccess(userId, "approval:withdraw");
         return withdrawInternal(actor, id, request);
     }
 
@@ -459,7 +459,7 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
     @Override
     @Transactional
     public ApprovalApplicationResponse remind(Long userId, Long id, VersionRequest request) {
-        ResolvedUserAccess actor = requirePermission(userId, "route:approval-start");
+        ResolvedUserAccess actor = requireApplicationAccess(userId, "approval:remind");
         ApprovalApplication application = requireOwnedApplication(actor, id);
         if (!"PENDING".equals(application.getStatus())) {
             throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID,
@@ -516,7 +516,7 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
     @Override
     @Transactional
     public ApprovalApplicationResponse reopen(Long userId, Long id, VersionRequest request) {
-        ResolvedUserAccess actor = requirePermission(userId, "route:approval-start");
+        ResolvedUserAccess actor = requireApplicationAccess(userId, "approval:reopen");
         return reopenInternal(actor, id, request);
     }
 
@@ -567,7 +567,10 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
     @Override
     @Transactional
     public ApprovalApplicationResponse submit(Long userId, ApprovalSubmitRequest request) {
-        ResolvedUserAccess actor = requirePermission(userId, "route:approval-start");
+        ResolvedUserAccess actor = requireApplicationAccess(userId, "approval:submit");
+        if (!actor.permissions().contains("approval:create")) {
+            throw new BusinessException(ErrorCode.PERMISSION_DENIED);
+        }
         String formKey = request.formKey().trim();
         ApprovalForm form = requireEnabledForm(actor, formKey, "SUBMIT");
 
@@ -1203,7 +1206,7 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
         LocalDateTime remindAvailableAt = view.lastRemindedAt() == null
                 ? null
                 : view.lastRemindedAt().plusMinutes(Math.max(1, reminderIntervalMinutes));
-        boolean canRemind = applicant
+        boolean canRemind = applicant && actor.permissions().contains("approval:remind")
                 && actor.permissions().contains("route:approval-start")
                 && "PENDING".equals(view.status())
                 && "PENDING".equals(view.taskStatus())
@@ -1236,9 +1239,9 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
                 view.taskAssigneeName(),
                 view.workflowStatus(),
                 timeline == null ? null : List.copyOf(timeline),
-                applicant && "PENDING".equals(view.status()),
-                applicant && "DRAFT".equals(view.status()),
-                applicant && "DRAFT".equals(view.status()),
+                applicant && actor.permissions().contains("route:approval-start") && "PENDING".equals(view.status()) && actor.permissions().contains("approval:withdraw"),
+                applicant && actor.permissions().contains("route:approval-start") && "DRAFT".equals(view.status()) && actor.permissions().contains("approval:create"),
+                applicant && actor.permissions().contains("route:approval-start") && "DRAFT".equals(view.status()) && actor.permissions().contains("approval:cancel"),
                 view.submittedAt(),
                 view.completedAt(),
                 view.createdAt(),
@@ -1297,6 +1300,14 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
             throw new BusinessException(ErrorCode.AUTH_REQUIRED);
         }
         return access;
+    }
+
+    private ResolvedUserAccess requireApplicationAccess(Long userId, String permission) {
+        ResolvedUserAccess actor = requirePermission(userId, "route:approval-start");
+        if (!actor.permissions().contains(permission)) {
+            throw new BusinessException(ErrorCode.PERMISSION_DENIED);
+        }
+        return actor;
     }
 
     private ResolvedUserAccess requirePermission(Long userId, String permission) {

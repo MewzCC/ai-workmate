@@ -672,11 +672,34 @@ class GenericApprovalServiceImplTest {
         org.mockito.Mockito.verifyNoInteractions(applicationMapper);
     }
 
+    @Test
+    void capabilityFlagsFollowLiveBusinessPermissionsAndRouteRevocation() {
+        when(applicationMapper.selectView(TENANT_ID, 10L)).thenReturn(view("DRAFT", 0));
+        assertThat(service.detail(USER_ID, 10L).canEditDraft()).isTrue();
+        assertThat(service.detail(USER_ID, 10L).canCancel()).isTrue();
+        when(applicationMapper.selectView(TENANT_ID, 10L)).thenReturn(view("PENDING", 2));
+        assertThat(service.detail(USER_ID, 10L).canWithdraw()).isTrue();
+        assertThat(service.detail(USER_ID, 10L).canRemind()).isTrue();
+        for (List<String> permissions : List.of(List.of("route:approval-start"),
+                List.of("approval:create", "approval:cancel", "approval:withdraw", "approval:remind"))) {
+            when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(new ResolvedUserAccess(
+                    USER_ID, "applicant", TENANT_ID, "EMPLOYEE", List.of("EMPLOYEE"), permissions, List.of("SELF"), 2L));
+            when(applicationMapper.selectView(TENANT_ID, 10L)).thenReturn(view("DRAFT", 0));
+            var draft = service.detail(USER_ID, 10L);
+            assertThat(draft.canEditDraft()).isFalse();
+            assertThat(draft.canCancel()).isFalse();
+            when(applicationMapper.selectView(TENANT_ID, 10L)).thenReturn(view("PENDING", 2));
+            var pending = service.detail(USER_ID, 10L);
+            assertThat(pending.canWithdraw()).isFalse();
+            assertThat(pending.canRemind()).isFalse();
+        }
+    }
+
     private ResolvedUserAccess access() {
         return new ResolvedUserAccess(USER_ID, "applicant", TENANT_ID, "EMPLOYEE",
                 List.of("EMPLOYEE"),
                 List.of("route:approval-start", "approval:create", "approval:submit", "approval:withdraw",
-                        "approval:reopen", "approval:cancel"),
+                        "approval:reopen", "approval:cancel", "approval:remind"),
                 List.of("SELF"), 1L);
     }
 

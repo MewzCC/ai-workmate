@@ -64,7 +64,7 @@ final class ApprovalApplicationMinePostgresVerifier {
         assertThat(result.toString()).doesNotContain("PRIVATE", "rawValue", "app-mine-colleague", "app-mine-foreign");
         var drafts = adapter.mine(actor, new ApprovalApplicationToolPort.Query("DRAFT", "test-form", 1, 20));
         assertThat(drafts.total()).isEqualTo(1);
-        assertThat(drafts.items().get(0).canEditDraft()).isTrue();
+        assertThat(drafts.items().get(0).canEditDraft()).isFalse();
         assertThat(adapter.mine(actor, new ApprovalApplicationToolPort.Query(null, "missing", 1, 20)).total()).isZero();
         jdbc.update("""
                 UPDATE approval_application SET form_schema_snapshot=?, form_version_snapshot=7,
