@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { App, Button, Card, Descriptions, Drawer, Empty, Form, Input, Segmented, Select, Space, Spin, Switch, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
@@ -9,17 +9,39 @@ import ResponsiveTable from '@/components/oa/ResponsiveTable';
 import { message } from '@/lib/antdMessage';
 import { formatOaApiError } from '@/lib/oaApi';
 import { dataPermissionApi, type DataPermissionOverview, type DataPermissionPolicy, type DataPermissionPolicyPayload, type DataPermissionPreview, type DataScopeType } from '@/lib/dataPermissionApi';
+import { useScopedOverview } from '@/hooks/useScopedOverview';
+import { useRegisterPageUiCommands } from './PageUiCommandBridge';
+import { usePublishPageAgentContext } from './PageAgentContext';
+import { requireUiFieldTypes } from '@/lib/preparedPageUiCommand';
+import { showUiFormPreview } from './UiFormPreview';
 
 const scopeTypes:DataScopeType[]=['SELF','DEPARTMENT','DEPARTMENT_AND_CHILDREN','CUSTOM_DEPARTMENTS','ALL'];
 
 export default function DataPermissionPage(){
   const {t}=useTranslation(); const {modal}=App.useApp(); const [form]=Form.useForm<DataPermissionPolicyPayload>();
-  const [data,setData]=useState<DataPermissionOverview>(); const [loading,setLoading]=useState(true); const [saving,setSaving]=useState(false);
+  const {data,loading,load,scope}=useScopedOverview<DataPermissionOverview>(dataPermissionApi.overview); const [saving,setSaving]=useState(false);
+  const [scopeFilter,setScopeFilter]=useState<DataScopeType|''>('');
+  const [enabledFilter,setEnabledFilter]=useState<'ALL'|'true'|'false'>('ALL');
   const [mode,setMode]=useState<'roles'|'users'>('roles'); const [editor,setEditor]=useState<DataPermissionPolicy|null>(); const [drawerOpen,setDrawerOpen]=useState(false);
   const [preview,setPreview]=useState<DataPermissionPreview>(); const [previewOpen,setPreviewOpen]=useState(false); const [previewLoading,setPreviewLoading]=useState(false);
   const watchedScope=Form.useWatch('scopeType',form);
-  const load=useCallback(async()=>{setLoading(true);try{setData(await dataPermissionApi.overview());}catch(error){message.error(formatOaApiError(error));}finally{setLoading(false);}},[]);
-  useEffect(()=>{void load();},[load]);
+  useEffect(()=>{setDrawerOpen(false);setPreviewOpen(false);setPreview(undefined);setEditor(undefined);form.resetFields();},[scope,form]);
+  const policies=(data?.policies??[]).filter(policy=>(!scopeFilter||policy.scopeType===scopeFilter)
+    &&(enabledFilter==='ALL'||policy.enabled===(enabledFilter==='true')));
+  usePublishPageAgentContext({scopeType:scopeFilter||undefined,enabled:enabledFilter});
+  useRegisterPageUiCommands({'ui.refreshPage':async()=>{await load();},
+    'ui.applyFilter':({payload:{filters}})=>{
+      requireUiFieldTypes(filters,{scopeType:['',...scopeTypes],enabled:['ALL','true','false']});
+      if(filters.scopeType!==undefined)setScopeFilter(filters.scopeType as DataScopeType|'');
+      if(filters.enabled!==undefined)setEnabledFilter(filters.enabled as 'ALL'|'true'|'false');
+    },
+    'ui.openDetail':({payload:{recordId}})=>{
+      const policy=data?.policies.find(item=>item.id===Number(recordId));if(!policy)throw new Error('PAGE_UI_FIELD_REJECTED');
+      showUiFormPreview({name:policy.name,description:policy.description,scopeType:t(`dataPermission.scope.${policy.scopeType}`),
+        enabled:t(policy.enabled?'dataPermission.enabled':'dataPermission.disabled')},
+        {name:t('dataPermission.policyName'),description:t('dataPermission.policyDescription'),scopeType:t('dataPermission.scopeType'),enabled:t('dataPermission.status')});
+    },
+  });
   const departmentMap=useMemo(()=>new Map(data?.departments.map(d=>[d.id,d.name])??[]),[data]);
   const policyOptions=(data?.policies??[]).filter(p=>p.enabled).map(p=>({value:p.id,label:`${p.name} · ${t(`dataPermission.scope.${p.scopeType}`)}`}));
   const openEditor=(policy?:DataPermissionPolicy)=>{setEditor(policy??null);form.resetFields();form.setFieldsValue(policy?{...policy}:{scopeType:'SELF',departmentIds:[],enabled:true});setDrawerOpen(true);};
@@ -44,7 +66,8 @@ export default function DataPermissionPage(){
     <header className="oa-data-permission-hero"><div className="oa-data-permission-heading"><span className="oa-data-permission-icon"><OaIcon name="data-permission" size={24}/></span><div><Typography.Text className="oa-data-permission-eyebrow">{t('dataPermission.eyebrow')}</Typography.Text><Typography.Title level={3}>{t('dataPermission.title')}</Typography.Title><Typography.Paragraph>{t('dataPermission.description')}</Typography.Paragraph></div></div><Space><Button icon={<OaIcon name="reload"/>} onClick={()=>void load()}>{t('dataPermission.refresh')}</Button><Button type="primary" icon={<OaIcon name="add"/>} onClick={()=>openEditor()}>{t('dataPermission.newPolicy')}</Button></Space></header>
     <div className="oa-data-permission-stats">{[['policyCount',data?.policies.length??0],['boundRoles',data?.roleBindings.length??0],['exceptions',data?.userExceptions.length??0]].map(([key,value])=><div key={key}><small>{t(`dataPermission.${key}`)}</small><strong>{value}</strong></div>)}<Tag color="green">{t('dataPermission.effectiveImmediately')}</Tag></div>
     <div className="oa-data-permission-workspace"><Card title={t('dataPermission.policies')} className="oa-data-permission-policies" extra={<Tag>{data?.policies.length??0}</Tag>}>
-      <div className="oa-data-permission-policy-list">{data?.policies.length?data.policies.map(policy=><article key={policy.id} className="oa-data-permission-policy"><div><strong>{policy.name}</strong><Tag color={policy.enabled?'blue':'default'}>{t(policy.enabled?'dataPermission.enabled':'dataPermission.disabled')}</Tag></div><Typography.Paragraph ellipsis={{rows:2}}>{policy.description||t(`dataPermission.scopeHint.${policy.scopeType}`)}</Typography.Paragraph><div><Tag>{t(`dataPermission.scope.${policy.scopeType}`)}</Tag><Space size={0}><Button type="link" size="small" onClick={()=>openEditor(policy)}>{t('common.edit')}</Button><Button type="link" size="small" danger onClick={()=>remove(policy)}>{t('common.delete')}</Button></Space></div></article>):<Empty description={t('dataPermission.noPolicy')}/>}</div>
+      <Space wrap><Select value={scopeFilter} onChange={setScopeFilter} aria-label={t('dataPermission.scopeType')} options={[{value:'',label:t('common.all')},...scopeTypes.map(value=>({value,label:t(`dataPermission.scope.${value}`)}))]}/><Select value={enabledFilter} onChange={setEnabledFilter} aria-label={t('dataPermission.status')} options={[{value:'ALL',label:t('common.all')},{value:'true',label:t('dataPermission.enabled')},{value:'false',label:t('dataPermission.disabled')}]} /></Space>
+      <div className="oa-data-permission-policy-list">{policies.length?policies.map(policy=><article key={policy.id} className="oa-data-permission-policy"><div><strong>{policy.name}</strong><Tag color={policy.enabled?'blue':'default'}>{t(policy.enabled?'dataPermission.enabled':'dataPermission.disabled')}</Tag></div><Typography.Paragraph ellipsis={{rows:2}}>{policy.description||t(`dataPermission.scopeHint.${policy.scopeType}`)}</Typography.Paragraph><div><Tag>{t(`dataPermission.scope.${policy.scopeType}`)}</Tag><Space size={0}><Button type="link" size="small" onClick={()=>openEditor(policy)}>{t('common.edit')}</Button><Button type="link" size="small" danger onClick={()=>remove(policy)}>{t('common.delete')}</Button></Space></div></article>):<Empty description={t('dataPermission.noPolicy')}/>}</div>
     </Card><Card className="oa-data-permission-bindings" title={<Segmented value={mode} onChange={value=>setMode(value as 'roles'|'users')} options={[{value:'roles',label:t('dataPermission.roleBindings')},{value:'users',label:t('dataPermission.userExceptions')}]} />}>
       {mode === 'roles'
         ? <ResponsiveTable rowKey="code" columns={roleColumns} dataSource={data?.roles} loading={loading} pagination={false} />

@@ -34,6 +34,11 @@ import {
   type RuntimeLogSource,
 } from '@/lib/runtimeLogApi';
 import ResponsiveTable from './ResponsiveTable';
+import { useAuth } from '@/components/auth/AuthProvider';
+import { useRegisterPageUiCommands } from './PageUiCommandBridge';
+import { usePublishPageAgentContext } from './PageAgentContext';
+import { requireUiFieldTypes } from '@/lib/preparedPageUiCommand';
+import { requireUiPagination, uiDateRange } from '@/hooks/usePageUiEditorCommands';
 
 const { RangePicker } = DatePicker;
 const SOURCES: RuntimeLogSource[] = ['HUMAN', 'AGENT', 'INTEGRATION'];
@@ -86,15 +91,19 @@ function readDrilldown(search: string) {
 
 export default function RuntimeLogsPage() {
   const { t, i18n } = useTranslation();
+  const { user } = useAuth();
+  const scope = `${user?.tenantId}:${user?.id}:${user?.permissionVersion}`;
+  const activeScope = useRef<string | undefined>(scope); activeScope.current = scope;
+  const listRequest = useRef(0), detailRequest = useRef(0);
   const location = useLocation();
   const drilldown = useMemo(() => readDrilldown(location.search), [location.search]);
   const previousSearch = useRef(location.search);
   const isMobile = useIsMobile();
-  const [records, setRecords] = useState<RuntimeLogRecord[]>([]);
-  const [stats, setStats] = useState({ total: 0, succeeded: 0, failed: 0, blocked: 0, averageDurationMs: 0 });
+  const [storedRecords, setRecords] = useState<RuntimeLogRecord[]>([]);
+  const [storedStats, setStats] = useState({ total: 0, succeeded: 0, failed: 0, blocked: 0, averageDurationMs: 0 });
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
-  const [detail, setDetail] = useState<RuntimeLogDetail>();
+  const [storedDetail, setDetail] = useState<RuntimeLogDetail>();
   const [detailOpen, setDetailOpen] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [keyword, setKeyword] = useState('');
@@ -108,6 +117,10 @@ export default function RuntimeLogsPage() {
   const [page, setPage] = useState(1);
   const [size, setSize] = useState(20);
   const [total, setTotal] = useState(0);
+  const [dataScope, setDataScope] = useState(scope);
+  const records = dataScope === scope ? storedRecords : [];
+  const detail = dataScope === scope ? storedDetail : undefined;
+  const stats = dataScope === scope ? storedStats : { total: 0, succeeded: 0, failed: 0, blocked: 0, averageDurationMs: 0 };
 
   useEffect(() => {
     if (previousSearch.current === location.search) return;
@@ -123,6 +136,7 @@ export default function RuntimeLogsPage() {
   }, [drilldown, location.search]);
 
   const load = useCallback(async () => {
+    const ticket = ++listRequest.current;
     setLoading(true);
     try {
       const response = await runtimeLogApi.list({
@@ -137,31 +151,72 @@ export default function RuntimeLogsPage() {
         page,
         size,
       });
-      setRecords(response.records);
+      if (ticket !== listRequest.current || activeScope.current !== scope) return;
+      setDataScope(scope); setRecords(response.records);
       setStats(response.stats);
       setTotal(response.total);
     } catch (error) {
+      if (ticket !== listRequest.current || activeScope.current !== scope) return;
+      setRecords([]); setTotal(0); setStats({ total: 0, succeeded: 0, failed: 0, blocked: 0, averageDurationMs: 0 });
       message.error(formatOaApiError(error));
     } finally {
-      setLoading(false);
+      if (ticket === listRequest.current && activeScope.current === scope) setLoading(false);
     }
-  }, [errorCode, exactRange, group, keyword, outcome, page, range, size, source, toExclusive]);
+  }, [errorCode, exactRange, group, keyword, outcome, page, range, size, source, toExclusive, scope]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    activeScope.current = scope; setRecords([]); setDetail(undefined); setDetailOpen(false);
+    return () => { activeScope.current = undefined; listRequest.current += 1; detailRequest.current += 1; };
+  }, [scope]);
+  useEffect(() => { void load(); return () => { listRequest.current += 1; }; }, [load]);
 
-  const openDetail = async (record: RuntimeLogRecord) => {
+  const openDetail = useCallback(async (record: Pick<RuntimeLogRecord, 'source' | 'id'>, reportError = true) => {
+    const ticket = ++detailRequest.current;
     setDetailOpen(true);
     setDetail(undefined);
     setDetailLoading(true);
     try {
-      setDetail(await runtimeLogApi.detail(record.source, record.id));
+      const result = await runtimeLogApi.detail(record.source, record.id);
+      if (ticket !== detailRequest.current || activeScope.current !== scope) return;
+      if (result.id !== record.id || result.source !== record.source) throw new Error('RESOURCE_MISMATCH');
+      setDataScope(scope); setDetail(result);
     } catch (error) {
-      message.error(formatOaApiError(error));
+      if (ticket !== detailRequest.current || activeScope.current !== scope) return;
       setDetailOpen(false);
+      if (!reportError) throw error;
+      message.error(formatOaApiError(error));
     } finally {
-      setDetailLoading(false);
+      if (ticket === detailRequest.current && activeScope.current === scope) setDetailLoading(false);
     }
-  };
+  }, [scope]);
+  usePublishPageAgentContext({ source, outcome, group, errorCode: errorCode || undefined, keyword: keyword || undefined,
+    from: exactRange?.from ?? range[0].format('YYYY-MM-DDTHH:mm:ss'), to: exactRange?.to ?? range[1].format('YYYY-MM-DDTHH:mm:ss'),
+    toExclusive, page, size, recordId: detail?.id });
+  useRegisterPageUiCommands({ 'ui.refreshPage': load,
+    'ui.openDetail': async ({ payload: { recordId } }) => {
+      const id = Number(recordId), matches = records.filter(item => item.id === id && (!source || item.source === source));
+      if (!Number.isSafeInteger(id) || id < 1 || !source && matches.length !== 1) throw new Error('PAGE_UI_FIELD_REJECTED');
+      await openDetail({ id, source: source ?? matches[0].source }, false);
+    },
+    'ui.applyFilter': ({ payload: { filters } }) => {
+      requireUiFieldTypes(filters, { source: SOURCES, outcome: OUTCOMES, group: ['FAILED', 'BLOCKED'], errorCode: 'string', keyword: 'string',
+        from: 'string', to: 'string', toExclusive: 'boolean', page: 'number', size: 'number' });
+      requireUiPagination(filters);
+      const dates = uiDateRange(filters, [range[0].format('YYYY-MM-DDTHH:mm:ss'), range[1].format('YYYY-MM-DDTHH:mm:ss')]);
+      if (dates && dayjs(dates[1]).diff(dayjs(dates[0]), 'day', true) > 31) throw new Error('PAGE_UI_FIELD_REJECTED');
+      if (filters.errorCode !== undefined && !/^[A-Za-z0-9_.:-]{0,64}$/.test(String(filters.errorCode))) throw new Error('PAGE_UI_FIELD_REJECTED');
+      if (filters.source !== undefined) setSource(filters.source as RuntimeLogSource);
+      if (filters.outcome !== undefined) setOutcome(filters.outcome as RuntimeLogOutcome);
+      if (filters.group !== undefined) setGroup(filters.group as RuntimeLogGroup);
+      if (filters.keyword !== undefined) { setKeyword(String(filters.keyword)); setSearchText(String(filters.keyword)); }
+      if (filters.errorCode !== undefined) {
+        setErrorCode(String(filters.errorCode));
+      }
+      if (dates && (filters.from !== undefined || filters.to !== undefined)) { setRange([dayjs(dates[0]), dayjs(dates[1])]); setExactRange(undefined); setToExclusive(false); }
+      if (filters.toExclusive !== undefined) setToExclusive(Boolean(filters.toExclusive));
+      setPage(Number(filters.page ?? 1)); if (filters.size !== undefined) setSize(Number(filters.size));
+    },
+  }, null, `runtime-logs:${source ?? 'ALL'}`);
 
   const columns = useMemo<ColumnsType<RuntimeLogRecord>>(() => [
     {
@@ -229,7 +284,7 @@ export default function RuntimeLogsPage() {
       fixed: 'right',
       render: (_, record) => <Button type="link" onClick={() => void openDetail(record)}>{t('common.view')}</Button>,
     },
-  ], [i18n.language, t]);
+  ], [i18n.language, t, openDetail]);
 
   const detailItems = detail ? [
     { key: 'source', label: t('runtimeLogs.detail.source'), children: <Tag color={SOURCE_COLORS[detail.source]}>{t(`runtimeLogs.source.${detail.source}`)}</Tag> },
@@ -357,7 +412,7 @@ export default function RuntimeLogsPage() {
         size={720}
         loading={detailLoading}
         title={t('runtimeLogs.detail.title')}
-        onClose={() => setDetailOpen(false)}
+        onClose={() => { detailRequest.current += 1; setDetailOpen(false); }}
       >
         {detail ? (
           <div className="oa-runtime-log-detail">

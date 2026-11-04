@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import AccessControlPage from './AccessControlPage';
+vi.mock('@/components/auth/AuthProvider', () => ({ useAuth: () => ({ user: { id: 1, tenantId: 1, permissionVersion: 1 } }) }));
 
 const overview = {
   users: [

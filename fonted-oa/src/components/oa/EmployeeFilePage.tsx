@@ -28,12 +28,14 @@ import {
   type EmployeeDetail,
   type EmployeeDocument,
   type EmployeeDocumentType,
-  type HrEmployee,
   type OrganizationOverview,
 } from '@/lib/hrApi';
 import { message } from '@/lib/antdMessage';
 import { useRouter, useSearchParams } from '@/lib/nextCompat';
 import { usePublishPageAgentContext } from './PageAgentContext';
+import { useRegisterPageUiCommands } from './PageUiCommandBridge';
+import { requireUiFieldTypes } from '@/lib/preparedPageUiCommand';
+import { parseRecordId } from '@/lib/recordSelection';
 
 const { Title, Text } = Typography;
 
@@ -61,8 +63,9 @@ export default function EmployeeFilePage() {
   const [requestedId, setSelectedId] = useState<number | null>(
     urlId ? Number(urlId) : null,
   );
-  const selectedId = overview?.employees.some((employee) => employee.id === requestedId)
-    ? requestedId : overview?.employees[0]?.id ?? null;
+  const selectedId = requestedId !== null
+    ? overview?.employees.some((employee) => employee.id === requestedId) ? requestedId : null
+    : overview?.employees[0]?.id ?? null;
   const viewKey = `${scopeKey}:${selectedId}`;
   const [detailData, setDetailData] = useState<{ key: string; value: EmployeeDetail } | null>(null);
   const detail = detailData?.key === viewKey ? detailData.value : null;
@@ -79,7 +82,7 @@ export default function EmployeeFilePage() {
   const currentViewKey = useRef(viewKey);
   currentViewKey.current = viewKey;
   const canManage = user?.permissions.includes('hr:manage') ?? false;
-  usePublishPageAgentContext({ employeeId: selectedId ?? undefined });
+  usePublishPageAgentContext({ employeeId: selectedId ?? undefined, keyword: keyword || undefined });
 
   const loadOverview = useCallback(async () => {
     const seq = ++overviewSeq.current;
@@ -95,6 +98,23 @@ export default function EmployeeFilePage() {
       if (seq === overviewSeq.current) setOverviewLoading(false);
     }
   }, [scopeKey, t]);
+  const selectEmployee = (id: number) => {
+    if (!overview?.employees.some(item => item.id === id)) throw new Error('PAGE_UI_FIELD_REJECTED');
+    setSelectedId(id); router.replace(`/oa/employee-files?id=${id}`);
+  };
+  useRegisterPageUiCommands({ 'ui.refreshPage': loadOverview,
+    'ui.openDetail': ({ payload: { recordId } }) => {
+      const id = parseRecordId(String(recordId)); if (!id) throw new Error('PAGE_UI_FIELD_REJECTED'); selectEmployee(id);
+    },
+    'ui.applyFilter': ({ payload: { filters } }) => {
+      requireUiFieldTypes(filters, { keyword: 'string', employeeId: 'number' });
+      if (filters.employeeId !== undefined) {
+        if (!Number.isSafeInteger(filters.employeeId) || Number(filters.employeeId) < 1) throw new Error('PAGE_UI_FIELD_REJECTED');
+        selectEmployee(Number(filters.employeeId));
+      }
+      if (filters.keyword !== undefined) setKeyword(String(filters.keyword));
+    },
+  });
 
   useEffect(() => {
     const sequence = overviewSeq;
@@ -161,12 +181,6 @@ export default function EmployeeFilePage() {
         emp.name.toLowerCase().includes(kw) || emp.email.toLowerCase().includes(kw),
     );
   }, [overview, keyword]);
-
-  const selectEmployee = (emp: HrEmployee) => {
-    setSelectedId(emp.id);
-    // 同 pathname 下仅更新 query，不重新挂载侧栏
-    router.replace(`/oa/employee-files?id=${emp.id}`);
-  };
 
   const handleRefresh = () => {
     void loadOverview();
@@ -284,7 +298,7 @@ export default function EmployeeFilePage() {
                 return (
                   <List.Item
                     className={`oa-employee-file__person${selected ? ' is-selected' : ''}`}
-                    onClick={() => selectEmployee(emp)}
+                    onClick={() => selectEmployee(emp.id)}
                   >
                     <Badge status={active ? 'success' : 'default'} offset={[-6, 24]}>
                       <Avatar src={emp.avatarUrl || undefined} size={40}>

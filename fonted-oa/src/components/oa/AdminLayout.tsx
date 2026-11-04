@@ -170,7 +170,10 @@ export default function AdminLayout() {
   const agentLauncherRef = useRef<PageAgentLauncherHandle>(null);
   const [themeName, setThemeName] = useState(() => readStorage('workmeta-oa-theme', 'enterprise-blue'));
   const [aiMiniEnabled, setAiMiniEnabled] = useState(() => readStorage('workmeta-oa-ai-mini-enabled', 'false') === 'true');
-  const [wallpaper, setWallpaper] = useState<string | null>(null);
+  const wallpaperIdentity = `${user?.tenantId}:${userId}`;
+  const [wallpaperState, setWallpaperState] = useState<{ identity: string; url: string | null }>({ identity: wallpaperIdentity, url: null });
+  const wallpaper = wallpaperState.identity === wallpaperIdentity ? wallpaperState.url : null;
+  const setWallpaper = useCallback((url: string | null) => setWallpaperState({ identity: wallpaperIdentity, url }), [wallpaperIdentity]);
   const [wallpaperOpacity, setWallpaperOpacity] = useState(() => Number(readStorage('workmeta-oa-wallpaper-opacity', '0.28')));
   const [wallpaperBlur, setWallpaperBlur] = useState(() => Number(readStorage('workmeta-oa-wallpaper-blur', '4')));
   const [openTabs, setOpenTabs] = useState<OaPageTab[]>([]);
@@ -216,7 +219,7 @@ export default function AdminLayout() {
 
   useEffect(() => {
     let active = true;
-    if (!user) {
+    if (!userId) {
       setWallpaper(null);
       return;
     }
@@ -230,16 +233,9 @@ export default function AdminLayout() {
           return;
         }
 
-        const legacyWallpaper = window.localStorage.getItem('workmeta-oa-wallpaper');
-        if (!legacyWallpaper?.startsWith('data:image/')) {
-          setWallpaper(null);
-          return;
-        }
-        const file = await fetch(legacyWallpaper).then((response) => response.blob());
-        const migrated = await profileApi.uploadWallpaper(file);
-        if (!active) return;
-        setWallpaper(migrated.wallpaperUrl);
-        window.localStorage.removeItem('workmeta-oa-wallpaper');
+        // Legacy Base64 has no authenticated owner; never upload it into a later account.
+        // Keep it untouched locally until the user explicitly replaces the wallpaper.
+        setWallpaper(null);
       } catch (error) {
         if (!active) return;
         setWallpaper(null);
@@ -250,7 +246,7 @@ export default function AdminLayout() {
     return () => {
       active = false;
     };
-  }, [user]);
+  }, [userId, wallpaperIdentity, setWallpaper, t]);
 
   useEffect(() => {
     if (!navigationLoaded) return;

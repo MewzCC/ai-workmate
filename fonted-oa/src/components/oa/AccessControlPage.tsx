@@ -39,6 +39,11 @@ import { useTranslation } from 'react-i18next';
 import { OaIcon, oaMenuIconOptions } from '@/components/OaIcon';
 import ResponsiveTable from './ResponsiveTable';
 import { ENABLED_PAGE_COMPONENT_KEYS } from '@/types/oa';
+import { useScopedOverview } from '@/hooks/useScopedOverview';
+import { useRegisterPageUiCommands } from './PageUiCommandBridge';
+import { usePublishPageAgentContext } from './PageAgentContext';
+import { requireUiFieldTypes } from '@/lib/preparedPageUiCommand';
+import { showUiFormPreview } from './UiFormPreview';
 
 export default function AccessControlPage() {
   const { t } = useTranslation();
@@ -46,8 +51,8 @@ export default function AccessControlPage() {
     value,
     label: t(`access.componentTypes.${value}`),
   }));
-  const [overview, setOverview] = useState<AccessControlOverview | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data: overview, setData: setOverview, loading, load, scope } = useScopedOverview<AccessControlOverview>(accessControlApi.overview);
+  const [filterCode, setFilterCode] = useState('');
   const [selectedRoleCode, setSelectedRoleCode] = useState('');
   const [selectedPermissions, setSelectedPermissions] = useState<string[]>([]);
   const [selectedMemberIds, setSelectedMemberIds] = useState<number[]>([]);
@@ -68,28 +73,26 @@ export default function AccessControlPage() {
   const [organizationForm] = Form.useForm();
   const [userForm] = Form.useForm();
 
-  const load = async () => {
-    setLoading(true);
-    try {
-      const data = await accessControlApi.overview();
-      setOverview(data);
-      const selected = data.roles.find((role) => role.code === selectedRoleCode)
-        || data.roles.find((role) => role.code !== 'SUPER_ADMIN')
-        || data.roles[0];
-      setSelectedRoleCode(selected?.code || '');
-      setSelectedPermissions(selected?.permissions || []);
-    } catch (error) {
-      message.error(error instanceof Error ? error.message : t('access.messages.loadFailed'));
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    void load();
-    // Initial load only.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (!overview) return;
+    const selected = overview.roles.find(role => role.code === selectedRoleCode)
+      || overview.roles.find(role => role.code !== 'SUPER_ADMIN') || overview.roles[0];
+    setSelectedRoleCode(selected?.code || ''); setSelectedPermissions(selected?.permissions || []);
+  }, [overview, selectedRoleCode]);
+  useEffect(() => { setRoleWorkspaceMode(undefined); setRoleModalOpen(false); setRouteModalOpen(false); setUserModalOpen(false); setOrganizationModal(undefined); }, [scope]);
+  usePublishPageAgentContext({ filterCode: filterCode || undefined });
+  useRegisterPageUiCommands({ 'ui.refreshPage': async () => { await load(); },
+    'ui.applyFilter': ({ payload: { filters } }) => {
+      requireUiFieldTypes(filters, { filterCode: 'string' });
+      if (filters.filterCode !== undefined) setFilterCode(String(filters.filterCode));
+    },
+    'ui.openDetail': ({ payload: { recordId } }) => {
+      const person = overview?.users.find(item => item.id === Number(recordId));
+      if (!person) throw new Error('PAGE_UI_FIELD_REJECTED');
+      showUiFormPreview({ name: person.name, email: person.email, roles: person.roles.join(', ') },
+        { name: t('access.columns.user'), email: t('access.userModal.email'), roles: t('access.userModal.role') });
+    },
+  });
 
   const roles = overview?.roles || [];
   const selectedRole = roles.find((role) => role.code === selectedRoleCode);
@@ -522,7 +525,8 @@ export default function AccessControlPage() {
               label: <span><OaIcon name="role" /> {t('access.tabs.roles')}</span>,
               children: (
                 <div className="oa-role-card-grid">
-                  {roles.map((role) => {
+                  <Input allowClear value={filterCode} onChange={event => setFilterCode(event.target.value)} placeholder={t('common.searchPlaceholder')} />
+                  {roles.filter(role => `${role.code} ${role.name}`.toLowerCase().includes(filterCode.trim().toLowerCase())).map((role) => {
                     const members = overview.users.filter((user) => user.roles.includes(role.code));
                     return (
                       <Card className="oa-role-card" key={role.code}>

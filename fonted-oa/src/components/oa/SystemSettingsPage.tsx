@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Alert,
@@ -19,55 +19,53 @@ import { message } from '@/lib/antdMessage';
 import { AI_MODEL_OPTIONS } from '@/config/aiModels';
 import type { ChatSettings } from '@/types/chat';
 import { useAiChatStore } from '@/store/aiChatStore';
-import { getChatPreferences } from '@/lib/userSettingsApi';
+import { getChatPreferences, updateChatPreferences, type ChatPreferences } from '@/lib/userSettingsApi';
+import { useScopedOverview } from '@/hooks/useScopedOverview';
+import { usePageUiEditorCommands } from '@/hooks/usePageUiEditorCommands';
+import { usePageUiFormContext } from '@/hooks/usePageUiFormContext';
+
+interface SettingsFormValues extends Omit<ChatSettings, 'kbId'> { forcePdfOcr: boolean }
 
 export default function SystemSettingsPage() {
   const { t } = useTranslation();
-  const [form] = Form.useForm<ChatSettings>();
-  const settings = useAiChatStore((state) => state.settings);
-  const updateSettings = useAiChatStore((state) => state.updateSettings);
+  const [form] = Form.useForm<SettingsFormValues>();
   const clearAll = useAiChatStore((state) => state.clearAll);
-  const [forcePdfOcr, setForcePdfOcr] = useState(false);
-  const [ocrSettingsLoading, setOcrSettingsLoading] = useState(true);
+  const { data: preferences, setData: setPreferences, loading, load, scope } = useScopedOverview<ChatPreferences>(getChatPreferences);
+  const activeScope = useRef<string | undefined>(scope); activeScope.current = scope;
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    form.setFieldsValue(settings);
-  }, [form, settings]);
-
+    activeScope.current = scope;
+    return () => { activeScope.current = undefined; };
+  }, [scope]);
   useEffect(() => {
-    let cancelled = false;
-    setOcrSettingsLoading(true);
-    getChatPreferences()
-      .then((result) => {
-        if (!cancelled) {
-          setForcePdfOcr(result.forcePdfOcr);
-          void useAiChatStore.getState().hydrateSettings().catch(() => {
-            message.error(t('errors.chat.ocrSettingsLoadFailed'));
-          });
-        }
-      })
-      .catch(() => {
-        if (!cancelled) message.error(t('errors.chat.ocrSettingsLoadFailed'));
-      })
-      .finally(() => {
-        if (!cancelled) setOcrSettingsLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [t]);
+    form.resetFields();
+    if (preferences) form.setFieldsValue(preferences);
+  }, [form, preferences]);
+  const uiForm = usePageUiFormContext(Boolean(preferences) && !loading && !saving, undefined, undefined, `${scope}:${JSON.stringify(preferences)}`);
+  usePageUiEditorCommands({ form, open: Boolean(preferences) && !loading && !saving, canEdit: Boolean(preferences), context: uiForm.context,
+    fields: { model: AI_MODEL_OPTIONS.map(option => option.value), maxContextRounds: 'number', stream: 'boolean', forcePdfOcr: 'boolean' },
+    labels: { model: t('chat.model'), maxContextRounds: t('chat.maxContextRounds'), stream: t('chat.streamOutput'), forcePdfOcr: t('chat.forcePdfOcr') },
+    commands: { 'ui.refreshPage': async () => { await load(); } },
+  });
 
   const save = async () => {
-    const values = await form.validateFields();
+    if (!preferences || loading || saving) return;
+    let values: SettingsFormValues;
+    try { values = await form.validateFields(); } catch { return; }
+    if (activeScope.current !== scope) return;
     setSaving(true);
     try {
-      await updateSettings({ ...settings, ...values }, forcePdfOcr);
+      const updated = await updateChatPreferences({ model: values.model, maxContextRounds: values.maxContextRounds,
+        stream: values.stream, forcePdfOcr: values.forcePdfOcr });
+      if (activeScope.current !== scope) return;
+      setPreferences(updated);
+      useAiChatStore.setState(state => ({ settings: { ...state.settings, model: updated.model, maxContextRounds: updated.maxContextRounds, stream: updated.stream } }));
       message.success(t('chat.settingsSaved'));
     } catch {
-      message.error(t('errors.chat.ocrSettingsSaveFailed'));
+      if (activeScope.current === scope) message.error(t('errors.chat.ocrSettingsSaveFailed'));
     } finally {
-      setSaving(false);
+      if (activeScope.current === scope) setSaving(false);
     }
   };
 
@@ -76,9 +74,9 @@ export default function SystemSettingsPage() {
       <header className="oa-settings-heading">
         <Typography.Title level={4}>{t('oa.menu.system-config')}</Typography.Title>
       </header>
+      <Form form={form} layout="vertical" disabled={!preferences || loading || saving} onValuesChange={uiForm.renew}>
       <div className="oa-settings-grid">
         <Card size="small" title={t('chat.settingsTitle')} className="oa-domain-card oa-settings-card oa-settings-card--primary">
-          <Form form={form} layout="vertical">
             <Form.Item label={t('chat.apiKeyLabel')}>
               <Input.Password value={t('chat.apiKeyManaged')} disabled />
               <Typography.Text type="secondary">{t('chat.apiKeyHint')}</Typography.Text>
@@ -86,21 +84,18 @@ export default function SystemSettingsPage() {
             <Form.Item name="model" label={t('chat.model')} rules={[{ required: true, message: t('chat.selectModelRequired') }]}>
               <Select options={[...AI_MODEL_OPTIONS]} />
             </Form.Item>
-            <Form.Item name="maxContextRounds" label={t('chat.maxContextRounds')} rules={[{ required: true }]}>
-              <InputNumber min={1} max={20} className="ai-settings-number" />
+            <Form.Item name="maxContextRounds" label={t('chat.maxContextRounds')} rules={[{ required: true, type: 'integer', min: 1, max: 20 }]}>
+              <InputNumber min={1} max={20} precision={0} className="ai-settings-number" />
             </Form.Item>
             <Form.Item name="stream" label={t('chat.streamOutput')} valuePropName="checked">
               <Switch />
             </Form.Item>
             <Alert type="info" showIcon title={t('chat.baseUrlHint')} />
-          </Form>
         </Card>
         <Card size="small" title={t('chat.ocrSettings')} className="oa-domain-card oa-settings-card">
-          <Form layout="vertical">
-            <Form.Item label={t('chat.forcePdfOcr')} tooltip={t('chat.forcePdfOcrHint')}>
-              <Switch checked={forcePdfOcr} loading={ocrSettingsLoading} onChange={setForcePdfOcr} />
+            <Form.Item name="forcePdfOcr" valuePropName="checked" label={t('chat.forcePdfOcr')} tooltip={t('chat.forcePdfOcrHint')}>
+              <Switch loading={loading} />
             </Form.Item>
-          </Form>
         </Card>
         <Card size="small" title={t('chat.dataManagement')} className="oa-domain-card oa-settings-card">
           <Space direction="vertical">
@@ -127,8 +122,9 @@ export default function SystemSettingsPage() {
         <Button type="primary" loading={saving} onClick={() => void save()}>
           {t('chat.saveSettings')}
         </Button>
-        <Button onClick={() => form.resetFields()}>{t('common.reset')}</Button>
+        <Button onClick={() => { if (preferences) { uiForm.renew(); form.setFieldsValue(preferences); } }}>{t('common.reset')}</Button>
       </Space>
+      </Form>
     </section>
   );
 }

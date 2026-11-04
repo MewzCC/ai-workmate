@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import {
-  Alert, App, Badge, Button, Card, Checkbox, Empty, Segmented, Space, Spin, Switch, Tag, Typography,
+  Alert, App, Badge, Button, Card, Checkbox, Empty, Input, Segmented, Select, Space, Spin, Switch, Tag, Typography,
 } from 'antd';
 import { OaIcon } from '@/components/OaIcon';
 import {
@@ -12,6 +12,10 @@ import {
 import { formatOaApiError } from '@/lib/oaApi';
 import { message } from '@/lib/antdMessage';
 import { agentToolTranslationKey } from '@/lib/agentToolPresentation';
+import { useScopedOverview } from '@/hooks/useScopedOverview';
+import { useRegisterPageUiCommands } from './PageUiCommandBridge';
+import { usePublishPageAgentContext } from './PageAgentContext';
+import { requireUiFieldTypes } from '@/lib/preparedPageUiCommand';
 
 type Role = AiOperationPermissionOverview['roles'][number];
 type Tool = AiOperationPermissionOverview['tools'][number];
@@ -19,26 +23,22 @@ type Tool = AiOperationPermissionOverview['tools'][number];
 export default function AiOperationPermissionPage() {
   const { t } = useTranslation();
   const { modal } = App.useApp();
-  const [data, setData] = useState<AiOperationPermissionOverview>();
-  const [loading, setLoading] = useState(true);
+  const { data, setData, loading, load } = useScopedOverview<AiOperationPermissionOverview>(aiOperationPermissionApi.overview);
+  const [filterCode, setFilterCode] = useState('');
+  const [enabledFilter, setEnabledFilter] = useState<'ALL' | 'true' | 'false'>('ALL');
   const [saving, setSaving] = useState(false);
   const [selectedRoleCode, setSelectedRoleCode] = useState('');
   const [selectedToolCodes, setSelectedToolCodes] = useState<string[]>([]);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const next = await aiOperationPermissionApi.overview();
-      setData(next);
-      setSelectedRoleCode((current) => current || next.roles[0]?.code || '');
-    } catch (error) {
-      message.error(formatOaApiError(error));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { setSelectedRoleCode(current => data?.roles.some(role => role.code === current) ? current : data?.roles[0]?.code || ''); }, [data]);
+  usePublishPageAgentContext({ filterCode: filterCode || undefined, effectiveEnabled: enabledFilter });
+  useRegisterPageUiCommands({ 'ui.refreshPage': async () => { await load(); },
+    'ui.applyFilter': ({ payload: { filters } }) => {
+      requireUiFieldTypes(filters, { filterCode: 'string', toolCode: 'string', effectiveEnabled: ['ALL', 'true', 'false'] });
+      if (filters.filterCode !== undefined || filters.toolCode !== undefined) setFilterCode(String(filters.toolCode ?? filters.filterCode));
+      if (filters.effectiveEnabled !== undefined) setEnabledFilter(filters.effectiveEnabled as 'ALL' | 'true' | 'false');
+    },
+  });
   const selectedRole = useMemo(
     () => data?.roles.find((role) => role.code === selectedRoleCode),
     [data?.roles, selectedRoleCode],
@@ -151,7 +151,11 @@ export default function AiOperationPermissionPage() {
             <Switch loading={saving} checked={data.tenantPolicy.writeToolsEnabled} onChange={confirmWriteGate} />
           </div>
           <div className="oa-ai-permission-tool-list">
-            {data.tools.map((tool) => (
+            <Space wrap><Input allowClear value={filterCode} onChange={event => setFilterCode(event.target.value)} placeholder={t('common.searchPlaceholder')} />
+              <Select value={enabledFilter} onChange={setEnabledFilter} aria-label={t('common.status')} options={[
+                { value: 'ALL', label: t('common.all') }, { value: 'true', label: t('common.enable') }, { value: 'false', label: t('common.disable') }]} /></Space>
+            {data.tools.filter(tool => `${tool.code} ${tool.name} ${toolName(tool, t)}`.toLowerCase().includes(filterCode.trim().toLowerCase())
+              && (enabledFilter === 'ALL' || tool.effectiveEnabled === (enabledFilter === 'true'))).map((tool) => (
               <article className="oa-ai-permission-tool" key={tool.code}>
                 <div className="oa-ai-permission-tool-main">
                   <span className={`oa-ai-permission-risk is-${tool.riskLevel.toLowerCase()}`}>{tool.riskLevel}</span>

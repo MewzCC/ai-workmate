@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { App } from 'antd';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+vi.mock('@/components/auth/AuthProvider', () => ({ useAuth: () => ({ user: { id: 1, tenantId: 1, permissionVersion: 1 } }) }));
 
 const api = vi.hoisted(() => ({
   list: vi.fn(),

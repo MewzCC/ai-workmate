@@ -32,6 +32,10 @@ import {
   type SandboxReplayStatus,
 } from '@/lib/sandboxReplayApi';
 import ResponsiveTable from './ResponsiveTable';
+import { useRegisterPageUiCommands } from './PageUiCommandBridge';
+import { usePublishPageAgentContext } from './PageAgentContext';
+import { requireUiFieldTypes } from '@/lib/preparedPageUiCommand';
+import { requireUiPagination } from '@/hooks/usePageUiEditorCommands';
 
 type ReplayFormValue = { sourceInvocationId: number; reason: string };
 
@@ -95,19 +99,36 @@ export default function SandboxReplayPage() {
 
   useEffect(() => { void load(); }, [load]);
 
-  const openDetail = useCallback(async (id: number) => {
+  const openDetail = useCallback(async (id: number, reportError = true) => {
     setDetailOpen(true);
     setDetail(undefined);
     setDetailLoading(true);
     try {
       setDetail(await sandboxReplayApi.detail(id));
     } catch (error) {
-      message.error(formatOaApiError(error));
       setDetailOpen(false);
+      if (!reportError) throw error;
+      message.error(formatOaApiError(error));
     } finally {
       setDetailLoading(false);
     }
   }, []);
+  usePublishPageAgentContext({ replayId: detail?.id, keyword: keyword || undefined, status, page, size });
+  useRegisterPageUiCommands({ 'ui.refreshPage': load,
+    'ui.openDetail': async ({ payload: { recordId } }) => {
+      const id = Number(recordId);
+      if (!Number.isSafeInteger(id) || id < 1) throw new Error('PAGE_UI_FIELD_REJECTED');
+      await openDetail(id, false);
+    },
+    'ui.applyFilter': ({ payload: { filters } }) => {
+      requireUiFieldTypes(filters, { keyword: 'string', status: STATUSES, page: 'number', size: 'number' });
+      requireUiPagination(filters);
+      if (filters.keyword !== undefined) { setKeyword(String(filters.keyword)); setKeywordInput(String(filters.keyword)); }
+      if (filters.status !== undefined) setStatus(filters.status as SandboxReplayStatus);
+      if (filters.size !== undefined) setSize(Number(filters.size));
+      setPage(Number(filters.page ?? 1));
+    },
+  });
 
   const openEditor = async () => {
     setEditorOpen(true);

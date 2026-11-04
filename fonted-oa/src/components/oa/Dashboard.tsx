@@ -13,6 +13,7 @@ import { usePermission } from '@/hooks/usePermission';
 import { OaIcon } from '@/components/OaIcon';
 import EChartsCard from './EChartsCard';
 import ResponsiveTable from './ResponsiveTable';
+import { useRegisterPageUiCommands } from './PageUiCommandBridge';
 
 interface DashboardProps {
   primaryColor: string;
@@ -51,6 +52,13 @@ export default function Dashboard({ primaryColor, onOpenAi }: DashboardProps) {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+  useRegisterPageUiCommands({ 'ui.refreshPage': load,
+    'ui.openDetail': ({ payload: { recordId } }) => {
+      const id = Number(recordId);
+      if (!Number.isSafeInteger(id) || id < 1 || !overview?.todos.some(item => item.taskId === id)) throw new Error('PAGE_UI_FIELD_REJECTED');
+      router.push(`/oa/approval-tasks/${id}?from=dashboard`);
+    },
+  });
 
   const handleExport = async () => {
     setExporting(true);

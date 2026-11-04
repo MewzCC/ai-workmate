@@ -13,6 +13,10 @@ import { usePermission } from '@/hooks/usePermission';
 import { useRouter, useSearchParams } from '@/lib/nextCompat';
 import { parseRecordId } from '@/lib/recordSelection';
 import { usePublishPageAgentContext } from './PageAgentContext';
+import { useRegisterPageUiCommands } from './PageUiCommandBridge';
+import { requireUiFieldTypes } from '@/lib/preparedPageUiCommand';
+import { requireUiPagination, usePageUiEditorCommands } from '@/hooks/usePageUiEditorCommands';
+import { usePageUiFormContext } from '@/hooks/usePageUiFormContext';
 
 const statuses:EndpointStatus[]=['DRAFT','ACTIVE','DISABLED']; const methods=['GET','POST','PUT','PATCH','DELETE'];
 const statusColors:Record<string,string>={DRAFT:'default',ACTIVE:'green',DISABLED:'orange',SUCCESS:'green',FAILED:'red'};
@@ -37,12 +41,13 @@ export default function ApiCenterPage(){
  const total=dataScope===scope?storedTotal:0;
  const canManage=canRead&&liveManage&&serverCanManage&&dataScope===scope;
  const canExecute=canRead&&liveExecute&&serverCanExecute&&dataScope===scope;
- const [keyword,setKeyword]=useState('');const [status,setStatus]=useState<EndpointStatus>();const [page,setPage]=useState(1);const [size,setSize]=useState(20);
+ const [keyword,setKeyword]=useState('');const [keywordInput,setKeywordInput]=useState('');const [status,setStatus]=useState<EndpointStatus>();const [page,setPage]=useState(1);const [size,setSize]=useState(20);
  const [editor,setEditor]=useState(false);const [editorLoading,setEditorLoading]=useState(false);const [editing,setEditing]=useState<IntegrationEndpoint>();
  const [upstreams,setUpstreams]=useState<{code:string;label:string;available:boolean}[]>([]);
  const [storedDetail,setDetail]=useState<{endpoint:IntegrationEndpoint;invocations:IntegrationInvocation[]}>();const [detailOpen,setDetailOpen]=useState(false);const [detailLoading,setDetailLoading]=useState(false);
  const detail=dataScope===scope?storedDetail:undefined;
  const listRequest=useRef(0);const detailRequest=useRef(0);const editorRequest=useRef(0);const selectedId=useRef<number | undefined>(undefined);
+ const uiForm=usePageUiFormContext(editor&&!editorLoading&&!saving&&canManage,editing?.id,editing?.version,`${scope}:${editorRequest.current}`);
  const selected=dataScope!==scope?undefined:editor?editing:detailOpen?detail?.endpoint:undefined;
  usePublishPageAgentContext({endpointId:selected?.id,version:selected?.version,keyword:keyword||undefined,status,page,size});
 
@@ -64,7 +69,7 @@ export default function ApiCenterPage(){
  },[keyword,status,page,size,scope,canRead]);
  const latestLoad=useRef(load);useEffect(()=>{latestLoad.current=load;},[load]);
  useEffect(()=>{void load();},[load]);
- const loadDetail=useCallback(async(id:number)=>{
+ const loadDetail=useCallback(async(id:number,reportError=true)=>{
   dismissConfirmation();
   const request=++detailRequest.current;if(!canRead)return;
   selectedId.current=id;setDetail(undefined);setDetailOpen(true);setDetailLoading(true);
@@ -72,9 +77,18 @@ export default function ApiCenterPage(){
    if(request!==detailRequest.current||activeScope.current!==scope)return;
    if(result.endpoint.id!==id)throw new Error('RESOURCE_MISMATCH');
    setDetail(result);
-  }catch(error){if(request===detailRequest.current&&activeScope.current===scope){selectedId.current=undefined;setDetail(undefined);setDetailOpen(false);message.error(formatOaApiError(error));}}
+  }catch(error){if(request===detailRequest.current&&activeScope.current===scope){selectedId.current=undefined;setDetail(undefined);setDetailOpen(false);if(!reportError)throw error;message.error(formatOaApiError(error));}}
   finally{if(request===detailRequest.current&&activeScope.current===scope)setDetailLoading(false);}
  },[scope,canRead,dismissConfirmation]);
+ useRegisterPageUiCommands({'ui.refreshPage':load,
+  'ui.openDetail':async({payload:{recordId}})=>{const id=parseRecordId(String(recordId));if(!canRead||!id)throw new Error('PAGE_UI_FIELD_REJECTED');await loadDetail(id,false);},
+  'ui.applyFilter':({payload:{filters}})=>{
+   if(!canRead)throw new Error('PAGE_UI_FIELD_REJECTED');
+   requireUiFieldTypes(filters,{keyword:'string',status:statuses,page:'number',size:'number'});requireUiPagination(filters);
+   if(filters.keyword!==undefined){setKeyword(String(filters.keyword));setKeywordInput(String(filters.keyword));}if(filters.status!==undefined)setStatus(filters.status as EndpointStatus);
+   setPage(Number(filters.page??1));if(filters.size!==undefined)setSize(Number(filters.size));
+  },
+ });
  useEffect(()=>{
   detailRequest.current+=1;editorRequest.current+=1;selectedId.current=undefined;
   setDetail(undefined);setDetailOpen(false);setDetailLoading(false);setEditing(undefined);setEditor(false);setEditorLoading(false);setSaving(false);
@@ -98,6 +112,13 @@ export default function ApiCenterPage(){
   finally{if(request===editorRequest.current&&activeScope.current===identity)setEditorLoading(false);}
  };
  const openCreate=()=>openEditor();const openEdit=(endpoint:IntegrationEndpoint)=>openEditor(endpoint);
+ usePageUiEditorCommands({form,open:editor&&!editorLoading&&!saving,canEdit:canManage&&(!editing||editing.canManage&&editing.status!=='ACTIVE'),context:uiForm.context,
+  create:async()=>{uiForm.renew();await openEditor();},
+  fields:{...(!editing?{code:'string' as const}:{}),name:'string',upstreamCode:upstreams.filter(item=>item.available).map(item=>item.code),method:methods,
+   relativePath:'string',requestTemplate:'string',description:'string'},
+  labels:{code:t('apiCenter.fields.code'),name:t('apiCenter.fields.name'),upstreamCode:t('apiCenter.fields.upstream'),method:t('apiCenter.fields.method'),
+   relativePath:t('apiCenter.fields.path'),requestTemplate:t('apiCenter.fields.template'),description:t('apiCenter.fields.description')},
+ });
  const refreshAfterWrite=async(identity:string,id?:number,request?:number)=>{
   if(activeScope.current!==identity)return;
   await latestLoad.current();
@@ -142,8 +163,8 @@ export default function ApiCenterPage(){
  ];
  return <section className="oa-api-center-page"><header className="oa-api-center-hero"><div className="oa-api-center-title"><span className="oa-api-center-pulse"><OaIcon name="api-center" size={26}/></span><div><Typography.Text className="oa-api-center-eyebrow">{t('apiCenter.eyebrow')}</Typography.Text><Typography.Title level={2}>{t('apiCenter.title')}</Typography.Title><Typography.Paragraph>{t('apiCenter.subtitle')}</Typography.Paragraph></div></div><Space direction="vertical" align="end"><Tag icon={<OaIcon name="lock"/>} color="blue">{t('apiCenter.gatewayBadge')}</Tag>{canManage&&<Button type="primary" onClick={()=>void openCreate()} icon={<OaIcon name="add"/>}>{t('apiCenter.actions.create')}</Button>}</Space></header>
  <Row gutter={[12,12]}>{(['total','active','successful','failed'] as const).map(key=><Col xs={12} lg={6} key={key}><Card><Statistic title={t(`apiCenter.stats.${key}`)} value={stats[key]} valueStyle={key==='failed'&&stats.failed?{color:'var(--oa-danger)'}:undefined}/></Card></Col>)}</Row>
- <Card className="oa-api-center-list"><div className="oa-api-center-toolbar"><Input.Search allowClear placeholder={t('apiCenter.filters.keyword')} onSearch={v=>{setKeyword(v);setPage(1)}}/><Select allowClear placeholder={t('apiCenter.filters.status')} options={statuses.map(v=>({value:v,label:t(`apiCenter.status.${v}`)}))} onChange={v=>{setStatus(v);setPage(1)}}/><Button onClick={()=>void load()}>{t('common.refresh')}</Button></div><ResponsiveTable rowKey="id" columns={columns} dataSource={records} loading={loading} pagination={{current:page,pageSize:size,total,showSizeChanger:true,onChange:(p,s)=>{setPage(p);setSize(s)}}}/></Card>
- <Drawer open={editor&&canRead&&dataScope===scope} onClose={closeEditor} loading={editorLoading} title={t(editing?'apiCenter.editor.edit':'apiCenter.editor.create')} width={600} extra={<Button type="primary" loading={saving} disabled={!canManage||editorLoading} onClick={()=>void save()}>{t('common.save')}</Button>}><Alert type="info" showIcon message={t('apiCenter.editor.securityTitle')} description={t('apiCenter.editor.securityHint')}/><Form form={form} layout="vertical" className="oa-api-center-form"><Row gutter={12}><Col span={12}><Form.Item name="code" label={t('apiCenter.fields.code')} rules={[{required:true}]}><Input disabled={!!editing}/></Form.Item></Col><Col span={12}><Form.Item name="name" label={t('apiCenter.fields.name')} rules={[{required:true}]}><Input/></Form.Item></Col></Row><Form.Item name="upstreamCode" label={t('apiCenter.fields.upstream')} rules={[{required:true}]}><Select options={upstreams.map(u=>({value:u.code,label:<Space>{u.label}<Tag color={u.available?'green':'default'}>{t(u.available?'apiCenter.upstream.available':'apiCenter.upstream.unavailable')}</Tag></Space>,disabled:!u.available}))}/></Form.Item><Row gutter={12}><Col span={7}><Form.Item name="method" label={t('apiCenter.fields.method')} rules={[{required:true}]}><Select options={methods.map(v=>({value:v,label:v}))}/></Form.Item></Col><Col span={17}><Form.Item name="relativePath" label={t('apiCenter.fields.path')} rules={[{required:true}]}><Input placeholder={t('apiCenter.editor.pathPlaceholder')}/></Form.Item></Col></Row><Form.Item noStyle shouldUpdate={(a,b)=>a.method!==b.method}>{({getFieldValue})=>!['GET','DELETE'].includes(getFieldValue('method'))&&<Form.Item name="requestTemplate" label={t('apiCenter.fields.template')}><Input.TextArea rows={8} className="oa-api-center-code" placeholder={t('apiCenter.editor.templatePlaceholder')}/></Form.Item>}</Form.Item><Form.Item name="description" label={t('apiCenter.fields.description')}><Input.TextArea rows={3}/></Form.Item></Form></Drawer>
+ <Card className="oa-api-center-list"><div className="oa-api-center-toolbar"><Input.Search allowClear value={keywordInput} onChange={event=>setKeywordInput(event.target.value)} placeholder={t('apiCenter.filters.keyword')} onSearch={v=>{setKeyword(v);setPage(1)}}/><Select allowClear value={status} placeholder={t('apiCenter.filters.status')} options={statuses.map(v=>({value:v,label:t(`apiCenter.status.${v}`)}))} onChange={v=>{setStatus(v);setPage(1)}}/><Button onClick={()=>void load()}>{t('common.refresh')}</Button></div><ResponsiveTable rowKey="id" columns={columns} dataSource={records} loading={loading} pagination={{current:page,pageSize:size,total,showSizeChanger:true,onChange:(p,s)=>{setPage(p);setSize(s)}}}/></Card>
+ <Drawer open={editor&&canRead&&dataScope===scope} onClose={closeEditor} loading={editorLoading} title={t(editing?'apiCenter.editor.edit':'apiCenter.editor.create')} width={600} extra={<Button type="primary" loading={saving} disabled={!canManage||editorLoading} onClick={()=>void save()}>{t('common.save')}</Button>}><Alert type="info" showIcon message={t('apiCenter.editor.securityTitle')} description={t('apiCenter.editor.securityHint')}/><Form form={form} layout="vertical" className="oa-api-center-form" onValuesChange={uiForm.renew}><Row gutter={12}><Col span={12}><Form.Item name="code" label={t('apiCenter.fields.code')} rules={[{required:true}]}><Input disabled={!!editing}/></Form.Item></Col><Col span={12}><Form.Item name="name" label={t('apiCenter.fields.name')} rules={[{required:true}]}><Input/></Form.Item></Col></Row><Form.Item name="upstreamCode" label={t('apiCenter.fields.upstream')} rules={[{required:true}]}><Select options={upstreams.map(u=>({value:u.code,label:<Space>{u.label}<Tag color={u.available?'green':'default'}>{t(u.available?'apiCenter.upstream.available':'apiCenter.upstream.unavailable')}</Tag></Space>,disabled:!u.available}))}/></Form.Item><Row gutter={12}><Col span={7}><Form.Item name="method" label={t('apiCenter.fields.method')} rules={[{required:true}]}><Select options={methods.map(v=>({value:v,label:v}))}/></Form.Item></Col><Col span={17}><Form.Item name="relativePath" label={t('apiCenter.fields.path')} rules={[{required:true}]}><Input placeholder={t('apiCenter.editor.pathPlaceholder')}/></Form.Item></Col></Row><Form.Item noStyle shouldUpdate={(a,b)=>a.method!==b.method}>{({getFieldValue})=>!['GET','DELETE'].includes(getFieldValue('method'))&&<Form.Item name="requestTemplate" label={t('apiCenter.fields.template')}><Input.TextArea rows={8} className="oa-api-center-code" placeholder={t('apiCenter.editor.templatePlaceholder')}/></Form.Item>}</Form.Item><Form.Item name="description" label={t('apiCenter.fields.description')}><Input.TextArea rows={3}/></Form.Item></Form></Drawer>
  <Drawer open={detailOpen&&canRead&&dataScope===scope} onClose={closeDetail} loading={detailLoading} title={t('apiCenter.detail.title')} width={720}>{detail?<><Descriptions column={2} items={[{key:'code',label:t('apiCenter.fields.code'),children:detail.endpoint.code},{key:'upstream',label:t('apiCenter.fields.upstream'),children:detail.endpoint.upstreamCode},{key:'method',label:t('apiCenter.fields.method'),children:<Tag>{detail.endpoint.method}</Tag>},{key:'path',label:t('apiCenter.fields.path'),children:<Typography.Text code>{detail.endpoint.relativePath}</Typography.Text>}]}/><Space wrap className="oa-api-center-status-actions">{canManage&&detail.endpoint.canManage&&detail.endpoint.allowedTransitions.map(s=><Button key={s} onClick={()=>changeStatus(detail.endpoint,s)}>{t(`apiCenter.status.${s}`)}</Button>)}{canExecute&&detail.endpoint.canExecute&&<Button type="primary" onClick={()=>execute(detail.endpoint)}>{t('apiCenter.actions.execute')}</Button>}</Space><Typography.Title level={5}>{t('apiCenter.detail.history')}</Typography.Title>{detail.invocations.length?<Timeline items={detail.invocations.map(x=>({color:x.outcome==='SUCCESS'?'green':'red',children:<div className="oa-api-center-run"><Space><Tag color={statusColors[x.outcome]}>{t(`apiCenter.outcome.${x.outcome}`)}</Tag>{x.httpStatus&&<Tag>HTTP {x.httpStatus}</Tag>}<Typography.Text type="secondary">{x.durationMs} ms</Typography.Text></Space><div>{x.operatorLabel} · {new Date(x.createdAt).toLocaleString(i18n.language)}</div>{x.errorCode&&<Alert type="error" message={t(`apiCenter.errors.${x.errorCode}`,{defaultValue:x.errorCode})}/>} {x.responsePreview&&<Typography.Paragraph><pre>{x.responsePreview}</pre></Typography.Paragraph>}</div>}))}/>:<Empty description={t('apiCenter.detail.empty')}/>}</>:<Empty/>}</Drawer>
  </section>;
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState, Suspense, lazy } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, Suspense, lazy } from 'react';
 import {
   Avatar,
   Badge,
@@ -23,6 +23,12 @@ import { OaIcon } from '@/components/OaIcon';
 import { useRouter } from '@/lib/nextCompat';
 import { useTranslation } from 'react-i18next';
 import ResponsiveTable from './ResponsiveTable';
+import { useAuth } from '@/components/auth/AuthProvider';
+import { usePermission } from '@/hooks/usePermission';
+import { useRegisterPageUiCommands } from './PageUiCommandBridge';
+import { usePublishPageAgentContext } from './PageAgentContext';
+import { requireUiFieldTypes } from '@/lib/preparedPageUiCommand';
+import { parseRecordId } from '@/lib/recordSelection';
 
 const OrganizationGraph = lazy(() => import('./OrganizationGraph'));
 
@@ -34,29 +40,61 @@ export interface DepartmentNode extends HrDepartment {
 export default function OrganizationTreePage() {
   const { t } = useTranslation();
   const router = useRouter();
-  const [overview, setOverview] = useState<OrganizationOverview | null>(null);
+  const { user } = useAuth();
+  const { hasPermission, permissionVersion } = usePermission('route:org-tree');
+  const canRead = hasPermission('route:org-tree') && hasPermission('hr:read');
+  const scope = `${user?.tenantId}:${user?.id}:${permissionVersion}:${canRead}`;
+  const [overviewData, setOverviewData] = useState<{ scope: string; data: OrganizationOverview } | null>(null);
+  const overview = overviewData?.scope === scope ? overviewData.data : null;
+  const activeScope = useRef<string | undefined>(scope); activeScope.current = scope;
+  const request = useRef(0);
   const [loading, setLoading] = useState(true);
   const [selectedDepartmentId, setSelectedDepartmentId] = useState<number | undefined>();
   const [keyword, setKeyword] = useState('');
   // 用于强制重新触发架构图入场动画（刷新/重置时变更）
   const [animKey, setAnimKey] = useState(0);
 
-  const load = async () => {
+  const load = useCallback(async () => {
+    const ticket = ++request.current;
+    if (!canRead) { setOverviewData(null); setLoading(false); return; }
     setLoading(true);
     try {
       const data = await hrApi.overview();
-      setOverview(data);
+      if (ticket !== request.current || activeScope.current !== scope) return;
+      setOverviewData({ scope, data });
       setAnimKey((k) => k + 1);
     } catch (error) {
+      if (ticket !== request.current || activeScope.current !== scope) return;
+      setOverviewData(null);
       message.error(error instanceof Error ? error.message : t('organization.loadFailed'));
     } finally {
-      setLoading(false);
+      if (ticket === request.current && activeScope.current === scope) setLoading(false);
     }
-  };
+  }, [canRead, scope, t]);
 
   useEffect(() => {
+    activeScope.current = scope; setSelectedDepartmentId(undefined);
     void load();
-  }, []);
+    return () => { request.current += 1; activeScope.current = undefined; };
+  }, [load, scope]);
+  usePublishPageAgentContext({ keyword: keyword || undefined, departmentId: selectedDepartmentId });
+  useRegisterPageUiCommands({ 'ui.refreshPage': load,
+    'ui.applyFilter': ({ payload: { filters } }) => {
+      requireUiFieldTypes(filters, { keyword: 'string', departmentId: 'number' });
+      if (filters.departmentId !== undefined) {
+        if (!Number.isSafeInteger(filters.departmentId) || !overview?.departments.some(item => item.id === filters.departmentId))
+          throw new Error('PAGE_UI_FIELD_REJECTED');
+        setSelectedDepartmentId(Number(filters.departmentId));
+      }
+      if (filters.keyword !== undefined) setKeyword(String(filters.keyword));
+    },
+    'ui.openDetail': ({ payload: { recordId } }) => {
+      const id = parseRecordId(String(recordId));
+      if (!id || !hasPermission('route:employee-files') || !overview?.employees.some(item => item.id === id))
+        throw new Error('PAGE_UI_FIELD_REJECTED');
+      router.push(`/oa/employee-files?id=${id}`);
+    },
+  });
 
   const departmentMap = useMemo(() => {
     const map = new Map<number, HrDepartment>();

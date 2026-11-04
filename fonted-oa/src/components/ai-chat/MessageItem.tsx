@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { usePageUiCommandBridge } from '@/components/oa/PageUiCommandBridge';
 import { Avatar, Button, Space, Tag, Tooltip, Typography } from 'antd';
 import { message as antMessage } from '@/lib/antdMessage';
 import {
@@ -33,6 +34,7 @@ export default function MessageItem({ item, onRetry }: MessageItemProps) {
   const { t } = useTranslation();
   const isAssistant = item.role === 'assistant';
   const { user } = useAuth();
+  const uiBridge = usePageUiCommandBridge();
   const targetPage = agentToolTargetPage(item.sourceToolCode);
   const { allowed: canOpenTarget, permissionVersion } = usePermission(`route:${targetPage}`);
   const router = useRouter();
@@ -129,11 +131,18 @@ export default function MessageItem({ item, onRetry }: MessageItemProps) {
         {isAssistant && item.status === 'success' && visibleCitations.length > 0 && (
           <CitationList citations={visibleCitations} />
         )}
-        {isAssistant && item.status === 'success' && item.sourceTaskNo && item.sourceToolCode && canOpenTarget && (
+        {isAssistant && item.status === 'success' && item.sourceTaskNo && item.sourceToolCode && item.sourceToolCode !== 'page.ui.prepare' && canOpenTarget && (
           <Button type="link" loading={opening} icon={<OaIcon name="integration" />} onClick={() => void openBusinessResult()}>
             {t('chat.openBusinessPage')}
           </Button>
         )}
+        {isAssistant && item.status === 'success' && item.sourceTaskNo && item.sourceToolCode === 'page.ui.prepare' && uiBridge ? (
+          <Button type="link" onClick={() => {
+            void agentTaskApi.detail(item.sourceTaskNo!).then((detail) => uiBridge.applyTask(detail))
+              .then((changed) => { if (changed) antMessage.success(t('oa.ai.uiApplied')); })
+              .catch((error) => antMessage.error(error instanceof Error ? error.message : t('oa.ai.uiNotApplied')));
+          }}>{t('oa.ai.uiApply')}</Button>
+        ) : null}
         {isAssistant && item.status !== 'sending' && (
           <Space size={2} className="ai-message-actions">
             <Tooltip title={t('chat.copyReply')}>

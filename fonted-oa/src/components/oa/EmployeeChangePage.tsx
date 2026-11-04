@@ -36,6 +36,9 @@ import {
 import ResponsiveTable from './ResponsiveTable';
 import { usePermission } from '@/hooks/usePermission';
 import { BusinessUserSelect } from './BusinessUserSelect';
+import { usePageUiEditorCommands, requireUiPagination } from '@/hooks/usePageUiEditorCommands';
+import { usePageUiFormContext } from '@/hooks/usePageUiFormContext';
+import { requireUiFieldTypes } from '@/lib/preparedPageUiCommand';
 import { usePublishPageAgentContext } from './PageAgentContext';
 import { useSearchParams } from '@/lib/nextCompat';
 import { parseRecordId } from '@/lib/recordSelection';
@@ -93,7 +96,8 @@ export default function EmployeeChangePage() {
   const confirm = useScopedModalConfirm(scope);
   const listRequest = useRef(0);
   const detailRequest = useRef(0);
-  const openCreate = () => { if (!canManage || !captureScope()()) return; createAction.reset(); form.resetFields(); setCreateOpen(true); };
+  const uiForm = usePageUiFormContext(createOpen && canManage && !submitting, undefined, undefined, scope);
+  const openCreate = () => { if (!canManage || !captureScope()()) return; createAction.reset(); uiForm.renew(); form.resetFields(); setCreateOpen(true); };
   const needsTarget = changeType === 'ONBOARDING' || changeType === 'TRANSFER';
 
   const load = useCallback(async () => {
@@ -170,6 +174,32 @@ export default function EmployeeChangePage() {
 
   usePublishPageAgentContext({ keyword: keyword || undefined, status, changeType: typeFilter, page, size: 20,
     changeId: detail?.id, version: detail?.version });
+  usePageUiEditorCommands({ form, open: createOpen && !submitting, canEdit: canManage, context: uiForm.context,
+    create: openCreate,
+    fields: { employeeUserId: 'number', changeType: CHANGE_TYPES, effectiveDate: { date: 'date' }, reviewApproverUserId: 'number',
+      targetDepartmentId: 'number', targetPositionId: 'number', targetSupervisorUserId: 'number', reason: 'string' },
+    labels: { employeeUserId: t('employeeChange.employee'), changeType: t('employeeChange.changeType'), effectiveDate: t('employeeChange.effectiveDate'),
+      reviewApproverUserId: t('employeeChange.reviewApprover'), targetDepartmentId: t('employeeChange.targetDepartment'),
+      targetPositionId: t('employeeChange.targetPosition'), targetSupervisorUserId: t('employeeChange.targetSupervisor'), reason: t('employeeChange.reason') },
+    commands: { 'ui.refreshPage': load,
+      'ui.openDetail': async ({ payload: { recordId } }) => {
+        const id = parseRecordId(String(recordId));
+        if (!id) throw new Error('PAGE_UI_FIELD_REJECTED');
+        await openDetail({ id }, false);
+      },
+      'ui.applyFilter': ({ payload: { filters } }) => {
+        if (!captureScope()()) throw new Error('PAGE_UI_FIELD_REJECTED');
+        requireUiFieldTypes(filters, { keyword: 'string', status: Object.keys(STATUS_COLORS), changeType: CHANGE_TYPES, page: 'number', size: 'number' });
+        requireUiPagination(filters);
+        if (filters.size !== undefined && filters.size !== 20) throw new Error('PAGE_UI_FIELD_REJECTED');
+        if (filters.keyword !== undefined) setKeyword(String(filters.keyword));
+        if (filters.status !== undefined) setStatus(filters.status as EmployeeChangeStatus);
+        if (filters.changeType !== undefined) setTypeFilter(filters.changeType as EmployeeChangeType);
+        setPage(Number(filters.page ?? 1));
+      },
+    },
+  });
+
   const submitChange = async () => {
     if (!canManage || submitting) return;
     const action = createAction.begin();
@@ -339,7 +369,7 @@ export default function EmployeeChangePage() {
       </Card>
 
       <Modal open={createOpen && canManage} title={t('employeeChange.createTitle')} okText={t('employeeChange.submit')} cancelText={t(submitting ? 'common.close' : 'common.cancel')} okButtonProps={{ loading: submitting }} onOk={() => void submitChange()} onCancel={() => { createAction.reset(); setCreateOpen(false); }} width={680} destroyOnHidden>
-        <Form form={form} disabled={submitting} layout="vertical" initialValues={{ effectiveDate: dayjs().add(1, 'day') }}>
+        <Form form={form} disabled={submitting} layout="vertical" initialValues={{ effectiveDate: dayjs().add(1, 'day') }} onValuesChange={uiForm.renew}>
           <div className="employee-change-form-grid">
             <Form.Item name="employeeUserId" label={t('employeeChange.employee')} rules={[{ required: true }]}><Select showSearch optionFilterProp="label" options={employeeOptions} placeholder={t('employeeChange.employeePlaceholder')} /></Form.Item>
             <Form.Item name="changeType" label={t('employeeChange.changeType')} rules={[{ required: true }]}><Select options={CHANGE_TYPES.map((value) => ({ value, label: t(`employeeChange.type.${value}`) }))} placeholder={t('employeeChange.typePlaceholder')} /></Form.Item>

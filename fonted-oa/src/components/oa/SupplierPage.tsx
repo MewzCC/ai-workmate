@@ -16,6 +16,9 @@ import { usePermission } from '@/hooks/usePermission';
 import { useRouter, useSearchParams } from '@/lib/nextCompat';
 import { parseRecordId } from '@/lib/recordSelection';
 import { usePublishPageAgentContext } from './PageAgentContext';
+import { usePageUiFormContext } from '@/hooks/usePageUiFormContext';
+import { usePageUiEditorCommands, requireUiPagination } from '@/hooks/usePageUiEditorCommands';
+import { requireUiFieldTypes } from '@/lib/preparedPageUiCommand';
 import {
   supplierApi,
   type Supplier,
@@ -64,6 +67,7 @@ export default function SupplierPage() {
   const [size, setSize] = useState(20);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editing, setEditing] = useState<Supplier>();
+  const uiForm = usePageUiFormContext(editorOpen && !saving && dataScope === scope, editing?.id, editing?.version, scope);
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detail, setDetail] = useState<SupplierDetail>();
@@ -171,6 +175,7 @@ export default function SupplierPage() {
 
   const openCreate = () => {
     if (!canManage) return;
+    uiForm.renew();
     editorRequest.current += 1; detailRequest.current += 1; selectedId.current = undefined;
     setDetail(undefined); setDetailOpen(false); setDetailLoading(false);
     setEditing(undefined);
@@ -181,6 +186,7 @@ export default function SupplierPage() {
 
   const openEdit = (record: Supplier) => {
     if (!canManage || !record.canManage) return;
+    uiForm.renew();
     editorRequest.current += 1; detailRequest.current += 1;
     if (selectedId.current !== record.id) selectedId.current = undefined;
     setDetail(undefined); setDetailOpen(false); setDetailLoading(false);
@@ -201,6 +207,24 @@ export default function SupplierPage() {
     });
     setEditorOpen(true);
   };
+
+  usePageUiEditorCommands({ form, open: editorOpen, canEdit: canManage, context: uiForm.context, create: openCreate,
+    fields: { ...(!editing ? { code: 'string' as const } : {}), name: 'string', shortName: 'string', unifiedSocialCreditCode: 'string',
+      category: CATEGORIES, supplierLevel: LEVELS, contactName: 'string', contactPhone: 'string', contactEmail: 'string', address: 'string', paymentTerms: 'string', riskNote: 'string' },
+    labels: Object.fromEntries(['code', 'name', 'shortName', 'unifiedSocialCreditCode', 'category', 'supplierLevel', 'contactName', 'contactPhone', 'contactEmail', 'address', 'paymentTerms', 'riskNote']
+      .map((name) => [name, t(`supplier.form.${name === 'unifiedSocialCreditCode' ? 'creditCode' : name === 'supplierLevel' ? 'level' : name}`)])),
+    commands: {
+      'ui.refreshPage': async () => { await load(); },
+      'ui.applyFilter': ({ payload: { filters } }) => {
+        requireUiFieldTypes(filters, { keyword: 'string', status: ['', ...STATUSES], category: ['', ...CATEGORIES], page: 'number', size: 'number' });
+        requireUiPagination(filters);
+        if (filters.keyword !== undefined) { setKeyword(String(filters.keyword)); setKeywordInput(String(filters.keyword)); }
+        if (filters.status !== undefined) setStatus((filters.status || undefined) as SupplierStatus | undefined);
+        if (filters.category !== undefined) setCategory((filters.category || undefined) as SupplierCategory | undefined);
+        setPage(Number(filters.page ?? 1)); if (filters.size !== undefined) setSize(Number(filters.size));
+      },
+    },
+  });
 
   const save = async () => {
     if (!canManage || saving || (editing && !editing.canManage)) return;
@@ -394,7 +418,7 @@ export default function SupplierPage() {
         onClose={closeEditor}
         extra={<Button type="primary" disabled={!canManage} loading={saving} onClick={() => void save()}>{t('common.save')}</Button>}
       >
-        <SupplierForm form={form} disabled={!canManage} editing={Boolean(editing)} categoryOptions={categoryOptions} levelOptions={levelOptions} />
+        <SupplierForm form={form} disabled={!canManage} editing={Boolean(editing)} categoryOptions={categoryOptions} levelOptions={levelOptions} onValuesChange={uiForm.renew} />
       </Drawer>
 
       <Drawer
@@ -414,6 +438,7 @@ export default function SupplierPage() {
 }
 
 interface SupplierFormProps {
+  onValuesChange: () => void;
   form: ReturnType<typeof Form.useForm<SupplierPayload>>[0];
   editing: boolean;
   disabled: boolean;
@@ -421,9 +446,9 @@ interface SupplierFormProps {
   levelOptions: Array<{ value: SupplierLevel; label: string }>;
 }
 
-function SupplierForm({ form, editing, disabled, categoryOptions, levelOptions }: SupplierFormProps) {
+function SupplierForm({ form, editing, disabled, categoryOptions, levelOptions, onValuesChange }: SupplierFormProps) {
   const { t } = useTranslation();
-  return <Form form={form} disabled={disabled} layout="vertical" requiredMark="optional" className="oa-supplier-form">
+  return <Form form={form} disabled={disabled} layout="vertical" requiredMark="optional" className="oa-supplier-form" onValuesChange={onValuesChange}>
     <Typography.Title level={5}>{t('supplier.form.identity')}</Typography.Title>
     <Row gutter={12}>
       <Col xs={24} sm={10}><Form.Item name="code" label={t('supplier.form.code')} rules={[{ required: true, message: t('supplier.form.required') }]}><Input disabled={editing} maxLength={64} placeholder={t('supplier.form.codePlaceholder')} /></Form.Item></Col>

@@ -141,7 +141,9 @@ describe('integration endpoint Agent selection', () => {
     fireEvent.click((await screen.findAllByRole('button', { name: /编\s*辑/ }))[0]);
     await waitFor(() => expect(context()).toMatchObject({ endpointId: 11, version: 9 }));
     fireEvent.change(screen.getByLabelText('接口名称'), { target: { value: '未保存名称' } });
-    expect(Object.keys(context()).sort()).toEqual(['endpointId', 'page', 'size', 'version']);
+    expect(context()).toMatchObject({ endpointId: 11, page: 1, size: 20, version: 9, uiRecordId: 11, uiRecordVersion: 9 });
+    expect(context().uiFormSession).toEqual(expect.any(String));
+    expect(Object.keys(context()).sort()).toEqual(['endpointId', 'page', 'size', 'uiFormSession', 'uiRecordId', 'uiRecordVersion', 'version']);
     fireEvent.click(screen.getByRole('button', { name: /保\s*存/ }));
     await waitFor(() => expect(api.update).toHaveBeenCalledWith(11, expect.objectContaining({ version: 9, name: '未保存名称' })));
     await waitFor(() => expect(context()).not.toHaveProperty('endpointId'));

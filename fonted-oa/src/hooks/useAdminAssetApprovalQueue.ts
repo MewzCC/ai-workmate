@@ -4,10 +4,12 @@ import { usePermission } from './usePermission';
 import { collectPagedRecords } from '@/lib/collectPagedRecords';
 import { formatOaApiError } from '@/lib/oaApi';
 import { message } from '@/lib/antdMessage';
+import { requireUiFieldTypes } from '@/lib/preparedPageUiCommand';
+import { requireUiPagination } from './usePageUiEditorCommands';
 import { useAsyncActionGuard } from './useAsyncActionGuard';
 
 /** Shared owned-list / assigned-approval loading; domain writes stay in the page and service. */
-export function useAdminAssetApprovalQueue<T, S extends string>({ pageId, readPermission, createPermission, mine: queryMine, pending: queryPending }: {
+export function useAdminAssetApprovalQueue<T, S extends string>({ pageId, readPermission, createPermission, statuses, mine: queryMine, pending: queryPending }: {
   pageId: string; readPermission: string; createPermission: string;
   statuses: readonly S[];
   mine: (query: { page: number; size: number; status?: S }) => Promise<{ records: T[]; total: number }>;
@@ -80,9 +82,24 @@ export function useAdminAssetApprovalQueue<T, S extends string>({ pageId, readPe
     if (key === 'pending') { if (canDecide) void loadPending(); }
     else void loadMine(1);
   };
+  const applyFilters = async (filters: Record<string, unknown>) => {
+    if (!captureScope()()) throw new Error('PAGE_UI_FIELD_REJECTED');
+    requireUiFieldTypes(filters, { queue: ['MINE', 'PENDING'], status: statuses, page: 'number', size: 'number' });
+    requireUiPagination(filters);
+    const queue = filters.queue ?? activeTab.toUpperCase();
+    if (queue === 'PENDING') {
+      if (!canDecide || filters.status !== undefined || filters.page !== undefined || filters.size !== undefined)
+        throw new Error('PAGE_UI_FIELD_REJECTED');
+      await loadPending();
+    } else {
+      const nextStatus = (filters.status ?? status) as S | undefined;
+      setStatus(nextStatus);
+      await loadMine(Number(filters.page ?? 1), Number(filters.size ?? size), nextStatus ?? null);
+    }
+  };
   return { activeTab, mine: dataScope === scope ? mine : [], pending: dataScope === scope ? pending : [],
     total: dataScope === scope ? total : 0, loading, page, size, setPage, setSize,
-    loadMine, loadPending, refresh, captureScope, handleTabChange, status,
+    loadMine, loadPending, refresh, captureScope, handleTabChange, applyFilters, status,
     changeStatus: (value: S | undefined) => { if (captureScope()()) { setStatus(value); void loadMine(1, size, value ?? null); } },
     canRead, canCreate, canDecide, scope };
 }

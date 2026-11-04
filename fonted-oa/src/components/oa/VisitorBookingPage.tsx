@@ -29,6 +29,8 @@ import {
 } from '@/lib/adminAssetsApi';
 import { formatOaApiError } from '@/lib/oaApi';
 import { useAdminAssetApprovalQueue } from '@/hooks/useAdminAssetApprovalQueue';
+import { usePageUiEditorCommands } from '@/hooks/usePageUiEditorCommands';
+import { usePageUiFormContext } from '@/hooks/usePageUiFormContext';
 import { isFormValidationError, useAsyncFormAction } from '@/hooks/useAsyncFormAction';
 import { usePublishPageAgentContext } from './PageAgentContext';
 import AdminAssetsPageShell from './AdminAssetsPageShell';
@@ -61,7 +63,7 @@ interface BookingFormValues {
 export default function VisitorBookingPage() {
   const { t } = useTranslation();
   const { activeTab, mine, pending, loading, total, page, size, setPage, setSize,
-    loadMine, refresh, captureScope, handleTabChange, status, changeStatus, canCreate, canDecide, scope } = useAdminAssetApprovalQueue({
+    loadMine, refresh, captureScope, handleTabChange, applyFilters, status, changeStatus, canCreate, canDecide, scope } = useAdminAssetApprovalQueue({
     pageId: 'visitor-booking', readPermission: 'visitor:read:self', createPermission: 'visitor:create',
     statuses: Object.keys(STATUS_TAG_COLOR) as VisitorBookingStatus[],
     mine: adminAssetsApi.listMyVisitorBookings, pending: adminAssetsApi.listPendingVisitorBookings,
@@ -71,8 +73,19 @@ export default function VisitorBookingPage() {
   const createAction = useAsyncFormAction(scope);
   const submitting = createAction.busy;
   const [form] = Form.useForm<BookingFormValues>();
-  const openCreate = () => { if (!canCreate || !captureScope()()) return; createAction.reset(); form.resetFields(); setCreateOpen(true); };
+  const uiForm = usePageUiFormContext(createOpen && canCreate && !submitting, undefined, undefined, scope);
+  const openCreate = () => { if (!canCreate || !captureScope()()) return; createAction.reset(); uiForm.renew(); form.resetFields(); setCreateOpen(true); };
   usePublishPageAgentContext({ queue: activeTab.toUpperCase(), status, page, size });
+  usePageUiEditorCommands({ form, open: createOpen && !submitting, canEdit: canCreate, context: uiForm.context,
+    create: openCreate,
+    fields: { visitorName: 'string', visitorCompany: 'string', visitorPhone: 'string', purpose: 'string', hostUserId: 'number',
+      expectedVisitAt: { date: 'dateTime' }, expectedLeaveAt: { date: 'dateTime' }, plateNumber: 'string', partySize: 'number' },
+    labels: Object.fromEntries(['visitorName', 'visitorCompany', 'visitorPhone', 'purpose', 'hostUserId', 'expectedVisitAt',
+      'expectedLeaveAt', 'plateNumber', 'partySize'].map(name => [name, t(`adminAssets.visitor.${name}`)])),
+    commands: { 'ui.applyFilter': ({ payload: { filters } }) => applyFilters(filters),
+      'ui.refreshPage': refresh },
+  });
+
   const [decideTarget, setDecideTarget] = useState<VisitorBooking | null>(null);
   const [decideOpen, setDecideOpen] = useState(false);
   const decideAction = useAsyncFormAction(scope);
@@ -398,7 +411,7 @@ export default function VisitorBookingPage() {
           destroyOnClose
           width={560}
         >
-          <Form form={form} disabled={submitting} layout="vertical" initialValues={{ partySize: 1 }}>
+          <Form form={form} disabled={submitting} layout="vertical" initialValues={{ partySize: 1 }} onValuesChange={uiForm.renew}>
             <Form.Item
               name="visitorName"
               label={t('adminAssets.visitor.visitorName')}

@@ -13,6 +13,7 @@ import { OaIcon } from '@/components/OaIcon';
 import ResponsiveTable from '@/components/oa/ResponsiveTable';
 import { formatOaApiError } from '@/lib/oaApi';
 import { message } from '@/lib/antdMessage';
+import { useRegisterPageUiCommands } from './PageUiCommandBridge';
 import {
   tenantConfigApi, type TenantBusinessPayload, type TenantConfiguration,
   type TenantConfigurationHistory, type TenantFeaturesPayload, type TenantProfilePayload,
@@ -67,6 +68,7 @@ export default function TenantConfigPage() {
   }, [historyPage]);
 
   useEffect(() => { void load(); }, [load]);
+  useRegisterPageUiCommands({ 'ui.refreshPage': load });
 
   const submit = async (section: SectionKey, payload: SavePayload) => {
     if (!configuration) return;

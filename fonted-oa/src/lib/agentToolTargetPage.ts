@@ -54,14 +54,12 @@ const EXACT_TARGETS: Record<string, string> = {
   'userPermission.mine.query': 'dashboard',
   'approval.configuration.query': 'process-config',
   'approval.form.createDraft': 'form-engine',
+  'approval.form.definition.query': 'form-engine',
   'approval.process.definition.query': 'process-config',
   'approval.application.template.query': 'approval-start',
   'approval.application.apply': 'my-applications',
   'expense.apply': 'expense',
-  'hr.change.reviewer.query': 'employee-change',
-  'visitor.host.query': 'visitor-booking',
   'approval.task.participants.query': 'approval-list',
-  'approval.form.definition.query': 'form-engine',
   'approval.form.updateDraft': 'form-engine',
   'approval.form.patchDraftField': 'form-engine',
   'approval.form.publishDraft': 'form-engine',
@@ -77,6 +75,8 @@ const EXACT_TARGETS: Record<string, string> = {
   'hr.organization.query': 'org-tree',
   'hr.employee.query': 'employee-files',
   'hr.change.query': 'employee-change',
+  'hr.change.reviewer.query': 'employee-change',
+  'visitor.host.query': 'visitor-booking',
   'asset.department.query': 'asset-ledger',
   'asset.custodian.query': 'asset-ledger',
   'hr.change.apply': 'employee-change',
@@ -156,6 +156,8 @@ const RECORD_ID_FIELDS: ReadonlyMap<string, string> = new Map([
   ...['integration.endpoint.createDraft', 'integration.endpoint.updateDraft', 'integration.endpoint.updateStatus']
     .map((code): [string, string] => [code, 'endpointId']),
   ['hr.employee.query', 'id'],
+  ...['hr.change.apply', 'hr.change.approve', 'hr.change.reject', 'hr.change.withdraw']
+    .map((code): [string, string] => [code, 'changeId']),
   ...['asset.create', 'asset.update', 'asset.claim', 'asset.return', 'asset.transfer',
     'asset.repair.start', 'asset.repair.complete', 'asset.inventory', 'asset.scrap'].map((code): [string, string] => [code, 'assetId']),
   ...['budget.createDraft', 'budget.updateDraft', 'budget.activateDraft', 'budget.cancelDraft']
@@ -208,6 +210,7 @@ export function resolveAgentToolTargetPath(pageId: string, recordId: number | un
     if (!Number.isSafeInteger(recordId) || recordId <= 0) return null;
     if (pageId === 'dictionary' && recordKind) return `/oa/dictionary?${recordKind === 'dictionary-type' ? 'typeId' : 'itemId'}=${recordId}`;
     if (pageId === 'employee-files') return `/oa/employee-files?id=${recordId}`;
+    if (pageId === 'employee-change') return `/oa/employee-change?id=${recordId}`;
     if (pageId === 'asset-ledger') return `/oa/asset-ledger?id=${recordId}`;
     if (pageId === 'budget') return `/oa/budget?id=${recordId}`;
     if (pageId === 'suppliers') return `/oa/suppliers?id=${recordId}`;

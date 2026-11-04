@@ -18,6 +18,12 @@ import { knowledgeApi, type KnowledgeBase } from '@/lib/knowledgeApi';
 import { useRouter } from '@/lib/nextCompat';
 import { useTranslation } from 'react-i18next';
 import KnowledgeBaseDetail from './KnowledgeBaseDetail';
+import { usePageUiEditorCommands } from '@/hooks/usePageUiEditorCommands';
+import { usePageUiFormContext } from '@/hooks/usePageUiFormContext';
+import { useAuth } from '@/components/auth/AuthProvider';
+import { useRegisterPageUiViews } from './PageUiCommandBridge';
+import { usePublishPageAgentContext } from './PageAgentContext';
+import { requireUiFieldTypes } from '@/lib/preparedPageUiCommand';
 
 interface CreateBaseValues {
   name: string;
@@ -28,12 +34,27 @@ interface CreateBaseValues {
 export default function KnowledgeBasePage({ kbId }: { kbId?: number }) {
   const router = useRouter();
   const { t } = useTranslation();
+  const { user } = useAuth();
+  useRegisterPageUiViews('list', ['list', 'overview', 'docs', 'query', 'settings'], async (view, filters) => {
+    if (view === 'list') { router.push('/oa/knowledge-base'); return; }
+    const id = Number(filters.kbId);
+    if (!Number.isSafeInteger(id) || id < 1) throw new Error('PAGE_UI_FIELD_REJECTED');
+    const base = await knowledgeApi.getBase(id);
+    if (base.id !== id) throw new Error('PAGE_UI_FIELD_REJECTED');
+    router.push(`/oa/knowledge-bases/${id}?section=${view}`);
+  }, '', !kbId);
   const [bases, setBases] = useState<KnowledgeBase[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [createForm] = Form.useForm<CreateBaseValues>();
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [query, setQuery] = useState('');
+  const visibleBases = bases.filter(base => `${base.name} ${base.description ?? ''}`.toLowerCase().includes(query.trim().toLowerCase()));
+  const uiForm = usePageUiFormContext(!kbId && createModalOpen && !creating, undefined, undefined, `${user?.tenantId}:${user?.id}:${user?.permissionVersion}`);
+  const openCreate = () => {
+    uiForm.renew(); createForm.resetFields(); createForm.setFieldsValue({ icon: 'knowledge-base' }); setCreateModalOpen(true);
+  };
 
   const loadBases = useCallback(async () => {
     setLoading(true);
@@ -52,16 +73,28 @@ export default function KnowledgeBasePage({ kbId }: { kbId?: number }) {
       void loadBases();
     }
   }, [kbId, loadBases]);
+  usePublishPageAgentContext({ query: query || undefined });
+  usePageUiEditorCommands({ form: createForm, open: createModalOpen && !creating, canEdit: !kbId && Boolean(user), context: uiForm.context,
+    viewKey: kbId ? undefined : 'knowledge-base-list', create: openCreate,
+    fields: { name: 'string', icon: oaKnowledgeBaseIconOptions.map(option => option.value), description: 'string' },
+    labels: { name: t('common.name'), icon: t('knowledge.fieldIcon'), description: t('knowledge.fieldDescription') },
+    commands: kbId ? {} : { 'ui.refreshPage': loadBases,
+    'ui.applyFilter': ({ payload: { filters } }) => {
+      requireUiFieldTypes(filters, { query: 'string' });
+      if (filters.query !== undefined) setQuery(String(filters.query));
+    },
+    'ui.openDetail': async ({ payload: { recordId } }) => {
+      const id = Number(recordId);
+      if (!Number.isSafeInteger(id) || id < 1) throw new Error('PAGE_UI_FIELD_REJECTED');
+      const base = await knowledgeApi.getBase(id);
+      if (base.id !== id) throw new Error('PAGE_UI_FIELD_REJECTED');
+      router.push(`/oa/knowledge-bases/${id}`);
+    },
+  } });
 
   if (kbId) {
     return <KnowledgeBaseDetail kbId={kbId} />;
   }
-
-  const openCreate = () => {
-    createForm.resetFields();
-    createForm.setFieldsValue({ icon: 'knowledge-base' });
-    setCreateModalOpen(true);
-  };
 
   const submitCreate = async () => {
     const values = await createForm.validateFields();
@@ -135,7 +168,8 @@ export default function KnowledgeBasePage({ kbId }: { kbId?: number }) {
               gap: 16,
             }}
           >
-            {bases.map((item) => (
+            <Input.Search allowClear value={query} onChange={event => setQuery(event.target.value)} placeholder={t('common.searchPlaceholder')} />
+            {visibleBases.map((item) => (
               <Card
                 key={item.id}
                 hoverable
@@ -218,7 +252,7 @@ export default function KnowledgeBasePage({ kbId }: { kbId?: number }) {
         confirmLoading={creating}
         width={480}
       >
-        <Form form={createForm} layout="vertical" style={{ marginTop: 8 }}>
+        <Form form={createForm} layout="vertical" style={{ marginTop: 8 }} onValuesChange={uiForm.renew}>
           <Form.Item
             name="name"
             label={t('knowledge.fieldName')}

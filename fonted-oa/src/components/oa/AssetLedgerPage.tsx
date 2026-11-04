@@ -43,6 +43,10 @@ import { useRouter, useSearchParams } from '@/lib/nextCompat';
 import AdminAssetsPageShell from './AdminAssetsPageShell';
 import ResponsiveTable from './ResponsiveTable';
 import { usePublishPageAgentContext } from './PageAgentContext';
+import { useRegisterPageUiCommands } from './PageUiCommandBridge';
+import { requireUiFieldTypes } from '@/lib/preparedPageUiCommand';
+import { showUiFormPreview } from './UiFormPreview';
+import { usePageUiFormContext } from '@/hooks/usePageUiFormContext';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { useAsyncActionGuard } from '@/hooks/useAsyncActionGuard';
 import { isFormValidationError, useAsyncFormAction } from '@/hooks/useAsyncFormAction';
@@ -95,6 +99,7 @@ export default function AssetLedgerPage() {
   const [editing, setEditing] = useState<AssetLedger | null>(null);
   const submitting = editorAction.busy;
   const [form] = Form.useForm<AssetFormValues>();
+  const uiForm = usePageUiFormContext(editOpen && canManage && !submitting, editing?.id, editing?.version, actorScope);
   const [operationForm] = Form.useForm<OperationFormValues>();
   const [departmentOptions, setDepartments] = useState<{ scope: string; rows: AssetAssignmentOption[] }>();
   const departments = departmentOptions?.scope === actorScope ? departmentOptions.rows : [];
@@ -199,14 +204,45 @@ export default function AssetLedgerPage() {
   const openCreate = () => {
     if (!canManage || !capturePage()()) return;
     resetEditor();
+    uiForm.renew();
     setEditing(null);
     form.resetFields();
     setEditOpen(true);
   };
 
+  useRegisterPageUiCommands({
+    'ui.applyFilter': async ({ payload: { filters } }) => {
+      requireUiFieldTypes(filters, { keyword: 'string', category: 'string', status: ['', 'IDLE', 'IN_USE', 'REPAIRING', 'SCRAPPED'], page: 'number', size: 'number' });
+      const next = { keyword: String(filters.keyword ?? applied.keyword), category: String(filters.category ?? applied.category ?? ''), status: String(filters.status ?? applied.status ?? '') };
+      const nextPage = Number(filters.page ?? 1), nextSize = Number(filters.size ?? size);
+      if (!Number.isInteger(nextPage) || nextPage < 1 || nextPage > 10000 || !Number.isInteger(nextSize) || nextSize < 1 || nextSize > 100)
+        throw new Error('PAGE_UI_FIELD_REJECTED');
+      setKeyword(next.keyword); setCategory(next.category || undefined); setStatus(next.status || undefined); setPage(nextPage); setSize(nextSize);
+      await load(nextPage, nextSize, next);
+    },
+    'ui.refreshPage': async () => { await latestRefresh.current(); },
+    ...(canManage ? {
+      'ui.openCreateForm': () => openCreate(),
+      'ui.fillForm': async ({ payload: { values } }: Extract<import('@/lib/pageUiCommands').PageUiCommand, { code: 'ui.fillForm' }>) => {
+        if (!editOpen) throw new Error('PAGE_UI_FORM_CONTEXT_REQUIRED');
+        requireUiFieldTypes(values, { assetCode: 'string', name: 'string', category: 'string', specification: 'string',
+          ...(!editing ? { departmentId: 'number' as const } : {}), purchaseDate: 'string', originalValue: 'number', remark: 'string' });
+        form.setFieldsValue(values as Partial<AssetFormValues>);
+        await form.validateFields(Object.keys(values));
+      },
+      'ui.previewSubmission': async () => {
+        if (!editOpen) throw new Error('PAGE_UI_FORM_CLOSED');
+        const values = await form.validateFields();
+        showUiFormPreview(values, Object.fromEntries(['assetCode', 'name', 'category', 'specification', 'purchaseDate', 'originalValue', 'remark']
+          .map((name) => [name, t(`adminAssets.asset.${name}`)])));
+      },
+    } : {}),
+  }, uiForm.context);
+
   const openEdit = (record: AssetLedger) => {
     if (!canManage || !record.canEdit || !capturePage()()) return;
     resetEditor();
+    uiForm.renew();
     setEditing(record);
     form.setFieldsValue({
       assetCode: record.assetCode,
@@ -511,7 +547,7 @@ export default function AssetLedgerPage() {
         destroyOnClose
         width={560}
       >
-        <Form form={form} disabled={submitting} layout="vertical">
+        <Form form={form} disabled={submitting} layout="vertical" onValuesChange={uiForm.renew}>
           <Form.Item
             name="assetCode"
             label={t('adminAssets.asset.assetCode')}

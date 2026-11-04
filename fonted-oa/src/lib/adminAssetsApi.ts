@@ -8,7 +8,6 @@ import i18n from '@/i18n';
 export type AssetStatus = 'IN_USE' | 'IDLE' | 'REPAIRING' | 'SCRAPPED';
 
 export interface AssetAssignmentOption { id: number; name: string; departmentId: number | null }
-
 export interface BusinessUserOption { id: number; name: string }
 
 export interface AssetLedgerPayload {

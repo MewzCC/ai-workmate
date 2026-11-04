@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Alert, Button, Card, Form, InputNumber, Space, Spin, Switch, Tag, TimePicker, Typography } from 'antd';
 import dayjs, { type Dayjs } from 'dayjs';
@@ -11,6 +11,10 @@ import { formatOaApiError } from '@/lib/oaApi';
 import { usePermission } from '@/hooks/usePermission';
 import AttendancePageShell from './AttendancePageShell';
 import ResponsiveTable from './ResponsiveTable';
+import { useAuth } from '@/components/auth/AuthProvider';
+import { usePageUiEditorCommands } from '@/hooks/usePageUiEditorCommands';
+import { usePageUiFormContext } from '@/hooks/usePageUiFormContext';
+import { usePublishPageAgentContext } from './PageAgentContext';
 
 interface SettingsFormValues {
   workStartTime: Dayjs;
@@ -81,11 +85,18 @@ const NOTE_COLOR: Record<SampleRow['note'], string> = {
 
 export default function AttendanceSettingsPage() {
   const { t } = useTranslation();
-  const { allowed: canManage } = usePermission('attendance:settings:manage');
+  const { user } = useAuth();
+  const { allowed: canManage, permissionVersion } = usePermission(['route:attendance-settings', 'attendance:settings:manage']);
   const [form] = Form.useForm<SettingsFormValues>();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [version, setVersion] = useState(0);
+  const [loadedScope, setLoadedScope] = useState<string>();
+  const scope = `${user?.tenantId}:${user?.id}:${permissionVersion}:${canManage}`;
+  const activeScope = useRef<string | undefined>(scope); activeScope.current = scope;
+  const request = useRef(0);
+  const ready = loadedScope === scope && !loading;
+  const uiForm = usePageUiFormContext(ready && !saving && canManage, undefined, undefined, `${scope}:${version}`);
 
   const start = Form.useWatch('workStartTime', form);
   const end = Form.useWatch('workEndTime', form);
@@ -93,40 +104,45 @@ export default function AttendanceSettingsPage() {
   const endFlex = Form.useWatch('endFlexMinutes', form);
   const flexLinked = Form.useWatch('flexLinked', form);
 
-  useEffect(() => {
-    let cancelled = false;
+  const load = useCallback(async () => {
+    const ticket = ++request.current;
     setLoading(true);
-    attendanceApi
-      .getSettings()
-      .then((settings) => {
-        if (cancelled) return;
+    try {
+        const settings = await attendanceApi.getSettings();
+        if (ticket !== request.current || activeScope.current !== scope) return;
         form.setFieldsValue({
-          workStartTime: dayjs(settings.workStartTime, 'HH:mm'),
-          workEndTime: dayjs(settings.workEndTime, 'HH:mm'),
+          workStartTime: dayjs(`2000-01-01T${settings.workStartTime}`),
+          workEndTime: dayjs(`2000-01-01T${settings.workEndTime}`),
           startFlexMinutes: settings.startFlexMinutes,
           endFlexMinutes: settings.endFlexMinutes,
           flexLinked: settings.flexLinked,
         });
-        setVersion(settings.version);
-      })
-      .catch((err) => {
-        if (!cancelled) message.error(formatOaApiError(err));
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [form]);
+        setVersion(settings.version); setLoadedScope(scope);
+    } catch (err) {
+      if (ticket === request.current && activeScope.current === scope) { setLoadedScope(undefined); form.resetFields(); message.error(formatOaApiError(err)); }
+    } finally { if (ticket === request.current && activeScope.current === scope) setLoading(false); }
+  }, [scope, form]);
+  useEffect(() => {
+    activeScope.current = scope; form.resetFields(); void load();
+    return () => { request.current += 1; activeScope.current = undefined; };
+  }, [scope, form, load]);
+  usePublishPageAgentContext({ resource: 'SETTINGS' });
+  usePageUiEditorCommands({ form, open: ready && !saving, canEdit: canManage && ready, context: uiForm.context,
+    fields: { workStartTime: { date: 'time' }, workEndTime: { date: 'time' }, startFlexMinutes: 'number', endFlexMinutes: 'number', flexLinked: 'boolean' },
+    labels: { workStartTime: t('attendance.settings.workStartTime'), workEndTime: t('attendance.settings.workEndTime'),
+      startFlexMinutes: t('attendance.settings.startFlex'), endFlexMinutes: t('attendance.settings.endFlex'), flexLinked: t('attendance.settings.linkedFlex') },
+    commands: { 'ui.refreshPage': load },
+  });
 
   const handleSave = async () => {
+    if (!canManage || !ready || saving) return;
     let values: SettingsFormValues;
     try {
       values = await form.validateFields();
     } catch {
       return; // 表单校验错误由 Form.Item 展示
     }
+    if (activeScope.current !== scope) return;
     if (values.workStartTime.isSame(values.workEndTime)) {
       message.warning(t('attendance.settings.workHoursOrderHint'));
       return;
@@ -141,12 +157,13 @@ export default function AttendanceSettingsPage() {
         endFlexMinutes: values.endFlexMinutes,
         flexLinked: values.flexLinked,
       });
+      if (activeScope.current !== scope) return;
       setVersion(updated.version);
       message.success(t('attendance.settings.saveSuccess'));
     } catch (err) {
-      message.error(formatOaApiError(err));
+      if (activeScope.current === scope) message.error(formatOaApiError(err));
     } finally {
-      setSaving(false);
+      if (activeScope.current === scope) setSaving(false);
     }
   };
 
@@ -201,7 +218,7 @@ export default function AttendanceSettingsPage() {
             {!canManage && (
               <Alert type="warning" showIcon style={{ marginBottom: 16 }} message={t('attendance.settings.adminOnly')} />
             )}
-            <Form form={form} layout="vertical">
+            <Form form={form} layout="vertical" onValuesChange={uiForm.renew}>
               <Space size="large" wrap>
                 <Form.Item
                   name="workStartTime"

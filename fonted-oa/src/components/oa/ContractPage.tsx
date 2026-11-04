@@ -17,6 +17,9 @@ import { usePermission } from '@/hooks/usePermission';
 import { useRouter, useSearchParams } from '@/lib/nextCompat';
 import { parseRecordId } from '@/lib/recordSelection';
 import { usePublishPageAgentContext } from './PageAgentContext';
+import { usePageUiFormContext } from '@/hooks/usePageUiFormContext';
+import { usePageUiEditorCommands, requireUiPagination } from '@/hooks/usePageUiEditorCommands';
+import { requireUiFieldTypes } from '@/lib/preparedPageUiCommand';
 import {
   contractApi, type BusinessContract, type ContractCurrency, type ContractDetail,
   type ContractExpiryState, type ContractOption, type ContractPayload, type ContractStatus,
@@ -72,6 +75,7 @@ export default function ContractPage() {
   const [size, setSize] = useState(20);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editing, setEditing] = useState<BusinessContract>();
+  const uiForm = usePageUiFormContext(editorOpen && !saving && dataScope === scope, editing?.id, editing?.version, scope);
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detail, setDetail] = useState<ContractDetail>();
@@ -180,6 +184,7 @@ export default function ContractPage() {
   };
   const openCreate = () => {
     if (!canManage) return;
+    uiForm.renew();
     editorRequest.current += 1; clearDetail(); closePayment();
     setEditing(undefined); form.resetFields();
     form.setFieldsValue({ contractType: 'PURCHASE', currency: 'CNY' });
@@ -187,6 +192,7 @@ export default function ContractPage() {
   };
   const openEdit = (record: BusinessContract) => {
     if (!canManage || !record.canManage || !['DRAFT', 'ACTIVE'].includes(record.status)) return;
+    uiForm.renew();
     editorRequest.current += 1; clearDetail(); closePayment();
     setDetailOpen(false); setEditing(record);
     form.setFieldsValue({
@@ -198,6 +204,25 @@ export default function ContractPage() {
     });
     setEditorOpen(true);
   };
+  usePageUiEditorCommands({ form, open: editorOpen, canEdit: canManage, context: uiForm.context, create: openCreate,
+    fields: { ...(!editing ? { code: 'string' as const } : {}), name: 'string', contractType: TYPES, counterpartyName: 'string', supplierId: 'number',
+      ownerUserId: 'number', amount: 'number', currency: CURRENCIES, signedDate: { date: 'date' }, startDate: { date: 'date' }, endDate: { date: 'date' }, summary: 'string' },
+    labels: Object.fromEntries(['code', 'name', 'contractType', 'counterpartyName', 'supplierId', 'ownerUserId', 'amount', 'currency', 'signedDate', 'startDate', 'endDate', 'summary']
+      .map((name) => [name, t(`contract.form.${name === 'contractType' ? 'type' : name === 'counterpartyName' ? 'counterparty' : name === 'supplierId' ? 'supplier' : name === 'ownerUserId' ? 'owner' : name}`)])),
+    commands: {
+      'ui.refreshPage': async () => { await load(); },
+      'ui.applyFilter': ({ payload: { filters } }) => {
+        requireUiFieldTypes(filters, { keyword: 'string', status: ['', ...STATUSES], contractType: ['', ...TYPES], expiryState: ['', 'EXPIRING', 'EXPIRED'], page: 'number', size: 'number' });
+        requireUiPagination(filters);
+        if (filters.keyword !== undefined) { setKeyword(String(filters.keyword)); setKeywordInput(String(filters.keyword)); }
+        if (filters.status !== undefined) setStatus((filters.status || undefined) as ContractStatus | undefined);
+        if (filters.contractType !== undefined) setContractType((filters.contractType || undefined) as ContractType | undefined);
+        if (filters.expiryState !== undefined) setExpiryState((filters.expiryState || undefined) as 'EXPIRING' | 'EXPIRED' | undefined);
+        setPage(Number(filters.page ?? 1)); if (filters.size !== undefined) setSize(Number(filters.size));
+      },
+    },
+  });
+
   const save = async () => {
     if (!canManage || saving || (editing && !editing.canManage)) return;
     const target = editing; const request = editorRequest.current; const identity = scopeRequest.current;
@@ -356,7 +381,7 @@ export default function ContractPage() {
 
     <Drawer width="min(760px, 100vw)" open={editorOpen && dataScope === scope} title={t(editing ? 'contract.form.editTitle' : 'contract.form.createTitle')}
       onClose={closeEditor} extra={<Button type="primary" disabled={!canManage} loading={saving} onClick={() => void save()}>{t('common.save')}</Button>}>
-      <ContractForm form={form} disabled={!canManage} editing={Boolean(editing)} typeOptions={typeOptions} ownerOptions={ownerOptions} supplierOptions={supplierOptions} />
+      <ContractForm form={form} disabled={!canManage} editing={Boolean(editing)} typeOptions={typeOptions} ownerOptions={ownerOptions} supplierOptions={supplierOptions} onValuesChange={uiForm.renew} />
     </Drawer>
 
     <Drawer width="min(820px, 100vw)" open={detailOpen && dataScope === scope} loading={detailLoading} title={t('contract.detail.title')}
@@ -383,13 +408,14 @@ export default function ContractPage() {
   </section>;
 }
 
-function ContractForm({ form, editing, disabled, typeOptions, ownerOptions, supplierOptions }: {
+function ContractForm({ form, editing, disabled, typeOptions, ownerOptions, supplierOptions, onValuesChange }: {
+  onValuesChange: () => void;
   form: ReturnType<typeof Form.useForm<ContractFormValues>>[0]; editing: boolean; disabled: boolean;
   typeOptions: Array<{ value: ContractType; label: string }>; ownerOptions: Array<{ value: number; label: string }>;
   supplierOptions: Array<{ value: number; label: string }>;
 }) {
   const { t } = useTranslation();
-  return <Form form={form} disabled={disabled} layout="vertical" requiredMark="optional" className="oa-contract-form">
+  return <Form form={form} disabled={disabled} layout="vertical" requiredMark="optional" className="oa-contract-form" onValuesChange={onValuesChange}>
     <Typography.Title level={5}>{t('contract.form.identity')}</Typography.Title><div className="oa-contract-form-grid">
       <Form.Item name="code" label={t('contract.form.code')} rules={[{ required: true, message: t('contract.form.required') }]}><Input disabled={editing} maxLength={64} placeholder={t('contract.form.codePlaceholder')} /></Form.Item>
       <Form.Item name="name" label={t('contract.form.name')} rules={[{ required: true, message: t('contract.form.required') }]}><Input maxLength={160} placeholder={t('contract.form.namePlaceholder')} /></Form.Item>

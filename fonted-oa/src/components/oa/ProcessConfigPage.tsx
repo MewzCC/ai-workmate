@@ -11,13 +11,14 @@ import ProcessDesignerModal from './ProcessDesignerModal';
 import { StatusTag } from './FormEnginePage';
 import ResponsiveTable from './ResponsiveTable';
 import { useApprovalDefinitionPage } from './useApprovalDefinitionPage';
+import { collectPagedRecords } from '@/lib/collectPagedRecords';
 
 function nodeCount(json: string): number {
   try { const value: unknown = JSON.parse(json); return Array.isArray(value) ? value.length : 0; } catch { return 0; }
 }
 const api = { list: approvalEngineApi.listProcesses, get: approvalEngineApi.getProcess, create: approvalEngineApi.createProcess,
   update: approvalEngineApi.updateProcess, remove: approvalEngineApi.deleteProcess };
-const loadForms = async () => (await approvalEngineApi.listForms({ page: 1, size: 100 })).records;
+const loadForms = () => collectPagedRecords((page, size) => approvalEngineApi.listForms({ page, size }));
 
 export default function ProcessConfigPage() {
   const { t } = useTranslation();
