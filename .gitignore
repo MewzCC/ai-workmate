@@ -60,6 +60,7 @@ backend/src/main/resources/application-local.yaml
 .trae/
 .reasonix/
 reasonix.toml
+.workbuddy-ai/
 *.iml
 *.ipr
 *.iws

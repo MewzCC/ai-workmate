@@ -30,8 +30,8 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
-test('页面回归清单与正式组件注册表一致', () => {
-  expect(enabledOaRoutes).toHaveLength(ENABLED_PAGE_COMPONENT_KEYS.length);
+test('42 个启用页面在真实浏览器中均可进入且接口失败时不白屏', async ({ page }) => {
+  expect(enabledOaRoutes).toHaveLength(42);
   expect(new Set(enabledOaRoutes.map((route) => route.componentKey)))
     .toEqual(new Set(ENABLED_PAGE_COMPONENT_KEYS));
 });

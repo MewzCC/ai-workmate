@@ -10,6 +10,7 @@ import type {
   PageCapability,
 } from '@/types/oa';
 import { buildApiHeaders } from '@/lib/apiHeaders';
+import { uuid } from '@/lib/uuid';
 import i18n from '@/i18n';
 import { authenticatedFetch as fetch, assertAuthResponseCurrent, captureAuthResponseScope, isAuthResponseCurrent, notifyAuthResponseStatus, readAuthenticatedJson, readAuthenticatedChunk } from '@/lib/authEvents';
 import { requirePageUiCommandCodes } from '@/lib/pageUiCommands';
@@ -118,7 +119,7 @@ export async function getPageCapabilities(pageId: string): Promise<PageCapabilit
 }
 
 export function createIdempotencyKey(): string {
-  return crypto.randomUUID();
+  return uuid();
 }
 
 export async function classifyAiIntent(input: string, signal?: AbortSignal): Promise<import('@/types/chat').AiChatIntent> {
