@@ -121,12 +121,13 @@
 /* Direction two: oversized print, tactile cards and a horizontal story. */
 .bm-kinetic {
   --ground: #e9ff52; --ink: #1427e8; --muted: #526622; --edge: #1427e85c; --accent: #1427e8;
-  --bm-nav-height: 90px;
+  --bm-nav-height: 68px;
 }
 .bm-kinetic .bm-design-switch { background: #1427e8; color: #e9ff52; --muted: #e9ff5280; --ink: #e9ff52; --edge: #e9ff5255; }
 .bm-kinetic .bm-nav { height: var(--bm-nav-height); position: sticky; top: 0; z-index: 60; background: var(--ground); }
 .bm-kinetic main [id] { scroll-margin-top: calc(var(--bm-nav-height) + 16px); }
-.bm-kinetic .bm-brand-symbol { font-size: 40px; }
+.bm-kinetic .bm-brand-symbol { font-size: 34px; }
+.bm-kinetic .bm-brand strong { font-size: 16px; }
 .bm-kinetic .bm-cta { background: var(--ink); color: var(--ground); border: 2px solid var(--ink); border-radius: 0; box-shadow: 5px 5px 0 var(--ground),6px 6px 0 var(--ink); }
 .bm-kinetic .bm-cta:hover { background: var(--ground); color: var(--ink); }
 .bm-kinetic-hero { padding: 28px 4% 45px; min-height: 940px; height: calc(100svh - 142px); max-height: 1250px; }
@@ -288,10 +289,12 @@
   .bm-rail-art { width: 260px; height: 260px; right: 15%; }
 }
 @media (max-width: 720px) {
-  .bm-kinetic { --bm-nav-height: 76px; }
-  .bm-nav, .bm-kinetic .bm-nav { height: 76px; padding-inline: 6%; }
+  .bm-kinetic { --bm-nav-height: 60px; }
+  .bm-nav, .bm-kinetic .bm-nav { height: var(--bm-nav-height, 76px); padding-inline: 6%; }
   .bm-brand strong { font-size: 15px; }
   .bm-brand-symbol { font-size: 30px; }
+  .bm-kinetic .bm-brand-symbol { font-size: 30px; }
+  .bm-kinetic .bm-brand strong { font-size: 15px; }
   .bm-nav nav { display: none; }
   .bm-nav-cta { display: none; }
   .bm-nav-right { gap: 0; }
