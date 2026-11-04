@@ -95,6 +95,7 @@ const aiPermission = {
     observability_thresholds_update: { name: '调整平台观测视觉阈值', description: '经明确确认后，调整当前用户的视觉提示阈值，不创建真实告警或通知。' },
     approval_application_detail_query: { name: '读取本人通用申请详情', description: '按历史表单快照读取本人一条申请，隐藏敏感字段和附件，不读取他人记录。' },
     approval_genericTask_detail_query: { name: '读取本人通用审批待办详情', description: '读取本人受理任务的冻结字段、节点状态和版本，每页四个字段；隐藏敏感内容和附件，不执行审批。' },
+    approval_genericTask_approve: { name: '通过单个通用审批节点', description: '二次确认后通过本人受理的一个通用审批节点，重新校验任务版本和冻结流程；有后续节点时不表示整单已通过。' },
     approval_application_mine_query: { name: '查询本人通用申请', description: '分页查询本人通用表单申请与草稿，不返回表单原始值、人员身份或跨租户记录。' },
     approval_application_createDraft: { name: '创建通用申请草稿', description: '仅保存本人草稿，不启动审批。' },
     approval_application_submitDraft: { name: '提交通用申请草稿', description: '提交本人且版本匹配的草稿并启动审批。' },

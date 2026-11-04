@@ -47,4 +47,15 @@ class UnifiedTodoResultPresenterTest {
         ((com.fasterxml.jackson.databind.node.ObjectNode)detail).put("fieldPage",26);
         assertThatThrownBy(()->AgentReadResultPresenter.present("approval.genericTask.detail.query",detail)).isInstanceOf(BusinessException.class);
     }
+    @Test void genericApprovalReceiptsDistinguishOneNodeHandoffFromFinalCompletionInBothLanguages() throws Exception {
+        var receipt=(com.fasterxml.jackson.databind.node.ObjectNode)json.readTree("{\"taskId\":8,\"applicationId\":9,\"status\":\"APPROVED\",\"version\":3,\"applicationStatus\":\"PENDING\",\"action\":\"APPROVE\"}");
+        for(Locale language:new Locale[]{Locale.SIMPLIFIED_CHINESE,Locale.US}) {
+            LocaleContextHolder.setLocale(language);receipt.put("applicationStatus","PENDING");
+            String pending=AgentReadResultPresenter.present("approval.genericTask.approve",receipt);
+            assertThat(pending).contains(language.equals(Locale.US)?"remains pending":"整单仍在审批中").doesNotContain("agent.genericTask.");
+            receipt.put("applicationStatus","APPROVED");String completed=AgentReadResultPresenter.present("approval.genericTask.approve",receipt);
+            assertThat(completed).contains(language.equals(Locale.US)?"has completed approval":"审批已完成并通过").isNotEqualTo(pending);
+        }
+        receipt.put("status","REJECTED");assertThatThrownBy(()->AgentReadResultPresenter.present("approval.genericTask.approve",receipt)).isInstanceOf(BusinessException.class);
+    }
 }

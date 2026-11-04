@@ -71,6 +71,7 @@ public enum ToolCode {
     APPROVAL_APPLICATION_MINE_QUERY("approval.application.mine.query", SideEffect.NONE),
     APPROVAL_APPLICATION_DETAIL_QUERY("approval.application.detail.query", SideEffect.NONE),
     APPROVAL_GENERIC_TASK_DETAIL_QUERY("approval.genericTask.detail.query", SideEffect.NONE),
+    APPROVAL_GENERIC_TASK_APPROVE("approval.genericTask.approve", SideEffect.SINGLE_WRITE),
     APPROVAL_APPLICATION_CREATE_DRAFT("approval.application.createDraft", SideEffect.SINGLE_WRITE),
     APPROVAL_APPLICATION_APPLY("approval.application.apply", SideEffect.SINGLE_WRITE),
     APPROVAL_APPLICATION_UPDATE_DRAFT("approval.application.updateDraft", SideEffect.SINGLE_WRITE),

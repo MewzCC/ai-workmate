@@ -90,6 +90,8 @@ class PageCapabilityCatalogTest {
         assertThat(catalog.find("todo").orElseThrow().readTools().stream().filter(reference -> reference.code() != ToolCode.PAGE_UI_PREPARE).toList())
                 .extracting(PageToolReference::code)
                 .containsExactly(ToolCode.TODO_QUERY, ToolCode.APPROVAL_GENERIC_TASK_DETAIL_QUERY);
+        assertThat(catalog.find("todo").orElseThrow().writeTools()).extracting(PageToolReference::code)
+                .containsExactly(ToolCode.APPROVAL_GENERIC_TASK_APPROVE);
         assertThat(catalog.find("dashboard").orElseThrow().readTools().stream().filter(reference -> reference.code() != ToolCode.PAGE_UI_PREPARE).toList())
                 .extracting(PageToolReference::code)
                 .contains(ToolCode.USER_PERMISSION_MINE_QUERY, ToolCode.DASHBOARD_OVERVIEW_QUERY);

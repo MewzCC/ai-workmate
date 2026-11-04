@@ -11,7 +11,7 @@ export function agentTaskNavigationTarget(detail: Pick<AgentTaskDetail, 'status'
       || detail.steps.some((step) => step.status !== 'SUCCEEDED' || step.result == null)) return null;
   const last = detail.steps[detail.steps.length - 1];
   if (last.toolCode === 'page.ui.prepare') return null;
-  if (last.toolCode === 'approval.genericTask.detail.query') {
+  if (['approval.genericTask.detail.query', 'approval.genericTask.approve'].includes(last.toolCode)) {
     const recordId = agentToolTargetRecordId(last.toolCode, last.result);
     return recordId === undefined ? null : { pageId: 'todo', recordId, recordKind: 'generic-task' };
   }
@@ -41,6 +41,7 @@ const EXACT_TARGETS: Record<string, string> = {
   'agentTask.cancel': 'ai-tasks',
   'todo.query': 'todo',
   'approval.genericTask.detail.query': 'todo',
+  'approval.genericTask.approve': 'todo',
   'dashboard.overview.query': 'dashboard',
   'dashboard.preferences.update': 'dashboard',
   'knowledge.search': 'knowledge-base',
@@ -143,6 +144,7 @@ const DICTIONARY_RECORD_KINDS: ReadonlyMap<string, AgentRecordKind> = new Map(
 );
 const RECORD_ID_FIELDS: ReadonlyMap<string, string> = new Map([
   ['approval.genericTask.detail.query', 'taskId'],
+  ['approval.genericTask.approve', 'taskId'],
   ...['approval.rule.definition.query', 'approval.rule.createDraft', 'approval.rule.updateDraft', 'approval.rule.patchDraftCondition', 'approval.rule.enableDraft']
     .map((code): [string, string] => [code, 'ruleId']),
   ...['approval.form.definition.query', 'approval.form.createDraft', 'approval.form.updateDraft', 'approval.form.patchDraftField', 'approval.form.publishDraft']

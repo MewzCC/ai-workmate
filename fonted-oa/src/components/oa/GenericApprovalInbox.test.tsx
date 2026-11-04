@@ -4,7 +4,7 @@ import { t } from 'i18next';
 import { bindAuthResponseIdentity } from '@/lib/authEvents';
 import type { GenericApprovalTaskDetail } from '@/lib/genericApprovalTaskApi';
 import type { PageUiCommandHandlers } from '@/lib/pageUiCommands';
-import { PageAgentContextProvider } from './PageAgentContext';
+import { PageAgentContextProvider, usePageAgentContextSnapshot } from './PageAgentContext';
 
 const auth = vi.hoisted(() => ({ user: { id: 7, tenantId: 1, permissionVersion: 1, roles: ['USER'], permissions: ['todo:read', 'approval:act'], dataScopes: ['SELF'] } }));
 const api = vi.hoisted(() => ({ mine: vi.fn(), detail: vi.fn(), approve: vi.fn(), reject: vi.fn(), push: vi.fn(), error: vi.fn(), success: vi.fn() }));
@@ -27,6 +27,9 @@ const detail = (id = 42): GenericApprovalTaskDetail => ({
 const tree = (tabs = false) => <PageAgentContextProvider pageId="todo">{tabs ? <TodoListPage /> : <GenericApprovalInbox />}</PageAgentContextProvider>;
 const confirmButton = () => screen.getByRole('button', { name: new RegExp(t('common.confirm').split('').join('\\s*')) });
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(done => { resolve = done; }); return { promise, resolve }; }
+function ContextProbe() { return <output data-testid="generic-task-context">{JSON.stringify(usePageAgentContextSnapshot())}</output>; }
+const contextTree = () => <PageAgentContextProvider pageId="todo"><GenericApprovalInbox /><ContextProbe /></PageAgentContextProvider>;
+const publishedContext = () => JSON.parse(screen.getByTestId('generic-task-context').textContent || '{}') as Record<string, unknown>;
 beforeEach(() => {
   vi.clearAllMocks(); state.search = 'kind=generic';
   auth.user = { ...auth.user, id: 7, permissionVersion: 1, permissions: ['todo:read', 'approval:act'] }; bindAuthResponseIdentity('generic-actor', 'act');
@@ -35,6 +38,33 @@ beforeEach(() => {
   api.reject.mockImplementation(async () => { const receipt = { ...detail(), applicationStatus: 'REJECTED', instanceStatus: 'COMPLETED', task: { ...detail().task, status: 'REJECTED', version: 3 }, canApprove: false, canReject: false }; api.detail.mockResolvedValue(receipt); return receipt; });
 });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
+
+it('publishes only a loaded task ID and version and removes them when details close', async () => {
+  state.search += '&taskId=42'; const late = deferred<GenericApprovalTaskDetail>(); api.detail.mockReturnValueOnce(late.promise);
+  const view = render(contextTree()); await waitFor(() => expect(api.detail).toHaveBeenCalledWith(42, 1));
+  expect(publishedContext().taskId).toBeUndefined();
+  await act(async () => late.resolve(detail())); await screen.findByText('Original payload');
+  await waitFor(() => expect(publishedContext()).toMatchObject({ taskId: 42, taskVersion: 2 }));
+  expect(JSON.stringify(publishedContext())).not.toContain('Original payload');
+  state.search = 'kind=generic'; view.rerender(contextTree());
+  await waitFor(() => expect(publishedContext().taskId).toBeUndefined()); expect(publishedContext().taskVersion).toBeUndefined();
+});
+
+it('never lets a late previous task overwrite the current task context and clears it on revocation', async () => {
+  state.search += '&taskId=42'; const late = deferred<GenericApprovalTaskDetail>(); api.detail.mockReturnValueOnce(late.promise);
+  const view = render(contextTree()); await waitFor(() => expect(api.detail).toHaveBeenCalledWith(42, 1));
+  state.search = 'kind=generic&taskId=43'; api.detail.mockResolvedValue({ ...detail(43), task: { ...detail(43).task, version: 5 } }); view.rerender(contextTree());
+  await waitFor(() => expect(publishedContext()).toMatchObject({ taskId: 43, taskVersion: 5 }));
+  await act(async () => late.resolve(detail())); expect(publishedContext()).toMatchObject({ taskId: 43, taskVersion: 5 });
+  auth.user = { ...auth.user, permissions: [], permissionVersion: 2 }; view.rerender(contextTree());
+  await waitFor(() => expect(publishedContext().taskId).toBeUndefined()); expect(publishedContext().taskVersion).toBeUndefined();
+});
+
+it.each([-1, 1.5, Number.NaN])('does not publish an invalid task version %s', async version => {
+  state.search += '&taskId=42'; api.detail.mockResolvedValue({ ...detail(), task: { ...detail().task, version } });
+  render(contextTree()); await screen.findByText('Original payload');
+  expect(publishedContext().taskId).toBeUndefined(); expect(publishedContext().taskVersion).toBeUndefined();
+});
 
 it('uses real URL tabs and numeric filters without mounting the leave query', async () => {
   render(tree(true)); await screen.findByText('Frozen request');

@@ -77,6 +77,9 @@ function GenericTaskDrawer({ id, onClose, onUpdated }: { id: number; onClose: ()
   const { t } = useTranslation(), [page, setPage] = useState(1), mobile = useIsMobile();
   const query = useCallback(async () => { const value = await api.detail(id, page); if (value.task.id !== id || value.fieldPage !== page) throw new Error('PAGE_UI_FIELD_REJECTED'); return value; }, [id, page]);
   const overview = useScopedOverview(query), data = overview.data;
+  const currentTask = !overview.loading && overview.error == null && overview.isCurrent() && data
+    && Number.isSafeInteger(data.task.version) && data.task.version >= 0 ? data.task : undefined;
+  usePublishPageAgentContext({ taskId: currentTask?.id, taskVersion: currentTask?.version });
   return <Drawer open width={mobile ? '100%' : 680} title={t('approval.genericTasks.detailTitle', { id })} onClose={onClose}>
     {overview.error != null && <Alert type="error" showIcon message={formatOaApiError(overview.error)} action={<Button onClick={() => void overview.load()}>{t('common.retry')}</Button>} />}
     <Spin spinning={overview.loading}>{data ? <>

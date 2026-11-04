@@ -41,6 +41,7 @@ public final class AgentReadResultPresenter {
         if ("approval.process.definition.query".equals(toolCode)) return processDefinition(result);
         if ("approval.task.participants.query".equals(toolCode)) return approvalParticipants(result);
         if ("approval.genericTask.detail.query".equals(toolCode)) return genericTaskDetail(result);
+        if ("approval.genericTask.approve".equals(toolCode)) return genericTaskApprove(result);
         if ("todo.query".equals(toolCode)) return todo(result);
         if ("userPermission.mine.query".equals(toolCode)) return userPermissions(result);
         if ("dashboard.overview.query".equals(toolCode)) return dashboard(result);
@@ -386,6 +387,18 @@ public final class AgentReadResultPresenter {
         }
         if (total > shown) answer.append('\n').append(MessageUtils.resolve(unified ? "agent.todo.unified.more" : "agent.todo.more", total - shown));
         return answer.toString();
+    }
+
+    private static String genericTaskApprove(JsonNode result) {
+        requireWriteReceipt(result, "APPROVED", 1);
+        String applicationStatus = result.path("applicationStatus").asText();
+        if (!result.path("taskId").isIntegralNumber() || !result.path("taskId").canConvertToLong()
+                || result.path("taskId").asLong() < 1 || !"APPROVE".equals(result.path("action").asText())
+                || !List.of("PENDING", "APPROVED").contains(applicationStatus))
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        return MessageUtils.resolve("PENDING".equals(applicationStatus) ? "agent.genericTask.approve.handoff" : "agent.genericTask.approve.completed",
+                Long.toString(result.path("taskId").asLong()), Long.toString(result.path("applicationId").asLong()),
+                Integer.toString(result.path("version").asInt()));
     }
 
     private static String genericTaskDetail(JsonNode result) {

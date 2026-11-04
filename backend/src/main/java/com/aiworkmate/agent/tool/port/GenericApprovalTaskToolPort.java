@@ -6,6 +6,12 @@ import java.util.List;
 /** Assigned generic approval tasks; no raw form schema, process rules or attachment locations. */
 public interface GenericApprovalTaskToolPort {
     Detail detailAssigned(ToolActorContext context, DetailQuery query);
+    WriteResult approve(ToolActorContext context, DecisionCommand command);
+
+    record DecisionCommand(long taskId, int version, String comment) { }
+    /** Status and version belong to the decided node; applicationStatus describes the whole request. */
+    record WriteResult(long applicationId, long taskId, String status, int version, String applicationStatus, String action)
+            implements ToolWriteReceipt { }
 
     record DetailQuery(long taskId, int fieldPage) { }
 
