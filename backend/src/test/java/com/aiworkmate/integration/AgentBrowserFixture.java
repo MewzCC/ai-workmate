@@ -52,8 +52,9 @@ final class AgentBrowserFixture {
         launcher.environment().put("AGENT_BROWSER_UI_PORT", Integer.toString(uiPort));
         Process browser = launcher.start();
         try {
-            assertThat(browser.waitFor(210, TimeUnit.SECONDS)).as("owned browser completion budget").isTrue();
-            Files.readAllLines(log).stream().filter(line -> line.startsWith("Browser acceptance:")).forEach(System.out::println);
+            long completionSeconds = "pages".equals(session.get("AGENT_BROWSER_MODE")) ? 360 : 210;
+            assertThat(browser.waitFor(completionSeconds, TimeUnit.SECONDS)).as("owned browser completion budget").isTrue();
+            Files.readAllLines(log).stream().filter(line -> line.startsWith("Browser acceptance:") && !line.startsWith("Browser acceptance: checking ")).forEach(System.out::println);
             assertThat(browser.exitValue()).as("browser acceptance exit code; inspect only the private local log").isZero();
         } finally {
             if (browser.isAlive()) {

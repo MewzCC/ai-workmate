@@ -51,14 +51,14 @@ AI WorkMate 是一个面向企业协同场景的 AI 助手与 OA 工作台平台
 ### 受控 Agent
 
 - 持久化任务、步骤、事件、租约 Worker、幂等、取消、恢复、保留清理和 SSE 进度。
-- Phase 2A 只读工具：`todo.query`、`leave.mine`、`knowledge.search`、`notification.mine`。
-- Phase 2B 受控写工具：`leave.createDraft`、`leave.submit`，每个任务最多一个写步骤并要求确认。
+- 当前代码登记 152 个工具：50 个只读、102 个受控写，覆盖审批、人事、资产、会议、访客、用印、财务、知识库、设置和平台观测。登记数量不代表运行启用或验收数量，详见[全页面工具交付清单](docs/roadmap/all-page-agent-tool-delivery.md)。
+- 每个任务最多一个写步骤，并按风险要求确认；新增通用申请、费用原子提交工具默认保持关闭，需独立验收与发布。
 - Tool Gateway 重新校验任务快照、租户、用户、实时权限、Worker 租约、attempt、哈希、确认、预算、Kill Switch 和审计。
 - 工具 Handler 只能通过固定注册表分派；领域 Service 再次校验租户、所有权、权限和业务状态。
 - SQL、代码执行、文件系统、任意 URL、权限修改、删除、批量操作、敏感导出、外部消息和后台自治属于永久禁止能力。
 - Agent 与写工具默认关闭；数据库策略只能进一步收紧能力，不能绕过代码安全上限。
 
-全界面交付状态见 [R3–R4 全界面真实业务闭环验收记录](docs/roadmap/r3-r4-business-closure-acceptance.md)。安全设计详见 [Phase 2 Agent 安全边界](docs/roadmap/phase-2-agent-security-boundary.md)、[Tool Gateway 架构](docs/architecture/agent-tool-gateway.md) 和 [Agent 任务引擎](docs/architecture/agent-task-engine.md)。
+当前问题与剩余验收见 [OA 与 Agent 问题基线](docs/roadmap/oa-agent-issue-baseline-20261026.md)；本轮按用户要求停止扩展，收尾情况见 [工作树提交记录](docs/roadmap/batches/20261104-worktree-closeout.md)。[R3–R4 验收记录](docs/roadmap/r3-r4-business-closure-acceptance.md)保留对应历史提交的结果，不能代替本轮验收。安全设计详见 [Phase 2 Agent 安全边界](docs/roadmap/phase-2-agent-security-boundary.md)、[Tool Gateway 架构](docs/architecture/agent-tool-gateway.md) 和 [Agent 任务引擎](docs/architecture/agent-task-engine.md)。
 
 ## 技术栈
 

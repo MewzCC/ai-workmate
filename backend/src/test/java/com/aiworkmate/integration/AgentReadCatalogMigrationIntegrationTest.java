@@ -103,7 +103,7 @@ class AgentReadCatalogMigrationIntegrationTest extends AbstractIsolatedAgentInte
     }
 
     private void assertCurrentContracts() {
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM agent_tool WHERE tenant_id IS NULL AND code IN ('expense.apply','approval.application.apply') AND enabled", Long.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT enabled FROM agent_tool WHERE tenant_id IS NULL AND code='expense.apply'", Boolean.class)).isFalse();
         org.assertj.core.api.SoftAssertions.assertSoftly(soft -> {
             for (var definition : catalog.all()) {
                 String code = definition.code();

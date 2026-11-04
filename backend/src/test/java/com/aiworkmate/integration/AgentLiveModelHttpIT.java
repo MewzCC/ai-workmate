@@ -139,6 +139,64 @@ class AgentLiveModelHttpIT extends AbstractIsolatedAgentIntegrationTest {
         assertThat(MODEL_CALLS).hasSizeBetween(2, 3).allMatch(call -> "NONE".equals(call.failure()));
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"asset.department.query", "asset.department.query", "asset.department.query", "asset.custodian.query", "asset-owner-by-name"})
+    void assetNameLookupsUseTheGovernedDomainWithoutHumanResourcesPermission(String expectedTool) throws Exception {
+        long tenant = jdbc.queryForObject("SELECT id FROM tenant WHERE code='DEFAULT'", Long.class);
+        jdbc.update("UPDATE agent_tenant_policy SET enabled=true,write_tools_enabled=false WHERE tenant_id=?", tenant);
+        jdbc.update("DELETE FROM agent_page_action_policy WHERE tenant_id=? AND page_id IN ('asset-ledger','ai-workspace')", tenant);
+        var http = new AgentHttpTestFixture(jdbc, json, passwords, port, "zh-CN");
+        var actor = http.createAndLogin(tenant, List.of("route:ai-workspace", "route:asset-ledger", "asset:write",
+                "agent:tool:asset.department.query", "agent:tool:asset.custodian.query"));
+        assertThat(registry.resolveAllowedTools(access.resolveActiveUser(actor.id()), "ai-workspace"))
+                .extracting(definition -> definition.code()).containsExactlyInAnyOrder("asset.department.query", "asset.custodian.query");
+        String marker = "lookup-" + UUID.randomUUID();
+        long department = jdbc.queryForObject("INSERT INTO department(tenant_id,code,name) VALUES (?,?,?) RETURNING id", Long.class, tenant, marker, marker);
+        long person = jdbc.queryForObject("INSERT INTO app_user(tenant_id,username,display_name,password,department_id) VALUES (?,?,?,'unusable synthetic password',?) RETURNING id",
+                Long.class, tenant, marker, marker, department);
+        String input = "asset.department.query".equals(expectedTool)
+                ? "在本租户可选的部门中，按部门名称关键词“" + marker + "”查找部门候选，只查询部门编号和名称。"
+                : "asset-owner-by-name".equals(expectedTool)
+                    ? "查询资产名称包含“" + marker + "”的资产分别属于哪个部门。不要按部门名称搜索，因为这是资产名称。"
+                    : "在部门编号 " + department + " 中按姓名“" + marker + "”查询资产保管候选人，只查询，不领用也不调拨。";
+        var request = json.createObjectNode().put("input", input).put("pageId", "ai-workspace");
+        request.set("pageContext", json.createObjectNode());
+        var planned = AgentHttpTestFixture.client().send(http.request("POST", "/api/ai/tasks/plan", actor,
+                UUID.randomUUID().toString(), request.toString()).timeout(Duration.ofSeconds(40)).build(), HttpResponse.BodyHandlers.ofString());
+        if ("asset-owner-by-name".equals(expectedTool)) {
+            assertThat(planned.statusCode()).isEqualTo(400);
+            assertThat(json.readTree(planned.body()).path("errorCode").asText()).isEqualTo("SCHEMA_INVALID");
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM agent_tool_invocation WHERE user_id=?", Long.class, actor.id())).isZero();
+            assertThat(MODEL_CALLS).isNotEmpty().allMatch(call -> "NONE".equals(call.failure()));
+            assertThat(MODEL_CALLS).anyMatch(call -> call.shape().contains("steps=0"));
+            return;
+        }
+        assertThat(planned.statusCode()).as("asset planning HTTP; code=%s", json.readTree(planned.body()).path("errorCode").asText()).isEqualTo(200);
+        var plan = json.readTree(planned.body()).path("data");
+        assertThat(plan.path("riskLevel").asText()).isEqualTo("L0");
+        assertThat(plan.path("confirmationRequired").asBoolean()).isFalse();
+        assertThat(plan.path("steps")).hasSize(1);
+        assertThat(plan.path("steps").get(0).path("toolCode").asText()).isEqualTo(expectedTool);
+        String task = plan.path("taskId").asText();
+        var execute = json.createObjectNode().put("planVersion", plan.path("planVersion").asInt()).put("planHash", plan.path("planHash").asText());
+        var accepted = AgentHttpTestFixture.client().send(http.request("POST", "/api/ai/tasks/" + task + "/execute", actor,
+                UUID.randomUUID().toString(), execute.toString()).build(), HttpResponse.BodyHandlers.ofString());
+        assertThat(accepted.statusCode()).isEqualTo(202);
+        await().atMost(Duration.ofSeconds(15)).untilAsserted(() -> {
+            var response = AgentHttpTestFixture.client().send(http.request("GET", "/api/ai/tasks/" + task, actor, null, null).build(), HttpResponse.BodyHandlers.ofString());
+            assertThat(response.statusCode()).isEqualTo(200);
+            var detail = json.readTree(response.body()).path("data");
+            assertThat(detail.path("status").asText()).isEqualTo("SUCCEEDED");
+            var result = detail.path("steps").get(0).path("result");
+            assertThat(result.path("total").asInt()).isEqualTo(1);
+            assertThat(result.path("items").get(0).path("id").asLong()).isEqualTo("asset.department.query".equals(expectedTool) ? department : person);
+            assertThat(result.path("items").get(0).path("name").asText()).isEqualTo(marker);
+        });
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM agent_tool_invocation WHERE user_id=? AND handler_invoked AND outcome='SUCCEEDED'", Long.class, actor.id())).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM agent_task WHERE user_id=? AND max_risk_level<>'L0'", Long.class, actor.id())).isZero();
+        assertThat(MODEL_CALLS).isNotEmpty().allMatch(call -> "NONE".equals(call.failure()));
+    }
+
     @AfterEach void reportMetadataOnly() {
         MODEL_CALLS.forEach(call -> System.out.println("Live model metadata: " + call));
     }
@@ -154,13 +212,31 @@ class AgentLiveModelHttpIT extends AbstractIsolatedAgentIntegrationTest {
                     String result = delegate.complete(system, input);
                     String trimmed = result == null ? "" : result.stripLeading();
                     MODEL_CALLS.add(new ModelCall((System.nanoTime() - started) / 1_000_000,
-                            result == null ? 0 : result.length(), trimmed.startsWith("{") ? "JSON_OBJECT" : trimmed.startsWith("```") ? "MARKDOWN" : "OTHER", "NONE"));
+                            result == null ? 0 : result.length(), responseShape(trimmed), "NONE"));
                     return result;
                 } catch (RuntimeException failure) {
                     MODEL_CALLS.add(new ModelCall((System.nanoTime() - started) / 1_000_000, 0, "NONE", failure.getClass().getSimpleName()));
                     throw failure;
                 }
             };
+        }
+
+        private static String responseShape(String raw) {
+            if (!raw.startsWith("{")) return raw.startsWith("```") ? "MARKDOWN" : "OTHER";
+            try {
+                var tree = new ObjectMapper().readTree(raw);
+                var steps = tree.path("steps");
+                var codes = new java.util.ArrayList<String>();
+                for (var step : steps) {
+                    String code = step.path("toolCode").asText();
+                    codes.add(com.aiworkmate.agent.registry.ToolCode.isSupported(code) ? code : "UNSUPPORTED");
+                }
+                boolean clarification = tree.path("summary").asText().matches("(?s).*(补充|明确|无法|需要|请提供).*" );
+                // Synthetic fixture only: strip every identifier/Latin character before reporting a clarification.
+                String reason = steps.isEmpty() ? tree.path("summary").asText().replaceAll("[^\\p{IsHan}，。；：、？！（）\\s]", "").strip() : "";
+                if (reason.length() > 120) reason = reason.substring(0, 120);
+                return "JSON_OBJECT:steps=" + steps.size() + ":tools=" + codes + ":clarification=" + clarification + ":reason=" + reason;
+            } catch (Exception invalid) { return "INVALID_JSON"; }
         }
     }
 }

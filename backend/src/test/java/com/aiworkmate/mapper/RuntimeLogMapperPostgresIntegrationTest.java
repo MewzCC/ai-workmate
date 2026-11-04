@@ -1,6 +1,8 @@
 package com.aiworkmate.mapper;
 
 import com.aiworkmate.dto.PlatformObservabilityResponse;
+import com.aiworkmate.integration.AbstractIsolatedAgentIntegrationTest;
+import com.aiworkmate.integration.AgentIntegrationEnvironment;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,23 +19,24 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
-@EnabledIfEnvironmentVariable(named = "OBSERVABILITY_TEST_DB_URL", matches = "jdbc:postgresql:.*")
-class RuntimeLogMapperPostgresIntegrationTest {
+@EnabledIfEnvironmentVariable(named = "AGENT_TEST_DB_URL", matches = "jdbc:postgresql:.*")
+class RuntimeLogMapperPostgresIntegrationTest extends AbstractIsolatedAgentIntegrationTest {
+    private static final AgentIntegrationEnvironment ENVIRONMENT = new AgentIntegrationEnvironment();
+    @Override protected AgentIntegrationEnvironment environment() { return ENVIRONMENT; }
     @Autowired RuntimeLogMapper mapper;
     @Autowired JdbcTemplate jdbc;
 
     @DynamicPropertySource
     static void databaseProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", () -> System.getenv("OBSERVABILITY_TEST_DB_URL"));
-        registry.add("spring.datasource.username", () -> System.getenv().getOrDefault("OBSERVABILITY_TEST_DB_USERNAME", "postgres"));
-        registry.add("spring.datasource.password", () -> System.getenv().getOrDefault("OBSERVABILITY_TEST_DB_PASSWORD", "postgres"));
+        ENVIRONMENT.register(registry);
     }
 
     @Test
     @Transactional
     void completeDashboardAggregatesAgainstRealPostgres() {
-        Long userId = jdbc.queryForObject("SELECT id FROM app_user ORDER BY id LIMIT 1", Long.class);
-        Long tenantId = jdbc.queryForObject("SELECT tenant_id FROM app_user WHERE id = ?", Long.class, userId);
+        Long tenantId = jdbc.queryForObject("SELECT id FROM tenant WHERE code='DEFAULT'", Long.class);
+        Long userId = jdbc.queryForObject("INSERT INTO app_user(tenant_id,username,password) VALUES (?,?,'synthetic fixture') RETURNING id",
+                Long.class, tenantId, "observability-" + UUID.randomUUID());
         LocalDateTime from = LocalDateTime.of(2099, 1, 2, 10, 0);
         LocalDateTime to = from.plusHours(1);
         String marker = UUID.randomUUID().toString();
