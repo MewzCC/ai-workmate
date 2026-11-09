@@ -84,7 +84,7 @@ public class GenericApprovalTaskServiceImpl implements GenericApprovalTaskServic
         var application = applications.selectById(task.getBusinessId());
         ApprovalExecutionSnapshot snapshot = snapshot(actor, task, application);
         if (!actor.userId().equals(task.getAssigneeUserId()) && !actor.userId().equals(snapshot.applicantUserId())
-                && !actor.permissions().contains("audit:read") && actions.countTargetAction(actor.tenantId(), task.getInstanceId(), actor.userId(), "CC") == 0)
+                && !actor.permissions().contains("audit:read") && (!actor.permissions().contains("todo:read") || actions.countTargetAction(actor.tenantId(), task.getInstanceId(), actor.userId(), "CC") == 0))
             throw new BusinessException(ErrorCode.RESOURCE_FORBIDDEN);
         var fields = ApprovalApplicationAgentFieldProjection.project(json, snapshot.formSchema(), snapshot.dataJson());
         WorkflowInstance instance = instances.selectById(task.getInstanceId());
@@ -105,7 +105,73 @@ public class GenericApprovalTaskServiceImpl implements GenericApprovalTaskServic
         int start = Math.min(fields.size(), (fieldPage - 1) * pageSize);
         return new GenericApprovalTaskDetail(queries.item(actor.tenantId(), taskId), instance.getStatus(), businessStatus,
                 fields.subList(start, Math.min(fields.size(), start + pageSize)), fields.size(), fieldPage,
-                canReject && blocked == null, canReject, blocked, actions.selectTimeline(actor.tenantId(), task.getInstanceId()));
+                canReject && blocked == null, canReject, blocked, actions.selectTimeline(actor.tenantId(), task.getInstanceId()),
+                canReject && snapshot.planJson()!=null,canReject && snapshot.planJson()!=null);
+    }
+
+    @Override @Transactional(readOnly=true,isolation=org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
+    public PageResponse<com.aiworkmate.dto.ApprovalParticipantResponse> participants(Long userId,Long expectedTenant,Long taskId,String purpose,BusinessCandidateQuery query){
+        var actor=actor(userId,expectedTenant);permission(actor,"approval:act");
+        if(!Set.of("TRANSFER","CC").contains(purpose==null?"":purpose) || query==null || query.size()>50 || query.keyword()!=null && query.keyword().length()>64)
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        var task=task(actor,taskId);var application=applications.selectById(task.getBusinessId());
+        if(!actor.userId().equals(task.getAssigneeUserId()))throw new BusinessException(ErrorCode.RESOURCE_FORBIDDEN);
+        if(!writable(actor,task,application,instances.selectById(task.getInstanceId())))throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID);
+        executable(task,snapshot(actor,task,application));
+        boolean approvers="TRANSFER".equals(purpose);
+        var rows=queries.participants(actor.tenantId(),"approval:act",actor.userId(),application.getApplicantUserId(),approvers,query.keyword(),query.size(),query.offset());
+        return PageResponse.of(rows.stream().map(row->new com.aiworkmate.dto.ApprovalParticipantResponse(row.id(),row.name(),
+                com.aiworkmate.common.AvatarUrls.build(row.id(),row.avatar(),row.updatedAt()),row.canApprove())).toList(),
+                queries.countParticipants(actor.tenantId(),"approval:act",actor.userId(),application.getApplicantUserId(),approvers,query.keyword()),query.page(),query.size());
+    }
+    @Override @Transactional
+    public com.aiworkmate.dto.GenericApprovalParticipantReceipt transfer(Long userId,Long expectedTenant,Long taskId,com.aiworkmate.dto.ApprovalParticipantRequest request){
+        return collaborate(userId,expectedTenant,taskId,request,true);
+    }
+    @Override @Transactional
+    public com.aiworkmate.dto.GenericApprovalParticipantReceipt copyTo(Long userId,Long expectedTenant,Long taskId,com.aiworkmate.dto.ApprovalParticipantRequest request){
+        return collaborate(userId,expectedTenant,taskId,request,false);
+    }
+    private com.aiworkmate.dto.GenericApprovalParticipantReceipt collaborate(Long userId,Long expectedTenant,Long taskId,com.aiworkmate.dto.ApprovalParticipantRequest request,boolean transfer){
+        var actor=actor(userId,expectedTenant);permission(actor,"approval:act");
+        if(request==null || request.targetUserId()==null || request.targetUserId()<1 || actor.userId().equals(request.targetUserId())
+                || request.version()==null || request.version()<0 || request.version()==Integer.MAX_VALUE
+                || request.reason()==null || request.reason().isBlank() || request.reason().length()>500)throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        var task=task(actor,taskId);
+        if(!actor.userId().equals(task.getAssigneeUserId()))throw new BusinessException(ErrorCode.RESOURCE_FORBIDDEN);
+        var application=applications.lockApplication(actor.tenantId(),task.getBusinessId());
+        task=task(actor,taskId);
+        if(!actor.userId().equals(task.getAssigneeUserId()))throw new BusinessException(ErrorCode.RESOURCE_FORBIDDEN);
+        if(!writable(actor,task,application,instances.selectById(task.getInstanceId())) || !Objects.equals(task.getVersion(),request.version()))throw new BusinessException(ErrorCode.VERSION_CONFLICT);
+        executable(task,snapshot(actor,task,application));
+        User target=users.selectById(request.targetUserId());
+        if(target==null || !actor.tenantId().equals(target.getTenantId()) || !Integer.valueOf(1).equals(target.getStatus()))throw new BusinessException(ErrorCode.RESOURCE_FORBIDDEN);
+        var targetAccess=access.resolveActiveUser(target.getId());
+        if(targetAccess==null || !actor.tenantId().equals(targetAccess.tenantId()) || !targetAccess.permissions().contains("todo:read")
+                || transfer && (!targetAccess.permissions().contains("approval:act") || target.getId().equals(application.getApplicantUserId())))throw new BusinessException(ErrorCode.RESOURCE_FORBIDDEN);
+        String action=transfer?"TRANSFER":"CC";
+        if(actions.selectCount(new LambdaQueryWrapper<WorkflowActionLog>().eq(WorkflowActionLog::getTenantId,actor.tenantId()).eq(WorkflowActionLog::getTaskId,taskId)
+                .eq(WorkflowActionLog::getInstanceId,task.getInstanceId()).eq(WorkflowActionLog::getAction,action))>=32)throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID,"validation.genericApproval.collaborationLimit");
+        if(!transfer && actions.countTargetAction(actor.tenantId(),task.getInstanceId(),target.getId(),"CC")>0)throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID,"validation.genericApproval.alreadyCopied");
+        var now=LocalDateTime.now();
+        one(applications.update(null,new LambdaUpdateWrapper<ApprovalApplication>().eq(ApprovalApplication::getTenantId,actor.tenantId()).eq(ApprovalApplication::getId,application.getId())
+                .eq(ApprovalApplication::getWorkflowInstanceId,task.getInstanceId()).eq(ApprovalApplication::getStatus,"PENDING").eq(ApprovalApplication::getVersion,application.getVersion())
+                .set(ApprovalApplication::getUpdatedAt,now).setSql("version=version+1")));
+        one(tasks.update(null,new LambdaUpdateWrapper<WorkflowTask>().eq(WorkflowTask::getTenantId,actor.tenantId()).eq(WorkflowTask::getId,taskId)
+                .eq(WorkflowTask::getAssigneeUserId,actor.userId()).eq(WorkflowTask::getInstanceId,task.getInstanceId()).eq(WorkflowTask::getBusinessType,TYPE)
+                .eq(WorkflowTask::getBusinessId,application.getId()).eq(WorkflowTask::getStatus,"PENDING").eq(WorkflowTask::getVersion,request.version())
+                .set(transfer,WorkflowTask::getAssigneeUserId,target.getId()).set(WorkflowTask::getUpdatedAt,now).setSql("version=version+1")));
+        var log=new WorkflowActionLog();log.setTenantId(actor.tenantId());log.setInstanceId(task.getInstanceId());log.setTaskId(taskId);
+        log.setActorUserId(actor.userId());log.setOriginalAssigneeUserId(task.getAssigneeUserId());log.setTargetUserId(target.getId());
+        log.setAction(action);log.setFromStatus("PENDING");log.setToStatus("PENDING");log.setComment(request.reason().trim());log.setCreatedAt(now);
+        log.setTraceId(TraceContext.traceId()==null?UUID.randomUUID().toString().replace("-",""):TraceContext.traceId());one(actions.insert(log));
+        audit.recordTransactional(actor.tenantId(),actor.userId(),TYPE,application.getId().toString(),action,"SUCCESS",
+                MessageUtils.resolve("genericApproval.auditParticipant",taskId,task.getAssigneeUserId(),target.getId(),request.reason().trim()));
+        notifications.publishTransactional(actor.tenantId(),target.getId(),NotificationService.TYPE_APPROVAL,
+                MessageUtils.resolve("genericApproval.notificationParticipantTitle"),MessageUtils.resolve(transfer?"genericApproval.notificationTransferred":"genericApproval.notificationCopied",taskId),
+                "generic-approval-task",taskId);
+        return new com.aiworkmate.dto.GenericApprovalParticipantReceipt(application.getId(),taskId,"PENDING",request.version()+1,"PENDING",action,
+                task.getAssigneeUserId(),target.getId(),transfer?target.getId():task.getAssigneeUserId());
     }
 
     @Override @Transactional
@@ -196,8 +262,19 @@ public class GenericApprovalTaskServiceImpl implements GenericApprovalTaskServic
     private GenericApprovalPlan executable(WorkflowTask task, ApprovalExecutionSnapshot snapshot) {
         GenericApprovalPlan plan = GenericApprovalPlan.decode(json, snapshot.planJson());
         if (snapshot.currentNodeIndex() >= plan.steps().size() || task.getProcessNodeIndex() == null || task.getProcessNodeIndex() != snapshot.currentNodeIndex()
-                || plan.steps().get(snapshot.currentNodeIndex()).assigneeUserId() != task.getAssigneeUserId()
                 || task.getParentTaskId() != null || task.getAddSignMode() != null) throw GenericApprovalPlan.unsupported();
+        long effective=plan.steps().get(snapshot.currentNodeIndex()).assigneeUserId();
+        var transfers=actions.selectList(new LambdaQueryWrapper<WorkflowActionLog>().eq(WorkflowActionLog::getTenantId,task.getTenantId())
+                .eq(WorkflowActionLog::getInstanceId,task.getInstanceId()).eq(WorkflowActionLog::getTaskId,task.getId()).eq(WorkflowActionLog::getAction,"TRANSFER")
+                .orderByAsc(WorkflowActionLog::getId).last("LIMIT 33"));
+        if(transfers.size()>32)throw GenericApprovalPlan.unsupported();
+        for(var transfer:transfers){
+            if(!Objects.equals(transfer.getOriginalAssigneeUserId(),effective) || !Objects.equals(transfer.getActorUserId(),effective)
+                    || transfer.getTargetUserId()==null || transfer.getTargetUserId()<1 || transfer.getTargetUserId()==effective
+                    || !"PENDING".equals(transfer.getFromStatus()) || !"PENDING".equals(transfer.getToStatus()) || transfer.getComment()==null || transfer.getComment().isBlank())throw GenericApprovalPlan.unsupported();
+            effective=transfer.getTargetUserId();
+        }
+        if(effective!=task.getAssigneeUserId())throw GenericApprovalPlan.unsupported();
         return plan;
     }
     private boolean writable(ResolvedUserAccess actor, WorkflowTask task, ApprovalApplication application, WorkflowInstance instance) {

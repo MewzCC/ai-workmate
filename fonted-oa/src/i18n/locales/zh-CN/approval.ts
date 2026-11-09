@@ -1,5 +1,9 @@
 export default {
   genericTasks: {
+    transferButton: '转交任务', copyButton: '抄送申请', recipient: '接收人', chooseRecipient: '请选择接收人',
+    collaborationReason: '协作理由', reasonRequired: '请填写明确理由', transferred: '任务已转交，等待接收人审批', copied: '已发送站内只读抄送通知',
+    transferNotice: '仅转交当前任务，保留原审批历史和冻结流程。接收人须具备有效审批及待办读取权限。',
+    copyNotice: '仅向接收人发送站内只读通知，不授予审批权限，不发送外部消息。', openRequest: '查看关联申请',
     allTab: '全部待办', businessType: '业务类型', invalidQuery: '待办筛选参数无效，请重置后重试。',
     inboxKicker: '统一审批待办', currentPagePending: '本页待处理', currentPageOverdue: '本页有 {{count}} 项逾期任务', genericSubject: '{{name}} · {{title}}',
     title: '通用审批待办', description: '按冻结的流程顺序处理通用申请，历史详情按原流程实例展示。',

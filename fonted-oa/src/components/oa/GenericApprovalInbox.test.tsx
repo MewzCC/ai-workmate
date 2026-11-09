@@ -7,7 +7,7 @@ import type { PageUiCommandHandlers } from '@/lib/pageUiCommands';
 import { PageAgentContextProvider, usePageAgentContextSnapshot } from './PageAgentContext';
 
 const auth = vi.hoisted(() => ({ user: { id: 7, tenantId: 1, permissionVersion: 1, roles: ['USER'], permissions: ['todo:read', 'approval:act'], dataScopes: ['SELF'] } }));
-const api = vi.hoisted(() => ({ mine: vi.fn(), detail: vi.fn(), approve: vi.fn(), reject: vi.fn(), push: vi.fn(), error: vi.fn(), success: vi.fn() }));
+const api = vi.hoisted(() => ({ mine: vi.fn(), detail: vi.fn(), approve: vi.fn(), reject: vi.fn(), participants: vi.fn(), transfer: vi.fn(), copyTo: vi.fn(), push: vi.fn(), error: vi.fn(), success: vi.fn() }));
 const state = vi.hoisted(() => ({ search: 'kind=generic', handlers: {} as PageUiCommandHandlers, views: vi.fn() }));
 vi.mock('@/components/auth/AuthProvider', () => ({ useAuth: () => ({ user: auth.user }) }));
 vi.mock('@/lib/genericApprovalTaskApi', () => ({ genericApprovalTaskApi: api }));
@@ -32,12 +32,60 @@ const contextTree = () => <PageAgentContextProvider pageId="todo"><GenericApprov
 const publishedContext = () => JSON.parse(screen.getByTestId('generic-task-context').textContent || '{}') as Record<string, unknown>;
 beforeEach(() => {
   vi.clearAllMocks(); state.search = 'kind=generic';
+  api.participants.mockResolvedValue({ records: [{ id: 9, name: 'Qualified recipient', canApprove: true }], total: 1 });
   auth.user = { ...auth.user, id: 7, permissionVersion: 1, permissions: ['todo:read', 'approval:act'] }; bindAuthResponseIdentity('generic-actor', 'act');
   api.mine.mockResolvedValue({ records: [detail().task], total: 1, page: 1, size: 20 }); api.detail.mockImplementation(async (id: number, page = 1) => ({ ...detail(id), fieldPage: page }));
   api.approve.mockImplementation(async () => { const receipt = { ...detail(), task: { ...detail().task, status: 'APPROVED', version: 3 }, canApprove: false, canReject: false }; api.detail.mockResolvedValue(receipt); return receipt; });
   api.reject.mockImplementation(async () => { const receipt = { ...detail(), applicationStatus: 'REJECTED', instanceStatus: 'COMPLETED', task: { ...detail().task, status: 'REJECTED', version: 3 }, canApprove: false, canReject: false }; api.detail.mockResolvedValue(receipt); return receipt; });
 });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
+
+it('exposes real collaboration controls only when the server grants the current task capabilities', async () => {
+  state.search += '&taskId=42';
+  api.detail.mockResolvedValue({ ...detail(), canTransfer: true, canCopy: true });
+  render(tree());
+  const transfer = await screen.findByRole('button', { name: t('approval.genericTasks.transferButton') });
+  fireEvent.click(transfer);
+  expect(await screen.findByLabelText(t('approval.genericTasks.recipient'))).toBeInTheDocument();
+  expect(api.transfer).not.toHaveBeenCalled();
+});
+
+it('confirms the explicit recipient and reason with the current task version before transferring', async () => {
+  state.search += '&taskId=42'; api.detail.mockResolvedValue({ ...detail(), canTransfer: true, canCopy: true });
+  api.transfer.mockResolvedValue({ applicationId: 9, taskId: 42, version: 3, status: 'PENDING', applicationStatus: 'PENDING', action: 'TRANSFER', originalAssigneeUserId: 7, targetUserId: 9, assigneeUserId: 9 });
+  render(tree()); fireEvent.click(await screen.findByRole('button', { name: t('approval.genericTasks.transferButton') }));
+  fireEvent.mouseDown(await screen.findByLabelText(t('approval.genericTasks.recipient')));
+  fireEvent.click(await screen.findByText('Qualified recipient'));
+  fireEvent.change(screen.getByLabelText(t('approval.genericTasks.collaborationReason')), { target: { value: 'Explicit user reason' } });
+  fireEvent.click(confirmButton());
+  await waitFor(() => expect(api.transfer).toHaveBeenCalledWith(42, { targetUserId: 9, version: 2, reason: 'Explicit user reason' }));
+  await waitFor(() => expect(api.push).toHaveBeenCalledWith('/oa/todo?kind=generic'));
+  expect(api.approve).not.toHaveBeenCalled(); expect(api.reject).not.toHaveBeenCalled();
+});
+
+it('suppresses a collaboration preflight after live permission revocation', async () => {
+  state.search += '&taskId=42'; const current = { ...detail(), canTransfer: true, canCopy: true };
+  api.detail.mockResolvedValue(current); const view = render(tree());
+  fireEvent.click(await screen.findByRole('button', { name: t('approval.genericTasks.copyButton') }));
+  fireEvent.mouseDown(await screen.findByLabelText(t('approval.genericTasks.recipient'))); fireEvent.click(await screen.findByText('Qualified recipient'));
+  fireEvent.change(screen.getByLabelText(t('approval.genericTasks.collaborationReason')), { target: { value: 'Explicit copy reason' } });
+  const late = deferred<GenericApprovalTaskDetail>(); api.detail.mockReturnValueOnce(late.promise);
+  const before = api.detail.mock.calls.length; fireEvent.click(confirmButton());
+  await waitFor(() => expect(api.detail.mock.calls.length).toBeGreaterThan(before));
+  auth.user = { ...auth.user, permissionVersion: 2, permissions: [] }; view.rerender(tree());
+  await act(async () => late.resolve(current));
+  expect(api.copyTo).not.toHaveBeenCalled(); expect(api.transfer).not.toHaveBeenCalled(); expect(api.success).not.toHaveBeenCalled();
+});
+
+it('does not claim collaboration success or retry a receipt for a different recipient', async () => {
+  state.search += '&taskId=42'; api.detail.mockResolvedValue({ ...detail(), canTransfer: true, canCopy: true });
+  api.copyTo.mockResolvedValue({ applicationId: 9, taskId: 42, version: 3, status: 'PENDING', applicationStatus: 'PENDING', action: 'CC', originalAssigneeUserId: 7, targetUserId: 99, assigneeUserId: 7 });
+  render(tree()); fireEvent.click(await screen.findByRole('button', { name: t('approval.genericTasks.copyButton') }));
+  fireEvent.mouseDown(await screen.findByLabelText(t('approval.genericTasks.recipient'))); fireEvent.click(await screen.findByText('Qualified recipient'));
+  fireEvent.change(screen.getByLabelText(t('approval.genericTasks.collaborationReason')), { target: { value: 'Explicit copy reason' } });
+  fireEvent.click(confirmButton()); await waitFor(() => expect(api.error).toHaveBeenCalledWith(t('approval.approvalDetail.resultUnknown')));
+  expect(api.copyTo).toHaveBeenCalledTimes(1); expect(api.success).not.toHaveBeenCalled(); expect(api.push).not.toHaveBeenCalled();
+});
 
 it('publishes only a loaded task ID and version and removes them when details close', async () => {
   state.search += '&taskId=42'; const late = deferred<GenericApprovalTaskDetail>(); api.detail.mockReturnValueOnce(late.promise);

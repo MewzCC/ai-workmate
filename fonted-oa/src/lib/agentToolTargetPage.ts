@@ -11,7 +11,8 @@ export function agentTaskNavigationTarget(detail: Pick<AgentTaskDetail, 'status'
       || detail.steps.some((step) => step.status !== 'SUCCEEDED' || step.result == null)) return null;
   const last = detail.steps[detail.steps.length - 1];
   if (last.toolCode === 'page.ui.prepare') return null;
-  if (['approval.genericTask.detail.query', 'approval.genericTask.approve', 'approval.genericTask.reject'].includes(last.toolCode)) {
+  if (last.toolCode === 'approval.genericTask.transfer') return { pageId: 'todo' };
+  if (['approval.genericTask.detail.query', 'approval.genericTask.approve', 'approval.genericTask.reject', 'approval.genericTask.cc'].includes(last.toolCode)) {
     const recordId = agentToolTargetRecordId(last.toolCode, last.result);
     return recordId === undefined ? null : { pageId: 'todo', recordId, recordKind: 'generic-task' };
   }
@@ -43,6 +44,9 @@ const EXACT_TARGETS: Record<string, string> = {
   'approval.genericTask.detail.query': 'todo',
   'approval.genericTask.approve': 'todo',
   'approval.genericTask.reject': 'todo',
+  'approval.genericTask.participants.query': 'todo',
+  'approval.genericTask.transfer': 'todo',
+  'approval.genericTask.cc': 'todo',
   'dashboard.overview.query': 'dashboard',
   'dashboard.preferences.update': 'dashboard',
   'knowledge.search': 'knowledge-base',
@@ -155,6 +159,7 @@ const RECORD_ID_FIELDS: ReadonlyMap<string, string> = new Map([
   ['approval.genericTask.detail.query', 'taskId'],
   ['approval.genericTask.approve', 'taskId'],
   ['approval.genericTask.reject', 'taskId'],
+  ['approval.genericTask.cc', 'taskId'],
   ...['approval.rule.definition.query', 'approval.rule.createDraft', 'approval.rule.updateDraft', 'approval.rule.patchDraftCondition', 'approval.rule.enableDraft']
     .map((code): [string, string] => [code, 'ruleId']),
   ...['approval.form.definition.query', 'approval.form.createDraft', 'approval.form.updateDraft', 'approval.form.patchDraftField', 'approval.form.publishDraft']

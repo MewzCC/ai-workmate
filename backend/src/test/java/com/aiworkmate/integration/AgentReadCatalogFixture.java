@@ -24,11 +24,14 @@ final class AgentReadCatalogFixture {
         ObjectNode args = json.createObjectNode();
         String evidence = label;
         switch (code) {
-            case APPROVAL_GENERIC_TASK_DETAIL_QUERY -> {
+            case APPROVAL_GENERIC_TASK_DETAIL_QUERY, APPROVAL_GENERIC_TASK_PARTICIPANTS_QUERY -> {
                 long applicant = id("INSERT INTO app_user(tenant_id,username,display_name,password) VALUES (?,?,?,'synthetic fixture') RETURNING id", tenant, label + "-generic-owner", label);
                 var submission = GenericTaskReadFixture.pending(jdbc, json, tenant, applicant, user, label,
                         "{\"fields\":[{\"name\":\"reason\",\"type\":\"text\"}]}", json.createObjectNode().put("reason", label).toString());
                 args.put("taskId", submission.taskId());
+                if(code==ToolCode.APPROVAL_GENERIC_TASK_PARTICIPANTS_QUERY){
+                    candidate();args.put("purpose","TRANSFER").put("keyword",label);
+                }
             }
             case TODO_QUERY, APPROVAL_TASK_QUERY -> {
                 long applicant = id("INSERT INTO app_user(tenant_id,username,display_name,password) VALUES (?,?,?,'synthetic fixture') RETURNING id", tenant, label + "-applicant", label);

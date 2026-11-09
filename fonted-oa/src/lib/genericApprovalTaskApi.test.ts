@@ -1,6 +1,16 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { genericApprovalTaskApi } from './genericApprovalTaskApi';
 afterEach(() => vi.restoreAllMocks());
+it('uses task-scoped paged candidates and versioned transfer/copy endpoints', async () => {
+  const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response(JSON.stringify({ code: 200, data: {} }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+  await genericApprovalTaskApi.participants(42, 'TRANSFER', { page: 2, size: 20, keyword: 'Reviewer' });
+  await genericApprovalTaskApi.transfer(42, { targetUserId: 9, version: 3, reason: 'User supplied reason' });
+  await genericApprovalTaskApi.copyTo(42, { targetUserId: 8, version: 4, reason: 'For information' });
+  expect(fetch.mock.calls[0][0]).toContain('/api/generic-approval-tasks/42/participants?');
+  expect(fetch.mock.calls[1][0]).toBe('/api/generic-approval-tasks/42/transfer');
+  expect(fetch.mock.calls[2][0]).toBe('/api/generic-approval-tasks/42/cc');
+  expect(fetch.mock.calls[1][1]?.body).toBe(JSON.stringify({ targetUserId: 9, version: 3, reason: 'User supplied reason' }));
+});
 it('uses authenticated generic task endpoints, field pagination and optimistic decision versions', async () => {
   const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response(JSON.stringify({ code: 200, data: {} }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
   await genericApprovalTaskApi.mine({ status: 'PENDING', page: 2, size: 20 }); await genericApprovalTaskApi.detail(42, 2);

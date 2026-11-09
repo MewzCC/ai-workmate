@@ -1,5 +1,9 @@
 export default {
   genericTasks: {
+    transferButton: 'Transfer task', copyButton: 'Copy request', recipient: 'Recipient', chooseRecipient: 'Choose a recipient',
+    collaborationReason: 'Reason', reasonRequired: 'Enter an explicit reason', transferred: 'Task transferred; awaiting recipient decision', copied: 'Internal read-only copy delivered',
+    transferNotice: 'Transfer only this task, preserving approval history and the frozen flow. The recipient must have active approval and inbox read permissions.',
+    copyNotice: 'Send an internal read-only notification. No approval rights or external messages are granted.', openRequest: 'View linked request',
     allTab: 'All tasks', businessType: 'Business type', invalidQuery: 'Invalid inbox filters. Reset them and try again.',
     inboxKicker: 'APPROVAL INBOX', currentPagePending: 'Pending on this page', currentPageOverdue: '{{count}} overdue tasks on this page', genericSubject: '{{name}} · {{title}}',
     title: 'Generic approval inbox', description: 'Process requests in their frozen order and read history from the original workflow attempt.',

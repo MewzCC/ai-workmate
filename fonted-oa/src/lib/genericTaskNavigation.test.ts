@@ -7,10 +7,13 @@ const step: AgentTaskDetailStep = { sequence: 1, toolCode: 'approval.genericTask
   arguments: { taskId: 999 }, result: { taskId: 42, applicationId: 123, url: 'https://untrusted.invalid' },
   resultSummary: '', errorCode: null, startedAt: null, finishedAt: null };
 describe('assigned generic task navigation', () => {
-  it.each(['approval.genericTask.detail.query', 'approval.genericTask.approve', 'approval.genericTask.reject'])('opens the task returned by %s using a fixed authorized route', toolCode => {
+  it.each(['approval.genericTask.detail.query', 'approval.genericTask.approve', 'approval.genericTask.reject', 'approval.genericTask.cc'])('opens the task returned by %s using a fixed authorized route', toolCode => {
     const target = agentTaskNavigationTarget({ status: 'SUCCEEDED', steps: [{ ...step, toolCode }] });
     expect(target).toEqual({ pageId: 'todo', recordId: 42, recordKind: 'generic-task' });
     expect(resolveAgentToolTargetPath(target!.pageId, target!.recordId, menus, target!.recordKind)).toBe('/oa/todo?kind=generic&taskId=42');
+  });
+  it('returns to the permitted inbox after transfer instead of opening a task the sender no longer owns', () => {
+    expect(agentTaskNavigationTarget({ status: 'SUCCEEDED', steps: [{ ...step, toolCode: 'approval.genericTask.transfer' }] })).toEqual({ pageId: 'todo' });
   });
   it.each([undefined, 0, -1, '42', Number.MAX_SAFE_INTEGER + 1])('rejects invalid result task ID %s', taskId => {
     expect(agentTaskNavigationTarget({ status: 'SUCCEEDED', steps: [{ ...step, result: { taskId } }] })).toBeNull();

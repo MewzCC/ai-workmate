@@ -13,4 +13,8 @@ public interface GenericApprovalTaskService {
     GenericApprovalTaskDetail detailAssignedForAgent(Long userId, Long expectedTenantId, Long taskId, int fieldPage);
     GenericApprovalTaskDetail approve(Long userId, Long expectedTenantId, Long taskId, ApprovalDecisionRequest request);
     GenericApprovalTaskDetail reject(Long userId, Long expectedTenantId, Long taskId, ApprovalDecisionRequest request);
+    PageResponse<com.aiworkmate.dto.ApprovalParticipantResponse> participants(Long userId,Long expectedTenantId,Long taskId,
+            String purpose,com.aiworkmate.service.model.BusinessCandidateQuery query);
+    com.aiworkmate.dto.GenericApprovalParticipantReceipt transfer(Long userId,Long expectedTenantId,Long taskId,com.aiworkmate.dto.ApprovalParticipantRequest request);
+    com.aiworkmate.dto.GenericApprovalParticipantReceipt copyTo(Long userId,Long expectedTenantId,Long taskId,com.aiworkmate.dto.ApprovalParticipantRequest request);
 }

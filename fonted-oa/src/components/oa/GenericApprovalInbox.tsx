@@ -15,6 +15,7 @@ import { formatOaApiError, OaApiError } from '@/lib/oaApi';
 import { genericApprovalTaskApi as api, type GenericApprovalTaskDetail } from '@/lib/genericApprovalTaskApi';
 import { OaIcon } from '@/components/OaIcon';
 import ResponsiveTable from './ResponsiveTable';
+import GenericTaskCollaboration from './GenericTaskCollaboration';
 import { usePublishPageAgentContext } from './PageAgentContext';
 import { useRegisterPageUiCommands } from './PageUiCommandBridge';
 
@@ -91,6 +92,8 @@ function GenericTaskDrawer({ id, onClose, onUpdated }: { id: number; onClose: ()
       <Pagination size="small" current={page} pageSize={50} total={data.totalFields} showSizeChanger={false} onChange={setPage} />
       <Timeline items={data.timeline.map(item => ({ children: <Space direction="vertical" size={0}><Typography.Text>{item.actorName} · {t(`approval.action.${item.action}`)}</Typography.Text><Typography.Text type="secondary">{item.comment || dayjs(item.createdAt).format('YYYY-MM-DD HH:mm')}</Typography.Text></Space> }))} />
       <GenericTaskDecision key={overview.scope} data={data} scope={overview.scope} isCurrent={overview.isCurrent} loading={overview.loading} reload={overview.load} onUpdated={onUpdated} />
+      <GenericTaskCollaboration key={`collaboration:${overview.scope}:${data.task.version}`} data={data} scope={overview.scope} isCurrent={overview.isCurrent} loading={overview.loading}
+        reload={overview.load} onUpdated={onUpdated} onTransferred={onClose} />
     </> : <Empty description={t('approval.approvalDetail.empty')} />}</Spin>
   </Drawer>;
 }

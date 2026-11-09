@@ -4,11 +4,25 @@ import com.aiworkmate.dto.GenericApprovalTaskItem;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.SelectProvider;
 import java.time.LocalDateTime;
 import java.util.List;
 
 @Mapper
 public interface GenericApprovalTaskMapper {
+    String PARTICIPANTS=UserMapper.APPROVAL_PARTICIPANT_FILTER+" AND ("+UserMapper.BUSINESS_USER_PERMISSION_EXPRESSION.replace("#{requiredPermission}","'todo:read'")+") ";
+    @SelectProvider(type=ParticipantSql.class,method="rows")
+    List<com.aiworkmate.dto.ApprovalParticipantRow> participants(@Param("tenantId") Long tenantId,@Param("requiredPermission") String requiredPermission,
+            @Param("excludedUserId") Long excludedUserId,@Param("applicantId") Long applicantId,@Param("approversOnly") boolean approversOnly,
+            @Param("keyword") String keyword,@Param("size") int size,@Param("offset") long offset);
+    @SelectProvider(type=ParticipantSql.class,method="count")
+    long countParticipants(@Param("tenantId") Long tenantId,@Param("requiredPermission") String requiredPermission,
+            @Param("excludedUserId") Long excludedUserId,@Param("applicantId") Long applicantId,@Param("approversOnly") boolean approversOnly,@Param("keyword") String keyword);
+    /** Fixed code-owned SQL only; user input is always a bound parameter. */
+    class ParticipantSql {
+        public static String rows(){return "<script>SELECT u.id,COALESCE(NULLIF(TRIM(u.display_name),''),u.username) AS name,u.avatar,u.updated_at,(u.id!=#{applicantId} AND ("+UserMapper.BUSINESS_USER_PERMISSION_EXPRESSION+")) AS can_approve "+PARTICIPANTS+" ORDER BY u.id LIMIT #{size} OFFSET #{offset}</script>";}
+        public static String count(){return "<script>SELECT COUNT(*) "+PARTICIPANTS+"</script>";}
+    }
     String JOINS = """
             FROM workflow_task wt
             JOIN workflow_instance wi ON wi.id=wt.instance_id AND wi.tenant_id=wt.tenant_id

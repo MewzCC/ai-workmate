@@ -9,6 +9,9 @@ import type { NotificationItem, NotificationPage as NotificationResult } from '@
 const auth = vi.hoisted(() => ({ me: vi.fn() }));
 const api = vi.hoisted(() => ({ listNotifications: vi.fn(), fetchUnreadCount: vi.fn(), getNotification: vi.fn(), markAllNotificationsRead: vi.fn(), markNotificationRead: vi.fn() }));
 const notifications = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn() }));
+const business = vi.hoisted(() => ({ push: vi.fn(), detail: vi.fn() }));
+vi.mock('@/lib/nextCompat', () => ({ useRouter: () => ({ push: business.push }) }));
+vi.mock('@/lib/genericApprovalTaskApi', () => ({ genericApprovalTaskApi: { detail: business.detail } }));
 const ui = vi.hoisted(() => { const handlers: PageUiCommandHandlers = {}; return { handlers }; });
 vi.mock('@/lib/authApi', async load => {
   const original = await load<typeof import('@/lib/authApi')>();
@@ -33,6 +36,27 @@ beforeEach(() => {
   api.getNotification.mockResolvedValue(record(1, '原始通知'));
 });
 afterEach(cleanup);
+
+it('opens a copied generic request only after a protected detail read and never trusts a message URL', async () => {
+  auth.me.mockResolvedValue({ ...user(), permissions: [...user().permissions, 'todo:read', 'route:todo'] });
+  api.getNotification.mockResolvedValue({ ...record(1, '协作通知'), bizType: 'generic-approval-task', bizId: 42 });
+  business.detail.mockResolvedValue({ task: { id: 42 } }); renderPage(); await screen.findByText('原始通知');
+  await act(async () => { await ui.handlers['ui.openDetail']?.({ pageId: 'messages', code: 'ui.openDetail', payload: { recordId: 1 } }); });
+  fireEvent.click(await screen.findByRole('button', { name: '查看关联申请' }));
+  await waitFor(() => expect(business.detail).toHaveBeenCalledWith(42));
+  await waitFor(() => expect(business.push).toHaveBeenCalledWith('/oa/todo?kind=generic&taskId=42'));
+});
+it('does not navigate from a delayed business detail after closing its notification', async () => {
+  auth.me.mockResolvedValue({ ...user(), permissions: [...user().permissions, 'todo:read', 'route:todo'] });
+  api.getNotification.mockResolvedValue({ ...record(1, '协作通知'), bizType: 'generic-approval-task', bizId: 42 });
+  const late = deferred<{ task: { id: number } }>(); business.detail.mockReturnValue(late.promise);
+  renderPage(); await screen.findByText('原始通知');
+  await act(async () => { await ui.handlers['ui.openDetail']?.({ pageId: 'messages', code: 'ui.openDetail', payload: { recordId: 1 } }); });
+  fireEvent.click(await screen.findByRole('button', { name: '查看关联申请' }));
+  await waitFor(() => expect(business.detail).toHaveBeenCalledWith(42));
+  fireEvent.click(screen.getByRole('button', { name: /close|关闭/i }));
+  await act(async () => late.resolve({ task: { id: 42 } })); expect(business.push).not.toHaveBeenCalled();
+});
 
 it('clears cached rows and the private detail on revocation, ignores a late read, and reloads after restoration', async () => {
   renderPage();

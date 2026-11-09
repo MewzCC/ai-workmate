@@ -39,7 +39,8 @@ public final class AgentReadResultPresenter {
         if ("approval.form.definition.query".equals(toolCode)) return formDefinition(result);
         if ("approval.application.template.query".equals(toolCode)) return applicationTemplates(result);
         if ("approval.process.definition.query".equals(toolCode)) return processDefinition(result);
-        if ("approval.task.participants.query".equals(toolCode)) return approvalParticipants(result);
+        if ("approval.task.participants.query".equals(toolCode) || "approval.genericTask.participants.query".equals(toolCode)) return approvalParticipants(result);
+        if ("approval.genericTask.transfer".equals(toolCode) || "approval.genericTask.cc".equals(toolCode)) return genericCollaboration(toolCode,result);
         if ("approval.genericTask.detail.query".equals(toolCode)) return genericTaskDetail(result);
         if ("approval.genericTask.approve".equals(toolCode)) return genericTaskApprove(result);
         if ("approval.genericTask.reject".equals(toolCode)) return genericTaskReject(result);
@@ -395,6 +396,18 @@ public final class AgentReadResultPresenter {
         }
         if (total > shown) answer.append('\n').append(MessageUtils.resolve(unified ? "agent.todo.unified.more" : "agent.todo.more", total - shown));
         return answer.toString();
+    }
+
+    private static String genericCollaboration(String code,JsonNode result){
+        String action=code.endsWith(".transfer")?"TRANSFER":"CC";
+        requireWriteReceipt(result,"PENDING",1);
+        if(!"PENDING".equals(result.path("applicationStatus").asText()) || !action.equals(result.path("action").asText()))throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        for(String key:List.of("taskId","originalAssigneeUserId","targetUserId","assigneeUserId"))
+            if(!result.path(key).isIntegralNumber() || !result.path(key).canConvertToLong() || result.path(key).asLong()<1)throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        long original=result.path("originalAssigneeUserId").asLong(),target=result.path("targetUserId").asLong();
+        if(original==target || result.path("assigneeUserId").asLong()!=(action.equals("TRANSFER")?target:original))throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        return MessageUtils.resolve(action.equals("TRANSFER")?"agent.genericTask.transferred":"agent.genericTask.copied",
+                Long.toString(result.path("taskId").asLong()),Long.toString(original),Long.toString(target),Integer.toString(result.path("version").asInt()));
     }
 
     private static String assignedWorkflowDecision(String code,JsonNode result) {

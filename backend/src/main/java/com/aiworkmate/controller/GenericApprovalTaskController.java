@@ -30,15 +30,31 @@ public class GenericApprovalTaskController {
             @RequestParam(required=false) String status, @RequestParam(required=false) @DateTimeFormat(iso=DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
             @RequestParam(required=false) @DateTimeFormat(iso=DateTimeFormat.ISO.DATE_TIME) LocalDateTime to,
             @RequestParam(defaultValue="1") int page, @RequestParam(defaultValue="20") int size) {
-        return Result.ok(service.mine(user.userId(), null, status, from, to, page, size));
+        return Result.ok(service.mine(user.userId(), user.tenantId(), status, from, to, page, size));
     }
     @GetMapping("/{id}")
     public Result<GenericApprovalTaskDetail> detail(@AuthenticationPrincipal AuthenticatedUser user, @PathVariable Long id,
-            @RequestParam(defaultValue="1") int fieldPage) { return Result.ok(service.detail(user.userId(), null, id, fieldPage)); }
+            @RequestParam(defaultValue="1") int fieldPage) { return Result.ok(service.detail(user.userId(), user.tenantId(), id, fieldPage)); }
     @PostMapping("/{id}/approve")
     public Result<GenericApprovalTaskDetail> approve(@AuthenticationPrincipal AuthenticatedUser user, @PathVariable Long id,
-            @Valid @RequestBody ApprovalDecisionRequest request) { return Result.ok(service.approve(user.userId(), null, id, request)); }
+            @Valid @RequestBody ApprovalDecisionRequest request) { return Result.ok(service.approve(user.userId(), user.tenantId(), id, request)); }
     @PostMapping("/{id}/reject")
     public Result<GenericApprovalTaskDetail> reject(@AuthenticationPrincipal AuthenticatedUser user, @PathVariable Long id,
-            @Valid @RequestBody ApprovalDecisionRequest request) { return Result.ok(service.reject(user.userId(), null, id, request)); }
+            @Valid @RequestBody ApprovalDecisionRequest request) { return Result.ok(service.reject(user.userId(), user.tenantId(), id, request)); }
+    @GetMapping("/{id}/participants")
+    public Result<PageResponse<com.aiworkmate.dto.ApprovalParticipantResponse>> participants(@AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable Long id,@RequestParam String purpose,@RequestParam(required=false) String keyword,
+            @RequestParam(defaultValue="1") int page,@RequestParam(defaultValue="20") int size){
+        return Result.ok(service.participants(user.userId(),user.tenantId(),id,purpose,new com.aiworkmate.service.model.BusinessCandidateQuery(keyword,page,size)));
+    }
+    @PostMapping("/{id}/transfer")
+    public Result<com.aiworkmate.dto.GenericApprovalParticipantReceipt> transfer(@AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable Long id,@Valid @RequestBody com.aiworkmate.dto.ApprovalParticipantRequest request){
+        return Result.ok(service.transfer(user.userId(),user.tenantId(),id,request));
+    }
+    @PostMapping("/{id}/cc")
+    public Result<com.aiworkmate.dto.GenericApprovalParticipantReceipt> copyTo(@AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable Long id,@Valid @RequestBody com.aiworkmate.dto.ApprovalParticipantRequest request){
+        return Result.ok(service.copyTo(user.userId(),user.tenantId(),id,request));
+    }
 }

@@ -23,6 +23,9 @@ import { requireUiFieldTypes } from '@/lib/preparedPageUiCommand';
 import { requireUiPagination } from '@/hooks/usePageUiEditorCommands';
 import { useAsyncActionGuard } from '@/hooks/useAsyncActionGuard';
 import { useAsyncFormAction } from '@/hooks/useAsyncFormAction';
+import { genericApprovalTaskApi } from '@/lib/genericApprovalTaskApi';
+import { useRouter } from '@/lib/nextCompat';
+import { formatOaApiError } from '@/lib/oaApi';
 
 const TYPE_COLOR: Record<string, string> = {
   approval: 'blue',
@@ -33,7 +36,8 @@ const TYPE_COLOR: Record<string, string> = {
 
 export default function NotificationPage() {
   const { t } = useTranslation();
-  const { allowed } = usePermission('notification:read:self');
+  const { allowed, hasPermission } = usePermission('notification:read:self');
+  const router = useRouter();
   const [page, setPage] = useState(1);
   const [size, setSize] = useState(20);
   usePublishPageAgentContext({ page, size });
@@ -49,6 +53,21 @@ export default function NotificationPage() {
   const detailRequest = useRef(0);
   const [detail, setDetail] = useState<{ scope: string; item: NotificationItem }>();
   const visibleDetail = allowed && detail?.scope === scope ? detail.item : undefined;
+  const canOpenGenericTask = visibleDetail?.bizType === 'generic-approval-task' && Number.isSafeInteger(visibleDetail.bizId)
+    && Number(visibleDetail.bizId) > 0 && hasPermission('todo:read') && hasPermission('route:todo');
+  const openGenericTask = async () => {
+    if (!allowed || !canOpenGenericTask || !visibleDetail || !isCurrent()) return;
+    const action = write.begin(); if (!action) return;
+    const ticket = detailRequest.current;
+    try {
+      const id = visibleDetail.bizId!;
+      const response = await genericApprovalTaskApi.detail(id);
+      if (!action.current() || !isCurrent() || ticket !== detailRequest.current) return;
+      if (response.task.id !== id) throw new Error('PAGE_UI_FIELD_REJECTED');
+      router.push(`/oa/todo?kind=generic&taskId=${id}`);
+    } catch (error) { if (action.current() && isCurrent() && ticket === detailRequest.current) message.error(formatOaApiError(error)); }
+    finally { action.finish(); }
+  };
   useEffect(() => { setDetail(undefined); }, [scope, allowed]);
   const items = allowed ? data?.records ?? [] : [];
   const total = allowed ? data?.total ?? 0 : 0;
@@ -190,6 +209,7 @@ export default function NotificationPage() {
       </Card>
       {visibleDetail && <Modal open title={visibleDetail.title} footer={null} destroyOnHidden onCancel={() => { detailRequest.current++; setDetail(undefined); }}>
         <Typography.Paragraph style={{ whiteSpace: 'pre-wrap' }}>{visibleDetail.content}</Typography.Paragraph>
+        {canOpenGenericTask && <Button loading={write.busy} onClick={() => void openGenericTask()}>{t('approval.genericTasks.openRequest')}</Button>}
       </Modal>}
     </section>
   );
