@@ -7,7 +7,7 @@ const step: AgentTaskDetailStep = { sequence: 1, toolCode: 'approval.genericTask
   arguments: { taskId: 999 }, result: { taskId: 42, applicationId: 123, url: 'https://untrusted.invalid' },
   resultSummary: '', errorCode: null, startedAt: null, finishedAt: null };
 describe('assigned generic task navigation', () => {
-  it.each(['approval.genericTask.detail.query', 'approval.genericTask.approve'])('opens the task returned by %s using a fixed authorized route', toolCode => {
+  it.each(['approval.genericTask.detail.query', 'approval.genericTask.approve', 'approval.genericTask.reject'])('opens the task returned by %s using a fixed authorized route', toolCode => {
     const target = agentTaskNavigationTarget({ status: 'SUCCEEDED', steps: [{ ...step, toolCode }] });
     expect(target).toEqual({ pageId: 'todo', recordId: 42, recordKind: 'generic-task' });
     expect(resolveAgentToolTargetPath(target!.pageId, target!.recordId, menus, target!.recordKind)).toBe('/oa/todo?kind=generic&taskId=42');

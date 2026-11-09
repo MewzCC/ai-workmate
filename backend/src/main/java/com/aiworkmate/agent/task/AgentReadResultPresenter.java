@@ -42,6 +42,7 @@ public final class AgentReadResultPresenter {
         if ("approval.task.participants.query".equals(toolCode)) return approvalParticipants(result);
         if ("approval.genericTask.detail.query".equals(toolCode)) return genericTaskDetail(result);
         if ("approval.genericTask.approve".equals(toolCode)) return genericTaskApprove(result);
+        if ("approval.genericTask.reject".equals(toolCode)) return genericTaskReject(result);
         if ("todo.query".equals(toolCode)) return todo(result);
         if ("userPermission.mine.query".equals(toolCode)) return userPermissions(result);
         if ("dashboard.overview.query".equals(toolCode)) return dashboard(result);
@@ -388,6 +389,16 @@ public final class AgentReadResultPresenter {
         }
         if (total > shown) answer.append('\n').append(MessageUtils.resolve(unified ? "agent.todo.unified.more" : "agent.todo.more", total - shown));
         return answer.toString();
+    }
+
+    private static String genericTaskReject(JsonNode result) {
+        requireWriteReceipt(result, "REJECTED", 1);
+        if (!result.path("taskId").isIntegralNumber() || !result.path("taskId").canConvertToLong()
+                || result.path("taskId").asLong() < 1 || !"REJECT".equals(result.path("action").asText())
+                || !"REJECTED".equals(result.path("applicationStatus").asText()))
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        return MessageUtils.resolve("agent.genericTask.reject.completed", Long.toString(result.path("taskId").asLong()),
+                Long.toString(result.path("applicationId").asLong()), Integer.toString(result.path("version").asInt()));
     }
 
     private static String genericTaskApprove(JsonNode result) {

@@ -17,7 +17,9 @@ class PageCapabilityCatalogTest {
         assertThat(catalog.allowsTool("todo", tool, Set.of("route:todo"))).isTrue();
         assertThat(catalog.allowsTool("ai-workspace", tool, Set.of("route:ai-workspace"))).isFalse();
         assertThat(catalog.allowsTool("ai-workspace", tool, Set.of("route:ai-workspace", "route:todo"))).isTrue();
-        assertThat(catalog.allowsTool("dashboard", tool, Set.of("route:dashboard", "route:todo"))).isFalse();
+        assertThat(catalog.allowsTool("dashboard", tool, Set.of("route:dashboard", "route:todo"))).isTrue();
+        assertThat(catalog.allowsTool("dashboard", tool, Set.of("route:dashboard"))).isFalse();
+        assertThat(catalog.allowsTool("ai-workspace", tool, Set.of("route:ai-workspace", "route:dashboard"))).isFalse();
     }
     @org.junit.jupiter.api.Test void genericApplicationReadsRequireTheExistingCompanionEntryRoute() {
         var catalog = new PageCapabilityCatalog();
@@ -91,7 +93,7 @@ class PageCapabilityCatalogTest {
                 .extracting(PageToolReference::code)
                 .containsExactly(ToolCode.TODO_QUERY, ToolCode.APPROVAL_GENERIC_TASK_DETAIL_QUERY);
         assertThat(catalog.find("todo").orElseThrow().writeTools()).extracting(PageToolReference::code)
-                .containsExactly(ToolCode.APPROVAL_GENERIC_TASK_APPROVE);
+                .containsExactlyInAnyOrder(ToolCode.APPROVAL_GENERIC_TASK_APPROVE, ToolCode.APPROVAL_GENERIC_TASK_REJECT);
         assertThat(catalog.find("dashboard").orElseThrow().readTools().stream().filter(reference -> reference.code() != ToolCode.PAGE_UI_PREPARE).toList())
                 .extracting(PageToolReference::code)
                 .contains(ToolCode.USER_PERMISSION_MINE_QUERY, ToolCode.DASHBOARD_OVERVIEW_QUERY);

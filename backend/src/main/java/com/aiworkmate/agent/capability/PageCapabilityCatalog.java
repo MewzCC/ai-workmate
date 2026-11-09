@@ -61,6 +61,9 @@ public class PageCapabilityCatalog {
 
     /** Preserve the generic approval domain's existing entry-route prerequisite independently of business permissions. */
     public Set<String> prerequisitePageIdsForTool(String toolCode) {
+        if (Set.of(APPROVAL_GENERIC_TASK_DETAIL_QUERY.code(), APPROVAL_GENERIC_TASK_APPROVE.code(),
+                APPROVAL_GENERIC_TASK_REJECT.code()).contains(toolCode == null ? "" : toolCode))
+            return Set.of(OaPage.TODO.routeKey());
         return Set.of(APPROVAL_APPLICATION_APPLY.code(), EXPENSE_APPLY.code(), APPROVAL_APPLICATION_TEMPLATE_QUERY.code(), APPROVAL_APPLICATION_MINE_QUERY.code(), APPROVAL_APPLICATION_DETAIL_QUERY.code(),
                 APPROVAL_APPLICATION_CREATE_DRAFT.code(), APPROVAL_APPLICATION_UPDATE_DRAFT.code(),
                 APPROVAL_APPLICATION_SUBMIT_DRAFT.code(), APPROVAL_APPLICATION_CANCEL_DRAFT.code(),
@@ -111,7 +114,7 @@ public class PageCapabilityCatalog {
                 page(OaPage.DASHBOARD, OwnershipPolicy.SELF, LIST_COMMANDS,
                         context(text("status"), number("page"), number("size")),
                         tool(TODO_QUERY), tool(NOTIFICATION_MINE), tool(USER_PERMISSION_MINE_QUERY),
-                        tool(DASHBOARD_OVERVIEW_QUERY), tool(DASHBOARD_PREFERENCES_UPDATE)),
+                        tool(DASHBOARD_OVERVIEW_QUERY), tool(DASHBOARD_PREFERENCES_UPDATE), tool(APPROVAL_GENERIC_TASK_DETAIL_QUERY)),
                 page(OaPage.AI_WORKSPACE, OwnershipPolicy.SELF, READ_COMMANDS, PageContextSchema.empty(),
                         allTools()),
                 page(OaPage.AI_TASKS, OwnershipPolicy.SELF, LIST_COMMANDS,
@@ -119,7 +122,7 @@ public class PageCapabilityCatalog {
                         tool(AGENT_TASK_MINE_QUERY), tool(AGENT_TASK_CANCEL)),
                 page(OaPage.TODO, OwnershipPolicy.ASSIGNED_TO_SELF, LIST_COMMANDS,
                         context(text("businessType"),text("status"), text("from"), text("to"), number("page"), number("size"), number("taskId"), number("taskVersion")),
-                        tool(TODO_QUERY), tool(APPROVAL_GENERIC_TASK_DETAIL_QUERY), tool(APPROVAL_GENERIC_TASK_APPROVE)),
+                        tool(TODO_QUERY), tool(APPROVAL_GENERIC_TASK_DETAIL_QUERY), tool(APPROVAL_GENERIC_TASK_APPROVE), tool(APPROVAL_GENERIC_TASK_REJECT)),
                 page(OaPage.MESSAGES, OwnershipPolicy.SELF, LIST_COMMANDS,
                         context(number("notificationId"), number("page"), number("size")),
                         tool(NOTIFICATION_MINE), tool(NOTIFICATION_MARK_READ)),

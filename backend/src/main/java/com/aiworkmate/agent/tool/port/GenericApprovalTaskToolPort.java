@@ -7,6 +7,7 @@ import java.util.List;
 public interface GenericApprovalTaskToolPort {
     Detail detailAssigned(ToolActorContext context, DetailQuery query);
     WriteResult approve(ToolActorContext context, DecisionCommand command);
+    WriteResult reject(ToolActorContext context, DecisionCommand command);
 
     record DecisionCommand(long taskId, int version, String comment) { }
     /** Status and version belong to the decided node; applicationStatus describes the whole request. */

@@ -4,6 +4,7 @@ import Dashboard from './Dashboard';
 
 const mocks = vi.hoisted(() => ({
   getOverview: vi.fn(),
+  getCapabilities: vi.fn(),
   updatePreferences: vi.fn(),
   push: vi.fn(),
   denied: new Set<string>(),
@@ -23,6 +24,9 @@ vi.mock('@/hooks/usePermission', () => ({
 }));
 
 vi.mock('./EChartsCard', () => ({ default: ({ title }: { title: string }) => <div>{title}</div> }));
+vi.mock('@/lib/oaApi', async () => ({
+  ...await vi.importActual<typeof import('@/lib/oaApi')>('@/lib/oaApi'), getPageCapabilities: mocks.getCapabilities,
+}));
 
 const overview = {
   generatedAt: '2026-09-12T02:00:00Z',
@@ -58,6 +62,7 @@ describe('Dashboard approval entry workflow', () => {
     mocks.getOverview.mockReset().mockResolvedValue(overview);
     mocks.push.mockReset();
     mocks.denied.clear();
+    mocks.getCapabilities.mockReset().mockResolvedValue({ tools: [] });
     mocks.updatePreferences.mockReset().mockResolvedValue({
       metricCodes: ['UNREAD_MESSAGES', 'PENDING_TODOS'],
       availableMetricCodes: overview.availableMetricCodes,
@@ -95,6 +100,35 @@ describe('Dashboard approval entry workflow', () => {
     expect(await screen.findByRole('button', { name: '处理' })).toBeDisabled();
     expect(screen.getByRole('button', { name: '查看' })).toBeDisabled();
     expect(mocks.push).not.toHaveBeenCalled();
+  });
+
+  it('pre-reviews a generic task only with a live read capability and a typed identifier-only prompt', async () => {
+    mocks.getOverview.mockResolvedValue({ ...overview, todos: [{ ...overview.todos[0], businessType: 'GENERIC_APPROVAL' }] });
+    mocks.getCapabilities.mockResolvedValue({ tools: [{ code: 'approval.genericTask.detail.query' }] });
+    const onOpenAi = vi.fn();
+    render(<Dashboard primaryColor="#1677ff" onOpenAi={onOpenAi} />);
+    await waitFor(() => expect(screen.getByRole('button', { name: '预审' })).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', { name: '预审' }));
+    expect(onOpenAi.mock.calls[0][0]).toContain('approval.genericTask.detail.query');
+    expect(onOpenAi.mock.calls[0][0]).toContain('91');
+    expect(onOpenAi.mock.calls[0][0]).not.toContain('LV-000018');
+  });
+
+  it('keeps generic pre-review unavailable when capability loading fails', async () => {
+    mocks.getOverview.mockResolvedValue({ ...overview, todos: [{ ...overview.todos[0], businessType: 'GENERIC_APPROVAL' }] });
+    mocks.getCapabilities.mockRejectedValue(new Error('unavailable'));
+    render(<Dashboard primaryColor="#1677ff" onOpenAi={vi.fn()} />);
+    expect(await screen.findByRole('button', { name: '预审' })).toBeDisabled();
+  });
+
+  it('disables generic pre-review after live tool permission is revoked', async () => {
+    mocks.getOverview.mockResolvedValue({ ...overview, todos: [{ ...overview.todos[0], businessType: 'GENERIC_APPROVAL' }] });
+    mocks.getCapabilities.mockResolvedValue({ tools: [{ code: 'approval.genericTask.detail.query' }] });
+    const view = render(<Dashboard primaryColor="#1677ff" onOpenAi={vi.fn()} />);
+    await waitFor(() => expect(screen.getByRole('button', { name: '预审' })).toBeEnabled());
+    mocks.denied.add('agent:tool:approval.genericTask.detail.query');
+    view.rerender(<Dashboard primaryColor="#1677ff" onOpenAi={vi.fn()} />);
+    expect(screen.getByRole('button', { name: '预审' })).toBeDisabled();
   });
 
   it.each(['todo:read', 'route:todo'])('disables task entry without current %s', async code => {

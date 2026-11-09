@@ -18,6 +18,13 @@ public final class GenericApprovalTaskAgentDomainToolAdapter implements GenericA
                 result.task().version(), result.applicationStatus(), "APPROVE");
     }
 
+    @Override public WriteResult reject(ToolActorContext context, DecisionCommand command) {
+        var result = service.reject(context.userId(), context.tenantId(), command.taskId(),
+                new com.aiworkmate.dto.ApprovalDecisionRequest(command.version(), command.comment()));
+        return new WriteResult(result.task().applicationId(), result.task().id(), result.task().status(),
+                result.task().version(), result.applicationStatus(), "REJECT");
+    }
+
     @Override public Detail detailAssigned(ToolActorContext context, DetailQuery query) {
         var detail = service.detailAssignedForAgent(context.userId(), context.tenantId(), query.taskId(), query.fieldPage());
         var task = detail.task();

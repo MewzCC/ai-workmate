@@ -13,6 +13,16 @@ import java.util.Locale;
 import static org.assertj.core.api.Assertions.*;
 
 class UnifiedTodoResultPresenterTest {
+    @Test void genericRejectionReceiptsExplainTheTerminalApplicationStateInBothLanguages() throws Exception {
+        var receipt=new ObjectMapper().readTree("{\"taskId\":8,\"applicationId\":9,\"status\":\"REJECTED\",\"version\":3,\"applicationStatus\":\"REJECTED\",\"action\":\"REJECT\"}");
+        for(Locale language:new Locale[]{Locale.SIMPLIFIED_CHINESE,Locale.US}) {
+            LocaleContextHolder.setLocale(language);
+            String text=AgentReadResultPresenter.present("approval.genericTask.reject",receipt);
+            assertThat(text).contains(language.equals(Locale.US)?"no subsequent task":"不会生成后续审批任务").doesNotContain("agent.genericTask.");
+        }
+        ((com.fasterxml.jackson.databind.node.ObjectNode)receipt).put("applicationStatus","PENDING");
+        assertThatThrownBy(()->AgentReadResultPresenter.present("approval.genericTask.reject",receipt)).isInstanceOf(BusinessException.class);
+    }
     private final ObjectMapper json=new ObjectMapper();
     private MessageUtils previous;
     private Locale locale;

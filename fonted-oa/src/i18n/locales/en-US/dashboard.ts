@@ -82,6 +82,7 @@ export default {
   },
   aiPrompts: {
     preReviewTask: 'Pre-review approval task {{taskId}}',
+    preReviewGenericTask: 'Use approval.genericTask.detail.query to read-only review generic approval task {{taskId}}. Explain frozen fields, node status and task version; do not approve or reject.',
     checkRisk: 'Help me {{action}} {{name}} and check the risk of node {{node}}',
     preReviewList: 'Help me pre-review the current list and output a risk ranking',
   },

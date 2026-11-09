@@ -6,7 +6,7 @@ import type { ColumnsType } from 'antd/es/table';
 import type { EChartsOption } from 'echarts';
 import { useTranslation } from 'react-i18next';
 import { defaultDashboardExportRange, downloadDashboardExport, exportDashboard, getDashboardOverview, updateDashboardPreferences, type DashboardMetricCode, type DashboardOverview } from '@/lib/dashboardApi';
-import { formatOaApiError } from '@/lib/oaApi';
+import { formatOaApiError, getPageCapabilities } from '@/lib/oaApi';
 import { useRouter } from '@/lib/nextCompat';
 import { message } from '@/lib/antdMessage';
 import { usePermission } from '@/hooks/usePermission';
@@ -38,9 +38,11 @@ export default function Dashboard({ primaryColor, onOpenAi }: DashboardProps) {
   const [metricDraft, setMetricDraft] = useState<DashboardMetricCode[]>([]);
   const [savingMetrics, setSavingMetrics] = useState(false);
   const [error, setError] = useState<string>();
+  const [genericPreReviewAvailable, setGenericPreReviewAvailable] = useState(false);
   const { allowed: canExport } = usePermission('data:export');
   const { allowed: canReadTodos } = usePermission('todo:read');
   const { allowed: canEnterTodos } = usePermission('route:todo');
+  const { allowed: canReadGenericTask } = usePermission('agent:tool:approval.genericTask.detail.query');
   const openTodo = (record: DashboardOverview['todos'][number]) => {
     const path = dashboardTodoTarget(record);
     if (!canReadTodos || !canEnterTodos || !path) throw new Error('PAGE_UI_FIELD_REJECTED');
@@ -60,6 +62,16 @@ export default function Dashboard({ primaryColor, onOpenAi }: DashboardProps) {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    let current = true;
+    setGenericPreReviewAvailable(false);
+    if (canReadTodos && canEnterTodos && canReadGenericTask) {
+      void getPageCapabilities('dashboard').then(capability => {
+        if (current) setGenericPreReviewAvailable(capability.tools.some(tool => tool.code === 'approval.genericTask.detail.query'));
+      }).catch(() => { if (current) setGenericPreReviewAvailable(false); });
+    }
+    return () => { current = false; };
+  }, [canReadTodos, canEnterTodos, canReadGenericTask]);
   useRegisterPageUiCommands({ 'ui.refreshPage': load,
     'ui.openDetail': ({ payload: { recordId } }) => {
       const id = Number(recordId);
@@ -157,8 +169,8 @@ export default function Dashboard({ primaryColor, onOpenAi }: DashboardProps) {
           <Button aria-label={t('dashboard.actions.view')} size="small" disabled={!canReadTodos || !canEnterTodos || !dashboardTodoTarget(record)} onClick={() => openTodo(record)}>
             {t('dashboard.actions.view')}
           </Button>
-          <Tooltip title={record.businessType !== 'LEAVE_APPLICATION' ? t('dashboard.status.preReviewUnavailable') : undefined}>
-          <Button aria-label={t('dashboard.actions.preReview')} size="small" disabled={!canReadTodos || !canEnterTodos || !dashboardTodoTarget(record) || record.businessType !== 'LEAVE_APPLICATION'} icon={<OaIcon name="ai" />} onClick={() => onOpenAi(t('dashboard.aiPrompts.preReviewTask', { taskId: record.taskId }))}>
+          <Tooltip title={record.businessType !== 'LEAVE_APPLICATION' && (!genericPreReviewAvailable || !canReadGenericTask) ? t('dashboard.status.preReviewUnavailable') : undefined}>
+          <Button aria-label={t('dashboard.actions.preReview')} size="small" disabled={!canReadTodos || !canEnterTodos || !dashboardTodoTarget(record) || (record.businessType !== 'LEAVE_APPLICATION' && (!genericPreReviewAvailable || !canReadGenericTask))} icon={<OaIcon name="ai" />} onClick={() => onOpenAi(t(record.businessType === 'GENERIC_APPROVAL' ? 'dashboard.aiPrompts.preReviewGenericTask' : 'dashboard.aiPrompts.preReviewTask', { taskId: record.taskId }))}>
             {t('dashboard.actions.preReview')}
           </Button>
           </Tooltip>

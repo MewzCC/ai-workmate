@@ -82,6 +82,7 @@ export default {
   },
   aiPrompts: {
     preReviewTask: '预审审批任务 {{taskId}}',
+    preReviewGenericTask: '使用 approval.genericTask.detail.query 只读预审通用审批任务 {{taskId}}，解释冻结字段、节点状态和任务版本；不执行通过或驳回。',
     checkRisk: '帮我{{action}}{{name}}，并检查节点 {{node}} 的风险',
     preReviewList: '帮我预审当前列表，并输出风险排序',
   },
