@@ -43,8 +43,9 @@ public final class AgentReadResultPresenter {
         if ("approval.genericTask.detail.query".equals(toolCode)) return genericTaskDetail(result);
         if ("approval.genericTask.approve".equals(toolCode)) return genericTaskApprove(result);
         if ("approval.genericTask.reject".equals(toolCode)) return genericTaskReject(result);
-        if (List.of("visitor.approve","visitor.reject").contains(toolCode == null?"":toolCode)) return assignedWorkflowDecision(toolCode,result);
-        if ("visitor.query".equals(toolCode)) return visitorQuery(result);
+        if (List.of("visitor.approve","visitor.reject","seal.approve","seal.reject").contains(toolCode == null?"":toolCode)) return assignedWorkflowDecision(toolCode,result);
+        if ("visitor.query".equals(toolCode)) return assignedWorkflowQuery("visitor",result);
+        if ("seal.query".equals(toolCode)) return assignedWorkflowQuery("seal",result);
         if ("todo.query".equals(toolCode)) return todo(result);
         if ("userPermission.mine.query".equals(toolCode)) return userPermissions(result);
         if ("dashboard.overview.query".equals(toolCode)) return dashboard(result);
@@ -395,7 +396,9 @@ public final class AgentReadResultPresenter {
 
     private static String assignedWorkflowDecision(String code,JsonNode result) {
         String status=code.endsWith(".approve")?"APPROVED":"REJECTED";
-        if (result == null || !result.isObject() || !"VISITOR_BOOKING".equals(result.path("resourceType").asText())
+        String domain=code.startsWith("visitor.")?"visitor":"seal";
+        String resourceType=domain.equals("visitor")?"VISITOR_BOOKING":"SEAL_USAGE";
+        if (result == null || !result.isObject() || !resourceType.equals(result.path("resourceType").asText())
                 || !status.equals(result.path("status").asText()) || !status.equals(result.path("resourceStatus").asText())
                 || !(code.endsWith(".approve")?"APPROVE":"REJECT").equals(result.path("action").asText()))
             throw new BusinessException(ErrorCode.REQUEST_INVALID);
@@ -405,12 +408,12 @@ public final class AgentReadResultPresenter {
                     || (field.endsWith("Version") || field.equals("version")) && !value.canConvertToInt())
                 throw new BusinessException(ErrorCode.REQUEST_INVALID);
         }
-        return MessageUtils.resolve(code.endsWith(".approve")?"agent.visitor.approve.completed":"agent.visitor.reject.completed",
+        return MessageUtils.resolve("agent."+domain+(code.endsWith(".approve")?".approve.completed":".reject.completed"),
                 Long.toString(result.path("resourceId").asLong()),Long.toString(result.path("taskId").asLong()),
                 Integer.toString(result.path("version").asInt()),Integer.toString(result.path("resourceVersion").asInt()));
     }
 
-    private static String visitorQuery(JsonNode result) {
+    private static String assignedWorkflowQuery(String domain,JsonNode result) {
         if(result == null || !result.path("items").isArray() || result.path("items").size()>50
                 || !result.path("total").canConvertToLong() || result.path("total").asLong()<0) throw new BusinessException(ErrorCode.REQUEST_INVALID);
         StringBuilder text=new StringBuilder(MessageUtils.resolve("agent.result.total",result.path("total").asLong()));
@@ -418,17 +421,17 @@ public final class AgentReadResultPresenter {
         for(JsonNode item:result.path("items")) {
             if(shown>=MAX_ITEMS || text.length()>MAX_LENGTH-300) break;
             shown++;
-            text.append('\n').append(MessageUtils.resolve("agent.visitor.query.item",Long.toString(item.path("id").asLong()),
-                    plain(item.path("visitorName").asText()),MessageUtils.resolve("agent.result.enum."+item.path("status").asText()),Integer.toString(item.path("version").asInt())));
+            text.append('\n').append(MessageUtils.resolve("agent."+domain+".query.item",Long.toString(item.path("id").asLong()),
+                    plain(item.path(domain.equals("visitor")?"visitorName":"documentTitle").asText()),MessageUtils.resolve("agent.result.enum."+item.path("status").asText()),Integer.toString(item.path("version").asInt())));
             if(item.path("canDecide").asBoolean()) {
                 if(!item.hasNonNull("taskId") && !item.hasNonNull("taskVersion")) {
-                    text.append('\n').append(MessageUtils.resolve("agent.visitor.query.historical"));
+                    text.append('\n').append(MessageUtils.resolve("agent."+domain+".query.historical"));
                     continue;
                 }
                 if(!item.path("taskId").isIntegralNumber() || !item.path("taskId").canConvertToLong() || item.path("taskId").asLong()<1
                         || !item.path("taskVersion").isIntegralNumber() || !item.path("taskVersion").canConvertToInt()
                         || item.path("taskVersion").asInt()<0 || item.path("taskVersion").asInt()==Integer.MAX_VALUE) throw new BusinessException(ErrorCode.REQUEST_INVALID);
-                text.append('\n').append(MessageUtils.resolve("agent.visitor.query.task",Long.toString(item.path("taskId").asLong()),Integer.toString(item.path("taskVersion").asInt())));
+                text.append('\n').append(MessageUtils.resolve("agent."+domain+".query.task",Long.toString(item.path("taskId").asLong()),Integer.toString(item.path("taskVersion").asInt())));
             }
         }
         if(shown==0) text.append('\n').append(MessageUtils.resolve("agent.result.empty"));

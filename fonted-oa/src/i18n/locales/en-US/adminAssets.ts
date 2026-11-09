@@ -198,6 +198,9 @@ export default {
     myApplications: 'My Applications',
     pendingApproval: 'Pending My Approval',
     decideTitle: 'Review Seal Usage',
+    detailTitle: 'Seal Usage Details',
+    usageId: 'Usage ID',
+    usageVersion: 'Usage version',
     status: {
       PENDING: 'Pending',
       APPROVED: 'Approved',

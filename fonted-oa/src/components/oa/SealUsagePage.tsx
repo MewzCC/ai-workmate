@@ -3,7 +3,9 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   Button,
+  Alert,
   Card,
+  Descriptions,
   Empty,
   Form,
   Input,
@@ -39,6 +41,7 @@ import { useScopedModalConfirm } from '@/hooks/useScopedModalConfirm';
 import { usePublishPageAgentContext } from './PageAgentContext';
 import AdminAssetsPageShell from './AdminAssetsPageShell';
 import ResponsiveTable from './ResponsiveTable';
+import { useBusinessRecordDetail } from '@/hooks/useBusinessRecordDetail';
 
 const STATUS_TAG_COLOR: Record<SealUsageStatus, string> = {
   PENDING: 'processing',
@@ -54,11 +57,12 @@ const SEAL_TYPE_OPTIONS: SealType[] = ['OFFICIAL', 'CONTRACT', 'LEGAL', 'FINANCE
 export default function SealUsagePage() {
   const { t } = useTranslation();
   const { activeTab, mine, pending, loading, total, page, size, setPage, setSize,
-    loadMine, refresh, captureScope, handleTabChange, applyFilters, status, changeStatus, canCreate, canDecide, scope } = useAdminAssetApprovalQueue({
+    loadMine, refresh, captureScope, handleTabChange, applyFilters, status, changeStatus, canRead, canCreate, canDecide, scope } = useAdminAssetApprovalQueue({
     pageId: 'seal-usage', readPermission: 'seal:read:self', createPermission: 'seal:create',
     statuses: Object.keys(STATUS_TAG_COLOR) as SealUsageStatus[],
     mine: adminAssetsApi.listMySealUsages, pending: adminAssetsApi.listPendingSealUsages,
   });
+  const recordDetail = useBusinessRecordDetail({ scope, allowed: canRead, pageId: 'seal-usage', loadRecord: adminAssetsApi.getSealUsage });
 
   const [createOpen, setCreateOpen] = useState(false);
   const createAction = useAsyncFormAction(scope);
@@ -67,12 +71,12 @@ export default function SealUsagePage() {
   const [form] = Form.useForm<SealUsagePayload>();
   const uiForm = usePageUiFormContext(createOpen && canCreate && !submitting, undefined, undefined, scope);
   const openCreate = () => { if (!canCreate || !captureScope()()) return; createAction.reset(); uiForm.renew(); form.resetFields(); setCreateOpen(true); };
-  usePublishPageAgentContext({ queue: activeTab.toUpperCase(), status, page, size });
   usePageUiEditorCommands({ form, open: createOpen && !submitting, canEdit: canCreate, context: uiForm.context,
     create: openCreate, fields: { sealType: SEAL_TYPE_OPTIONS, documentTitle: 'string', usageReason: 'string', copies: 'number' },
     labels: Object.fromEntries(['sealType', 'documentTitle', 'usageReason', 'copies'].map(name => [name, t(`adminAssets.seal.${name}`)])),
     commands: { 'ui.applyFilter': ({ payload: { filters } }) => applyFilters(filters),
-      'ui.refreshPage': refresh },
+      'ui.refreshPage': refresh,
+      'ui.openDetail': ({ payload: { recordId } }) => recordDetail.open(Number(recordId)) },
   });
 
   const [decideTarget, setDecideTarget] = useState<SealUsage | null>(null);
@@ -92,6 +96,11 @@ export default function SealUsagePage() {
   const { capture: captureDocuments, invalidate: invalidateDocuments } = useAsyncActionGuard(scope);
   const uploadAction = useAsyncFormAction(scope);
   const documentRequest = useRef(0);
+  const contextRecord = decideOpen ? decideTarget : useOpen ? useTarget : documentOpen ? documentTarget : recordDetail.data;
+  usePublishPageAgentContext({ queue: activeTab.toUpperCase(), status, page, size,
+    ...(contextRecord ? { usageId: contextRecord.id } : {}),
+    ...(canDecide && contextRecord?.canDecide && contextRecord.taskId && contextRecord.taskVersion != null
+      ? { taskId: contextRecord.taskId, taskVersion: contextRecord.taskVersion } : {}) });
 
   useEffect(() => {
     invalidateDocuments(); ++documentRequest.current;
@@ -235,7 +244,7 @@ export default function SealUsagePage() {
   };
 
   const openDecide = (record: SealUsage) => {
-    if (!canDecide || !record.canDecide || !captureScope()()) return;
+    if (!canDecide || !record.canDecide || !record.taskId || record.taskVersion == null || !captureScope()()) return;
     decideAction.reset();
     setDecideTarget(record);
     decideForm.resetFields();
@@ -243,7 +252,7 @@ export default function SealUsagePage() {
   };
 
   const handleDecide = async (action: 'approve' | 'reject') => {
-    if (!canDecide || deciding || !decideTarget || !decideTarget.taskId) return;
+    if (!canDecide || deciding || !decideTarget?.canDecide || !decideTarget.taskId || decideTarget.taskVersion == null) return;
     const operation = decideAction.begin();
     if (!operation) return;
     const current = captureScope();
@@ -251,7 +260,7 @@ export default function SealUsagePage() {
       const values = await decideForm.validateFields();
       if (!operation.current()) return;
       const payload = {
-        version: decideTarget.taskVersion ?? 0,
+        version: decideTarget.taskVersion,
         comment: values.comment,
       };
       if (action === 'approve') {
@@ -390,7 +399,7 @@ export default function SealUsagePage() {
       title: t('adminAssets.common.action'),
       key: 'action',
       render: (_: unknown, record: SealUsage) => (
-        <Button type="link" onClick={() => openDecide(record)}>
+        <Button type="link" disabled={!canDecide || !record.canDecide || !record.taskId || record.taskVersion == null} onClick={() => openDecide(record)}>
           {t('adminAssets.common.decide')}
         </Button>
       ),
@@ -499,6 +508,23 @@ export default function SealUsagePage() {
           </Form>
         </Modal>
 
+        <Modal title={t('adminAssets.seal.detailTitle')} open={recordDetail.visible} onCancel={recordDetail.close} footer={null}>
+          <Spin spinning={recordDetail.loading}>
+            {recordDetail.error && <Alert type="error" showIcon message={recordDetail.error}
+              action={<Button onClick={() => void recordDetail.retry()}>{t('common.retry')}</Button>} />}
+            {recordDetail.data && <Descriptions column={1} items={[
+              { key: 'id', label: t('adminAssets.seal.usageId'), children: recordDetail.data.id },
+              { key: 'title', label: t('adminAssets.seal.documentTitle'), children: recordDetail.data.documentTitle },
+              { key: 'reason', label: t('adminAssets.seal.usageReason'), children: recordDetail.data.usageReason },
+              { key: 'status', label: t('adminAssets.common.status'), children: <Tag color={STATUS_TAG_COLOR[recordDetail.data.status]}>{t(`adminAssets.seal.status.${recordDetail.data.status}`)}</Tag> },
+              { key: 'version', label: t('adminAssets.seal.usageVersion'), children: recordDetail.data.version },
+              { key: 'copies', label: t('adminAssets.seal.copies'), children: recordDetail.data.copies },
+            ]} />}
+            {recordDetail.data?.canDecide && canDecide && <Button onClick={() => {
+              const target = recordDetail.data; recordDetail.close(); if (target) openDecide(target);
+            }}>{t('adminAssets.common.decide')}</Button>}
+          </Spin>
+        </Modal>
         <Modal
           title={t('adminAssets.seal.decideTitle')}
           open={decideOpen && canDecide}

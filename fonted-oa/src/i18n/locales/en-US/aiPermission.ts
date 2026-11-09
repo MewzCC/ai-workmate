@@ -132,6 +132,8 @@ const aiPermission = {
     visitor_noShow: { name: 'Mark visitor no-show', description: 'Marks one approved visitor booking past its scheduled time as a no-show.' },
     seal_query: { name: 'Query my seal records', description: 'Reads seal applications and usage records visible to the current user.' },
     seal_apply: { name: 'Submit seal application', description: 'Creates one seal application that requires approval.' },
+    seal_approve: { name: 'Approve seal task', description: 'After secondary confirmation, approves one assigned seal task using its task version. Does not register actual use, return or archive.' },
+    seal_reject: { name: 'Reject seal task', description: 'With an explicit reason and task version, rejects one assigned seal application after secondary confirmation. Never automatically retries.' },
     seal_registerUse: { name: 'Register actual seal use', description: 'Registers one actual use against an approved seal application.' },
     seal_withdraw: { name: 'Withdraw seal application', description: 'Withdraws one of your seal applications that is still pending approval.' },
     seal_return: { name: 'Register seal return', description: 'Registers return for one used seal record you are allowed to operate.' },

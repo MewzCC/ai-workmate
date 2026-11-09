@@ -1,6 +1,7 @@
 package com.aiworkmate.agent.tool.adapter;
 
 import com.aiworkmate.agent.tool.port.SealToolPort;
+import com.aiworkmate.agent.tool.port.WorkflowDecisionToolModels;
 import com.aiworkmate.agent.tool.port.ToolActorContext;
 import com.aiworkmate.agent.tool.port.ToolOperationKey;
 import com.aiworkmate.agent.tool.port.ToolWriteVerification;
@@ -22,13 +23,26 @@ public final class SealAgentDomainToolAdapter implements SealToolPort {
     public Page query(ToolActorContext context, Query query) {
         if (query.usageId() != null) {
             return new Page(List.of(toItem(adminAssetsService.getSealUsage(
-                    context.userId(), query.usageId()))), 1, 1, 1);
+                    context.userId(), context.tenantId(), query.usageId()))), 1, 1, 1);
         }
         var result = query.queue() == Queue.PENDING
-                ? adminAssetsService.listPendingSealUsages(context.userId(), query.page(), query.size())
-                : adminAssetsService.listMySealUsages(context.userId(), query.status(), query.page(), query.size());
+                ? adminAssetsService.listPendingSealUsages(context.userId(), context.tenantId(), query.page(), query.size())
+                : adminAssetsService.listMySealUsages(context.userId(), context.tenantId(), query.status(), query.page(), query.size());
         return new Page(result.records().stream().map(this::toItem).toList(),
                 result.total(), result.page(), result.size());
+    }
+
+    @Override public WorkflowDecisionToolModels.Receipt approve(ToolActorContext context,WorkflowDecisionToolModels.Command command) {
+        return decide(context,command,true);
+    }
+    @Override public WorkflowDecisionToolModels.Receipt reject(ToolActorContext context,WorkflowDecisionToolModels.Command command) {
+        return decide(context,command,false);
+    }
+    private WorkflowDecisionToolModels.Receipt decide(ToolActorContext context,WorkflowDecisionToolModels.Command command,boolean approved) {
+        var result=adminAssetsService.decideSealUsageForAgent(context.userId(),context.tenantId(),command.taskId(),
+                new com.aiworkmate.dto.ApprovalDecisionRequest(command.version(),command.comment()),approved);
+        return new WorkflowDecisionToolModels.Receipt(result.resourceId(),result.resourceType(),result.resourceStatus(),
+                result.resourceVersion(),result.taskId(),result.status(),result.version(),result.action());
     }
 
     @Override
@@ -98,6 +112,6 @@ public final class SealAgentDomainToolAdapter implements SealToolPort {
                 item.documentTitle(), item.usageReason(), item.copies(), item.status(), item.version(),
                 item.taskStatus(), item.submittedAt(), item.completedAt(), item.actualCopies(), item.handlerName(),
                 item.usedAt(), item.returnedAt(), item.canWithdraw(), item.canDecide(), item.canRegisterUse(),
-                item.canReturn(), item.canArchiveDocument());
+                item.canReturn(), item.canArchiveDocument(),item.canDecide()?item.taskId():null,item.canDecide()?item.taskVersion():null);
     }
 }

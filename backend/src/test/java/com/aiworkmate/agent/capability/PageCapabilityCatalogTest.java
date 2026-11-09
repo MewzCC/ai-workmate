@@ -262,7 +262,7 @@ class PageCapabilityCatalogTest {
         assertThat(catalog.find("seal-usage").orElseThrow().writeTools())
                 .extracting(PageToolReference::code)
                 .containsExactly(ToolCode.SEAL_APPLY, ToolCode.SEAL_REGISTER_USE,
-                        ToolCode.SEAL_WITHDRAW, ToolCode.SEAL_RETURN);
+                        ToolCode.SEAL_WITHDRAW, ToolCode.SEAL_RETURN,ToolCode.SEAL_APPROVE,ToolCode.SEAL_REJECT);
     }
 
     @Test

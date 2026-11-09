@@ -132,6 +132,8 @@ const aiPermission = {
     visitor_noShow: { name: '标记访客失约', description: '将一条已过预约时间的已批准访客记录标记为失约。' },
     seal_query: { name: '查询本人用印记录', description: '读取当前用户有权查看的用印申请和登记。' },
     seal_apply: { name: '发起用印申请', description: '创建一条需审批的用印申请。' },
+    seal_approve: { name: '通过用印审批', description: '二次确认后通过本人受理的一条用印审批任务，校验任务版本；不代替实际用印、归还或留档。' },
+    seal_reject: { name: '驳回用印审批', description: '使用明确理由及任务版本，二次确认后驳回本人受理的一条用印申请，不自动重试。' },
     seal_registerUse: { name: '登记实际用印', description: '为已批准申请登记一次实际用印。' },
     seal_withdraw: { name: '撤回用印申请', description: '撤回本人一条仍在审批中的用印申请。' },
     seal_return: { name: '登记印章归还', description: '为一条有权操作的已用印记录登记归还。' },

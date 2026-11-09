@@ -198,6 +198,9 @@ export default {
     myApplications: '我的申请',
     pendingApproval: '待我审批',
     decideTitle: '审批用印申请',
+    detailTitle: '用印申请详情',
+    usageId: '申请编号',
+    usageVersion: '申请版本',
     status: {
       PENDING: '审批中',
       APPROVED: '已通过',

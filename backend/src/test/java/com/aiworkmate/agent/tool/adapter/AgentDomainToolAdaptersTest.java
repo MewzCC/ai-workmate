@@ -646,7 +646,7 @@ class AgentDomainToolAdaptersTest {
     @Test
     void mapsSealSummaryWithoutWorkflowOrStorageMetadata() {
         LocalDateTime now = LocalDateTime.of(2026, 9, 14, 10, 0);
-        when(adminAssetsService.getSealUsage(7L, 41L)).thenReturn(new SealUsageResponse(
+        when(adminAssetsService.getSealUsage(7L, 91L, 41L)).thenReturn(new SealUsageResponse(
                 41L, 7L, "申请人", 8L, "审批人", "公章", "采购合同", "签约", 2,
                 "APPROVED", 5, 201L, 202L, 6, "APPROVED", now.minusHours(2), now.minusHours(1),
                 null, null, null, null, null, now.minusDays(1), now,
@@ -658,8 +658,10 @@ class AgentDomainToolAdaptersTest {
 
         assertThat(result.items()).hasSize(1);
         assertThat(result.items().get(0).documentTitle()).isEqualTo("采购合同");
+        assertThat(result.items().get(0).taskId()).isNull();
+        assertThat(result.items().get(0).taskVersion()).isNull();
         assertThat(result.toString()).doesNotContain(
-                "workflowInstanceId", "taskId", "storage", "objectKey");
+                "workflowInstanceId", "storage", "objectKey");
     }
 
     @Test

@@ -110,6 +110,8 @@ public enum ToolCode {
     VISITOR_NO_SHOW("visitor.noShow", SideEffect.SINGLE_WRITE),
     SEAL_QUERY("seal.query"),
     SEAL_APPLY("seal.apply", SideEffect.SINGLE_WRITE),
+    SEAL_APPROVE("seal.approve", SideEffect.SINGLE_WRITE),
+    SEAL_REJECT("seal.reject", SideEffect.SINGLE_WRITE),
     SEAL_REGISTER_USE("seal.registerUse", SideEffect.SINGLE_WRITE),
     SEAL_WITHDRAW("seal.withdraw", SideEffect.SINGLE_WRITE),
     SEAL_RETURN("seal.return", SideEffect.SINGLE_WRITE),

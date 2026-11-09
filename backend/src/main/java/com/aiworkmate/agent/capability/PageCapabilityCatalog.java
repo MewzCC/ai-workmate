@@ -192,9 +192,9 @@ public class PageCapabilityCatalog {
                         tool(VISITOR_MARK_ARRIVED), tool(VISITOR_LEAVE), tool(VISITOR_WITHDRAW),
                         tool(VISITOR_NO_SHOW), tool(VISITOR_APPROVE), tool(VISITOR_REJECT)),
                 page(OaPage.SEAL_USAGE, OwnershipPolicy.SELF, LIST_COMMANDS,
-                        context(number("usageId"), text("queue"), text("status"), number("page"), number("size")),
+                        context(number("usageId"), number("taskId"), number("taskVersion"), text("queue"), text("status"), number("page"), number("size")),
                         tool(SEAL_QUERY), tool(SEAL_APPLY), tool(SEAL_REGISTER_USE),
-                        tool(SEAL_WITHDRAW), tool(SEAL_RETURN)),
+                        tool(SEAL_WITHDRAW), tool(SEAL_RETURN),tool(SEAL_APPROVE),tool(SEAL_REJECT)),
 
                 page(OaPage.EXPENSE, OwnershipPolicy.SELF, FORM_COMMANDS,
                         context(number("applicationId"), number("version"), text("status"), number("page"), number("size")),
