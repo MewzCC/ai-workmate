@@ -123,6 +123,8 @@ const aiPermission = {
     meeting_cancel: { name: '取消本人会议室预约', description: '仅取消本人符合状态和版本要求的预约。' },
     visitor_query: { name: '查询本人访客预约', description: '读取当前用户发起或负责的访客记录。' },
     visitor_apply: { name: '发起访客预约', description: '创建一条需审批的访客预约。' },
+    visitor_approve: { name: '通过访客审批', description: '二次确认后通过本人受理的一条访客审批任务，校验任务版本；不代替签到或到访登记。' },
+    visitor_reject: { name: '驳回访客审批', description: '使用明确理由及任务版本，二次确认后驳回本人受理的一条访客申请，不自动重试。' },
     visitor_checkIn: { name: '登记访客签到', description: '为一条已批准访客预约登记签到。' },
     visitor_markArrived: { name: '登记访客到访', description: '将一条已签到记录标记为已到访。' },
     visitor_leave: { name: '登记访客离场', description: '为一条到访记录登记离场。' },

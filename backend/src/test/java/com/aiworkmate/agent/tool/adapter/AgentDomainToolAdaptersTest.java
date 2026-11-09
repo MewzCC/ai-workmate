@@ -483,7 +483,7 @@ class AgentDomainToolAdaptersTest {
     @Test
     void mapsVisitorSummaryWithoutPhonePlateOrInternalIdentities() {
         LocalDateTime now = LocalDateTime.of(2026, 9, 14, 9, 30);
-        when(adminAssetsService.listMyVisitorBookings(7L, "APPROVED", 1, 20))
+        when(adminAssetsService.listMyVisitorBookings(7L, 91L, "APPROVED", 1, 20))
                 .thenReturn(PageResponse.of(List.of(new VisitorBookingResponse(
                         31L, 7L, "申请人", 8L, "审批人", 9L, "接待人",
                         "访客", "合作公司", "13800000000", "项目交流", now.plusDays(1),
@@ -499,9 +499,11 @@ class AgentDomainToolAdaptersTest {
 
         assertThat(result.items()).hasSize(1);
         assertThat(result.items().get(0).visitorName()).isEqualTo("访客");
+        assertThat(result.items().get(0).taskId()).isNull();
+        assertThat(result.items().get(0).taskVersion()).isNull();
         assertThat(result.toString()).doesNotContain(
                 "13800000000", "粤A00000", "applicantUserId", "hostUserId",
-                "workflowInstanceId", "taskId");
+                "workflowInstanceId");
     }
 
     @Test

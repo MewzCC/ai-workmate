@@ -160,8 +160,9 @@ class GenericTaskRejectAgentIntegrationTest extends AbstractIsolatedAgentIntegra
         String previous=jdbc.queryForObject("SELECT to_jsonb(t)::text FROM agent_tool t WHERE tenant_id IS NULL AND code='approval.genericTask.approve'",String.class);
         jdbc.update("UPDATE agent_tenant_policy SET enabled=false,write_tools_enabled=false WHERE tenant_id=?",tenant);
         jdbc.update("DELETE FROM agent_tool WHERE tenant_id IS NULL AND code=?",CODE);
-        assertThat(jdbc.update("DELETE FROM flyway_schema_history WHERE version='202611091000'")).isOne();
-        assertThat(flyway.migrate().migrationsExecuted).isOne();flyway.validate();assertThat(flyway.migrate().migrationsExecuted).isZero();
+        int replay=jdbc.queryForObject("SELECT count(*) FROM flyway_schema_history WHERE version::numeric>=202611091000",Integer.class);
+        assertThat(replay).isPositive();assertThat(jdbc.update("DELETE FROM flyway_schema_history WHERE version::numeric>=202611091000")).isEqualTo(replay);
+        assertThat(flyway.migrate().migrationsExecuted).isEqualTo(replay);flyway.validate();assertThat(flyway.migrate().migrationsExecuted).isZero();
         assertThat(jdbc.queryForObject("SELECT enabled FROM agent_tool WHERE tenant_id IS NULL AND code=?",Boolean.class,CODE)).isFalse();
         assertThat(jdbc.queryForObject("SELECT enabled OR write_tools_enabled FROM agent_tenant_policy WHERE tenant_id=?",Boolean.class,tenant)).isFalse();
         assertThat(jdbc.queryForObject("SELECT to_jsonb(t)::text FROM agent_tool t WHERE tenant_id IS NULL AND code='approval.genericTask.approve'",String.class)).isEqualTo(previous);

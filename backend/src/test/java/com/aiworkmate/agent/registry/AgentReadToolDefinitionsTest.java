@@ -26,13 +26,14 @@ class AgentReadToolDefinitionsTest {
         ToolDefinition visitor = new AgentReadToolDefinitions().visitorQueryToolDefinition(mapper);
         ToolDefinition seal = new AgentReadToolDefinitions().sealQueryToolDefinition(mapper);
         assertThat(visitor.schemaHash()).isEqualTo(
-                "sha256:0ee54fb81f4e29f20108018ac3449c19f747fa481249a87b67d06d8e8479891e");
+                "sha256:2a4a406ac690c685b4df2397e1fe65090b12c043471f2d03bab0f07f24bb2844");
         assertThat(seal.schemaHash()).isEqualTo(
                 "sha256:9f896eeb4041562e8c0a7d33ed8117af6c9be6f91d71ce3c763a59d3ce3c0175");
         assertThat(visitor.requiredPermissions()).containsExactly("visitor:read:self");
         assertThat(seal.requiredPermissions()).containsExactly("seal:read:self");
         assertThat(visitor.outputSchema().toString())
-                .doesNotContain("visitorPhone", "plateNumber", "UserId", "workflowInstanceId", "taskId");
+                .doesNotContain("visitorPhone", "plateNumber", "UserId", "workflowInstanceId");
+        assertThat(visitor.outputSchema().at("/properties/items/items/properties/taskVersion/maximum").asInt()).isEqualTo(Integer.MAX_VALUE-1);
         assertThat(seal.outputSchema().toString())
                 .doesNotContain("storage", "documentId", "UserId", "workflowInstanceId", "taskId");
         assertThat(validator.valid(visitor.inputSchema(), mapper.readTree("{\"bookingId\":7}"))).isTrue();

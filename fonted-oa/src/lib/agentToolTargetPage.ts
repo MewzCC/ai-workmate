@@ -78,6 +78,8 @@ const EXACT_TARGETS: Record<string, string> = {
   'hr.change.query': 'employee-change',
   'hr.change.reviewer.query': 'employee-change',
   'visitor.host.query': 'visitor-booking',
+  'visitor.approve': 'visitor-booking',
+  'visitor.reject': 'visitor-booking',
   'asset.department.query': 'asset-ledger',
   'asset.custodian.query': 'asset-ledger',
   'hr.change.apply': 'employee-change',
@@ -144,6 +146,8 @@ const DICTIONARY_RECORD_KINDS: ReadonlyMap<string, AgentRecordKind> = new Map(
     .map((operation): [string, AgentRecordKind] => [`dictionary.${kind}.${operation}`, `dictionary-${kind}`])),
 );
 const RECORD_ID_FIELDS: ReadonlyMap<string, string> = new Map([
+  ['visitor.approve', 'resourceId'],
+  ['visitor.reject', 'resourceId'],
   ['approval.genericTask.detail.query', 'taskId'],
   ['approval.genericTask.approve', 'taskId'],
   ['approval.genericTask.reject', 'taskId'],
@@ -212,6 +216,7 @@ export function resolveAgentToolTargetPath(pageId: string, recordId: number | un
     if (!Number.isSafeInteger(recordId) || recordId <= 0) return null;
     if (pageId === 'dictionary' && recordKind) return `/oa/dictionary?${recordKind === 'dictionary-type' ? 'typeId' : 'itemId'}=${recordId}`;
     if (pageId === 'employee-files') return `/oa/employee-files?id=${recordId}`;
+    if (pageId === 'visitor-booking') return `/oa/visitor-booking?id=${recordId}`;
     if (pageId === 'employee-change') return `/oa/employee-change?id=${recordId}`;
     if (pageId === 'asset-ledger') return `/oa/asset-ledger?id=${recordId}`;
     if (pageId === 'budget') return `/oa/budget?id=${recordId}`;

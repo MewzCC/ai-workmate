@@ -4,6 +4,7 @@ import com.aiworkmate.agent.tool.port.ToolActorContext;
 import com.aiworkmate.agent.tool.port.ToolOperationKey;
 import com.aiworkmate.agent.tool.port.ToolWriteVerification;
 import com.aiworkmate.agent.tool.port.VisitorToolPort;
+import com.aiworkmate.agent.tool.port.WorkflowDecisionToolModels;
 import com.aiworkmate.dto.VersionRequest;
 import com.aiworkmate.service.AdminAssetsService;
 import com.aiworkmate.service.model.VisitorAgentApplicationCommand;
@@ -21,13 +22,26 @@ public final class VisitorAgentDomainToolAdapter implements VisitorToolPort {
     public Page query(ToolActorContext context, Query query) {
         if (query.bookingId() != null) {
             return new Page(List.of(toItem(adminAssetsService.getVisitorBooking(
-                    context.userId(), query.bookingId()))), 1, 1, 1);
+                    context.userId(), context.tenantId(), query.bookingId()))), 1, 1, 1);
         }
         var result = query.queue() == Queue.PENDING
-                ? adminAssetsService.listPendingVisitorBookings(context.userId(), query.page(), query.size())
-                : adminAssetsService.listMyVisitorBookings(context.userId(), query.status(), query.page(), query.size());
+                ? adminAssetsService.listPendingVisitorBookings(context.userId(), context.tenantId(), query.page(), query.size())
+                : adminAssetsService.listMyVisitorBookings(context.userId(), context.tenantId(), query.status(), query.page(), query.size());
         return new Page(result.records().stream().map(this::toItem).toList(),
                 result.total(), result.page(), result.size());
+    }
+
+    @Override public WorkflowDecisionToolModels.Receipt approve(ToolActorContext context,WorkflowDecisionToolModels.Command command) {
+        return decide(context,command,true);
+    }
+    @Override public WorkflowDecisionToolModels.Receipt reject(ToolActorContext context,WorkflowDecisionToolModels.Command command) {
+        return decide(context,command,false);
+    }
+    private WorkflowDecisionToolModels.Receipt decide(ToolActorContext context,WorkflowDecisionToolModels.Command command,boolean approved) {
+        var result=adminAssetsService.decideVisitorBookingForAgent(context.userId(),context.tenantId(),command.taskId(),
+                new com.aiworkmate.dto.ApprovalDecisionRequest(command.version(),command.comment()),approved);
+        return new WorkflowDecisionToolModels.Receipt(result.resourceId(),result.resourceType(),result.resourceStatus(),
+                result.resourceVersion(),result.taskId(),result.status(),result.version(),result.action());
     }
 
     @Override
@@ -149,6 +163,7 @@ public final class VisitorAgentDomainToolAdapter implements VisitorToolPort {
                 item.expectedLeaveAt(), item.partySize(), item.status(), item.version(), item.taskStatus(),
                 item.submittedAt(), item.completedAt(), item.registeredByName(), item.checkedInAt(), item.visitedAt(),
                 item.leftAt(), item.noShowAt(), item.canWithdraw(), item.canDecide(), item.canCheckIn(),
-                item.canMarkVisited(), item.canLeave(), item.canMarkNoShow());
+                item.canMarkVisited(), item.canLeave(), item.canMarkNoShow(),
+                item.canDecide()?item.taskId():null,item.canDecide()?item.taskVersion():null);
     }
 }

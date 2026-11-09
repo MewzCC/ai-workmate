@@ -123,6 +123,8 @@ const aiPermission = {
     meeting_cancel: { name: 'Cancel my room booking', description: 'Cancels only an owned, version-matched booking in an eligible state.' },
     visitor_query: { name: 'Query my visitor bookings', description: 'Reads visitor records initiated by or assigned to the current user.' },
     visitor_apply: { name: 'Submit visitor booking', description: 'Creates one visitor booking that requires approval.' },
+    visitor_approve: { name: 'Approve visitor task', description: 'After secondary confirmation, approves one assigned visitor task using its task version. Does not check in or register an arrival.' },
+    visitor_reject: { name: 'Reject visitor task', description: 'With an explicit reason and task version, rejects one assigned visitor application after secondary confirmation. Never automatically retries.' },
     visitor_checkIn: { name: 'Register visitor check-in', description: 'Registers check-in for one approved visitor booking.' },
     visitor_markArrived: { name: 'Register visitor arrival', description: 'Marks one checked-in visitor record as arrived.' },
     visitor_leave: { name: 'Register visitor departure', description: 'Registers departure for one arrived visitor record.' },

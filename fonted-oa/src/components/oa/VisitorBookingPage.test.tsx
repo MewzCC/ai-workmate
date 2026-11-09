@@ -1,19 +1,24 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { App, ConfigProvider } from 'antd';
+import { MemoryRouter } from 'react-router-dom';
 import zhCN from 'antd/locale/zh_CN';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 const permissions = ['route:visitor-booking', 'visitor:read:self', 'visitor:create', 'approval:act'];
 const auth = vi.hoisted(() => ({ user: { id: 7, tenantId: 1, permissionVersion: 1, permissions: [] as string[] } }));
 const api = vi.hoisted(() => ({ listMyVisitorBookings: vi.fn(), listPendingVisitorBookings: vi.fn(),
-  visitorHostOptions: vi.fn(), submitVisitorBooking: vi.fn() }));
+  visitorHostOptions: vi.fn(), submitVisitorBooking: vi.fn(), approveVisitorBooking: vi.fn(), getVisitorBooking: vi.fn() }));
+const publishedContext = vi.hoisted(() => vi.fn());
 const messages = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn() }));
 vi.mock('@/components/auth/AuthProvider', () => ({ useAuth: () => ({ user: auth.user, refresh: vi.fn() }) }));
 vi.mock('@/lib/adminAssetsApi', () => ({ adminAssetsApi: api }));
 vi.mock('@/lib/antdMessage', () => ({ message: messages }));
+vi.mock('./PageAgentContext', async () => ({
+  ...await vi.importActual<typeof import('./PageAgentContext')>('./PageAgentContext'), usePublishPageAgentContext: publishedContext,
+}));
 import VisitorBookingPage from './VisitorBookingPage';
 
-function view() { return <ConfigProvider locale={zhCN}><App><VisitorBookingPage /></App></ConfigProvider>; }
+function view(path = '/oa/visitor-booking') { return <MemoryRouter initialEntries={[path]}><ConfigProvider locale={zhCN}><App><VisitorBookingPage /></App></ConfigProvider></MemoryRouter>; }
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(done => { resolve = done; }); return { promise, resolve }; }
 async function open() {
   fireEvent.click(screen.getByRole('button', { name: '新增预约' }));
@@ -88,4 +93,51 @@ it('closes private forms and suppresses old write callbacks after authority is r
   await act(async () => { late.resolve({}); });
   expect(messages.success).not.toHaveBeenCalled();
   expect(api.listMyVisitorBookings).toHaveBeenCalledTimes(1);
+});
+
+const assignedVisitor = { id: 9, visitorName: 'Assigned visitor', applicantName: 'Applicant', purpose: 'Review',
+  expectedVisitAt: '2026-11-10T10:00:00', status: 'PENDING', version: 5, taskId: 10001, taskVersion: 2, canDecide: true };
+
+it('publishes and submits the actual task version separately from the booking version', async () => {
+  api.listPendingVisitorBookings.mockResolvedValue({ records: [assignedVisitor], total: 1 });
+  api.approveVisitorBooking.mockResolvedValue({});
+  render(view());
+  fireEvent.click(screen.getByRole('tab', { name: '待我审批' }));
+  fireEvent.click(await screen.findByRole('button', { name: '审批' }));
+  const dialog = await screen.findByRole('dialog');
+  expect(publishedContext).toHaveBeenLastCalledWith(expect.objectContaining({ bookingId: 9, taskId: 10001, taskVersion: 2 }));
+  fireEvent.click(within(dialog).getByRole('button', { name: '通 过' }));
+  await waitFor(() => expect(api.approveVisitorBooking).toHaveBeenCalledWith(10001, { version: 2, comment: undefined }));
+});
+
+it('does not replace a missing task version with zero', async () => {
+  api.listPendingVisitorBookings.mockResolvedValue({ records: [{ ...assignedVisitor, taskVersion: null }], total: 1 });
+  render(view());
+  fireEvent.click(screen.getByRole('tab', { name: '待我审批' }));
+  expect(await screen.findByRole('button', { name: '审批' })).toBeDisabled();
+  expect(api.approveVisitorBooking).not.toHaveBeenCalled();
+});
+
+it('opens the actual receipt booking through the authenticated detail endpoint', async () => {
+  api.getVisitorBooking.mockResolvedValue({ ...assignedVisitor, status: 'APPROVED', canDecide: false, version: 6 });
+  render(view('/oa/visitor-booking?id=9'));
+  await waitFor(() => expect(api.getVisitorBooking).toHaveBeenCalledWith(9));
+  await waitFor(() => expect(publishedContext).toHaveBeenLastCalledWith(expect.objectContaining({ bookingId: 9 })));
+  const dialog = await screen.findByRole('dialog');
+  // rc-component/util deliberately reuses "test-id" in test mode, colliding with Select's label ID.
+  expect(within(dialog).getByText('访客预约详情')).toBeVisible();
+  expect(await within(dialog).findByText('Assigned visitor')).toBeInTheDocument();
+  expect(within(dialog).queryByRole('button', { name: '审批' })).toBeNull();
+  expect(api.approveVisitorBooking).not.toHaveBeenCalled();
+});
+
+it('does not show a delayed detail response after changing accounts', async () => {
+  const late = deferred<typeof assignedVisitor>(); api.getVisitorBooking.mockReturnValueOnce(late.promise);
+  const page = render(view('/oa/visitor-booking?id=9'));
+  await waitFor(() => expect(api.getVisitorBooking).toHaveBeenCalledTimes(1));
+  auth.user = { id: 8, tenantId: 2, permissionVersion: 2, permissions: [] };
+  page.rerender(view('/oa/visitor-booking?id=9'));
+  await act(async () => late.resolve(assignedVisitor));
+  expect(screen.queryByText('Assigned visitor')).toBeNull();
+  expect(screen.queryByRole('dialog')).toBeNull();
 });

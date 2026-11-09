@@ -151,6 +151,9 @@ export default {
     myApplications: '我的申请',
     pendingApproval: '待我审批',
     decideTitle: '审批访客预约',
+    detailTitle: '访客预约详情',
+    bookingId: '预约编号',
+    bookingVersion: '预约版本',
     visitProgress: '来访进度',
     status: {
       PENDING: '审批中',

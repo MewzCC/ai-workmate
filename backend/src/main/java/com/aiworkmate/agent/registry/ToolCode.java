@@ -101,6 +101,8 @@ public enum ToolCode {
     MEETING_CANCEL("meeting.cancel", SideEffect.SINGLE_WRITE),
     VISITOR_QUERY("visitor.query"),
     VISITOR_APPLY("visitor.apply", SideEffect.SINGLE_WRITE),
+    VISITOR_APPROVE("visitor.approve", SideEffect.SINGLE_WRITE),
+    VISITOR_REJECT("visitor.reject", SideEffect.SINGLE_WRITE),
     VISITOR_CHECK_IN("visitor.checkIn", SideEffect.SINGLE_WRITE),
     VISITOR_MARK_ARRIVED("visitor.markArrived", SideEffect.SINGLE_WRITE),
     VISITOR_LEAVE("visitor.leave", SideEffect.SINGLE_WRITE),

@@ -20,7 +20,8 @@ vi.mock('@/components/auth/AuthProvider', () => ({ useAuth: () => ({ user: auth.
 vi.mock('@/lib/adminAssetsApi', () => ({ adminAssetsApi: api }));
 vi.mock('@/lib/hrApi', () => ({ hrApi: hr }));
 vi.mock('@/lib/antdMessage', () => ({ message: messages }));
-vi.mock('@/lib/nextCompat', () => ({ useSearchParams: () => new URLSearchParams() }));
+vi.mock('@/lib/nextCompat', () => ({ useSearchParams: () => new URLSearchParams(),
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }) }));
 vi.mock('./PageUiCommandBridge', () => ({ useRegisterPageUiCommands: (handlers: PageUiCommandHandlers) => { ui.handlers = handlers; } }));
 import VisitorBookingPage from './VisitorBookingPage';
 import SealUsagePage from './SealUsagePage';

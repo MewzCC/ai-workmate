@@ -17,6 +17,9 @@ import org.apache.ibatis.annotations.Select;
  */
 @Mapper
 public interface VisitorBookingMapper extends BaseMapper<VisitorBooking> {
+    @Select("SELECT * FROM visitor_booking WHERE tenant_id=#{tenantId} AND id=#{id} FOR UPDATE")
+    @Options(useCache=false,flushCache=Options.FlushCachePolicy.TRUE)
+    VisitorBooking lockById(@Param("tenantId") Long tenantId, @Param("id") Long id);
 
     @Select("""
             SELECT wd.id FROM workflow_definition wd
