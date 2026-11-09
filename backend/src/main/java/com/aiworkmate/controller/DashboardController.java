@@ -32,7 +32,7 @@ public class DashboardController {
     public Result<DashboardOverviewResponse> overview(
             @AuthenticationPrincipal AuthenticatedUser user,
             @RequestParam(defaultValue = "7") @Min(1) @Max(30) int days) {
-        return Result.ok(dashboardService.overview(user.userId(), days));
+        return Result.ok(dashboardService.overview(user.userId(), user.tenantId(), days));
     }
 
     @PostMapping("/export")
@@ -40,6 +40,6 @@ public class DashboardController {
     public Result<DashboardExportResponse> export(
             @AuthenticationPrincipal AuthenticatedUser user,
             @Valid @RequestBody DashboardExportRequest request) {
-        return Result.ok(dashboardService.export(user.userId(), request));
+        return Result.ok(dashboardService.export(user.userId(), user.tenantId(), request));
     }
 }

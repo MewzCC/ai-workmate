@@ -1,6 +1,6 @@
 import dayjs from 'dayjs';
 
-export const TODO_BUSINESS_TYPES = ['ALL', 'LEAVE_APPLICATION', 'GENERIC_APPROVAL'] as const;
+export const TODO_BUSINESS_TYPES = ['ALL', 'LEAVE_APPLICATION', 'GENERIC_APPROVAL', 'VISITOR_BOOKING', 'SEAL_USAGE'] as const;
 export const TODO_STATUSES = ['ALL', 'PENDING', 'APPROVED', 'REJECTED', 'CANCELLED'] as const;
 export interface TodoQueryFilters {
   businessType: typeof TODO_BUSINESS_TYPES[number]; status: typeof TODO_STATUSES[number];

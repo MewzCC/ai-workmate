@@ -3,7 +3,7 @@ export default {
     allTab: 'All tasks', businessType: 'Business type', invalidQuery: 'Invalid inbox filters. Reset them and try again.',
     inboxKicker: 'APPROVAL INBOX', currentPagePending: 'Pending on this page', currentPageOverdue: '{{count}} overdue tasks on this page', genericSubject: '{{name}} · {{title}}',
     title: 'Generic approval inbox', description: 'Process requests in their frozen order and read history from the original workflow attempt.',
-    leaveTab: 'Leave tasks', genericTab: 'Generic request tasks', agentPending: 'Controlled generic task reads are available. The approve tool requires separate enablement and secondary confirmation; the reject tool awaits delivery. Manual decisions remain available in task details.',
+    leaveTab: 'Leave tasks', genericTab: 'Generic request tasks', visitorTab: 'Visitor tasks', sealTab: 'Seal tasks', unsupportedType: 'Unsupported business type', agentPending: 'Controlled generic task reads are available. Approve and reject tools require separate enablement and secondary confirmation. Manual decisions remain available in task details.',
     empty: 'No generic approval tasks match these filters', invalidId: 'Invalid task ID', request: 'Request', node: 'Approval node',
     legacyTitle: 'Historical request', legacyNode: 'Historical node', snapshotMissing: 'Historical snapshot unavailable', detailTitle: 'Generic approval task #{{id}}', confirmTitle: 'Confirm this generic approval decision',
   },

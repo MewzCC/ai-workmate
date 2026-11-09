@@ -15,6 +15,8 @@ import EChartsCard from './EChartsCard';
 import ResponsiveTable from './ResponsiveTable';
 import { useRegisterPageUiCommands } from './PageUiCommandBridge';
 import { dashboardTodoTarget } from '@/lib/dashboardTodoTarget';
+import { approvalTaskRoutePermission } from '@/lib/approvalTaskTarget';
+import { useScopedOverview } from '@/hooks/useScopedOverview';
 
 interface DashboardProps {
   primaryColor: string;
@@ -31,37 +33,30 @@ const METRIC_COLORS: Record<DashboardMetricCode, string> = {
 export default function Dashboard({ primaryColor, onOpenAi }: DashboardProps) {
   const router = useRouter();
   const { t, i18n } = useTranslation();
-  const [overview, setOverview] = useState<DashboardOverview | null>(null);
-  const [loading, setLoading] = useState(true);
+  const query = useCallback(() => getDashboardOverview(7), []);
+  const { data: overview, loading, error, load, scope, isCurrent } = useScopedOverview(query);
   const [exporting, setExporting] = useState(false);
   const [metricModalOpen, setMetricModalOpen] = useState(false);
   const [metricDraft, setMetricDraft] = useState<DashboardMetricCode[]>([]);
   const [savingMetrics, setSavingMetrics] = useState(false);
-  const [error, setError] = useState<string>();
   const [genericPreReviewAvailable, setGenericPreReviewAvailable] = useState(false);
   const { allowed: canExport } = usePermission('data:export');
-  const { allowed: canReadTodos } = usePermission('todo:read');
+  const { allowed: canReadTodos, hasPermission } = usePermission('todo:read');
   const { allowed: canEnterTodos } = usePermission('route:todo');
   const { allowed: canReadGenericTask } = usePermission('agent:tool:approval.genericTask.detail.query');
+  const canOpenTodo = (record: DashboardOverview['todos'][number]) => {
+    const permission = approvalTaskRoutePermission(record.businessType);
+    return canReadTodos && permission !== null && hasPermission(permission) && Boolean(dashboardTodoTarget(record));
+  };
+  const canPreReview = (record: DashboardOverview['todos'][number]) => canOpenTodo(record)
+    && (record.businessType === 'LEAVE_APPLICATION' || record.businessType === 'GENERIC_APPROVAL' && genericPreReviewAvailable && canReadGenericTask);
   const openTodo = (record: DashboardOverview['todos'][number]) => {
     const path = dashboardTodoTarget(record);
-    if (!canReadTodos || !canEnterTodos || !path) throw new Error('PAGE_UI_FIELD_REJECTED');
+    if (!isCurrent() || !canOpenTodo(record) || !path) throw new Error('PAGE_UI_FIELD_REJECTED');
     router.push(path);
   };
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(undefined);
-    try {
-      setOverview(await getDashboardOverview(7));
-    } catch (cause) {
-      setError(formatOaApiError(cause));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { setExporting(false); setMetricModalOpen(false); setSavingMetrics(false); }, [scope]);
   useEffect(() => {
     let current = true;
     setGenericPreReviewAvailable(false);
@@ -71,8 +66,8 @@ export default function Dashboard({ primaryColor, onOpenAi }: DashboardProps) {
       }).catch(() => { if (current) setGenericPreReviewAvailable(false); });
     }
     return () => { current = false; };
-  }, [canReadTodos, canEnterTodos, canReadGenericTask]);
-  useRegisterPageUiCommands({ 'ui.refreshPage': load,
+  }, [canReadTodos, canEnterTodos, canReadGenericTask, scope]);
+  useRegisterPageUiCommands({ 'ui.refreshPage': async () => { if (!await load()) throw new Error('PAGE_UI_FIELD_REJECTED'); },
     'ui.openDetail': ({ payload: { recordId } }) => {
       const id = Number(recordId);
       const task = overview?.todos.find(item => item.taskId === id);
@@ -85,12 +80,13 @@ export default function Dashboard({ primaryColor, onOpenAi }: DashboardProps) {
     setExporting(true);
     try {
       const response = await exportDashboard(defaultDashboardExportRange(7));
+      if (!isCurrent()) return;
       downloadDashboardExport(response);
       message.success(t('dashboard.messages.exported', { count: response.rowCount }));
     } catch (cause) {
-      message.error(formatOaApiError(cause));
+      if (isCurrent()) message.error(formatOaApiError(cause));
     } finally {
-      setExporting(false);
+      if (isCurrent()) setExporting(false);
     }
   };
 
@@ -123,13 +119,14 @@ export default function Dashboard({ primaryColor, onOpenAi }: DashboardProps) {
     setSavingMetrics(true);
     try {
       await updateDashboardPreferences(metricDraft);
+      if (!isCurrent()) return;
       setMetricModalOpen(false);
       message.success(t('dashboard.messages.metricsSaved'));
       await load();
     } catch (cause) {
-      message.error(formatOaApiError(cause));
+      if (isCurrent()) message.error(formatOaApiError(cause));
     } finally {
-      setSavingMetrics(false);
+      if (isCurrent()) setSavingMetrics(false);
     }
   };
 
@@ -163,14 +160,14 @@ export default function Dashboard({ primaryColor, onOpenAi }: DashboardProps) {
       render: (_, record) => (
         <Tooltip title={!dashboardTodoTarget(record) ? t('dashboard.status.detailUnavailable') : undefined}>
         <Space size={4}>
-          <Button aria-label={t('dashboard.actions.process')} type="primary" size="small" disabled={!canReadTodos || !canEnterTodos || !dashboardTodoTarget(record)} onClick={() => openTodo(record)}>
+          <Button aria-label={t('dashboard.actions.process')} type="primary" size="small" disabled={!canOpenTodo(record)} onClick={() => openTodo(record)}>
             {t('dashboard.actions.process')}
           </Button>
-          <Button aria-label={t('dashboard.actions.view')} size="small" disabled={!canReadTodos || !canEnterTodos || !dashboardTodoTarget(record)} onClick={() => openTodo(record)}>
+          <Button aria-label={t('dashboard.actions.view')} size="small" disabled={!canOpenTodo(record)} onClick={() => openTodo(record)}>
             {t('dashboard.actions.view')}
           </Button>
           <Tooltip title={record.businessType !== 'LEAVE_APPLICATION' && (!genericPreReviewAvailable || !canReadGenericTask) ? t('dashboard.status.preReviewUnavailable') : undefined}>
-          <Button aria-label={t('dashboard.actions.preReview')} size="small" disabled={!canReadTodos || !canEnterTodos || !dashboardTodoTarget(record) || (record.businessType !== 'LEAVE_APPLICATION' && (!genericPreReviewAvailable || !canReadGenericTask))} icon={<OaIcon name="ai" />} onClick={() => onOpenAi(t(record.businessType === 'GENERIC_APPROVAL' ? 'dashboard.aiPrompts.preReviewGenericTask' : 'dashboard.aiPrompts.preReviewTask', { taskId: record.taskId }))}>
+          <Button aria-label={t('dashboard.actions.preReview')} size="small" disabled={!canPreReview(record)} icon={<OaIcon name="ai" />} onClick={() => onOpenAi(t(record.businessType === 'GENERIC_APPROVAL' ? 'dashboard.aiPrompts.preReviewGenericTask' : 'dashboard.aiPrompts.preReviewTask', { taskId: record.taskId }))}>
             {t('dashboard.actions.preReview')}
           </Button>
           </Tooltip>
@@ -207,7 +204,7 @@ export default function Dashboard({ primaryColor, onOpenAi }: DashboardProps) {
         </Space>
       </section>
 
-      {error && <Alert type="error" showIcon title={t('dashboard.loadFailed')} description={error} action={<Button size="small" onClick={() => void load()}>{t('common.retry')}</Button>} />}
+      {error !== undefined && <Alert type="error" showIcon title={t('dashboard.loadFailed')} description={formatOaApiError(error)} action={<Button size="small" onClick={() => void load()}>{t('common.retry')}</Button>} />}
 
       {loading && !overview ? (
         <Card className="oa-card oa-placeholder-card"><Spin size="large" description={t('common.loading')} /></Card>

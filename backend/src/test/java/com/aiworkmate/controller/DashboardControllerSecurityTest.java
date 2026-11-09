@@ -54,23 +54,23 @@ class DashboardControllerSecurityTest {
         when(userAccessService.resolveActiveUser(42L)).thenReturn(access(List.of("route:dashboard")));
         mvc.perform(get("/api/dashboard/overview").header("Authorization", "Bearer valid"))
                 .andExpect(status().isForbidden());
-        verify(dashboardService, never()).overview(42L, 7);
+        verify(dashboardService, never()).overview(42L, 9L, 7);
     }
 
     @Test
     void passesAuthenticatedIdentityAndValidatedRange() throws Exception {
-        when(dashboardService.overview(42L, 14)).thenReturn(new DashboardOverviewResponse(
+        when(dashboardService.overview(42L, 9L, 14)).thenReturn(new DashboardOverviewResponse(
                 OffsetDateTime.now(), 14, List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null));
         mvc.perform(get("/api/dashboard/overview").header("Authorization", "Bearer valid").param("days", "14"))
                 .andExpect(status().isOk());
-        verify(dashboardService).overview(42L, 14);
+        verify(dashboardService).overview(42L, 9L, 14);
     }
 
     @Test
     void rejectsOutOfRangeDays() throws Exception {
         mvc.perform(get("/api/dashboard/overview").header("Authorization", "Bearer valid").param("days", "31"))
                 .andExpect(status().isBadRequest());
-        verify(dashboardService, never()).overview(42L, 31);
+        verify(dashboardService, never()).overview(42L, 9L, 31);
     }
 
     @Test
@@ -78,7 +78,7 @@ class DashboardControllerSecurityTest {
         mvc.perform(post("/api/dashboard/export").header("Authorization", "Bearer valid")
                         .contentType(APPLICATION_JSON).content("{\"from\":\"2026-09-06\",\"to\":\"2026-09-12\"}"))
                 .andExpect(status().isForbidden());
-        verify(dashboardService, never()).export(org.mockito.ArgumentMatchers.eq(42L), org.mockito.ArgumentMatchers.any());
+        verify(dashboardService, never()).export(org.mockito.ArgumentMatchers.eq(42L), org.mockito.ArgumentMatchers.eq(9L), org.mockito.ArgumentMatchers.any());
     }
 
     @Test
@@ -87,7 +87,7 @@ class DashboardControllerSecurityTest {
         mvc.perform(post("/api/dashboard/export").header("Authorization", "Bearer valid")
                         .contentType(APPLICATION_JSON).content("{\"from\":\"2026-09-06\",\"to\":\"2026-09-12\"}"))
                 .andExpect(status().isOk());
-        verify(dashboardService).export(org.mockito.ArgumentMatchers.eq(42L), org.mockito.ArgumentMatchers.any());
+        verify(dashboardService).export(org.mockito.ArgumentMatchers.eq(42L), org.mockito.ArgumentMatchers.eq(9L), org.mockito.ArgumentMatchers.any());
     }
 
     private ResolvedUserAccess access(List<String> permissions) {

@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   updatePreferences: vi.fn(),
   push: vi.fn(),
   denied: new Set<string>(),
+  user: { id: 7, tenantId: 1, permissionVersion: 1, roles: ['USER'], permissions: ['dashboard:read'], dataScopes: ['SELF'] },
 }));
 
 vi.mock('@/lib/dashboardApi', async () => {
@@ -20,8 +21,9 @@ vi.mock('@/lib/nextCompat', () => ({
 }));
 
 vi.mock('@/hooks/usePermission', () => ({
-  usePermission: (code: string) => ({ allowed: !mocks.denied.has(code) }),
+  usePermission: (code: string) => ({ allowed: !mocks.denied.has(code), hasPermission: (permission: string) => !mocks.denied.has(permission) }),
 }));
+vi.mock('@/components/auth/AuthProvider', () => ({ useAuth: () => ({ user: mocks.user }) }));
 
 vi.mock('./EChartsCard', () => ({ default: ({ title }: { title: string }) => <div>{title}</div> }));
 vi.mock('@/lib/oaApi', async () => ({
@@ -59,6 +61,7 @@ describe('Dashboard approval entry workflow', () => {
   afterEach(cleanup);
 
   beforeEach(() => {
+    mocks.user.permissionVersion = 1;
     mocks.getOverview.mockReset().mockResolvedValue(overview);
     mocks.push.mockReset();
     mocks.denied.clear();
@@ -67,6 +70,19 @@ describe('Dashboard approval entry workflow', () => {
       metricCodes: ['UNREAD_MESSAGES', 'PENDING_TODOS'],
       availableMetricCodes: overview.availableMetricCodes,
     });
+  });
+
+  it('discards previous-user data and late responses after the permission scope changes', async () => {
+    let finish!: (value: typeof overview) => void;
+    mocks.getOverview.mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));
+    const view = render(<Dashboard primaryColor="#1677ff" onOpenAi={vi.fn()} />);
+    mocks.user.permissionVersion = 2;
+    mocks.getOverview.mockResolvedValueOnce({ ...overview, todos: [] });
+    view.rerender(<Dashboard primaryColor="#1677ff" onOpenAi={vi.fn()} />);
+    await waitFor(() => expect(mocks.getOverview).toHaveBeenCalledTimes(2));
+    finish(overview);
+    await waitFor(() => expect(screen.queryByText('LV-000018')).toBeNull());
+    expect(screen.queryByText('不应发送给 Agent 的申请人')).toBeNull();
   });
 
   it('opens the existing approval detail without executing a decision on the dashboard', async () => {
@@ -100,6 +116,22 @@ describe('Dashboard approval entry workflow', () => {
     expect(await screen.findByRole('button', { name: '处理' })).toBeDisabled();
     expect(screen.getByRole('button', { name: '查看' })).toBeDisabled();
     expect(mocks.push).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['VISITOR_BOOKING', 'route:visitor-booking', '/oa/visitor-booking?id=18'],
+    ['SEAL_USAGE', 'route:seal-usage', '/oa/seal-usage?id=18'],
+  ])('routes %s by business ID and never invokes the leave pre-review', async (businessType, permission, path) => {
+    mocks.getOverview.mockResolvedValue({ ...overview, todos: [{ ...overview.todos[0], businessType }] });
+    mocks.getCapabilities.mockResolvedValue({ tools: [{ code: 'approval.genericTask.detail.query' }] });
+    const onOpenAi = vi.fn();
+    const view = render(<Dashboard primaryColor="#1677ff" onOpenAi={onOpenAi} />);
+    fireEvent.click(await screen.findByRole('button', { name: '处理' }));
+    expect(mocks.push).toHaveBeenCalledWith(path);
+    expect(screen.getByRole('button', { name: '预审' })).toBeDisabled();
+    expect(onOpenAi).not.toHaveBeenCalled();
+    mocks.denied.add(permission); view.rerender(<Dashboard primaryColor="#1677ff" onOpenAi={onOpenAi} />);
+    expect(screen.getByRole('button', { name: '处理' })).toBeDisabled();
   });
 
   it('pre-reviews a generic task only with a live read capability and a typed identifier-only prompt', async () => {

@@ -17,7 +17,7 @@ describe('dashboard typed todo navigation', () => {
   });
   it('refuses unavailable details and unknown business namespaces', () => {
     expect(dashboardTodoTarget({ ...task, detailAvailable: false })).toBeNull();
-    expect(dashboardTodoTarget({ ...task, businessType: 'VISITOR_BOOKING' })).toBeNull();
+    expect(dashboardTodoTarget({ ...task, businessType: 'UNKNOWN' })).toBeNull();
     expect(dashboardTodoTarget({ ...task, businessType: 'https://untrusted.invalid' })).toBeNull();
   });
 });

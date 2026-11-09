@@ -5,11 +5,12 @@ import { PageAgentContextProvider } from './PageAgentContext';
 import { bindAuthResponseIdentity } from '@/lib/authEvents';
 
 const auth = vi.hoisted(() => ({ user: { id: 7, tenantId: 1, permissionVersion: 1, roles: ['USER'], permissions: ['todo:read'], dataScopes: ['SELF'] } }));
-const api = vi.hoisted(() => ({ list: vi.fn(), summary: vi.fn(), detail: vi.fn(), genericDetail: vi.fn(), push: vi.fn(), error: vi.fn() }));
+const api = vi.hoisted(() => ({ list: vi.fn(), summary: vi.fn(), detail: vi.fn(), genericDetail: vi.fn(), visitorDetail: vi.fn(), sealDetail: vi.fn(), push: vi.fn(), error: vi.fn() }));
 const ui = vi.hoisted(() => ({ search: '', handlers: {} as PageUiCommandHandlers }));
 vi.mock('@/components/auth/AuthProvider', () => ({ useAuth: () => ({ user: auth.user }) }));
 vi.mock('@/lib/oaApi', async load => ({ ...await load<typeof import('@/lib/oaApi')>(), todoApi: { list: api.list, summary: api.summary, detail: api.detail } }));
 vi.mock('@/lib/genericApprovalTaskApi', () => ({ genericApprovalTaskApi: { detail: api.genericDetail } }));
+vi.mock('@/lib/adminAssetsApi', () => ({ adminAssetsApi: { getVisitorBooking: api.visitorDetail, getSealUsage: api.sealDetail } }));
 vi.mock('@/lib/nextCompat', () => ({ useRouter: () => ({ push: api.push }), useSearchParams: () => new URLSearchParams(ui.search) }));
 vi.mock('@/lib/antdMessage', () => ({ message: { error: api.error } }));
 vi.mock('./MyApplicationsPage', () => ({ leaveTypeLabel: (type: string) => type }));
@@ -22,7 +23,7 @@ const row = (name: string) => ({ id: 3, applicationId: 9, applicantUserId: 8, ap
 const records = (name: string) => ({ records: [row(name)], total: 1, page: 1, size: 20 });
 const tree = () => <PageAgentContextProvider pageId="todo"><TodoListPage /></PageAgentContextProvider>;
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(done => { resolve = done; }); return { promise, resolve }; }
-beforeEach(() => { vi.clearAllMocks(); ui.search = ''; auth.user = { ...auth.user, id: 7, permissionVersion: 1, permissions: ['todo:read'] };
+beforeEach(() => { vi.clearAllMocks(); ui.search = ''; auth.user = { ...auth.user, id: 7, permissionVersion: 1, permissions: ['todo:read', 'route:todo'] };
   bindAuthResponseIdentity('todo-user', 'read'); api.list.mockResolvedValue(records('Applicant A')); api.summary.mockImplementation(async (id: number) => ({ ...row('Applicant A'), id }));
   api.detail.mockResolvedValue({ id: 9, taskId: 42 }); });
 afterEach(cleanup);
@@ -85,6 +86,23 @@ it('restores the exact business, status, date and page of a completed Agent quer
   render(tree()); await screen.findByText(/Applicant A/);
   expect(api.list).toHaveBeenCalledWith({ businessType: 'GENERIC_APPROVAL', status: 'APPROVED', page: 2, size: 10, from: '2026-11-01T00:00:00', to: undefined });
   expect(screen.getByDisplayValue('2026-11-01 00:00:00')).toBeTruthy();
+});
+
+it.each([
+  ['VISITOR_BOOKING', 'visitor:read:self', 'route:visitor-booking', '/oa/visitor-booking?id=9', 'visitorDetail'],
+  ['SEAL_USAGE', 'seal:read:self', 'route:seal-usage', '/oa/seal-usage?id=9', 'sealDetail'],
+] as const)('opens %s using its authenticated business detail and never a leave endpoint', async (businessType, permission, route, path, method) => {
+  auth.user.permissions.push(permission, route);
+  const task = { ...row('Domain applicant'), id: 42, businessType, title: 'Assigned domain task', leaveType: null, durationHalfDays: null };
+  api.list.mockResolvedValue({ records: [task], total: 1, page: 1, size: 20 });
+  api.summary.mockResolvedValue(task); api[method].mockResolvedValue({ id: 9, taskId: 42 });
+  render(tree()); await screen.findByText(/Assigned domain task/);
+  await act(async () => { await ui.handlers['ui.openDetail']!({ pageId: 'todo', code: 'ui.openDetail', payload: { recordId: 42 } }); });
+  expect(api[method]).toHaveBeenCalledWith(9); expect(api.push).toHaveBeenCalledWith(path);
+  expect(api.detail).not.toHaveBeenCalled(); expect(api.genericDetail).not.toHaveBeenCalled();
+  api.push.mockClear(); api[method].mockResolvedValueOnce({ id: 9, taskId: 43 });
+  await expect(ui.handlers['ui.openDetail']!({ pageId: 'todo', code: 'ui.openDetail', payload: { recordId: 42 } })).rejects.toThrow();
+  expect(api.push).not.toHaveBeenCalled();
 });
 
 it('rejects invalid restored filters without making a query or falling back to another business', async () => {

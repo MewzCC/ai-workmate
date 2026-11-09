@@ -1,6 +1,7 @@
 package com.aiworkmate.mapper;
 
 import com.aiworkmate.dto.DashboardOverviewResponse;
+import com.aiworkmate.service.model.TodoReadScope;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
@@ -12,11 +13,11 @@ import java.time.LocalDateTime;
 public interface DashboardMapper {
 
     @Select("SELECT COUNT(*) " + UnifiedTodoMapper.RELATIONS + " AND wt.status='PENDING'")
-    long countPendingTodos(@Param("tenantId") Long tenantId, @Param("userId") Long userId);
+    long countPendingTodos(@Param("tenantId") Long tenantId, @Param("userId") Long userId,@Param("scope") TodoReadScope scope);
 
     @Select("SELECT COUNT(*) " + UnifiedTodoMapper.RELATIONS
             + " AND wt.status='PENDING' AND wt.due_at IS NOT NULL AND wt.due_at < CURRENT_TIMESTAMP")
-    long countOverdueTodos(@Param("tenantId") Long tenantId, @Param("userId") Long userId);
+    long countOverdueTodos(@Param("tenantId") Long tenantId, @Param("userId") Long userId,@Param("scope") TodoReadScope scope);
 
     @Select("""
             SELECT
@@ -34,15 +35,14 @@ public interface DashboardMapper {
                    COALESCE(NULLIF(applicant.display_name, ''), applicant.username) AS applicantName,
                    wi.started_at AS submittedAt, wt.due_at AS dueAt,
                    (wt.due_at IS NOT NULL AND wt.due_at < CURRENT_TIMESTAMP) AS overdue,
-                   (wt.business_type='LEAVE_APPLICATION' OR e.instance_id IS NOT NULL) AS detailAvailable
-            """;
+            """+UnifiedTodoMapper.DETAIL_AVAILABLE+" AS detailAvailable ";
     @Select(TODO_COLUMNS + UnifiedTodoMapper.RELATIONS + """
               AND wt.status='PENDING'
             ORDER BY (wt.due_at IS NULL), wt.due_at, wt.created_at DESC, wt.id DESC
             LIMIT 8
             """)
     List<DashboardOverviewResponse.TodoSummary> selectPendingTodos(
-            @Param("tenantId") Long tenantId, @Param("userId") Long userId);
+            @Param("tenantId") Long tenantId, @Param("userId") Long userId,@Param("scope") TodoReadScope scope);
 
     @Select("""
             WITH days AS (
@@ -113,6 +113,7 @@ public interface DashboardMapper {
     List<DashboardExportRow> selectExportRows(
             @Param("tenantId") Long tenantId,
             @Param("userId") Long userId,
+            @Param("scope") TodoReadScope scope,
             @Param("from") LocalDateTime from,
             @Param("toExclusive") LocalDateTime toExclusive,
             @Param("keyword") String keyword);

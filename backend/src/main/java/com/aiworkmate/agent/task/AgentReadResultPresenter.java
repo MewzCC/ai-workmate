@@ -348,7 +348,7 @@ public final class AgentReadResultPresenter {
         String scopeLine = "";
         if (unified) {
             String type = result.path("businessType").asText(), state = result.path("status").asText();
-            if (!java.util.Set.of("ALL", "LEAVE_APPLICATION", "GENERIC_APPROVAL").contains(type)
+            if (!java.util.Set.of("ALL", "LEAVE_APPLICATION", "GENERIC_APPROVAL","VISITOR_BOOKING","SEAL_USAGE").contains(type)
                     || !java.util.Set.of("ALL", "PENDING", "APPROVED", "REJECTED", "CANCELLED").contains(state)
                     || !result.path("page").isInt() || result.path("page").asInt() < 1 || result.path("page").asInt() > 10000
                     || !result.path("size").isInt() || result.path("size").asInt() < 1 || result.path("size").asInt() > 50
@@ -370,10 +370,13 @@ public final class AgentReadResultPresenter {
             if (id < 1) throw new BusinessException(ErrorCode.REQUEST_INVALID);
             String applicant = plain(item.path("applicantName").asText(""));
             String due = plain(item.path("dueAt").asText(""));
-            if ("GENERIC_APPROVAL".equals(item.path("businessType").asText())) {
+            String itemType=item.path("businessType").asText(unified?"":"LEAVE_APPLICATION");
+            if(!java.util.Set.of("LEAVE_APPLICATION","GENERIC_APPROVAL","VISITOR_BOOKING","SEAL_USAGE").contains(itemType))throw new BusinessException(ErrorCode.REQUEST_INVALID);
+            if (!"LEAVE_APPLICATION".equals(itemType)) {
                 String title = plain(item.path("title").asText());
                 if (title.isBlank()) throw new BusinessException(ErrorCode.REQUEST_INVALID);
-                answer.append('\n').append(MessageUtils.resolve("agent.todo.unified.genericItem", shown, id, applicant, title));
+                String key=switch(itemType){case "VISITOR_BOOKING"->"agent.todo.unified.visitorItem";case "SEAL_USAGE"->"agent.todo.unified.sealItem";default->"agent.todo.unified.genericItem";};
+                answer.append('\n').append(MessageUtils.resolve(key, shown, id, applicant, title));
                 if (!item.path("nodeName").asText().isBlank()) answer.append(' ').append(MessageUtils.resolve("agent.todo.unified.node",plain(item.path("nodeName").asText())));
                 if (!item.path("detailAvailable").asBoolean()) answer.append(' ').append(MessageUtils.resolve("agent.todo.unified.unavailable"));
             } else {

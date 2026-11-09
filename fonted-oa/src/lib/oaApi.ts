@@ -407,7 +407,7 @@ export interface TodoItem {
   submittedAt: string;
   dueAt?: string;
   overdue: boolean;
-  businessType: 'LEAVE_APPLICATION' | 'GENERIC_APPROVAL';
+  businessType: 'LEAVE_APPLICATION' | 'GENERIC_APPROVAL' | 'VISITOR_BOOKING' | 'SEAL_USAGE';
   title: string;
   nodeName?: string | null;
   detailAvailable: boolean;
@@ -421,8 +421,8 @@ function isTodoItem(value: unknown): value is TodoItem {
   const positive = (id: unknown) => typeof id === 'number' && Number.isSafeInteger(id) && id > 0;
   return positive(row.id) && positive(row.applicationId) && positive(row.applicantUserId)
     && typeof row.applicantName === 'string' && row.applicantName.length <= 120
-    && ['LEAVE_APPLICATION', 'GENERIC_APPROVAL'].includes(String(row.businessType))
-    && typeof row.title === 'string' && row.title.length > 0 && row.title.length <= 200
+    && ['LEAVE_APPLICATION', 'GENERIC_APPROVAL', 'VISITOR_BOOKING', 'SEAL_USAGE'].includes(String(row.businessType))
+    && typeof row.title === 'string' && row.title.length > 0 && [...row.title].length <= 200
     && ['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED'].includes(String(row.status))
     && typeof row.version === 'number' && Number.isSafeInteger(row.version) && row.version >= 0
     && typeof row.detailAvailable === 'boolean' && typeof row.overdue === 'boolean'

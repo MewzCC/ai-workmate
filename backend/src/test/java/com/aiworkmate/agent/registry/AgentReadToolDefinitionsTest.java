@@ -193,7 +193,7 @@ class AgentReadToolDefinitionsTest {
 
         assertThat(definition.code()).isEqualTo("todo.query");
         assertThat(definition.schemaHash()).isEqualTo(
-                "sha256:60764cd0dbafbad1eb753e565a3424e70f89b6232c28e411009bf95066037771");
+                "sha256:2439f3d4f40632017737b60f9e821111762befa3a669be4e4779a84810f53671");
         assertThat(definition.requiredPermissions()).containsExactly("todo:read");
         assertThat(definition.ownershipPolicy()).isEqualTo(OwnershipPolicy.ASSIGNED_TO_SELF);
         assertThat(definition.riskLevel()).isEqualTo(RiskLevel.L0);

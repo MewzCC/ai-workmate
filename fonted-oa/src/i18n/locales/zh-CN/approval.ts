@@ -3,7 +3,7 @@ export default {
     allTab: '全部待办', businessType: '业务类型', invalidQuery: '待办筛选参数无效，请重置后重试。',
     inboxKicker: '统一审批待办', currentPagePending: '本页待处理', currentPageOverdue: '本页有 {{count}} 项逾期任务', genericSubject: '{{name}} · {{title}}',
     title: '通用审批待办', description: '按冻结的流程顺序处理通用申请，历史详情按原流程实例展示。',
-    leaveTab: '请假待办', genericTab: '通用申请待办', agentPending: '支持受控读取本人通用审批详情；通过工具需独立启用并二次确认，驳回工具仍待交付。也可在详情中手动审批。',
+    leaveTab: '请假待办', genericTab: '通用申请待办', visitorTab: '访客待办', sealTab: '用印待办', unsupportedType: '不支持的业务类型', agentPending: '支持受控读取本人通用审批详情；通过和驳回工具需独立启用并二次确认。也可在详情中手动审批。',
     empty: '当前筛选下暂无通用审批任务', invalidId: '任务编号无效', request: '申请单', node: '审批节点',
     legacyTitle: '历史申请', legacyNode: '历史节点', snapshotMissing: '历史快照不可用', detailTitle: '通用审批任务 #{{id}}', confirmTitle: '确认处理当前通用审批节点',
   },

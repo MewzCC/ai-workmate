@@ -20,7 +20,7 @@ class DashboardAgentDomainToolAdapterTest {
         DashboardService service = mock(DashboardService.class);
         var actor = new ToolActorContext(9L, 7L, 20L, 30L, 1, "trace");
         var generatedAt = java.time.OffsetDateTime.parse("2026-10-09T10:00:00+08:00");
-        when(service.overview(7L, 30)).thenReturn(new com.aiworkmate.dto.DashboardOverviewResponse(
+        when(service.overview(7L, 9L, 30)).thenReturn(new com.aiworkmate.dto.DashboardOverviewResponse(
                 generatedAt, 30, List.of("PENDING_TODOS"),
                 List.of(new com.aiworkmate.dto.DashboardOverviewResponse.Metric("PENDING_TODOS", 2)),
                 List.of(new com.aiworkmate.dto.DashboardOverviewResponse.TodoSummary(
@@ -40,7 +40,7 @@ class DashboardAgentDomainToolAdapterTest {
         assertThat(result.businessDistribution()).hasSize(16);
         assertThat(result.distributionTruncated()).isTrue();
         assertThat(result.toString()).doesNotContain("private", "99", "100");
-        verify(service).overview(7L, 30);
+        verify(service).overview(7L, 9L, 30);
     }
 
     @Test

@@ -125,7 +125,7 @@ it('opens the actual receipt booking through the authenticated detail endpoint',
   await waitFor(() => expect(publishedContext).toHaveBeenLastCalledWith(expect.objectContaining({ bookingId: 9 })));
   const dialog = await screen.findByRole('dialog');
   // rc-component/util deliberately reuses "test-id" in test mode, colliding with Select's label ID.
-  expect(within(dialog).getByText('访客预约详情')).toBeVisible();
+  await waitFor(() => expect(within(dialog).getByText('访客预约详情')).toBeVisible());
   expect(await within(dialog).findByText('Assigned visitor')).toBeInTheDocument();
   expect(within(dialog).queryByRole('button', { name: '审批' })).toBeNull();
   expect(api.approveVisitorBooking).not.toHaveBeenCalled();
