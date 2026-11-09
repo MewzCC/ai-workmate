@@ -7,7 +7,7 @@ export interface DashboardOverview {
   days: number;
   availableMetricCodes: DashboardMetricCode[];
   metrics: Array<{ code: DashboardMetricCode; value: number }>;
-  todos: Array<{ taskId: number; businessType: string; businessId: number; title: string; applicantName: string; submittedAt: string; dueAt?: string | null; overdue: boolean }>;
+  todos: Array<{ taskId: number; businessType: string; businessId: number; title: string; applicantName: string; submittedAt: string; dueAt?: string | null; overdue: boolean; detailAvailable: boolean }>;
   trends: Array<{ date: string; submitted: number; completed: number }>;
   businessDistribution: Array<{ businessType: string; value: number }>;
   recentActivities: Array<{ id: number; resourceType: string; resourceId: string; action: string; result: string; summary?: string | null; createdAt: string }>;

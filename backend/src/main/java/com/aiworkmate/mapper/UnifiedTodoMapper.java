@@ -9,6 +9,11 @@ import java.util.List;
 
 @Mapper
 public interface UnifiedTodoMapper {
+    String TASK_TITLE = """
+            CASE WHEN wt.business_type='LEAVE_APPLICATION'
+                THEN CONCAT('LV-',LPAD(wt.business_id::text,GREATEST(6,LENGTH(wt.business_id::text)),'0'))
+                ELSE COALESCE(e.title,CONCAT('GA-',LPAD(wt.business_id::text,GREATEST(6,LENGTH(wt.business_id::text)),'0'))) END
+            """;
     String RELATIONS = """
             FROM workflow_task wt
             JOIN workflow_instance wi ON wi.id=wt.instance_id AND wi.tenant_id=wt.tenant_id
@@ -22,6 +27,7 @@ public interface UnifiedTodoMapper {
                 AND e.application_id=a.id AND e.applicant_user_id=wi.applicant_id AND e.submitted_at IS NOT NULL AND e.form_schema IS NOT NULL
             WHERE wt.tenant_id=#{tenantId} AND wt.assignee_user_id=#{userId}
                 AND wt.status IN ('PENDING','APPROVED','REJECTED','CANCELLED')
+                AND (wt.status!='PENDING' OR wi.status='RUNNING')
                 AND ((wt.business_type='LEAVE_APPLICATION' AND l.id IS NOT NULL) OR (wt.business_type='GENERIC_APPROVAL' AND a.id IS NOT NULL))
             """;
     String FILTERS = """
@@ -38,8 +44,9 @@ public interface UnifiedTodoMapper {
                 wt.status,wt.version,wi.started_at AS submitted_at,wt.due_at,
                 (wt.status='PENDING' AND wt.due_at IS NOT NULL AND wt.due_at &lt; CURRENT_TIMESTAMP) AS overdue,
                 applicant.avatar AS applicant_avatar,applicant.updated_at AS applicant_updated_at,NULL AS applicant_avatar_url,
-                wt.business_type,CASE WHEN wt.business_type='LEAVE_APPLICATION' THEN CONCAT('LV-',LPAD(wt.business_id::text,GREATEST(6,LENGTH(wt.business_id::text)),'0'))
-                    ELSE COALESCE(e.title,CONCAT('GA-',LPAD(wt.business_id::text,GREATEST(6,LENGTH(wt.business_id::text)),'0'))) END AS title,
+                wt.business_type,
+            """ + TASK_TITLE + """
+                AS title,
                 wt.process_node_name AS node_name,(wt.business_type='LEAVE_APPLICATION' OR e.instance_id IS NOT NULL) AS detail_available
             """;
     @Select("<script>" + COLUMNS + RELATIONS + FILTERS + " ORDER BY CASE WHEN wt.status='PENDING' THEN 0 ELSE 1 END,wt.created_at DESC,wt.id DESC LIMIT #{size} OFFSET #{offset}</script>")

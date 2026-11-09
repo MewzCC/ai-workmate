@@ -14,6 +14,7 @@ import { OaIcon } from '@/components/OaIcon';
 import EChartsCard from './EChartsCard';
 import ResponsiveTable from './ResponsiveTable';
 import { useRegisterPageUiCommands } from './PageUiCommandBridge';
+import { dashboardTodoTarget } from '@/lib/dashboardTodoTarget';
 
 interface DashboardProps {
   primaryColor: string;
@@ -38,6 +39,13 @@ export default function Dashboard({ primaryColor, onOpenAi }: DashboardProps) {
   const [savingMetrics, setSavingMetrics] = useState(false);
   const [error, setError] = useState<string>();
   const { allowed: canExport } = usePermission('data:export');
+  const { allowed: canReadTodos } = usePermission('todo:read');
+  const { allowed: canEnterTodos } = usePermission('route:todo');
+  const openTodo = (record: DashboardOverview['todos'][number]) => {
+    const path = dashboardTodoTarget(record);
+    if (!canReadTodos || !canEnterTodos || !path) throw new Error('PAGE_UI_FIELD_REJECTED');
+    router.push(path);
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -55,8 +63,9 @@ export default function Dashboard({ primaryColor, onOpenAi }: DashboardProps) {
   useRegisterPageUiCommands({ 'ui.refreshPage': load,
     'ui.openDetail': ({ payload: { recordId } }) => {
       const id = Number(recordId);
-      if (!Number.isSafeInteger(id) || id < 1 || !overview?.todos.some(item => item.taskId === id)) throw new Error('PAGE_UI_FIELD_REJECTED');
-      router.push(`/oa/approval-tasks/${id}?from=dashboard`);
+      const task = overview?.todos.find(item => item.taskId === id);
+      if (!task) throw new Error('PAGE_UI_FIELD_REJECTED');
+      openTodo(task);
     },
   });
 
@@ -140,17 +149,21 @@ export default function Dashboard({ primaryColor, onOpenAi }: DashboardProps) {
       width: 236,
       fixed: 'right',
       render: (_, record) => (
+        <Tooltip title={!dashboardTodoTarget(record) ? t('dashboard.status.detailUnavailable') : undefined}>
         <Space size={4}>
-          <Button aria-label={t('dashboard.actions.process')} type="primary" size="small" onClick={() => router.push(`/oa/approval-tasks/${record.taskId}?from=dashboard`)}>
+          <Button aria-label={t('dashboard.actions.process')} type="primary" size="small" disabled={!canReadTodos || !canEnterTodos || !dashboardTodoTarget(record)} onClick={() => openTodo(record)}>
             {t('dashboard.actions.process')}
           </Button>
-          <Button aria-label={t('dashboard.actions.view')} size="small" onClick={() => router.push(`/oa/approval-tasks/${record.taskId}?from=dashboard`)}>
+          <Button aria-label={t('dashboard.actions.view')} size="small" disabled={!canReadTodos || !canEnterTodos || !dashboardTodoTarget(record)} onClick={() => openTodo(record)}>
             {t('dashboard.actions.view')}
           </Button>
-          <Button aria-label={t('dashboard.actions.preReview')} size="small" icon={<OaIcon name="ai" />} onClick={() => onOpenAi(t('dashboard.aiPrompts.preReviewTask', { taskId: record.taskId }))}>
+          <Tooltip title={record.businessType !== 'LEAVE_APPLICATION' ? t('dashboard.status.preReviewUnavailable') : undefined}>
+          <Button aria-label={t('dashboard.actions.preReview')} size="small" disabled={!canReadTodos || !canEnterTodos || !dashboardTodoTarget(record) || record.businessType !== 'LEAVE_APPLICATION'} icon={<OaIcon name="ai" />} onClick={() => onOpenAi(t('dashboard.aiPrompts.preReviewTask', { taskId: record.taskId }))}>
             {t('dashboard.actions.preReview')}
           </Button>
+          </Tooltip>
         </Space>
+        </Tooltip>
       ),
     },
   ];
@@ -199,7 +212,9 @@ export default function Dashboard({ primaryColor, onOpenAi }: DashboardProps) {
             ))}
           </Row>
 
-          <Card className="oa-card" title={t('dashboard.cards.todoList')}>
+          <Card className="oa-card" title={t('dashboard.cards.todoList')}
+            extra={<Button type="link" disabled={!canReadTodos || !canEnterTodos} onClick={() => router.push('/oa/todo')}>{t('dashboard.cards.allTodos')}</Button>}>
+            <Typography.Paragraph type="secondary">{t('dashboard.cards.todoWindow')}</Typography.Paragraph>
             <ResponsiveTable
               rowKey="taskId"
               columns={columns}

@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   getOverview: vi.fn(),
   updatePreferences: vi.fn(),
   push: vi.fn(),
+  denied: new Set<string>(),
 }));
 
 vi.mock('@/lib/dashboardApi', async () => {
@@ -18,7 +19,7 @@ vi.mock('@/lib/nextCompat', () => ({
 }));
 
 vi.mock('@/hooks/usePermission', () => ({
-  usePermission: () => ({ allowed: true }),
+  usePermission: (code: string) => ({ allowed: !mocks.denied.has(code) }),
 }));
 
 vi.mock('./EChartsCard', () => ({ default: ({ title }: { title: string }) => <div>{title}</div> }));
@@ -42,6 +43,7 @@ const overview = {
     submittedAt: '2026-09-12T01:00:00Z',
     dueAt: null,
     overdue: false,
+    detailAvailable: true,
   }],
   trends: [{ date: '2026-09-12', submitted: 1, completed: 0 }],
   businessDistribution: [{ businessType: 'LEAVE_APPLICATION', value: 1 }],
@@ -55,6 +57,7 @@ describe('Dashboard approval entry workflow', () => {
   beforeEach(() => {
     mocks.getOverview.mockReset().mockResolvedValue(overview);
     mocks.push.mockReset();
+    mocks.denied.clear();
     mocks.updatePreferences.mockReset().mockResolvedValue({
       metricCodes: ['UNREAD_MESSAGES', 'PENDING_TODOS'],
       availableMetricCodes: overview.availableMetricCodes,
@@ -76,6 +79,28 @@ describe('Dashboard approval entry workflow', () => {
     expect(prompt).toContain('91');
     expect(prompt).not.toContain('LV-000018');
     expect(prompt).not.toContain('不应发送给 Agent 的申请人');
+  });
+
+  it('opens generic tasks through the existing generic inbox and does not pretend leave pre-review is available', async () => {
+    mocks.getOverview.mockResolvedValue({ ...overview, todos: [{ ...overview.todos[0], businessType: 'GENERIC_APPROVAL' }] });
+    render(<Dashboard primaryColor="#1677ff" onOpenAi={vi.fn()} />);
+    fireEvent.click(await screen.findByRole('button', { name: '查看' }));
+    expect(mocks.push).toHaveBeenCalledWith('/oa/todo?kind=generic&taskId=91');
+    expect(screen.getByRole('button', { name: '预审' })).toBeDisabled();
+  });
+
+  it('does not enable detail actions when the frozen submission is unavailable', async () => {
+    mocks.getOverview.mockResolvedValue({ ...overview, todos: [{ ...overview.todos[0], detailAvailable: false }] });
+    render(<Dashboard primaryColor="#1677ff" onOpenAi={vi.fn()} />);
+    expect(await screen.findByRole('button', { name: '处理' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '查看' })).toBeDisabled();
+    expect(mocks.push).not.toHaveBeenCalled();
+  });
+
+  it.each(['todo:read', 'route:todo'])('disables task entry without current %s', async code => {
+    mocks.denied.add(code);
+    render(<Dashboard primaryColor="#1677ff" onOpenAi={vi.fn()} />);
+    await waitFor(() => expect(screen.getByRole('button', { name: '处理' })).toBeDisabled());
   });
 
   it('persists selected metrics in the configured order and reloads the dashboard', async () => {

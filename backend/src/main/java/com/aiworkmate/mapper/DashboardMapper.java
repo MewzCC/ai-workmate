@@ -11,14 +11,11 @@ import java.time.LocalDateTime;
 @Mapper
 public interface DashboardMapper {
 
-    @Select("SELECT COUNT(*) FROM workflow_task WHERE tenant_id=#{tenantId} AND assignee_user_id=#{userId} AND status='PENDING'")
+    @Select("SELECT COUNT(*) " + UnifiedTodoMapper.RELATIONS + " AND wt.status='PENDING'")
     long countPendingTodos(@Param("tenantId") Long tenantId, @Param("userId") Long userId);
 
-    @Select("""
-            SELECT COUNT(*) FROM workflow_task
-            WHERE tenant_id=#{tenantId} AND assignee_user_id=#{userId} AND status='PENDING'
-              AND due_at IS NOT NULL AND due_at < CURRENT_TIMESTAMP
-            """)
+    @Select("SELECT COUNT(*) " + UnifiedTodoMapper.RELATIONS
+            + " AND wt.status='PENDING' AND wt.due_at IS NOT NULL AND wt.due_at < CURRENT_TIMESTAMP")
     long countOverdueTodos(@Param("tenantId") Long tenantId, @Param("userId") Long userId);
 
     @Select("""
@@ -32,22 +29,15 @@ public interface DashboardMapper {
     @Select("SELECT COUNT(*) FROM notification WHERE tenant_id=#{tenantId} AND user_id=#{userId} AND read_flag=FALSE")
     long countUnreadMessages(@Param("tenantId") Long tenantId, @Param("userId") Long userId);
 
-    @Select("""
-            SELECT wt.id AS taskId, wt.business_type AS businessType, wt.business_id AS businessId,
-                   COALESCE(aa.title,
-                     CASE WHEN wt.business_type='LEAVE_APPLICATION'
-                       THEN CONCAT('LV-', LPAD(wt.business_id::text, 6, '0'))
-                       ELSE CONCAT(wt.business_type, '-', wt.business_id) END) AS title,
+    String TODO_COLUMNS = "SELECT wt.id AS taskId, wt.business_type AS businessType, wt.business_id AS businessId, "
+            + UnifiedTodoMapper.TASK_TITLE + " AS title, " + """
                    COALESCE(NULLIF(applicant.display_name, ''), applicant.username) AS applicantName,
                    wi.started_at AS submittedAt, wt.due_at AS dueAt,
-                   (wt.due_at IS NOT NULL AND wt.due_at < CURRENT_TIMESTAMP) AS overdue
-            FROM workflow_task wt
-            JOIN workflow_instance wi ON wi.tenant_id=wt.tenant_id AND wi.id=wt.instance_id
-            JOIN app_user applicant ON applicant.tenant_id=wt.tenant_id AND applicant.id=wi.applicant_id
-            LEFT JOIN approval_application aa ON aa.tenant_id=wt.tenant_id
-              AND wt.business_type='GENERIC_APPROVAL' AND aa.id=wt.business_id
-            WHERE wt.tenant_id=#{tenantId} AND wt.assignee_user_id=#{userId} AND wt.status='PENDING'
-              AND wt.business_type='LEAVE_APPLICATION'
+                   (wt.due_at IS NOT NULL AND wt.due_at < CURRENT_TIMESTAMP) AS overdue,
+                   (wt.business_type='LEAVE_APPLICATION' OR e.instance_id IS NOT NULL) AS detailAvailable
+            """;
+    @Select(TODO_COLUMNS + UnifiedTodoMapper.RELATIONS + """
+              AND wt.status='PENDING'
             ORDER BY (wt.due_at IS NULL), wt.due_at, wt.created_at DESC, wt.id DESC
             LIMIT 8
             """)
@@ -106,20 +96,15 @@ public interface DashboardMapper {
 
     @Select({
             "<script>",
-            "SELECT wt.id AS taskId, COALESCE(aa.title, CONCAT('LV-', LPAD(wt.business_id::text, 6, '0'))) AS title,",
+            "SELECT wt.id AS taskId, " + UnifiedTodoMapper.TASK_TITLE + " AS title,",
             "COALESCE(NULLIF(applicant.display_name, ''), applicant.username) AS applicantName,",
             "wt.business_type AS businessType, wi.started_at AS submittedAt, wt.due_at AS dueAt, wt.status,",
             "(wt.due_at IS NOT NULL AND wt.due_at &lt; CURRENT_TIMESTAMP) AS overdue",
-            "FROM workflow_task wt",
-            "JOIN workflow_instance wi ON wi.tenant_id=wt.tenant_id AND wi.id=wt.instance_id",
-            "JOIN app_user applicant ON applicant.tenant_id=wt.tenant_id AND applicant.id=wi.applicant_id",
-            "LEFT JOIN approval_application aa ON aa.tenant_id=wt.tenant_id",
-            "AND wt.business_type='GENERIC_APPROVAL' AND aa.id=wt.business_id",
-            "WHERE wt.tenant_id=#{tenantId} AND wt.assignee_user_id=#{userId}",
-            "AND wt.status='PENDING' AND wt.business_type='LEAVE_APPLICATION'",
+            UnifiedTodoMapper.RELATIONS,
+            "AND wt.status='PENDING'",
             "AND wi.started_at &gt;= #{from} AND wi.started_at &lt; #{toExclusive}",
             "<if test='keyword != null and keyword != \"\"'>",
-            "AND (LOWER(COALESCE(aa.title, CONCAT('LV-', LPAD(wt.business_id::text, 6, '0')))) LIKE CONCAT('%', LOWER(#{keyword}), '%')",
+            "AND (LOWER(" + UnifiedTodoMapper.TASK_TITLE + ") LIKE CONCAT('%', LOWER(#{keyword}), '%')",
             "OR LOWER(COALESCE(NULLIF(applicant.display_name, ''), applicant.username)) LIKE CONCAT('%', LOWER(#{keyword}), '%'))",
             "</if>",
             "ORDER BY wi.started_at DESC, wt.id DESC LIMIT 1000",

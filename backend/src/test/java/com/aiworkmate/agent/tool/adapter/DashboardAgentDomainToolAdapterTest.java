@@ -24,7 +24,7 @@ class DashboardAgentDomainToolAdapterTest {
                 generatedAt, 30, List.of("PENDING_TODOS"),
                 List.of(new com.aiworkmate.dto.DashboardOverviewResponse.Metric("PENDING_TODOS", 2)),
                 List.of(new com.aiworkmate.dto.DashboardOverviewResponse.TodoSummary(
-                        99L, "LEAVE_APPLICATION", 100L, "private title", "private name", null, null, false)),
+                        99L, "LEAVE_APPLICATION", 100L, "private title", "private name", null, null, false, true)),
                 java.util.stream.IntStream.range(0, 30).mapToObj(i ->
                         new com.aiworkmate.dto.DashboardOverviewResponse.TrendPoint(
                                 java.time.LocalDate.of(2026, 10, 9).minusDays(i), i, 0)).toList(),

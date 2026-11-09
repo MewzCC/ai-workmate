@@ -15,6 +15,8 @@ export default {
   aiPreReview: '让 AI 预审',
   cards: {
     todoList: '本人待办摘要',
+    allTodos: '查看全部待办',
+    todoWindow: '优先展示临近处理期限的最多 8 项待办，指标数量代表完整的受支持任务范围。',
     recentActivities: '最近业务活动',
     approvalList: '审批列表',
     searchPlaceholder: '查询流程、发起人、部门',
@@ -42,6 +44,8 @@ export default {
   },
   status: {
     overdue: '已逾期',
+    detailUnavailable: '缺少可用的历史详情，不能进入其他业务的同号任务。',
+    preReviewUnavailable: '当前驾驶舱尚未开放此业务的 AI 预审，请先进入详情查看。',
     warning: '即将超时',
     processing: '待审批',
     success: '低风险',
