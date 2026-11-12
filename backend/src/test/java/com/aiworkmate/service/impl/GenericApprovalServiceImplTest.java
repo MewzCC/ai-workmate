@@ -132,6 +132,31 @@ class GenericApprovalServiceImplTest {
     }
 
     @Test
+    void rejectsMalformedDateRangesAndCheckboxChoicesBeforeSavingDraft() {
+        ApprovalForm configured = form();
+        configured.setSchemaJson("""
+                {"fields":[{"name":"period","type":"dateRange"},
+                            {"name":"choices","type":"checkbox","options":["A","B"]}]}
+                """);
+        when(formMapper.selectOne(any())).thenReturn(configured);
+        List<Map<String, Object>> invalid = List.of(
+                Map.of("period", "2026-11-12"),
+                Map.of("period", List.of("2026-11-12", "2026-11-11")),
+                Map.of("period", List.of("2026-02-30", "2026-11-12")),
+                Map.of("period", List.of("2026-11-12")),
+                Map.of("choices", "A"),
+                Map.of("choices", List.of("A", "A")),
+                Map.of("choices", List.of("unknown")),
+                Map.of("choices", List.of(1)));
+        for (Map<String, Object> values : invalid) {
+            assertThatThrownBy(() -> service.createDraft(USER_ID, new ApprovalDraftRequest("expense", null, values)))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting("errorCode").isEqualTo("REQUEST_INVALID");
+        }
+        verify(applicationMapper, never()).insert(any(ApprovalApplication.class));
+    }
+
+    @Test
     void createAgentDraftUsesTrustedApplicantStableKeyAndTransactionalAudit() {
         when(formMapper.selectOne(any())).thenReturn(form());
         when(userMapper.lockActiveApplicant(TENANT_ID, USER_ID)).thenReturn(applicant());

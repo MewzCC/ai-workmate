@@ -3,9 +3,11 @@ package com.aiworkmate.service;
 import com.aiworkmate.common.PageResponse;
 import com.aiworkmate.dto.ApprovalApplicationResponse;
 import com.aiworkmate.dto.ApprovalDraftRequest;
+import com.aiworkmate.dto.ApprovalFormReferenceOption;
 import com.aiworkmate.dto.ApprovalDraftUpdateRequest;
 import com.aiworkmate.dto.ApprovalSubmitRequest;
 import com.aiworkmate.dto.VersionRequest;
+import com.aiworkmate.service.model.BusinessCandidateQuery;
 
 /**
  * 通用审批提交服务。
@@ -14,6 +16,9 @@ import com.aiworkmate.dto.VersionRequest;
  * 校验后提交，绑定启用流程并生成工作流实例与首个审批待办。
  */
 public interface GenericApprovalService {
+    PageResponse<ApprovalFormReferenceOption> referenceOptions(Long userId, String formKey,
+            String fieldName, Long selectedId, BusinessCandidateQuery query);
+
     /** One transaction: validate, create a self-owned draft, freeze definitions and submit it. */
     ApprovalApplicationResponse applyAgentApplication(Long userId, Long expectedTenantId, ApprovalDraftRequest request, String operationKey);
 

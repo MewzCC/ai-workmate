@@ -34,10 +34,12 @@ final class ApprovalApplicationAgentFieldProjection {
                 String label = definition.has("label") ? text(definition.path("label"), 200) : name;
                 String type = definition.has("type") ? text(definition.path("type"), 40) : "text";
                 if (!names.add(name)) throw invalid();
-                boolean hidden = !TYPES.contains(type) || definition.path("sensitive").asBoolean()
+                JsonNode value = values.get(name);
+                boolean reference = "user".equals(type) || "department".equals(type);
+                boolean supported = reference ? value == null || value.isNull() || isReferenceId(value) : TYPES.contains(type);
+                boolean hidden = !supported || definition.path("sensitive").asBoolean()
                         || SECRET_NAMES.contains(name.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", ""));
                 List<String> projected = new ArrayList<>();
-                JsonNode value = values.get(name);
                 if (!hidden && value != null && !value.isNull()) {
                     if (value.isArray()) {
                         if (value.size() > 20) throw invalid();
@@ -63,6 +65,13 @@ final class ApprovalApplicationAgentFieldProjection {
         String text = value.asText();
         if (text.length() > 500) throw invalid();
         return text;
+    }
+
+    private static boolean isReferenceId(JsonNode value) {
+        if (!value.isTextual() && !value.isIntegralNumber()) return false;
+        String id = value.asText();
+        return id.matches("[1-9][0-9]{0,18}")
+                && (id.length() < 19 || id.compareTo("9223372036854775807") <= 0);
     }
     private static BusinessException invalid() { return new BusinessException(ErrorCode.BUSINESS_STATE_INVALID); }
 }

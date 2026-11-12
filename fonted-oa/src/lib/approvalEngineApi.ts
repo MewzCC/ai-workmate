@@ -185,6 +185,8 @@ export interface ApprovalApplication {
 // ==================== API 封装 ====================
 
 export const approvalEngineApi = {
+  formReferenceOptions: (params: { formKey: string; fieldName: string; selectedId?: string; keyword?: string; page: number; size: number }) =>
+    request<PageResponse<{ id: string; name: string }>>(`/approval-applications/form-reference-options${queryString(params)}`),
   ownApplicationFields: (id: number, fieldPage = 1) => request<{
     application: { applicationId: number; formName: string; formKey: string; status: ApprovalApplication['status']; version: number; submittedAt?: string | null };
     schemaSource: string; formVersion: number | null;

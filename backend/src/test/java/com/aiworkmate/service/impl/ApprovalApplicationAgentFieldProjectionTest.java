@@ -35,6 +35,25 @@ class ApprovalApplicationAgentFieldProjectionTest {
         }
     }
 
+    @Test void frozenMultivalueAndReferenceFieldsPreserveOrderAndIdentifiers() {
+        var fields = ApprovalApplicationAgentFieldProjection.project(mapper, """
+                {"fields":[{"name":"period","type":"dateRange"},{"name":"choices","type":"checkbox"},
+                  {"name":"person","type":"user"},{"name":"unit","type":"department"},
+                  {"name":"legacy","type":"user"},{"name":"privateUser","type":"user","sensitive":true}]}
+                """, """
+                {"period":["2026-11-12","2026-11-13"],"choices":["B","A"],"person":9007199254740993,
+                 "unit":"9223372036854775807","legacy":"Unverified name","privateUser":"37"}
+                """);
+        assertThat(fields.get(0).values()).containsExactly("2026-11-12", "2026-11-13");
+        assertThat(fields.get(1).values()).containsExactly("B", "A");
+        assertThat(fields.get(2).values()).containsExactly("9007199254740993");
+        assertThat(fields.get(3).values()).containsExactly("9223372036854775807");
+        assertThat(fields.subList(4, 6)).allSatisfy(field -> {
+            assertThat(field.redacted()).isTrue();
+            assertThat(field.values()).isEmpty();
+        });
+    }
+
     @Test void nestedOrOversizedValuesFailInsteadOfPartialSuccess() {
         String schema = "{\"fields\":[{\"name\":\"x\"}]}";
         assertThatThrownBy(() -> ApprovalApplicationAgentFieldProjection.project(mapper, schema, "{\"x\":{\"path\":\"private\"}}"))

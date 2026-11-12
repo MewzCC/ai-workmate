@@ -8,6 +8,7 @@ import com.aiworkmate.common.TraceContext;
 import com.aiworkmate.dto.ApprovalApplicationResponse;
 import com.aiworkmate.dto.ApprovalApplicationView;
 import com.aiworkmate.dto.ApprovalDraftRequest;
+import com.aiworkmate.dto.ApprovalFormReferenceOption;
 import com.aiworkmate.dto.ApprovalDraftUpdateRequest;
 import com.aiworkmate.dto.ApprovalSubmitRequest;
 import com.aiworkmate.dto.VersionRequest;
@@ -34,6 +35,7 @@ import com.aiworkmate.service.GenericApprovalService;
 import com.aiworkmate.service.NotificationService;
 import com.aiworkmate.service.UserAccessService;
 import com.aiworkmate.service.model.ResolvedUserAccess;
+import com.aiworkmate.service.model.BusinessCandidateQuery;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -943,6 +945,28 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
      * 按 schema_json 校验表单数据：白名单字段、必填、类型与长度限制。
      * 返回原样数据（仅结构校验，不改动业务取值），供统一序列化落库。
      */
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<ApprovalFormReferenceOption> referenceOptions(Long userId, String formKey,
+            String fieldName, Long selectedId, BusinessCandidateQuery query) {
+        ResolvedUserAccess actor = requireApplicationAccess(userId, "approval:create");
+        if (formKey == null || formKey.isBlank() || formKey.length() > 120 || fieldName == null
+                || fieldName.isBlank() || fieldName.length() > 120 || query == null || query.size() > 50
+                || selectedId != null && (selectedId < 1 || query.keyword() != null || query.page() != 1)) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        ApprovalForm form = requireEnabledForm(actor, formKey, "REFERENCE_OPTIONS");
+        FieldDef field = parseSchemaFields(form.getSchemaJson()).get(fieldName);
+        if (field == null || !("user".equals(field.type()) || "department".equals(field.type()))) {
+            throw invalidValue();
+        }
+        boolean person = "user".equals(field.type());
+        return PageResponse.of(formMapper.referenceOptions(actor.tenantId(), person, selectedId,
+                        query.keyword(), query.size(), query.offset()),
+                formMapper.countReferenceOptions(actor.tenantId(), person, selectedId, query.keyword()),
+                query.page(), query.size());
+    }
+
     private Map<String, Object> validateFormData(ApprovalForm form,
                                                  Map<String, Object> formData,
                                                  boolean enforceRequired) {
@@ -955,14 +979,19 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
         }
         for (FieldDef def : defs.values()) {
             Object value = formData.get(def.name());
-            if (value == null || (value instanceof String s && s.isBlank())) {
+            boolean empty = value == null || (value instanceof String s && s.isBlank());
+            if ("dateRange".equals(def.type()) || "checkbox".equals(def.type())
+                    || "user".equals(def.type()) || "department".equals(def.type())) {
+                empty = value == null || ("checkbox".equals(def.type()) && value instanceof List<?> list && list.isEmpty());
+            }
+            if (empty) {
                 if (enforceRequired && def.required()) {
                     throw new BusinessException(ErrorCode.REQUEST_INVALID,
                             "validation.approval.submit.fieldRequired");
                 }
                 continue;
             }
-            checkValueType(def, value);
+            checkValueType(form.getTenantId(), def, value);
         }
         String serialized = writeJson(formData);
         if (serialized.length() > MAX_DATA_JSON_LENGTH) {
@@ -972,7 +1001,7 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
         return formData;
     }
 
-    private void checkValueType(FieldDef def, Object value) {
+    private void checkValueType(Long tenantId, FieldDef def, Object value) {
         String type = def.type() == null ? "text" : def.type();
         switch (type) {
             case "number", "amount", "money" -> {
@@ -988,14 +1017,27 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
                     throw invalidValue();
                 }
             }
-            case "date" -> {
-                String text = requireScalarText(def, value);
-                if (!DATE_PATTERN.matcher(text).matches()) {
+            case "date" -> requireFormDate(value);
+            case "dateRange" -> {
+                if (!(value instanceof List<?> dates) || dates.size() != 2
+                        || requireFormDate(dates.get(0)).isAfter(requireFormDate(dates.get(1)))) {
                     throw invalidValue();
                 }
-                try {
-                    LocalDate.parse(text);
-                } catch (DateTimeParseException e) {
+            }
+            case "checkbox" -> {
+                if (!(value instanceof List<?> choices) || choices.size() > MAX_LIST_ITEMS) {
+                    throw invalidValue();
+                }
+                var seen = new java.util.HashSet<String>();
+                for (Object choice : choices) {
+                    if (!(choice instanceof String option) || !def.options().contains(option) || !seen.add(option)) {
+                        throw invalidValue();
+                    }
+                }
+            }
+            case "user", "department" -> {
+                long id = requireReferenceId(value);
+                if (tenantId == null || formMapper.countReferenceOptions(tenantId, "user".equals(type), id, null) != 1) {
                     throw invalidValue();
                 }
             }
@@ -1023,6 +1065,28 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
                     requireScalarText(def, value);
                 }
             }
+        }
+    }
+
+    private long requireReferenceId(Object value) {
+        if (!(value instanceof String || value instanceof Number)) throw invalidValue();
+        String text = value.toString();
+        if (!text.matches("[1-9][0-9]{0,18}")) throw invalidValue();
+        try {
+            return Long.parseLong(text);
+        } catch (NumberFormatException invalid) {
+            throw invalidValue();
+        }
+    }
+
+    private LocalDate requireFormDate(Object value) {
+        if (!(value instanceof String date) || !DATE_PATTERN.matcher(date).matches()) {
+            throw invalidValue();
+        }
+        try {
+            return LocalDate.parse(date);
+        } catch (DateTimeParseException invalid) {
+            throw invalidValue();
         }
     }
 

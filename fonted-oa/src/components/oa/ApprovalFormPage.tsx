@@ -3,7 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { OaIcon } from '@/components/OaIcon';
 import { useGenericApplicationForm } from '@/hooks/useGenericApplicationForm';
-import { renderApplicationField, supportedApplicationField } from './approvalFormFields';
+import { isApplicationReferenceField, renderApplicationField, supportedApplicationField } from './approvalFormFields';
+import { ApprovalFormReferenceSelect } from './ApprovalFormReferenceSelect';
 
 const APPROVE_TYPE_LABEL_KEYS: Record<string, string> = {
   DIRECT_MANAGER: 'directManager', DEPARTMENT: 'department', USER: 'user',
@@ -119,7 +120,11 @@ export default function ApprovalFormPage() {
                         ? t('approval.formPage.unsupportedControl', { field: label })
                         : undefined}
                     >
-                      {renderApplicationField(field)}
+                      {isApplicationReferenceField(field) ? <ApprovalFormReferenceSelect
+                        formKey={formKey} fieldName={field.name} placeholder={field.placeholder || undefined}
+                        active={editable && !loading} disabled={busy || confirming}
+                        scopeKey={JSON.stringify([user?.tenantId, user?.id, user?.permissionVersion, formKey, draft?.id, field.name])}
+                      /> : renderApplicationField(field)}
                     </Form.Item>
                   );
                 })}

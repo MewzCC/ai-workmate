@@ -9,10 +9,11 @@ import { useAsyncActionGuard } from './useAsyncActionGuard';
 export type UiEditorField = 'string' | 'number' | 'boolean' | readonly string[] | { date: 'date' | 'time' | 'dateTime' };
 
 /** Shared unsaved-form operations. There is deliberately no submit or save callback. */
-export function usePageUiEditorCommands<T extends object>({ form, open, canEdit, context, create, fields, labels, commands = {}, viewKey }: {
+export function usePageUiEditorCommands<T extends object>({ form, open, canEdit, context, create, fields, labels, commands = {}, viewKey, normalizePreview }: {
   form: FormInstance<T>; open: boolean; canEdit: boolean; context: UiFormContext | null;
   create?: () => void | Promise<void>; fields: Record<string, UiEditorField>; labels: Record<string, string>; commands?: PageUiCommandHandlers;
   viewKey?: string;
+  normalizePreview?: (values: T) => Record<string, unknown>;
 }) {
   const { capture } = useAsyncActionGuard(`${canEdit}:${open}:${context?.sessionId ?? ''}`);
   const presentPreview = useUiFormPreview(`${canEdit}:${open}:${context?.sessionId ?? ''}`);
@@ -42,7 +43,7 @@ export function usePageUiEditorCommands<T extends object>({ form, open, canEdit,
       if (!current() || !open || !context) throw new Error('PAGE_UI_FORM_CLOSED');
       const values = await form.validateFields();
       if (!current()) throw new Error('PAGE_UI_FORM_CLOSED');
-      const preview = Object.fromEntries(Object.keys(labels).map((name) => {
+      const preview = normalizePreview?.(values) ?? Object.fromEntries(Object.keys(labels).map((name) => {
         const value = (values as Record<string, unknown>)[name], rule = fields[name];
         const format = typeof rule === 'object' && 'date' in rule
           ? rule.date === 'time' ? 'HH:mm' : rule.date === 'dateTime' ? 'YYYY-MM-DD HH:mm:ss' : 'YYYY-MM-DD' : 'YYYY-MM-DD';

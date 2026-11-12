@@ -64,6 +64,7 @@ export function useGenericApplicationForm() {
     create: () => { if (!overview.isCurrent()) throw new Error('PAGE_UI_FORM_CLOSED'); changed();
       if (draft) router.push(`/oa/approval-form?formKey=${encodeURIComponent(formKey)}`); else form.resetFields(); },
     fields: approvalUiFields(fields), labels: Object.fromEntries(fields.filter(field => field.type !== 'divider').map(field => [field.name, field.label])),
+    normalizePreview: values => normalizeApprovalValues(values, fields),
   });
   const liveDraft = useRef(draft); liveDraft.current = draft;
   const validReceipt = (result: ApprovalApplication, status: ApprovalApplication['status'], previous?: ApprovalApplication | null) => {
