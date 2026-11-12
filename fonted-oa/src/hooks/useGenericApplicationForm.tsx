@@ -44,6 +44,13 @@ export function useGenericApplicationForm() {
   const fields = template?.fields ?? [];
   const process = template?.process ?? null;
   const action = useAsyncFormAction(overview.scope);
+  const [uploads, setUploads] = useState({ scope: overview.scope, count: 0 });
+  const uploading = uploads.scope === overview.scope && uploads.count > 0;
+  const attachmentBusyChanged = (busy: boolean) => {
+    if (!overview.isCurrent()) return;
+    setUploads(previous => ({ scope: overview.scope,
+      count: Math.max(0, (previous.scope === overview.scope ? previous.count : 0) + (busy ? 1 : -1)) }));
+  };
   const [editRevision, setEditRevision] = useState(0);
   const formScope = `${overview.scope}:${draft?.id}:${draft?.version}:${editRevision}`;
   const confirm = useScopedModalConfirm(formScope);
@@ -57,10 +64,10 @@ export function useGenericApplicationForm() {
     && (!draft || draft.status === 'DRAFT' && draft.canEditDraft);
   const [confirmation, setConfirmation] = useState<string>();
   const confirming = confirmation === formScope;
-  const uiForm = usePageUiFormContext(editable && !action.busy && !confirming, draft?.id, draft?.version, formScope);
+  const uiForm = usePageUiFormContext(editable && !action.busy && !confirming && !uploading, draft?.id, draft?.version, formScope);
   const changed = () => { uiForm.renew(); setEditRevision(value => value + 1); };
   usePublishPageAgentContext({ formKey, applicationId: draft?.id, version: draft?.version, processKey: process?.processKey });
-  usePageUiEditorCommands({ form, open: editable && !action.busy && !confirming, canEdit: editable && !action.busy && !confirming, context: uiForm.context,
+  usePageUiEditorCommands({ form, open: editable && !action.busy && !confirming && !uploading, canEdit: editable && !action.busy && !confirming && !uploading, context: uiForm.context,
     create: () => { if (!overview.isCurrent()) throw new Error('PAGE_UI_FORM_CLOSED'); changed();
       if (draft) router.push(`/oa/approval-form?formKey=${encodeURIComponent(formKey)}`); else form.resetFields(); },
     fields: approvalUiFields(fields), labels: Object.fromEntries(fields.filter(field => field.type !== 'divider').map(field => [field.name, field.label])),
@@ -80,7 +87,7 @@ export function useGenericApplicationForm() {
     ? await approvalEngineApi.updateDraft(previous.id, { processKey: process?.processKey, formData: values, version: previous.version })
     : await approvalEngineApi.createDraft({ formKey, processKey: process?.processKey, formData: values }), 'DRAFT', previous);
   const saveDraft = async () => {
-    if (!editable || confirming || !overview.isCurrent()) return;
+    if (!editable || confirming || uploading || !overview.isCurrent()) return;
     const write = action.begin(); if (!write) return;
     try {
       const result = await persist(normalizeApprovalValues(form.getFieldsValue(true), fields), liveDraft.current);
@@ -91,7 +98,7 @@ export function useGenericApplicationForm() {
     finally { write.finish(); }
   };
   const cancelDraft = () => {
-    if (!editable || !draft?.canCancel || !hasPermission('approval:cancel') || !overview.isCurrent() || action.busy) return;
+    if (!editable || uploading || !draft?.canCancel || !hasPermission('approval:cancel') || !overview.isCurrent() || action.busy) return;
     confirm({ title: t('approval.formPage.cancelDraftTitle'), content: t('approval.formPage.cancelDraftContent'),
       okText: t('approval.formPage.cancelDraftOk'), cancelText: t('common.cancel'), okButtonProps: { danger: true },
       onOk: async () => {
@@ -107,7 +114,7 @@ export function useGenericApplicationForm() {
   };
   const validating = useRef(false);
   const submit = async () => {
-    if (!editable || !process || !hasPermission('approval:submit') || action.busy || confirming || validating.current) return;
+    if (!editable || uploading || !process || !hasPermission('approval:submit') || action.busy || confirming || validating.current) return;
     const current = capture(); validating.current = true;
     try {
       const validated = await form.validateFields();
@@ -146,6 +153,6 @@ export function useGenericApplicationForm() {
   };
   return { form, formKey, formDef: template, process, fields, nodes: process?.nodes ?? [], draft, loading: overview.loading,
     loadError: overview.error === undefined ? undefined : formatOaApiError(overview.error), load: overview.load,
-    allowed, editable, busy: action.busy, confirming, canSubmit: editable && hasPermission('approval:submit'), canCancel: hasPermission('approval:cancel'),
+    allowed, editable, busy: action.busy || uploading, confirming, attachmentBusyChanged, canSubmit: editable && hasPermission('approval:submit'), canCancel: hasPermission('approval:cancel'),
     changed, saveDraft, cancelDraft, submit, backToStart };
 }

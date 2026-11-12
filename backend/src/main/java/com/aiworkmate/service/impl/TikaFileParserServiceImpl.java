@@ -40,6 +40,27 @@ public class TikaFileParserServiceImpl implements FileParserService {
     private final Tika tika = new Tika();
 
     @Override
+    public ParsedFile inspect(Path path, String filename, Long userId) {
+        try {
+            if (isMarkdown(filename)) {
+                readMarkdown(path);
+                return new ParsedFile("text/markdown", "", false);
+            }
+            String mimeType;
+            try (InputStream input = Files.newInputStream(path)) { mimeType = tika.detect(input, filename); }
+            if (IMAGE_TYPES.contains(mimeType)) return new ParsedFile(mimeType, "", true);
+            if (!DOCUMENT_TYPES.contains(mimeType))
+                throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.runtime.file.unsupportedType", mimeType);
+            tika.parseToString(path);
+            return new ParsedFile(mimeType, "", false);
+        } catch (BusinessException failure) {
+            throw failure;
+        } catch (Exception failure) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.runtime.file.parseFailed");
+        }
+    }
+
+    @Override
     public ParsedFile parse(Path path, String filename, Long userId) {
         try {
             if (isMarkdown(filename)) {

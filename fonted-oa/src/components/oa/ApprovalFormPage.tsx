@@ -3,8 +3,9 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { OaIcon } from '@/components/OaIcon';
 import { useGenericApplicationForm } from '@/hooks/useGenericApplicationForm';
-import { isApplicationReferenceField, renderApplicationField, supportedApplicationField } from './approvalFormFields';
+import { isApplicationAttachmentField, isApplicationReferenceField, renderApplicationField, supportedApplicationField } from './approvalFormFields';
 import { ApprovalFormReferenceSelect } from './ApprovalFormReferenceSelect';
+import { ApprovalAttachmentField } from './ApprovalAttachmentField';
 
 const APPROVE_TYPE_LABEL_KEYS: Record<string, string> = {
   DIRECT_MANAGER: 'directManager', DEPARTMENT: 'department', USER: 'user',
@@ -14,7 +15,7 @@ const APPROVE_TYPE_LABEL_KEYS: Record<string, string> = {
 export default function ApprovalFormPage() {
   const { t } = useTranslation(), { user } = useAuth();
   const { form, formKey, formDef, process, fields, nodes, draft, loading, loadError, load,
-    allowed, editable, busy, confirming, canSubmit, canCancel, changed, saveDraft, cancelDraft, submit, backToStart } = useGenericApplicationForm();
+    allowed, editable, busy, confirming, attachmentBusyChanged, canSubmit, canCancel, changed, saveDraft, cancelDraft, submit, backToStart } = useGenericApplicationForm();
 
   if (!allowed) return <Alert type="warning" showIcon title={t('oa.ai.noPermission')} />;
 
@@ -120,7 +121,11 @@ export default function ApprovalFormPage() {
                         ? t('approval.formPage.unsupportedControl', { field: label })
                         : undefined}
                     >
-                      {isApplicationReferenceField(field) ? <ApprovalFormReferenceSelect
+                      {isApplicationAttachmentField(field) ? <ApprovalAttachmentField applicationId={draft?.id} fieldName={field.name}
+                        fieldType={field.type === 'image' ? 'image' : 'file'} active={editable && !loading} disabled={busy || confirming}
+                        scope={JSON.stringify([user?.tenantId, user?.id, user?.permissionVersion, formKey, draft?.id, field.name])}
+                        saveDraft={() => void saveDraft()} onBusy={attachmentBusyChanged}
+                      /> : isApplicationReferenceField(field) ? <ApprovalFormReferenceSelect
                         formKey={formKey} fieldName={field.name} placeholder={field.placeholder || undefined}
                         active={editable && !loading} disabled={busy || confirming}
                         scopeKey={JSON.stringify([user?.tenantId, user?.id, user?.permissionVersion, formKey, draft?.id, field.name])}

@@ -5,7 +5,8 @@ import type { UiEditorField } from '@/hooks/usePageUiEditorCommands';
 
 export type ApplicationField = ApprovalApplicationTemplate['fields'][number];
 const SCALAR_FIELDS = new Set(['text', 'textarea', 'number', 'amount', 'money', 'date', 'time', 'radio', 'select']);
-const SIMPLE = new Set([...SCALAR_FIELDS, 'dateRange', 'checkbox', 'user', 'department']);
+const SIMPLE = new Set([...SCALAR_FIELDS, 'dateRange', 'checkbox', 'user', 'department', 'file', 'image']);
+export const isApplicationAttachmentField = (field: ApplicationField) => field.type === 'file' || field.type === 'image';
 export const isApplicationReferenceField = (field: ApplicationField) => field.type === 'user' || field.type === 'department';
 export const supportedApplicationField = (field: ApplicationField) => SIMPLE.has(field.type || 'text');
 
@@ -54,6 +55,11 @@ function validateReference(value: unknown) {
   return value;
 }
 
+function validateAttachments(value: unknown) {
+  if (!Array.isArray(value) || value.length > 20 || new Set(value).size !== value.length) throw new Error('PAGE_UI_FIELD_REJECTED');
+  return value.map(validateReference);
+}
+
 /** Emit configured fields in their wire format, preserving exact money strings. */
 export function normalizeApprovalValues(values: Record<string, unknown>, fields: ApplicationField[]) {
   const result: Record<string, unknown> = {};
@@ -74,6 +80,11 @@ export function normalizeApprovalValues(values: Record<string, unknown>, fields:
       result[field.name] = validateReference(value);
       return;
     }
+    if (isApplicationAttachmentField(field)) {
+      const references = validateAttachments(value);
+      if (references.length) result[field.name] = references;
+      return;
+    }
     result[field.name] = dayjs.isDayjs(value) ? value.format(field.type === 'time' ? 'HH:mm' : 'YYYY-MM-DD') : value;
   });
   return result;
@@ -88,7 +99,9 @@ export function restoreApprovalValues(dataJson: string, fields: ApplicationField
   fields.forEach(field => {
     const value = (parsed as Record<string, unknown>)[field.name];
     if (value === undefined || field.type === 'divider') return;
-    if (isApplicationReferenceField(field)) {
+    if (isApplicationAttachmentField(field)) {
+      if (value !== null) restored[field.name] = validateAttachments(value);
+    } else if (isApplicationReferenceField(field)) {
       if (value !== null) restored[field.name] = validateReference(value);
     } else if (field.type === 'dateRange' || field.type === 'checkbox') {
       if (value === null) return;

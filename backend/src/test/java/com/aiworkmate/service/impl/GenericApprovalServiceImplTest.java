@@ -83,7 +83,8 @@ class GenericApprovalServiceImplTest {
         service = new GenericApprovalServiceImpl(
                 applicationMapper, formMapper, processMapper, ruleMapper, leaveMapper, userMapper,
                 instanceMapper, taskMapper, actionLogMapper, userAccessService,
-                auditService, notificationService, new com.fasterxml.jackson.databind.ObjectMapper());
+                auditService, notificationService, new com.fasterxml.jackson.databind.ObjectMapper(),
+                org.mockito.Mockito.mock(com.aiworkmate.service.ApprovalApplicationAttachmentService.class));
         ReflectionTestUtils.setField(service, "approvalDueHours", 48L);
         ReflectionTestUtils.setField(service, "reminderIntervalMinutes", 30L);
         when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(access());

@@ -55,7 +55,8 @@ final class ApprovalApplicationMinePostgresVerifier {
                 mock(ApprovalProcessMapper.class), mock(ApprovalRuleMapper.class), mock(LeaveApplicationMapper.class),
                 mock(UserMapper.class), mock(WorkflowInstanceMapper.class), mock(WorkflowTaskMapper.class),
                 mock(WorkflowActionLogMapper.class), access, mock(BusinessAuditService.class),
-                mock(NotificationService.class), new ObjectMapper());
+                mock(NotificationService.class), new ObjectMapper(),
+                mock(com.aiworkmate.service.ApprovalApplicationAttachmentService.class));
         var adapter = new ApprovalApplicationAgentDomainToolAdapter(domain);
         var actor = new ToolActorContext(tenant, user, 20L, 30L, 1, "trace");
         var result = adapter.mine(actor, new ApprovalApplicationToolPort.Query(null, null, 1, 2));

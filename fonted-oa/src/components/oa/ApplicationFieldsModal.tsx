@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { approvalEngineApi } from '@/lib/approvalEngineApi';
 import { formatOaApiError } from '@/lib/oaApi';
 import { useScopedOverview } from '@/hooks/useScopedOverview';
+import { ApprovalAttachmentList } from './ApprovalAttachmentField';
 
 /** Bounded own-fields projection, shared by application entry and list pages. */
 export function ApplicationFieldsModal({ id, allowed, scope, revision = 0, processVersion, onClose }: {
@@ -33,7 +34,10 @@ export function ApplicationFieldsModal({ id, allowed, scope, revision = 0, proce
           { key: 'submitted', label: t('approval.start.snapshotSubmittedAt'), children: data.application.submittedAt || '-' },
         ]} />
         <Descriptions size="small" bordered column={1} items={data.fields.map(field => ({ key: field.name, label: field.label,
-          children: field.redacted ? t('approval.genericApplications.redacted') : field.values.join(', ') || '-' }))} />
+          children: field.redacted ? t('approval.genericApplications.redacted')
+            : (field.type === 'file' || field.type === 'image') && id !== undefined
+              ? <ApprovalAttachmentList applicationId={id} fieldName={field.name} ids={field.values} active={allowed}
+                scope={key} /> : field.values.join(', ') || '-' }))} />
         {data.fields.length === 0 && <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t(data.schemaSource === 'CURRENT_DRAFT' ? 'approval.start.emptyFields' : 'approval.start.snapshotUnavailable')} />}
         <Pagination current={page} pageSize={50} total={data.fieldsTotal} showSizeChanger={false} onChange={value => setSelection({ key, page: value })} />
       </Space>}

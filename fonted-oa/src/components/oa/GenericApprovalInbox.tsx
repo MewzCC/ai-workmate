@@ -15,6 +15,7 @@ import { formatOaApiError, OaApiError } from '@/lib/oaApi';
 import { genericApprovalTaskApi as api, type GenericApprovalTaskDetail, type GenericAddSignItem } from '@/lib/genericApprovalTaskApi';
 import { OaIcon } from '@/components/OaIcon';
 import ResponsiveTable from './ResponsiveTable';
+import { ApprovalAttachmentList } from './ApprovalAttachmentField';
 import GenericTaskCollaboration from './GenericTaskCollaboration';
 import { usePublishPageAgentContext } from './PageAgentContext';
 import { useRegisterPageUiCommands } from './PageUiCommandBridge';
@@ -90,7 +91,12 @@ function GenericTaskDrawer({ id, onClose, onUpdated }: { id: number; onClose: ()
         {data.task.addSignMode && <Tag color="purple">{t(`approval.genericTasks.signMode.${data.task.addSignMode}`)}</Tag>}
         {data.task.parentTaskId != null && <Typography.Text type="secondary">{t('approval.genericTasks.parentTask', { id: data.task.parentTaskId })}</Typography.Text>}</Space>
       {data.blockedReason && <Alert type="warning" showIcon message={data.blockedReason} />}
-      <Descriptions column={1} bordered size="small" items={data.fields.map(field => ({ key: field.name, label: field.label, children: field.redacted ? <Tag>{t('approval.genericApplications.redacted')}</Tag> : field.values.join(' / ') || '-' }))} />
+      <Descriptions column={1} bordered size="small" items={data.fields.map(field => ({ key: field.name, label: field.label,
+        children: field.redacted ? <Tag>{t('approval.genericApplications.redacted')}</Tag>
+          : field.type === 'file' || field.type === 'image'
+            ? <ApprovalAttachmentList applicationId={data.task.applicationId} fieldName={field.name} ids={field.values}
+              taskId={data.task.id} active={true} scope={`task:${data.task.id}:${data.task.version}`} />
+            : field.values.join(' / ') || '-' }))} />
       <Pagination size="small" current={page} pageSize={50} total={data.totalFields} showSizeChanger={false} onChange={setPage} />
       {Boolean(data.addSignTasks?.length) && <Card size="small" title={t('approval.genericTasks.addSignQueueTitle')}>
         <ResponsiveTable<GenericAddSignItem> rowKey="taskId" dataSource={data.addSignTasks} pagination={false} scroll={{ x: 540 }} columns={[

@@ -32,6 +32,7 @@ import com.aiworkmate.mapper.WorkflowInstanceMapper;
 import com.aiworkmate.mapper.WorkflowTaskMapper;
 import com.aiworkmate.service.BusinessAuditService;
 import com.aiworkmate.service.GenericApprovalService;
+import com.aiworkmate.service.ApprovalApplicationAttachmentService;
 import com.aiworkmate.service.NotificationService;
 import com.aiworkmate.service.UserAccessService;
 import com.aiworkmate.service.model.ResolvedUserAccess;
@@ -101,6 +102,7 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
     private final BusinessAuditService auditService;
     private final NotificationService notificationService;
     private final ObjectMapper objectMapper;
+    private final ApprovalApplicationAttachmentService applicationAttachments;
 
     @Value("${app.workflow.approval-due-hours:48}")
     private long approvalDueHours;
@@ -154,7 +156,7 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
             if (!"PENDING".equals(existing.getStatus()) || !Integer.valueOf(1).equals(existing.getVersion())
                     || process == null || !java.util.Objects.equals(existing.getFormId(), form.getId())
                     || !java.util.Objects.equals(existing.getProcessId(), process.getId())
-                    || !sameFormDataJson(existing.getDataJson(), writeJson(validateFormData(form, request.formData(), true))))
+                    || !sameFormDataJson(existing.getDataJson(), writeJson(validateFormData(form, request.formData(), true, existing.getId()))))
                 throw new BusinessException(ErrorCode.IDEMPOTENCY_CONFLICT);
             return response(actor, requireView(actor.tenantId(), existing.getId()), null);
         }
@@ -167,7 +169,7 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
         ApprovalForm form = requireEnabledForm(actor, request.formKey(), "DRAFT_CREATE");
         ApprovalProcess process = resolveOptionalProcess(
                 actor.tenantId(), form.getId(), request.processKey());
-        Map<String, Object> formData = validateFormData(form, request.formData(), false);
+        Map<String, Object> formData = validateFormData(form, request.formData(), false, null);
         String dataJson = writeJson(formData);
         ApprovalApplication existing = operationKey == null ? null
                 : applicationMapper.findAgentOperation(actor.tenantId(), actor.userId(), operationKey);
@@ -239,7 +241,7 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
         ApprovalApplication application = requireOwnedApplication(actor, id);
         requireDraft(application);
         ApprovalForm form = requireEnabledForm(actor, application.getFormKey(), "DRAFT_UPDATE");
-        Map<String, Object> formData = validateFormData(form, request.formData(), false);
+        Map<String, Object> formData = validateFormData(form, request.formData(), false, application.getId());
 
         Long processId = application.getProcessId();
         if (request.processKey() != null) {
@@ -294,7 +296,7 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
         }
 
         ApprovalForm form = requireEnabledForm(actor, application.getFormKey(), "DRAFT_SUBMIT");
-        Map<String, Object> formData = validateFormData(form, readJson(application.getDataJson()), true);
+        Map<String, Object> formData = validateFormData(form, readJson(application.getDataJson()), true, application.getId());
         ApprovalProcess process = resolveEnabledProcess(
                 actor.tenantId(), form.getId(), application.getProcessId());
         DefinitionSnapshot snapshot = createDefinitionSnapshot(actor.tenantId(), form, process);
@@ -596,7 +598,7 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
                     "validation.approval.submit.processUnbound");
         }
 
-        Map<String, Object> formData = validateFormData(form, request.formData(), true);
+        Map<String, Object> formData = validateFormData(form, request.formData(), true, null);
         GenericApprovalPlan plan = executionPlan(actor, process);
         Long definitionId = requireDefinition(actor.tenantId());
 
@@ -969,7 +971,7 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
 
     private Map<String, Object> validateFormData(ApprovalForm form,
                                                  Map<String, Object> formData,
-                                                 boolean enforceRequired) {
+                                                 boolean enforceRequired, Long applicationId) {
         Map<String, FieldDef> defs = parseSchemaFields(form.getSchemaJson());
         for (String key : formData.keySet()) {
             if (!defs.containsKey(key)) {
@@ -981,8 +983,10 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
             Object value = formData.get(def.name());
             boolean empty = value == null || (value instanceof String s && s.isBlank());
             if ("dateRange".equals(def.type()) || "checkbox".equals(def.type())
-                    || "user".equals(def.type()) || "department".equals(def.type())) {
-                empty = value == null || ("checkbox".equals(def.type()) && value instanceof List<?> list && list.isEmpty());
+                    || "user".equals(def.type()) || "department".equals(def.type())
+                    || "file".equals(def.type()) || "image".equals(def.type())) {
+                empty = value == null || (Set.of("checkbox", "file", "image").contains(def.type())
+                        && value instanceof List<?> list && list.isEmpty());
             }
             if (empty) {
                 if (enforceRequired && def.required()) {
@@ -991,7 +995,10 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
                 }
                 continue;
             }
-            checkValueType(form.getTenantId(), def, value);
+            if ("file".equals(def.type()) || "image".equals(def.type())) {
+                if (!(value instanceof List<?> references)) throw invalidValue();
+                applicationAttachments.validateReferences(form.getTenantId(), applicationId, def.name(), def.type(), references);
+            } else checkValueType(form.getTenantId(), def, value);
         }
         String serialized = writeJson(formData);
         if (serialized.length() > MAX_DATA_JSON_LENGTH) {

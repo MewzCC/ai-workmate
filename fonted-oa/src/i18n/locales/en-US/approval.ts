@@ -1,4 +1,5 @@
 export default {
+  attachments: { preview: 'Preview image', upload: 'Upload attachment', saveFirst: 'Save a draft before uploading', download: 'Download', remove: 'Remove reference', downloadFailed: 'Unable to download attachment', limit: 'Up to 20 attachments per field', uploading: 'Uploading attachment. Please wait.', invalidResult: 'Invalid attachment receipt. Refresh to check the upload result.' },
   genericTasks: {
     preSignButton: 'Add pre-review', postSignButton: 'Add post-review', preSignScheduled: 'Pre-review scheduled; the original task awaits review', postSignScheduled: 'Post-review scheduled; it activates in order after the original task is approved',
     preSignNotice: 'The added reviewer decides first. Your task resumes only after their approval. Frozen flow and history are preserved; supply an explicit reason.',

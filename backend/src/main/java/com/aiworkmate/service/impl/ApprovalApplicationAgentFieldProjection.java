@@ -36,7 +36,9 @@ final class ApprovalApplicationAgentFieldProjection {
                 if (!names.add(name)) throw invalid();
                 JsonNode value = values.get(name);
                 boolean reference = "user".equals(type) || "department".equals(type);
-                boolean supported = reference ? value == null || value.isNull() || isReferenceId(value) : TYPES.contains(type);
+                boolean attachment = "file".equals(type) || "image".equals(type);
+                boolean supported = attachment ? isAttachmentReferences(value)
+                        : reference ? value == null || value.isNull() || isReferenceId(value) : TYPES.contains(type);
                 boolean hidden = !supported || definition.path("sensitive").asBoolean()
                         || SECRET_NAMES.contains(name.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", ""));
                 List<String> projected = new ArrayList<>();
@@ -72,6 +74,16 @@ final class ApprovalApplicationAgentFieldProjection {
         String id = value.asText();
         return id.matches("[1-9][0-9]{0,18}")
                 && (id.length() < 19 || id.compareTo("9223372036854775807") <= 0);
+    }
+
+    private static boolean isAttachmentReferences(JsonNode value) {
+        if (value == null || value.isNull()) return true;
+        if (!value.isArray() || value.size() > 20) return false;
+        var seen = new HashSet<String>();
+        for (JsonNode reference : value) {
+            if (!reference.isTextual() || !isReferenceId(reference) || !seen.add(reference.asText())) return false;
+        }
+        return true;
     }
     private static BusinessException invalid() { return new BusinessException(ErrorCode.BUSINESS_STATE_INVALID); }
 }

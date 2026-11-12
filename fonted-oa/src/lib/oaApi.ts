@@ -85,7 +85,7 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
       credentials: 'include',
       cache: 'no-store',
       ...init,
-      headers: buildApiHeaders(Boolean(init?.body), init?.headers),
+      headers: buildApiHeaders(Boolean(init?.body) && !(init?.body instanceof FormData), init?.headers),
     });
   } catch {
     throw new OaApiError(i18n.t('errors.oa.serviceUnavailable'), 0, 'SERVICE_UNAVAILABLE');

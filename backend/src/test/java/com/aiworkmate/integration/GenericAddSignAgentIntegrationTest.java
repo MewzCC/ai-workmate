@@ -96,7 +96,9 @@ class GenericAddSignAgentIntegrationTest extends AbstractIsolatedAgentIntegratio
         jdbc.update("UPDATE agent_tool SET schema_hash=? WHERE tenant_id IS NULL AND code=?", customHash, detail);
         String custom = jdbc.queryForObject("SELECT to_jsonb(t)::text FROM agent_tool t WHERE tenant_id IS NULL AND code=?", String.class, detail);
         assertThat(jdbc.update("DELETE FROM flyway_schema_history WHERE version='202611111010'")).isOne();
-        var flyway = org.flywaydb.core.Flyway.configure().dataSource(datasource).schemas(ENV.schema()).defaultSchema(ENV.schema()).locations("classpath:db/migration").load();
+        // Only this disposable fixture replays an intentionally removed historical contract after newer migrations.
+        var flyway = org.flywaydb.core.Flyway.configure().dataSource(datasource).schemas(ENV.schema()).defaultSchema(ENV.schema())
+                .locations("classpath:db/migration").outOfOrder(true).load();
         assertThat(flyway.migrate().migrationsExecuted).isOne();
         flyway.validate(); assertThat(flyway.info().pending()).isEmpty();
         assertThat(flyway.migrate().migrationsExecuted).isZero();

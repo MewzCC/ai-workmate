@@ -1,4 +1,5 @@
 export default {
+  attachments: { preview: '预览图片', upload: '上传附件', saveFirst: '先保存草稿再上传附件', download: '下载', remove: '移除引用', downloadFailed: '附件下载失败', limit: '每个字段最多 20 个附件', uploading: '附件正在上传，请稍候', invalidResult: '附件回执无效，请刷新后确认上传结果' },
   genericTasks: {
     preSignButton: '前加签', postSignButton: '后加签', preSignScheduled: '前加签已安排，原任务暂停等待复核', postSignScheduled: '后加签已安排，将在原任务通过后按顺序激活',
     preSignNotice: '新增人员先复核，通过后才恢复你的任务。原流程快照和审批历史保持不变；请提供明确理由。',

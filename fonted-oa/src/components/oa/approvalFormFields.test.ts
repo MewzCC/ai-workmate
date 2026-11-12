@@ -55,3 +55,14 @@ it('round trips reference identifiers exactly and refuses labels or malformed id
     expect(() => restoreApprovalValues(JSON.stringify({ person }), fields)).toThrow('PAGE_UI_FIELD_REJECTED');
   }
 });
+
+it('round trips attachment references and refuses URLs, raw objects and duplicate identifiers', () => {
+  const fields = [field('proof', 'file'), field('photo', 'image')];
+  const values = { proof: ['9007199254740993'], photo: ['2'] };
+  expect(normalizeApprovalValues(restoreApprovalValues(JSON.stringify(values), fields), fields)).toEqual(values);
+  expect(normalizeApprovalValues({ proof: [], photo: null }, fields)).toEqual({});
+  for (const proof of [['https://example.invalid/file'], [{ path: 'private' }], ['1', '1'], '1']) {
+    expect(() => restoreApprovalValues(JSON.stringify({ proof }), fields)).toThrow('PAGE_UI_FIELD_REJECTED');
+    expect(() => normalizeApprovalValues({ proof }, fields)).toThrow('PAGE_UI_FIELD_REJECTED');
+  }
+});
