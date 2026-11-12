@@ -9,7 +9,7 @@ class AgentGenericApprovalTaskDetailToolDefinitionTest {
     private final ObjectMapper json = new ObjectMapper();
     @Test void freezesAnAssignedReadOnlyContractAndRejectsAuthorityOrUnboundedArguments() throws Exception {
         var tool = new AgentGenericApprovalTaskDetailToolDefinition().genericApprovalTaskDetailQueryToolDefinition(json);
-        assertThat(tool.schemaHash()).isEqualTo("sha256:0c27f2dadc33dc945a007817198c781664f86e92bc1943e5a232d39bed90a26b");
+        assertThat(tool.schemaHash()).isEqualTo("sha256:c1e6afc86677babeed0109482833332693c33021e08175aa986a1973e7061035");
         assertThat(tool.riskLevel()).isEqualTo(RiskLevel.L0);
         assertThat(tool.sideEffect()).isEqualTo(SideEffect.NONE);
         assertThat(tool.ownershipPolicy()).isEqualTo(OwnershipPolicy.ASSIGNED_TO_SELF);

@@ -85,10 +85,11 @@ class GenericCollaborationAgentIntegrationTest extends AbstractIsolatedAgentInte
         long leaveTask=jdbc.queryForObject("SELECT id FROM workflow_task WHERE business_type='LEAVE_APPLICATION' AND business_id=?",Long.class,leave);
         var wrong=plan("cc",leaveTask,target.id(),0);driver.run(wrong,reviewer,"FAILED");unchanged();
     }
-    @Test void realReadToolReturnsOnlyQualifiedCandidatesAndTheirIdentifiers()throws Exception{
+    @ParameterizedTest @ValueSource(strings={"TRANSFER","ADD_SIGN"})
+    void realReadToolReturnsOnlyQualifiedCandidatesAndTheirIdentifiers(String purpose)throws Exception{
         jdbc.update("UPDATE app_user SET display_name=? WHERE id=?","OwnedCandidate"+target.id(),target.id());
         var task=new FrozenReadTaskFixture(jdbc,json,hashing,catalog).create(tenant,reviewer.id(),"todo","approval.genericTask.participants.query",
-                json.createObjectNode().put("taskId",submission.taskId()).put("purpose","TRANSFER").put("keyword","OwnedCandidate"+target.id()),FrozenReadTaskFixture.State.QUEUED);
+                json.createObjectNode().put("taskId",submission.taskId()).put("purpose",purpose).put("keyword","OwnedCandidate"+target.id()),FrozenReadTaskFixture.State.QUEUED);
         org.awaitility.Awaitility.await().atMost(java.time.Duration.ofSeconds(25)).until(()->{worker.poll();return !List.of("QUEUED","RUNNING").contains(jdbc.queryForObject("SELECT status FROM agent_task WHERE id=?",String.class,task.id()));});
         assertThat(jdbc.queryForObject("SELECT status FROM agent_task WHERE id=?",String.class,task.id())).isEqualTo("SUCCEEDED");
         var result=json.readTree(jdbc.queryForObject("SELECT result::text FROM agent_task_step WHERE task_id=?",String.class,task.id()));
@@ -100,8 +101,11 @@ class GenericCollaborationAgentIntegrationTest extends AbstractIsolatedAgentInte
         jdbc.update("UPDATE agent_tenant_policy SET enabled=false,write_tools_enabled=false WHERE tenant_id=?",tenant);
         jdbc.update("DELETE FROM agent_tool WHERE tenant_id IS NULL AND code IN ('approval.genericTask.participants.query','approval.genericTask.transfer','approval.genericTask.cc')");
         assertThat(jdbc.update("DELETE FROM flyway_schema_history WHERE version='202611091400'")).isOne();
-        var flyway=org.flywaydb.core.Flyway.configure().dataSource(datasource).schemas(ENV.schema()).defaultSchema(ENV.schema()).locations("classpath:db/migration").load();
-        assertThat(flyway.migrate().migrationsExecuted).isOne();flyway.validate();assertThat(flyway.info().pending()).isEmpty();assertThat(flyway.migrate().migrationsExecuted).isZero();
+        assertThat(jdbc.update("DELETE FROM flyway_schema_history WHERE version='202611111010'")).isOne();
+        // This owned fixture deliberately removes two historical entries to replay their compatibility chain.
+        // Production migration order is unchanged; permit the intentional gap only in this isolated test.
+        var flyway=org.flywaydb.core.Flyway.configure().dataSource(datasource).schemas(ENV.schema()).defaultSchema(ENV.schema()).locations("classpath:db/migration").outOfOrder(true).load();
+        assertThat(flyway.migrate().migrationsExecuted).isEqualTo(2);flyway.validate();assertThat(flyway.info().pending()).isEmpty();assertThat(flyway.migrate().migrationsExecuted).isZero();
         for(String suffix:List.of("participants.query","transfer","cc")){
             String code="approval.genericTask."+suffix;
             assertThat(jdbc.queryForObject("SELECT enabled FROM agent_tool WHERE tenant_id IS NULL AND code=?",Boolean.class,code)).isFalse();

@@ -7,7 +7,7 @@ import type { PageUiCommandHandlers } from '@/lib/pageUiCommands';
 import { PageAgentContextProvider, usePageAgentContextSnapshot } from './PageAgentContext';
 
 const auth = vi.hoisted(() => ({ user: { id: 7, tenantId: 1, permissionVersion: 1, roles: ['USER'], permissions: ['todo:read', 'approval:act'], dataScopes: ['SELF'] } }));
-const api = vi.hoisted(() => ({ mine: vi.fn(), detail: vi.fn(), approve: vi.fn(), reject: vi.fn(), participants: vi.fn(), transfer: vi.fn(), copyTo: vi.fn(), push: vi.fn(), error: vi.fn(), success: vi.fn() }));
+const api = vi.hoisted(() => ({ mine: vi.fn(), detail: vi.fn(), approve: vi.fn(), reject: vi.fn(), participants: vi.fn(), transfer: vi.fn(), copyTo: vi.fn(), addSign: vi.fn(), push: vi.fn(), error: vi.fn(), success: vi.fn() }));
 const state = vi.hoisted(() => ({ search: 'kind=generic', handlers: {} as PageUiCommandHandlers, views: vi.fn() }));
 vi.mock('@/components/auth/AuthProvider', () => ({ useAuth: () => ({ user: auth.user }) }));
 vi.mock('@/lib/genericApprovalTaskApi', () => ({ genericApprovalTaskApi: api }));
@@ -48,6 +48,56 @@ it('exposes real collaboration controls only when the server grants the current 
   fireEvent.click(transfer);
   expect(await screen.findByLabelText(t('approval.genericTasks.recipient'))).toBeInTheDocument();
   expect(api.transfer).not.toHaveBeenCalled();
+});
+
+it.each(['PRE', 'POST'] as const)('confirms one %s add-sign command without making an approval decision', async mode => {
+  state.search += '&taskId=42';
+  api.detail.mockResolvedValue({ ...detail(), canAddSign: true, canTransfer: true, canCopy: true });
+  api.addSign.mockResolvedValue({ applicationId: 9, taskId: 42, version: 3, status: mode === 'PRE' ? 'WAITING' : 'PENDING', applicationStatus: 'PENDING',
+    action: 'ADD_SIGN', mode, targetUserId: 9, addedTaskId: 77, addedTaskStatus: mode === 'PRE' ? 'PENDING' : 'WAITING', addedTaskVersion: 0, activeTaskId: mode === 'PRE' ? 77 : 42 });
+  render(tree()); fireEvent.click(await screen.findByRole('button', { name: t(mode === 'PRE' ? 'approval.genericTasks.preSignButton' : 'approval.genericTasks.postSignButton') }));
+  fireEvent.mouseDown(await screen.findByLabelText(t('approval.genericTasks.recipient'))); fireEvent.click(await screen.findByText('Qualified recipient'));
+  fireEvent.change(screen.getByLabelText(t('approval.genericTasks.collaborationReason')), { target: { value: 'Explicit extra review' } });
+  fireEvent.click(confirmButton());
+  await waitFor(() => expect(api.addSign).toHaveBeenCalledWith(42, { targetUserId: 9, version: 2, mode, reason: 'Explicit extra review' }));
+  await waitFor(() => expect(api.success).toHaveBeenCalledWith(t(mode === 'PRE' ? 'approval.genericTasks.preSignScheduled' : 'approval.genericTasks.postSignScheduled')));
+  expect(api.approve).not.toHaveBeenCalled(); expect(api.reject).not.toHaveBeenCalled(); expect(api.transfer).not.toHaveBeenCalled();
+});
+it('shows a suspended root and its real add-sign queue without exposing approval controls', async () => {
+  state.search += '&taskId=42'; api.detail.mockResolvedValue({ ...detail(), task: { ...detail().task, status: 'WAITING', version: 3 },
+    canApprove: false, canReject: false, canTransfer: false, canCopy: false, canAddSign: false,
+    addSignTasks: [{ taskId: 77, parentTaskId: 42, mode: 'PRE', assigneeUserId: 9, assigneeName: 'Additional reviewer', status: 'PENDING', version: 0 }] });
+  render(tree()); await screen.findByText(t('approval.genericTasks.addSignQueueTitle'));
+  expect(await screen.findByText('Additional reviewer')).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: t('approval.approvalDetail.approveButton') })).toBeNull();
+  expect(screen.queryByRole('button', { name: t('approval.genericTasks.preSignButton') })).toBeNull();
+});
+
+it('suppresses a late add-sign preflight after permission revocation', async () => {
+  state.search += '&taskId=42'; const current = { ...detail(), canAddSign: true };
+  api.detail.mockResolvedValue(current); const view = render(tree());
+  fireEvent.click(await screen.findByRole('button', { name: t('approval.genericTasks.preSignButton') }));
+  fireEvent.mouseDown(await screen.findByLabelText(t('approval.genericTasks.recipient'))); fireEvent.click(await screen.findByText('Qualified recipient'));
+  fireEvent.change(screen.getByLabelText(t('approval.genericTasks.collaborationReason')), { target: { value: 'Explicit extra review' } });
+  const late = deferred<GenericApprovalTaskDetail>(); api.detail.mockReturnValueOnce(late.promise);
+  const before = api.detail.mock.calls.length; fireEvent.click(confirmButton());
+  await waitFor(() => expect(api.detail.mock.calls.length).toBeGreaterThan(before));
+  auth.user = { ...auth.user, permissionVersion: 2, permissions: [] }; view.rerender(tree());
+  await act(async () => late.resolve(current));
+  expect(api.addSign).not.toHaveBeenCalled(); expect(api.success).not.toHaveBeenCalled();
+});
+
+it.each(['wrong-order', 'network-loss'])('does not retry or report add-sign success for %s', async failure => {
+  state.search += '&taskId=42'; api.detail.mockResolvedValue({ ...detail(), canAddSign: true });
+  if (failure === 'network-loss') api.addSign.mockRejectedValueOnce(new TypeError('connection lost'));
+  else api.addSign.mockResolvedValueOnce({ applicationId: 9, taskId: 42, version: 3, status: 'WAITING', applicationStatus: 'PENDING',
+    action: 'ADD_SIGN', mode: 'PRE', targetUserId: 9, addedTaskId: 77, addedTaskStatus: 'PENDING', addedTaskVersion: 0, activeTaskId: 42 });
+  render(tree()); fireEvent.click(await screen.findByRole('button', { name: t('approval.genericTasks.preSignButton') }));
+  fireEvent.mouseDown(await screen.findByLabelText(t('approval.genericTasks.recipient'))); fireEvent.click(await screen.findByText('Qualified recipient'));
+  fireEvent.change(screen.getByLabelText(t('approval.genericTasks.collaborationReason')), { target: { value: 'Explicit extra review' } });
+  fireEvent.click(confirmButton());
+  await waitFor(() => expect(api.error).toHaveBeenCalledWith(t('approval.approvalDetail.resultUnknown')));
+  expect(api.addSign).toHaveBeenCalledTimes(1); expect(api.success).not.toHaveBeenCalled(); expect(api.push).not.toHaveBeenCalled();
 });
 
 it('confirms the explicit recipient and reason with the current task version before transferring', async () => {

@@ -12,7 +12,7 @@ export function agentTaskNavigationTarget(detail: Pick<AgentTaskDetail, 'status'
   const last = detail.steps[detail.steps.length - 1];
   if (last.toolCode === 'page.ui.prepare') return null;
   if (last.toolCode === 'approval.genericTask.transfer') return { pageId: 'todo' };
-  if (['approval.genericTask.detail.query', 'approval.genericTask.approve', 'approval.genericTask.reject', 'approval.genericTask.cc'].includes(last.toolCode)) {
+  if (['approval.genericTask.detail.query', 'approval.genericTask.approve', 'approval.genericTask.reject', 'approval.genericTask.cc', 'approval.genericTask.addSign'].includes(last.toolCode)) {
     const recordId = agentToolTargetRecordId(last.toolCode, last.result);
     return recordId === undefined ? null : { pageId: 'todo', recordId, recordKind: 'generic-task' };
   }
@@ -47,6 +47,7 @@ const EXACT_TARGETS: Record<string, string> = {
   'approval.genericTask.participants.query': 'todo',
   'approval.genericTask.transfer': 'todo',
   'approval.genericTask.cc': 'todo',
+  'approval.genericTask.addSign': 'todo',
   'dashboard.overview.query': 'dashboard',
   'dashboard.preferences.update': 'dashboard',
   'knowledge.search': 'knowledge-base',
@@ -160,6 +161,7 @@ const RECORD_ID_FIELDS: ReadonlyMap<string, string> = new Map([
   ['approval.genericTask.approve', 'taskId'],
   ['approval.genericTask.reject', 'taskId'],
   ['approval.genericTask.cc', 'taskId'],
+  ['approval.genericTask.addSign', 'taskId'],
   ...['approval.rule.definition.query', 'approval.rule.createDraft', 'approval.rule.updateDraft', 'approval.rule.patchDraftCondition', 'approval.rule.enableDraft']
     .map((code): [string, string] => [code, 'ruleId']),
   ...['approval.form.definition.query', 'approval.form.createDraft', 'approval.form.updateDraft', 'approval.form.patchDraftField', 'approval.form.publishDraft']

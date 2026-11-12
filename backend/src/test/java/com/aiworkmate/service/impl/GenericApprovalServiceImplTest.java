@@ -49,6 +49,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -437,6 +438,7 @@ class GenericApprovalServiceImplTest {
         when(applicationMapper.selectOne(any())).thenReturn(pending);
         when(instanceMapper.selectOne(any())).thenReturn(instance("RUNNING", 0));
         when(taskMapper.selectOne(any())).thenReturn(task("PENDING", 1));
+        when(taskMapper.selectList(any())).thenReturn(List.of(task("PENDING", 1)));
         when(applicationMapper.update(any(), any())).thenReturn(1);
         when(taskMapper.update(any(), any())).thenReturn(1);
         when(instanceMapper.update(any(), any())).thenReturn(1);
@@ -463,6 +465,7 @@ class GenericApprovalServiceImplTest {
         when(applicationMapper.selectOne(any())).thenReturn(pending);
         when(instanceMapper.selectOne(any())).thenReturn(instance("RUNNING", 0));
         when(taskMapper.selectOne(any())).thenReturn(task("PENDING", 1));
+        when(taskMapper.selectList(any())).thenReturn(List.of(task("PENDING", 1)));
         when(applicationMapper.update(any(), any())).thenReturn(1);
         when(taskMapper.update(any(), any())).thenReturn(1);
         when(instanceMapper.update(any(), any())).thenReturn(1);
@@ -478,6 +481,19 @@ class GenericApprovalServiceImplTest {
         verify(instanceMapper).update(any(), any());
         verify(auditService).recordTransactional(TENANT_ID, USER_ID, "GENERIC_APPROVAL", "10",
                 "WITHDRAW", "SUCCESS", "撤回通用审批申请");
+    }
+
+    @Test
+    void withdrawalRejectsAnOutstandingSetMissingTheAlreadyReadActiveTask() {
+        when(applicationMapper.selectOne(any())).thenReturn(application("PENDING", 2));
+        when(instanceMapper.selectOne(any())).thenReturn(instance("RUNNING", 0));
+        when(taskMapper.selectOne(any())).thenReturn(task("PENDING", 1));
+        when(taskMapper.selectList(any())).thenReturn(List.of());
+        assertThatThrownBy(() -> service.withdraw(USER_ID, 10L, new VersionRequest(2)))
+                .isInstanceOf(BusinessException.class).extracting("errorCode").isEqualTo("BUSINESS_STATE_INVALID");
+        verify(taskMapper, never()).update(any(), any());
+        verify(applicationMapper, never()).update(any(), any());
+        verifyNoInteractions(notificationService);
     }
 
     @Test

@@ -57,4 +57,9 @@ public class GenericApprovalTaskController {
             @PathVariable Long id,@Valid @RequestBody com.aiworkmate.dto.ApprovalParticipantRequest request){
         return Result.ok(service.copyTo(user.userId(),user.tenantId(),id,request));
     }
+    @PostMapping("/{id}/add-sign")
+    public Result<com.aiworkmate.dto.GenericApprovalAddSignReceipt> addSign(@AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable Long id,@Valid @RequestBody com.aiworkmate.dto.ApprovalAddSignRequest request){
+        return Result.ok(service.addSign(user.userId(),user.tenantId(),id,request));
+    }
 }

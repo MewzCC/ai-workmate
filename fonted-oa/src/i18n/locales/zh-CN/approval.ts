@@ -1,5 +1,9 @@
 export default {
   genericTasks: {
+    preSignButton: '前加签', postSignButton: '后加签', preSignScheduled: '前加签已安排，原任务暂停等待复核', postSignScheduled: '后加签已安排，将在原任务通过后按顺序激活',
+    preSignNotice: '新增人员先复核，通过后才恢复你的任务。原流程快照和审批历史保持不变；请提供明确理由。',
+    postSignNotice: '新增人员将在你通过后依次复核，所有后加签通过后才进入下一原流程节点。请提供明确理由。',
+    addSignQueueTitle: '加签任务顺序', signModeLabel: '加签方式', signMode: { PRE: '前加签', POST: '后加签' }, parentTask: '原任务 #{{id}}', originalAssignee: '原处理人',
     transferButton: '转交任务', copyButton: '抄送申请', recipient: '接收人', chooseRecipient: '请选择接收人',
     collaborationReason: '协作理由', reasonRequired: '请填写明确理由', transferred: '任务已转交，等待接收人审批', copied: '已发送站内只读抄送通知',
     transferNotice: '仅转交当前任务，保留原审批历史和冻结流程。接收人须具备有效审批及待办读取权限。',
@@ -55,6 +59,7 @@ export default {
     CC: '抄送知会',
     ADD_SIGN_PRE: '前加签',
     ADD_SIGN_POST: '后加签',
+    ACTIVATE_ADD_SIGN: '按顺序激活待办', CANCEL_ADD_SIGN: '取消后续待办',
     REMIND: '催办提醒',
   },
   daysCount: '{{days}} 天',

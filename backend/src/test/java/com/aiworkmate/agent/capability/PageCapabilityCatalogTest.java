@@ -93,7 +93,7 @@ class PageCapabilityCatalogTest {
                 .extracting(PageToolReference::code)
                 .containsExactly(ToolCode.TODO_QUERY, ToolCode.APPROVAL_GENERIC_TASK_DETAIL_QUERY,ToolCode.APPROVAL_GENERIC_TASK_PARTICIPANTS_QUERY);
         assertThat(catalog.find("todo").orElseThrow().writeTools()).extracting(PageToolReference::code)
-                .containsExactlyInAnyOrder(ToolCode.APPROVAL_GENERIC_TASK_APPROVE, ToolCode.APPROVAL_GENERIC_TASK_REJECT,ToolCode.APPROVAL_GENERIC_TASK_TRANSFER,ToolCode.APPROVAL_GENERIC_TASK_CC);
+                .containsExactlyInAnyOrder(ToolCode.APPROVAL_GENERIC_TASK_APPROVE, ToolCode.APPROVAL_GENERIC_TASK_REJECT,ToolCode.APPROVAL_GENERIC_TASK_TRANSFER,ToolCode.APPROVAL_GENERIC_TASK_CC,ToolCode.APPROVAL_GENERIC_TASK_ADD_SIGN);
         assertThat(catalog.find("dashboard").orElseThrow().readTools().stream().filter(reference -> reference.code() != ToolCode.PAGE_UI_PREPARE).toList())
                 .extracting(PageToolReference::code)
                 .contains(ToolCode.USER_PERMISSION_MINE_QUERY, ToolCode.DASHBOARD_OVERVIEW_QUERY);

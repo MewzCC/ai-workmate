@@ -9,7 +9,7 @@ import java.util.Set;
 @Configuration(proxyBeanMethods=false)
 public class AgentGenericCollaborationToolDefinitions {
     public static final String READ_INPUT="""
-            {"type":"object","additionalProperties":false,"required":["taskId","purpose"],"properties":{"taskId":{"type":"integer","minimum":1},"purpose":{"type":"string","enum":["TRANSFER","CC"]},"keyword":{"type":"string","maxLength":64},"page":{"type":"integer","minimum":1,"maximum":10000},"size":{"type":"integer","minimum":1,"maximum":50}}}
+            {"type":"object","additionalProperties":false,"required":["taskId","purpose"],"properties":{"taskId":{"type":"integer","minimum":1},"purpose":{"type":"string","enum":["TRANSFER","CC","ADD_SIGN"]},"keyword":{"type":"string","maxLength":64},"page":{"type":"integer","minimum":1,"maximum":10000},"size":{"type":"integer","minimum":1,"maximum":50}}}
             """.strip();
     public static final String WRITE_INPUT="""
             {"type":"object","additionalProperties":false,"required":["taskId","targetUserId","version","reason"],"properties":{"taskId":{"type":"integer","minimum":1},"targetUserId":{"type":"integer","minimum":1},"version":{"type":"integer","minimum":0,"maximum":2147483646},"reason":{"type":"string","minLength":1,"maxLength":500}}}
@@ -20,7 +20,7 @@ public class AgentGenericCollaborationToolDefinitions {
     @Bean public ToolDefinition genericParticipants(ObjectMapper json)throws JsonProcessingException{
         return ToolDefinitionFactory.read(ToolCode.APPROVAL_GENERIC_TASK_PARTICIPANTS_QUERY,"Query generic task collaboration candidates",
                 "Reads a bounded page of qualified candidates for one currently assigned generic approval task.",
-                "Use the explicit taskId and TRANSFER or CC purpose. Ask for an ambiguous recipient; never invent a user ID or use the leave-task candidate tool for generic tasks.",
+                "Use the explicit taskId and TRANSFER, CC or ADD_SIGN purpose. ADD_SIGN excludes frozen and already added reviewers. Ask for an ambiguous recipient; never invent a user ID or use the leave-task candidate tool for generic tasks.",
                 json.readTree(READ_INPUT),json.readTree(AgentApprovalMetadataReadToolDefinitions.OUTPUT_1),Set.of("approval:act","todo:read"),OwnershipPolicy.ASSIGNED_TO_SELF,50,16384,15000);
     }
     @Bean public ToolDefinition genericTransfer(ObjectMapper json)throws JsonProcessingException{return write(json,ToolCode.APPROVAL_GENERIC_TASK_TRANSFER,"Transfer one assigned generic task");}

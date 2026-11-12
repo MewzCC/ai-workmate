@@ -100,6 +100,7 @@ const aiPermission = {
     approval_genericTask_participants_query: { name: 'Query generic task candidates', description: 'Pages active same-tenant candidates for an explicit task and transfer/copy purpose. Grants no permissions.' },
     approval_genericTask_transfer: { name: 'Transfer one generic task', description: 'After secondary confirmation, transfers one version-bound task to a qualified reviewer, preserving its frozen flow and audit. Never automatically retries.' },
     approval_genericTask_cc: { name: 'Copy one generic request', description: 'After secondary confirmation, sends one active user an internal read-only notification. Grants no approval rights and sends no external message.' },
+    approval_genericTask_addSign: { name: 'Add one ordered generic reviewer', description: 'With explicit PRE/POST order, recipient, version and reason, adds one review task after secondary confirmation while preserving the frozen flow. Never automatically retries.' },
     approval_application_mine_query: { name: 'Query my general applications', description: 'Pages through my general applications and drafts without raw form values, personnel identities or cross-tenant records.' },
     approval_application_createDraft: { name: 'Create general application draft', description: 'Saves only a draft owned by the current user without starting approval.' },
     approval_application_submitDraft: { name: 'Submit general application draft', description: 'Submits an owned, version-matched draft and starts approval.' },

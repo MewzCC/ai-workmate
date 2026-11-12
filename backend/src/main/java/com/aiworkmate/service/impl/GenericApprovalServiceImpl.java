@@ -1,6 +1,7 @@
 package com.aiworkmate.service.impl;
 
 import com.aiworkmate.common.BusinessException;
+import com.aiworkmate.common.MessageUtils;
 import com.aiworkmate.common.ErrorCode;
 import com.aiworkmate.common.PageResponse;
 import com.aiworkmate.common.TraceContext;
@@ -50,6 +51,7 @@ import java.math.BigDecimal;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
@@ -390,6 +392,9 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
 
     private ApprovalApplicationResponse withdrawInternal(
             ResolvedUserAccess actor, Long id, VersionRequest request) {
+        requireOwnedApplication(actor,id);
+        applicationMapper.lockApplication(actor.tenantId(),id);
+        actor=requireApplicationAccess(actor.userId(),"approval:withdraw");
         ApprovalApplication application = requireOwnedApplication(actor, id);
         if (!"PENDING".equals(application.getStatus())) {
             throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID,
@@ -401,6 +406,13 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
         WorkflowInstance instance = requireRunningInstance(actor, application);
         WorkflowTask task = requirePendingTask(actor, instance.getId(), application.getId());
         LocalDateTime now = LocalDateTime.now();
+
+        var outstanding=taskMapper.selectList(new LambdaQueryWrapper<WorkflowTask>().eq(WorkflowTask::getTenantId,actor.tenantId())
+                .eq(WorkflowTask::getInstanceId,instance.getId()).eq(WorkflowTask::getBusinessType,BUSINESS_TYPE).eq(WorkflowTask::getBusinessId,id)
+                .in(WorkflowTask::getStatus,"PENDING","WAITING").last("LIMIT 421"));
+        if(outstanding.isEmpty() || outstanding.size()>GenericApprovalTaskRuntime.MAX_TASKS
+                || outstanding.stream().noneMatch(pending->Objects.equals(pending.getId(),task.getId())))
+            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID,"validation.genericApproval.runtimeInvalid");
 
         int applicationUpdated = applicationMapper.update(null,
                 new LambdaUpdateWrapper<ApprovalApplication>()
@@ -417,18 +429,14 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
             throw new BusinessException(ErrorCode.VERSION_CONFLICT);
         }
 
-        int taskUpdated = taskMapper.update(null, new LambdaUpdateWrapper<WorkflowTask>()
-                .eq(WorkflowTask::getId, task.getId())
-                .eq(WorkflowTask::getTenantId, actor.tenantId())
-                .eq(WorkflowTask::getStatus, "PENDING")
-                .eq(WorkflowTask::getVersion, task.getVersion())
-                .set(WorkflowTask::getStatus, "CANCELLED")
-                .set(WorkflowTask::getDecisionComment, "申请人撤回")
-                .set(WorkflowTask::getCompletedAt, now)
-                .set(WorkflowTask::getUpdatedAt, now)
-                .setSql("version = version + 1"));
-        if (taskUpdated != 1) {
-            throw new BusinessException(ErrorCode.VERSION_CONFLICT);
+        for(var pending:outstanding){
+            int updated=taskMapper.update(null,new LambdaUpdateWrapper<WorkflowTask>().eq(WorkflowTask::getId,pending.getId()).eq(WorkflowTask::getTenantId,actor.tenantId())
+                    .eq(WorkflowTask::getInstanceId,instance.getId()).eq(WorkflowTask::getBusinessType,BUSINESS_TYPE).eq(WorkflowTask::getBusinessId,id)
+                    .eq(WorkflowTask::getStatus,pending.getStatus()).eq(WorkflowTask::getVersion,pending.getVersion())
+                    .set(WorkflowTask::getStatus,"CANCELLED").set(WorkflowTask::getDecisionComment,MessageUtils.resolve("genericApproval.withdrawTask"))
+                    .set(WorkflowTask::getCompletedAt,now).set(WorkflowTask::getUpdatedAt,now).setSql("version=version+1"));
+            if(updated!=1)throw new BusinessException(ErrorCode.VERSION_CONFLICT);
+            if(!pending.getId().equals(task.getId()))insertAction(actor,instance.getId(),pending.getId(),"CANCEL_ADD_SIGN",pending.getStatus(),"CANCELLED",MessageUtils.resolve("genericApproval.withdrawTask"));
         }
 
         int instanceUpdated = instanceMapper.update(null,

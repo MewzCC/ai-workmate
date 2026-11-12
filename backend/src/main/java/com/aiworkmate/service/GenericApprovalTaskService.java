@@ -17,4 +17,5 @@ public interface GenericApprovalTaskService {
             String purpose,com.aiworkmate.service.model.BusinessCandidateQuery query);
     com.aiworkmate.dto.GenericApprovalParticipantReceipt transfer(Long userId,Long expectedTenantId,Long taskId,com.aiworkmate.dto.ApprovalParticipantRequest request);
     com.aiworkmate.dto.GenericApprovalParticipantReceipt copyTo(Long userId,Long expectedTenantId,Long taskId,com.aiworkmate.dto.ApprovalParticipantRequest request);
+    com.aiworkmate.dto.GenericApprovalAddSignReceipt addSign(Long userId,Long expectedTenantId,Long taskId,com.aiworkmate.dto.ApprovalAddSignRequest request);
 }

@@ -76,6 +76,7 @@ public enum ToolCode {
     APPROVAL_GENERIC_TASK_PARTICIPANTS_QUERY("approval.genericTask.participants.query"),
     APPROVAL_GENERIC_TASK_TRANSFER("approval.genericTask.transfer", SideEffect.SINGLE_WRITE),
     APPROVAL_GENERIC_TASK_CC("approval.genericTask.cc", SideEffect.SINGLE_WRITE),
+    APPROVAL_GENERIC_TASK_ADD_SIGN("approval.genericTask.addSign", SideEffect.SINGLE_WRITE),
     APPROVAL_APPLICATION_CREATE_DRAFT("approval.application.createDraft", SideEffect.SINGLE_WRITE),
     APPROVAL_APPLICATION_APPLY("approval.application.apply", SideEffect.SINGLE_WRITE),
     APPROVAL_APPLICATION_UPDATE_DRAFT("approval.application.updateDraft", SideEffect.SINGLE_WRITE),

@@ -100,6 +100,7 @@ const aiPermission = {
     approval_genericTask_participants_query: { name: '查询通用任务协作候选', description: '按明确任务和转交或抄送用途，分页查询同租户有效候选；不授予权限。' },
     approval_genericTask_transfer: { name: '转交单个通用审批任务', description: '二次确认后按任务版本转交给有效审批人，保留冻结流程和审计，不自动重试。' },
     approval_genericTask_cc: { name: '抄送单个通用审批申请', description: '二次确认后向一个有效用户发送站内只读通知，不授予审批权限或发送外部消息。' },
+    approval_genericTask_addSign: { name: '增加单个通用审批复核人', description: '明确前后顺序、接收人、版本与理由，二次确认后新增一个顺序加签任务，保留冻结流程，不自动重试。' },
     approval_application_mine_query: { name: '查询本人通用申请', description: '分页查询本人通用表单申请与草稿，不返回表单原始值、人员身份或跨租户记录。' },
     approval_application_createDraft: { name: '创建通用申请草稿', description: '仅保存本人草稿，不启动审批。' },
     approval_application_submitDraft: { name: '提交通用申请草稿', description: '提交本人且版本匹配的草稿并启动审批。' },

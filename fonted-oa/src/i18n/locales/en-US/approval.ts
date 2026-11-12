@@ -1,5 +1,9 @@
 export default {
   genericTasks: {
+    preSignButton: 'Add pre-review', postSignButton: 'Add post-review', preSignScheduled: 'Pre-review scheduled; the original task awaits review', postSignScheduled: 'Post-review scheduled; it activates in order after the original task is approved',
+    preSignNotice: 'The added reviewer decides first. Your task resumes only after their approval. Frozen flow and history are preserved; supply an explicit reason.',
+    postSignNotice: 'Added reviewers decide in order after you approve. Only then can the original flow continue. Supply an explicit reason.',
+    addSignQueueTitle: 'Added review order', signModeLabel: 'Review position', signMode: { PRE: 'Pre-review', POST: 'Post-review' }, parentTask: 'Original task #{{id}}', originalAssignee: 'Original assignee',
     transferButton: 'Transfer task', copyButton: 'Copy request', recipient: 'Recipient', chooseRecipient: 'Choose a recipient',
     collaborationReason: 'Reason', reasonRequired: 'Enter an explicit reason', transferred: 'Task transferred; awaiting recipient decision', copied: 'Internal read-only copy delivered',
     transferNotice: 'Transfer only this task, preserving approval history and the frozen flow. The recipient must have active approval and inbox read permissions.',
@@ -55,6 +59,7 @@ export default {
     CC: 'Copy for Information',
     ADD_SIGN_PRE: 'Pre Add-sign',
     ADD_SIGN_POST: 'Post Add-sign',
+    ACTIVATE_ADD_SIGN: 'Activate next task', CANCEL_ADD_SIGN: 'Cancel remaining task',
     REMIND: 'Reminder',
   },
   daysCount: '{{days}} day(s)',

@@ -12,7 +12,7 @@ import { requireUiPagination, uiDateRange } from '@/hooks/usePageUiEditorCommand
 import { requireUiFieldTypes } from '@/lib/preparedPageUiCommand';
 import { message } from '@/lib/antdMessage';
 import { formatOaApiError, OaApiError } from '@/lib/oaApi';
-import { genericApprovalTaskApi as api, type GenericApprovalTaskDetail } from '@/lib/genericApprovalTaskApi';
+import { genericApprovalTaskApi as api, type GenericApprovalTaskDetail, type GenericAddSignItem } from '@/lib/genericApprovalTaskApi';
 import { OaIcon } from '@/components/OaIcon';
 import ResponsiveTable from './ResponsiveTable';
 import GenericTaskCollaboration from './GenericTaskCollaboration';
@@ -86,11 +86,25 @@ function GenericTaskDrawer({ id, onClose, onUpdated }: { id: number; onClose: ()
     <Spin spinning={overview.loading}>{data ? <>
       <Typography.Title level={4}>{data.task.title}</Typography.Title>
       <Space wrap><Tag>{t(`approval.status.${data.applicationStatus}`)}</Tag><Typography.Text>{data.task.applicantName}</Typography.Text>
-        <Typography.Text>{data.task.nodeName || t('approval.genericTasks.legacyNode')}</Typography.Text></Space>
+        <Typography.Text>{data.task.nodeName || t('approval.genericTasks.legacyNode')}</Typography.Text>
+        {data.task.addSignMode && <Tag color="purple">{t(`approval.genericTasks.signMode.${data.task.addSignMode}`)}</Tag>}
+        {data.task.parentTaskId != null && <Typography.Text type="secondary">{t('approval.genericTasks.parentTask', { id: data.task.parentTaskId })}</Typography.Text>}</Space>
       {data.blockedReason && <Alert type="warning" showIcon message={data.blockedReason} />}
       <Descriptions column={1} bordered size="small" items={data.fields.map(field => ({ key: field.name, label: field.label, children: field.redacted ? <Tag>{t('approval.genericApplications.redacted')}</Tag> : field.values.join(' / ') || '-' }))} />
       <Pagination size="small" current={page} pageSize={50} total={data.totalFields} showSizeChanger={false} onChange={setPage} />
-      <Timeline items={data.timeline.map(item => ({ children: <Space direction="vertical" size={0}><Typography.Text>{item.actorName} · {t(`approval.action.${item.action}`)}</Typography.Text><Typography.Text type="secondary">{item.comment || dayjs(item.createdAt).format('YYYY-MM-DD HH:mm')}</Typography.Text></Space> }))} />
+      {Boolean(data.addSignTasks?.length) && <Card size="small" title={t('approval.genericTasks.addSignQueueTitle')}>
+        <ResponsiveTable<GenericAddSignItem> rowKey="taskId" dataSource={data.addSignTasks} pagination={false} scroll={{ x: 540 }} columns={[
+          { title: t('approval.genericTasks.recipient'), dataIndex: 'assigneeName' },
+          { title: t('approval.genericTasks.signModeLabel'), render: (_, row) => <Tag>{t(`approval.genericTasks.signMode.${row.mode}`)}</Tag> },
+          { title: t('common.status'), render: (_, row) => <Tag>{t(`approval.status.${row.status}`)}</Tag> },
+          { title: t('approval.approvalDetail.descDueAt'), render: (_, row) => row.dueAt ? dayjs(row.dueAt).format('YYYY-MM-DD HH:mm') : '-' },
+        ]} />
+      </Card>}
+      <Timeline items={data.timeline.map(item => ({ children: <Space direction="vertical" size={0}><Typography.Text>{item.actorName} · {t(`approval.action.${item.action}`)}</Typography.Text>
+        {item.originalAssigneeName && <Typography.Text type="secondary">{t('approval.genericTasks.originalAssignee')}: {item.originalAssigneeName}</Typography.Text>}
+        {item.targetUserName && <Typography.Text type="secondary">{t('approval.genericTasks.recipient')}: {item.targetUserName}</Typography.Text>}
+        {item.comment && <Typography.Text type="secondary">{item.comment}</Typography.Text>}
+        <Typography.Text type="secondary">{dayjs(item.createdAt).format('YYYY-MM-DD HH:mm')}</Typography.Text></Space> }))} />
       <GenericTaskDecision key={overview.scope} data={data} scope={overview.scope} isCurrent={overview.isCurrent} loading={overview.loading} reload={overview.load} onUpdated={onUpdated} />
       <GenericTaskCollaboration key={`collaboration:${overview.scope}:${data.task.version}`} data={data} scope={overview.scope} isCurrent={overview.isCurrent} loading={overview.loading}
         reload={overview.load} onUpdated={onUpdated} onTransferred={onClose} />

@@ -62,7 +62,7 @@ public class PageCapabilityCatalog {
     /** Preserve the generic approval domain's existing entry-route prerequisite independently of business permissions. */
     public Set<String> prerequisitePageIdsForTool(String toolCode) {
         if (Set.of(APPROVAL_GENERIC_TASK_DETAIL_QUERY.code(), APPROVAL_GENERIC_TASK_APPROVE.code(),
-                APPROVAL_GENERIC_TASK_REJECT.code(),APPROVAL_GENERIC_TASK_PARTICIPANTS_QUERY.code(),APPROVAL_GENERIC_TASK_TRANSFER.code(),APPROVAL_GENERIC_TASK_CC.code()).contains(toolCode == null ? "" : toolCode))
+                APPROVAL_GENERIC_TASK_REJECT.code(),APPROVAL_GENERIC_TASK_PARTICIPANTS_QUERY.code(),APPROVAL_GENERIC_TASK_TRANSFER.code(),APPROVAL_GENERIC_TASK_CC.code(),APPROVAL_GENERIC_TASK_ADD_SIGN.code()).contains(toolCode == null ? "" : toolCode))
             return Set.of(OaPage.TODO.routeKey());
         return Set.of(APPROVAL_APPLICATION_APPLY.code(), EXPENSE_APPLY.code(), APPROVAL_APPLICATION_TEMPLATE_QUERY.code(), APPROVAL_APPLICATION_MINE_QUERY.code(), APPROVAL_APPLICATION_DETAIL_QUERY.code(),
                 APPROVAL_APPLICATION_CREATE_DRAFT.code(), APPROVAL_APPLICATION_UPDATE_DRAFT.code(),
@@ -123,7 +123,7 @@ public class PageCapabilityCatalog {
                 page(OaPage.TODO, OwnershipPolicy.ASSIGNED_TO_SELF, LIST_COMMANDS,
                         context(text("businessType"),text("status"), text("from"), text("to"), number("page"), number("size"), number("taskId"), number("taskVersion")),
                         tool(TODO_QUERY), tool(APPROVAL_GENERIC_TASK_DETAIL_QUERY), tool(APPROVAL_GENERIC_TASK_APPROVE), tool(APPROVAL_GENERIC_TASK_REJECT),
-                        tool(APPROVAL_GENERIC_TASK_PARTICIPANTS_QUERY),tool(APPROVAL_GENERIC_TASK_TRANSFER),tool(APPROVAL_GENERIC_TASK_CC)),
+                        tool(APPROVAL_GENERIC_TASK_PARTICIPANTS_QUERY),tool(APPROVAL_GENERIC_TASK_TRANSFER),tool(APPROVAL_GENERIC_TASK_CC),tool(APPROVAL_GENERIC_TASK_ADD_SIGN)),
                 page(OaPage.MESSAGES, OwnershipPolicy.SELF, LIST_COMMANDS,
                         context(number("notificationId"), number("page"), number("size")),
                         tool(NOTIFICATION_MINE), tool(NOTIFICATION_MARK_READ)),

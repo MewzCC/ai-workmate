@@ -41,6 +41,7 @@ public final class AgentReadResultPresenter {
         if ("approval.process.definition.query".equals(toolCode)) return processDefinition(result);
         if ("approval.task.participants.query".equals(toolCode) || "approval.genericTask.participants.query".equals(toolCode)) return approvalParticipants(result);
         if ("approval.genericTask.transfer".equals(toolCode) || "approval.genericTask.cc".equals(toolCode)) return genericCollaboration(toolCode,result);
+        if ("approval.genericTask.addSign".equals(toolCode)) return genericAddSign(result);
         if ("approval.genericTask.detail.query".equals(toolCode)) return genericTaskDetail(result);
         if ("approval.genericTask.approve".equals(toolCode)) return genericTaskApprove(result);
         if ("approval.genericTask.reject".equals(toolCode)) return genericTaskReject(result);
@@ -409,6 +410,18 @@ public final class AgentReadResultPresenter {
         return MessageUtils.resolve(action.equals("TRANSFER")?"agent.genericTask.transferred":"agent.genericTask.copied",
                 Long.toString(result.path("taskId").asLong()),Long.toString(original),Long.toString(target),Integer.toString(result.path("version").asInt()));
     }
+    private static String genericAddSign(JsonNode result){
+        if(result==null || !List.of("PRE","POST").contains(result.path("mode").asText()))throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        boolean pre="PRE".equals(result.path("mode").asText());requireWriteReceipt(result,pre?"WAITING":"PENDING",1);
+        for(String key:List.of("taskId","targetUserId","addedTaskId","activeTaskId"))
+            if(!result.path(key).isIntegralNumber() || !result.path(key).canConvertToLong() || result.path(key).asLong()<1)throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        if(!"ADD_SIGN".equals(result.path("action").asText()) || !"PENDING".equals(result.path("applicationStatus").asText())
+                || !result.path("addedTaskVersion").isInt() || result.path("addedTaskVersion").asInt()!=0 || result.path("taskId").asLong()==result.path("addedTaskId").asLong()
+                || !(pre?"PENDING":"WAITING").equals(result.path("addedTaskStatus").asText())
+                || result.path("activeTaskId").asLong()!=(pre?result.path("addedTaskId").asLong():result.path("taskId").asLong()))throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        return MessageUtils.resolve(pre?"agent.genericTask.addedPre":"agent.genericTask.addedPost",Long.toString(result.path("taskId").asLong()),
+                Long.toString(result.path("addedTaskId").asLong()),Long.toString(result.path("targetUserId").asLong()),Integer.toString(result.path("version").asInt()));
+    }
 
     private static String assignedWorkflowDecision(String code,JsonNode result) {
         String status=code.endsWith(".approve")?"APPROVED":"REJECTED";
@@ -483,8 +496,15 @@ public final class AgentReadResultPresenter {
                 || result.path("fieldPageSize").asInt() != 4 || result.path("fields").size() > 4
                 || result.path("fieldPage").asInt() < 1 || result.path("fieldPage").asInt() > 25
                 || result.path("fieldsTotal").asInt(-1) < 0 || result.path("fieldsTotal").asInt() > 100
-                || !List.of("PENDING", "APPROVED", "REJECTED", "CANCELLED").contains(result.path("status").asText())
+                || !List.of("PENDING", "WAITING", "APPROVED", "REJECTED", "CANCELLED").contains(result.path("status").asText())
                 || !List.of("PENDING", "APPROVED", "REJECTED", "WITHDRAWN", "CANCELLED").contains(result.path("applicationStatus").asText()))
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        boolean child=result.has("parentTaskId");
+        if(child!=result.has("addSignMode") || child && (!result.path("parentTaskId").isIntegralNumber() || !result.path("parentTaskId").canConvertToLong()
+                || result.path("parentTaskId").asLong()<1 || result.path("parentTaskId").asLong()==result.path("taskId").asLong()
+                || !List.of("PRE","POST").contains(result.path("addSignMode").asText()))
+                || "WAITING".equals(result.path("status").asText()) && (result.path("canApprove").asBoolean() || result.path("canReject").asBoolean() || result.path("canAddSign").asBoolean())
+                || result.path("canAddSign").asBoolean() && (child || !"PENDING".equals(result.path("status").asText()) || !result.path("canApprove").asBoolean()))
             throw new BusinessException(ErrorCode.REQUEST_INVALID);
         StringBuilder answer = new StringBuilder(MessageUtils.resolve("agent.genericTask.heading",
                 Long.toString(result.path("taskId").asLong()), plain(result.path("title").asText()), plain(result.path("applicantName").asText())));
@@ -492,6 +512,8 @@ public final class AgentReadResultPresenter {
                 MessageUtils.resolve("agent.application.status." + result.path("status").asText()), result.path("version").asInt()));
         answer.append('\n').append(MessageUtils.resolve("agent.genericTask.application", Long.toString(result.path("applicationId").asLong()),
                 MessageUtils.resolve("agent.application.status." + result.path("applicationStatus").asText())));
+        if(child)answer.append('\n').append(MessageUtils.resolve("agent.genericTask.addSignPosition",MessageUtils.resolve("agent.genericTask.mode."+result.path("addSignMode").asText()),Long.toString(result.path("parentTaskId").asLong())));
+        if(result.has("canAddSign"))answer.append('\n').append(MessageUtils.resolve("agent.genericTask.addSignAvailability",MessageUtils.resolve(result.path("canAddSign").asBoolean()?"agent.genericTask.available":"agent.genericTask.unavailable")));
         int page = result.path("fieldPage").asInt(), total = result.path("fieldsTotal").asInt();
         answer.append('\n').append(MessageUtils.resolve("agent.genericTask.page", page, total, 4));
         if (page * 4 < total) answer.append('\n').append(MessageUtils.resolve("agent.genericTask.next", page + 1));

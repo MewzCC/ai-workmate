@@ -1,6 +1,14 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { genericApprovalTaskApi } from './genericApprovalTaskApi';
 afterEach(() => vi.restoreAllMocks());
+it('sends one version-bound add-sign command and queries its qualified candidates', async () => {
+  const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response(JSON.stringify({ code: 200, data: {} }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+  await genericApprovalTaskApi.participants(42, 'ADD_SIGN', { page: 1, size: 20 });
+  await genericApprovalTaskApi.addSign(42, { targetUserId: 9, version: 3, mode: 'PRE', reason: 'Explicit review reason' });
+  expect(fetch.mock.calls[0][0]).toContain('purpose=ADD_SIGN');
+  expect(fetch.mock.calls[1][0]).toBe('/api/generic-approval-tasks/42/add-sign');
+  expect(fetch.mock.calls[1][1]?.body).toBe(JSON.stringify({ targetUserId: 9, version: 3, mode: 'PRE', reason: 'Explicit review reason' }));
+});
 it('uses task-scoped paged candidates and versioned transfer/copy endpoints', async () => {
   const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response(JSON.stringify({ code: 200, data: {} }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
   await genericApprovalTaskApi.participants(42, 'TRANSFER', { page: 2, size: 20, keyword: 'Reviewer' });
