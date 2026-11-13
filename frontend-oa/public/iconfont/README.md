@@ -1,15 +1,15 @@
 # Iconfont Symbol 使用与更新教程
 
-本项目使用阿里 Iconfont 的 **Symbol** 模式。营销官网 `fronted-main` 和 OA 工作台 `fonted-oa` 是两个独立的 Vite 应用，因此两端需要分别保存一份 `iconfont.js`。
+本项目使用阿里 Iconfont 的 **Symbol** 模式。营销官网 `frontend-main` 和 OA 工作台 `frontend-oa` 是两个独立的 Vite 应用，因此两端需要分别保存一份 `iconfont.js`。
 
 ## 目录位置
 
 ```text
-fronted-main/public/iconfont/iconfont.js
-fonted-oa/public/iconfont/iconfont.js
+frontend-main/public/iconfont/iconfont.js
+frontend-oa/public/iconfont/iconfont.js
 
-fronted-main/src/components/IconFont.tsx
-fonted-oa/src/components/IconFont.tsx
+frontend-main/src/components/IconFont.tsx
+frontend-oa/src/components/IconFont.tsx
 ```
 
 两个应用的根布局已经加载 `/iconfont/iconfont.js`，后续更新图标库时不需要再次修改 `layout.tsx`。
@@ -89,8 +89,8 @@ node scripts/import-iconfont-symbol.mjs "你的下载目录\font_xxx"
 ```powershell
 $source = "C:\你的下载目录\iconfont.js"
 
-Copy-Item $source "fronted-main\public\iconfont\iconfont.js" -Force
-Copy-Item $source "fonted-oa\public\iconfont\iconfont.js" -Force
+Copy-Item $source "frontend-main\public\iconfont\iconfont.js" -Force
+Copy-Item $source "frontend-oa\public\iconfont\iconfont.js" -Force
 ```
 
 Symbol 模式不依赖 `iconfont.css`、`.ttf`、`.woff` 或 `.woff2`。
@@ -117,8 +117,8 @@ export const iconFontNames = [
 必须同步修改：
 
 ```text
-fronted-main/src/components/IconFont.tsx
-fonted-oa/src/components/IconFont.tsx
+frontend-main/src/components/IconFont.tsx
+frontend-oa/src/components/IconFont.tsx
 ```
 
 ### 4. 处理删除或改名
@@ -126,7 +126,7 @@ fonted-oa/src/components/IconFont.tsx
 删除或修改 `font_class` 前，先从仓库根目录搜索旧名称：
 
 ```powershell
-rg "旧图标名称" fronted-main fonted-oa
+rg "旧图标名称" frontend-main frontend-oa
 ```
 
 把所有调用替换为新名称，然后再从两个 `iconFontNames` 清单中删除旧名称。
@@ -134,11 +134,11 @@ rg "旧图标名称" fronted-main fonted-oa
 ### 5. 验证
 
 ```powershell
-cd fronted-main
+cd frontend-main
 npm run lint
 npm run build
 
-cd ../fonted-oa
+cd ../frontend-oa
 npm run lint
 npm run build
 ```
@@ -166,11 +166,11 @@ npm run build
 
 ### OA 可以显示，但官网不显示
 
-两个应用运行在不同端口，不能依赖另一个应用的静态资源。检查 `fronted-main/public/iconfont/iconfont.js` 是否已经更新；反向情况同理。
+两个应用运行在不同端口，不能依赖另一个应用的静态资源。检查 `frontend-main/public/iconfont/iconfont.js` 是否已经更新；反向情况同理。
 
 ## OA 新增图标流程
 
-OA 图标统一由 `fonted-oa/src/components/OaIcon.tsx` 管理，正式图标只在
+OA 图标统一由 `frontend-oa/src/components/OaIcon.tsx` 管理，正式图标只在
 Iconfont 项目中维护，仓库不保存待上传 SVG。
 
 1. 在 Iconfont 项目中选择或上传图标，确定稳定的 `font_class`。

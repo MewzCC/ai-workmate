@@ -6,7 +6,7 @@
 
 - 消除前端组件、页面与后端响应中的硬编码可见文案。
 - 支持多语言切换，默认中文（`zh-CN`），第二语言英文（`en-US`）。
-- 覆盖三个应用：`fronted-main`（营销官网）、`fonted-oa`（OA 工作台）、`backend`（Spring Boot 后端）。
+- 覆盖三个应用：`frontend-main`（营销官网）、`frontend-oa`（OA 工作台）、`backend`（Spring Boot 后端）。
 - 新增语言时只需新增资源文件，不得修改业务组件代码。
 
 ## 2. 支持语言与 locale 标识
@@ -38,10 +38,10 @@
 
 ## 4. 目录结构
 
-### fronted-main
+### frontend-main
 
 ```
-fronted-main/src/i18n/
+frontend-main/src/i18n/
 ├── index.ts                 # i18next 初始化配置
 ├── I18nProvider.tsx         # 包装 I18nextProvider + 语言切换上下文
 ├── locales/
@@ -50,10 +50,10 @@ fronted-main/src/i18n/
 └── useLocale.ts             # 读取/切换语言、持久化、同步 antd locale
 ```
 
-### fonted-oa
+### frontend-oa
 
 ```
-fonted-oa/src/i18n/
+frontend-oa/src/i18n/
 ├── index.ts
 ├── I18nProvider.tsx         # 包装 I18nextProvider + antd ConfigProvider locale
 ├── locales/
@@ -80,7 +80,7 @@ backend/src/main/resources/i18n/
 | namespace   | 覆盖范围                                       |
 | ----------- | ---------------------------------------------- |
 | `common`    | 通用按钮、状态、空态、确认/取消、加载提示      |
-| `home`      | 营销官网首页、Hero、特性、CTA（仅 fronted-main）|
+| `home`      | 营销官网首页、Hero、特性、CTA（仅 frontend-main）|
 | `auth`      | 登录、注册、验证码、找回密码                   |
 | `chat`      | 聊天界面、消息、流式提示                       |
 | `oa`        | OA 顶部栏、侧栏、标签、外观 Drawer、AI Drawer  |
@@ -95,7 +95,7 @@ backend/src/main/resources/i18n/
 - 资源文件按 namespace 顶级键聚合，例如：
 
 ```ts
-// fronted-main/src/i18n/locales/zh-CN.ts
+// frontend-main/src/i18n/locales/zh-CN.ts
 export default {
   common: {
     confirm: '确认',
@@ -165,7 +165,7 @@ error.version_conflict=Data was updated by another operation, please refresh and
 
 ## 8. Ant Design locale 同步（OA）
 
-- `fonted-oa` 的 `I18nProvider` 必须同时包裹 `I18nextProvider` 与 `ConfigProvider`，根据当前 locale 传入 `zhCN` 或 `enUS`（来自 `antd/locale/zh_CN` 与 `antd/locale/en_US`）。
+- `frontend-oa` 的 `I18nProvider` 必须同时包裹 `I18nextProvider` 与 `ConfigProvider`，根据当前 locale 传入 `zhCN` 或 `enUS`（来自 `antd/locale/zh_CN` 与 `antd/locale/en_US`）。
 - 切换语言时，Ant Design 内置组件（DatePicker、Pagination、Table、Modal.confirm、Notification）必须同步切换。
 - 通过 `App.useApp()` 创建的静态方法（`modal`、`notification`、`message`）同样继承 `ConfigProvider.locale`，禁止绕过。
 - ECharts 图表中的中文（标题、图例、单位）必须走 `t()`，不得随 Ant Design locale 自动切换。
@@ -225,7 +225,7 @@ error.version_conflict=Data was updated by another operation, please refresh and
 ## 12. 迁移与回归约束
 
 - 全量迁移期间，已迁移组件不得再写入硬编码中文。
-- mock 数据（`fonted-oa/src/mock/*`）中的中文业务名称属于演示数据，不强制迁移；但渲染 mock 数据的组件标签、表头、按钮文案必须迁移。
+- mock 数据（`frontend-oa/src/mock/*`）中的中文业务名称属于演示数据，不强制迁移；但渲染 mock 数据的组件标签、表头、按钮文案必须迁移。
 - 后端 `init.sql` 种子数据中的中文菜单名/角色名属于业务数据，不迁移；前端按接口返回值渲染。
 - 迁移不得改变现有业务逻辑、路由、鉴权与主题行为。
 
@@ -235,7 +235,7 @@ OA 侧边栏菜单名、顶部页面标签、路由切换提示虽来自后端 `
 
 ### 13.1 翻译方案
 
-- i18n 资源位置：`fonted-oa/src/i18n/locales/{zh-CN,en-US}/oa.ts` 的 `menu` 命名空间。
+- i18n 资源位置：`frontend-oa/src/i18n/locales/{zh-CN,en-US}/oa.ts` 的 `menu` 命名空间。
 - key 对应后端 `rbac_route.routeKey`，例如 `dashboard`、`ai-workspace`、`approval-list`。
 - 翻译调用：`t(\`oa.menu.${routeKey}\`, { defaultValue: route.name })`，未配置 key 时回退到后端返回的 `name`。
 

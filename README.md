@@ -12,8 +12,8 @@ AI WorkMate 是一个面向企业协同场景的 AI 助手与 OA 工作台平台
 
 核心边界如下：
 
-- `fronted-main`：营销官网，独立运行于 `3000`。
-- `fonted-oa`：企业 OA 工作台，独立运行于 `3001`，根路径 `/` 跳转到 `/oa`。
+- `frontend-main`：营销官网，独立运行于 `3000`。
+- `frontend-oa`：企业 OA 工作台，独立运行于 `3001`，根路径 `/` 跳转到 `/oa`。
 - `backend`：Java 17 + Spring Boot 3 模块化单体，统一提供 REST、SSE、认证、领域服务、RAG 和 Agent 任务能力。
 - Agent Runtime：Planner 与 Worker 不能直接调用工具处理器；所有 Agent 工具执行必须经过进程内 `ToolGateway.execute(stepId, workerLease)`。
 - PostgreSQL + pgvector：承载业务数据、RBAC、会话、知识向量、Agent 任务快照与审计；Schema 由 Flyway 独占管理。
@@ -79,8 +79,8 @@ AI WorkMate 是一个面向企业协同场景的 AI 助手与 OA 工作台平台
 
 ```text
 ai-workmate/
-├─ fronted-main/                  # 营销官网独立 Vite SPA，端口 3000
-├─ fonted-oa/                     # OA 工作台独立 Vite SPA，端口 3001，base=/oa/
+├─ frontend-main/                  # 营销官网独立 Vite SPA，端口 3000
+├─ frontend-oa/                     # OA 工作台独立 Vite SPA，端口 3001，base=/oa/
 ├─ backend/                       # Spring Boot 模块化单体，端口 8080
 │  └─ src/main/
 │     ├─ java/com/aiworkmate/
@@ -104,7 +104,7 @@ ai-workmate/
 └─ .env.docker.example            # Docker 部署配置模板
 ```
 
-> 目录名 `fronted-main` 和 `fonted-oa` 是当前仓库的既有名称。旧 `frontend` 边界已废弃，不要重新合并两个前端。
+> 目录名 `frontend-main` 和 `frontend-oa` 是当前仓库的既有名称。旧 `frontend` 边界已废弃，不要重新合并两个前端。
 
 ## 运行端口
 
@@ -175,13 +175,13 @@ mvn spring-boot:run
 分别打开两个终端：
 
 ```bash
-cd fronted-main
+cd frontend-main
 npm install
 npm run dev
 ```
 
 ```bash
-cd fonted-oa
+cd frontend-oa
 npm install
 npm run dev
 ```
@@ -281,7 +281,7 @@ AGENT_WRITE_TOOLS_ENABLED=false
 营销官网：
 
 ```bash
-cd fronted-main
+cd frontend-main
 npm install
 npm run lint
 npm run build
@@ -290,7 +290,7 @@ npm run build
 OA 工作台：
 
 ```bash
-cd fonted-oa
+cd frontend-oa
 npm install
 npm run lint
 npm run test

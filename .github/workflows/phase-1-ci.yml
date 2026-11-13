@@ -76,16 +76,16 @@ jobs:
           node-version: '20'
           cache: npm
           cache-dependency-path: |
-            fronted-main/package-lock.json
-            fonted-oa/package-lock.json
+            frontend-main/package-lock.json
+            frontend-oa/package-lock.json
       - name: Marketing site checks
-        working-directory: fronted-main
+        working-directory: frontend-main
         run: |
           npm ci
           npm run lint
           npm run build
       - name: OA tests and build
-        working-directory: fonted-oa
+        working-directory: frontend-oa
         run: |
           npm ci
           npm test
@@ -129,7 +129,7 @@ jobs:
         with:
           node-version: '20'
           cache: npm
-          cache-dependency-path: fonted-oa/package-lock.json
+          cache-dependency-path: frontend-oa/package-lock.json
       - name: Initialize isolated E2E database and users
         env:
           PGPASSWORD: postgres
@@ -203,18 +203,18 @@ jobs:
           echo "Backend health check timed out"
           cat ../phase-1-e2e-backend.log
           exit 1
-      - working-directory: fonted-oa
+      - working-directory: frontend-oa
         run: npm ci
       - name: Cache Playwright browsers
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ hashFiles('fonted-oa/package-lock.json') }}
+          key: ${{ runner.os }}-playwright-${{ hashFiles('frontend-oa/package-lock.json') }}
       - name: Install Playwright browsers
-        working-directory: fonted-oa
+        working-directory: frontend-oa
         run: npx playwright install --with-deps chromium
       - name: Run Phase 1 approval E2E
-        working-directory: fonted-oa
+        working-directory: frontend-oa
         env:
           E2E_API_BASE_URL: http://localhost:8080
           E2E_EMPLOYEE_EMAIL: phase1-employee@example.test
@@ -227,5 +227,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: phase-1-e2e-screenshots
-          path: fonted-oa/test-results/**/*.png
+          path: frontend-oa/test-results/**/*.png
           retention-days: 7

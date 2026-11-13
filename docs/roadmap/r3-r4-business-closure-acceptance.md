@@ -97,7 +97,7 @@ R3 已将动态路由、后端组件白名单和前端组件注册表收口；�
 ## 5. 自动化验收证据
 
 ```powershell
-cd fonted-oa
+cd frontend-oa
 npm run lint
 npm run test
 npm run build
@@ -127,7 +127,7 @@ mvn test
 - Redis 用于验证码、登录保护、通知及运行时辅助；不可用时能力状态返回不可用。
 - MinIO 用于聊天附件、员工档案、印章留档、头像与壁纸；数据库不保存原始文件。
 - AI、Embedding、OCR 均通过服务端环境变量配置；API Key、连接串、内部地址不得返回前端。
-- `fronted-main` 和 `fonted-oa` 必须继续独立部署；OA 的 Vite base 为 `/oa/`。
+- `frontend-main` 和 `frontend-oa` 必须继续独立部署；OA 的 Vite base 为 `/oa/`。
 - 生产反向代理应把 `/oa/**` 回退到 OA `index.html`，把 `/api/**` 转发到后端，并保留 SSE 所需的长连接配置。
 - 首次安装 Playwright 回归运行时执行 `npx playwright install chromium`；该浏览器二进制不进入 Git。
 

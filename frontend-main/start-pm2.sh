@@ -9,7 +9,7 @@ if [ ! -d dist ]; then
 fi
 
 # 用 PM2 启动 Vite 预览服务器监听 3000
-pm2 delete fronted-main 2>/dev/null || true
+pm2 delete frontend-main 2>/dev/null || true
 pm2 start ecosystem.config.cjs --update-env
 pm2 save
 pm2 status

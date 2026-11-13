@@ -7,7 +7,7 @@ import { verifyAssetLifecycle } from './verify-asset-lifecycle-browser.mjs';
 
 // This driver only runs against the owned loopback backend started by AgentLiveBrowserIT.
 const repository = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const require = createRequire(path.join(repository, 'fonted-oa', 'package.json'));
+const require = createRequire(path.join(repository, 'frontend-oa', 'package.json'));
 const { chromium } = require('playwright');
 const { createServer } = require('vite');
 const apiPort = Number(process.env.AGENT_BROWSER_API_PORT);
@@ -43,8 +43,8 @@ const resourceCategory = request => {
 };
 try {
   server = await createServer({
-    configFile: path.join(repository, 'fonted-oa', 'vite.config.ts'),
-    root: path.join(repository, 'fonted-oa'),
+    configFile: path.join(repository, 'frontend-oa', 'vite.config.ts'),
+    root: path.join(repository, 'frontend-oa'),
     logLevel: 'silent',
     server: { host: '127.0.0.1', port: uiPort, strictPort: true,
       proxy: { '/api': { target: `http://127.0.0.1:${apiPort}` } } },

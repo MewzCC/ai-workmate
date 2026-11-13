@@ -26,9 +26,9 @@
 
 | 验证 | 结果 |
 | --- | --- |
-| `cd fonted-oa; npm run lint` | 0 个错误，2 个既有 Hook 警告 |
-| `cd fonted-oa; npm run test` | 836 项通过，0 失败、0 跳过 |
-| `cd fonted-oa; npm run build` | 成功，退出码 0，17.56 秒 |
+| `cd frontend-oa; npm run lint` | 0 个错误，2 个既有 Hook 警告 |
+| `cd frontend-oa; npm run test` | 836 项通过，0 失败、0 跳过 |
+| `cd frontend-oa; npm run build` | 成功，退出码 0，17.56 秒 |
 | Java 17 下 `cd backend; mvn test` | 2088 项，0 失败、0 错误、2 项既有环境跳过，退出码 0 |
 | 新增真实详情用例 | 8 项 PostgreSQL/Redis 用例通过，覆盖领域服务、真实 Worker/Gateway 和认证 HTTP 回复 |
 | 只读工具目录 | 50 个只读工具均进入真实执行、撤权和身份注入门禁；新工具也受独立页面禁用策略控制 |

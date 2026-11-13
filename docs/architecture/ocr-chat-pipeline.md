@@ -228,7 +228,7 @@ if (AiModelCatalog.isMultimodal(selectedModel)) {
 
 - `AttachmentResponse.hasContent` 已等于 `image || extractedText != null`：OCR 成功后
   图片自动有内容，前端类型无需变更。
-- `fonted-oa/src/config/aiModels.ts`：模型条目增加 `multimodal: boolean` 标记，与
+- `frontend-oa/src/config/aiModels.ts`：模型条目增加 `multimodal: boolean` 标记，与
   后端 `AiModelCatalog.isMultimodal` 保持一致（仅用于界面提示）。
 - `AttachmentPreview.tsx`：图片附件有 `extractedText` 时展示「已通过 OCR 解析」小
   标签（可选，不改变现有交互）。
@@ -291,7 +291,7 @@ if (AiModelCatalog.isMultimodal(selectedModel)) {
 - `docker-compose.yml`：`ocr-service` 位于可选 `ocr` profile，注入 `OCR_MAX_PAGES`
   （内网暴露，不映射公网）
 
-### 前端（`fonted-oa`）
+### 前端（`frontend-oa`）
 
 - `src/config/aiModels.ts`（修改：多模态标记）
 - `src/components/ai-chat/AttachmentPreview.tsx`（可选：OCR 标签）

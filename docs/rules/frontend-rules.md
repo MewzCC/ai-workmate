@@ -2,11 +2,11 @@
 
 ## Frontend App Split
 
-- `fronted-main` is the standalone marketing website program and runs on port `3000`.
-- `fonted-oa` is the standalone OA workbench program and runs on port `3001`.
+- `frontend-main` is the standalone marketing website program and runs on port `3000`.
+- `frontend-oa` is the standalone OA workbench program and runs on port `3001`.
 - The old `frontend` program has been removed; do not add new app code there.
 - Homepage and OA must not be maintained as two routes inside one app.
-- Start the independent apps from their own directories: `cd fronted-main && npm run dev`, `cd fonted-oa && npm run dev`.
+- Start the independent apps from their own directories: `cd frontend-main && npm run dev`, `cd frontend-oa && npm run dev`.
 
 ## 技术栈
 
@@ -23,7 +23,7 @@
 
 - 修改营销官网、聊天 UI、普通 React 组件或页面设计时，读取 `docs/skills/frontend-design-skill.md`。
 - 修改动效、滚动进入、hover、过渡、reduced-motion 时，读取 `docs/skills/motion-skill.md`。
-- 修改 `/oa`、`fonted-oa/src/components/oa`、`fonted-oa/src/mock/oa*`、`fonted-oa/src/lib/oaApi.ts`、`fonted-oa/src/types/oa.ts` 时，必须读取 `docs/skills/oa-workbench-skill.md`。
+- 修改 `/oa`、`frontend-oa/src/components/oa`、`frontend-oa/src/mock/oa*`、`frontend-oa/src/lib/oaApi.ts`、`frontend-oa/src/types/oa.ts` 时，必须读取 `docs/skills/oa-workbench-skill.md`。
 
 ## 组件规范
 
@@ -37,7 +37,7 @@
 
 ## OA 图标规范
 
-- OA 菜单、业务按钮、状态和文件类型图标统一使用 `fonted-oa/src/components/OaIcon.tsx`，业务组件只引用语义名称。
+- OA 菜单、业务按钮、状态和文件类型图标统一使用 `frontend-oa/src/components/OaIcon.tsx`，业务组件只引用语义名称。
 - 已存在的品牌图标优先复用本地 Iconfont Symbol；禁止在业务组件中直接拼接 `#icon-*`。
 - 正式业务图标统一在 Iconfont 项目中新增和维护；仓库不保存待上传 SVG、上传 ZIP 或本地图标绘制产物。
 - Iconfont 尚未提供对应图标时，可临时使用项目已安装、许可证明确的开源图标作为可见占位，并记录包名、版本和原始图标名。
@@ -116,8 +116,8 @@ OA 工作台业务 UI 必须使用真实 Ant Design 组件：
 
 ## 状态与请求
 
-- API 请求集中在 `fronted-main/src/lib/api.ts` 或按领域拆分到 `fronted-main/src/lib/<domain>.ts`。
-- OA API 请求集中在 `fonted-oa/src/lib/oaApi.ts`。
+- API 请求集中在 `frontend-main/src/lib/api.ts` 或按领域拆分到 `frontend-main/src/lib/<domain>.ts`。
+- OA API 请求集中在 `frontend-oa/src/lib/oaApi.ts`。
 - `localStorage` 访问必须在浏览器环境中执行。
 - 请求失败不能导致页面白屏；应提供 message 提示，禁止 fallback mock 伪造成功。
 - SSE 必须处理连接失败、流中断、空响应、重复发送和加载态恢复。
@@ -167,8 +167,8 @@ OA 工作台业务 UI 必须使用真实 Ant Design 组件：
 - 任何渲染到 DOM、弹窗、message、notification、tooltip、placeholder、alt、aria-label 的中英文文本必须通过 `t('key')` 读取，禁止内联硬编码。
 - 禁止字符串拼接构造文案，必须使用插值 `t('key', { var })`。
 - 语言选择持久化到 localStorage `workmeta-locale`，两个前端共用；切换时同步 `document.documentElement.lang`。
-- `fonted-oa` 的 `I18nProvider` 必须同时包裹 `I18nextProvider` 与 Ant Design `ConfigProvider`，按 locale 传入 `zhCN`/`enUS`，确保内置组件（DatePicker、Pagination、Table、Modal、Notification）同步切换。
+- `frontend-oa` 的 `I18nProvider` 必须同时包裹 `I18nextProvider` 与 Ant Design `ConfigProvider`，按 locale 传入 `zhCN`/`enUS`，确保内置组件（DatePicker、Pagination、Table、Modal、Notification）同步切换。
 - ECharts 图表中的标题、图例、单位也必须走 `t()`，不随 Ant Design locale 自动切换。
 - 通过 `App.useApp()` 创建的静态方法必须继承当前 `ConfigProvider.locale`，禁止绕过。
-- mock 数据（`fonted-oa/src/mock/*`）中的中文业务名称属于演示数据，不强制迁移；但渲染这些数据的组件标签、表头、按钮文案必须迁移。
+- mock 数据（`frontend-oa/src/mock/*`）中的中文业务名称属于演示数据，不强制迁移；但渲染这些数据的组件标签、表头、按钮文案必须迁移。
 - 切换到 `en-US` 后页面无中文残留、无 key 暴露、无白屏。

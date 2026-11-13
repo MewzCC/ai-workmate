@@ -5,8 +5,8 @@ REM ---------- Paths and state ----------
 title AI WorkMate Launcher
 set "ROOT=%~dp0"
 set "BACKEND=%ROOT%backend"
-set "FRONTED_MAIN=%ROOT%fronted-main"
-set "FONTED_OA=%ROOT%fonted-oa"
+set "FRONTEND_MAIN=%ROOT%frontend-main"
+set "FRONTEND_OA=%ROOT%frontend-oa"
 set "OCR_PATH_FILE=%ROOT%deploy\.ocr-install-path"
 set "OCR_INSTALLER=%ROOT%scripts\install-ocr.ps1"
 set "OCR_SOURCE=%ROOT%docker\ocr-service"
@@ -59,9 +59,9 @@ call :prepare_optional_ocr
 
 REM ---------- Service tabs ----------
 if "%OCR_STARTED%"=="1" (
-    wt -w new new-tab -d "%BACKEND%" --title "Backend (8080)" cmd /k "cd /d %BACKEND% && set OCR_ENABLED=%OCR_BACKEND_ENABLED%&& %MVN_CMD% spring-boot:run" ; new-tab -d "%FRONTED_MAIN%" --title "Main (3000)" cmd /k "cd /d %FRONTED_MAIN% && npm run dev" ; new-tab -d "%FONTED_OA%" --title "OA (3001)" cmd /k "cd /d %FONTED_OA% && npm run dev" ; new-tab -d "%OCR_SERVICE%" --title "OCR (8686)" cmd /k "cd /d %OCR_SERVICE% && set OCR_MODEL_DIR=%OCR_SERVICE%\models&& .venv\Scripts\python.exe -m uvicorn app:app --host 0.0.0.0 --port 8686"
+    wt -w new new-tab -d "%BACKEND%" --title "Backend (8080)" cmd /k "cd /d %BACKEND% && set OCR_ENABLED=%OCR_BACKEND_ENABLED%&& %MVN_CMD% spring-boot:run" ; new-tab -d "%FRONTEND_MAIN%" --title "Main (3000)" cmd /k "cd /d %FRONTEND_MAIN% && npm run dev" ; new-tab -d "%FRONTEND_OA%" --title "OA (3001)" cmd /k "cd /d %FRONTEND_OA% && npm run dev" ; new-tab -d "%OCR_SERVICE%" --title "OCR (8686)" cmd /k "cd /d %OCR_SERVICE% && set OCR_MODEL_DIR=%OCR_SERVICE%\models&& .venv\Scripts\python.exe -m uvicorn app:app --host 0.0.0.0 --port 8686"
 ) else (
-    wt -w new new-tab -d "%BACKEND%" --title "Backend (8080)" cmd /k "cd /d %BACKEND% && set OCR_ENABLED=%OCR_BACKEND_ENABLED%&& %MVN_CMD% spring-boot:run" ; new-tab -d "%FRONTED_MAIN%" --title "Main (3000)" cmd /k "cd /d %FRONTED_MAIN% && npm run dev" ; new-tab -d "%FONTED_OA%" --title "OA (3001)" cmd /k "cd /d %FONTED_OA% && npm run dev"
+    wt -w new new-tab -d "%BACKEND%" --title "Backend (8080)" cmd /k "cd /d %BACKEND% && set OCR_ENABLED=%OCR_BACKEND_ENABLED%&& %MVN_CMD% spring-boot:run" ; new-tab -d "%FRONTEND_MAIN%" --title "Main (3000)" cmd /k "cd /d %FRONTEND_MAIN% && npm run dev" ; new-tab -d "%FRONTEND_OA%" --title "OA (3001)" cmd /k "cd /d %FRONTEND_OA% && npm run dev"
 )
 
 pause

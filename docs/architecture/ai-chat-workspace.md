@@ -34,7 +34,7 @@ AI Chat Workspace 是 OA 左侧菜单中的独立工作页面，路由为 `/oa/a
 ## 3. 项目目录
 
 ```text
-fonted-oa/src/
+frontend-oa/src/
 ├── components/ai-chat/
 │   ├── AiChatWorkspace.tsx
 │   ├── ChatSidebar.tsx
@@ -148,7 +148,7 @@ $env:AI_MODEL = 'deepseek-chat'
 cd backend
 C:\tools\apache-maven-3.9.9\bin\mvn.cmd spring-boot:run
 
-cd ..\fonted-oa
+cd ..\frontend-oa
 npm install
 npm run dev
 ```

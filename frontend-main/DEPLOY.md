@@ -1,4 +1,4 @@
-# fronted-main deploy
+# frontend-main deploy
 
 本工程已从 Next.js 迁移为 Vite SPA，构建产物为纯静态 `dist/`。
 
@@ -41,14 +41,14 @@ VITE_OA_URL=https://oa.example.com/oa
 ## 自动部署
 
 ```bash
-# 把 fronted-main.zip、fonted-oa.zip 和 deploy-frontends-server.sh 放到服务器同一目录
+# 把 frontend-main.zip、frontend-oa.zip 和 deploy-frontends-server.sh 放到服务器同一目录
 bash deploy-frontends-server.sh
 ```
 
 ## 调试
 
 ```bash
-pm2 logs fronted-main --lines 100
+pm2 logs frontend-main --lines 100
 cat pm2-error.log
 ss -lntp | grep 3000
 curl -I http://127.0.0.1:3000/

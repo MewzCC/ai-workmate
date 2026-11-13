@@ -47,8 +47,8 @@
       "pos": [260, 100],
       "size": [170, 76],
       "sources": [
-        { "path": "fronted-main/package.json", "label": "独立前端与端口" },
-        { "path": "fronted-main/src/main.tsx", "label": "应用入口" }
+        { "path": "frontend-main/package.json", "label": "独立前端与端口" },
+        { "path": "frontend-main/src/main.tsx", "label": "应用入口" }
       ]
     },
     {
@@ -59,8 +59,8 @@
       "pos": [260, 440],
       "size": [170, 76],
       "sources": [
-        { "path": "fonted-oa/package.json", "label": "独立前端与依赖" },
-        { "path": "fonted-oa/src/App.tsx", "label": "路由入口" }
+        { "path": "frontend-oa/package.json", "label": "独立前端与依赖" },
+        { "path": "frontend-oa/src/App.tsx", "label": "路由入口" }
       ]
     },
     {

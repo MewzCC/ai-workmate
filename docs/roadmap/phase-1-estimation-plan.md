@@ -233,8 +233,8 @@ PENDING -> WITHDRAWN
 
 工程要求：
 
-- `fronted-main` 执行 `npm run lint` 和 `npm run build`。
-- `fonted-oa` 执行 `npm run lint` 和 `npm run build`。
+- `frontend-main` 执行 `npm run lint` 和 `npm run build`。
+- `frontend-oa` 执行 `npm run lint` 和 `npm run build`。
 - 后端使用 Java 17 执行 `mvn test`。
 - CI 环境固定 Java 17
 - 所有数据库结构变更继续合并到唯一入口 `backend/src/main/resources/db/init.sql`。

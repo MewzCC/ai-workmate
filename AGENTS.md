@@ -2,8 +2,8 @@
 
 ## Frontend App Split
 
-- `fronted-main` is the standalone marketing website program and runs on port `3000`.
-- `fonted-oa` is the standalone OA workbench program and runs on port `3001`.
+- `frontend-main` is the standalone marketing website program and runs on port `3000`.
+- `frontend-oa` is the standalone OA workbench program and runs on port `3001`.
 - The old `frontend` program has been split and must not be used as a shared app boundary.
 - Do not treat the homepage and OA as two pages in the same app. They must remain independently runnable Vite SPA apps.
 - Home CTA buttons should enter `http://<host>:3001/oa`; the OA app root `/` redirects to `/oa`.
@@ -55,12 +55,12 @@ AI WorkMate 是企业级 AI 助手与 OA 工作台平台雏形：
 前端：
 
 ```bash
-cd fronted-main
+cd frontend-main
 npm install
 npm run lint
 npm run build
 
-cd ../fonted-oa
+cd ../frontend-oa
 npm install
 npm run lint
 npm run build
@@ -86,25 +86,25 @@ docker compose -f docker-compose.yml up -d
 
 ### 前端
 
-- `fronted-main`：营销官网独立 Vite SPA 程序，默认端口 `3000`。
-- `fonted-oa`：OA 工作台独立 Vite SPA 程序，默认端口 `3001`。
-- `fronted-main/src/main.tsx`：营销官网入口，渲染 `src/components/home/HomePage`。
-- `fonted-oa/src/main.tsx` 与 `fonted-oa/src/App.tsx`：OA 入口与 React Router 路由定义。
-- `fronted-main/src/components/home/HomePage.tsx`：营销官网页面；“立即尝试”应进入 `/oa`。
-- `fonted-oa/src/App.tsx`：企业 OA 工作台路由入口（`/oa`、`/oa/:pageId`、`/oa/*`）。
-- `fronted-main/src/components`：官网、登录、聊天体验组件。
-- `fonted-oa/src/components`：OA 业务组件。
-- `fonted-oa/src/components/oa`：OA 工作台组件，包含布局、菜单、顶部栏、Dashboard、AI Drawer、外观 Drawer、ECharts 卡片等。
-- `fronted-main/src/lib`：官网与聊天体验 API 客户端。
-- `fonted-oa/src/lib`：OA API 客户端与浏览器侧工具。
-- `fonted-oa/src/lib/oaApi.ts`：OA API 封装，包含 system health、AI plan、AI execute；禁止 fallback mock 伪造成功。
-- `fonted-oa/src/mock`：前端 mock 数据与 mock 权限模型。
-- `fonted-oa/src/mock/oaMenus.ts`：OA 菜单树。
-- `fonted-oa/src/mock/oaDashboard.ts`：OA 首页指标、审批列表、时间线数据。
-- `fonted-oa/src/mock/oaPermissions.ts`：角色、菜单过滤、按钮权限、AI 动作权限。
-- `fronted-main/src/store`：官网与聊天体验 Zustand 状态管理。
-- `fronted-main/src/types`：官网与聊天体验共享类型。
-- `fonted-oa/src/types/oa.ts`：OA 菜单、权限、AI 计划、执行结果等类型。
+- `frontend-main`：营销官网独立 Vite SPA 程序，默认端口 `3000`。
+- `frontend-oa`：OA 工作台独立 Vite SPA 程序，默认端口 `3001`。
+- `frontend-main/src/main.tsx`：营销官网入口，渲染 `src/components/home/HomePage`。
+- `frontend-oa/src/main.tsx` 与 `frontend-oa/src/App.tsx`：OA 入口与 React Router 路由定义。
+- `frontend-main/src/components/home/HomePage.tsx`：营销官网页面；“立即尝试”应进入 `/oa`。
+- `frontend-oa/src/App.tsx`：企业 OA 工作台路由入口（`/oa`、`/oa/:pageId`、`/oa/*`）。
+- `frontend-main/src/components`：官网、登录、聊天体验组件。
+- `frontend-oa/src/components`：OA 业务组件。
+- `frontend-oa/src/components/oa`：OA 工作台组件，包含布局、菜单、顶部栏、Dashboard、AI Drawer、外观 Drawer、ECharts 卡片等。
+- `frontend-main/src/lib`：官网与聊天体验 API 客户端。
+- `frontend-oa/src/lib`：OA API 客户端与浏览器侧工具。
+- `frontend-oa/src/lib/oaApi.ts`：OA API 封装，包含 system health、AI plan、AI execute；禁止 fallback mock 伪造成功。
+- `frontend-oa/src/mock`：前端 mock 数据与 mock 权限模型。
+- `frontend-oa/src/mock/oaMenus.ts`：OA 菜单树。
+- `frontend-oa/src/mock/oaDashboard.ts`：OA 首页指标、审批列表、时间线数据。
+- `frontend-oa/src/mock/oaPermissions.ts`：角色、菜单过滤、按钮权限、AI 动作权限。
+- `frontend-main/src/store`：官网与聊天体验 Zustand 状态管理。
+- `frontend-main/src/types`：官网与聊天体验共享类型。
+- `frontend-oa/src/types/oa.ts`：OA 菜单、权限、AI 计划、执行结果等类型。
 
 ### 后端
 
@@ -140,8 +140,8 @@ docker compose -f docker-compose.yml up -d
 - 首页与 OA 需要逻辑切分：默认首页运行在 `3000`，OA 工作台运行在 `3001`。
 - 首页“立即尝试”必须跳转到 `http://<host>:3001/oa`；如果当前已经在 `3001`，则跳转 `/oa`。
 - 本地开发脚本：
-  - 首页：`cd fronted-main && npm run dev`
-  - OA：`cd fonted-oa && npm run dev`
+  - 首页：`cd frontend-main && npm run dev`
+  - OA：`cd frontend-oa && npm run dev`
 - OA 必须使用路由驱动页面切换，菜单点击进入 `/oa/<pageId>`；不得只用组件内部 state 假装跳页。
 - OA 页面必须优先使用真实 Ant Design 组件。
 - 业务按钮必须使用 `Button`。
@@ -169,19 +169,19 @@ docker compose -f docker-compose.yml up -d
 - API Key 与 AI 网关地址只允许服务端环境变量配置，禁止从设置页读取、回显或持久化到浏览器。
 - 左侧 OA Sider 必须固定在视口左侧；页面滚动时不得跟随内容移动。
 - 左侧 Sider 滚动条默认隐藏，仅在鼠标移入侧栏时显示。
-- OA 图标必须通过 `fonted-oa/src/components/OaIcon.tsx` 的语义名称统一引用；已有图标优先使用项目本地 Iconfont Symbol，禁止在业务页面重复硬编码 Symbol ID。
+- OA 图标必须通过 `frontend-oa/src/components/OaIcon.tsx` 的语义名称统一引用；已有图标优先使用项目本地 Iconfont Symbol，禁止在业务页面重复硬编码 Symbol ID。
 - OA 正式业务图标统一在 Iconfont 项目中新增和维护；仓库不保存待上传 SVG、图标上传 ZIP 或本地图标绘制产物。
 - 图标尚未上传 Iconfont 时，界面必须使用 `OaIcon` 注册的开源占位图标，禁止引用不存在的 Symbol 导致空白；上传并更新 `iconfont.js` 后再将对应语义映射切换到 `iconFontMap`。
 - 新下载的 Symbol 包必须通过 `scripts/import-iconfont-symbol.mjs` 同步到 Main 和 OA；单色业务图标必须转换为 `currentColor`，禁止保留会破坏深色主题对比度的固定填充色。
 
 ## OA 权限与 AI 约束
 
-- OA 真实菜单必须由 `GET /api/navigation` 返回，角色、权限和路由分别存储于 `rbac_role`、`rbac_permission`、`rbac_route`；禁止使用 `fonted-oa/src/mock` 作为真实授权来源。
+- OA 真实菜单必须由 `GET /api/navigation` 返回，角色、权限和路由分别存储于 `rbac_role`、`rbac_permission`、`rbac_route`；禁止使用 `frontend-oa/src/mock` 作为真实授权来源。
 - 动态页面权限使用 `route:<routeKey>`，前端只允许渲染固定组件注册表中的组件；直接访问无权限路由必须回到首个可访问页面。
 - `AdminLayout` 必须由 `/oa/layout.tsx` 持久挂载，页面路由切换不得重新挂载侧栏。
 - OA 动态菜单首次进入全部折叠，允许同时展开多个目录；选择页面时保留已展开目录并补充当前祖先目录；刷新叶子页面时自动恢复其目录链。
 - OA 菜单页必须使用统一满高骨架；标准列表页固定为“自适应页头 + `minmax(0, 1fr)` 内容区”，内容卡片紧邻页头并填充剩余工作区，禁止隐式 Grid 行拉伸造成标题与卡片错位，也禁止空数据时在底部留下大片无意义空白。
-- OA 全局移动端断点为 `≤720px`，统一使用 `fonted-oa/src/hooks/useIsMobile.ts` 及其 `OA_MOBILE_MEDIA_QUERY`，禁止在页面里自定义移动断点；列表页表格必须使用 `fonted-oa/src/components/oa/ResponsiveTable.tsx`：桌面渲染原生 `Table`，移动端渲染卡片列表（首列标题 + 字段行 + 底部操作），卡片必须基于 `--oa-*` 变量并适配壁纸玻璃材质与黑夜主题。
+- OA 全局移动端断点为 `≤720px`，统一使用 `frontend-oa/src/hooks/useIsMobile.ts` 及其 `OA_MOBILE_MEDIA_QUERY`，禁止在页面里自定义移动断点；列表页表格必须使用 `frontend-oa/src/components/oa/ResponsiveTable.tsx`：桌面渲染原生 `Table`，移动端渲染卡片列表（首列标题 + 字段行 + 底部操作），卡片必须基于 `--oa-*` 变量并适配壁纸玻璃材质与黑夜主题。
 - OA 顶部使用访问页面标签导航，访问过的有权限页面自动加入，可直接回切和关闭；驾驶舱或首个可访问页必须固定保留，标签切换必须继续使用真实路由。
 - 页面标签持久化到 `workmeta-oa-open-tabs`，恢复时必须按最新 `GET /api/navigation` 结果过滤，禁止从 localStorage 恢复无权限页面。
 - 侧栏收缩后必须保留 Ant Design 弹出子菜单选择能力，不得用受控空 `openKeys` 阻止交互。
@@ -215,9 +215,9 @@ docker compose -f docker-compose.yml up -d
 
 - 所有可见文案（按钮、标题、表头、placeholder、tooltip、message、notification、aria-label）禁止硬编码中英文，必须通过 `t('key')` 读取；规范见 `docs/rules/i18n-rules.md`。
 - 默认语言 `zh-CN`，第二语言 `en-US`；locale 标识统一使用 `zh-CN`/`en-US`，禁止混用 `zh`、`en`、`zh_CN`。
-- 两个前端的 i18n 资源、Provider 与语言切换分别放在 `fronted-main/src/i18n`、`fonted-oa/src/i18n`。
+- 两个前端的 i18n 资源、Provider 与语言切换分别放在 `frontend-main/src/i18n`、`frontend-oa/src/i18n`。
 - 语言选择持久化到 localStorage `workmeta-locale`，两个前端共用。
-- `fonted-oa` 切换语言时必须同步 Ant Design `ConfigProvider.locale`，不得让内置组件停留在默认中文。
+- `frontend-oa` 切换语言时必须同步 Ant Design `ConfigProvider.locale`，不得让内置组件停留在默认中文。
 - 后端 `ErrorCode`、`BusinessException`、`GlobalExceptionHandler`、`@Valid` 校验消息必须走 `MessageSource`，按 `Accept-Language` 解析；禁止在 controller/service 直接拼中文。
 - 前端请求必须携带 `Accept-Language`，与当前 i18next 语言一致。
 - 新增可见文案时必须同步更新 `zh-CN` 与 `en-US` 两个资源文件，缺一不可。

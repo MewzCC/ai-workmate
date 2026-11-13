@@ -130,7 +130,7 @@ T07（已解除）：新增撤权浏览器夹具使用小写角色码且缺少�
 
 ### 已取得的验证证据与限制
 
-- 前端全量最近一次为 **479 通过、0 失败、0 跳过**：`fonted-oa/node_modules/.cache/agent-concentrated-tests.json`，已包含桥接、身份隔离、5 项分页完整性测试、3 项通知作用域回归及 7 项会议预约回归。分页测试覆盖 205 条记录、真实空列表、后续页错误、提前空页/非法总数及预算耗尽时拒绝返回部分数据；通知回归覆盖撤权清除列表和详情、迟到响应、重新授权、刷新失败清空、跨页旧回调。首次全量有 1 项字典保存等待失败，原断言单文件 24 项及随后全量复跑均通过；尚未确认其首次失败的稳定原因。
+- 前端全量最近一次为 **479 通过、0 失败、0 跳过**：`frontend-oa/node_modules/.cache/agent-concentrated-tests.json`，已包含桥接、身份隔离、5 项分页完整性测试、3 项通知作用域回归及 7 项会议预约回归。分页测试覆盖 205 条记录、真实空列表、后续页错误、提前空页/非法总数及预算耗尽时拒绝返回部分数据；通知回归覆盖撤权清除列表和详情、迟到响应、重新授权、刷新失败清空、跨页旧回调。首次全量有 1 项字典保存等待失败，原断言单文件 24 项及随后全量复跑均通过；尚未确认其首次失败的稳定原因。
 - 前端最新构建通过（22.07 秒）；lint 为 0 错误、0 警告，构建大分块提示仍保留。
 - 最新默认后端全量为 **1880 项、0 失败、0 错误、1 跳过**（1879 项通过），Maven `BUILD SUCCESS`：`backend/target/agent-asset-assignment-offline.log`，命令为 `mvn "-Dtest=*Test" test`。唯一跳过为缺 Docker 的旧 `InitSqlIntegrationTest`；Agent 和观测 PostgreSQL 用例均实际运行。三个浏览器用例另组 **3 项、零失败/错误/跳过**：`backend/target/agent-asset-assignment-browser.log`；真实模型查询与拒绝另组 **5 项、零失败/错误/跳过**：`backend/target/agent-asset-assignment-model.log`。各组均使用测试框架自建数据库/Redis，未忽略失败用例。
 - 本批增加 75 个默认/简体中文/英文消息键，收口附件、资料、知识库、Embedding、认证、审批及领域辅助类的直接业务异常；保留错误码与鉴权分支。`BusinessException` 新增参数构造并延迟按处理请求的 Locale 解析，参数数组防御复制；上传限制按实际配置以 B/KB/MB 展示，避免小限制被显示成 0MB 或固定 5MB。8 项新测试覆盖参数、HTTP 错误状态/代码、双语资源独立完整性、旧构造兼容和 Service 直接中文异常静态门禁。该门禁不代表所有日志、历史业务内容或系统第三方异常都已翻译。
@@ -276,7 +276,7 @@ A08 当前静态接线：13 个页面入口注册了专属处理器（含“我�
 - 问题：`discardOperation` 吞掉取消接口错误，随后删除待确认计划并插入成功状态的取消消息；`stop` 也忽略取消错误。网络错误、拒绝取消或任务已经完成时，显示与服务端状态可能相反。
 - 修复：复用侧栏及任务中心现有的取消后状态核对逻辑；只有服务端确认取消才显示取消成功，其余情况展示实际终态或“未确认取消”。
 - 不修后果：用户会误以为业务没有执行，可能再次提交同一业务。
-- 证据：[aiChatStore.ts](../../fonted-oa/src/store/aiChatStore.ts:422)、[现有共享取消逻辑](../../fonted-oa/src/lib/agentTaskCancellation.ts:18)。
+- 证据：[aiChatStore.ts](../../frontend-oa/src/store/aiChatStore.ts:422)、[现有共享取消逻辑](../../frontend-oa/src/lib/agentTaskCancellation.ts:18)。
 
 ### A02 / P1 / 已确认：工作区失败和结果未知后缺少正确的终态恢复
 
@@ -284,7 +284,7 @@ A08 当前静态接线：13 个页面入口注册了专属处理器（含“我�
 - 问题：`confirmOperation` 仅在成功持久化结果后移除计划；失败时只弹消息，仍保留旧确认卡片。`PARTIALLY_SUCCEEDED` 与明确失败统一转换为普通失败，不能表达“业务可能已成功，需要核实”。侧栏对此状态还会触发绿色完成提示。
 - 修复：统一任务终态模型，区分拒绝、失败、已取消和结果未知；按服务端状态更新卡片，提供查询实际业务结果入口，不对结果未知的写入重试。
 - 不修后果：终态任务仍可反复点击确认并收到冲突；用户无法判断是否已经写入。
-- 证据：[等待与终态处理](../../fonted-oa/src/store/aiChatStore.ts:66)、[确认执行](../../fonted-oa/src/store/aiChatStore.ts:379)、[侧栏完成提示](../../fonted-oa/src/components/oa/AIOperationDrawer.tsx:318)。
+- 证据：[等待与终态处理](../../frontend-oa/src/store/aiChatStore.ts:66)、[确认执行](../../frontend-oa/src/store/aiChatStore.ts:379)、[侧栏完成提示](../../frontend-oa/src/components/oa/AIOperationDrawer.tsx:318)。
 
 ### A03 / P1 / 已确认：会话与未完成任务缺少持久关联
 
@@ -292,7 +292,7 @@ A08 当前静态接线：13 个页面入口注册了专属处理器（含“我�
 - 问题：待确认计划只保存在内存 `pendingPlans`；重开会话只加载消息，结果在执行成功后才写入会话。刷新待确认或正在执行的会话后无法恢复原卡片。删除会话只停止本地控制器，没有协调关联业务任务，业务仍可能完成但结果无法追加到已删会话。
 - 修复：服务端持久关联会话、用户输入和任务；恢复时读取真实任务状态；删除进行中会话时明确处理关联任务或保留可追溯结果入口，不把删除会话当成撤销业务。
 - 不修后果：计划丢失、重复发起、业务结果与聊天记录脱节。
-- 证据：[内存计划](../../fonted-oa/src/store/aiChatStore.ts:87)、[会话恢复与删除](../../fonted-oa/src/store/aiChatStore.ts:158)、[计划保存](../../fonted-oa/src/store/aiChatStore.ts:312)。
+- 证据：[内存计划](../../frontend-oa/src/store/aiChatStore.ts:87)、[会话恢复与删除](../../frontend-oa/src/store/aiChatStore.ts:158)、[计划保存](../../frontend-oa/src/store/aiChatStore.ts:312)。
 
 ### A04 / P1 / 已确认：会议日历和预约列表数据不完整
 
@@ -300,7 +300,7 @@ A08 当前静态接线：13 个页面入口注册了专属处理器（含“我�
 - 问题：只加载第一页 100 条，没有按当前月份请求，也没有服务端分页；切月仅改变本地日历状态。超过 100 条后，旧月份或其他预约会永久缺失。日历仅按开始日期分组，跨午夜预约不会显示在后续占用日期。
 - 修复：按可视日期范围加载、正确处理分页和范围切换；按占用区间投影每天的预约，列表使用真实服务端分页。
 - 不修后果：显示“无预约”但实际已有占用，用户只能在提交时遇到冲突。
-- 证据：[预约加载](../../fonted-oa/src/components/oa/MeetingBookingPanel.tsx:78)、[日期分组](../../fonted-oa/src/components/oa/MeetingBookingPanel.tsx:100)、[切月](../../fonted-oa/src/components/oa/MeetingBookingPanel.tsx:248)、[已有范围查询参数](../../fonted-oa/src/lib/adminAssetsApi.ts:397)。
+- 证据：[预约加载](../../frontend-oa/src/components/oa/MeetingBookingPanel.tsx:78)、[日期分组](../../frontend-oa/src/components/oa/MeetingBookingPanel.tsx:100)、[切月](../../frontend-oa/src/components/oa/MeetingBookingPanel.tsx:248)、[已有范围查询参数](../../frontend-oa/src/lib/adminAssetsApi.ts:397)。
 
 ### A05 / P1 / 已确认：资产业务操作依赖额外人事读取权限且失败静默
 
@@ -308,7 +308,7 @@ A08 当前静态接线：13 个页面入口注册了专属处理器（含“我�
 - 问题：选项来自要求 `hr:read` 的组织接口，错误被忽略。仅有合法资产操作权限、没有人事权限的用户会看到空下拉框，无法完成操作，也看不到原因。
 - 修复：提供遵循资产领域可选范围的最小选人/部门查询，或明确声明并展示必要权限；禁止为了修界面而扩大人事数据读取权限。
 - 不修后果：后端允许的业务在前端无法办理。
-- 证据：[静默依赖](../../fonted-oa/src/components/oa/AssetLedgerPage.tsx:123)、[部门与人员选项](../../fonted-oa/src/components/oa/AssetLedgerPage.tsx:568)、[人事接口鉴权](../../backend/src/main/java/com/aiworkmate/controller/HrController.java:22)。
+- 证据：[静默依赖](../../frontend-oa/src/components/oa/AssetLedgerPage.tsx:123)、[部门与人员选项](../../frontend-oa/src/components/oa/AssetLedgerPage.tsx:568)、[人事接口鉴权](../../backend/src/main/java/com/aiworkmate/controller/HrController.java:22)。
 
 ### A06 / P1 / 功能及权限契约缺口：操作所需元数据没有合适的受控读取链路
 
@@ -316,7 +316,7 @@ A08 当前静态接线：13 个页面入口注册了专属处理器（含“我�
 - 问题：申请中心加载表单/流程需要 `approval:read`，而申请写工具的最小权限并不包含它；表单定义工具只绑定管理页面。通用配置查询仅返回摘要，流程更新要求完整节点但没有对应节点详情工具；审批页面已有参与人候选接口，Agent 目录缺少对应受控候选人查询。
 - 修复：增加申请人可读的启用模板语义字段、版本化流程详情和当前任务候选人查询，分别按各业务权限裁剪，复用现有领域规则。
 - 不修后果：用户能提交某类业务，但 Agent 无法可靠知道字段、节点或接收人 ID，只能猜测或反复让用户补内部编号。
-- 证据：[申请中心读取依赖](../../fonted-oa/src/components/oa/ApprovalStartPage.tsx:102)、[配置摘要](../../backend/src/main/java/com/aiworkmate/agent/tool/port/ApprovalConfigurationToolPort.java:31)、[全节点更新](../../backend/src/main/java/com/aiworkmate/agent/tool/port/ApprovalConfigurationToolPort.java:79)、[参与人候选接口](../../backend/src/main/java/com/aiworkmate/controller/ApprovalTaskController.java:73)、[页面绑定](../../backend/src/main/java/com/aiworkmate/agent/capability/PageCapabilityCatalog.java:151)。
+- 证据：[申请中心读取依赖](../../frontend-oa/src/components/oa/ApprovalStartPage.tsx:102)、[配置摘要](../../backend/src/main/java/com/aiworkmate/agent/tool/port/ApprovalConfigurationToolPort.java:31)、[全节点更新](../../backend/src/main/java/com/aiworkmate/agent/tool/port/ApprovalConfigurationToolPort.java:79)、[参与人候选接口](../../backend/src/main/java/com/aiworkmate/controller/ApprovalTaskController.java:73)、[页面绑定](../../backend/src/main/java/com/aiworkmate/agent/capability/PageCapabilityCatalog.java:151)。
 
 ### A07 / P1 / 已确认：申请模板中心固定截断在 100 条
 
@@ -324,7 +324,7 @@ A08 当前静态接线：13 个页面入口注册了专属处理器（含“我�
 - 问题：只加载第一页 100 个表单及流程，搜索也只过滤本地数组，没有分页或继续加载。
 - 修复：模板检索与流程关联由服务端分页/按模板查询，不依赖一份有限本地列表。
 - 不修后果：第 101 个以后的合法模板无法在入口找到，部分模板也可能缺少流程关联。
-- 证据：[首次加载与本地过滤](../../fonted-oa/src/components/oa/ApprovalStartPage.tsx:102)。
+- 证据：[首次加载与本地过滤](../../frontend-oa/src/components/oa/ApprovalStartPage.tsx:102)。
 
 ### A08 / P1 / 功能缺口：页面操作指令只有协议，没有实际接入
 
@@ -332,7 +332,7 @@ A08 当前静态接线：13 个页面入口注册了专属处理器（含“我�
 - 问题：`executePageUiCommand` 在生产代码中没有调用方；页面目录声明了这些指令，但当前实际链路主要是工具执行后的固定结果导航，不能据此宣称 Agent 已能操作这些页面控件。
 - 修复：在持久 Layout 与当前页面之间建立白名单指令分发，页面注册可用处理器；所有写操作仍走 Gateway，不将 UI 指令当作提交授权。
 - 不修后果：“帮我筛选”“打开并预填”无法按预期完成。
-- 证据：[未接入的分发器](../../fonted-oa/src/lib/pageUiCommands.ts:41)、[声明的页面指令](../../backend/src/main/java/com/aiworkmate/agent/capability/PageCapabilityCatalog.java:33)。
+- 证据：[未接入的分发器](../../frontend-oa/src/lib/pageUiCommands.ts:41)、[声明的页面指令](../../backend/src/main/java/com/aiworkmate/agent/capability/PageCapabilityCatalog.java:33)。
 
 ### A09 / P1 / 功能缺口：通用申请和费用缺少从零提交的原子工具
 
@@ -340,7 +340,7 @@ A08 当前静态接线：13 个页面入口注册了专属处理器（含“我�
 - 问题：目录只有创建草稿与提交已有草稿，需要两个独立写操作；不能放进一个任务，否则突破单写步骤上限。
 - 修复：复用领域校验和快照机制，增加单事务原子命令及一个受控工具，包含稳定操作键、实时权限、明确确认和可追溯回执。
 - 不修后果：从零直接提交无法完成，只能先生成草稿再交互一次。
-- 证据：[通用申请端口](../../backend/src/main/java/com/aiworkmate/agent/tool/port/ApprovalApplicationToolPort.java:29)、[费用页面两阶段操作](../../fonted-oa/src/components/oa/ExpensePage.tsx:113)、[工具目录](../../backend/src/main/java/com/aiworkmate/agent/registry/ToolCode.java:67)。
+- 证据：[通用申请端口](../../backend/src/main/java/com/aiworkmate/agent/tool/port/ApprovalApplicationToolPort.java:29)、[费用页面两阶段操作](../../frontend-oa/src/components/oa/ExpensePage.tsx:113)、[工具目录](../../backend/src/main/java/com/aiworkmate/agent/registry/ToolCode.java:67)。
 
 ### A10 / P2 / 功能体验缺口：多数业务结果仍是技术字段摘要
 
@@ -356,7 +356,7 @@ A08 当前静态接线：13 个页面入口注册了专属处理器（含“我�
 - 问题：Workspace 固定轮询 60 次，后端允许任务上限 120 秒；合法长等待或排队情况下，客户端可能先报超时，服务端继续执行。
 - 修复：以服务端期限和终态为准，停止等待时保留任务恢复入口，不能把客户端等待超时解释为业务失败。
 - 不修后果：再次提交时可能造成重复业务，或找不到稍后完成的结果。
-- 证据：[客户端等待](../../fonted-oa/src/store/aiChatStore.ts:66)、[服务端运行上限](../../backend/src/main/java/com/aiworkmate/agent/config/AgentRuntimeProperties.java:90)。
+- 证据：[客户端等待](../../frontend-oa/src/store/aiChatStore.ts:66)、[服务端运行上限](../../backend/src/main/java/com/aiworkmate/agent/config/AgentRuntimeProperties.java:90)。
 
 ### A12 / P2 / 已确认：部分后端异常仍直接使用中文
 
@@ -379,35 +379,35 @@ A08 当前静态接线：13 个页面入口注册了专属处理器（含“我�
 - 问题：访客和用印的 `loadPending` 固定读取第 1 页、100 条，表格又关闭分页；流程配置 `loadForms` 也只取前 100 个表单。
 - 影响：后续待办无法处理，合法表单无法在设计器中选择。
 - 修复：复用完整分页加载器或服务端分页，不为每页复制循环；超过安全读取上限明确报错，不把部分数据当全量。
-- 证据：[访客加载](../../fonted-oa/src/components/oa/VisitorBookingPage.tsx)、[用印加载](../../fonted-oa/src/components/oa/SealUsagePage.tsx)、[流程表单选项](../../fonted-oa/src/components/oa/ProcessConfigPage.tsx)。
+- 证据：[访客加载](../../frontend-oa/src/components/oa/VisitorBookingPage.tsx)、[用印加载](../../frontend-oa/src/components/oa/SealUsagePage.tsx)、[流程表单选项](../../frontend-oa/src/components/oa/ProcessConfigPage.tsx)。
 
 ### A15 / P1 / 已确认：人事和访客缺少正确的候选人选择契约
 
 - 问题：人事变动审批人前端只允许 `SUPER_ADMIN`、`SYSTEM_ADMIN`，后端实际要求 `hr:manage`；自定义角色的合法审批人被漏掉，固定角色也不能代表具备该权限。访客表单接待人是内部用户编号输入框，没有姓名候选查询。
 - 影响：用户和 Agent 需要猜内部 ID，或无法选到实际有权处理的人。
 - 修复：增加按当前租户、有效账号及领域实时权限裁剪的最小候选查询，只返回选择所需字段；不向申请人开放其他用户完整权限或档案。
-- 证据：[前端角色筛选](../../fonted-oa/src/components/oa/EmployeeChangePage.tsx)、[服务端审批人权限](../../backend/src/main/java/com/aiworkmate/service/impl/EmployeeChangeServiceImpl.java)、[接待人编号输入](../../fonted-oa/src/components/oa/VisitorBookingPage.tsx)。
+- 证据：[前端角色筛选](../../frontend-oa/src/components/oa/EmployeeChangePage.tsx)、[服务端审批人权限](../../backend/src/main/java/com/aiworkmate/service/impl/EmployeeChangeServiceImpl.java)、[接待人编号输入](../../frontend-oa/src/components/oa/VisitorBookingPage.tsx)。
 
 ### A16 / P2 / 已确认：访客和用印入口未同步实时权限
 
 - 问题：两个页面无条件显示新建按钮及待审批页签，没有查询 `visitor:create`、`seal:create`、`approval:act` 决定入口。后端仍要求这些权限，本项不表示已发现越权成功。
 - 影响：仅有读取权限的用户可进入无法完成的表单，点击审批页签后收到 403。
 - 修复：使用统一实时权限 Hook，并在权限撤销时清除不再可用的页面状态；服务端逐请求鉴权继续保留。
-- 证据：[访客入口](../../fonted-oa/src/components/oa/VisitorBookingPage.tsx)、[用印入口](../../fonted-oa/src/components/oa/SealUsagePage.tsx)、[服务端权限](../../backend/src/main/java/com/aiworkmate/service/impl/AdminAssetsServiceImpl.java)。
+- 证据：[访客入口](../../frontend-oa/src/components/oa/VisitorBookingPage.tsx)、[用印入口](../../frontend-oa/src/components/oa/SealUsagePage.tsx)、[服务端权限](../../backend/src/main/java/com/aiworkmate/service/impl/AdminAssetsServiceImpl.java)。
 
 ### A17 / P2 / 已确认：部分列表旧请求可覆盖新筛选结果
 
 - 问题：人事变动 `load`、访客及用印 `loadMine/loadPending` 在请求返回后直接写入列表/加载状态，没有请求序号或取消失效检查；失败时也保留旧数据。访客/用印切回本人页重新取第 1 页，但没有同步重置显示页码。
 - 影响：快速切页或筛选时，迟到的旧响应可能覆盖新结果；错误或页码切换后仍显示与当前条件不一致的数据。
 - 修复：复用现有页面的请求序号、作用域和错误清空模式，同步页码；不以增加全局数据层作为本项前提。
-- 证据：[人事列表](../../fonted-oa/src/components/oa/EmployeeChangePage.tsx)、[访客列表](../../fonted-oa/src/components/oa/VisitorBookingPage.tsx)、[用印列表](../../fonted-oa/src/components/oa/SealUsagePage.tsx)。
+- 证据：[人事列表](../../frontend-oa/src/components/oa/EmployeeChangePage.tsx)、[访客列表](../../frontend-oa/src/components/oa/VisitorBookingPage.tsx)、[用印列表](../../frontend-oa/src/components/oa/SealUsagePage.tsx)。
 
 ### A18 / P1 / 已确认缓存隔离缺口：切换账号仍共用聊天 Store
 
 - 问题：`aiChatStore` 原为全局单实例，消息、计划、附件、任务观察器与设置加载承诺共用；`AuthProvider` 退出或更换账号只更新认证状态，没有重置聊天实例。会话列表刷新也不清除旧 activeId 和消息缓存。已有路径存在旧缓存被后续账号使用的风险，实际展示与并发时序尚未浏览器复现。
 - 修复：按租户＋用户切换独立 Store 实例；旧实例停止本地观察、打字动画及预加载，回写被忽略，禁止继续发起后续操作，撤销本地附件预览 URL。相同身份的权限刷新、页面切换不替换实例。认证刷新增加版本保护，迟到的旧响应不能覆盖新登录状态。
 - 边界：本地释放不等于取消已受理的服务端任务，不发送隐式取消或删除；重新登录仍通过服务端会话任务关联恢复实际结果。
-- 证据：[认证状态更新](../../fonted-oa/src/components/auth/AuthProvider.tsx)、[聊天缓存及会话恢复](../../fonted-oa/src/store/aiChatStore.ts)。
+- 证据：[认证状态更新](../../frontend-oa/src/components/auth/AuthProvider.tsx)、[聊天缓存及会话恢复](../../frontend-oa/src/store/aiChatStore.ts)。
 - 集中验收：账号 A→B、租户切换、退出后迟到消息/上传/模型响应、同账号重新登录、普通切页保留、刷新恢复、旧取消回执、附件预览释放，以及确认没有隐式服务端取消。
 
 ## 42 页面覆盖表

@@ -95,12 +95,12 @@ P1 的 18 个纵向切片均已按顺序完成、验证并独立提交。业务�
 - MinIO 用于员工档案、印章留档和用户图片；需要配置 `MINIO_ENDPOINT`、访问凭据和存储桶。
 - OCR 为可选依赖；通过 `OCR_ENABLED` 和 `OCR_BASE_URL` 控制，不可用时不得伪造识别结果。
 - AI 与 Embedding 的地址和密钥只通过服务端环境变量配置，不允许由设置页读取或回显。
-- OA 与营销站保持两个独立 Vite SPA：`fonted-oa` 运行于 3001，`fronted-main` 运行于 3000。
+- OA 与营销站保持两个独立 Vite SPA：`frontend-oa` 运行于 3001，`frontend-main` 运行于 3000。
 
 ## 6. 验证证据
 
 ```powershell
-cd fonted-oa
+cd frontend-oa
 npm run lint
 npm run test
 npm run build

@@ -2,9 +2,9 @@
 
 ## Frontend App Split
 
-- The marketing website app lives in `fronted-main` and runs on port `3000`.
-- The OA workbench app lives in `fonted-oa` and runs on port `3001`.
-- OA implementation owns its source inside `fonted-oa/src`; do not depend on the removed `frontend` app.
+- The marketing website app lives in `frontend-main` and runs on port `3000`.
+- The OA workbench app lives in `frontend-oa` and runs on port `3001`.
+- OA implementation owns its source inside `frontend-oa/src`; do not depend on the removed `frontend` app.
 - Do not implement OA as a nested page inside the homepage app.
 - The OA app root `/` redirects to `/oa`; OA menu pages use `/oa/<pageId>`.
 
@@ -23,11 +23,11 @@
 
 当前 OA 是基础联调版本：
 
-- 前端页面：`fonted-oa/src/app/oa/page.tsx`。
-- 前端组件：`fonted-oa/src/components/oa`。
-- 前端权限与演示数据：`fonted-oa/src/mock`。
-- 前端类型：`fonted-oa/src/types/oa.ts`。
-- 前端 API：`fonted-oa/src/lib/oaApi.ts`。
+- 前端页面：`frontend-oa/src/app/oa/page.tsx`。
+- 前端组件：`frontend-oa/src/components/oa`。
+- 前端权限与演示数据：`frontend-oa/src/mock`。
+- 前端类型：`frontend-oa/src/types/oa.ts`。
+- 前端 API：`frontend-oa/src/lib/oaApi.ts`。
 - 后端控制器：`SystemController`、`AiTaskController`。
 - 后端服务：`AiTaskService` 及其真实实现。
 
@@ -85,7 +85,7 @@ OA 工作台业务 UI 必须使用真实 Ant Design 组件：
 
 ### 图标工作流
 
-- OA 组件通过 `fonted-oa/src/components/OaIcon.tsx` 使用语义图标，避免业务代码依赖 Iconfont 的具体 Symbol ID。
+- OA 组件通过 `frontend-oa/src/components/OaIcon.tsx` 使用语义图标，避免业务代码依赖 Iconfont 的具体 Symbol ID。
 - `iconFontMap` 保存已经进入 Iconfont 的图标；`fallbackIconMap` 保存等待上传期间的开源占位图标。
 - 新增正式图标时直接在 Iconfont 项目中选择或上传；仓库不生成、不保存待上传 SVG 或上传压缩包。
 - Iconfont 暂无对应图标时，可使用已安装且许可证明确的开源图标作为临时 fallback。
@@ -168,7 +168,7 @@ OA 菜单和页面权限必须使用服务端动态 RBAC，不得再使用本地
 - 前端通过 `GET /api/navigation` 获取当前登录用户可访问的菜单树。
 - 用户角色与权限在每次 JWT 请求时从数据库重新解析，禁止信任 token 中的历史角色。
 - `/api/admin/access-control/**` 必须要求 `access:manage` 权限。
-- 页面组件使用 `fonted-oa/src/components/oa/OaPageRenderer.tsx` 的固定安全注册表；允许集合与 `fonted-oa/src/types/oa.ts` 的 `ENABLED_PAGE_COMPONENT_KEYS` 及后端 `NavigationComponentCatalog` 保持一致，不得从数据库执行任意组件名、动态 import 路径或代码。`WORKBENCH_MODULE` 仅兼容历史禁用记录，禁止用于启用页面。
+- 页面组件使用 `frontend-oa/src/components/oa/OaPageRenderer.tsx` 的固定安全注册表；允许集合与 `frontend-oa/src/types/oa.ts` 的 `ENABLED_PAGE_COMPONENT_KEYS` 及后端 `NavigationComponentCatalog` 保持一致，不得从数据库执行任意组件名、动态 import 路径或代码。`WORKBENCH_MODULE` 仅兼容历史禁用记录，禁止用于启用页面。
 - 无权页面不能出现在菜单中，直接输入无权 URL 时也必须重定向到首个可访问页面。
 - `AdminLayout` 必须挂载在 `/oa/layout.tsx`，路由切换只更新内容区，不得重新挂载侧栏、主题和全局抽屉。
 - 动态菜单首次进入时全部目录折叠；允许同时展开多个目录；选择页面时保留已展开目录并补充其祖先目录；刷新叶子页面时恢复其目录链。

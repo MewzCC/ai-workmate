@@ -40,7 +40,7 @@ final class AgentBrowserFixture {
         Path log = Path.of("target", "agent-it", schema, "browser.log").toAbsolutePath();
         Files.createDirectories(log.getParent());
         var launcher = new ProcessBuilder("node", repository.resolve("scripts/verify-agent-browser.mjs").toString())
-                .directory(repository.resolve("fonted-oa").toFile()).redirectErrorStream(true).redirectOutput(log.toFile());
+                .directory(repository.resolve("frontend-oa").toFile()).redirectErrorStream(true).redirectOutput(log.toFile());
         var original = System.getenv();
         launcher.environment().clear();
         for (String name : List.of("Path", "PATH", "SystemRoot", "WINDIR", "COMSPEC", "PATHEXT", "TEMP", "TMP",

@@ -1,9 +1,10 @@
 module.exports = {
   apps: [
     {
-      name: 'fonted-oa',
-      script: 'npx',
-      args: 'vite preview --port 3001 --host 0.0.0.0',
+      name: 'frontend-main',
+      // Vite 静态预览服务器（需先 npm run build 产出 dist/）
+      script: './node_modules/vite/bin/vite.js',
+      args: 'preview --port 3000 --host 0.0.0.0',
       cwd: __dirname,
       exec_mode: 'fork',
       instances: 1,

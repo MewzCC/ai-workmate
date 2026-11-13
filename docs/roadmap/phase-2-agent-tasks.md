@@ -86,7 +86,7 @@
 | --- | --- | --- | --- | --- |
 | G1 | 数据库验证 | PostgreSQL 空库首次 Flyway、历史库 baseline 后升级、迁移后重启；验证约束、索引、种子数据和租户覆盖；不修改已发布迁移 | 验证记录 | A1/GW2/B1/D5 |
 | G2 | 安全与恢复演练 | 普通员工、跨租户、权限回收、网关绕过、伪造租约/hash/attempt、并发 execute、重启、SSE、注入、限流、Kill Switch、审计异常 fail closed | 人工逐项演练记录 | A~D/GW |
-| G3 | 工程验证 | Java 17 `mvn test`；两个前端 lint/build；fonted-oa Vitest；zh/en 验收 | 验证记录 | A~D |
+| G3 | 工程验证 | Java 17 `mvn test`；两个前端 lint/build；frontend-oa Vitest；zh/en 验收 | 验证记录 | A~D |
 | G4 | 人工发布评审 | 人工负责人逐项签署安全附件发布门并确认是否启用 Phase 2B；代码生成 Agent 不得自行判定通过 | 发布门结论 | G1~G3 |
 
 ## 模块 E：写操作试点（Phase 2B，约 2~3 个有效工作日）

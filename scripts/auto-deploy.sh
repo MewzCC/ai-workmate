@@ -118,8 +118,8 @@ check_http() {
 
 FAILED=0
 check_http "backend"  "$HEALTH_BACKEND" || FAILED=1
-check_http "fronted-main" "$HEALTH_MAIN" || FAILED=1
-check_http "fonted-oa"   "$HEALTH_OA"   || FAILED=1
+check_http "frontend-main" "$HEALTH_MAIN" || FAILED=1
+check_http "frontend-oa"   "$HEALTH_OA"   || FAILED=1
 
 if [ "$FAILED" -eq 0 ]; then
   rm -f "$FAIL_MARKER"
