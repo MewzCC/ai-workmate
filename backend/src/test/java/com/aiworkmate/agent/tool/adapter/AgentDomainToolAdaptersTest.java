@@ -101,7 +101,8 @@ class AgentDomainToolAdaptersTest {
         organizationAdapter = new HrOrganizationAgentDomainToolAdapter(hrService);
         attendanceAdapter = new AttendanceAgentDomainToolAdapter(attendanceService);
         visitorAdapter = new VisitorAgentDomainToolAdapter(adminAssetsService);
-        sealAdapter = new SealAgentDomainToolAdapter(adminAssetsService);
+        sealAdapter = new SealAgentDomainToolAdapter(adminAssetsService,
+                org.mockito.Mockito.mock(com.aiworkmate.service.SealUsageDocumentService.class));
         knowledgeAdapter = new KnowledgeAgentDomainToolAdapter(knowledgeService, knowledgeBaseService);
         notificationAdapter = new NotificationAgentDomainToolAdapter(notificationService);
     }

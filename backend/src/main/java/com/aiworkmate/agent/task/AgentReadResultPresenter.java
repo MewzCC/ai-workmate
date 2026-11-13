@@ -48,6 +48,7 @@ public final class AgentReadResultPresenter {
         if (List.of("visitor.approve","visitor.reject","seal.approve","seal.reject").contains(toolCode == null?"":toolCode)) return assignedWorkflowDecision(toolCode,result);
         if ("visitor.query".equals(toolCode)) return assignedWorkflowQuery("visitor",result);
         if ("seal.query".equals(toolCode)) return assignedWorkflowQuery("seal",result);
+        if ("hr.employee.documents.query".equals(toolCode) || "seal.documents.query".equals(toolCode)) return documentMetadata(result);
         if ("todo.query".equals(toolCode)) return todo(result);
         if ("userPermission.mine.query".equals(toolCode)) return userPermissions(result);
         if ("dashboard.overview.query".equals(toolCode)) return dashboard(result);
@@ -488,6 +489,35 @@ public final class AgentReadResultPresenter {
         return MessageUtils.resolve("PENDING".equals(applicationStatus) ? "agent.genericTask.approve.handoff" : "agent.genericTask.approve.completed",
                 Long.toString(result.path("taskId").asLong()), Long.toString(result.path("applicationId").asLong()),
                 Integer.toString(result.path("version").asInt()));
+    }
+
+    private static String documentMetadata(JsonNode result) {
+        if (result == null || !result.path("items").isArray() || result.path("items").size() > 20
+                || !result.path("total").isIntegralNumber() || !result.path("total").canConvertToLong() || result.path("total").asLong() < 0
+                || !result.path("page").isIntegralNumber() || !result.path("page").canConvertToInt() || result.path("page").asInt() < 1 || result.path("page").asInt() > 10000
+                || !result.path("size").isIntegralNumber() || !result.path("size").canConvertToInt() || result.path("size").asInt() < 1 || result.path("size").asInt() > 20
+                || result.path("items").size() > result.path("size").asInt() || result.path("items").size() > result.path("total").asLong()) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        var answer = new StringBuilder(MessageUtils.resolve("agent.documents.heading", result.path("total").asLong(), result.path("page").asInt()));
+        int shown = 0;
+        for (JsonNode item : result.path("items")) {
+            if (!item.path("documentId").asText().matches("[1-9][0-9]{0,18}")
+                    || !List.of("CONTRACT", "PROFILE", "ARCHIVE").contains(item.path("documentType").asText())
+                    || !item.path("displayName").isTextual() || item.path("displayName").asText().isBlank() || item.path("displayName").asText().length() > 255
+                    || !item.path("mimeType").isTextual() || item.path("mimeType").asText().isBlank() || item.path("mimeType").asText().length() > 120
+                    || !item.path("fileSize").isIntegralNumber() || !item.path("fileSize").canConvertToLong() || item.path("fileSize").asLong() < 1
+                    || !item.path("createdAt").isTextual() || item.path("createdAt").asText().length() > 32) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+            if (answer.length() > 650) continue;
+            answer.append('\n').append(MessageUtils.resolve("agent.documents.item", plain(item.path("documentId").asText()),
+                    plain(item.path("displayName").asText()), MessageUtils.resolve("agent.documents.type." + item.path("documentType").asText()), plain(item.path("mimeType").asText()),
+                    Long.toString(item.path("fileSize").asLong()), plain(item.path("createdAt").asText())));
+            shown++;
+        }
+        if (result.path("items").isEmpty()) answer.append('\n').append(MessageUtils.resolve("agent.documents.emptyPage"));
+        if (shown < result.path("items").size() || answer.length() > 900) {
+            answer.setLength(Math.min(answer.length(), 850));
+            answer.append('\n').append(MessageUtils.resolve("agent.documents.more"));
+        }
+        return answer.substring(0, Math.min(MAX_LENGTH, answer.length()));
     }
 
     private static String genericTaskDetail(JsonNode result) {

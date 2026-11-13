@@ -84,7 +84,7 @@ class AgentReadCatalogIntegrationTest extends AbstractIsolatedAgentIntegrationTe
     }
 
     @Test void theReadMatrixMatchesTheCodeOwnedCatalogAndKeepsWritesDisabled() {
-        assertThat(readTools().map(ToolCode::code).toList()).hasSize(51)
+        assertThat(readTools().map(ToolCode::code).toList()).hasSize(53)
                 .containsExactlyInAnyOrderElementsOf(catalog.all().stream().filter(tool -> !ToolCode.fromCode(tool.code()).isWrite()).map(tool -> tool.code()).toList());
         assertThat(runtime.isWriteToolsEnabled()).isFalse();
     }

@@ -2,6 +2,9 @@ package com.aiworkmate.service.impl;
 
 import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.common.ErrorCode;
+import com.aiworkmate.common.PageResponse;
+import com.aiworkmate.dto.BusinessDocumentMetadata;
+import com.aiworkmate.service.model.DocumentMetadataQuery;
 import com.aiworkmate.config.UploadProperties;
 import com.aiworkmate.dto.SealUsageDocumentResponse;
 import com.aiworkmate.entity.SealUsage;
@@ -49,6 +52,18 @@ public class SealUsageDocumentServiceImpl implements SealUsageDocumentService {
     private final ObjectStorageService objectStorageService;
     private final UploadProperties uploadProperties;
     private final BusinessAuditService auditService;
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<BusinessDocumentMetadata> metadataForActor(
+            Long userId, Long expectedTenantId, Long sealUsageId, DocumentMetadataQuery query) {
+        if (query == null) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        query.requireResource(sealUsageId);
+        ResolvedUserAccess access = requireAccess(userId, expectedTenantId);
+        requireRelatedUsage(access, sealUsageId);
+        return PageResponse.of(documentMapper.metadataPage(access.tenantId(), sealUsageId, query.size(), query.offset()),
+                documentMapper.metadataCount(access.tenantId(), sealUsageId), query.page(), query.size());
+    }
 
     @Override
     @Transactional(readOnly = true)
@@ -131,8 +146,12 @@ public class SealUsageDocumentServiceImpl implements SealUsageDocumentService {
     }
 
     private ResolvedUserAccess requireAccess(AuthenticatedUser actor) {
-        ResolvedUserAccess access = userAccessService.resolveActiveUser(actor.userId());
-        if (access == null || !access.tenantId().equals(actor.tenantId())) {
+        return requireAccess(actor.userId(), actor.tenantId());
+    }
+
+    private ResolvedUserAccess requireAccess(Long userId, Long expectedTenantId) {
+        ResolvedUserAccess access = userAccessService.resolveActiveUser(userId);
+        if (access == null || !access.tenantId().equals(expectedTenantId)) {
             throw new BusinessException(ErrorCode.AUTH_REQUIRED);
         }
         if (!access.permissions().contains("seal:register")) {

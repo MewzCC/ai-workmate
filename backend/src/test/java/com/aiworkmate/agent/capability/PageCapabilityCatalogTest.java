@@ -258,7 +258,7 @@ class PageCapabilityCatalogTest {
                           ToolCode.VISITOR_WITHDRAW, ToolCode.VISITOR_NO_SHOW,
                           ToolCode.VISITOR_APPROVE,ToolCode.VISITOR_REJECT);
         assertThat(catalog.find("seal-usage").orElseThrow().readTools().stream().filter(reference -> reference.code() != ToolCode.PAGE_UI_PREPARE).toList())
-                .extracting(PageToolReference::code).containsExactly(ToolCode.SEAL_QUERY);
+                .extracting(PageToolReference::code).containsExactly(ToolCode.SEAL_QUERY, ToolCode.SEAL_DOCUMENTS_QUERY);
         assertThat(catalog.find("seal-usage").orElseThrow().writeTools())
                 .extracting(PageToolReference::code)
                 .containsExactly(ToolCode.SEAL_APPLY, ToolCode.SEAL_REGISTER_USE,

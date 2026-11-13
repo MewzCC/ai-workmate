@@ -44,6 +44,11 @@ final class AgentReadCatalogFixture {
             case NOTIFICATION_MINE -> jdbc.update("INSERT INTO notification(tenant_id,user_id,type,title,content) VALUES (?,?,'SYSTEM',?,?)", tenant, user, label, label);
             case USER_PERMISSION_MINE_QUERY -> evidence = "agent:tool:" + code.code();
             case HR_EMPLOYEE_QUERY -> args.put("employeeId", user);
+            case HR_EMPLOYEE_DOCUMENTS_QUERY -> {
+                jdbc.update("INSERT INTO employee_document(tenant_id,employee_user_id,document_type,display_name,storage_key,mime_type,file_size,uploaded_by_user_id) VALUES (?,?,'PROFILE',?,?,'text/plain',10,?)",
+                        tenant, user, label, label + "/private-employee-key", user);
+                args.put("employeeId", user);
+            }
             case HR_ORGANIZATION_QUERY -> {
                 long department = id("INSERT INTO department(tenant_id,code,name) VALUES (?,?,?) RETURNING id", tenant, label, label);
                 jdbc.update("UPDATE app_user SET department_id=? WHERE id=?", department, user);
@@ -109,6 +114,12 @@ final class AgentReadCatalogFixture {
             }
             case VISITOR_QUERY -> jdbc.update("INSERT INTO visitor_booking(tenant_id,applicant_user_id,host_user_id,visitor_name,purpose,expected_visit_at,submitted_at) VALUES (?,?,?,?,?,?,CURRENT_TIMESTAMP)", tenant, user, user, label, label, LocalDateTime.now().plusHours(1));
             case SEAL_QUERY -> jdbc.update("INSERT INTO seal_usage(tenant_id,applicant_user_id,seal_type,document_title,usage_reason,submitted_at) VALUES (?,?,'OFFICIAL',?,?,CURRENT_TIMESTAMP)", tenant, user, label, label);
+            case SEAL_DOCUMENTS_QUERY -> {
+                long usage = id("INSERT INTO seal_usage(tenant_id,applicant_user_id,seal_type,document_title,usage_reason,status,submitted_at) VALUES (?,?,'OFFICIAL',?,?,'APPROVED',CURRENT_TIMESTAMP) RETURNING id", tenant, user, label, label);
+                jdbc.update("INSERT INTO seal_usage_document(tenant_id,seal_usage_id,display_name,storage_key,mime_type,file_size,uploaded_by_user_id) VALUES (?,?,?,?,'text/plain',10,?)",
+                        tenant, usage, label, label + "/private-seal-key", user);
+                args.put("usageId", usage);
+            }
             case BUDGET_QUERY -> jdbc.update("INSERT INTO budget_plan(tenant_id,budget_code,name,fiscal_year,owner_user_id,owner_label,total_amount,created_by,updated_by) VALUES (?,?,?,?,?,?,100,?,?)", tenant, label, label, LocalDate.now().getYear(), user, label, user, user);
             case CONTRACT_QUERY -> jdbc.update("INSERT INTO business_contract(tenant_id,contract_code,name,contract_type,counterparty_name,owner_user_id,owner_label,amount,start_date,end_date,created_by,updated_by) VALUES (?,?,?,'PURCHASE',?,?,?,100,CURRENT_DATE,CURRENT_DATE+30,?,?)", tenant, label, label, label, user, label, user, user);
             case SUPPLIER_QUERY -> jdbc.update("INSERT INTO supplier(tenant_id,supplier_code,name,category,created_by,updated_by) VALUES (?,?,?,'SERVICE',?,?)", tenant, label, label, user, user);

@@ -171,7 +171,7 @@ public class PageCapabilityCatalog {
                 page(OaPage.ORG_TREE, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         context(text("keyword"), number("departmentId"), number("limit")), tool(HR_ORGANIZATION_QUERY)),
                 page(OaPage.EMPLOYEE_FILES, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
-                        context(number("employeeId"), text("keyword")), tool(HR_ORGANIZATION_QUERY), tool(HR_EMPLOYEE_QUERY)),
+                        context(number("employeeId"), text("keyword")), tool(HR_ORGANIZATION_QUERY), tool(HR_EMPLOYEE_QUERY), tool(HR_EMPLOYEE_DOCUMENTS_QUERY)),
                 page(OaPage.EMPLOYEE_CHANGE, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         context(number("changeId"), number("version"), text("status"), text("changeType"), text("keyword"), number("page"), number("size")),
                         tool(HR_CHANGE_QUERY), tool(HR_CHANGE_REVIEWER_QUERY), tool(HR_CHANGE_APPLY), tool(HR_CHANGE_APPROVE),
@@ -194,7 +194,7 @@ public class PageCapabilityCatalog {
                         tool(VISITOR_NO_SHOW), tool(VISITOR_APPROVE), tool(VISITOR_REJECT)),
                 page(OaPage.SEAL_USAGE, OwnershipPolicy.SELF, LIST_COMMANDS,
                         context(number("usageId"), number("taskId"), number("taskVersion"), text("queue"), text("status"), number("page"), number("size")),
-                        tool(SEAL_QUERY), tool(SEAL_APPLY), tool(SEAL_REGISTER_USE),
+                        tool(SEAL_QUERY), tool(SEAL_DOCUMENTS_QUERY), tool(SEAL_APPLY), tool(SEAL_REGISTER_USE),
                         tool(SEAL_WITHDRAW), tool(SEAL_RETURN),tool(SEAL_APPROVE),tool(SEAL_REJECT)),
 
                 page(OaPage.EXPENSE, OwnershipPolicy.SELF, FORM_COMMANDS,

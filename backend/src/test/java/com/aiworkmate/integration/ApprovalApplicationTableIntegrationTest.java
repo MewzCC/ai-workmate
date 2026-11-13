@@ -2,6 +2,7 @@ package com.aiworkmate.integration;
 
 import com.aiworkmate.agent.registry.ToolCatalog;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -134,7 +135,10 @@ class ApprovalApplicationTableIntegrationTest extends AbstractIsolatedAgentInteg
                     "sha256:c614bce4890b0f2b8ae04b4b75000c73f4184fe0be2133a9fc84b4f341e5db1e");
             jdbc.update("UPDATE agent_tool SET schema_hash=? WHERE tenant_id IS NULL AND code=?", unknownHash, ownDetail);
             assertThat(jdbc.update("DELETE FROM flyway_schema_history WHERE version='202611121700'")).isEqualTo(1);
-            assertThat(flyway.migrate().migrationsExecuted).isEqualTo(1);
+            // Replaying this historical migration in the owned fixture must also work
+            // after later migrations have been added; production ordering stays strict.
+            var replay = Flyway.configure().configuration(flyway.getConfiguration()).outOfOrder(true).load();
+            assertThat(replay.migrate().migrationsExecuted).isEqualTo(1);
             for (String code : List.of("approval.application.createDraft", "approval.application.updateDraft", "approval.application.apply")) {
                 assertThat(jdbc.queryForObject("SELECT schema_hash FROM agent_tool WHERE tenant_id IS NULL AND code=?", String.class, code))
                         .isEqualTo(catalog.find(code).orElseThrow().schemaHash());

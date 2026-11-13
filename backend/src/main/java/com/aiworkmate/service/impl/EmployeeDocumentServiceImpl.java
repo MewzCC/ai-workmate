@@ -2,6 +2,9 @@ package com.aiworkmate.service.impl;
 
 import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.common.ErrorCode;
+import com.aiworkmate.common.PageResponse;
+import com.aiworkmate.dto.BusinessDocumentMetadata;
+import com.aiworkmate.service.model.DocumentMetadataQuery;
 import com.aiworkmate.config.UploadProperties;
 import com.aiworkmate.dto.AccessUserRow;
 import com.aiworkmate.dto.EmployeeDocumentResponse;
@@ -50,6 +53,20 @@ public class EmployeeDocumentServiceImpl implements EmployeeDocumentService {
     private final UploadProperties uploadProperties;
     private final BusinessAuditService auditService;
     private final DataPermissionService dataPermissionService;
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<BusinessDocumentMetadata> metadataForActor(
+            Long userId, Long expectedTenantId, Long employeeUserId, DocumentMetadataQuery query) {
+        if (query == null) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        query.requireResource(employeeUserId);
+        ResolvedUserAccess access = requireReadAccess(userId, expectedTenantId, employeeUserId);
+        if (!access.tenantId().equals(accessControlMapper.selectUserTenantId(employeeUserId))) {
+            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        }
+        return PageResponse.of(documentMapper.metadataPage(access.tenantId(), employeeUserId, query.size(), query.offset()),
+                documentMapper.metadataCount(access.tenantId(), employeeUserId), query.page(), query.size());
+    }
 
     @Override
     @Transactional(readOnly = true)
@@ -142,8 +159,12 @@ public class EmployeeDocumentServiceImpl implements EmployeeDocumentService {
     }
 
     private ResolvedUserAccess requireReadAccess(AuthenticatedUser actor, Long employeeUserId) {
-        ResolvedUserAccess access = userAccessService.resolveActiveUser(actor.userId());
-        if (access == null || !access.tenantId().equals(actor.tenantId())) {
+        return requireReadAccess(actor.userId(), actor.tenantId(), employeeUserId);
+    }
+
+    private ResolvedUserAccess requireReadAccess(Long userId, Long expectedTenantId, Long employeeUserId) {
+        ResolvedUserAccess access = userAccessService.resolveActiveUser(userId);
+        if (access == null || !access.tenantId().equals(expectedTenantId)) {
             throw new BusinessException(ErrorCode.AUTH_REQUIRED);
         }
         if (!access.userId().equals(employeeUserId) && !access.permissions().contains("hr:read")) {

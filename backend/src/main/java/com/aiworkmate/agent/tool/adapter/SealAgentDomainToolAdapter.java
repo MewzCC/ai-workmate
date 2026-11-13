@@ -8,6 +8,10 @@ import com.aiworkmate.agent.tool.port.ToolWriteVerification;
 import com.aiworkmate.dto.SealReturnRequest;
 import com.aiworkmate.dto.VersionRequest;
 import com.aiworkmate.service.AdminAssetsService;
+import com.aiworkmate.service.SealUsageDocumentService;
+import com.aiworkmate.service.model.DocumentMetadataQuery;
+import com.aiworkmate.agent.tool.port.DocumentMetadataToolModels;
+import com.aiworkmate.agent.tool.port.ToolPage;
 import com.aiworkmate.service.model.SealAgentApplicationCommand;
 import com.aiworkmate.service.model.SealAgentUseCommand;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +22,13 @@ import java.util.List;
 @RequiredArgsConstructor
 public final class SealAgentDomainToolAdapter implements SealToolPort {
     private final AdminAssetsService adminAssetsService;
+    private final SealUsageDocumentService documents;
+
+    @Override
+    public ToolPage<DocumentMetadataToolModels.Item> documents(ToolActorContext context, DocumentMetadataToolModels.Query query) {
+        return BusinessDocumentMetadataMapping.page(documents.metadataForActor(context.userId(), context.tenantId(),
+                query.resourceId(), new DocumentMetadataQuery(query.page(), query.size())));
+    }
 
     @Override
     public Page query(ToolActorContext context, Query query) {
