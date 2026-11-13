@@ -8,6 +8,34 @@ import static org.assertj.core.api.Assertions.*;
 class ApprovalApplicationAgentFieldProjectionTest {
     private final ObjectMapper mapper = new ObjectMapper();
 
+    @Test void projectsFrozenTableColumnsInOrderWithoutLosingMoneyOrEmptyCells() {
+        var fields = ApprovalApplicationAgentFieldProjection.project(mapper, """
+                {"fields":[{"name":"items","label":"Historic items","type":"table","columns":[
+                {"name":"amount","label":"Historic amount","type":"money"},
+                {"name":"note","label":"Note","type":"text"}]}]}
+                """, """
+                {"items":[{"amount":9007199254740993.01},{"note":"Second row","amount":"0.10"}]}
+                """);
+        assertThat(fields.get(0).table().columns()).extracting(column -> column.label())
+                .containsExactly("Historic amount", "Note");
+        assertThat(fields.get(0).table().rows()).containsExactly(
+                java.util.List.of("9007199254740993.01", ""), java.util.List.of("0.10", "Second row"));
+    }
+
+    @Test void sensitiveTableColumnsHideTheWholeTableAndUnknownColumnsFailClosed() {
+        String schema = """
+                {"fields":[{"name":"items","type":"table","columns":[
+                {"name":"bankAccount","label":"Account","type":"text"}]}]}
+                """;
+        var hidden = ApprovalApplicationAgentFieldProjection.project(mapper, schema, "{\"items\":[{\"bankAccount\":\"PRIVATE\"}]}").get(0);
+        assertThat(hidden.redacted()).isTrue();
+        assertThat(hidden.table()).isNull();
+        assertThat(hidden.values()).isEmpty();
+        String publicSchema = schema.replace("bankAccount", "note");
+        assertThatThrownBy(() -> ApprovalApplicationAgentFieldProjection.project(mapper, publicSchema,
+                "{\"items\":[{\"unexpected\":\"PRIVATE\"}]}" )).isInstanceOf(BusinessException.class);
+    }
+
     @Test void projectsOnlySnapshotFieldsAndHidesSensitiveAndAttachments() {
         var fields = ApprovalApplicationAgentFieldProjection.project(mapper, """
                 {"fields":[{"name":"reason","label":"Historic reason","type":"textarea"},

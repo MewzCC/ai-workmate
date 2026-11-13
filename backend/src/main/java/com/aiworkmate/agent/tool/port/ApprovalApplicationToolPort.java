@@ -14,8 +14,19 @@ public interface ApprovalApplicationToolPort {
                   int fieldsTotal, int fieldPage) {
         public Detail { fields = List.copyOf(fields); }
     }
-    record DetailField(String name, String label, String type, List<String> values, boolean redacted) {
+    record DetailTableColumn(String name, String label, String type) { }
+    record DetailTable(List<DetailTableColumn> columns, List<List<String>> rows) {
+        public DetailTable {
+            columns = List.copyOf(columns);
+            rows = rows.stream().map(List::copyOf).toList();
+        }
+    }
+    record DetailField(String name, String label, String type, List<String> values, boolean redacted,
+            DetailTable table) {
         public DetailField { values = List.copyOf(values); }
+        public DetailField(String name, String label, String type, List<String> values, boolean redacted) {
+            this(name, label, type, values, redacted, null);
+        }
     }
 
     record Query(String status, String formKey, int page, int size) { }
@@ -51,9 +62,19 @@ public interface ApprovalApplicationToolPort {
         public DraftUpdate { fields = List.copyOf(fields); }
     }
 
-    record FieldValue(String name, List<String> values, boolean multiple) {
+    record TableCell(String name, String value) { }
+
+    record TableRow(List<TableCell> cells) {
+        public TableRow { cells = List.copyOf(cells); }
+    }
+
+    record FieldValue(String name, List<String> values, boolean multiple, List<TableRow> rows) {
         public FieldValue {
             values = List.copyOf(values);
+            rows = rows == null ? null : List.copyOf(rows);
+        }
+        public FieldValue(String name, List<String> values, boolean multiple) {
+            this(name, values, multiple, null);
         }
     }
 

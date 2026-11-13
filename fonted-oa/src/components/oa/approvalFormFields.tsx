@@ -2,13 +2,18 @@ import { Checkbox, DatePicker, Input, InputNumber, Radio, Select, TimePicker } f
 import dayjs from 'dayjs';
 import type { ApprovalApplicationTemplate } from '@/lib/approvalEngineApi';
 import type { UiEditorField } from '@/hooks/usePageUiEditorCommands';
+import { convertApprovalTable, validateTableColumns, validateTableFieldName } from '@/lib/approvalTable';
 
 export type ApplicationField = ApprovalApplicationTemplate['fields'][number];
 const SCALAR_FIELDS = new Set(['text', 'textarea', 'number', 'amount', 'money', 'date', 'time', 'radio', 'select']);
 const SIMPLE = new Set([...SCALAR_FIELDS, 'dateRange', 'checkbox', 'user', 'department', 'file', 'image']);
 export const isApplicationAttachmentField = (field: ApplicationField) => field.type === 'file' || field.type === 'image';
 export const isApplicationReferenceField = (field: ApplicationField) => field.type === 'user' || field.type === 'department';
-export const supportedApplicationField = (field: ApplicationField) => SIMPLE.has(field.type || 'text');
+export const supportedApplicationField = (field: ApplicationField) => {
+  if (field.type !== 'table') return SIMPLE.has(field.type || 'text');
+  try { validateTableFieldName(field.name); validateTableColumns(field.columns); return true; }
+  catch { return false; }
+};
 
 export function approvalUiFields(fields: ApplicationField[]): Record<string, UiEditorField> {
   return Object.fromEntries(fields.filter(field => SCALAR_FIELDS.has(field.type || 'text')).map(field => [field.name,
@@ -64,7 +69,7 @@ function validateAttachments(value: unknown) {
 export function normalizeApprovalValues(values: Record<string, unknown>, fields: ApplicationField[]) {
   const result: Record<string, unknown> = {};
   fields.forEach(field => {
-    const value = values[field.name];
+    const value = Object.prototype.hasOwnProperty.call(values, field.name) ? values[field.name] : undefined;
     if (value === undefined || value === null || value === '' || field.type === 'divider') return;
     if (field.type === 'dateRange') {
       const range = Array.isArray(value) ? value.map(item => dayjs.isDayjs(item) ? item.format('YYYY-MM-DD') : item) : value;
@@ -85,6 +90,11 @@ export function normalizeApprovalValues(values: Record<string, unknown>, fields:
       if (references.length) result[field.name] = references;
       return;
     }
+    if (field.type === 'table') {
+      const rows = convertApprovalTable(value, field.columns);
+      if (rows.length) result[field.name] = rows;
+      return;
+    }
     result[field.name] = dayjs.isDayjs(value) ? value.format(field.type === 'time' ? 'HH:mm' : 'YYYY-MM-DD') : value;
   });
   return result;
@@ -97,9 +107,11 @@ export function restoreApprovalValues(dataJson: string, fields: ApplicationField
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('PAGE_UI_FIELD_REJECTED');
   const restored: Record<string, unknown> = {};
   fields.forEach(field => {
-    const value = (parsed as Record<string, unknown>)[field.name];
+    const value = Object.prototype.hasOwnProperty.call(parsed, field.name) ? (parsed as Record<string, unknown>)[field.name] : undefined;
     if (value === undefined || field.type === 'divider') return;
-    if (isApplicationAttachmentField(field)) {
+    if (field.type === 'table') {
+      if (value !== null) restored[field.name] = convertApprovalTable(value, field.columns, { restoring: true });
+    } else if (isApplicationAttachmentField(field)) {
       if (value !== null) restored[field.name] = validateAttachments(value);
     } else if (isApplicationReferenceField(field)) {
       if (value !== null) restored[field.name] = validateReference(value);

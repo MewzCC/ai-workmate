@@ -544,6 +544,23 @@ public final class AgentReadResultPresenter {
             shown++;
             List<String> values = new ArrayList<>();
             field.path("values").forEach(value -> values.add(plain(value.asText())));
+            if (!field.path("redacted").asBoolean() && field.path("table").isObject()) {
+                var table = field.path("table");
+                values.add(MessageUtils.resolve("agent.application.tableRows", table.path("rows").size()));
+                int rowIndex = 0;
+                for (JsonNode row : table.path("rows")) {
+                    if (rowIndex++ >= 3) {
+                        values.add(MessageUtils.resolve("agent.application.detailMore"));
+                        break;
+                    }
+                    List<String> cells = new ArrayList<>();
+                    for (int column = 0; column < table.path("columns").size(); column++) {
+                        cells.add(plain(table.path("columns").get(column).path("label").asText())
+                                + ": " + plain(row.path(column).asText()));
+                    }
+                    values.add(String.join(" / ", cells));
+                }
+            }
             answer.append('\n').append(plain(field.path("label").asText())).append(": ")
                     .append(field.path("redacted").asBoolean() ? MessageUtils.resolve("agent.application.redacted")
                             : values.isEmpty() ? MessageUtils.resolve("agent.application.unfilled") : String.join(" · ", values));

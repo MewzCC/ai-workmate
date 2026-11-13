@@ -11,7 +11,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.SpyBean;
+import org.springframework.context.annotation.Import;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -21,7 +21,8 @@ import java.util.List;
 import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest(webEnvironment=SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(webEnvironment=SpringBootTest.WebEnvironment.RANDOM_PORT, properties="spring.main.allow-bean-definition-overriding=true")
+@Import(ManualDecisionWorkerConfiguration.class)
 class GenericCollaborationAgentIntegrationTest extends AbstractIsolatedAgentIntegrationTest {
     private static final AgentIntegrationEnvironment ENV=new AgentIntegrationEnvironment();
     private static final String SECRET=UUID.randomUUID().toString()+UUID.randomUUID();
@@ -33,7 +34,7 @@ class GenericCollaborationAgentIntegrationTest extends AbstractIsolatedAgentInte
     @Autowired ToolCatalog catalog;
     @Autowired AgentHashing hashing;
     @Autowired javax.sql.DataSource datasource;
-    @SpyBean AgentTaskWorker worker;
+    @Autowired AgentTaskWorker worker;
     private AgentHttpTestFixture http;
     private AgentHttpTestFixture.Actor reviewer,owner,target;
     private GenericTaskReadFixture.Submission submission;
@@ -45,7 +46,6 @@ class GenericCollaborationAgentIntegrationTest extends AbstractIsolatedAgentInte
         p.add("agent.worker.poll-delay-ms",()->"3600000");p.add("agent.worker.heartbeat-delay-ms",()->"3600000");
     }
     @BeforeEach void setup()throws Exception{
-        org.mockito.Mockito.doNothing().when(worker).wakeAfterCommit(org.mockito.ArgumentMatchers.any(com.aiworkmate.agent.task.AgentTaskQueuedEvent.class));
         tenant=jdbc.queryForObject("SELECT id FROM tenant WHERE code='DEFAULT'",Long.class);
         http=new AgentHttpTestFixture(jdbc,json,passwords,port,"en-US");
         reviewer=http.createAndLogin(tenant,List.of("route:todo","todo:read","approval:act","agent:tool:approval.genericTask.participants.query","agent:tool:approval.genericTask.transfer","agent:tool:approval.genericTask.cc"));

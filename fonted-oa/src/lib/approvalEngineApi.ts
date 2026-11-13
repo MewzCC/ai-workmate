@@ -1,4 +1,5 @@
 import { request, queryString, type PageResponse, type WorkflowTimelineItem } from '@/lib/oaApi';
+import type { ApprovalTableColumn } from '@/lib/approvalTable';
 export type ApprovalApplicationAgentField = Awaited<ReturnType<typeof approvalEngineApi.ownApplicationFields>>['fields'][number];
 
 // ==================== 表单引擎 ====================
@@ -11,7 +12,7 @@ export interface ApprovalApplicationTemplate {
   formName: string;
   description?: string | null;
   version: number;
-  fields: { name: string; label: string; type: string; required: boolean; placeholder?: string | null; options: string[]; width: string; min?: number | null }[];
+  fields: { name: string; label: string; type: string; required: boolean; placeholder?: string | null; options: string[]; width: string; min?: number | null; columns?: ApprovalTableColumn[] }[];
   process?: { id: number; processKey: string; processName: string; version: number; nodes: { nodeName: string; approveType?: string | null }[] } | null;
 }
 
@@ -190,7 +191,8 @@ export const approvalEngineApi = {
   ownApplicationFields: (id: number, fieldPage = 1) => request<{
     application: { applicationId: number; formName: string; formKey: string; status: ApprovalApplication['status']; version: number; submittedAt?: string | null };
     schemaSource: string; formVersion: number | null;
-    fields: { name: string; label: string; type: string; values: string[]; redacted: boolean }[];
+    fields: { name: string; label: string; type: string; values: string[]; redacted: boolean;
+      table?: { columns: { name: string; label: string; type: string }[]; rows: string[][] } }[];
     fieldsTotal: number; fieldPage: number;
   }>(`/approval-applications/mine/${id}/fields${queryString({ fieldPage })}`),
   listApplicationTemplates: (params: { keyword?: string; formKey?: string; page?: number; size?: number } = {}) =>

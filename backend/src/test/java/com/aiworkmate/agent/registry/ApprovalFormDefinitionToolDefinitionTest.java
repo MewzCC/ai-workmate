@@ -9,7 +9,7 @@ class ApprovalFormDefinitionToolDefinitionTest {
     @Test void acceptsOnlyOneIdentityAndReturnsBoundedNonExecutableFields() throws Exception {
         var mapper = new ObjectMapper(); var validator = new ToolSchemaValidator();
         var definition = new AgentReadToolDefinitions().approvalFormDefinitionQueryToolDefinition(mapper);
-        assertThat(definition.schemaHash()).isEqualTo("sha256:b91991992231bd332647b3c0942cba36cce1372e9b5d67692b2090366727e00f");
+        assertThat(definition.schemaHash()).isEqualTo("sha256:5012a7e1a3c3fc0dd2d2679805d85aa3575fc244d3f3e95c4ffbb1b0bb69f7b0");
         assertThat(definition.sideEffect()).isEqualTo(SideEffect.NONE);
         assertThat(definition.riskLevel()).isEqualTo(RiskLevel.L0);
         assertThat(definition.requiredPermissions()).containsExactly("approval:read");

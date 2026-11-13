@@ -6,6 +6,8 @@ import { useGenericApplicationForm } from '@/hooks/useGenericApplicationForm';
 import { isApplicationAttachmentField, isApplicationReferenceField, renderApplicationField, supportedApplicationField } from './approvalFormFields';
 import { ApprovalFormReferenceSelect } from './ApprovalFormReferenceSelect';
 import { ApprovalAttachmentField } from './ApprovalAttachmentField';
+import { ApprovalTableField } from './ApprovalTableField';
+import { convertApprovalTable } from '@/lib/approvalTable';
 
 const APPROVE_TYPE_LABEL_KEYS: Record<string, string> = {
   DIRECT_MANAGER: 'directManager', DEPARTMENT: 'department', USER: 'user',
@@ -110,6 +112,11 @@ export default function ApprovalFormPage() {
                       label={label}
                       rules={[
                         ...(field.required ? [{ required: true, message: t('approval.start.fieldRequired', { field: label }) }] : []),
+                        ...(field.type === 'table' && supportedApplicationField(field) ? [{ validator: (_: unknown, value: unknown) => {
+                          if (value == null) return Promise.resolve();
+                          try { convertApprovalTable(value, field.columns, { required: true }); return Promise.resolve(); }
+                          catch { return Promise.reject(new Error(t('approval.table.invalidRows'))); }
+                        } }] : []),
                         ...(['number', 'amount', 'money'].includes(field.type) ? [{ validator: (_: unknown, value: unknown) => {
                           if (value === undefined || value === null || value === '') return Promise.resolve();
                           const number = Number(value);
@@ -121,7 +128,8 @@ export default function ApprovalFormPage() {
                         ? t('approval.formPage.unsupportedControl', { field: label })
                         : undefined}
                     >
-                      {isApplicationAttachmentField(field) ? <ApprovalAttachmentField applicationId={draft?.id} fieldName={field.name}
+                      {field.type === 'table' && supportedApplicationField(field) ? <ApprovalTableField columns={field.columns ?? []} disabled={!editable || busy || confirming} />
+                        : isApplicationAttachmentField(field) ? <ApprovalAttachmentField applicationId={draft?.id} fieldName={field.name}
                         fieldType={field.type === 'image' ? 'image' : 'file'} active={editable && !loading} disabled={busy || confirming}
                         scope={JSON.stringify([user?.tenantId, user?.id, user?.permissionVersion, formKey, draft?.id, field.name])}
                         saveDraft={() => void saveDraft()} onBusy={attachmentBusyChanged}

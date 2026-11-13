@@ -5,6 +5,7 @@ import { approvalEngineApi } from '@/lib/approvalEngineApi';
 import { formatOaApiError } from '@/lib/oaApi';
 import { useScopedOverview } from '@/hooks/useScopedOverview';
 import { ApprovalAttachmentList } from './ApprovalAttachmentField';
+import { ApprovalTableDetail } from './ApprovalTableField';
 
 /** Bounded own-fields projection, shared by application entry and list pages. */
 export function ApplicationFieldsModal({ id, allowed, scope, revision = 0, processVersion, onClose }: {
@@ -35,6 +36,7 @@ export function ApplicationFieldsModal({ id, allowed, scope, revision = 0, proce
         ]} />
         <Descriptions size="small" bordered column={1} items={data.fields.map(field => ({ key: field.name, label: field.label,
           children: field.redacted ? t('approval.genericApplications.redacted')
+            : field.table ? <ApprovalTableDetail table={field.table} />
             : (field.type === 'file' || field.type === 'image') && id !== undefined
               ? <ApprovalAttachmentList applicationId={id} fieldName={field.name} ids={field.values} active={allowed}
                 scope={key} /> : field.values.join(', ') || '-' }))} />

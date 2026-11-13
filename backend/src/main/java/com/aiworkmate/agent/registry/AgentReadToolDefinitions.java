@@ -196,6 +196,8 @@ public class AgentReadToolDefinitions {
                         .path("properties").path("fields").deepCopy());
         ((com.fasterxml.jackson.databind.node.ObjectNode) output.at("/properties/fields/items/properties"))
                 .set("min", mapper.readTree("{\"type\":\"number\",\"minimum\":-1000000000000000,\"maximum\":1000000000000000}"));
+        ApprovalApplicationFieldSchemas.addColumnDefinitions(
+                (com.fasterxml.jackson.databind.node.ObjectNode) output.at("/properties/fields/items/properties"), mapper);
         return ToolDefinitionFactory.read(ToolCode.APPROVAL_FORM_DEFINITION_QUERY, "Read an approval form definition",
                 "Returns one authorized tenant form definition as bounded semantic fields and its current version.",
                 "Read one form definition only; never raw schema JSON, application values, scripts, URLs or another tenant's form.",

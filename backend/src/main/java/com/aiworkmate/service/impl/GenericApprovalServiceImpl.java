@@ -945,7 +945,7 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
 
     /**
      * 按 schema_json 校验表单数据：白名单字段、必填、类型与长度限制。
-     * 返回原样数据（仅结构校验，不改动业务取值），供统一序列化落库。
+     * 子表格数值使用无精度损失的十进制字符串，其余字段保持原业务取值，供统一序列化落库。
      */
     @Override
     @Transactional(readOnly = true)
@@ -973,6 +973,7 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
                                                  Map<String, Object> formData,
                                                  boolean enforceRequired, Long applicationId) {
         Map<String, FieldDef> defs = parseSchemaFields(form.getSchemaJson());
+        Map<String, Object> normalized = new java.util.LinkedHashMap<>(formData);
         for (String key : formData.keySet()) {
             if (!defs.containsKey(key)) {
                 throw new BusinessException(ErrorCode.REQUEST_INVALID,
@@ -984,8 +985,8 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
             boolean empty = value == null || (value instanceof String s && s.isBlank());
             if ("dateRange".equals(def.type()) || "checkbox".equals(def.type())
                     || "user".equals(def.type()) || "department".equals(def.type())
-                    || "file".equals(def.type()) || "image".equals(def.type())) {
-                empty = value == null || (Set.of("checkbox", "file", "image").contains(def.type())
+                    || "file".equals(def.type()) || "image".equals(def.type()) || "table".equals(def.type())) {
+                empty = value == null || (Set.of("checkbox", "file", "image", "table").contains(def.type())
                         && value instanceof List<?> list && list.isEmpty());
             }
             if (empty) {
@@ -995,17 +996,19 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
                 }
                 continue;
             }
-            if ("file".equals(def.type()) || "image".equals(def.type())) {
+            if ("table".equals(def.type())) {
+                normalized.put(def.name(), ApprovalTableData.normalize(value, def.tableColumns(), enforceRequired));
+            } else if ("file".equals(def.type()) || "image".equals(def.type())) {
                 if (!(value instanceof List<?> references)) throw invalidValue();
                 applicationAttachments.validateReferences(form.getTenantId(), applicationId, def.name(), def.type(), references);
             } else checkValueType(form.getTenantId(), def, value);
         }
-        String serialized = writeJson(formData);
+        String serialized = writeJson(normalized);
         if (serialized.length() > MAX_DATA_JSON_LENGTH) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID,
                     "validation.approval.submit.payloadTooLarge");
         }
-        return formData;
+        return normalized;
     }
 
     private void checkValueType(Long tenantId, FieldDef def, Object value) {
@@ -1150,8 +1153,11 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
                         field.path("type").asText("text"),
                         field.path("required").asBoolean(false),
                         List.copyOf(options),
-                        min));
+                        min, "table".equals(field.path("type").asText()) && field.has("columns")
+                                ? ApprovalTableData.columns(field) : List.of()));
             }
+        } catch (BusinessException invalidSchema) {
+            throw invalidSchema;
         } catch (Exception e) {
             // schema 非法按空结构处理：无字段定义时仅做未知键拦截之外的宽松校验
             return defs;
@@ -1349,7 +1355,7 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
     }
 
     private record FieldDef(String name, String label, String type, boolean required,
-                            List<String> options, BigDecimal min) {
+                            List<String> options, BigDecimal min, List<com.aiworkmate.dto.ApprovalTableColumn> tableColumns) {
     }
 
     private record DefinitionSnapshot(String formSchema,

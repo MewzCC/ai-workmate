@@ -137,7 +137,9 @@ public class ApprovalEngineServiceImpl implements ApprovalEngineService {
             AgentFormField field = fields.get(index);
             JsonNode min = root.path("fields").get(index).get("min");
             result.add(new ApprovalFormDefinitionResponse.Field(field.name(), field.label(), field.type(), field.required(),
-                    field.placeholder(), field.options(), field.width(), min == null ? null : min.decimalValue()));
+                    field.placeholder(), field.options(), field.width(), min == null ? null : min.decimalValue(),
+                    "table".equals(field.type()) && root.path("fields").get(index).has("columns")
+                            ? ApprovalTableData.columns(root.path("fields").get(index)) : List.of()));
         }
         return new ApprovalFormDefinitionResponse(form.getId(), form.getFormKey(), form.getFormName(),
                 form.getStatus(), form.getVersion(), result);
@@ -195,7 +197,7 @@ public class ApprovalEngineServiceImpl implements ApprovalEngineService {
                     .readTree(json);
             if (root == null || !root.isObject() || root.size() != 1 || !root.path("fields").isArray()
                     || root.path("fields").size() > 20) throw new BusinessException(ErrorCode.REQUEST_INVALID);
-            Set<String> allowed = Set.of("name", "key", "label", "type", "required", "placeholder", "options", "width", "min");
+            Set<String> allowed = Set.of("name", "key", "label", "type", "required", "placeholder", "options", "width", "min", "columns");
             for (JsonNode field : root.path("fields")) {
                 if (!field.isObject()) throw new BusinessException(ErrorCode.REQUEST_INVALID);
                 var names = field.fieldNames();
@@ -211,6 +213,10 @@ public class ApprovalEngineServiceImpl implements ApprovalEngineService {
                 if (!field.has("required")) normalized.put("required", false);
                 if (!field.has("options")) normalized.putArray("options");
                 if (!field.has("width")) normalized.put("width", "full");
+                if (field.has("columns")) {
+                    if (!"table".equals(field.path("type").asText())) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+                    ApprovalTableData.columns(field);
+                }
                 if (field.has("min") && (!field.get("min").isNumber()
                         || field.get("min").decimalValue().abs().compareTo(new java.math.BigDecimal("1000000000000000")) > 0
                         || !Set.of("number", "money").contains(field.path("type").asText()))) {
@@ -292,6 +298,7 @@ public class ApprovalEngineServiceImpl implements ApprovalEngineService {
     public ApprovalFormResponse createForm(Long userId, ApprovalFormRequest request) {
         ResolvedUserAccess actor = requirePermission(userId, "approval:manage");
         String schemaJson = requireJsonObject(request.schemaJson());
+        validateTableDefinitions(schemaJson);
         String formKey = request.formKey().trim();
         LocalDateTime now = LocalDateTime.now();
 
@@ -425,6 +432,7 @@ public class ApprovalEngineServiceImpl implements ApprovalEngineService {
         requireVersion(request.version());
         ApprovalForm form = requireForm(actor.tenantId(), id);
         String schemaJson = requireJsonObject(request.schemaJson());
+        validateTableDefinitions(schemaJson);
         requireKeyFree(formMapper.selectCount(new LambdaQueryWrapper<ApprovalForm>()
                 .eq(ApprovalForm::getTenantId, actor.tenantId())
                 .eq(ApprovalForm::getFormKey, request.formKey().trim())
@@ -1011,6 +1019,20 @@ public class ApprovalEngineServiceImpl implements ApprovalEngineService {
     private String agentFormSchema(List<AgentFormField> fields) {
         try {
             return objectMapper.writeValueAsString(Map.of("fields", fields));
+        } catch (JsonProcessingException exception) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.approval.json.invalid");
+        }
+    }
+
+    private void validateTableDefinitions(String schemaJson) {
+        try {
+            JsonNode root = objectMapper.readTree(schemaJson);
+            for (JsonNode field : root.path("fields")) {
+                if (field.has("columns")) {
+                    if (!"table".equals(field.path("type").asText())) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+                    ApprovalTableData.columns(field);
+                }
+            }
         } catch (JsonProcessingException exception) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.approval.json.invalid");
         }

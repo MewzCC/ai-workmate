@@ -16,6 +16,7 @@ import { genericApprovalTaskApi as api, type GenericApprovalTaskDetail, type Gen
 import { OaIcon } from '@/components/OaIcon';
 import ResponsiveTable from './ResponsiveTable';
 import { ApprovalAttachmentList } from './ApprovalAttachmentField';
+import { ApprovalTableDetail } from './ApprovalTableField';
 import GenericTaskCollaboration from './GenericTaskCollaboration';
 import { usePublishPageAgentContext } from './PageAgentContext';
 import { useRegisterPageUiCommands } from './PageUiCommandBridge';
@@ -93,6 +94,7 @@ function GenericTaskDrawer({ id, onClose, onUpdated }: { id: number; onClose: ()
       {data.blockedReason && <Alert type="warning" showIcon message={data.blockedReason} />}
       <Descriptions column={1} bordered size="small" items={data.fields.map(field => ({ key: field.name, label: field.label,
         children: field.redacted ? <Tag>{t('approval.genericApplications.redacted')}</Tag>
+          : field.table ? <ApprovalTableDetail table={field.table} />
           : field.type === 'file' || field.type === 'image'
             ? <ApprovalAttachmentList applicationId={data.task.applicationId} fieldName={field.name} ids={field.values}
               taskId={data.task.id} active={true} scope={`task:${data.task.id}:${data.task.version}`} />

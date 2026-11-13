@@ -3,6 +3,16 @@ import dayjs from 'dayjs';
 import { approvalUiFields, normalizeApprovalValues, restoreApprovalValues, supportedApplicationField, type ApplicationField } from './approvalFormFields';
 
 const field = (name: string, type: string): ApplicationField => ({ name, type, label: name, required: false, width: 'full', options: [] });
+it('round trips table draft data with exact money and reads only own application fields', () => {
+  const definition: ApplicationField = { ...field('constructor', 'table'), columns: [
+    { name: 'amount', label: 'Exact amount', type: 'money', required: true, options: [] },
+  ] };
+  expect(supportedApplicationField(definition)).toBe(false);
+  expect(restoreApprovalValues('{}', [definition])).toEqual({});
+  expect(normalizeApprovalValues({}, [definition])).toEqual({});
+  const restored = restoreApprovalValues('{"constructor":[{"amount":9007199254740993.01}]}', [definition]);
+  expect(normalizeApprovalValues(restored, [definition])).toEqual({ constructor: [{ amount: '9007199254740993.01' }] });
+});
 it('restores time and date using strict canonical values and drops removed fields', () => {
   const fields = [field('date', 'date'), field('time', 'time')];
   const values = restoreApprovalValues('{"date":"2026-11-03","time":"08:30","removed":"private"}', fields);

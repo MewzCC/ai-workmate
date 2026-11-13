@@ -22,4 +22,9 @@ public final class ApprovalApplicationTemplateQueryToolHandler
     @Override protected ApprovalConfigurationToolPort.Templates invoke(TrustedToolContext context, ApprovalConfigurationToolPort.TemplateQuery query) {
         return port.applicationTemplates(context.actor(), query);
     }
+    @Override protected JsonNode serializeResult(ApprovalConfigurationToolPort.Templates result) {
+        JsonNode output = super.serializeResult(result);
+        for (JsonNode item : output.path("items")) ApprovalFormToolJsonOutput.omitEmptyColumns(item.path("fields"));
+        return output;
+    }
 }

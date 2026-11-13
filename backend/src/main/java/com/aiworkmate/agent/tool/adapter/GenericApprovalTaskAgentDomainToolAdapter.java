@@ -51,7 +51,7 @@ public final class GenericApprovalTaskAgentDomainToolAdapter implements GenericA
         return new Detail(task.id(), task.applicationId(), task.applicantName(), task.formName(), task.title(),
                 task.nodeName(), task.status(), task.version(), detail.instanceStatus(), detail.applicationStatus(),
                 task.submittedAt(), task.dueAt(), task.overdue(), detail.fields().stream()
-                    .map(field -> new ApprovalApplicationToolPort.DetailField(field.name(), field.label(), field.type(), field.values(), field.redacted())).toList(),
+                    .map(ApprovalApplicationFieldMapping::map).toList(),
                 detail.totalFields(), detail.fieldPage(), GenericApprovalTaskService.AGENT_FIELD_PAGE_SIZE,
                 detail.canApprove(), detail.canReject(), detail.blockedReason(),task.parentTaskId(),task.addSignMode(),detail.canAddSign());
     }

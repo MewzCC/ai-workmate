@@ -1,4 +1,5 @@
 export default {
+  table: { defaultColumn: 'Detail column {{index}}', columnType: 'Column type', minimum: 'Minimum', configureColumns: 'Configure detail columns first', addRow: 'Add detail row', removeRow: 'Remove row', invalidRows: 'Check detail row fields, formats and required values', columns: 'Detail columns', addColumn: 'Add column', removeColumn: 'Remove column' },
   attachments: { preview: 'Preview image', upload: 'Upload attachment', saveFirst: 'Save a draft before uploading', download: 'Download', remove: 'Remove reference', downloadFailed: 'Unable to download attachment', limit: 'Up to 20 attachments per field', uploading: 'Uploading attachment. Please wait.', invalidResult: 'Invalid attachment receipt. Refresh to check the upload result.' },
   genericTasks: {
     preSignButton: 'Add pre-review', postSignButton: 'Add post-review', preSignScheduled: 'Pre-review scheduled; the original task awaits review', postSignScheduled: 'Post-review scheduled; it activates in order after the original task is approved',
