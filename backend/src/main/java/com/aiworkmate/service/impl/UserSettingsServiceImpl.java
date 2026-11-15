@@ -60,11 +60,11 @@ public class UserSettingsServiceImpl implements UserSettingsService {
     public ChatPreferencesResponse getChatPreferences(Long userId) {
         Map<String, UserSetting> settings = settings(userId);
         boolean initialized = settings.containsKey(KEY_CHAT_MODEL);
-        String model = value(settings, KEY_CHAT_MODEL, AiModelCatalog.DEFAULT_MODEL);
+        String model = value(settings, KEY_CHAT_MODEL, "default");
         try {
             model = AiModelCatalog.normalize(model);
         } catch (RuntimeException ignored) {
-            model = AiModelCatalog.DEFAULT_MODEL;
+            model = "default";
         }
         int rounds = parseRounds(value(settings, KEY_CHAT_CONTEXT_ROUNDS,
                 Integer.toString(DEFAULT_CONTEXT_ROUNDS)));

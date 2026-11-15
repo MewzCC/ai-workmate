@@ -15,7 +15,7 @@ export interface OcrSettings {
 }
 
 export interface ChatPreferences {
-  model: 'deepseek-v4-flash' | 'deepseek-v4-pro';
+  model: string;
   maxContextRounds: number;
   stream: boolean;
   forcePdfOcr: boolean;

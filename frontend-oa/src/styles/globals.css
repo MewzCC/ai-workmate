@@ -5115,52 +5115,80 @@ html.oa-wallpaper-active .ant-menu-submenu-popup .ant-menu-dark {
   flex-direction: column;
 }
 
-/* 系统设置：用主配置 + 辅助配置双栏填充工作区，避免宽屏单列堆叠。 */
+/* 系统设置：页头固定，配置按内容自然排布，所有卡片共用一层滚动。 */
 .oa-settings-page {
   display: grid;
   width: 100%;
   height: 100%;
   min-width: 0;
   min-height: 0;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 16px;
 }
 
-.oa-settings-heading h4 {
-  margin: 0 !important;
+.oa-settings-heading h4 { margin: 0 !important; }
+
+.oa-settings-content {
+  min-width: 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  padding-bottom: 60px;
+}
+
+.oa-settings-content > * + * { margin-top: 16px; }
+
+.oa-settings-preferences {
+  display: grid;
+  min-width: 0;
+  gap: 16px;
 }
 
 .oa-settings-grid {
   display: grid;
   min-width: 0;
-  min-height: 0;
-  grid-template-columns: minmax(0, 1.45fr) minmax(320px, .7fr);
-  grid-template-rows: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1.45fr) minmax(280px, .7fr);
+  grid-template-rows: auto auto;
   gap: 16px;
+  align-items: stretch;
 }
 
-.oa-settings-card.ant-card {
-  display: flex;
+.oa-settings-card.ant-card,
+.oa-provider-card.ant-card {
+  height: auto;
   min-width: 0;
-  min-height: 0;
-  flex-direction: column;
   margin: 0 !important;
   overflow: hidden;
+  border-color: var(--oa-border);
 }
 
-.oa-settings-card.ant-card > .ant-card-body {
-  min-height: 0;
-  flex: 1 1 auto;
-  overflow: auto;
+.oa-settings-card.ant-card > .ant-card-body,
+.oa-provider-card.ant-card > .ant-card-body {
+  height: auto;
+  overflow: visible;
 }
 
-.oa-settings-card--primary {
-  grid-row: 1 / -1;
-}
+.oa-provider-card.ant-card > .ant-card-head { min-height: 48px; }
+.oa-provider-card.ant-card > .ant-card-body { padding: 20px 24px; }
 
+.oa-provider-content { display: grid; min-width: 0; gap: 18px; }
+.oa-provider-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: 0 20px;
+  align-items: start;
+}
+.oa-provider-fields > .ant-form-item { min-width: 0; margin-bottom: 16px; }
+.oa-provider-fields .ant-form-item-extra { padding-top: 6px; font-size: 12px; }
+.oa-provider-actions { display: flex; justify-content: flex-end; }
+
+.oa-settings-card--primary { grid-row: 1 / -1; }
+.oa-settings-card .ant-form-item:last-child { margin-bottom: 0; }
 .oa-settings-actions {
   display: flex;
   justify-content: flex-end;
+  padding: 0 0 4px;
 }
 
 /* 剩余业务菜单统一台账：信息密集但保持清晰的企业操作台。 */
@@ -5279,19 +5307,6 @@ html.oa-wallpaper-active .ant-menu-submenu-popup .ant-menu-dark {
 }
 
 @media (max-width: 960px) {
-  .oa-settings-page {
-    height: auto;
-  }
-
-  .oa-settings-grid {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto;
-  }
-
-  .oa-settings-card--primary {
-    grid-row: auto;
-  }
-
   .oa-workbench-module-page {
     height: auto;
     grid-template-rows: auto;
@@ -6717,4 +6732,36 @@ html.oa-wallpaper-active .oa-ai-operation-drawer .ant-drawer-footer {
     padding: 0 4px;
     font-size: 12px;
   }
+}
+
+
+@media (max-width: 720px) {
+  .oa-settings-grid { grid-template-columns: minmax(0, 1fr); }
+  .oa-settings-card--primary { grid-row: auto; }
+  .oa-provider-card.ant-card > .ant-card-body { padding: 16px; }
+  .oa-provider-actions, .oa-settings-actions { justify-content: flex-start; }
+}
+
+.oa-provider-model-heading, .oa-provider-footer, .oa-model-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.oa-provider-model-heading { margin: 8px 0 16px; }
+.oa-provider-model-heading h5 { margin: 0 0 6px; }
+.oa-provider-model-heading > div { flex: 1 1 360px; }
+.oa-provider-model-heading .ant-typography-secondary { font-size: 12px; line-height: 1.6; }
+.oa-model-directory { min-width: 0; }
+.oa-model-toolbar { margin-bottom: 12px; }
+.oa-model-toolbar > .ant-input-search { flex: 1 1 240px; max-width: 400px; }
+.oa-model-id { font-family: var(--font-mono, monospace); overflow-wrap: anywhere; font-size: 12px; }
+.oa-provider-footer { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--oa-border); align-items: flex-end; }
+.oa-provider-footer > .ant-form-item { flex: 1 1 280px; max-width: 520px; margin: 0; }
+@media (max-width: 720px) {
+  .oa-provider-model-heading, .oa-provider-footer { align-items: stretch; }
+  .oa-provider-footer > .ant-form-item { max-width: none; }
+  .oa-provider-model-heading > div { flex-basis: 100%; }
+  .oa-provider-card .ant-card-head-wrapper { flex-wrap: wrap; gap: 8px; padding: 12px 0; }
 }

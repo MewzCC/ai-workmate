@@ -59,7 +59,7 @@ class ChatServiceImplTest {
     }
 
     @Test
-    void shouldRejectUnknownModelBeforePersistingMessages() {
+    void shouldRejectInvalidModelBeforePersistingMessages() {
         Conversation conversation = new Conversation();
         conversation.setId(2001L);
         conversation.setUserId(1001L);
@@ -67,7 +67,7 @@ class ChatServiceImplTest {
         when(aiRuntimeProperties.configured()).thenReturn(true);
 
         assertThatThrownBy(() -> chatService.chat(
-                1001L, "USER", 2001L, "你好", "unknown-model", null, List.of(), 10,
+                1001L, "USER", 2001L, "你好", "invalid model", null, List.of(), 10,
                 Locale.SIMPLIFIED_CHINESE))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("不支持的 AI 模型");

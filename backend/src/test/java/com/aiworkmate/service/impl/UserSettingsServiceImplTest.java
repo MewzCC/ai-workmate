@@ -75,7 +75,7 @@ class UserSettingsServiceImplTest {
 
         var response = settingsService.getChatPreferences(1001L);
 
-        assertThat(response.model()).isEqualTo("deepseek-v4-flash");
+        assertThat(response.model()).isEqualTo("default");
         assertThat(response.maxContextRounds()).isEqualTo(10);
         assertThat(response.stream()).isTrue();
         assertThat(response.forcePdfOcr()).isFalse();
