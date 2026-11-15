@@ -43,8 +43,10 @@
 .account-panel::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; background: linear-gradient(110deg, transparent 30%, #cbdcff30 44%, #ffffff90 50%, transparent 65%); background-size: 300% 100%; background-position: 100% 0; opacity: 0; }
 .mode-login .panel-login::after, .mode-register .panel-register::after { animation: card-light-sweep 1000ms ease both; }
 .account-content { width: 100%; min-width: 0; }
-.panel-login { transform: rotateY(0deg) translateZ(1px); }
-.panel-register { transform: rotateY(180deg) translateZ(1px); pointer-events: none; }
+.panel-login { transform: rotateY(0deg); }
+/* translateZ 会让 Chrome 对 3D 变换元素的命中测试产生偏移，桌面端点击登录会落到
+   下方的 form 上导致按钮无响应；翻面效果由 flip-card 的 rotateY 完成，无需位移。 */
+.panel-register { transform: rotateY(180deg); pointer-events: none; }
 .mode-register .panel-login { pointer-events: none; }
 .mode-register .panel-register { pointer-events: auto; }
 .account-eyebrow { display: block; color: #697f9d; font-size: 10px; letter-spacing: 1.4px; margin-bottom: 14px; }

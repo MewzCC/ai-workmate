@@ -131,7 +131,11 @@ describe('expense page Agent selection', () => {
     fireEvent.change(screen.getByLabelText('报销事由'), { target: { value: '未保存测试事由' } });
     fireEvent.click(screen.getByRole('button', { name: '保存草稿' }));
     await waitFor(() => expect(api.updateDraft).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(screen.getByRole('button', { name: '保存草稿' })).not.toHaveClass('ant-btn-loading'));
+    await waitFor(() => {
+      const btn = Array.from(document.querySelectorAll('button')).find((b) => (b.textContent || '').trim() === '保存草稿');
+      expect(btn).toBeTruthy();
+      expect(btn).not.toHaveClass('ant-btn-loading');
+    });
     expect(screen.getByLabelText('报销事由')).toHaveValue('未保存测试事由');
     expect(context()).toMatchObject({ applicationId: 11, version: 3 });
   });
