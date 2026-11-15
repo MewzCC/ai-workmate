@@ -175,6 +175,10 @@ jwt:
 # ========== 服务端口 ==========
 server:
   port: 8080
+  # 前端 nginx 与外层反向代理会改写 Host/协议，必须在容器内信任它们传来的
+  # X-Forwarded-* 头：否则 https 访问会被后端当作 http，导致 Origin 同源判定
+  # 失败并返回 403“权限不足”。
+  forward-headers-strategy: native
 
 # ========== 日志 ==========
 logging:
