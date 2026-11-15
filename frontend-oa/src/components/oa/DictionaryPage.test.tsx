@@ -152,7 +152,14 @@ it('does not navigate back to an old item after a pending save finishes', async 
   await waitFor(() => expect(context()).toMatchObject({ dictionaryItemId: 21 }));
   fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /编\s*辑/ }));
   await screen.findByLabelText('显示名称');
-  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /保\s*存/ }));
+  const save = within(screen.getByRole('dialog')).getByRole('button', { name: /保\s*存/ });
+  // 编辑器详情返回前按钮仍是 disabled，表单也没有初始值；慢速 CI runner 上直接点击会因
+  // validateFields 缺少必填项而静默中断，updateItem 始终不会被调用。先等表单与按钮就绪。
+  await waitFor(() => {
+    expect(screen.getByLabelText('显示名称')).toHaveValue(item.label);
+    expect(save).toBeEnabled();
+  }, { timeout: 10_000 });
+  fireEvent.click(save);
   await waitFor(() => expect(api.updateItem).toHaveBeenCalled());
   fireEvent.click(screen.getByRole('button', { name: '选择乙' }));
   await waitFor(() => expect(context()).toMatchObject({ dictionaryTypeId: 12, version: 8 }));

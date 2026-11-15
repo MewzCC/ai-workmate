@@ -38,7 +38,7 @@ class ProductionEnvironmentValidatorTest {
     }
 
     @Test
-    void shouldRejectMissingAiKeyInProduction() {
+    void shouldAllowOnlineAiSetupInProduction() {
         var validator = new ProductionEnvironmentValidator(
                 new MockEnvironment().withProperty("spring.profiles.active", "prod"),
                 "a-secure-random-jwt-secret-that-is-not-default",
@@ -46,8 +46,6 @@ class ProductionEnvironmentValidatorTest {
                 "development-only-unconfigured"
         );
 
-        assertThatThrownBy(validator::afterPropertiesSet)
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("AI_API_KEY");
+        assertThatCode(validator::afterPropertiesSet).doesNotThrowAnyException();
     }
 }

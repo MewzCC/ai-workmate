@@ -66,7 +66,7 @@ OA AI 接口不得再提供伪造成功的 mock 能力：
 - Phase 2A L0 从 PLAN_READY 原子入队；Phase 2B L1/L2 必须校验一次性 confirmationToken，不再依赖可伪造的 `confirm=true` 布尔值。
 - 当前旧 `POST /api/ai/tasks/execute` 仅允许在同版本迁移完成前存在，不得扩展新工具或保留伪成功兼容层。
 - 真实执行前必须完成鉴权、权限、幂等、审计和高风险确认。
-- 没有真实 `ChatClient`、`AI_API_KEY` 或业务依赖时必须返回可解释失败。
+- 没有真实 `ChatClient`、有效服务端 AI 配置或业务依赖时必须返回可解释失败；AI 配置优先从在线配置库读取，环境变量仅作为首次配置兼容。
 - 不得伪造真实审批、真实导出、真实上传成功。
 
 ## 安全

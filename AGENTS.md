@@ -166,7 +166,7 @@ docker compose -f docker-compose.yml up -d
 - 壁纸上传后必须先通过 `react-easy-crop` 与 Ant Design `Modal` 进入裁剪流程，支持拖动定位、缩放、旋转、比例切换和重置；仅在用户确认后压缩并持久化裁剪结果。
 - AI Chat Workspace 固定使用 `/oa/ai-workspace` 独立页面，包含会话侧栏、消息阅读区和底部输入器；不得实现为 FloatButton、Drawer 或悬浮卡片。
 - Workspace 会话、消息和附件必须调用受 JWT 保护的后端接口，服务端按认证 userId 校验所有权；禁止使用前端角色或 localStorage 会话数据替代鉴权。
-- API Key 与 AI 网关地址只允许服务端环境变量配置，禁止从设置页读取、回显或持久化到浏览器。
+- AI 服务配置由超级管理员通过系统设置在线管理，数据库优先，环境变量仅作首次配置兼容。API Key 加密保存于服务端，接口禁止回显密钥，浏览器禁止持久化密钥；Agent 不得读取或修改此配置。
 - 左侧 OA Sider 必须固定在视口左侧；页面滚动时不得跟随内容移动。
 - 左侧 Sider 滚动条默认隐藏，仅在鼠标移入侧栏时显示。
 - OA 图标必须通过 `frontend-oa/src/components/OaIcon.tsx` 的语义名称统一引用；已有图标优先使用项目本地 Iconfont Symbol，禁止在业务页面重复硬编码 Symbol ID。
@@ -232,3 +232,9 @@ docker compose -f docker-compose.yml up -d
 - AI/RAG/Agent 相关改动包含提示词、工具调用、安全边界和失败兜底。
 - OA 相关改动不破坏营销官网、旧登录、旧 ChatInterface 与 SSE 聊天链路。
 - 已运行可行的验证命令，并在最终说明中列出结果。
+
+## AI 在线配置
+
+系统设置中的平台 AI 服务配置仅允许实时拥有 SUPER_ADMIN 角色及 access:manage 权限的用户读写与测试。密钥 AES-GCM 加密入库，不回显、不写浏览器存储；修改需版本校验及事务审计。新请求立即使用当前配置，进行中的请求使用已获取的配置快照。模型 default 跟随后台默认值，自定义模型 ID 仅传给已配置的固定模型客户端；此接口不注册为 Agent 工具或页面表单指令。
+
+- AI 模型配置的 Base URL 回显包含 `/v1`；上游模型列表通过管理员受保护接口获取。仅保存勾选模型，聊天下拉从 `/api/ai/models` 读取；上下文预算、输出上限和原图能力必须由服务端重新校验，禁止仅前端展示开关。

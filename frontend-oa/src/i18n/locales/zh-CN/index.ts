@@ -1,3 +1,4 @@
+import aiConfiguration from './aiConfiguration';
 import common from './common';
 import oa from './oa';
 import dashboard from './dashboard';
@@ -31,6 +32,7 @@ import platformObservability from './platformObservability';
 import sandboxReplay from './sandboxReplay';
 
 const zhCN = {
+  aiConfiguration,
   common,
   oa,
   dashboard,

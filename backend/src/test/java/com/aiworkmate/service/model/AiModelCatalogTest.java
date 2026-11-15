@@ -24,8 +24,14 @@ class AiModelCatalogTest {
     }
 
     @Test
-    void shouldRejectUnknownModel() {
-        assertThatThrownBy(() -> AiModelCatalog.normalize("unknown-model"))
+    void shouldAllowCustomGatewayModelAndDefault() {
+        assertThat(AiModelCatalog.normalize("auto/deepseek-v4.1-flash")).isEqualTo("auto/deepseek-v4.1-flash");
+        assertThat(AiModelCatalog.normalize(null)).isEqualTo("default");
+    }
+
+    @Test
+    void shouldRejectInvalidModelSyntax() {
+        assertThatThrownBy(() -> AiModelCatalog.normalize("invalid model"))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("不支持的 AI 模型");
     }

@@ -4,10 +4,11 @@ import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, Select, Space, Tag, Typography } from 'antd';
 import { DatabaseOutlined, MenuOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
-import { AI_MODEL_OPTIONS, type AiModelId } from '@/config/aiModels';
+import { type AiModelId } from '@/config/aiModels';
 import type { KnowledgeBase } from '@/lib/knowledgeApi';
 import type { ChatAttachment, ChatComposerMode, ChatMessage } from '@/types/chat';
 import ChatInput from './ChatInput';
+import ModelSelector from './ModelSelector';
 import MessageList from './MessageList';
 import type { UploadProgressItem } from '@/store/aiChatStore';
 import type { AgentTaskDetail, AiTaskPlanResponse, PageCapability } from '@/types/oa';
@@ -77,14 +78,7 @@ export default function ChatWindow(props: ChatWindowProps) {
           onChange={(value) => props.onKbChange(value ?? null)}
           disabled={props.generating}
         />
-        <Select<AiModelId>
-          aria-label={t('chat.switchModel')}
-          className="ai-model-select"
-          value={props.model}
-          options={[...AI_MODEL_OPTIONS]}
-          onChange={props.onModelChange}
-          disabled={props.generating}
-        />
+        <ModelSelector value={props.model} onChange={props.onModelChange} disabled={props.generating} />
       </header>
       <div className="ai-chat-scroll" ref={scrollRef}>
         <MessageList messages={props.messages} onStarter={props.onSend} onRetry={props.onSend} />

@@ -40,8 +40,6 @@ public class ProductionEnvironmentValidator implements InitializingBean {
         if ("postgres".equals(databasePassword)) {
             throw new IllegalStateException("DB_PASSWORD must be configured for production");
         }
-        if (aiApiKey == null || aiApiKey.isBlank() || "development-only-unconfigured".equals(aiApiKey)) {
-            throw new IllegalStateException("AI_API_KEY must be configured for production");
-        }
+
     }
 }

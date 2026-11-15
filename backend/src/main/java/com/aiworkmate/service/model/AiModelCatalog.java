@@ -11,7 +11,6 @@ public final class AiModelCatalog {
     public static final String PRO_MODEL = "deepseek-v4-pro";
 
     private static final String LEGACY_MODEL = "deepseek-chat";
-    private static final Set<String> SUPPORTED_MODELS = Set.of(DEFAULT_MODEL, PRO_MODEL);
 
     /** 支持直接接收图片的多模态模型；接入视觉模型时在此登记 */
     private static final Set<String> MULTIMODAL_MODELS = Set.of();
@@ -20,11 +19,12 @@ public final class AiModelCatalog {
     }
 
     public static String normalize(String model) {
-        if (model == null || model.isBlank() || LEGACY_MODEL.equals(model.strip())) {
-            return DEFAULT_MODEL;
+        if (model == null || model.isBlank()) {
+            return "default";
         }
+        if (LEGACY_MODEL.equals(model.strip())) return DEFAULT_MODEL;
         String normalized = model.strip();
-        if (!SUPPORTED_MODELS.contains(normalized)) {
+        if (!normalized.matches("[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}")) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.chat.model.invalid");
         }
         return normalized;
