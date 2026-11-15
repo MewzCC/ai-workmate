@@ -81,10 +81,11 @@ describe('Dashboard approval entry workflow', () => {
   it('persists selected metrics in the configured order and reloads the dashboard', async () => {
     render(<Dashboard primaryColor="#1677ff" onOpenAi={vi.fn()} />);
     fireEvent.click(await screen.findByRole('button', { name: '配置指标' }));
-    fireEvent.click(screen.getByRole('checkbox', { name: '逾期待办' }));
-    fireEvent.click(screen.getByRole('checkbox', { name: '本人申请' }));
-    fireEvent.click(screen.getAllByRole('button', { name: '下移' })[0]);
-    fireEvent.click(screen.getByRole('button', { name: '保存' }));
+    // Modal 有进场动画，慢速 CI 上需等待内容挂载后再交互。
+    fireEvent.click(await screen.findByRole('checkbox', { name: '逾期待办' }));
+    fireEvent.click(await screen.findByRole('checkbox', { name: '本人申请' }));
+    fireEvent.click((await screen.findAllByRole('button', { name: '下移' }))[0]);
+    fireEvent.click(await screen.findByRole('button', { name: '保存' }));
 
     await waitFor(() => expect(mocks.updatePreferences).toHaveBeenCalledWith([
       'UNREAD_MESSAGES', 'PENDING_TODOS',
