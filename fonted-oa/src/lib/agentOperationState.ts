@@ -6,6 +6,13 @@ import { AuthResponseScopeError, captureAuthDataScope } from './authEvents';
 
 const TERMINAL: readonly AgentTaskStatus[] = ['SUCCEEDED', 'PARTIALLY_SUCCEEDED', 'FAILED', 'TIMED_OUT', 'REJECTED', 'EXPIRED', 'CANCELLED'];
 export const isAgentTaskTerminal = (status: AgentTaskStatus) => TERMINAL.includes(status);
+export const isAgentPlanPending = (status: AgentTaskStatus) => ['NEEDS_INPUT', 'PLAN_READY', 'WAITING_CONFIRMATION'].includes(status);
+
+export function isAgentClarificationPlan(plan: AiTaskPlanResponse): boolean {
+  return plan.status === 'NEEDS_INPUT' && plan.riskLevel === 'L0' && plan.confirmationRequired === false
+    && Array.isArray(plan.steps) && plan.steps.length === 0 && typeof plan.summary === 'string'
+    && plan.summary.trim().length > 0 && plan.summary.length <= 500;
+}
 
 export class AgentObservationPending extends Error {
   constructor(readonly detail: AgentTaskDetail) { super(i18n.t('chat.operationTimeout')); }
@@ -23,9 +30,13 @@ export function acceptedAgentTask(plan: AiTaskPlanResponse, accepted: AiTaskExec
 }
 
 export function restoreAgentPlan(detail: AgentTaskDetail): AiTaskPlanResponse {
-  if (!detail.planHash || !detail.planVersion || !detail.riskLevel || !detail.steps.length
-      || !['PLAN_READY', 'WAITING_CONFIRMATION'].includes(detail.status)) throw new Error(i18n.t('chat.operationPlanUnavailable'));
+  const question = detail.status === 'NEEDS_INPUT';
+  if (!detail.planHash || !detail.planVersion || !detail.riskLevel || (!question && !detail.steps.length)
+      || (question && (detail.steps.length !== 0 || detail.riskLevel !== 'L0'))
+      || !isAgentPlanPending(detail.status)) throw new Error(i18n.t('chat.operationPlanUnavailable'));
   const raw = detail.plan && typeof detail.plan === 'object' ? detail.plan as Record<string, unknown> : {};
+  if (question && (typeof raw.summary !== 'string' || !raw.summary.trim() || raw.summary.length > 500))
+    throw new Error(i18n.t('chat.operationPlanUnavailable'));
   return {
     taskId: detail.taskId, status: detail.status, planHash: detail.planHash, planVersion: detail.planVersion,
     riskLevel: detail.riskLevel, confirmationRequired: detail.riskLevel !== 'L0', expiresAt: detail.timeoutAt,

@@ -17,13 +17,13 @@ import { requireUiFieldTypes } from '@/lib/preparedPageUiCommand';
 import { requireUiPagination, uiDateRange } from '@/hooks/usePageUiEditorCommands';
 
 const STATUS_VALUES: AgentTaskStatus[] = [
-  'RECEIVED', 'PLANNING', 'PLAN_READY', 'WAITING_CONFIRMATION', 'QUEUED', 'RUNNING',
+  'RECEIVED', 'PLANNING', 'NEEDS_INPUT', 'PLAN_READY', 'WAITING_CONFIRMATION', 'QUEUED', 'RUNNING',
   'SUCCEEDED', 'PARTIALLY_SUCCEEDED', 'FAILED', 'TIMED_OUT', 'REJECTED', 'EXPIRED', 'CANCELLED',
 ];
 
 function statusColor(status: AgentTaskStatus): string {
   if (status === 'SUCCEEDED') return 'success';
-  if (status === 'PARTIALLY_SUCCEEDED' || status === 'WAITING_CONFIRMATION') return 'warning';
+  if (status === 'PARTIALLY_SUCCEEDED' || status === 'WAITING_CONFIRMATION' || status === 'NEEDS_INPUT') return 'warning';
   if (['FAILED', 'TIMED_OUT', 'REJECTED', 'EXPIRED'].includes(status)) return 'error';
   if (status === 'RUNNING' || status === 'QUEUED' || status === 'PLANNING') return 'processing';
   return 'default';

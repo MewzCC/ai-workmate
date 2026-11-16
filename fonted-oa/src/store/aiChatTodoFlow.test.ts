@@ -30,7 +30,7 @@ describe('AI Workspace governed OA operations', () => {
     useAiChatStore.setState({
       conversations: [], activeId: null, draftMode: true,
       messagesByConversation: {}, previewByConversation: {}, pendingAttachments: {},
-      uploading: {}, generatingIds: [], pendingPlans: {}, composerMode: 'operation', loading: false,
+      uploading: {}, generatingIds: [], pendingPlans: {}, operationTasks: {}, composerMode: 'operation', loading: false,
     });
     api.createConversation.mockResolvedValue({ id: 3, title: '新对话', model: 'deepseek-v4-flash', updatedAt: '', createdAt: '' });
     api.listConversations.mockResolvedValue([]);
@@ -39,6 +39,42 @@ describe('AI Workspace governed OA operations', () => {
       { id: 1, role: 'user', content: '查询本周会议室', status: 'success', attachments: [], citations: [] },
       { id: 2, role: 'assistant', content: '会议室查询完成。', status: 'success', sourceTaskNo: 'task-1', sourceToolCode: 'meeting.query', attachments: [], citations: [] },
     ]);
+  });
+
+  it('holds a question without execution and sends an automatic reply through a fresh governed plan', async () => {
+    useAiChatStore.setState({ composerMode: 'auto' });
+    api.planAiTask.mockResolvedValueOnce({ taskId: 'question-1', planVersion: 1, planHash: 'question-hash',
+      status: 'NEEDS_INPUT', riskLevel: 'L0', confirmationRequired: false, steps: [], summary: '请提供驳回理由。' });
+    await useAiChatStore.getState().send('请驳回当前任务');
+    expect(api.executeAiTask).not.toHaveBeenCalled();
+    expect(useAiChatStore.getState().pendingPlans[3]?.status).toBe('NEEDS_INPUT');
+    await useAiChatStore.getState().confirmOperation(3);
+    expect(api.issueAiTaskConfirmation).not.toHaveBeenCalled();
+    api.classifyAiIntent.mockClear();
+    api.planAiTask.mockResolvedValueOnce({ taskId: 'new-plan', planVersion: 1, planHash: 'new-hash',
+      status: 'WAITING_CONFIRMATION', riskLevel: 'L2', confirmationRequired: true,
+      summary: '驳回一项任务', steps: [{ sequence: 1, toolCode: 'approval.genericTask.reject', arguments: { comment: '资料不完整' } }] });
+    await useAiChatStore.getState().send('资料不完整');
+    expect(api.classifyAiIntent).not.toHaveBeenCalled();
+    expect(api.planAiTask).toHaveBeenLastCalledWith({ input: '资料不完整', pageId: 'ai-workspace', conversationId: 3,
+      clarificationTaskId: 'question-1' }, expect.any(String));
+    expect(useAiChatStore.getState().pendingPlans[3]?.taskId).toBe('new-plan');
+    expect(api.executeAiTask).not.toHaveBeenCalled();
+  });
+
+  it('reuses the continuation idempotency key after a lost planning response', async () => {
+    useAiChatStore.setState({ activeId: 3, draftMode: false, composerMode: 'auto', pendingPlans: {
+      3: { taskId: 'question-retry', planVersion: 1, planHash: 'question-hash', status: 'NEEDS_INPUT',
+        riskLevel: 'L0', confirmationRequired: false, expiresAt: null, steps: [], summary: '请提供理由。' },
+    } });
+    api.planAiTask.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce({ taskId: 'recovered-plan',
+      planVersion: 1, planHash: 'new-hash', status: 'WAITING_CONFIRMATION', riskLevel: 'L2', confirmationRequired: true,
+      steps: [{ toolCode: 'approval.genericTask.reject', arguments: {} }] });
+    await useAiChatStore.getState().send('资料不完整');
+    await useAiChatStore.getState().send('资料不完整');
+    expect(api.planAiTask).toHaveBeenCalledTimes(2);
+    expect(api.planAiTask.mock.calls[0][1]).toEqual(api.planAiTask.mock.calls[1][1]);
+    expect(api.executeAiTask).not.toHaveBeenCalled();
   });
 
   it('executes any server-validated L0 read plan and persists its concrete result', async () => {

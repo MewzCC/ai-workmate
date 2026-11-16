@@ -2,7 +2,8 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { AgentTaskDetail, AgentTaskStatus } from '@/types/oa';
 const api = vi.hoisted(() => ({ detail: vi.fn() }));
 vi.mock('./oaApi', async original => ({ ...await original<typeof import('./oaApi')>(), agentTaskApi: api }));
-import { AgentObservationPending, observeAgentTask } from './agentOperationState';
+import { AgentObservationPending, observeAgentTask, isAgentClarificationPlan, restoreAgentPlan } from './agentOperationState';
+import { canCancelAgentTask } from './agentTaskCancellation';
 import { bindAuthResponseIdentity, invalidateAuthResponses } from './authEvents';
 
 const task: AgentTaskDetail = {
@@ -71,4 +72,28 @@ it('rejects another task instead of presenting its state', async () => {
   const update = vi.fn();
   await expect(observeAgentTask(task.taskId, new AbortController().signal, update)).rejects.toThrow();
   expect(update).not.toHaveBeenCalled(); expect(api.detail).toHaveBeenCalledTimes(1);
+});
+
+const question: AgentTaskDetail = {
+  taskId: 'owned-question', pageId: 'ai-workspace', input: '驳回申请', pageContext: {},
+  plan: { summary: '请提供驳回理由。', clarificationDepth: 0, steps: [] },
+  planHash: 'bound-hash', planVersion: 1, riskLevel: 'L0', status: 'NEEDS_INPUT', steps: [],
+  timeoutAt: '2026-11-16T10:15:00Z', createdAt: '', updatedAt: '', finishedAt: null, errorCode: null,
+};
+
+it('restores a persisted question without inventing an executable step', () => {
+  const restored = restoreAgentPlan(question);
+  expect(isAgentClarificationPlan(restored)).toBe(true);
+  expect(restored.summary).toBe('请提供驳回理由。');
+  expect(restored.steps).toEqual([]);
+  expect(restored.confirmationRequired).toBe(false);
+  expect(restored.expiresAt).toBe(question.timeoutAt);
+  expect(canCancelAgentTask(restored.status)).toBe(true);
+});
+
+it('rejects question snapshots with an executable step or write-risk flag', () => {
+  expect(() => restoreAgentPlan({ ...question, riskLevel: 'L2' })).toThrow();
+  expect(() => restoreAgentPlan({ ...question, steps: [{ sequence: 1, toolCode: 'todo.query', arguments: {},
+    riskLevel: 'L0', status: 'PENDING', result: null, resultSummary: null, errorCode: null, startedAt: null, finishedAt: null }] })).toThrow();
+  expect(() => restoreAgentPlan({ ...question, plan: { summary: '' } })).toThrow();
 });

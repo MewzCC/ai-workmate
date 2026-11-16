@@ -3,6 +3,7 @@ package com.aiworkmate.agent.task;
 public enum AgentTaskStatus {
     RECEIVED,
     PLANNING,
+    NEEDS_INPUT,
     PLAN_READY,
     WAITING_CONFIRMATION,
     QUEUED,

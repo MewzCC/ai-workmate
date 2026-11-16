@@ -25,14 +25,14 @@ export default function AgentPlanPreview({ plan, status = plan.status, completed
       <div className="oa-ai-plan-heading">
         <Typography.Paragraph>{plan.summary}</Typography.Paragraph>
         <Space wrap>
-          <Tag color={plan.riskLevel === 'L2' ? 'red' : plan.riskLevel === 'L1' ? 'gold' : 'green'}>
+          {status !== 'NEEDS_INPUT' && <Tag color={plan.riskLevel === 'L2' ? 'red' : plan.riskLevel === 'L1' ? 'gold' : 'green'}>
             {plan.riskLevel}
-          </Tag>
+          </Tag>}
           <Tag color={statusColor(status)}>{t(`oa.ai.status.${status}`)}</Tag>
           {plan.confirmationRequired ? <Tag color="warning">{t('oa.ai.requireConfirmTag')}</Tag> : null}
         </Space>
       </div>
-      <Steps
+      {plan.steps.length > 0 && <Steps
         orientation="vertical"
         size="small"
         current={status === 'RUNNING' ? Math.max(0, completedSteps) : -1}
@@ -55,7 +55,7 @@ export default function AgentPlanPreview({ plan, status = plan.status, completed
             ),
           };
         })}
-      />
+      />}
     </div>
   );
 }

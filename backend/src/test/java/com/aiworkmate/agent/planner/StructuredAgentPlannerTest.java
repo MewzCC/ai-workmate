@@ -21,6 +21,34 @@ class StructuredAgentPlannerTest {
     private final AgentRuntimeProperties properties = new AgentRuntimeProperties();
 
     @Test
+    void acceptsAnExplicitQuestionWithNoExecutableStepsWithoutRetrying() {
+        AtomicInteger calls = new AtomicInteger();
+        PlannerModelClient model = (system, user) -> {
+            calls.incrementAndGet();
+            return "{\"summary\":\"需要补充理由\",\"clarification\":\"请提供驳回理由。\",\"steps\":[]}";
+        };
+        PlannerCandidate candidate = planner(model).plan("驳回申请", "todo", mapper.createObjectNode(), List.of(tool()));
+        assertThat(candidate.steps()).isEmpty();
+        assertThat(mapper.valueToTree(candidate).path("clarification").asText()).isEqualTo("请提供驳回理由。");
+        assertThat(calls).hasValue(1);
+    }
+
+    @Test
+    void questionsCannotSmuggleStepsOrBypassTheStrictShape() {
+        for (String raw : List.of(
+                "{\"summary\":\"empty\",\"steps\":[]}",
+                "{\"summary\":\"empty question\",\"clarification\":\"  \",\"steps\":[]}",
+                "{\"summary\":\"boolean question\",\"clarification\":true,\"steps\":[]}",
+                "{\"summary\":\"numeric question\",\"clarification\":12,\"steps\":[]}",
+                "{\"summary\":\"mixed\",\"clarification\":\"What?\",\"steps\":[{\"toolCode\":\"todo.query\",\"arguments\":{\"page\":1,\"size\":20}}]}",
+                "{\"summary\":\"long\",\"clarification\":\"" + "x".repeat(501) + "\",\"steps\":[]}",
+                "{\"summary\":\"unknown\",\"clarification\":\"What?\",\"steps\":[],\"execute\":true}")) {
+            assertThatThrownBy(() -> planner((system, user) -> raw).plan("input", "todo", mapper.createObjectNode(), List.of(tool())))
+                    .isInstanceOf(BusinessException.class);
+        }
+    }
+
+    @Test
     void acceptsStrictAllowedCandidate() throws Exception {
         PlannerModelClient model = (system, user) ->
                 "{\"summary\":\"查询我的待办\",\"steps\":[{\"toolCode\":\"todo.query\",\"arguments\":{\"page\":1,\"size\":20}}]}";

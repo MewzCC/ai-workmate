@@ -20,4 +20,9 @@ public class AiTaskPlanRequest {
     @jakarta.validation.constraints.Positive(message = "validation.agent.conversationId.positive")
     private Long conversationId;
 
+    @jakarta.validation.constraints.Pattern(
+            regexp = "[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}",
+            message = "{validation.agent.clarificationTaskId.invalid}")
+    private String clarificationTaskId;
+
 }

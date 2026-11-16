@@ -13,8 +13,10 @@ interface AgentOperationPlanCardProps {
 export default function AgentOperationPlanCard({ plan, executing, onConfirm, onDiscard }: AgentOperationPlanCardProps) {
   const { t } = useTranslation();
   const { modal } = App.useApp();
+  const question = plan.status === 'NEEDS_INPUT';
 
   const requestConfirm = () => {
+    if (question) return;
     modal.confirm({
       title: t('chat.operationConfirmTitle'),
       content: <Space orientation="vertical" size={10}>
@@ -29,16 +31,16 @@ export default function AgentOperationPlanCard({ plan, executing, onConfirm, onD
   };
 
   return (
-    <Card className="ai-operation-plan" size="small" title={t('chat.operationPlanTitle')}>
+    <Card className="ai-operation-plan" size="small" title={t(question ? 'chat.operationClarificationTitle' : 'chat.operationPlanTitle')}>
       <Alert
         type={plan.riskLevel === 'L2' ? 'warning' : 'info'}
         showIcon
-        title={t('chat.operationAwaitingConfirmation')}
-        description={t('chat.operationGatewayHint')}
+        title={t(question ? 'chat.operationClarificationPrompt' : 'chat.operationAwaitingConfirmation')}
+        description={t(question ? 'chat.operationClarificationHint' : 'chat.operationGatewayHint')}
       />
       <AgentPlanPreview plan={plan} />
       <Space wrap>
-        <Button
+        {!question && <Button
           type="primary"
           danger={plan.riskLevel === 'L2'}
           icon={<OaIcon name="ai" />}
@@ -46,7 +48,7 @@ export default function AgentOperationPlanCard({ plan, executing, onConfirm, onD
           onClick={requestConfirm}
         >
           {t('chat.operationConfirm')}
-        </Button>
+        </Button>}
         <Button disabled={executing} onClick={() => void onDiscard()}>{t('chat.operationDiscard')}</Button>
       </Space>
     </Card>

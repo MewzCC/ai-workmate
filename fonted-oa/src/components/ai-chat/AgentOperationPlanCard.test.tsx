@@ -15,6 +15,20 @@ const plan: AiTaskPlanResponse = {
 
 afterEach(async () => { cleanup(); await i18n.changeLanguage('zh-CN'); });
 
+it.each(['zh-CN', 'en-US'])('shows a question and cancellation but no execution control in %s', async (locale) => {
+  await i18n.changeLanguage(locale);
+  const confirm = vi.fn(); const discard = vi.fn().mockResolvedValue(undefined);
+  const question: AiTaskPlanResponse = { ...plan, status: 'NEEDS_INPUT', riskLevel: 'L0',
+    confirmationRequired: false, steps: [], summary: '请提供驳回理由。' };
+  render(<App><AgentOperationPlanCard plan={question} executing={false} onConfirm={confirm} onDiscard={discard} /></App>);
+  expect(screen.getByText(question.summary)).toBeTruthy();
+  expect(screen.getByText(i18n.t('chat.operationClarificationTitle'))).toBeTruthy();
+  expect(screen.queryByRole('button', { name: i18n.t('chat.operationConfirm') })).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: i18n.t('chat.operationDiscard') }));
+  await waitFor(() => expect(discard).toHaveBeenCalledOnce());
+  expect(confirm).not.toHaveBeenCalled();
+});
+
 it.each(['zh-CN', 'en-US'])('reviews the exact bounded plan inside the %s confirmation dialog before a write', async (locale) => {
   await i18n.changeLanguage(locale);
   const confirm = vi.fn().mockResolvedValue(undefined);

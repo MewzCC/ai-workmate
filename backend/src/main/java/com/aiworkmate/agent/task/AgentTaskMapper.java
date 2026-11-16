@@ -23,7 +23,7 @@ public interface AgentTaskMapper extends BaseMapper<AgentTask> {
     @Options(useGeneratedKeys = true, keyProperty = "id")
     int insertReceived(AgentTask task);
 
-    @Select("SELECT count(*) FROM agent_task WHERE tenant_id=#{tenantId} AND user_id=#{userId} AND conversation_id=#{conversationId} AND id<>COALESCE(#{excludedId,jdbcType=BIGINT},0) AND status IN ('RECEIVED','PLANNING','PLAN_READY','WAITING_CONFIRMATION','QUEUED','RUNNING')")
+    @Select("SELECT count(*) FROM agent_task WHERE tenant_id=#{tenantId} AND user_id=#{userId} AND conversation_id=#{conversationId} AND id<>COALESCE(#{excludedId,jdbcType=BIGINT},0) AND status IN ('RECEIVED','PLANNING','NEEDS_INPUT','PLAN_READY','WAITING_CONFIRMATION','QUEUED','RUNNING')")
     long countActiveForConversation(@Param("tenantId") Long tenantId, @Param("userId") Long userId,
                                     @Param("conversationId") Long conversationId, @Param("excludedId") Long excludedId);
 
@@ -71,14 +71,17 @@ public interface AgentTaskMapper extends BaseMapper<AgentTask> {
             UPDATE agent_task SET plan=CAST(#{plan} AS jsonb), plan_hash=#{planHash},
                 max_risk_level=#{riskLevel}, status=#{status}, planner_model=#{plannerModel},
                 prompt_version=#{promptVersion}, planning_latency_ms=#{latencyMs},
-                tool_call_count=#{toolCalls}, version=version+1, updated_at=CURRENT_TIMESTAMP
+                tool_call_count=#{toolCalls}, confirmation_expires_at=#{inputDeadline,jdbcType=TIMESTAMP},
+                timeout_at=CASE WHEN #{status}='NEEDS_INPUT' THEN #{inputDeadline,jdbcType=TIMESTAMP} ELSE timeout_at END,
+                version=version+1, updated_at=CURRENT_TIMESTAMP
             WHERE id=#{taskId} AND status='PLANNING' AND version=#{version}
             """)
     int finalizePlan(@Param("taskId") long taskId, @Param("version") long version,
                      @Param("plan") String plan, @Param("planHash") String planHash,
                      @Param("riskLevel") String riskLevel, @Param("status") String status,
                      @Param("plannerModel") String plannerModel, @Param("promptVersion") String promptVersion,
-                     @Param("latencyMs") long latencyMs, @Param("toolCalls") int toolCalls);
+                     @Param("latencyMs") long latencyMs, @Param("toolCalls") int toolCalls,
+                     @Param("inputDeadline") LocalDateTime inputDeadline);
 
     @Update("""
             UPDATE agent_task SET status='QUEUED', timeout_at=#{timeoutAt}, version=version+1,
@@ -158,7 +161,7 @@ public interface AgentTaskMapper extends BaseMapper<AgentTask> {
 
     @Select("""
             SELECT * FROM agent_task
-            WHERE status='WAITING_CONFIRMATION' AND confirmation_expires_at<=CURRENT_TIMESTAMP
+            WHERE status IN ('WAITING_CONFIRMATION','NEEDS_INPUT') AND confirmation_expires_at<=CURRENT_TIMESTAMP
             ORDER BY confirmation_expires_at, id FOR UPDATE SKIP LOCKED LIMIT #{limit}
             """)
     List<AgentTask> selectExpiredConfirmations(@Param("limit") int limit);
@@ -167,7 +170,7 @@ public interface AgentTaskMapper extends BaseMapper<AgentTask> {
             UPDATE agent_task SET status='EXPIRED', confirmation_token_hash=NULL,
                 confirmation_expires_at=NULL, finished_at=CURRENT_TIMESTAMP,
                 version=version+1, updated_at=CURRENT_TIMESTAMP
-            WHERE id=#{taskId} AND status='WAITING_CONFIRMATION' AND version=#{version}
+            WHERE id=#{taskId} AND status IN ('WAITING_CONFIRMATION','NEEDS_INPUT') AND version=#{version}
               AND confirmation_expires_at<=CURRENT_TIMESTAMP
             """)
     int expireConfirmation(@Param("taskId") Long taskId, @Param("version") Long version);

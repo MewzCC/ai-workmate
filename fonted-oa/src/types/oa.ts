@@ -89,12 +89,13 @@ export interface AiTaskPlanRequest {
   pageId: string;
   pageContext?: Record<string, unknown>;
   conversationId?: number;
+  clarificationTaskId?: string;
 }
 
 export type AgentRiskLevel = 'L0' | 'L1' | 'L2';
 
 export type AgentTaskStatus =
-  | 'RECEIVED' | 'PLANNING' | 'PLAN_READY' | 'WAITING_CONFIRMATION'
+  | 'RECEIVED' | 'PLANNING' | 'NEEDS_INPUT' | 'PLAN_READY' | 'WAITING_CONFIRMATION'
   | 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'PARTIALLY_SUCCEEDED'
   | 'FAILED' | 'TIMED_OUT' | 'REJECTED' | 'EXPIRED' | 'CANCELLED';
 

@@ -266,6 +266,7 @@ export default {
     aiReply: 'AI response',
     planTitle: 'Execution plan',
     planFromOtherPage: 'This plan belongs to another page. Return there to execute it.',
+    returnPlanPage: 'Return to original page',
     planSourcePage: 'Plan source: {{page}}. Navigation preserves the session, but a plan cannot be executed on another page.',
     requireConfirmTag: 'Confirmation needed',
     redactedArgument: 'Sensitive argument hidden',
@@ -297,7 +298,7 @@ export default {
     executionCompleted: 'AI task {{taskId}} completed: {{status}}',
     executionCompletedMessage: 'Task execution completed',
     status: {
-      RECEIVED: 'Received', PLANNING: 'Planning', PLAN_READY: 'Plan ready', WAITING_CONFIRMATION: 'Awaiting confirmation',
+      RECEIVED: 'Received', PLANNING: 'Planning', NEEDS_INPUT: 'Awaiting information', PLAN_READY: 'Plan ready', WAITING_CONFIRMATION: 'Awaiting confirmation',
       QUEUED: 'Queued', RUNNING: 'Running', SUCCEEDED: 'Succeeded', PARTIALLY_SUCCEEDED: 'Outcome needs review',
       FAILED: 'Failed', TIMED_OUT: 'Timed out', REJECTED: 'Rejected', EXPIRED: 'Expired', CANCELLED: 'Cancelled',
     },

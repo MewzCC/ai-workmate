@@ -243,7 +243,8 @@ class BusinessDocumentMetadataIntegrationTest extends AbstractIsolatedAgentInteg
             jdbc.update("UPDATE agent_tool SET enabled=true,name='Owned platform override',schema_hash=? WHERE tenant_id IS NULL AND code=?", unknownHash, employee);
             jdbc.update("DELETE FROM agent_tool WHERE tenant_id IS NULL AND code=?", seal);
             assertThat(jdbc.update("DELETE FROM flyway_schema_history WHERE version='202611131300'")).isEqualTo(1);
-            assertThat(flyway.migrate().migrationsExecuted).isEqualTo(1);
+            var replay = org.flywaydb.core.Flyway.configure().configuration(flyway.getConfiguration()).outOfOrder(true).load();
+            assertThat(replay.migrate().migrationsExecuted).isEqualTo(1);
             assertThat(jdbc.queryForObject("SELECT name FROM agent_tool WHERE tenant_id IS NULL AND code=?", String.class, employee)).isEqualTo("Owned platform override");
             assertThat(jdbc.queryForObject("SELECT schema_hash FROM agent_tool WHERE tenant_id IS NULL AND code=?", String.class, employee)).isEqualTo(unknownHash);
             assertThat(jdbc.queryForObject("SELECT enabled FROM agent_tool WHERE tenant_id IS NULL AND code=?", Boolean.class, employee)).isTrue();
