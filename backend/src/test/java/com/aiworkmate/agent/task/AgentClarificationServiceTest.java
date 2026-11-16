@@ -36,6 +36,16 @@ class AgentClarificationServiceTest {
         assertThat(continuation.input()).isEqualTo(request.getInput()); assertThat(continuation.source()).isNull();
         verifyNoInteractions(tasks, events);
     }
+    @Test void onlyTheBoundedStoredQuestionIsPassedBackToThePlanner() {
+        source.setPlan("{\"clarificationDepth\":0,\"summary\":\"请提供任务编号\"}");
+        var continuation = service.load(request, user);
+        assertThat(service.question(continuation)).isEqualTo("请提供任务编号");
+        for (String summary : List.of("null", "42", "\"\"", "\"" + "x".repeat(501) + "\"")) {
+            source.setPlan("{\"clarificationDepth\":0,\"summary\":" + summary + "}");
+            assertThatThrownBy(() -> service.question(continuation)).isInstanceOf(BusinessException.class);
+        }
+        verifyNoInteractions(events);
+    }
     @Test void continuationKeepsContextAndClosesOnlyTheLockedSourceAtItsVersion() throws Exception {
         var continuation = service.load(request, user);
         assertThat(continuation.input()).isEqualTo(source.getInput() + "\n\n" + request.getInput());

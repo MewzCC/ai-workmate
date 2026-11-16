@@ -61,6 +61,9 @@ class AgentClarificationIntegrationTest extends AbstractIsolatedAgentIntegration
         p.add("agent.confirmation.expiry-delay-ms", () -> "3600000");
     }
     @BeforeEach void setup() throws Exception {
+        when(planner.planContinuation(anyString(), anyString(), anyString(), anyString(), any(), anyList()))
+                .thenAnswer(call -> planner.plan(call.getArgument(0, String.class) + "\n\n" + call.getArgument(2, String.class),
+                        call.getArgument(3), call.getArgument(4), call.getArgument(5)));
         tenant = jdbc.queryForObject("SELECT id FROM tenant WHERE code='DEFAULT'", Long.class);
         http = new AgentHttpTestFixture(jdbc, json, passwords, port, "en-US");
         var permissions = List.of("route:ai-workspace", "route:todo", "approval:act", "todo:read",

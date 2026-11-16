@@ -96,7 +96,10 @@ public class AiTaskServiceImpl implements AiTaskService {
             throw new BusinessException(ErrorCode.INVALID_TASK_STATE);
 
         long started = System.nanoTime();
-        PlannerCandidate candidate = planner.plan(continuation.input(), request.getPageId(), safeContext, allowed);
+        PlannerCandidate candidate = continuation.source() == null
+                ? planner.plan(request.getInput(), request.getPageId(), safeContext, allowed)
+                : planner.planContinuation(continuation.source().getInput(), clarifications.question(continuation),
+                        request.getInput(), request.getPageId(), safeContext, allowed);
         Map<String, ToolDefinition> definitions = allowed.stream()
                 .collect(Collectors.toUnmodifiableMap(ToolDefinition::code, Function.identity()));
         BuiltPlan built = buildPlan(task.getId(), task.getTraceId(), candidate, definitions, continuation, task.getConversationId());

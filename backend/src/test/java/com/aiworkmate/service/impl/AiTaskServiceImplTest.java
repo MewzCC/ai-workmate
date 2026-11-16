@@ -71,6 +71,27 @@ class AiTaskServiceImplTest {
     }
 
     @Test
+    void continuationPassesTheOriginalQuestionAndRawReplySeparately() throws Exception {
+        var source = new AgentTask();
+        source.setId(87L); source.setTenantId(1L); source.setUserId(7L); source.setVersion(1L);
+        source.setTaskNo("00000000-0000-4000-8000-000000000003");
+        source.setPageId("todo-list"); source.setStatus("NEEDS_INPUT"); source.setTraceId("owned-trace");
+        source.setInput("查看某一页待办"); source.setPageContext("{}");
+        source.setPlan("{\"clarificationDepth\":0,\"summary\":\"请提供页码\"}");
+        source.setConfirmationExpiresAt(java.time.LocalDateTime.now().plusMinutes(10));
+        when(taskMapper.selectOwnedForUpdate(1L, 7L, source.getTaskNo())).thenReturn(source);
+        when(taskMapper.cancelOwned(87L, 1L, 7L, "NEEDS_INPUT", 1L)).thenReturn(1);
+        when(planner.planContinuation(anyString(), anyString(), anyString(), anyString(), any(), anyList()))
+                .thenReturn(new PlannerCandidate("查询第2页", List.of(new PlannerCandidate.Step("todo.query",
+                        mapper.readTree("{\"page\":2,\"size\":20}")))));
+        var request = new AiTaskPlanRequest();
+        request.setPageId("todo-list"); request.setInput("第2页"); request.setClarificationTaskId(source.getTaskNo());
+        assertThat(service.plan(request, "structured-reply", user()).status()).isEqualTo("PLAN_READY");
+        verify(planner).planContinuation(eq(source.getInput()), eq("请提供页码"), eq("第2页"), eq("todo-list"), any(), anyList());
+        verify(planner, never()).plan(anyString(), anyString(), any(), anyList());
+    }
+
+    @Test
     void combinedClarificationCannotExceedATightenedRuntimeInputBudget() {
         runtime.getLimits().setInputMaxBytes(1024);
         var source = new AgentTask();

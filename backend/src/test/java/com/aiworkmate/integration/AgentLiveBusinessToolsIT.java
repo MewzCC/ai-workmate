@@ -79,7 +79,7 @@ class AgentLiveBusinessToolsIT extends AbstractIsolatedAgentIntegrationTest {
         var applicant = http.createAndLogin(tenant, List.of());
         recipient = http.createAndLogin(tenant, List.of("approval:act", "todo:read", "route:todo"));
         name = jdbc.queryForObject("SELECT username FROM app_user WHERE id=?", String.class, recipient.id());
-        reason = "owned-live-" + UUID.randomUUID();
+        reason = "本次流程办理需要由指定人员复核（验收标识：" + UUID.randomUUID() + "）";
         jdbc.update("UPDATE agent_tenant_policy SET enabled=true,write_tools_enabled=true WHERE tenant_id=?", tenant);
         for (String code : CODES) jdbc.update("UPDATE agent_tool SET enabled=true WHERE tenant_id IS NULL AND code=?", code);
         generic = GenericTaskReadFixture.pending(jdbc, json, tenant, applicant.id(), actor.id(), "Owned live generic",
@@ -134,16 +134,102 @@ class AgentLiveBusinessToolsIT extends AbstractIsolatedAgentIntegrationTest {
 
     @ParameterizedTest(name = "real model selects and executes {0}") @MethodSource("scenarios")
     void realModelSelectsTheExactNewToolAndExecutesThroughTheGateway(Scenario scenario) throws Exception {
-        var request = json.createObjectNode().put("input", prompt(scenario)).put("pageId", "ai-workspace");
+        verifyScenario(scenario, "");
+    }
+
+    @ParameterizedTest(name = "real model clarifies and then executes {0}") @MethodSource("scenarios")
+    void realModelRequestsMissingCoordinatesBeforePlanningAndExecuting(Scenario scenario) throws Exception {
+        verifyScenario(scenario, "coordinates");
+    }
+
+    static Stream<Scenario> reasonScenarios() {
+        return scenarios().filter(s -> s.code().endsWith(".reject") || s.code().endsWith(".transfer")
+                || s.code().endsWith(".cc") || s.code().endsWith(".addSign"));
+    }
+
+    static Stream<Scenario> approvalScenarios() {
+        return scenarios().filter(s -> s.code().endsWith(".approve"));
+    }
+
+    @ParameterizedTest(name = "explicit approval is not reversed by a critical comment for {0}") @MethodSource("approvalScenarios")
+    void explicitApprovalIsNotReplacedWithRejection(Scenario scenario) throws Exception {
+        reason = "业务资料缺少必要签字，需要指定人员复核（验收标识：" + UUID.randomUUID() + "）";
+        verifyScenario(scenario, "");
+    }
+
+    @ParameterizedTest(name = "real model asks for the required reason before {0}") @MethodSource("reasonScenarios")
+    void realModelDoesNotInventAMissingReason(Scenario scenario) throws Exception {
+        verifyScenario(scenario, "reason");
+    }
+
+    private String missingCoordinates(Scenario scenario) {
+        return prompt(scenario)
+                .replace("这些是已核实的任务坐标，", "")
+                .replace("任务编号 " + taskId(scenario) + "，任务版本 " + version(scenario), "尚未指定任务编号和任务版本")
+                .replace("任务编号 " + generic.taskId(), "任务（尚未指定任务编号）")
+                .replace("员工编号 " + actor.id(), "员工（尚未指定员工编号）")
+                .replace("用印申请编号 " + ownUsage, "用印申请（尚未指定申请编号）");
+    }
+
+    private String answer(Scenario scenario, String missing) {
+        if (missing.equals("reason")) return reason;
+        return switch (scenario.code()) {
+            case "hr.employee.documents.query" -> "员工编号 " + actor.id();
+            case "seal.documents.query" -> "用印申请编号 " + ownUsage;
+            case "approval.genericTask.participants.query" -> "通用审批任务编号 " + generic.taskId();
+            default -> "任务编号 " + taskId(scenario) + "，任务版本 " + version(scenario);
+        };
+    }
+
+    private void verifyScenario(Scenario scenario, String missing) throws Exception {
+        boolean clarify = !missing.isEmpty();
+        String input = missing.equals("coordinates") ? missingCoordinates(scenario) : missing.equals("reason")
+                ? prompt(scenario).replace("，理由/意见原文：“" + reason + "”。", "。理由尚未提供。") : prompt(scenario);
+        var request = json.createObjectNode().put("input", input)
+                .put("pageId", "ai-workspace");
         request.putObject("pageContext");
         var response = send("POST", "/api/ai/tasks/plan", request.toString());
         assertThat(response.statusCode()).as("real model plan HTTP status").isEqualTo(200);
         var plan = json.readTree(response.body()).path("data");
-        assertThat(plan.path("status").asText()).isEqualTo(scenario.read() ? "PLAN_READY" : "WAITING_CONFIRMATION");
+        if (clarify) {
+            assertThat(plan.path("status").asText()).isEqualTo("NEEDS_INPUT");
+            assertThat(plan.path("riskLevel").asText()).isEqualTo("L0");
+            assertThat(plan.path("confirmationRequired").asBoolean()).isFalse();
+            assertThat(plan.path("steps")).isEmpty();
+            assertThat(plan.path("summary").asText()).isNotBlank();
+            String question = plan.path("taskId").asText();
+            String questionHash = plan.path("planHash").asText();
+            var proof = json.createObjectNode().put("planVersion", plan.path("planVersion").asInt())
+                    .put("planHash", questionHash);
+            for (String action : List.of("execute", "confirmation-token"))
+                assertThat(send("POST", "/api/ai/tasks/" + question + "/" + action, proof.toString()).statusCode())
+                        .as("question is not executable").isEqualTo(409);
+            unchanged();
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM agent_tool_invocation i JOIN agent_task t ON t.id=i.task_id WHERE t.task_no=?", Long.class, question)).isZero();
+            request.put("input", answer(scenario, missing)).put("clarificationTaskId", question);
+            response = send("POST", "/api/ai/tasks/plan", request.toString());
+            assertThat(response.statusCode()).as("complete reply HTTP status").isEqualTo(200);
+            plan = json.readTree(response.body()).path("data");
+            assertThat(plan.path("taskId").asText()).isNotEqualTo(question);
+            assertThat(plan.path("planHash").asText()).isNotEqualTo(questionHash);
+            assertThat(jdbc.queryForObject("SELECT status FROM agent_task WHERE task_no=?", String.class, question)).isEqualTo("CANCELLED");
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM agent_tool_invocation i JOIN agent_task t ON t.id=i.task_id WHERE t.task_no=?", Long.class, question)).isZero();
+        }
+        assertThat(plan.path("status").asText()).as("complete synthetic request still asks: %s", plan.path("summary").asText())
+                .isEqualTo(scenario.read() ? "PLAN_READY" : "WAITING_CONFIRMATION");
         assertThat(plan.path("riskLevel").asText()).isEqualTo(scenario.read() ? "L0" : "L2");
         assertThat(plan.path("confirmationRequired").asBoolean()).isEqualTo(!scenario.read());
-        assertThat(plan.path("steps")).hasSize(1);
+        int plannedSteps = plan.path("steps").size();
+        assertThat(plannedSteps).isBetween(1, 2);
         var step = plan.path("steps").get(0);
+        if (plannedSteps == 2) {
+            assertThat(scenario.code()).isIn("approval.genericTask.transfer", "approval.genericTask.cc", "approval.genericTask.addSign");
+            assertThat(step.path("toolCode").asText()).isEqualTo("approval.genericTask.participants.query");
+            assertThat(step.at("/arguments/taskId").asLong()).isEqualTo(generic.taskId());
+            assertThat(step.at("/arguments/purpose").asText()).isEqualTo(scenario.code().endsWith(".transfer") ? "TRANSFER"
+                    : scenario.code().endsWith(".cc") ? "CC" : "ADD_SIGN");
+            step = plan.path("steps").get(1);
+        }
         assertThat(step.path("toolCode").asText()).isEqualTo(scenario.code());
         var args = step.path("arguments");
         if (scenario.code().equals("approval.genericTask.participants.query")) {
@@ -180,17 +266,18 @@ class AgentLiveBusinessToolsIT extends AbstractIsolatedAgentIntegrationTest {
         assertThat(detail.statusCode()).isEqualTo(200);
         var task = json.readTree(detail.body()).path("data");
         assertThat(task.path("status").asText()).as("real business error=%s", task.path("errorCode").asText()).isEqualTo("SUCCEEDED");
-        var result = task.path("steps").get(0).path("result");
-        assertThat(task.path("steps").get(0).path("resultSummary").asText()).isNotBlank();
+        var result = task.path("steps").get(plannedSteps - 1).path("result");
+        assertThat(task.path("steps").get(plannedSteps - 1).path("resultSummary").asText()).isNotBlank();
         assertThat(result.toString()).doesNotContain("private-unread-key", "PRIVATE FORM VALUE");
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM agent_tool_invocation WHERE task_id=? AND handler_invoked AND outcome='SUCCEEDED'", Long.class, id)).isOne();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM agent_tool_invocation WHERE task_id=? AND handler_invoked AND outcome='SUCCEEDED'", Long.class, id)).isEqualTo((long) plannedSteps);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM agent_tool_invocation WHERE task_id=? AND tool_code=? AND handler_invoked", Long.class, id, scenario.code())).isOne();
         verifyResult(scenario, result);
         if (!scenario.read()) {
             assertThat(send("POST", path + "/execute", execute.toString()).statusCode()).isNotEqualTo(202);
             worker.poll();
-            assertThat(jdbc.queryForObject("SELECT count(*) FROM agent_tool_invocation WHERE task_id=? AND handler_invoked", Long.class, id)).isOne();
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM agent_tool_invocation WHERE task_id=? AND handler_invoked", Long.class, id)).isEqualTo((long) plannedSteps);
         }
-        System.out.println("Live business acceptance: " + scenario + " actual result, isolation and single invocation passed");
+        System.out.println("Live business acceptance: " + scenario + (clarify ? " clarification-" + missing + "," : "") + " actual result, isolation and one invocation per step passed");
     }
 
     private void verifyResult(Scenario s, JsonNode result) {

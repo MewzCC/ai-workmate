@@ -79,6 +79,13 @@ public class AgentClarificationService {
         return continuation.source() == null ? requestedContext : read(continuation.source().getPageContext());
     }
 
+    public String question(Continuation continuation) {
+        JsonNode question = read(continuation.source().getPlan()).path("summary");
+        if (!question.isTextual() || question.asText().isBlank() || question.asText().length() > 500)
+            throw new BusinessException(ErrorCode.INVALID_TASK_STATE);
+        return question.asText();
+    }
+
     public void decorate(ObjectNode plan, Continuation continuation, boolean question) {
         if (question || continuation.source() != null) plan.put("clarificationDepth", continuation.depth());
         if (continuation.source() != null) plan.put("clarificationTaskId", continuation.source().getTaskNo());
