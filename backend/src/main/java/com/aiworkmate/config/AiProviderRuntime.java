@@ -28,7 +28,26 @@ public class AiProviderRuntime {
     public boolean configured() { return mapper.load()!=null || fallback.environmentConfigured(); }
     public List<AiConfiguredModel> catalog() {
         var row=mapper.load();
-        return AiModelSettings.read(row, row==null ? defaultModel : (String)row.get("model"));
+        var result=new java.util.ArrayList<>(AiModelSettings.read(row, row==null ? defaultModel : (String)row.get("model")));
+        for(var channel:mapper.channels()) {
+            long id=((Number)channel.get("id")).longValue();
+            if(id==1) continue;
+            for(var model:AiModelSettings.read(channel,(String)channel.get("model")))
+                result.add(new AiConfiguredModel(id+"::"+model.id(),model.contextWindow(),model.maxOutputTokens(),model.supportsImages()));
+        }
+        return List.copyOf(result);
+    }
+    private Map<String,Object> resolve(String requested) {
+        if(requested==null || !requested.contains("::")) return mapper.load();
+        try {
+            long id=Long.parseLong(requested.substring(0,requested.indexOf("::")));
+            var row=mapper.channel(id);
+            if(id<1 || row==null || row.isEmpty()) throw new IllegalArgumentException();
+            return row;
+        } catch(RuntimeException e) { throw new BusinessException(ErrorCode.REQUEST_INVALID,"validation.chat.model.invalid"); }
+    }
+    private String upstreamId(String requested) {
+        return requested!=null && requested.contains("::") ? requested.substring(requested.indexOf("::")+2) : requested;
     }
     private AiConfiguredModel policy(Map<String,Object> row,String requested) {
         String id=requested==null || requested.isBlank() || "default".equals(requested)
@@ -37,7 +56,7 @@ public class AiProviderRuntime {
         return AiModelSettings.read(row,(String)row.get("model")).stream().filter(m -> m.id().equals(id)).findFirst()
                 .orElseThrow(() -> new BusinessException(ErrorCode.REQUEST_INVALID,"validation.chat.model.invalid"));
     }
-    public boolean supportsImages(String requested) { return policy(mapper.load(),requested).supportsImages(); }
+    public boolean supportsImages(String requested) { return policy(resolve(requested),upstreamId(requested)).supportsImages(); }
     public OpenAiChatModel model() {
         var row=mapper.load(); return create(row,policy(row,null));
     }
@@ -56,10 +75,11 @@ public class AiProviderRuntime {
         return OpenAiChatModel.builder().openAiApi(api).defaultOptions(OpenAiChatOptions.builder()
                 .model(model.id()).temperature(0.7).maxTokens(model.maxOutputTokens()).build()).build();
     }
-    public record Prepared(OpenAiChatModel model,Prompt prompt) {}
+    public record Prepared(OpenAiChatModel model,Prompt prompt,long channelId) {}
     public Prepared prepare(Prompt prompt) {
-        var row=mapper.load();
-        var selected=policy(row,prompt.getOptions()==null ? null : prompt.getOptions().getModel());
+        String requested=prompt.getOptions()==null ? null : prompt.getOptions().getModel();
+        var row=resolve(requested);
+        var selected=policy(row,upstreamId(requested));
         long budget=selected.contextWindow()-selected.maxOutputTokens();
         long estimate=32;
         for(var message:prompt.getInstructions()) {
@@ -70,7 +90,8 @@ public class AiProviderRuntime {
             }
         }
         if(estimate>budget) throw new BusinessException(ErrorCode.REQUEST_INVALID,"error.aiConfiguration.contextExceeded");
-        var options=OpenAiChatOptions.builder().model(selected.id()).maxTokens(selected.maxOutputTokens()).build();
-        return new Prepared(create(row,selected),new Prompt(prompt.getInstructions(),options));
+        var options=OpenAiChatOptions.builder().model(selected.id()).maxTokens(selected.maxOutputTokens()).streamUsage(true).build();
+        long channelId=row==null ? 0 : requested!=null && requested.contains("::") ? Long.parseLong(requested.substring(0,requested.indexOf("::"))) : 1;
+        return new Prepared(create(row,selected),new Prompt(prompt.getInstructions(),options),channelId);
     }
 }

@@ -30,6 +30,39 @@ public class AiConfigurationServiceImpl implements AiConfigurationService {
         return actor;
     }
     public AiConfigurationResponse get(Long id) { authorize(id); return response(); }
+    public List<AiChannelResponse> channels(Long id) {
+        authorize(id);
+        return mapper.channels().stream().map(this::channelResponse).toList();
+    }
+    private AiChannelResponse channelResponse(Map<String,Object> row) {
+        return new AiChannelResponse(((Number)row.get("id")).longValue(),(String)row.get("channel_name"),
+                new AiConfigurationResponse(AiModelSettings.versionedUrl((String)row.get("base_url")),(String)row.get("model"),true,
+                ((Number)row.get("version")).longValue(),"DATABASE",AiModelSettings.read(row,(String)row.get("model"))));
+    }
+    @Transactional
+    public AiChannelResponse saveChannel(Long userId,long channelId,AiChannelRequest channel) {
+        var actor=authorize(userId);
+        if(channelId<1 || channelId>999999) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        var request=channel.configuration();
+        var models=request.models()==null ? List.of(AiConfiguredModel.defaults(request.model())) : request.models();
+        if(models.isEmpty() || models.size()>200 || models.stream().map(AiConfiguredModel::id).distinct().count()!=models.size()
+                || models.stream().noneMatch(m -> m.id().equals(request.model()))
+                || models.stream().anyMatch(m -> m.maxOutputTokens()>=m.contextWindow() || m.id().contains("::")
+                    || (channelId!=1 && m.id().length()+Long.toString(channelId).length()+2>128)))
+            throw new BusinessException(ErrorCode.REQUEST_INVALID,"validation.aiConfiguration.models");
+        var old=mapper.channel(channelId);
+        String encrypted;
+        if(request.apiKey()==null || request.apiKey().isBlank()) {
+            if(old==null) throw new BusinessException(ErrorCode.REQUEST_INVALID,"validation.aiConfiguration.key");
+            encrypted=(String)old.get("encrypted_api_key");
+        } else encrypted=cipher.encrypt(credential(request.apiKey()));
+        String url=normalizeUrl(request.baseUrl());
+        int changed=request.version()==0 ? mapper.insertChannel(channelId,channel.name().strip(),url,request.model(),encrypted,userId,AiModelSettings.write(models))
+                : mapper.updateChannel(channelId,channel.name().strip(),url,request.model(),encrypted,userId,request.version(),AiModelSettings.write(models));
+        if(changed!=1) throw new BusinessException(ErrorCode.VERSION_CONFLICT);
+        audit.recordTransactional(actor.tenantId(),userId,"AI_CONFIGURATION",Long.toString(channelId),"UPDATE","SUCCESS","AI channel configuration updated");
+        return channelResponse(mapper.channel(channelId));
+    }
     private AiConfigurationResponse response() {
         var row=mapper.load();
         if(row==null) return new AiConfigurationResponse(runtime.baseUrl(),runtime.catalog().get(0).id(),false,0,"ENVIRONMENT",runtime.catalog());
@@ -47,11 +80,14 @@ public class AiConfigurationServiceImpl implements AiConfigurationService {
         } catch(RuntimeException e) { throw new BusinessException(ErrorCode.REQUEST_INVALID,"validation.aiConfiguration.url"); }
     }
     private String credential(String input) {
+        return credential(input,null);
+    }
+    private String credential(String input,Long channelId) {
         if(input!=null && !input.isBlank()) {
             if(input.chars().anyMatch(Character::isWhitespace)) throw new BusinessException(ErrorCode.REQUEST_INVALID,"validation.aiConfiguration.key");
             return input;
         }
-        var old=mapper.load();
+        var old=channelId==null ? mapper.load() : mapper.channel(channelId);
         if(old==null) throw new BusinessException(ErrorCode.REQUEST_INVALID,"validation.aiConfiguration.key");
         return cipher.decrypt((String)old.get("encrypted_api_key"));
     }
@@ -80,7 +116,7 @@ public class AiConfigurationServiceImpl implements AiConfigurationService {
     public List<AiConfiguredModel> discover(Long id,AiProviderProbeRequest request) {
         authorize(id);
         String url=normalizeUrl(request.baseUrl());
-        String key=credential(request.apiKey());
+        String key=credential(request.apiKey(),request.channelId());
         try {
             var connection=(java.net.HttpURLConnection)URI.create(url+"/models").toURL().openConnection();
             connection.setConnectTimeout(10000); connection.setReadTimeout(20000);
@@ -98,8 +134,8 @@ public class AiConfigurationServiceImpl implements AiConfigurationService {
                 for(var item:data) {
                     String name=item.path("id").asText("");
                     if(!name.matches("[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}")) continue;
-                    int context=Math.max(1024,Math.min(2097152,item.path("context_length").asInt(32768)));
-                    int output=Math.max(16,Math.min(Math.min(65536,context/2),item.path("max_output_tokens").asInt(4096)));
+                    int context=Math.max(1024,Math.min(2097152,item.path("context_window").asInt(item.path("context_length").asInt(32768))));
+                    int output=Math.max(16,Math.min(Math.min(393216,context-1),item.path("max_output_tokens").asInt(4096)));
                     models.put(name,new AiConfiguredModel(name,context,output,item.path("supports_images").asBoolean(false)));
                 }
                 if(models.isEmpty()) throw new IllegalStateException();
@@ -113,7 +149,7 @@ public class AiConfigurationServiceImpl implements AiConfigurationService {
         authorize(id);
         try {
             var model=request==null ? runtime.model() : AiProviderRuntime.createModel(normalizeUrl(request.baseUrl()),
-                    credential(request.apiKey()),new AiConfiguredModel(request.model(),32768,64,false));
+                    credential(request.apiKey(),request.channelId()),new AiConfiguredModel(request.model(),32768,64,false));
             if(request!=null && (request.model()==null || request.model().isBlank())) throw new IllegalArgumentException();
             String content=model.stream(new Prompt("Say hello briefly.")).map(response -> response.getResult()==null
                     || response.getResult().getOutput().getText()==null ? "" : response.getResult().getOutput().getText())
