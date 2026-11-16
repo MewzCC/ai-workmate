@@ -1,6 +1,26 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+.oa-usage-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); gap: 12px; }
+
+.oa-channel-section { display: grid; gap: 18px; min-width: 0; }
+.oa-channel-toolbar, .oa-channel-heading, .oa-channel-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.oa-channel-toolbar h4.ant-typography { margin: 0 0 4px; }
+.oa-channel-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); gap: 20px; }
+.oa-channel-card.ant-card { border-radius: 20px; border: 1px solid var(--oa-border); background: var(--oa-card); box-shadow: 0 3px 12px color-mix(in srgb, var(--oa-text) 5%, transparent); }
+.oa-channel-card.ant-card > .ant-card-body { display: flex; flex-direction: column; gap: 18px; padding: 22px; height: 100%; }
+.oa-channel-card.oa-channel-selected { border-color: var(--oa-primary); box-shadow: 0 0 0 2px color-mix(in srgb, var(--oa-primary) 12%, transparent); }
+.oa-channel-identity { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; }
+.oa-channel-identity > .ant-typography { min-width: 0; font-size: 16px; }
+.oa-channel-avatar { display: grid; place-items: center; flex: 0 0 36px; height: 36px; border-radius: 11px; color: var(--oa-primary); background: color-mix(in srgb, var(--oa-primary) 9%, transparent); }
+.oa-channel-heading .ant-tag, .oa-channel-badges .ant-tag { margin-inline-end: 0; border-radius: 12px; }
+.oa-channel-details { display: grid; gap: 14px; margin: 0 0 10px; flex: 1; font-size: 13px; }
+.oa-channel-details > div { display: grid; grid-template-columns: 90px minmax(0, 1fr); gap: 12px; }
+.oa-channel-details dt { color: var(--oa-muted); }
+.oa-channel-details dd { margin: 0; overflow-wrap: anywhere; color: var(--oa-text); }
+.oa-channel-actions { border-top: 1px solid var(--oa-border); padding-top: 16px; }
+.oa-channel-actions > .ant-typography { font-size: 12px; }
+.oa-wallpaper-active .oa-channel-card.ant-card { background: color-mix(in srgb, var(--oa-card) 78%, transparent); backdrop-filter: blur(18px); }
 
 :root {
   --font-geist-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
@@ -5173,6 +5193,7 @@ html.oa-wallpaper-active .ant-menu-submenu-popup .ant-menu-dark {
 .oa-provider-card.ant-card > .ant-card-body { padding: 20px 24px; }
 
 .oa-provider-content { display: grid; min-width: 0; gap: 18px; }
+.oa-provider-content > * { min-width: 0; }
 .oa-provider-fields {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
