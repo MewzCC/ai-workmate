@@ -12,39 +12,35 @@
 
 ## 界面预览
 
-以下为真实运行页面截图。OA 使用一次性隔离 PostgreSQL / Redis 环境和合成演示账号；资产、通知及会话内容仅用于展示，不包含真实用户资料。AI 截图中的示例答复由夹具写入，不代表真实模型调用或业务执行。
+先看下面六张截图，了解官网入口、登录、工作台布局、AI 对话、图表和业务列表。**点击任意截图可查看原图。**
+
+> 官网与登录页截图采集于 **2026-11-17**；工作台业务截图来自 **2026-11-04** 的隔离演示环境，仅作布局参考。截图不含真实用户资料；AI 示例消息由夹具写入，不代表真实模型调用或业务执行。版本和数据来源见[截图说明](docs/images/readme/README.md)。
+
+### 官网与登录入口
+
+| 独立营销官网 | OA 登录页 |
+| --- | --- |
+| [![AI WorkMate 官网：产品介绍与工作台入口](docs/images/readme/marketing.jpg)](docs/images/readme/marketing.jpg) | [![OA 登录页：工作空间介绍与空白登录表单](docs/images/readme/auth.jpg)](docs/images/readme/auth.jpg) |
+| 展示产品理念和体验片段，提供进入工作台的入口。 | 独立 OA 的统一登录入口，截图未填写账号或密码。 |
 
 ### 平台观测看板
 
-![平台观测看板：调用流量、运行指标与 ECharts 图表](docs/images/readme/platform-observability.jpg)
+查看调用流量、成功率、耗时和异常分布，支持切换图表类型与调整看板布局。
 
-<details>
-<summary><strong>AI 工作空间：会话与消息阅读</strong></summary>
+[![平台观测看板：运行指标、调用趋势与 ECharts 图表](docs/images/readme/platform-observability.jpg)](docs/images/readme/platform-observability.jpg)
 
-![AI 工作空间：服务端会话与消息展示](docs/images/readme/ai-workspace.jpg)
+### 工作台与 AI 对话
 
-</details>
+| 企业驾驶舱 | AI 工作空间 |
+| --- | --- |
+| [![企业驾驶舱：指标卡片、待办摘要与工作入口](docs/images/readme/dashboard.jpg)](docs/images/readme/dashboard.jpg) | [![AI 工作空间：会话列表、消息阅读与输入区域](docs/images/readme/ai-workspace.jpg)](docs/images/readme/ai-workspace.jpg) |
+| 集中查看本人待办、申请、消息和业务趋势。 | 独立会话侧栏、消息阅读区与底部输入器，提供聊天和受控 OA 操作入口。 |
 
-<details>
-<summary><strong>企业驾驶舱：业务指标与工作入口</strong></summary>
+### 资产台账
 
-![企业驾驶舱：当前账号指标与待办摘要](docs/images/readme/dashboard.jpg)
+使用统一侧栏、访问页签、搜索筛选和业务表格管理资产，查看状态及可用操作。
 
-</details>
-
-<details>
-<summary><strong>资产台账：状态、保管人与业务操作</strong></summary>
-
-![资产台账：隔离测试库中的演示资产](docs/images/readme/asset-ledger.jpg)
-
-</details>
-
-<details>
-<summary><strong>独立营销官网</strong></summary>
-
-![AI WorkMate 营销官网](docs/images/readme/marketing.jpg)
-
-</details>
+[![资产台账：搜索筛选、资产状态与业务操作](docs/images/readme/asset-ledger.jpg)](docs/images/readme/asset-ledger.jpg)
 
 ## 业务能力
 
