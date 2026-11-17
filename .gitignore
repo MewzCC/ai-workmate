@@ -5,6 +5,7 @@ frontend-main/node_modules/
 frontend-oa/node_modules/
 
 # Next.js / frontend build output
+.vite/
 .next/
 frontend/.next/
 frontend/.next-home/

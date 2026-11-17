@@ -101,7 +101,8 @@ class AgentDomainToolAdaptersTest {
         organizationAdapter = new HrOrganizationAgentDomainToolAdapter(hrService);
         attendanceAdapter = new AttendanceAgentDomainToolAdapter(attendanceService);
         visitorAdapter = new VisitorAgentDomainToolAdapter(adminAssetsService);
-        sealAdapter = new SealAgentDomainToolAdapter(adminAssetsService);
+        sealAdapter = new SealAgentDomainToolAdapter(adminAssetsService,
+                org.mockito.Mockito.mock(com.aiworkmate.service.SealUsageDocumentService.class));
         knowledgeAdapter = new KnowledgeAgentDomainToolAdapter(knowledgeService, knowledgeBaseService);
         notificationAdapter = new NotificationAgentDomainToolAdapter(notificationService);
     }
@@ -483,7 +484,7 @@ class AgentDomainToolAdaptersTest {
     @Test
     void mapsVisitorSummaryWithoutPhonePlateOrInternalIdentities() {
         LocalDateTime now = LocalDateTime.of(2026, 9, 14, 9, 30);
-        when(adminAssetsService.listMyVisitorBookings(7L, "APPROVED", 1, 20))
+        when(adminAssetsService.listMyVisitorBookings(7L, 91L, "APPROVED", 1, 20))
                 .thenReturn(PageResponse.of(List.of(new VisitorBookingResponse(
                         31L, 7L, "申请人", 8L, "审批人", 9L, "接待人",
                         "访客", "合作公司", "13800000000", "项目交流", now.plusDays(1),
@@ -499,9 +500,11 @@ class AgentDomainToolAdaptersTest {
 
         assertThat(result.items()).hasSize(1);
         assertThat(result.items().get(0).visitorName()).isEqualTo("访客");
+        assertThat(result.items().get(0).taskId()).isNull();
+        assertThat(result.items().get(0).taskVersion()).isNull();
         assertThat(result.toString()).doesNotContain(
                 "13800000000", "粤A00000", "applicantUserId", "hostUserId",
-                "workflowInstanceId", "taskId");
+                "workflowInstanceId");
     }
 
     @Test
@@ -644,7 +647,7 @@ class AgentDomainToolAdaptersTest {
     @Test
     void mapsSealSummaryWithoutWorkflowOrStorageMetadata() {
         LocalDateTime now = LocalDateTime.of(2026, 9, 14, 10, 0);
-        when(adminAssetsService.getSealUsage(7L, 41L)).thenReturn(new SealUsageResponse(
+        when(adminAssetsService.getSealUsage(7L, 91L, 41L)).thenReturn(new SealUsageResponse(
                 41L, 7L, "申请人", 8L, "审批人", "公章", "采购合同", "签约", 2,
                 "APPROVED", 5, 201L, 202L, 6, "APPROVED", now.minusHours(2), now.minusHours(1),
                 null, null, null, null, null, now.minusDays(1), now,
@@ -656,8 +659,10 @@ class AgentDomainToolAdaptersTest {
 
         assertThat(result.items()).hasSize(1);
         assertThat(result.items().get(0).documentTitle()).isEqualTo("采购合同");
+        assertThat(result.items().get(0).taskId()).isNull();
+        assertThat(result.items().get(0).taskVersion()).isNull();
         assertThat(result.toString()).doesNotContain(
-                "workflowInstanceId", "taskId", "storage", "objectKey");
+                "workflowInstanceId", "storage", "objectKey");
     }
 
     @Test

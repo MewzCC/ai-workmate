@@ -26,15 +26,17 @@ class AgentReadToolDefinitionsTest {
         ToolDefinition visitor = new AgentReadToolDefinitions().visitorQueryToolDefinition(mapper);
         ToolDefinition seal = new AgentReadToolDefinitions().sealQueryToolDefinition(mapper);
         assertThat(visitor.schemaHash()).isEqualTo(
-                "sha256:0ee54fb81f4e29f20108018ac3449c19f747fa481249a87b67d06d8e8479891e");
+                "sha256:2a4a406ac690c685b4df2397e1fe65090b12c043471f2d03bab0f07f24bb2844");
         assertThat(seal.schemaHash()).isEqualTo(
-                "sha256:9f896eeb4041562e8c0a7d33ed8117af6c9be6f91d71ce3c763a59d3ce3c0175");
+                "sha256:b44aae05e49a951b29dbcc25335a9852da4ba06565b8af39f011a6f26fae6584");
         assertThat(visitor.requiredPermissions()).containsExactly("visitor:read:self");
         assertThat(seal.requiredPermissions()).containsExactly("seal:read:self");
         assertThat(visitor.outputSchema().toString())
-                .doesNotContain("visitorPhone", "plateNumber", "UserId", "workflowInstanceId", "taskId");
+                .doesNotContain("visitorPhone", "plateNumber", "UserId", "workflowInstanceId");
+        assertThat(visitor.outputSchema().at("/properties/items/items/properties/taskVersion/maximum").asInt()).isEqualTo(Integer.MAX_VALUE-1);
         assertThat(seal.outputSchema().toString())
-                .doesNotContain("storage", "documentId", "UserId", "workflowInstanceId", "taskId");
+                .doesNotContain("storage", "documentId", "UserId", "workflowInstanceId");
+        assertThat(seal.outputSchema().at("/properties/items/items/properties/taskVersion/maximum").asInt()).isEqualTo(Integer.MAX_VALUE-1);
         assertThat(validator.valid(visitor.inputSchema(), mapper.readTree("{\"bookingId\":7}"))).isTrue();
         assertThat(validator.valid(visitor.inputSchema(), mapper.readTree(
                 "{\"bookingId\":7,\"queue\":\"MINE\"}"))).isFalse();
@@ -191,7 +193,7 @@ class AgentReadToolDefinitionsTest {
 
         assertThat(definition.code()).isEqualTo("todo.query");
         assertThat(definition.schemaHash()).isEqualTo(
-                "sha256:60764cd0dbafbad1eb753e565a3424e70f89b6232c28e411009bf95066037771");
+                "sha256:2439f3d4f40632017737b60f9e821111762befa3a669be4e4779a84810f53671");
         assertThat(definition.requiredPermissions()).containsExactly("todo:read");
         assertThat(definition.ownershipPolicy()).isEqualTo(OwnershipPolicy.ASSIGNED_TO_SELF);
         assertThat(definition.riskLevel()).isEqualTo(RiskLevel.L0);

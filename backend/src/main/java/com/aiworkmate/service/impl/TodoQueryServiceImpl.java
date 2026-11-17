@@ -10,6 +10,7 @@ import com.aiworkmate.service.TodoQueryService;
 import com.aiworkmate.service.UserAccessService;
 import com.aiworkmate.service.model.BusinessCandidateQuery;
 import com.aiworkmate.service.model.ResolvedUserAccess;
+import com.aiworkmate.service.model.TodoReadScope;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,16 +28,18 @@ public class TodoQueryServiceImpl implements TodoQueryService {
         ResolvedUserAccess actor=actor(userId,expectedTenantId); new BusinessCandidateQuery(null,page,size);
         String type=businessType==null || businessType.isBlank() ? "ALL" : businessType;
         String state=status==null ? "PENDING" : status.isBlank() ? "ALL" : status;
-        if(size>50 || !Set.of("ALL","LEAVE_APPLICATION","GENERIC_APPROVAL").contains(type)
+        if(size>50 || !TodoReadScope.BUSINESS_TYPES.contains(type)
                 || !Set.of("ALL","PENDING","APPROVED","REJECTED","CANCELLED").contains(state)
                 || from!=null && to!=null && from.isAfter(to)) throw new BusinessException(ErrorCode.REQUEST_INVALID);
-        return new TodoQueryResult(mapper.mine(actor.tenantId(),actor.userId(),type,state,from,to,size,(page-1L)*size).stream().map(this::avatar).toList(),
-                mapper.count(actor.tenantId(),actor.userId(),type,state,from,to),page,size,type,state,from,to);
+        TodoReadScope scope=TodoReadScope.from(actor);
+        if(!scope.allows(type))throw new BusinessException(ErrorCode.PERMISSION_DENIED);
+        return new TodoQueryResult(mapper.mine(actor.tenantId(),actor.userId(),scope,type,state,from,to,size,(page-1L)*size).stream().map(this::avatar).toList(),
+                mapper.count(actor.tenantId(),actor.userId(),scope,type,state,from,to),page,size,type,state,from,to);
     }
     @Override public UnifiedTodoResponse summary(Long userId,Long expectedTenantId,Long taskId) {
         ResolvedUserAccess actor=actor(userId,expectedTenantId);
         if(taskId==null || taskId<1) throw new BusinessException(ErrorCode.REQUEST_INVALID);
-        var item=mapper.summary(actor.tenantId(),actor.userId(),taskId);
+        var item=mapper.summary(actor.tenantId(),actor.userId(),TodoReadScope.from(actor),taskId);
         if(item==null) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
         return avatar(item);
     }

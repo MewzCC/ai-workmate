@@ -13,6 +13,8 @@ import { agentTaskNavigationTarget, type AgentPageNavigator } from '@/lib/agentT
 import { canCancelAgentTask, cancelAgentTask } from '@/lib/agentTaskCancellation';
 import { usePageUiCommandBridge } from './PageUiCommandBridge';
 import { captureAuthDataScope } from '@/lib/authEvents';
+import { isAgentClarificationPlan } from '@/lib/agentOperationState';
+import { uuid } from '@/lib/uuid';
 
 interface AIOperationDrawerProps {
   open: boolean;
@@ -33,7 +35,7 @@ const TERMINAL_STATUSES = new Set<AgentTaskStatus>([
   'SUCCEEDED', 'PARTIALLY_SUCCEEDED', 'FAILED', 'TIMED_OUT', 'REJECTED', 'EXPIRED', 'CANCELLED',
 ]);
 const AGENT_STATUSES = new Set<AgentTaskStatus>([
-  'RECEIVED', 'PLANNING', 'PLAN_READY', 'WAITING_CONFIRMATION', 'QUEUED', 'RUNNING',
+  'RECEIVED', 'PLANNING', 'NEEDS_INPUT', 'PLAN_READY', 'WAITING_CONFIRMATION', 'QUEUED', 'RUNNING',
   ...TERMINAL_STATUSES,
 ]);
 
@@ -68,7 +70,7 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageC
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<ChatLine[]>([]);
   const [plan, setPlan] = useState<AiTaskPlanResponse | null>(null);
-  const [planPage, setPlanPage] = useState<{ id: string; title: string } | null>(null);
+  const [planPage, setPlanPage] = useState<{ id: string; title: string; context?: PageAgentContextSnapshot } | null>(null);
   const [execution, setExecution] = useState<AiTaskExecuteResponse | null>(null);
   const [taskStatus, setTaskStatus] = useState<AgentTaskStatus | null>(null);
   const [events, setEvents] = useState<AiTaskEvent[]>([]);
@@ -85,6 +87,7 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageC
   const [capabilityError, setCapabilityError] = useState<string | null>(null);
   const [capabilityReload, setCapabilityReload] = useState(0);
   const confirmationTokenRef = useRef<string | null>(null);
+  const clarificationRequestRef = useRef<{ taskId: string; input: string; key: string } | null>(null);
   const unsubscribeRef = useRef<(() => void) | null>(null);
   const refreshedTaskRef = useRef<string | null>(null);
   const loadedResultTaskRef = useRef<string | null>(null);
@@ -241,6 +244,7 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageC
         acceptResult(outcome.detail);
       }
       if (outcome.cancelled) {
+        clarificationRequestRef.current = null;
         const content = t('oa.ai.cancelledTask');
         setMessages((previous) => [...previous, { role: 'assistant', content }]);
         message.success(t('oa.ai.cancelledPlan'));
@@ -260,6 +264,9 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageC
       message.warning(t('oa.ai.enterTask'));
       return;
     }
+    const continuation = plan?.status === 'NEEDS_INPUT' && (taskStatus ?? plan.status) === 'NEEDS_INPUT' && planPage
+      ? { plan, page: planPage } : null;
+    const sourcePage = continuation?.page ?? { id: pageId, title: pageTitle, context: pageContext };
     resetExecution();
     const request = ++planRequestRef.current;
     const sourcePageGeneration = pageGenerationRef.current;
@@ -269,26 +276,39 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageC
     setOperationError(null);
     setMessages((previous) => [...previous, { role: 'user', content: value }]);
     try {
-      const sourceCapability = await getPageCapabilities(pageId);
+      const sourceCapability = await getPageCapabilities(sourcePage.id);
       if (request !== planRequestRef.current) return;
-      const safePageContext = pageContext
-        ? sanitizePageAgentContext(pageContext, sourceCapability.contextSchema)
+      const safePageContext = sourcePage.context
+        ? sanitizePageAgentContext(sourcePage.context, sourceCapability.contextSchema)
         : undefined;
-      const nextPlan = await planAiTask({
+      const payload = {
         input: value,
-        pageId,
+        pageId: sourcePage.id,
+        ...(continuation ? { clarificationTaskId: continuation.plan.taskId } : {}),
         ...(safePageContext && Object.keys(safePageContext).length > 0
           ? { pageContext: safePageContext }
           : {}),
-      });
+      };
+      let nextPlan: AiTaskPlanResponse;
+      if (continuation) {
+        const previous = clarificationRequestRef.current;
+        const retry = previous?.taskId === continuation.plan.taskId && previous.input === value
+          ? previous : { taskId: continuation.plan.taskId, input: value, key: uuid() };
+        clarificationRequestRef.current = retry;
+        nextPlan = await planAiTask(payload, retry.key);
+        clarificationRequestRef.current = null;
+      } else nextPlan = await planAiTask(payload);
       if (request !== planRequestRef.current) return;
+      if (nextPlan.status === 'NEEDS_INPUT' && !isAgentClarificationPlan(nextPlan))
+        throw new Error(t('chat.operationPlanUnavailable'));
       setPlan(nextPlan);
-      setPlanPage({ id: pageId, title: pageTitle });
+      setPlanPage({ id: sourcePage.id, title: sourcePage.title, context: safePageContext });
       setTaskStatus(nextPlan.status);
       setInput((current) => current.trim() === value ? '' : current);
       setMessages((previous) => [...previous, { role: 'assistant', content: nextPlan.summary }]);
-      message.success(t('oa.ai.planGenerated'));
+      if (nextPlan.status !== 'NEEDS_INPUT') message.success(t('oa.ai.planGenerated'));
       const automaticRead = sourcePageGeneration === pageGenerationRef.current
+        && sourcePage.id === currentPageIdRef.current
         && nextPlan.status === 'PLAN_READY' && nextPlan.riskLevel === 'L0'
         && nextPlan.confirmationRequired === false && nextPlan.steps.length > 0 && nextPlan.steps.length <= 3
         && nextPlan.steps.every((step) => sourceCapability.tools.some((tool) => tool.code === step.toolCode
@@ -296,13 +316,14 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageC
       if (automaticRead) {
         // Reuse the normal enqueue/event/result path; writes still require their existing confirmation.
         // runPlan reports enqueue failures without discarding the successfully generated plan.
-        await runPlan(false, nextPlan, pageId).catch(() => undefined);
+        await runPlan(false, nextPlan, sourcePage.id).catch(() => undefined);
       }
     } catch (error) {
       if (request !== planRequestRef.current) return;
       const errorMessage = formatOaApiError(error);
-      setPlan(null);
-      setPlanPage(null);
+      setPlan(continuation?.plan ?? null);
+      setPlanPage(continuation?.page ?? null);
+      if (continuation) setTaskStatus('NEEDS_INPUT');
       setOperationError({ message: errorMessage, retryable: error instanceof OaApiError && error.retryable });
       setMessages((previous) => [...previous, { role: 'assistant', content: errorMessage }]);
       message.error(errorMessage);
@@ -346,7 +367,7 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageC
   };
 
   const runPlan = async (withConfirmation: boolean, acceptedPlan = plan, sourcePageId = planPage?.id) => {
-    if (!acceptedPlan) return;
+    if (!acceptedPlan || acceptedPlan.status === 'NEEDS_INPUT') return;
     if (sourcePageId !== currentPageIdRef.current) {
       message.warning(t('oa.ai.planFromOtherPage'));
       return;
@@ -385,6 +406,7 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageC
   };
 
   const requestExecution = () => {
+    if (plan?.status === 'NEEDS_INPUT') return;
     if (!plan) {
       message.warning(t('oa.ai.generatePlanFirst'));
       return;
@@ -473,14 +495,15 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageC
           </Space>}
         </Card></div>}
 
-        {plan && <Card size="small" className="oa-ai-plan-card" title={t('oa.ai.planTitle')}>
-          {planPage?.id !== pageId && <Alert type="warning" showIcon title={t('oa.ai.planFromOtherPage')} description={t('oa.ai.planSourcePage', { page: planPage?.title })} />}
+        {plan && <Card size="small" className="oa-ai-plan-card" title={t(plan.status === 'NEEDS_INPUT' ? 'chat.operationClarificationTitle' : 'oa.ai.planTitle')}>
+          {planPage?.id !== pageId && <Alert type="warning" showIcon title={t('oa.ai.planFromOtherPage')} description={t('oa.ai.planSourcePage', { page: planPage?.title })}
+            action={planPage && onNavigatePage ? <Button size="small" onClick={() => onNavigatePage(planPage.id)}>{t('oa.ai.returnPlanPage')}</Button> : undefined} />}
           <AgentPlanPreview
             plan={plan}
             status={taskStatus ?? plan.status}
             completedSteps={events.filter((event) => event.type === 'step-completed').length}
           />
-          <Button type="primary" icon={<OaIcon name="ai" />} loading={executing} disabled={cancelling || Boolean(execution) || TERMINAL_STATUSES.has(taskStatus ?? plan.status) || planPage?.id !== pageId} onClick={requestExecution}>{plan.confirmationRequired ? t('oa.ai.confirmExecute') : t('oa.ai.executePlan')}</Button>
+          {plan.status !== 'NEEDS_INPUT' && <Button type="primary" icon={<OaIcon name="ai" />} loading={executing} disabled={cancelling || Boolean(execution) || TERMINAL_STATUSES.has(taskStatus ?? plan.status) || planPage?.id !== pageId} onClick={requestExecution}>{plan.confirmationRequired ? t('oa.ai.confirmExecute') : t('oa.ai.executePlan')}</Button>}
         </Card>}
 
         {execution && <Card size="small" className="oa-ai-progress-card" title={t('oa.ai.progressTitle')}>

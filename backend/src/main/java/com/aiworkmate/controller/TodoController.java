@@ -37,12 +37,12 @@ public class TodoController {
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size) {
-        return Result.ok(queries.mine(user.userId(), null, businessType, status, from, to, page, size));
+        return Result.ok(queries.mine(user.userId(), user.tenantId(), businessType, status, from, to, page, size));
     }
 
     @GetMapping("/{id}/summary")
     public Result<UnifiedTodoResponse> summary(@AuthenticationPrincipal AuthenticatedUser user,@PathVariable Long id) {
-        return Result.ok(queries.summary(user.userId(),null,id));
+        return Result.ok(queries.summary(user.userId(),user.tenantId(),id));
     }
 
     @GetMapping("/{id}")

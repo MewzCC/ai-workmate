@@ -15,6 +15,8 @@ export default {
   aiPreReview: 'AI Pre-review',
   cards: {
     todoList: 'My Pending Tasks',
+    allTodos: 'View All Tasks',
+    todoWindow: 'Shows up to 8 tasks ordered by deadline. Metrics count the complete supported task scope.',
     recentActivities: 'Recent Business Activity',
     approvalList: 'Approval List',
     searchPlaceholder: 'Search by process, applicant, or department',
@@ -42,6 +44,8 @@ export default {
   },
   status: {
     overdue: 'Overdue',
+    detailUnavailable: 'Historical details are unavailable. A same-numbered task from another business cannot be opened.',
+    preReviewUnavailable: 'AI pre-review for this business is not available on the dashboard. Open its details to review it.',
     warning: 'Approaching Timeout',
     processing: 'Pending Approval',
     success: 'Low Risk',
@@ -78,6 +82,7 @@ export default {
   },
   aiPrompts: {
     preReviewTask: 'Pre-review approval task {{taskId}}',
+    preReviewGenericTask: 'Use approval.genericTask.detail.query to read-only review generic approval task {{taskId}}. Explain frozen fields, node status and task version; do not approve or reject.',
     checkRisk: 'Help me {{action}} {{name}} and check the risk of node {{node}}',
     preReviewList: 'Help me pre-review the current list and output a risk ranking',
   },

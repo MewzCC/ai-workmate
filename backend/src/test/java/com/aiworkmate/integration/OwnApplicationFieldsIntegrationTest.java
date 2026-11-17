@@ -79,4 +79,41 @@ class OwnApplicationFieldsIntegrationTest extends AbstractIsolatedAgentIntegrati
         assertThat(read(owner, id, 0).statusCode()).isEqualTo(400); assertThat(read(owner, id, 3).statusCode()).isEqualTo(400);
         assertThat(read(owner, 0, 1).statusCode()).isEqualTo(400); assertThat(read(owner, Long.MAX_VALUE, 1).statusCode()).isEqualTo(404);
     }
+
+    @Test void referenceOptionsAndDraftWritesUseTheSameActiveTenantBoundary() throws Exception {
+        String key = jdbc.queryForObject("SELECT form_key FROM approval_form WHERE id=?", String.class, form);
+        jdbc.update("UPDATE approval_form SET schema_json=? WHERE id=?", """
+                {"fields":[{"name":"person","type":"user"},{"name":"unit","type":"department"},
+                            {"name":"description","type":"text"}]}
+                """, form);
+        long foreign = jdbc.queryForObject("INSERT INTO tenant(code,name) VALUES (?,'Synthetic tenant') RETURNING id", Long.class,
+                "REF_" + UUID.randomUUID().toString().replace("-", ""));
+        long enabledUnit = jdbc.queryForObject("INSERT INTO department(tenant_id,code,name,status) VALUES (?,'REF','Reference unit',1) RETURNING id", Long.class, tenant);
+        long foreignUnit = jdbc.queryForObject("INSERT INTO department(tenant_id,code,name,status) VALUES (?,'REF','Foreign unit',1) RETURNING id", Long.class, foreign);
+        var foreignUser = http.createAndLogin(foreign, List.of("route:approval-start", "approval:create"));
+        var noCreate = http.createAndLogin(tenant, List.of("route:approval-start"));
+        var person = reference(owner, key, "person", "&selectedId=" + owner.id());
+        assertThat(person.statusCode()).isEqualTo(200);
+        assertThat(json.readTree(person.body()).at("/data/records/0/id").textValue()).isEqualTo(Long.toString(owner.id()));
+        var unit = reference(owner, key, "unit", "&keyword=Reference%20unit");
+        assertThat(unit.statusCode()).isEqualTo(200);
+        assertThat(json.readTree(unit.body()).at("/data/records/0/id").textValue()).isEqualTo(Long.toString(enabledUnit));
+        assertThat(json.readTree(reference(owner, key, "person", "&selectedId=" + foreignUser.id()).body()).at("/data/records")).isEmpty();
+        assertThat(json.readTree(reference(owner, key, "unit", "&selectedId=" + foreignUnit).body()).at("/data/records")).isEmpty();
+        assertThat(reference(noCreate, key, "person", "").statusCode()).isEqualTo(403);
+        assertThat(reference(owner, key, "description", "").statusCode()).isEqualTo(400);
+        var data = Map.<String,Object>of("person", Long.toString(owner.id()), "unit", Long.toString(enabledUnit));
+        assertThat(approvals.createDraft(owner.id(), new ApprovalDraftRequest(key, null, data)).dataJson()).contains(Long.toString(enabledUnit));
+        jdbc.update("UPDATE department SET status=0 WHERE id=?", enabledUnit);
+        assertThat(json.readTree(reference(owner, key, "unit", "&selectedId=" + enabledUnit).body()).at("/data/records")).isEmpty();
+        for (var invalid : List.of(data, Map.<String,Object>of("person", Long.toString(foreignUser.id())), Map.<String,Object>of("unit", Long.toString(foreignUnit)))) {
+            org.assertj.core.api.Assertions.assertThatThrownBy(() -> approvals.createDraft(owner.id(), new ApprovalDraftRequest(key, null, invalid)))
+                    .isInstanceOf(com.aiworkmate.common.BusinessException.class).extracting("errorCode").isEqualTo("REQUEST_INVALID");
+        }
+    }
+
+    private HttpResponse<String> reference(AgentHttpTestFixture.Actor actor, String formKey, String field, String suffix) throws Exception {
+        var request = http.request("GET", "/api/approval-applications/form-reference-options?formKey=" + formKey + "&fieldName=" + field + suffix, actor, null, null);
+        return AgentHttpTestFixture.client().send(request.build(), HttpResponse.BodyHandlers.ofString());
+    }
 }

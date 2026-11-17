@@ -43,8 +43,7 @@ public final class ApprovalApplicationAgentDomainToolAdapter implements Approval
                 application.reminderCount(), application.canWithdraw(), application.canEditDraft(),
                 application.canCancel(), application.canRemind());
         return new Detail(summary, value.schemaSource(), value.formVersion(),
-                value.fields().stream().map(field -> new DetailField(field.name(), field.label(), field.type(),
-                        field.values(), field.redacted())).toList(), value.fieldsTotal(), value.fieldPage());
+                value.fields().stream().map(ApprovalApplicationFieldMapping::map).toList(), value.fieldsTotal(), value.fieldPage());
     }
 
     private Summary summary(ApprovalApplicationResponse value) {
@@ -121,7 +120,20 @@ public final class ApprovalApplicationAgentDomainToolAdapter implements Approval
     private Map<String, Object> formData(java.util.List<FieldValue> fields) {
         Map<String, Object> formData = new LinkedHashMap<>();
         for (FieldValue field : fields) {
-            Object value = field.multiple() ? field.values() : field.values().get(0);
+            Object value;
+            if (field.rows() != null) {
+                value = field.rows().stream().map(row -> {
+                    Map<String, Object> cells = new LinkedHashMap<>();
+                    for (TableCell cell : row.cells()) {
+                        if (cells.putIfAbsent(cell.name(), cell.value()) != null) {
+                            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+                        }
+                    }
+                    return cells;
+                }).toList();
+            } else {
+                value = field.multiple() ? field.values() : field.values().get(0);
+            }
             if (formData.putIfAbsent(field.name(), value) != null) {
                 throw new BusinessException(ErrorCode.REQUEST_INVALID);
             }

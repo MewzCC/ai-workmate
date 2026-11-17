@@ -49,6 +49,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -82,7 +83,8 @@ class GenericApprovalServiceImplTest {
         service = new GenericApprovalServiceImpl(
                 applicationMapper, formMapper, processMapper, ruleMapper, leaveMapper, userMapper,
                 instanceMapper, taskMapper, actionLogMapper, userAccessService,
-                auditService, notificationService, new com.fasterxml.jackson.databind.ObjectMapper());
+                auditService, notificationService, new com.fasterxml.jackson.databind.ObjectMapper(),
+                org.mockito.Mockito.mock(com.aiworkmate.service.ApprovalApplicationAttachmentService.class));
         ReflectionTestUtils.setField(service, "approvalDueHours", 48L);
         ReflectionTestUtils.setField(service, "reminderIntervalMinutes", 30L);
         when(userAccessService.resolveActiveUser(USER_ID)).thenReturn(access());
@@ -127,6 +129,31 @@ class GenericApprovalServiceImplTest {
                 new ApprovalDraftRequest("expense", null, Map.of("amount", 10, "category", "UNKNOWN"))))
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode").isEqualTo("REQUEST_INVALID");
+        verify(applicationMapper, never()).insert(any(ApprovalApplication.class));
+    }
+
+    @Test
+    void rejectsMalformedDateRangesAndCheckboxChoicesBeforeSavingDraft() {
+        ApprovalForm configured = form();
+        configured.setSchemaJson("""
+                {"fields":[{"name":"period","type":"dateRange"},
+                            {"name":"choices","type":"checkbox","options":["A","B"]}]}
+                """);
+        when(formMapper.selectOne(any())).thenReturn(configured);
+        List<Map<String, Object>> invalid = List.of(
+                Map.of("period", "2026-11-12"),
+                Map.of("period", List.of("2026-11-12", "2026-11-11")),
+                Map.of("period", List.of("2026-02-30", "2026-11-12")),
+                Map.of("period", List.of("2026-11-12")),
+                Map.of("choices", "A"),
+                Map.of("choices", List.of("A", "A")),
+                Map.of("choices", List.of("unknown")),
+                Map.of("choices", List.of(1)));
+        for (Map<String, Object> values : invalid) {
+            assertThatThrownBy(() -> service.createDraft(USER_ID, new ApprovalDraftRequest("expense", null, values)))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting("errorCode").isEqualTo("REQUEST_INVALID");
+        }
         verify(applicationMapper, never()).insert(any(ApprovalApplication.class));
     }
 
@@ -437,6 +464,7 @@ class GenericApprovalServiceImplTest {
         when(applicationMapper.selectOne(any())).thenReturn(pending);
         when(instanceMapper.selectOne(any())).thenReturn(instance("RUNNING", 0));
         when(taskMapper.selectOne(any())).thenReturn(task("PENDING", 1));
+        when(taskMapper.selectList(any())).thenReturn(List.of(task("PENDING", 1)));
         when(applicationMapper.update(any(), any())).thenReturn(1);
         when(taskMapper.update(any(), any())).thenReturn(1);
         when(instanceMapper.update(any(), any())).thenReturn(1);
@@ -463,6 +491,7 @@ class GenericApprovalServiceImplTest {
         when(applicationMapper.selectOne(any())).thenReturn(pending);
         when(instanceMapper.selectOne(any())).thenReturn(instance("RUNNING", 0));
         when(taskMapper.selectOne(any())).thenReturn(task("PENDING", 1));
+        when(taskMapper.selectList(any())).thenReturn(List.of(task("PENDING", 1)));
         when(applicationMapper.update(any(), any())).thenReturn(1);
         when(taskMapper.update(any(), any())).thenReturn(1);
         when(instanceMapper.update(any(), any())).thenReturn(1);
@@ -478,6 +507,19 @@ class GenericApprovalServiceImplTest {
         verify(instanceMapper).update(any(), any());
         verify(auditService).recordTransactional(TENANT_ID, USER_ID, "GENERIC_APPROVAL", "10",
                 "WITHDRAW", "SUCCESS", "撤回通用审批申请");
+    }
+
+    @Test
+    void withdrawalRejectsAnOutstandingSetMissingTheAlreadyReadActiveTask() {
+        when(applicationMapper.selectOne(any())).thenReturn(application("PENDING", 2));
+        when(instanceMapper.selectOne(any())).thenReturn(instance("RUNNING", 0));
+        when(taskMapper.selectOne(any())).thenReturn(task("PENDING", 1));
+        when(taskMapper.selectList(any())).thenReturn(List.of());
+        assertThatThrownBy(() -> service.withdraw(USER_ID, 10L, new VersionRequest(2)))
+                .isInstanceOf(BusinessException.class).extracting("errorCode").isEqualTo("BUSINESS_STATE_INVALID");
+        verify(taskMapper, never()).update(any(), any());
+        verify(applicationMapper, never()).update(any(), any());
+        verifyNoInteractions(notificationService);
     }
 
     @Test

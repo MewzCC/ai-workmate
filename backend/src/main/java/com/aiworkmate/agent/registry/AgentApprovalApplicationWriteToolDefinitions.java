@@ -9,15 +9,17 @@ import java.util.Set;
 
 @Configuration(proxyBeanMethods = false)
 public class AgentApprovalApplicationWriteToolDefinitions {
-    public static final String CREATE_DRAFT_INPUT_SCHEMA = """
+    public static final String PRE_TABLE_CREATE_DRAFT_INPUT_SCHEMA = """
             {"type":"object","additionalProperties":false,"required":["formKey","fields"],"properties":{"formKey":{"type":"string","minLength":1,"maxLength":64},"processKey":{"type":"string","minLength":1,"maxLength":64},"fields":{"type":"array","maxItems":100,"items":{"type":"object","additionalProperties":false,"required":["name"],"properties":{"name":{"type":"string","minLength":1,"maxLength":64},"value":{"type":"string","maxLength":500},"values":{"type":"array","maxItems":20,"items":{"type":"string","maxLength":500}}},"oneOf":[{"required":["value"],"not":{"required":["values"]}},{"required":["values"],"not":{"required":["value"]}}]}}}}
             """.strip();
     public static final String CREATE_DRAFT_OUTPUT_SCHEMA = """
             {"type":"object","additionalProperties":false,"required":["applicationId","formKey","status","version"],"properties":{"applicationId":{"type":"integer","minimum":1},"formKey":{"type":"string","maxLength":64},"status":{"type":"string","const":"DRAFT"},"version":{"type":"integer","minimum":0}}}
             """.strip();
-    public static final String UPDATE_DRAFT_INPUT_SCHEMA = """
+    public static final String PRE_TABLE_UPDATE_DRAFT_INPUT_SCHEMA = """
             {"type":"object","additionalProperties":false,"required":["applicationId","version","fields"],"properties":{"applicationId":{"type":"integer","minimum":1},"version":{"type":"integer","minimum":0,"maximum":2147483646},"processKey":{"type":"string","minLength":1,"maxLength":64},"fields":{"type":"array","maxItems":100,"items":{"type":"object","additionalProperties":false,"required":["name"],"properties":{"name":{"type":"string","minLength":1,"maxLength":64},"value":{"type":"string","maxLength":500},"values":{"type":"array","maxItems":20,"items":{"type":"string","maxLength":500}}},"oneOf":[{"required":["value"],"not":{"required":["values"]}},{"required":["values"],"not":{"required":["value"]}}]}}}}
             """.strip();
+    public static final String CREATE_DRAFT_INPUT_SCHEMA = ApprovalApplicationFieldSchemas.withTableRows(PRE_TABLE_CREATE_DRAFT_INPUT_SCHEMA);
+    public static final String UPDATE_DRAFT_INPUT_SCHEMA = ApprovalApplicationFieldSchemas.withTableRows(PRE_TABLE_UPDATE_DRAFT_INPUT_SCHEMA);
     public static final String UPDATE_DRAFT_OUTPUT_SCHEMA = CREATE_DRAFT_OUTPUT_SCHEMA;
     public static final String SUBMIT_DRAFT_INPUT_SCHEMA =
             ClosedToolSchemas.versionedResourceInput("applicationId");

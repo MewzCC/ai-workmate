@@ -36,6 +36,19 @@ class TikaFileParserServiceImplTest {
     ).getBytes(StandardCharsets.UTF_8);
 
     @Test
+    void validatesBlankPdfAttachmentsWithoutCallingOcrOrUserExtractionPreferences() throws Exception {
+        var ocr = Mockito.mock(OcrService.class);
+        var settings = Mockito.mock(UserSettingsService.class);
+        var parser = new TikaFileParserServiceImpl(new UploadProperties(), ocr, settings);
+        Path file = tempDir.resolve("blank.pdf");
+        Files.write(file, BLANK_PDF);
+        var result = parser.inspect(file, "blank.pdf", USER_ID);
+        assertThat(result.mimeType()).isEqualTo("application/pdf");
+        assertThat(result.extractedText()).isEmpty();
+        Mockito.verifyNoInteractions(ocr, settings);
+    }
+
+    @Test
     void shouldParseMarkdownWhenBrowserMimeTypeIsUnavailable() throws Exception {
         Path markdown = tempDir.resolve("release-notes.MD");
         Files.writeString(markdown, "# Release notes\n\n- Markdown upload works.");

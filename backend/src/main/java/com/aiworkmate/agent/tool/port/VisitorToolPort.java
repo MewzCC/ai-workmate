@@ -5,6 +5,8 @@ import java.util.List;
 
 public interface VisitorToolPort {
     Page query(ToolActorContext context, Query query);
+    WorkflowDecisionToolModels.Receipt approve(ToolActorContext context, WorkflowDecisionToolModels.Command command);
+    WorkflowDecisionToolModels.Receipt reject(ToolActorContext context, WorkflowDecisionToolModels.Command command);
     ApplicationResult apply(
             ToolActorContext context, ApplicationCommand command, ToolOperationKey operationKey);
     ToolWriteVerification<ApplicationResult> findApplication(
@@ -44,5 +46,6 @@ public interface VisitorToolPort {
                 LocalDateTime completedAt, String registeredByName, LocalDateTime checkedInAt,
                 LocalDateTime visitedAt, LocalDateTime leftAt, LocalDateTime noShowAt,
                 boolean canWithdraw, boolean canDecide, boolean canCheckIn,
-                boolean canMarkVisited, boolean canLeave, boolean canMarkNoShow) { }
+                boolean canMarkVisited, boolean canLeave, boolean canMarkNoShow,
+                Long taskId, Integer taskVersion) { }
 }

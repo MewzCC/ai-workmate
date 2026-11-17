@@ -4,11 +4,13 @@ import com.aiworkmate.common.PageResponse;
 import com.aiworkmate.common.Result;
 import com.aiworkmate.dto.ApprovalApplicationResponse;
 import com.aiworkmate.dto.ApprovalDraftRequest;
+import com.aiworkmate.dto.ApprovalFormReferenceOption;
 import com.aiworkmate.dto.ApprovalDraftUpdateRequest;
 import com.aiworkmate.dto.ApprovalSubmitRequest;
 import com.aiworkmate.dto.VersionRequest;
 import com.aiworkmate.security.AuthenticatedUser;
 import com.aiworkmate.service.GenericApprovalService;
+import com.aiworkmate.service.model.BusinessCandidateQuery;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -33,6 +35,16 @@ import org.springframework.web.bind.annotation.RestController;
 public class ApprovalApplicationController {
 
     private final GenericApprovalService service;
+
+    @GetMapping("/form-reference-options")
+    public Result<PageResponse<ApprovalFormReferenceOption>> referenceOptions(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @RequestParam String formKey, @RequestParam String fieldName,
+            @RequestParam(required = false) Long selectedId, @RequestParam(required = false) String keyword,
+            @RequestParam(defaultValue = "1") int page, @RequestParam(defaultValue = "20") int size) {
+        return Result.ok(service.referenceOptions(user.userId(), formKey, fieldName, selectedId,
+                new BusinessCandidateQuery(keyword, page, size)));
+    }
 
     @PostMapping("/drafts")
     public Result<ApprovalApplicationResponse> createDraft(

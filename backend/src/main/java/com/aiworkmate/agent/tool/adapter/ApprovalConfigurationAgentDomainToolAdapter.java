@@ -22,7 +22,9 @@ public final class ApprovalConfigurationAgentDomainToolAdapter implements Approv
                 query.formKey(), query.page(), query.size());
         return new Templates(result.records().stream().map(item -> new Template(item.formId(), item.formKey(),
                 item.formName(), item.version(), item.fields().stream().map(field -> new FormDefinitionField(field.name(),
-                field.label(), field.type(), field.required(), field.placeholder(), field.options(), field.width(), field.min())).toList(),
+                field.label(), field.type(), field.required(), field.placeholder(), field.options(), field.width(), field.min(),
+                field.columns().stream().map(column -> new FormTableColumn(column.name(), column.label(), column.type(),
+                        column.required(), column.options(), column.min())).toList())).toList(),
                 item.process() == null ? null : item.process().processKey(),
                 item.process() == null ? null : item.process().processName(),
                 item.process() == null ? null : item.process().version())).toList(), result.total(), result.page(), result.size());
@@ -51,7 +53,9 @@ public final class ApprovalConfigurationAgentDomainToolAdapter implements Approv
         var result = approvalEngineService.readFormDefinitionAgent(context.userId(), context.tenantId(), formId);
         return new FormDefinition(result.formId(), result.formKey(), result.formName(), result.status(), result.version(),
                 result.fields().stream().map(field -> new FormDefinitionField(field.name(), field.label(), field.type(),
-                        field.required(), field.placeholder(), field.options(), field.width(), field.min())).toList());
+                        field.required(), field.placeholder(), field.options(), field.width(), field.min(),
+                        field.columns().stream().map(column -> new FormTableColumn(column.name(), column.label(), column.type(),
+                                column.required(), column.options(), column.min())).toList())).toList());
     }
 
     @Override

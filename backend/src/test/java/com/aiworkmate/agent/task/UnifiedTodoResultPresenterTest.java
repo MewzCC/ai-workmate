@@ -13,6 +13,16 @@ import java.util.Locale;
 import static org.assertj.core.api.Assertions.*;
 
 class UnifiedTodoResultPresenterTest {
+    @Test void genericRejectionReceiptsExplainTheTerminalApplicationStateInBothLanguages() throws Exception {
+        var receipt=new ObjectMapper().readTree("{\"taskId\":8,\"applicationId\":9,\"status\":\"REJECTED\",\"version\":3,\"applicationStatus\":\"REJECTED\",\"action\":\"REJECT\"}");
+        for(Locale language:new Locale[]{Locale.SIMPLIFIED_CHINESE,Locale.US}) {
+            LocaleContextHolder.setLocale(language);
+            String text=AgentReadResultPresenter.present("approval.genericTask.reject",receipt);
+            assertThat(text).contains(language.equals(Locale.US)?"no subsequent task":"不会生成后续审批任务").doesNotContain("agent.genericTask.");
+        }
+        ((com.fasterxml.jackson.databind.node.ObjectNode)receipt).put("applicationStatus","PENDING");
+        assertThatThrownBy(()->AgentReadResultPresenter.present("approval.genericTask.reject",receipt)).isInstanceOf(BusinessException.class);
+    }
     private final ObjectMapper json=new ObjectMapper();
     private MessageUtils previous;
     private Locale locale;
@@ -25,6 +35,19 @@ class UnifiedTodoResultPresenterTest {
             """);}
     @Test void printsBothBusinessKindsAndRealNodeTextInChineseAndEnglish() throws Exception {
         for(Locale language:new Locale[]{Locale.SIMPLIFIED_CHINESE,Locale.US}){LocaleContextHolder.setLocale(language);String text=AgentReadResultPresenter.todo(result());assertThat(text).contains("Applicant A","Applicant B","Frozen expense","Finance review","#3","#4").doesNotContain("agent.todo.","agent.result.enum.");assertThat(text).contains(language.equals(Locale.US)?"Generic approval task":"通用申请任务");}
+    }
+    @Test void describesVisitorAndSealWithoutReinterpretingThemAsLeaveOrGenericTasks() throws Exception {
+        var data=(com.fasterxml.jackson.databind.node.ObjectNode)result();
+        var items=data.withArray("items");
+        ((com.fasterxml.jackson.databind.node.ObjectNode)items.get(0)).put("businessType","VISITOR_BOOKING").put("title","VB-9 Visitor");
+        ((com.fasterxml.jackson.databind.node.ObjectNode)items.get(1)).put("businessType","SEAL_USAGE").put("title","SU-10 Document");
+        for(Locale language:new Locale[]{Locale.SIMPLIFIED_CHINESE,Locale.US}){
+            LocaleContextHolder.setLocale(language);String text=AgentReadResultPresenter.todo(data);
+            assertThat(text).contains("VB-9 Visitor","SU-10 Document","#3","#4").doesNotContain("agent.todo.","agent.result.");
+            assertThat(text).contains(language.equals(Locale.US)?"Visitor":"访客",language.equals(Locale.US)?"Seal":"用印");
+        }
+        ((com.fasterxml.jackson.databind.node.ObjectNode)items.get(0)).put("businessType","UNSUPPORTED");
+        assertThatThrownBy(()->AgentReadResultPresenter.todo(data)).isInstanceOf(BusinessException.class);
     }
     @Test void anEmptyFilteredQueryDescribesItsActualScopeAndPage() throws Exception {
         LocaleContextHolder.setLocale(Locale.US);String text=AgentReadResultPresenter.todo(json.readTree("{\"total\":0,\"items\":[],\"page\":3,\"size\":10,\"businessType\":\"GENERIC_APPROVAL\",\"status\":\"APPROVED\",\"from\":\"2026-11-01T00:00:00\"}"));assertThat(text).contains("No tasks","Generic applications","page 3","2026-11-01").doesNotContain("no pending");

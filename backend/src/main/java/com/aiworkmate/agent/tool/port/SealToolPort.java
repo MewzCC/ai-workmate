@@ -5,6 +5,9 @@ import java.util.List;
 
 public interface SealToolPort {
     Page query(ToolActorContext context, Query query);
+    ToolPage<DocumentMetadataToolModels.Item> documents(ToolActorContext context, DocumentMetadataToolModels.Query query);
+    WorkflowDecisionToolModels.Receipt approve(ToolActorContext context, WorkflowDecisionToolModels.Command command);
+    WorkflowDecisionToolModels.Receipt reject(ToolActorContext context, WorkflowDecisionToolModels.Command command);
     ApplicationResult apply(
             ToolActorContext context, ApplicationCommand command, ToolOperationKey operationKey);
     ToolWriteVerification<ApplicationResult> findApplication(
@@ -33,5 +36,6 @@ public interface SealToolPort {
                 String taskStatus, LocalDateTime submittedAt, LocalDateTime completedAt,
                 Integer actualCopies, String handlerName, LocalDateTime usedAt,
                 LocalDateTime returnedAt, boolean canWithdraw, boolean canDecide,
-                boolean canRegisterUse, boolean canReturn, boolean canArchiveDocument) { }
+                boolean canRegisterUse, boolean canReturn, boolean canArchiveDocument,
+                Long taskId, Integer taskVersion) { }
 }

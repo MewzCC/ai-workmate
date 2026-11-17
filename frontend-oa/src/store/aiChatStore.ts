@@ -15,7 +15,7 @@ import { getChatPreferences, updateChatPreferences } from '@/lib/userSettingsApi
 import { agentTaskApi, classifyAiIntent, executeAiTask, issueAiTaskConfirmation, planAiTask } from '@/lib/oaApi';
 import type { AgentTaskDetail, AiTaskPlanResponse } from '@/types/oa';
 import { cancelAgentTask } from '@/lib/agentTaskCancellation';
-import { acceptedAgentTask, AgentObservationPending, isAgentTaskTerminal, observeAgentTask, restoreAgentPlan } from '@/lib/agentOperationState';
+import { acceptedAgentTask, AgentObservationPending, isAgentTaskTerminal, isAgentPlanPending, isAgentClarificationPlan, observeAgentTask, restoreAgentPlan } from '@/lib/agentOperationState';
 
 const SETTINGS_KEY = 'workmeta-ai-chat-settings';
 const SETTINGS_MIGRATED_KEY = 'workmeta-ai-chat-settings-migrated';
@@ -67,6 +67,7 @@ function createChatSession() {
   const controllers = new Map<number, AbortController>();
   const typewriters = new Map<number, StreamTypewriter>();
   const agentTasks = new Map<number, string>();
+  const clarificationRequests = new Map<number, { taskId: string; input: string; key: string }>();
   const planningConversations = new Set<number>();
   const cancellingConversations = new Set<number>();
   let settingsHydration: Promise<void> | null = null;
@@ -182,6 +183,7 @@ function createChatSession() {
   remove: async (id) => {
     ensureActive();
     await deleteConversation(id);
+    clarificationRequests.delete(id);
     controllers.get(id)?.abort();
     typewriters.get(id)?.cancel();
     set((state) => {
@@ -288,18 +290,20 @@ function createChatSession() {
       }
     }
     if (controllers.has(conversationId)) return;
-    if (get().pendingPlans[conversationId]) {
+    const clarificationPlan = get().pendingPlans[conversationId]?.status === 'NEEDS_INPUT'
+      ? get().pendingPlans[conversationId] : undefined;
+    if (get().pendingPlans[conversationId] && !clarificationPlan) {
       antMessage.warning(i18n.t('chat.operationPending'));
       return;
     }
     const activeOperation = get().operationTasks[conversationId];
-    if (activeOperation && !isAgentTaskTerminal(activeOperation.status)) {
+    if (activeOperation && !isAgentTaskTerminal(activeOperation.status) && activeOperation.status !== 'NEEDS_INPUT') {
       antMessage.warning(i18n.t('chat.operationStillRunning'));
       return;
     }
     const attachments = state.pendingAttachments[conversationId] || [];
     const content = rawContent.trim() || i18n.t('chat.defaultAttachmentPrompt');
-    if (state.composerMode === 'operation' && attachments.length > 0) {
+    if ((state.composerMode === 'operation' || clarificationPlan) && attachments.length > 0) {
       antMessage.error(i18n.t('chat.operationAttachmentsUnsupported'));
       return;
     }
@@ -315,8 +319,8 @@ function createChatSession() {
     controllers.set(conversationId, controller);
     let classifying = false;
     try {
-      let operationRequest = state.composerMode === 'operation';
-      if (state.composerMode === 'auto' && attachments.length === 0) {
+      let operationRequest = state.composerMode === 'operation' || (state.composerMode === 'auto' && Boolean(clarificationPlan));
+      if (state.composerMode === 'auto' && attachments.length === 0 && !clarificationPlan) {
         classifying = true;
         const intent = await classifyAiIntent(content, controller.signal);
         if (controller.signal.aborted) throw new DOMException('Aborted', 'AbortError');
@@ -326,13 +330,25 @@ function createChatSession() {
       if (operationRequest) {
         updateMessage(set, conversationId, assistantId, { retryable: false });
         planningConversations.add(conversationId);
-        const plan = await planAiTask({ input: content, pageId: 'ai-workspace', conversationId });
+        const request = { input: content, pageId: 'ai-workspace', conversationId,
+          ...(clarificationPlan ? { clarificationTaskId: clarificationPlan.taskId } : {}) };
+        let plan: AiTaskPlanResponse;
+        if (clarificationPlan) {
+          const previous = clarificationRequests.get(conversationId);
+          const retry = previous?.taskId === clarificationPlan.taskId && previous.input === content
+            ? previous : { taskId: clarificationPlan.taskId, input: content, key: uuid() };
+          clarificationRequests.set(conversationId, retry);
+          plan = await planAiTask(request, retry.key);
+          clarificationRequests.delete(conversationId);
+        } else plan = await planAiTask(request);
         planningConversations.delete(conversationId);
         if (controller.signal.aborted) throw new DOMException('Aborted', 'AbortError');
-        if (!plan.steps.length) throw new Error(i18n.t('chat.operationPlanUnavailable'));
+        if ((!plan.steps.length && !isAgentClarificationPlan(plan))
+            || (plan.status === 'NEEDS_INPUT' && !isAgentClarificationPlan(plan)))
+          throw new Error(i18n.t('chat.operationPlanUnavailable'));
         agentTasks.set(conversationId, plan.taskId);
         set((current) => ({ pendingPlans: { ...current.pendingPlans, [conversationId]: plan } }));
-        if (plan.confirmationRequired) {
+        if (plan.confirmationRequired || plan.status === 'NEEDS_INPUT') {
           updateMessage(set, conversationId, assistantId, { content: plan.summary, status: 'success' });
           set((current) => ({ pendingPlans: { ...current.pendingPlans, [conversationId]: plan } }));
           return;
@@ -409,7 +425,7 @@ function createChatSession() {
 
   confirmOperation: async (conversationId) => {
     const plan = get().pendingPlans[conversationId];
-    if (!plan || controllers.has(conversationId)) return;
+    if (!plan || plan.status === 'NEEDS_INPUT' || controllers.has(conversationId)) return;
     const controller = new AbortController();
     controllers.set(conversationId, controller);
     agentTasks.set(conversationId, plan.taskId);
@@ -449,6 +465,7 @@ function createChatSession() {
     cancellingConversations.add(conversationId);
     try {
       const outcome = await cancelAgentTask(taskId);
+      clarificationRequests.delete(conversationId);
       rememberOperation(set, conversationId, outcome.detail);
       if (isAgentTaskTerminal(outcome.detail.status)) {
         controllers.get(conversationId)?.abort();
@@ -474,7 +491,7 @@ function createChatSession() {
       if (!detail && known) detail = await agentTaskApi.detail(known);
       if (!detail || controller.signal.aborted) return;
       rememberOperation(set, conversationId, detail);
-      if (['PLAN_READY', 'WAITING_CONFIRMATION'].includes(detail.status)) {
+      if (isAgentPlanPending(detail.status)) {
         const plan = restoreAgentPlan(detail);
         set((current) => ({ pendingPlans: { ...current.pendingPlans, [conversationId]: plan } }));
         return;
@@ -540,7 +557,7 @@ function createChatSession() {
     for (const conversation of [...get().conversations]) await get().remove(conversation.id);
     controllers.forEach((controller) => controller.abort());
     typewriters.forEach((typewriter) => typewriter.cancel());
-    controllers.clear();
+    controllers.clear(); clarificationRequests.clear();
     typewriters.clear();
     set({ conversations: [], activeId: null, draftMode: false, messagesByConversation: {}, previewByConversation: {}, pendingAttachments: {}, uploading: {}, generatingIds: [], pendingPlans: {}, operationTasks: {} });
   },
@@ -551,7 +568,7 @@ function createChatSession() {
     active = false;
     controllers.forEach(controller => controller.abort());
     typewriters.forEach(typewriter => typewriter.cancel());
-    controllers.clear(); typewriters.clear(); agentTasks.clear(); planningConversations.clear(); cancellingConversations.clear();
+    controllers.clear(); clarificationRequests.clear(); typewriters.clear(); agentTasks.clear(); planningConversations.clear(); cancellingConversations.clear();
     for (const attachment of [...Object.values(snapshot.pendingAttachments).flat(),
       ...Object.values(snapshot.messagesByConversation).flat().flatMap(message => message.attachments)]) {
       if (attachment.previewUrl) URL.revokeObjectURL(attachment.previewUrl);
@@ -589,7 +606,7 @@ async function reconcileKnownOperation(set: ChatStateWriter, conversationId: num
     if (set.isActive?.() === false) return;
     if (detail.taskId !== taskId) return;
     rememberOperation(set, conversationId, detail);
-    if (['PLAN_READY', 'WAITING_CONFIRMATION'].includes(detail.status)) {
+    if (isAgentPlanPending(detail.status)) {
       const plan = restoreAgentPlan(detail);
       set((current) => ({ pendingPlans: { ...current.pendingPlans, [conversationId]: plan } }));
     } else if (isAgentTaskTerminal(detail.status)) await persistOperationResult(set, conversationId, detail);
@@ -601,7 +618,7 @@ async function reconcileKnownOperation(set: ChatStateWriter, conversationId: num
 function rememberOperation(set: ChatStateWriter, conversationId: number, detail: AgentTaskDetail) {
   set((current) => {
     const pendingPlans = { ...current.pendingPlans };
-    if (!['PLAN_READY', 'WAITING_CONFIRMATION'].includes(detail.status)) delete pendingPlans[conversationId];
+    if (!isAgentPlanPending(detail.status)) delete pendingPlans[conversationId];
     return { pendingPlans, operationTasks: { ...current.operationTasks, [conversationId]: detail } };
   });
 }

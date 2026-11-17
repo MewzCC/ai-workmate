@@ -20,6 +20,7 @@ const notice = process.env.AGENT_BROWSER_NOTICE;
 const chatMarker = process.env.AGENT_BROWSER_CHAT_MARKER;
 const cancellableTask = process.env.AGENT_BROWSER_CANCELLABLE_TASK;
 const leaveWrite = process.env.AGENT_BROWSER_MODE === 'leave-write';
+const clarification = leaveWrite && process.env.AGENT_BROWSER_CLARIFICATION === 'true';
 const allPages = process.env.AGENT_BROWSER_MODE === 'pages';
 const identitySwitch = process.env.AGENT_BROWSER_MODE === 'identity';
 const permissionRefresh = process.env.AGENT_BROWSER_MODE === 'permissions';
@@ -31,7 +32,7 @@ const leaveDate = process.env.AGENT_BROWSER_LEAVE_DATE;
 assert(cookie?.startsWith('oa_browser_it='));
 assert(allPages || identitySwitch || permissionRefresh || recovery || assetLifecycle || (leaveWrite ? /^browser-leave-[a-f0-9-]{36}$/.test(leaveReason) && /^\d{4}-\d{2}-\d{2}$/.test(leaveDate)
   : applicant && notice && chatMarker?.startsWith('browser-chat-') && /^[a-f0-9-]{36}$/.test(cancellableTask)));
-const artifacts = path.join(repository, 'output', 'playwright', assetLifecycle ? 'asset-lifecycle-browser' : recovery ? 'agent-recovery-browser' : permissionRefresh ? 'agent-permission-browser' : identitySwitch ? 'agent-identity-browser' : allPages ? 'oa-all-pages' : workspaceWrite ? 'agent-leave-workspace-browser' : leaveWrite ? 'agent-leave-browser' : 'agent-read-browser');
+const artifacts = path.join(repository, 'output', 'playwright', assetLifecycle ? 'asset-lifecycle-browser' : recovery ? 'agent-recovery-browser' : permissionRefresh ? 'agent-permission-browser' : identitySwitch ? 'agent-identity-browser' : allPages ? 'oa-all-pages' : clarification ? (workspaceWrite ? 'agent-clarification-workspace-browser' : 'agent-clarification-drawer-browser') : workspaceWrite ? 'agent-leave-workspace-browser' : leaveWrite ? 'agent-leave-browser' : 'agent-read-browser');
 let server, browser, page, phase = 'startup';
 let pageErrors = 0;
 const responses = [];
@@ -410,20 +411,6 @@ try {
     const drawer = page.locator('.oa-ai-operation-drawer');
     const composer = workspaceWrite ? page.locator('.ai-composer textarea') : drawer.getByRole('textbox');
     const planCard = workspaceWrite ? page.locator('.ai-operation-plan') : drawer;
-    const planned = page.waitForResponse((r) => new URL(r.url()).pathname === '/api/ai/tasks/plan', { timeout: 45_000 });
-    await composer.fill(`请帮我直接提交${leaveDate}上午至当天下午的事假申请，原因填写：${leaveReason}，使用系统为我配置的审批人。`);
-    if (workspaceWrite) await composer.press('Enter');
-    else await drawer.getByRole('button', { name: /发送 \/ 生成计划/ }).click();
-    const planResponse = await planned;
-    assert.equal(planResponse.status(), 200);
-    const plan = (await planResponse.json()).data;
-    assert.equal(plan.status, 'WAITING_CONFIRMATION');
-    assert.equal(plan.confirmationRequired, true);
-    assert.equal(plan.steps.length, 1);
-    assert.equal(plan.steps[0].toolCode, 'leave.apply');
-    assert.equal(plan.steps[0].arguments.reason, leaveReason);
-    assert.equal(plan.steps[0].arguments.startDate, leaveDate);
-    assert.equal(await composer.inputValue(), '');
     const noWrites = async () => {
       assert.equal(writeRequests.length, 0);
       const mine = await context.request.get(`${base}/api/leave-applications/mine`);
@@ -431,6 +418,68 @@ try {
       const data = (await mine.json()).data;
       assert.equal(Array.isArray(data) ? data.length : data.total, 0);
     };
+    const planned = page.waitForResponse((r) => new URL(r.url()).pathname === '/api/ai/tasks/plan', { timeout: 45_000 });
+    await composer.fill(clarification
+      ? `我想提交${leaveDate}上午至当天下午的事假申请，使用系统为我配置的审批人。`
+      : `请帮我直接提交${leaveDate}上午至当天下午的事假申请，原因填写：${leaveReason}，使用系统为我配置的审批人。`);
+    if (workspaceWrite) await composer.press('Enter');
+    else await drawer.getByRole('button', { name: /发送 \/ 生成计划/ }).click();
+    let planResponse = await planned;
+    assert.equal(planResponse.status(), 200);
+    let plan = (await planResponse.json()).data;
+    if (clarification) {
+      phase = 'missing information question';
+      assert.equal(plan.status, 'NEEDS_INPUT');
+      assert.equal(plan.confirmationRequired, false);
+      assert.equal(plan.steps.length, 0);
+      assert(/原因|理由|事由/.test(plan.summary));
+      const question = plan;
+      await planCard.getByText(question.summary, { exact: true }).first().waitFor();
+      assert.equal(await planCard.getByRole('button', { name: /^(确认并执行|执行计划)$/ }).count(), 0);
+      await noWrites();
+      if (workspaceWrite) {
+        phase = 'question refresh recovery';
+        await page.reload();
+        await page.locator('.ai-session-item').click();
+        await planCard.getByText(question.summary, { exact: true }).first().waitFor();
+        await noWrites();
+      } else {
+        phase = 'question route persistence';
+        await composer.fill('尚未发送的理由');
+        await drawer.getByRole('button', { name: /^(Close|关闭)$/ }).click();
+        if (!await page.getByRole('menuitem').filter({ hasText: '我的申请' }).isVisible())
+          await page.getByRole('menuitem').filter({ hasText: '工作台' }).first().click();
+        await page.getByRole('menuitem').filter({ hasText: '我的申请' }).click();
+        await page.waitForURL('**/oa/my-applications');
+        await page.getByRole('button', { name: '打开 AI 操作面板', exact: true }).click();
+        await planCard.getByText(question.summary, { exact: true }).first().waitFor();
+        assert.equal(await composer.inputValue(), '尚未发送的理由');
+        await drawer.getByRole('button', { name: '返回原页面', exact: true }).click();
+        await page.waitForURL('**/oa/leave-application');
+        await noWrites();
+      }
+      await page.screenshot({ path: path.join(artifacts, 'question-before-reply.png') });
+      phase = 'human reply and fresh planning';
+      const continued = page.waitForResponse((r) => new URL(r.url()).pathname === '/api/ai/tasks/plan', { timeout: 45_000 });
+      await composer.fill(`原因填写：${leaveReason}`);
+      if (workspaceWrite) await composer.press('Enter');
+      else await drawer.getByRole('button', { name: /发送 \/ 生成计划/ }).click();
+      planResponse = await continued;
+      assert.equal(planResponse.status(), 200);
+      assert.equal(planResponse.request().postDataJSON().clarificationTaskId, question.taskId);
+      plan = (await planResponse.json()).data;
+      assert.notEqual(plan.taskId, question.taskId);
+      assert.notEqual(plan.planHash, question.planHash);
+      await noWrites();
+      console.log('Browser acceptance: question persisted without execution; human reply created a fresh owned plan');
+    }
+    assert.equal(plan.status, 'WAITING_CONFIRMATION');
+    assert.equal(plan.confirmationRequired, true);
+    assert.equal(plan.steps.length, 1);
+    assert.equal(plan.steps[0].toolCode, 'leave.apply');
+    assert.equal(plan.steps[0].arguments.reason, leaveReason);
+    assert.equal(plan.steps[0].arguments.startDate, leaveDate);
+    assert.equal(await composer.inputValue(), '');
     phase = 'leave cancelled confirmation';
     await planCard.getByRole('button', { name: '确认并执行', exact: true }).click();
     const modal = page.getByRole('dialog', { name: workspaceWrite ? '确认执行这项 OA 操作？' : '确认执行 AI 计划' });
@@ -455,14 +504,14 @@ try {
       await page.reload();
       await page.locator('.ai-session-item').click();
       await result.first().waitFor();
-      assert.equal(await page.locator('.ai-message-assistant').count(), 1);
+      assert.equal(await page.locator('.ai-message-assistant').count(), clarification ? 2 : 1);
       await result.getByRole('button', { name: '前往对应业务页面', exact: true }).click();
       await page.waitForURL('**/oa/my-applications');
       await page.getByRole('tab').filter({ hasText: 'AI 工作空间' }).first().click();
       await page.waitForURL('**/oa/ai-workspace');
       await result.first().waitFor();
       assert.deepEqual(writeRequests, ['confirmation-token', 'execute']);
-      assert.equal(responses.filter((r) => r.action === 'plan').length, 1);
+      assert.equal(responses.filter((r) => r.action === 'plan').length, clarification ? 2 : 1);
       assert.equal(responses.filter((r) => r.action === 'intent').length, 1);
       assert.equal(responses.filter((r) => r.action === 'intent' && r.status === 200).length, 1);
       assert.equal(responses.filter((r) => r.action === 'chat').length, 0);
@@ -483,7 +532,7 @@ try {
     await page.getByRole('button', { name: '打开 AI 操作面板', exact: true }).click();
     await drawer.getByText(/已提交请假申请.*等待审批/).first().waitFor();
     assert.equal(await drawer.getByRole('textbox').inputValue(), '尚未发送的后续请求');
-    assert.equal(responses.filter((r) => r.action === 'plan').length, 1);
+    assert.equal(responses.filter((r) => r.action === 'plan').length, clarification ? 2 : 1);
     assert.equal(responses.filter((r) => r.action === 'execute').length, 1);
     assert.deepEqual(writeRequests, ['confirmation-token', 'execute']);
     assert.equal(pageErrors, 0);

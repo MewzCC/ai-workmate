@@ -77,7 +77,8 @@ class GenericApprovalWritePermissionTest {
         when(access.resolveActiveUser(1L)).thenReturn(new ResolvedUserAccess(1L, "reader", 1L,
                 "EMPLOYEE", List.of("EMPLOYEE"), permissions, List.of("SELF"), 1L));
         var service = new GenericApprovalServiceImpl(applications, forms, processes, rules, leaves, users,
-                instances, tasks, logs, access, audit, notifications, new ObjectMapper());
+                instances, tasks, logs, access, audit, notifications, new ObjectMapper(),
+                mock(com.aiworkmate.service.ApprovalApplicationAttachmentService.class));
         assertThatThrownBy(() -> operation.invoke(service)).isInstanceOf(BusinessException.class)
                 .extracting("errorCode").isEqualTo("PERMISSION_DENIED");
         verifyNoInteractions(applications, forms, processes, rules, leaves, users, instances, tasks, logs, audit, notifications);

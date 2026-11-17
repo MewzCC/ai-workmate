@@ -20,7 +20,7 @@ public record DashboardOverviewResponse(
 
     public record TodoSummary(Long taskId, String businessType, Long businessId, String title,
                               String applicantName, LocalDateTime submittedAt, LocalDateTime dueAt,
-                              boolean overdue) {}
+                              boolean overdue, boolean detailAvailable) {}
 
     public record TrendPoint(LocalDate date, long submitted, long completed) {}
 

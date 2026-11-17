@@ -58,7 +58,7 @@ class AgentPlanningPersistenceIntegrationTest extends AbstractIsolatedAgentInteg
         String plan = "{\"planVersion\":1,\"summary\":\"query\",\"steps\":[{\"sequence\":1,\"toolCode\":\"todo.query\",\"toolVersion\":\"1.0.0\",\"schemaHash\":\"" + schemaHash + "\",\"argsHash\":\"" + argsHash + "\",\"riskLevel\":\"L0\",\"sideEffect\":\"NONE\",\"confirmationPolicy\":\"NONE\"}]}";
         String planHash = "sha256:" + "a".repeat(64);
         assertThat(taskMapper.finalizePlan(task.getId(), 1L, plan, planHash, "L0", "PLAN_READY",
-                "stub", "phase2a-v1", 10L, 1)).isEqualTo(1);
+                "stub", "phase2a-v1", 10L, 1, null)).isEqualTo(1);
 
         AgentTaskStep step = new AgentTaskStep();
         step.setTaskId(task.getId()); step.setSequenceNo(1); step.setToolCode("todo.query");

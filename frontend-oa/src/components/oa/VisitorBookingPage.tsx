@@ -3,7 +3,9 @@
 import { useEffect, useState } from 'react';
 import {
   Button,
+  Alert,
   Card,
+  Descriptions,
   DatePicker,
   Empty,
   Form,
@@ -36,6 +38,7 @@ import { usePublishPageAgentContext } from './PageAgentContext';
 import AdminAssetsPageShell from './AdminAssetsPageShell';
 import ResponsiveTable from './ResponsiveTable';
 import { BusinessUserSelect } from './BusinessUserSelect';
+import { useBusinessRecordDetail } from '@/hooks/useBusinessRecordDetail';
 
 const STATUS_TAG_COLOR: Record<VisitorBookingStatus, string> = {
   PENDING: 'processing',
@@ -63,11 +66,12 @@ interface BookingFormValues {
 export default function VisitorBookingPage() {
   const { t } = useTranslation();
   const { activeTab, mine, pending, loading, total, page, size, setPage, setSize,
-    loadMine, refresh, captureScope, handleTabChange, applyFilters, status, changeStatus, canCreate, canDecide, scope } = useAdminAssetApprovalQueue({
+    loadMine, refresh, captureScope, handleTabChange, applyFilters, status, changeStatus, canRead, canCreate, canDecide, scope } = useAdminAssetApprovalQueue({
     pageId: 'visitor-booking', readPermission: 'visitor:read:self', createPermission: 'visitor:create',
     statuses: Object.keys(STATUS_TAG_COLOR) as VisitorBookingStatus[],
     mine: adminAssetsApi.listMyVisitorBookings, pending: adminAssetsApi.listPendingVisitorBookings,
   });
+  const recordDetail = useBusinessRecordDetail({ scope, allowed: canRead, pageId: 'visitor-booking', loadRecord: adminAssetsApi.getVisitorBooking });
 
   const [createOpen, setCreateOpen] = useState(false);
   const createAction = useAsyncFormAction(scope);
@@ -75,7 +79,6 @@ export default function VisitorBookingPage() {
   const [form] = Form.useForm<BookingFormValues>();
   const uiForm = usePageUiFormContext(createOpen && canCreate && !submitting, undefined, undefined, scope);
   const openCreate = () => { if (!canCreate || !captureScope()()) return; createAction.reset(); uiForm.renew(); form.resetFields(); setCreateOpen(true); };
-  usePublishPageAgentContext({ queue: activeTab.toUpperCase(), status, page, size });
   usePageUiEditorCommands({ form, open: createOpen && !submitting, canEdit: canCreate, context: uiForm.context,
     create: openCreate,
     fields: { visitorName: 'string', visitorCompany: 'string', visitorPhone: 'string', purpose: 'string', hostUserId: 'number',
@@ -83,7 +86,8 @@ export default function VisitorBookingPage() {
     labels: Object.fromEntries(['visitorName', 'visitorCompany', 'visitorPhone', 'purpose', 'hostUserId', 'expectedVisitAt',
       'expectedLeaveAt', 'plateNumber', 'partySize'].map(name => [name, t(`adminAssets.visitor.${name}`)])),
     commands: { 'ui.applyFilter': ({ payload: { filters } }) => applyFilters(filters),
-      'ui.refreshPage': refresh },
+      'ui.refreshPage': refresh,
+      'ui.openDetail': ({ payload: { recordId } }) => recordDetail.open(Number(recordId)) },
   });
 
   const [decideTarget, setDecideTarget] = useState<VisitorBooking | null>(null);
@@ -91,6 +95,11 @@ export default function VisitorBookingPage() {
   const decideAction = useAsyncFormAction(scope);
   const deciding = decideAction.busy;
   const [decideForm] = Form.useForm<{ comment?: string }>();
+  const contextRecord = decideOpen ? decideTarget : recordDetail.data;
+  usePublishPageAgentContext({ queue: activeTab.toUpperCase(), status, page, size,
+    ...(contextRecord ? { bookingId: contextRecord.id } : {}),
+    ...(canDecide && contextRecord?.canDecide && contextRecord.taskId && contextRecord.taskVersion != null
+      ? { taskId: contextRecord.taskId, taskVersion: contextRecord.taskVersion } : {}) });
 
   useEffect(() => {
     setCreateOpen(false); setDecideOpen(false); setDecideTarget(null);
@@ -167,7 +176,7 @@ export default function VisitorBookingPage() {
   };
 
   const openDecide = (record: VisitorBooking) => {
-    if (!canDecide || !record.canDecide || !captureScope()()) return;
+    if (!canDecide || !record.canDecide || !record.taskId || record.taskVersion == null || !captureScope()()) return;
     decideAction.reset();
     setDecideTarget(record);
     decideForm.resetFields();
@@ -175,7 +184,7 @@ export default function VisitorBookingPage() {
   };
 
   const handleDecide = async (action: 'approve' | 'reject') => {
-    if (!canDecide || deciding || !decideTarget || !decideTarget.taskId) return;
+    if (!canDecide || deciding || !decideTarget?.canDecide || !decideTarget.taskId || decideTarget.taskVersion == null) return;
     const operation = decideAction.begin();
     if (!operation) return;
     const current = captureScope();
@@ -183,7 +192,7 @@ export default function VisitorBookingPage() {
       const values = await decideForm.validateFields();
       if (!operation.current()) return;
       const payload = {
-        version: decideTarget.taskVersion ?? 0,
+        version: decideTarget.taskVersion,
         comment: values.comment,
       };
       if (action === 'approve') {
@@ -331,7 +340,7 @@ export default function VisitorBookingPage() {
       title: t('adminAssets.common.action'),
       key: 'action',
       render: (_: unknown, record: VisitorBooking) => (
-        <Button type="link" onClick={() => openDecide(record)}>
+        <Button type="link" disabled={!canDecide || !record.canDecide || !record.taskId || record.taskVersion == null} onClick={() => openDecide(record)}>
           {t('adminAssets.common.decide')}
         </Button>
       ),
@@ -459,6 +468,25 @@ export default function VisitorBookingPage() {
           </Form>
         </Modal>
 
+        <Modal title={t('adminAssets.visitor.detailTitle')} open={recordDetail.visible} onCancel={recordDetail.close} footer={null}>
+          <Spin spinning={recordDetail.loading}>
+            {recordDetail.error && <Alert type="error" showIcon message={recordDetail.error}
+              action={<Button onClick={() => void recordDetail.retry()}>{t('common.retry')}</Button>} />}
+            {recordDetail.data && <Descriptions column={1} items={[
+              { key: 'id', label: t('adminAssets.visitor.bookingId'), children: recordDetail.data.id },
+              { key: 'visitor', label: t('adminAssets.visitor.visitorName'), children: recordDetail.data.visitorName },
+              { key: 'purpose', label: t('adminAssets.visitor.purpose'), children: recordDetail.data.purpose },
+              { key: 'status', label: t('adminAssets.common.status'), children: <Tag color={STATUS_TAG_COLOR[recordDetail.data.status]}>{t(`adminAssets.visitor.status.${recordDetail.data.status}`)}</Tag> },
+              { key: 'version', label: t('adminAssets.visitor.bookingVersion'), children: recordDetail.data.version },
+              { key: 'visit', label: t('adminAssets.visitor.expectedVisitAt'), children: dayjs(recordDetail.data.expectedVisitAt).format('YYYY-MM-DD HH:mm') },
+            ]} />}
+            {recordDetail.data?.canDecide && canDecide && <Button onClick={() => {
+              const target = recordDetail.data;
+              recordDetail.close();
+              if (target) openDecide(target);
+            }}>{t('adminAssets.common.decide')}</Button>}
+          </Spin>
+        </Modal>
         <Modal
           title={t('adminAssets.visitor.decideTitle')}
           open={decideOpen && canDecide}

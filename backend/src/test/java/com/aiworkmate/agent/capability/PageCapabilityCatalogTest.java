@@ -17,7 +17,9 @@ class PageCapabilityCatalogTest {
         assertThat(catalog.allowsTool("todo", tool, Set.of("route:todo"))).isTrue();
         assertThat(catalog.allowsTool("ai-workspace", tool, Set.of("route:ai-workspace"))).isFalse();
         assertThat(catalog.allowsTool("ai-workspace", tool, Set.of("route:ai-workspace", "route:todo"))).isTrue();
-        assertThat(catalog.allowsTool("dashboard", tool, Set.of("route:dashboard", "route:todo"))).isFalse();
+        assertThat(catalog.allowsTool("dashboard", tool, Set.of("route:dashboard", "route:todo"))).isTrue();
+        assertThat(catalog.allowsTool("dashboard", tool, Set.of("route:dashboard"))).isFalse();
+        assertThat(catalog.allowsTool("ai-workspace", tool, Set.of("route:ai-workspace", "route:dashboard"))).isFalse();
     }
     @org.junit.jupiter.api.Test void genericApplicationReadsRequireTheExistingCompanionEntryRoute() {
         var catalog = new PageCapabilityCatalog();
@@ -89,9 +91,9 @@ class PageCapabilityCatalogTest {
                 .containsExactlyInAnyOrderElementsOf(knownTools);
         assertThat(catalog.find("todo").orElseThrow().readTools().stream().filter(reference -> reference.code() != ToolCode.PAGE_UI_PREPARE).toList())
                 .extracting(PageToolReference::code)
-                .containsExactly(ToolCode.TODO_QUERY, ToolCode.APPROVAL_GENERIC_TASK_DETAIL_QUERY);
+                .containsExactly(ToolCode.TODO_QUERY, ToolCode.APPROVAL_GENERIC_TASK_DETAIL_QUERY,ToolCode.APPROVAL_GENERIC_TASK_PARTICIPANTS_QUERY);
         assertThat(catalog.find("todo").orElseThrow().writeTools()).extracting(PageToolReference::code)
-                .containsExactly(ToolCode.APPROVAL_GENERIC_TASK_APPROVE);
+                .containsExactlyInAnyOrder(ToolCode.APPROVAL_GENERIC_TASK_APPROVE, ToolCode.APPROVAL_GENERIC_TASK_REJECT,ToolCode.APPROVAL_GENERIC_TASK_TRANSFER,ToolCode.APPROVAL_GENERIC_TASK_CC,ToolCode.APPROVAL_GENERIC_TASK_ADD_SIGN);
         assertThat(catalog.find("dashboard").orElseThrow().readTools().stream().filter(reference -> reference.code() != ToolCode.PAGE_UI_PREPARE).toList())
                 .extracting(PageToolReference::code)
                 .contains(ToolCode.USER_PERMISSION_MINE_QUERY, ToolCode.DASHBOARD_OVERVIEW_QUERY);
@@ -253,13 +255,14 @@ class PageCapabilityCatalogTest {
                 .extracting(PageToolReference::code)
                 .containsExactly(ToolCode.VISITOR_APPLY, ToolCode.VISITOR_CHECK_IN,
                         ToolCode.VISITOR_MARK_ARRIVED, ToolCode.VISITOR_LEAVE,
-                        ToolCode.VISITOR_WITHDRAW, ToolCode.VISITOR_NO_SHOW);
+                          ToolCode.VISITOR_WITHDRAW, ToolCode.VISITOR_NO_SHOW,
+                          ToolCode.VISITOR_APPROVE,ToolCode.VISITOR_REJECT);
         assertThat(catalog.find("seal-usage").orElseThrow().readTools().stream().filter(reference -> reference.code() != ToolCode.PAGE_UI_PREPARE).toList())
-                .extracting(PageToolReference::code).containsExactly(ToolCode.SEAL_QUERY);
+                .extracting(PageToolReference::code).containsExactly(ToolCode.SEAL_QUERY, ToolCode.SEAL_DOCUMENTS_QUERY);
         assertThat(catalog.find("seal-usage").orElseThrow().writeTools())
                 .extracting(PageToolReference::code)
                 .containsExactly(ToolCode.SEAL_APPLY, ToolCode.SEAL_REGISTER_USE,
-                        ToolCode.SEAL_WITHDRAW, ToolCode.SEAL_RETURN);
+                        ToolCode.SEAL_WITHDRAW, ToolCode.SEAL_RETURN,ToolCode.SEAL_APPROVE,ToolCode.SEAL_REJECT);
     }
 
     @Test

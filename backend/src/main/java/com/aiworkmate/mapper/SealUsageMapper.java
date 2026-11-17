@@ -17,6 +17,9 @@ import org.apache.ibatis.annotations.Select;
  */
 @Mapper
 public interface SealUsageMapper extends BaseMapper<SealUsage> {
+    @Select("SELECT * FROM seal_usage WHERE tenant_id=#{tenantId} AND id=#{id} FOR UPDATE")
+    @Options(useCache=false,flushCache=Options.FlushCachePolicy.TRUE)
+    SealUsage lockById(@Param("tenantId") Long tenantId,@Param("id") Long id);
 
     @Select("""
             SELECT wd.id FROM workflow_definition wd

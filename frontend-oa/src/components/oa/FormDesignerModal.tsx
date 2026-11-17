@@ -36,6 +36,9 @@ import {
 } from '@/lib/approvalEngineApi';
 import { formatOaApiError } from '@/lib/oaApi';
 import { OaIcon } from '@/components/OaIcon';
+import { validateTableColumns, validateTableFieldName, type ApprovalTableColumn } from '@/lib/approvalTable';
+import { ApprovalTableColumnEditor } from './ApprovalTableColumnEditor';
+import { ApprovalTableField } from './ApprovalTableField';
 
 // ==================== 字段模型 ====================
 
@@ -45,6 +48,7 @@ export type BuilderFieldType =
   | 'table' | 'divider';
 
 export interface BuilderField {
+  columns?: ApprovalTableColumn[];
   min?: number;
   /** 仅设计器内部使用，保存时剔除 */
   id: string;
@@ -109,6 +113,7 @@ function newFieldId(): string {
 function createField(type: BuilderFieldType, index: number): BuilderField {
   const key = `${type}${index + 1}`;
   return {
+    ...(type === 'table' ? { columns: [] } : {}),
     id: newFieldId(),
     type,
     label: upperFirst(type),
@@ -125,6 +130,7 @@ function upperFirst(value: string): string {
 }
 
 interface PersistedField {
+  columns?: ApprovalTableColumn[];
   min?: number;
   name?: string;
   key?: string;
@@ -148,6 +154,7 @@ function parseSchemaFields(schemaJson: string): BuilderField[] {
           ? (f.type as BuilderFieldType)
           : 'text';
         return {
+          ...(type === 'table' ? { columns: (f.columns ?? []).map(column => ({ ...column, required: column.required ?? false, options: column.options ?? [] })) } : {}),
           ...(typeof f.min === 'number' && Number.isFinite(f.min) ? { min: f.min } : {}),
           id: newId(name || String(index)),
           type,
@@ -301,6 +308,10 @@ export default function FormDesignerModal({
       if (fields.length === 0) {
         message.warning(t('approval.builder.needField'));
         return;
+      }
+      for (const field of fields) if (field.type === 'table') {
+        validateTableFieldName(field.key);
+        validateTableColumns(field.columns);
       }
       setSubmitting(true);
       const payload = {
@@ -505,6 +516,10 @@ export default function FormDesignerModal({
                   />
                 </Form.Item>
               )}
+              {selected.type === 'table' && <Form.Item label={t('approval.table.columns')}>
+                <ApprovalTableColumnEditor value={selected.columns ?? []} onChange={columns => patchSelected({ columns })}
+                  typeLabel={type => fieldTypeLabel(type)[i18n.language === 'en-US' ? 'en' : 'zh']} />
+              </Form.Item>}
             </Form>
           )}
         </div>
@@ -554,6 +569,17 @@ function OptionsEditor({
       </Button>
     </Space>
   );
+}
+
+function TablePreview({ columns }: { columns: ApprovalTableColumn[] }) {
+  const { t } = useTranslation();
+  const [rows, setRows] = useState<Record<string, unknown>[]>([]);
+  try {
+    validateTableColumns(columns);
+  } catch {
+    return <Alert type="info" title={t('approval.table.configureColumns')} />;
+  }
+  return <ApprovalTableField columns={columns} value={rows} onChange={setRows} />;
 }
 
 function FormPreview({
@@ -639,6 +665,10 @@ function FormPreview({
                   <Select placeholder={placeholder} disabled />
                 </Form.Item>
               );
+            case 'table':
+              return <Form.Item key={field.id} label={label}>
+                <TablePreview key={JSON.stringify(field.columns)} columns={field.columns ?? []} />
+              </Form.Item>;
             default:
               return (
                 <Form.Item key={field.id} label={label}>

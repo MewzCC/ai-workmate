@@ -1,12 +1,14 @@
 package com.aiworkmate.service.impl;
 
 import com.aiworkmate.common.BusinessException;
+import com.aiworkmate.common.MessageUtils;
 import com.aiworkmate.common.ErrorCode;
 import com.aiworkmate.common.PageResponse;
 import com.aiworkmate.common.TraceContext;
 import com.aiworkmate.dto.ApprovalApplicationResponse;
 import com.aiworkmate.dto.ApprovalApplicationView;
 import com.aiworkmate.dto.ApprovalDraftRequest;
+import com.aiworkmate.dto.ApprovalFormReferenceOption;
 import com.aiworkmate.dto.ApprovalDraftUpdateRequest;
 import com.aiworkmate.dto.ApprovalSubmitRequest;
 import com.aiworkmate.dto.VersionRequest;
@@ -30,9 +32,11 @@ import com.aiworkmate.mapper.WorkflowInstanceMapper;
 import com.aiworkmate.mapper.WorkflowTaskMapper;
 import com.aiworkmate.service.BusinessAuditService;
 import com.aiworkmate.service.GenericApprovalService;
+import com.aiworkmate.service.ApprovalApplicationAttachmentService;
 import com.aiworkmate.service.NotificationService;
 import com.aiworkmate.service.UserAccessService;
 import com.aiworkmate.service.model.ResolvedUserAccess;
+import com.aiworkmate.service.model.BusinessCandidateQuery;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -50,6 +54,7 @@ import java.math.BigDecimal;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
@@ -97,6 +102,7 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
     private final BusinessAuditService auditService;
     private final NotificationService notificationService;
     private final ObjectMapper objectMapper;
+    private final ApprovalApplicationAttachmentService applicationAttachments;
 
     @Value("${app.workflow.approval-due-hours:48}")
     private long approvalDueHours;
@@ -150,7 +156,7 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
             if (!"PENDING".equals(existing.getStatus()) || !Integer.valueOf(1).equals(existing.getVersion())
                     || process == null || !java.util.Objects.equals(existing.getFormId(), form.getId())
                     || !java.util.Objects.equals(existing.getProcessId(), process.getId())
-                    || !sameFormDataJson(existing.getDataJson(), writeJson(validateFormData(form, request.formData(), true))))
+                    || !sameFormDataJson(existing.getDataJson(), writeJson(validateFormData(form, request.formData(), true, existing.getId()))))
                 throw new BusinessException(ErrorCode.IDEMPOTENCY_CONFLICT);
             return response(actor, requireView(actor.tenantId(), existing.getId()), null);
         }
@@ -163,7 +169,7 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
         ApprovalForm form = requireEnabledForm(actor, request.formKey(), "DRAFT_CREATE");
         ApprovalProcess process = resolveOptionalProcess(
                 actor.tenantId(), form.getId(), request.processKey());
-        Map<String, Object> formData = validateFormData(form, request.formData(), false);
+        Map<String, Object> formData = validateFormData(form, request.formData(), false, null);
         String dataJson = writeJson(formData);
         ApprovalApplication existing = operationKey == null ? null
                 : applicationMapper.findAgentOperation(actor.tenantId(), actor.userId(), operationKey);
@@ -235,7 +241,7 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
         ApprovalApplication application = requireOwnedApplication(actor, id);
         requireDraft(application);
         ApprovalForm form = requireEnabledForm(actor, application.getFormKey(), "DRAFT_UPDATE");
-        Map<String, Object> formData = validateFormData(form, request.formData(), false);
+        Map<String, Object> formData = validateFormData(form, request.formData(), false, application.getId());
 
         Long processId = application.getProcessId();
         if (request.processKey() != null) {
@@ -290,7 +296,7 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
         }
 
         ApprovalForm form = requireEnabledForm(actor, application.getFormKey(), "DRAFT_SUBMIT");
-        Map<String, Object> formData = validateFormData(form, readJson(application.getDataJson()), true);
+        Map<String, Object> formData = validateFormData(form, readJson(application.getDataJson()), true, application.getId());
         ApprovalProcess process = resolveEnabledProcess(
                 actor.tenantId(), form.getId(), application.getProcessId());
         DefinitionSnapshot snapshot = createDefinitionSnapshot(actor.tenantId(), form, process);
@@ -390,6 +396,9 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
 
     private ApprovalApplicationResponse withdrawInternal(
             ResolvedUserAccess actor, Long id, VersionRequest request) {
+        requireOwnedApplication(actor,id);
+        applicationMapper.lockApplication(actor.tenantId(),id);
+        actor=requireApplicationAccess(actor.userId(),"approval:withdraw");
         ApprovalApplication application = requireOwnedApplication(actor, id);
         if (!"PENDING".equals(application.getStatus())) {
             throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID,
@@ -401,6 +410,13 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
         WorkflowInstance instance = requireRunningInstance(actor, application);
         WorkflowTask task = requirePendingTask(actor, instance.getId(), application.getId());
         LocalDateTime now = LocalDateTime.now();
+
+        var outstanding=taskMapper.selectList(new LambdaQueryWrapper<WorkflowTask>().eq(WorkflowTask::getTenantId,actor.tenantId())
+                .eq(WorkflowTask::getInstanceId,instance.getId()).eq(WorkflowTask::getBusinessType,BUSINESS_TYPE).eq(WorkflowTask::getBusinessId,id)
+                .in(WorkflowTask::getStatus,"PENDING","WAITING").last("LIMIT 421"));
+        if(outstanding.isEmpty() || outstanding.size()>GenericApprovalTaskRuntime.MAX_TASKS
+                || outstanding.stream().noneMatch(pending->Objects.equals(pending.getId(),task.getId())))
+            throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID,"validation.genericApproval.runtimeInvalid");
 
         int applicationUpdated = applicationMapper.update(null,
                 new LambdaUpdateWrapper<ApprovalApplication>()
@@ -417,18 +433,14 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
             throw new BusinessException(ErrorCode.VERSION_CONFLICT);
         }
 
-        int taskUpdated = taskMapper.update(null, new LambdaUpdateWrapper<WorkflowTask>()
-                .eq(WorkflowTask::getId, task.getId())
-                .eq(WorkflowTask::getTenantId, actor.tenantId())
-                .eq(WorkflowTask::getStatus, "PENDING")
-                .eq(WorkflowTask::getVersion, task.getVersion())
-                .set(WorkflowTask::getStatus, "CANCELLED")
-                .set(WorkflowTask::getDecisionComment, "申请人撤回")
-                .set(WorkflowTask::getCompletedAt, now)
-                .set(WorkflowTask::getUpdatedAt, now)
-                .setSql("version = version + 1"));
-        if (taskUpdated != 1) {
-            throw new BusinessException(ErrorCode.VERSION_CONFLICT);
+        for(var pending:outstanding){
+            int updated=taskMapper.update(null,new LambdaUpdateWrapper<WorkflowTask>().eq(WorkflowTask::getId,pending.getId()).eq(WorkflowTask::getTenantId,actor.tenantId())
+                    .eq(WorkflowTask::getInstanceId,instance.getId()).eq(WorkflowTask::getBusinessType,BUSINESS_TYPE).eq(WorkflowTask::getBusinessId,id)
+                    .eq(WorkflowTask::getStatus,pending.getStatus()).eq(WorkflowTask::getVersion,pending.getVersion())
+                    .set(WorkflowTask::getStatus,"CANCELLED").set(WorkflowTask::getDecisionComment,MessageUtils.resolve("genericApproval.withdrawTask"))
+                    .set(WorkflowTask::getCompletedAt,now).set(WorkflowTask::getUpdatedAt,now).setSql("version=version+1"));
+            if(updated!=1)throw new BusinessException(ErrorCode.VERSION_CONFLICT);
+            if(!pending.getId().equals(task.getId()))insertAction(actor,instance.getId(),pending.getId(),"CANCEL_ADD_SIGN",pending.getStatus(),"CANCELLED",MessageUtils.resolve("genericApproval.withdrawTask"));
         }
 
         int instanceUpdated = instanceMapper.update(null,
@@ -586,7 +598,7 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
                     "validation.approval.submit.processUnbound");
         }
 
-        Map<String, Object> formData = validateFormData(form, request.formData(), true);
+        Map<String, Object> formData = validateFormData(form, request.formData(), true, null);
         GenericApprovalPlan plan = executionPlan(actor, process);
         Long definitionId = requireDefinition(actor.tenantId());
 
@@ -933,12 +945,35 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
 
     /**
      * 按 schema_json 校验表单数据：白名单字段、必填、类型与长度限制。
-     * 返回原样数据（仅结构校验，不改动业务取值），供统一序列化落库。
+     * 子表格数值使用无精度损失的十进制字符串，其余字段保持原业务取值，供统一序列化落库。
      */
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<ApprovalFormReferenceOption> referenceOptions(Long userId, String formKey,
+            String fieldName, Long selectedId, BusinessCandidateQuery query) {
+        ResolvedUserAccess actor = requireApplicationAccess(userId, "approval:create");
+        if (formKey == null || formKey.isBlank() || formKey.length() > 120 || fieldName == null
+                || fieldName.isBlank() || fieldName.length() > 120 || query == null || query.size() > 50
+                || selectedId != null && (selectedId < 1 || query.keyword() != null || query.page() != 1)) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        ApprovalForm form = requireEnabledForm(actor, formKey, "REFERENCE_OPTIONS");
+        FieldDef field = parseSchemaFields(form.getSchemaJson()).get(fieldName);
+        if (field == null || !("user".equals(field.type()) || "department".equals(field.type()))) {
+            throw invalidValue();
+        }
+        boolean person = "user".equals(field.type());
+        return PageResponse.of(formMapper.referenceOptions(actor.tenantId(), person, selectedId,
+                        query.keyword(), query.size(), query.offset()),
+                formMapper.countReferenceOptions(actor.tenantId(), person, selectedId, query.keyword()),
+                query.page(), query.size());
+    }
+
     private Map<String, Object> validateFormData(ApprovalForm form,
                                                  Map<String, Object> formData,
-                                                 boolean enforceRequired) {
+                                                 boolean enforceRequired, Long applicationId) {
         Map<String, FieldDef> defs = parseSchemaFields(form.getSchemaJson());
+        Map<String, Object> normalized = new java.util.LinkedHashMap<>(formData);
         for (String key : formData.keySet()) {
             if (!defs.containsKey(key)) {
                 throw new BusinessException(ErrorCode.REQUEST_INVALID,
@@ -947,24 +982,36 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
         }
         for (FieldDef def : defs.values()) {
             Object value = formData.get(def.name());
-            if (value == null || (value instanceof String s && s.isBlank())) {
+            boolean empty = value == null || (value instanceof String s && s.isBlank());
+            if ("dateRange".equals(def.type()) || "checkbox".equals(def.type())
+                    || "user".equals(def.type()) || "department".equals(def.type())
+                    || "file".equals(def.type()) || "image".equals(def.type()) || "table".equals(def.type())) {
+                empty = value == null || (Set.of("checkbox", "file", "image", "table").contains(def.type())
+                        && value instanceof List<?> list && list.isEmpty());
+            }
+            if (empty) {
                 if (enforceRequired && def.required()) {
                     throw new BusinessException(ErrorCode.REQUEST_INVALID,
                             "validation.approval.submit.fieldRequired");
                 }
                 continue;
             }
-            checkValueType(def, value);
+            if ("table".equals(def.type())) {
+                normalized.put(def.name(), ApprovalTableData.normalize(value, def.tableColumns(), enforceRequired));
+            } else if ("file".equals(def.type()) || "image".equals(def.type())) {
+                if (!(value instanceof List<?> references)) throw invalidValue();
+                applicationAttachments.validateReferences(form.getTenantId(), applicationId, def.name(), def.type(), references);
+            } else checkValueType(form.getTenantId(), def, value);
         }
-        String serialized = writeJson(formData);
+        String serialized = writeJson(normalized);
         if (serialized.length() > MAX_DATA_JSON_LENGTH) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID,
                     "validation.approval.submit.payloadTooLarge");
         }
-        return formData;
+        return normalized;
     }
 
-    private void checkValueType(FieldDef def, Object value) {
+    private void checkValueType(Long tenantId, FieldDef def, Object value) {
         String type = def.type() == null ? "text" : def.type();
         switch (type) {
             case "number", "amount", "money" -> {
@@ -980,14 +1027,27 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
                     throw invalidValue();
                 }
             }
-            case "date" -> {
-                String text = requireScalarText(def, value);
-                if (!DATE_PATTERN.matcher(text).matches()) {
+            case "date" -> requireFormDate(value);
+            case "dateRange" -> {
+                if (!(value instanceof List<?> dates) || dates.size() != 2
+                        || requireFormDate(dates.get(0)).isAfter(requireFormDate(dates.get(1)))) {
                     throw invalidValue();
                 }
-                try {
-                    LocalDate.parse(text);
-                } catch (DateTimeParseException e) {
+            }
+            case "checkbox" -> {
+                if (!(value instanceof List<?> choices) || choices.size() > MAX_LIST_ITEMS) {
+                    throw invalidValue();
+                }
+                var seen = new java.util.HashSet<String>();
+                for (Object choice : choices) {
+                    if (!(choice instanceof String option) || !def.options().contains(option) || !seen.add(option)) {
+                        throw invalidValue();
+                    }
+                }
+            }
+            case "user", "department" -> {
+                long id = requireReferenceId(value);
+                if (tenantId == null || formMapper.countReferenceOptions(tenantId, "user".equals(type), id, null) != 1) {
                     throw invalidValue();
                 }
             }
@@ -1015,6 +1075,28 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
                     requireScalarText(def, value);
                 }
             }
+        }
+    }
+
+    private long requireReferenceId(Object value) {
+        if (!(value instanceof String || value instanceof Number)) throw invalidValue();
+        String text = value.toString();
+        if (!text.matches("[1-9][0-9]{0,18}")) throw invalidValue();
+        try {
+            return Long.parseLong(text);
+        } catch (NumberFormatException invalid) {
+            throw invalidValue();
+        }
+    }
+
+    private LocalDate requireFormDate(Object value) {
+        if (!(value instanceof String date) || !DATE_PATTERN.matcher(date).matches()) {
+            throw invalidValue();
+        }
+        try {
+            return LocalDate.parse(date);
+        } catch (DateTimeParseException invalid) {
+            throw invalidValue();
         }
     }
 
@@ -1071,8 +1153,11 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
                         field.path("type").asText("text"),
                         field.path("required").asBoolean(false),
                         List.copyOf(options),
-                        min));
+                        min, "table".equals(field.path("type").asText()) && field.has("columns")
+                                ? ApprovalTableData.columns(field) : List.of()));
             }
+        } catch (BusinessException invalidSchema) {
+            throw invalidSchema;
         } catch (Exception e) {
             // schema 非法按空结构处理：无字段定义时仅做未知键拦截之外的宽松校验
             return defs;
@@ -1270,7 +1355,7 @@ public class GenericApprovalServiceImpl implements GenericApprovalService {
     }
 
     private record FieldDef(String name, String label, String type, boolean required,
-                            List<String> options, BigDecimal min) {
+                            List<String> options, BigDecimal min, List<com.aiworkmate.dto.ApprovalTableColumn> tableColumns) {
     }
 
     private record DefinitionSnapshot(String formSchema,

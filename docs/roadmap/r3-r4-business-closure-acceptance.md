@@ -133,7 +133,7 @@ mvn test
 
 ## 7. 已知限制
 
-- 浏览器门禁以受控网络响应验证全部路由、错误恢复和布局；真实多账号跨角色业务 E2E 仍需提供测试环境账号后运行 `e2e/leave-approval.spec.ts`。
+- 浏览器门禁以受控网络响应验证全部路由、错误恢复和布局。当时独立的阶段 1 请假审批 E2E 已按 2026-11-17 的要求移除；此处保留历史验收范围说明，不再将其作为运行入口。
 - OA 主入口仍超过 Vite 500 kB 建议阈值；大型 AI Workspace 和组织图已独立分包，后续可继续拆分 Ant Design/ECharts 公共依赖。
 - 平台操作日志区分人为操作、AI 自助调用与系统集成，只提供安全摘要，不替代合规审计或基础设施监控；详细采集与回滚边界见 `docs/architecture/platform-operation-observability.md`。
 - 外部 AI、OCR、Embedding、MinIO 或 Redis 故障时，对应业务会失败关闭；本阶段不引入离线伪成功。

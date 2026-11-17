@@ -33,6 +33,15 @@ it('restores the original pending confirmation without issuing credentials or su
   expect(useAiChatStore.getState().pendingPlans[3]).toMatchObject({ taskId: 'synthetic-task', confirmationRequired: true });
   expect(api.appendAgentResult).not.toHaveBeenCalled(); noNewBusinessCommands();
 });
+it('restores an owned question after reload without observing or executing it', async () => {
+  api.latestConversationAgentTask.mockResolvedValue({ ...task('NEEDS_INPUT'), riskLevel: 'L0', steps: [],
+    plan: { summary: '请提供驳回理由。', steps: [], clarificationDepth: 0 } });
+  await useAiChatStore.getState().resumeOperation(3);
+  expect(useAiChatStore.getState().pendingPlans[3]).toMatchObject({ taskId: 'synthetic-task', status: 'NEEDS_INPUT',
+    summary: '请提供驳回理由。', confirmationRequired: false, steps: [] });
+  expect(api.detail).not.toHaveBeenCalled(); expect(api.appendAgentResult).not.toHaveBeenCalled();
+  noNewBusinessCommands();
+});
 it.each<AgentTaskStatus>(['SUCCEEDED', 'PARTIALLY_SUCCEEDED', 'FAILED', 'TIMED_OUT', 'REJECTED', 'EXPIRED', 'CANCELLED'])(
   'restores the real %s state and persists its receipt without re-execution', async status => {
     api.latestConversationAgentTask.mockResolvedValue(task(status));

@@ -7,6 +7,16 @@ import java.util.List;
 public interface GenericApprovalTaskToolPort {
     Detail detailAssigned(ToolActorContext context, DetailQuery query);
     WriteResult approve(ToolActorContext context, DecisionCommand command);
+    WriteResult reject(ToolActorContext context, DecisionCommand command);
+    ApprovalTaskToolPort.Participants participants(ToolActorContext context, ParticipantQuery query);
+    ParticipantResult transfer(ToolActorContext context, ApprovalTaskToolPort.ParticipantCommand command);
+    ParticipantResult copyTo(ToolActorContext context, ApprovalTaskToolPort.ParticipantCommand command);
+    AddSignResult addSign(ToolActorContext context,ApprovalTaskToolPort.AddSignCommand command);
+    record AddSignResult(long applicationId,long taskId,String status,int version,String applicationStatus,String action,String mode,
+            long targetUserId,long addedTaskId,String addedTaskStatus,int addedTaskVersion,long activeTaskId) implements ToolWriteReceipt { }
+    record ParticipantQuery(long taskId,String purpose,String keyword,int page,int size) { }
+    record ParticipantResult(long applicationId,long taskId,String status,int version,String applicationStatus,
+            String action,long originalAssigneeUserId,long targetUserId,long assigneeUserId) implements ToolWriteReceipt { }
 
     record DecisionCommand(long taskId, int version, String comment) { }
     /** Status and version belong to the decided node; applicationStatus describes the whole request. */
@@ -19,7 +29,7 @@ public interface GenericApprovalTaskToolPort {
                   String nodeName, String status, int version, String instanceStatus, String applicationStatus,
                   LocalDateTime submittedAt, LocalDateTime dueAt, boolean overdue,
                   List<ApprovalApplicationToolPort.DetailField> fields, int fieldsTotal, int fieldPage, int fieldPageSize,
-                  boolean canApprove, boolean canReject, String blockedReason) {
+                  boolean canApprove, boolean canReject, String blockedReason,Long parentTaskId,String addSignMode,boolean canAddSign) {
         public Detail { fields = List.copyOf(fields); }
     }
 }

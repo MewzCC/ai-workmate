@@ -4,11 +4,11 @@ import { agentTaskApi, OaApiError } from './oaApi';
 import { AuthResponseScopeError, captureAuthDataScope } from './authEvents';
 
 export function canCancelAgentTask(status?: string | null): boolean {
-  return status === 'PLAN_READY' || status === 'WAITING_CONFIRMATION' || status === 'QUEUED';
+  return status === 'NEEDS_INPUT' || status === 'PLAN_READY' || status === 'WAITING_CONFIRMATION' || status === 'QUEUED';
 }
 
 function requireSameTask(detail: AgentTaskDetail, taskId: string): void {
-  const knownStatus = detail && ['RECEIVED', 'PLANNING', 'PLAN_READY', 'WAITING_CONFIRMATION', 'QUEUED', 'RUNNING',
+  const knownStatus = detail && ['RECEIVED', 'PLANNING', 'NEEDS_INPUT', 'PLAN_READY', 'WAITING_CONFIRMATION', 'QUEUED', 'RUNNING',
     'SUCCEEDED', 'PARTIALLY_SUCCEEDED', 'FAILED', 'TIMED_OUT', 'REJECTED', 'EXPIRED', 'CANCELLED'].includes(detail.status);
   if (!detail || detail.taskId !== taskId || !knownStatus || !Array.isArray(detail.steps)) {
     throw new Error(i18n.t('oa.ai.cancelUnconfirmed'));

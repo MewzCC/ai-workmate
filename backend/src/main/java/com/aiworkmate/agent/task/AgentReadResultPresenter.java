@@ -39,9 +39,16 @@ public final class AgentReadResultPresenter {
         if ("approval.form.definition.query".equals(toolCode)) return formDefinition(result);
         if ("approval.application.template.query".equals(toolCode)) return applicationTemplates(result);
         if ("approval.process.definition.query".equals(toolCode)) return processDefinition(result);
-        if ("approval.task.participants.query".equals(toolCode)) return approvalParticipants(result);
+        if ("approval.task.participants.query".equals(toolCode) || "approval.genericTask.participants.query".equals(toolCode)) return approvalParticipants(result);
+        if ("approval.genericTask.transfer".equals(toolCode) || "approval.genericTask.cc".equals(toolCode)) return genericCollaboration(toolCode,result);
+        if ("approval.genericTask.addSign".equals(toolCode)) return genericAddSign(result);
         if ("approval.genericTask.detail.query".equals(toolCode)) return genericTaskDetail(result);
         if ("approval.genericTask.approve".equals(toolCode)) return genericTaskApprove(result);
+        if ("approval.genericTask.reject".equals(toolCode)) return genericTaskReject(result);
+        if (List.of("visitor.approve","visitor.reject","seal.approve","seal.reject").contains(toolCode == null?"":toolCode)) return assignedWorkflowDecision(toolCode,result);
+        if ("visitor.query".equals(toolCode)) return assignedWorkflowQuery("visitor",result);
+        if ("seal.query".equals(toolCode)) return assignedWorkflowQuery("seal",result);
+        if ("hr.employee.documents.query".equals(toolCode) || "seal.documents.query".equals(toolCode)) return documentMetadata(result);
         if ("todo.query".equals(toolCode)) return todo(result);
         if ("userPermission.mine.query".equals(toolCode)) return userPermissions(result);
         if ("dashboard.overview.query".equals(toolCode)) return dashboard(result);
@@ -344,7 +351,7 @@ public final class AgentReadResultPresenter {
         String scopeLine = "";
         if (unified) {
             String type = result.path("businessType").asText(), state = result.path("status").asText();
-            if (!java.util.Set.of("ALL", "LEAVE_APPLICATION", "GENERIC_APPROVAL").contains(type)
+            if (!java.util.Set.of("ALL", "LEAVE_APPLICATION", "GENERIC_APPROVAL","VISITOR_BOOKING","SEAL_USAGE").contains(type)
                     || !java.util.Set.of("ALL", "PENDING", "APPROVED", "REJECTED", "CANCELLED").contains(state)
                     || !result.path("page").isInt() || result.path("page").asInt() < 1 || result.path("page").asInt() > 10000
                     || !result.path("size").isInt() || result.path("size").asInt() < 1 || result.path("size").asInt() > 50
@@ -366,10 +373,13 @@ public final class AgentReadResultPresenter {
             if (id < 1) throw new BusinessException(ErrorCode.REQUEST_INVALID);
             String applicant = plain(item.path("applicantName").asText(""));
             String due = plain(item.path("dueAt").asText(""));
-            if ("GENERIC_APPROVAL".equals(item.path("businessType").asText())) {
+            String itemType=item.path("businessType").asText(unified?"":"LEAVE_APPLICATION");
+            if(!java.util.Set.of("LEAVE_APPLICATION","GENERIC_APPROVAL","VISITOR_BOOKING","SEAL_USAGE").contains(itemType))throw new BusinessException(ErrorCode.REQUEST_INVALID);
+            if (!"LEAVE_APPLICATION".equals(itemType)) {
                 String title = plain(item.path("title").asText());
                 if (title.isBlank()) throw new BusinessException(ErrorCode.REQUEST_INVALID);
-                answer.append('\n').append(MessageUtils.resolve("agent.todo.unified.genericItem", shown, id, applicant, title));
+                String key=switch(itemType){case "VISITOR_BOOKING"->"agent.todo.unified.visitorItem";case "SEAL_USAGE"->"agent.todo.unified.sealItem";default->"agent.todo.unified.genericItem";};
+                answer.append('\n').append(MessageUtils.resolve(key, shown, id, applicant, title));
                 if (!item.path("nodeName").asText().isBlank()) answer.append(' ').append(MessageUtils.resolve("agent.todo.unified.node",plain(item.path("nodeName").asText())));
                 if (!item.path("detailAvailable").asBoolean()) answer.append(' ').append(MessageUtils.resolve("agent.todo.unified.unavailable"));
             } else {
@@ -390,6 +400,85 @@ public final class AgentReadResultPresenter {
         return answer.toString();
     }
 
+    private static String genericCollaboration(String code,JsonNode result){
+        String action=code.endsWith(".transfer")?"TRANSFER":"CC";
+        requireWriteReceipt(result,"PENDING",1);
+        if(!"PENDING".equals(result.path("applicationStatus").asText()) || !action.equals(result.path("action").asText()))throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        for(String key:List.of("taskId","originalAssigneeUserId","targetUserId","assigneeUserId"))
+            if(!result.path(key).isIntegralNumber() || !result.path(key).canConvertToLong() || result.path(key).asLong()<1)throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        long original=result.path("originalAssigneeUserId").asLong(),target=result.path("targetUserId").asLong();
+        if(original==target || result.path("assigneeUserId").asLong()!=(action.equals("TRANSFER")?target:original))throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        return MessageUtils.resolve(action.equals("TRANSFER")?"agent.genericTask.transferred":"agent.genericTask.copied",
+                Long.toString(result.path("taskId").asLong()),Long.toString(original),Long.toString(target),Integer.toString(result.path("version").asInt()));
+    }
+    private static String genericAddSign(JsonNode result){
+        if(result==null || !List.of("PRE","POST").contains(result.path("mode").asText()))throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        boolean pre="PRE".equals(result.path("mode").asText());requireWriteReceipt(result,pre?"WAITING":"PENDING",1);
+        for(String key:List.of("taskId","targetUserId","addedTaskId","activeTaskId"))
+            if(!result.path(key).isIntegralNumber() || !result.path(key).canConvertToLong() || result.path(key).asLong()<1)throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        if(!"ADD_SIGN".equals(result.path("action").asText()) || !"PENDING".equals(result.path("applicationStatus").asText())
+                || !result.path("addedTaskVersion").isInt() || result.path("addedTaskVersion").asInt()!=0 || result.path("taskId").asLong()==result.path("addedTaskId").asLong()
+                || !(pre?"PENDING":"WAITING").equals(result.path("addedTaskStatus").asText())
+                || result.path("activeTaskId").asLong()!=(pre?result.path("addedTaskId").asLong():result.path("taskId").asLong()))throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        return MessageUtils.resolve(pre?"agent.genericTask.addedPre":"agent.genericTask.addedPost",Long.toString(result.path("taskId").asLong()),
+                Long.toString(result.path("addedTaskId").asLong()),Long.toString(result.path("targetUserId").asLong()),Integer.toString(result.path("version").asInt()));
+    }
+
+    private static String assignedWorkflowDecision(String code,JsonNode result) {
+        String status=code.endsWith(".approve")?"APPROVED":"REJECTED";
+        String domain=code.startsWith("visitor.")?"visitor":"seal";
+        String resourceType=domain.equals("visitor")?"VISITOR_BOOKING":"SEAL_USAGE";
+        if (result == null || !result.isObject() || !resourceType.equals(result.path("resourceType").asText())
+                || !status.equals(result.path("status").asText()) || !status.equals(result.path("resourceStatus").asText())
+                || !(code.endsWith(".approve")?"APPROVE":"REJECT").equals(result.path("action").asText()))
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        for(String field:List.of("resourceId","taskId","resourceVersion","version")) {
+            JsonNode value=result.path(field);
+            if (!value.isIntegralNumber() || !value.canConvertToLong() || value.asLong()<1
+                    || (field.endsWith("Version") || field.equals("version")) && !value.canConvertToInt())
+                throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        }
+        return MessageUtils.resolve("agent."+domain+(code.endsWith(".approve")?".approve.completed":".reject.completed"),
+                Long.toString(result.path("resourceId").asLong()),Long.toString(result.path("taskId").asLong()),
+                Integer.toString(result.path("version").asInt()),Integer.toString(result.path("resourceVersion").asInt()));
+    }
+
+    private static String assignedWorkflowQuery(String domain,JsonNode result) {
+        if(result == null || !result.path("items").isArray() || result.path("items").size()>50
+                || !result.path("total").canConvertToLong() || result.path("total").asLong()<0) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        StringBuilder text=new StringBuilder(MessageUtils.resolve("agent.result.total",result.path("total").asLong()));
+        int shown=0;
+        for(JsonNode item:result.path("items")) {
+            if(shown>=MAX_ITEMS || text.length()>MAX_LENGTH-300) break;
+            shown++;
+            text.append('\n').append(MessageUtils.resolve("agent."+domain+".query.item",Long.toString(item.path("id").asLong()),
+                    plain(item.path(domain.equals("visitor")?"visitorName":"documentTitle").asText()),MessageUtils.resolve("agent.result.enum."+item.path("status").asText()),Integer.toString(item.path("version").asInt())));
+            if(item.path("canDecide").asBoolean()) {
+                if(!item.hasNonNull("taskId") && !item.hasNonNull("taskVersion")) {
+                    text.append('\n').append(MessageUtils.resolve("agent."+domain+".query.historical"));
+                    continue;
+                }
+                if(!item.path("taskId").isIntegralNumber() || !item.path("taskId").canConvertToLong() || item.path("taskId").asLong()<1
+                        || !item.path("taskVersion").isIntegralNumber() || !item.path("taskVersion").canConvertToInt()
+                        || item.path("taskVersion").asInt()<0 || item.path("taskVersion").asInt()==Integer.MAX_VALUE) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+                text.append('\n').append(MessageUtils.resolve("agent."+domain+".query.task",Long.toString(item.path("taskId").asLong()),Integer.toString(item.path("taskVersion").asInt())));
+            }
+        }
+        if(shown==0) text.append('\n').append(MessageUtils.resolve("agent.result.empty"));
+        if(result.path("items").size()>shown) text.append('\n').append(MessageUtils.resolve("agent.result.more",result.path("items").size()-shown));
+        return text.substring(0,Math.min(MAX_LENGTH,text.length()));
+    }
+
+    private static String genericTaskReject(JsonNode result) {
+        requireWriteReceipt(result, "REJECTED", 1);
+        if (!result.path("taskId").isIntegralNumber() || !result.path("taskId").canConvertToLong()
+                || result.path("taskId").asLong() < 1 || !"REJECT".equals(result.path("action").asText())
+                || !"REJECTED".equals(result.path("applicationStatus").asText()))
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        return MessageUtils.resolve("agent.genericTask.reject.completed", Long.toString(result.path("taskId").asLong()),
+                Long.toString(result.path("applicationId").asLong()), Integer.toString(result.path("version").asInt()));
+    }
+
     private static String genericTaskApprove(JsonNode result) {
         requireWriteReceipt(result, "APPROVED", 1);
         String applicationStatus = result.path("applicationStatus").asText();
@@ -402,14 +491,50 @@ public final class AgentReadResultPresenter {
                 Integer.toString(result.path("version").asInt()));
     }
 
+    private static String documentMetadata(JsonNode result) {
+        if (result == null || !result.path("items").isArray() || result.path("items").size() > 20
+                || !result.path("total").isIntegralNumber() || !result.path("total").canConvertToLong() || result.path("total").asLong() < 0
+                || !result.path("page").isIntegralNumber() || !result.path("page").canConvertToInt() || result.path("page").asInt() < 1 || result.path("page").asInt() > 10000
+                || !result.path("size").isIntegralNumber() || !result.path("size").canConvertToInt() || result.path("size").asInt() < 1 || result.path("size").asInt() > 20
+                || result.path("items").size() > result.path("size").asInt() || result.path("items").size() > result.path("total").asLong()) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        var answer = new StringBuilder(MessageUtils.resolve("agent.documents.heading", result.path("total").asLong(), result.path("page").asInt()));
+        int shown = 0;
+        for (JsonNode item : result.path("items")) {
+            if (!item.path("documentId").asText().matches("[1-9][0-9]{0,18}")
+                    || !List.of("CONTRACT", "PROFILE", "ARCHIVE").contains(item.path("documentType").asText())
+                    || !item.path("displayName").isTextual() || item.path("displayName").asText().isBlank() || item.path("displayName").asText().length() > 255
+                    || !item.path("mimeType").isTextual() || item.path("mimeType").asText().isBlank() || item.path("mimeType").asText().length() > 120
+                    || !item.path("fileSize").isIntegralNumber() || !item.path("fileSize").canConvertToLong() || item.path("fileSize").asLong() < 1
+                    || !item.path("createdAt").isTextual() || item.path("createdAt").asText().length() > 32) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+            if (answer.length() > 650) continue;
+            answer.append('\n').append(MessageUtils.resolve("agent.documents.item", plain(item.path("documentId").asText()),
+                    plain(item.path("displayName").asText()), MessageUtils.resolve("agent.documents.type." + item.path("documentType").asText()), plain(item.path("mimeType").asText()),
+                    Long.toString(item.path("fileSize").asLong()), plain(item.path("createdAt").asText())));
+            shown++;
+        }
+        if (result.path("items").isEmpty()) answer.append('\n').append(MessageUtils.resolve("agent.documents.emptyPage"));
+        if (shown < result.path("items").size() || answer.length() > 900) {
+            answer.setLength(Math.min(answer.length(), 850));
+            answer.append('\n').append(MessageUtils.resolve("agent.documents.more"));
+        }
+        return answer.substring(0, Math.min(MAX_LENGTH, answer.length()));
+    }
+
     private static String genericTaskDetail(JsonNode result) {
         if (result == null || !result.isObject() || !result.path("taskId").canConvertToLong()
                 || result.path("taskId").asLong() < 1 || !result.path("fields").isArray()
                 || result.path("fieldPageSize").asInt() != 4 || result.path("fields").size() > 4
                 || result.path("fieldPage").asInt() < 1 || result.path("fieldPage").asInt() > 25
                 || result.path("fieldsTotal").asInt(-1) < 0 || result.path("fieldsTotal").asInt() > 100
-                || !List.of("PENDING", "APPROVED", "REJECTED", "CANCELLED").contains(result.path("status").asText())
+                || !List.of("PENDING", "WAITING", "APPROVED", "REJECTED", "CANCELLED").contains(result.path("status").asText())
                 || !List.of("PENDING", "APPROVED", "REJECTED", "WITHDRAWN", "CANCELLED").contains(result.path("applicationStatus").asText()))
+            throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        boolean child=result.has("parentTaskId");
+        if(child!=result.has("addSignMode") || child && (!result.path("parentTaskId").isIntegralNumber() || !result.path("parentTaskId").canConvertToLong()
+                || result.path("parentTaskId").asLong()<1 || result.path("parentTaskId").asLong()==result.path("taskId").asLong()
+                || !List.of("PRE","POST").contains(result.path("addSignMode").asText()))
+                || "WAITING".equals(result.path("status").asText()) && (result.path("canApprove").asBoolean() || result.path("canReject").asBoolean() || result.path("canAddSign").asBoolean())
+                || result.path("canAddSign").asBoolean() && (child || !"PENDING".equals(result.path("status").asText()) || !result.path("canApprove").asBoolean()))
             throw new BusinessException(ErrorCode.REQUEST_INVALID);
         StringBuilder answer = new StringBuilder(MessageUtils.resolve("agent.genericTask.heading",
                 Long.toString(result.path("taskId").asLong()), plain(result.path("title").asText()), plain(result.path("applicantName").asText())));
@@ -417,6 +542,8 @@ public final class AgentReadResultPresenter {
                 MessageUtils.resolve("agent.application.status." + result.path("status").asText()), result.path("version").asInt()));
         answer.append('\n').append(MessageUtils.resolve("agent.genericTask.application", Long.toString(result.path("applicationId").asLong()),
                 MessageUtils.resolve("agent.application.status." + result.path("applicationStatus").asText())));
+        if(child)answer.append('\n').append(MessageUtils.resolve("agent.genericTask.addSignPosition",MessageUtils.resolve("agent.genericTask.mode."+result.path("addSignMode").asText()),Long.toString(result.path("parentTaskId").asLong())));
+        if(result.has("canAddSign"))answer.append('\n').append(MessageUtils.resolve("agent.genericTask.addSignAvailability",MessageUtils.resolve(result.path("canAddSign").asBoolean()?"agent.genericTask.available":"agent.genericTask.unavailable")));
         int page = result.path("fieldPage").asInt(), total = result.path("fieldsTotal").asInt();
         answer.append('\n').append(MessageUtils.resolve("agent.genericTask.page", page, total, 4));
         if (page * 4 < total) answer.append('\n').append(MessageUtils.resolve("agent.genericTask.next", page + 1));
@@ -447,6 +574,23 @@ public final class AgentReadResultPresenter {
             shown++;
             List<String> values = new ArrayList<>();
             field.path("values").forEach(value -> values.add(plain(value.asText())));
+            if (!field.path("redacted").asBoolean() && field.path("table").isObject()) {
+                var table = field.path("table");
+                values.add(MessageUtils.resolve("agent.application.tableRows", table.path("rows").size()));
+                int rowIndex = 0;
+                for (JsonNode row : table.path("rows")) {
+                    if (rowIndex++ >= 3) {
+                        values.add(MessageUtils.resolve("agent.application.detailMore"));
+                        break;
+                    }
+                    List<String> cells = new ArrayList<>();
+                    for (int column = 0; column < table.path("columns").size(); column++) {
+                        cells.add(plain(table.path("columns").get(column).path("label").asText())
+                                + ": " + plain(row.path(column).asText()));
+                    }
+                    values.add(String.join(" / ", cells));
+                }
+            }
             answer.append('\n').append(plain(field.path("label").asText())).append(": ")
                     .append(field.path("redacted").asBoolean() ? MessageUtils.resolve("agent.application.redacted")
                             : values.isEmpty() ? MessageUtils.resolve("agent.application.unfilled") : String.join(" · ", values));

@@ -49,6 +49,7 @@ class AgentReadCatalogMigrationIntegrationTest extends AbstractIsolatedAgentInte
         jdbc.update("UPDATE rbac_route SET permission_code='access:manage' WHERE route_key='approval-form'");
         jdbc.update("DELETE FROM rbac_permission WHERE code='route:approval-form'");
         ObjectNode oldOutput = (ObjectNode) catalog.find("visitor.query").orElseThrow().outputSchema().deepCopy();
+        ((ObjectNode) oldOutput.at("/properties/items/items/properties")).remove(java.util.List.of("taskId","taskVersion"));
         ((ArrayNode) oldOutput.at("/properties/items/items/required")).insert(6,"expectedLeaveAt");
         jdbc.update("UPDATE agent_tool SET output_schema=?::jsonb,schema_hash=? WHERE code='visitor.query'", oldOutput.toString(), LEGACY_VISITOR_HASH);
         jdbc.update("UPDATE agent_tool SET required_permissions='[\"approval:mine:read\"]'::jsonb WHERE code IN ('approval.application.mine.query','approval.application.detail.query')");

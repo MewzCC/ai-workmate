@@ -19,7 +19,8 @@ public class AgentTaskStateMachine {
     }
 
     public boolean cancellable(AgentTaskStatus status) {
-        return status == AgentTaskStatus.PLAN_READY
+        return status == AgentTaskStatus.NEEDS_INPUT
+                || status == AgentTaskStatus.PLAN_READY
                 || status == AgentTaskStatus.WAITING_CONFIRMATION
                 || status == AgentTaskStatus.QUEUED;
     }
@@ -28,8 +29,9 @@ public class AgentTaskStateMachine {
         Map<AgentTaskStatus, Set<AgentTaskStatus>> transitions = new EnumMap<>(AgentTaskStatus.class);
         transitions.put(AgentTaskStatus.RECEIVED, EnumSet.of(AgentTaskStatus.PLANNING));
         transitions.put(AgentTaskStatus.PLANNING, EnumSet.of(
-                AgentTaskStatus.PLAN_READY, AgentTaskStatus.WAITING_CONFIRMATION, AgentTaskStatus.REJECTED
+                AgentTaskStatus.NEEDS_INPUT, AgentTaskStatus.PLAN_READY, AgentTaskStatus.WAITING_CONFIRMATION, AgentTaskStatus.REJECTED
         ));
+        transitions.put(AgentTaskStatus.NEEDS_INPUT, EnumSet.of(AgentTaskStatus.CANCELLED, AgentTaskStatus.EXPIRED));
         transitions.put(AgentTaskStatus.PLAN_READY, EnumSet.of(AgentTaskStatus.QUEUED, AgentTaskStatus.CANCELLED));
         transitions.put(AgentTaskStatus.WAITING_CONFIRMATION, EnumSet.of(
                 AgentTaskStatus.QUEUED, AgentTaskStatus.EXPIRED, AgentTaskStatus.CANCELLED

@@ -1181,7 +1181,12 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
     @Override
     @Transactional(readOnly = true)
     public VisitorBookingResponse getVisitorBooking(Long userId, Long id) {
-        ResolvedUserAccess actor = requirePermission(userId, "visitor:read:self");
+        return getVisitorBooking(userId, null, id);
+    }
+    @Override
+    @Transactional(readOnly = true)
+    public VisitorBookingResponse getVisitorBooking(Long userId, Long expectedTenantId, Long id) {
+        ResolvedUserAccess actor = requirePermission(userId, expectedTenantId, "visitor:read:self");
         VisitorBooking v = requireVisitor(actor, id, false);
         WorkflowTask task = activeTask(actor.tenantId(), BUSINESS_VISITOR, id);
         return toVisitorResponse(actor, v, task);
@@ -1191,7 +1196,12 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
     @Transactional(readOnly = true)
     public PageResponse<VisitorBookingResponse> listMyVisitorBookings(Long userId, String status,
                                                                        int page, int size) {
-        ResolvedUserAccess actor = requirePermission(userId, "visitor:read:self");
+        return listMyVisitorBookings(userId, null, status, page, size);
+    }
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<VisitorBookingResponse> listMyVisitorBookings(Long userId, Long expectedTenantId, String status, int page, int size) {
+        ResolvedUserAccess actor = requirePermission(userId, expectedTenantId, "visitor:read:self");
         int safePage = Math.max(1, page);
         int safeSize = Math.min(100, Math.max(1, size));
         int offset = (safePage - 1) * safeSize;
@@ -1219,7 +1229,12 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
     @Override
     @Transactional(readOnly = true)
     public PageResponse<VisitorBookingResponse> listPendingVisitorBookings(Long userId, int page, int size) {
-        ResolvedUserAccess actor = requirePermission(userId, "approval:act");
+        return listPendingVisitorBookings(userId, null, page, size);
+    }
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<VisitorBookingResponse> listPendingVisitorBookings(Long userId, Long expectedTenantId, int page, int size) {
+        ResolvedUserAccess actor = requirePermission(userId, expectedTenantId, "approval:act");
         int safePage = Math.max(1, page);
         int safeSize = Math.min(100, Math.max(1, size));
         int offset = (safePage - 1) * safeSize;
@@ -1292,11 +1307,18 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
     @Override
     @Transactional
     public VisitorBookingResponse rejectVisitorBooking(Long userId, Long taskId, ApprovalDecisionRequest request) {
-        if (request.comment() == null || request.comment().isBlank()) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID,
-                    "validation.visitor.rejectReason.required");
-        }
         return decideVisitor(userId, taskId, request, false);
+    }
+
+    @Override
+    @Transactional
+    public com.aiworkmate.service.model.WorkflowDecisionReceipt decideVisitorBookingForAgent(
+            Long userId, Long expectedTenantId, Long taskId, ApprovalDecisionRequest request, boolean approved) {
+        if (expectedTenantId == null) throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        var result=decideVisitor(userId, expectedTenantId, taskId, request, approved);
+        WorkflowTask decided=taskMapper.selectById(taskId);
+        return new com.aiworkmate.service.model.WorkflowDecisionReceipt(result.id(), BUSINESS_VISITOR, result.status(),
+                result.version(), decided.getId(), decided.getStatus(), decided.getVersion(), approved?"APPROVE":"REJECT");
     }
 
     @Override
@@ -1434,15 +1456,22 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
 
     private VisitorBookingResponse decideVisitor(Long userId, Long taskId,
                                                   ApprovalDecisionRequest request, boolean approved) {
-        ResolvedUserAccess actor = requirePermission(userId, "approval:act");
+        return decideVisitor(userId, null, taskId, request, approved);
+    }
+    private VisitorBookingResponse decideVisitor(Long userId, Long expectedTenantId, Long taskId,
+                                                  ApprovalDecisionRequest request, boolean approved) {
+        ResolvedUserAccess actor = requirePermission(userId, expectedTenantId, "approval:act");
+        validateAssignedDecision(request,approved,"validation.visitor.rejectReason.required");
         WorkflowTask task = requireAssignedTask(actor, taskId, BUSINESS_VISITOR);
-        VisitorBooking v = visitorMapper.selectById(task.getBusinessId());
+        VisitorBooking v = visitorMapper.lockById(actor.tenantId(),task.getBusinessId());
         if (v == null || !actor.tenantId().equals(v.getTenantId())) {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
         }
         if (actor.userId().equals(v.getApplicantUserId())) {
             throw new BusinessException(ErrorCode.RESOURCE_FORBIDDEN, "error.SELF_APPROVAL_FORBIDDEN");
         }
+        if (!isActionableVisitorTask(actor,v,task)) throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID);
+        if (v.getVersion() == null || v.getVersion() == Integer.MAX_VALUE) throw new BusinessException(ErrorCode.VERSION_CONFLICT);
         LocalDateTime now = LocalDateTime.now();
         String nextStatus = approved ? "APPROVED" : "REJECTED";
         int taskUpdated = taskMapper.update(null, new LambdaUpdateWrapper<WorkflowTask>()
@@ -1474,13 +1503,13 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
         insertAction(actor, v.getWorkflowInstanceId(), taskId,
                 approved ? "APPROVE" : "REJECT", "PENDING", nextStatus,
                 normalize(request.comment()));
-        auditService.record(actor.tenantId(), actor.userId(), BUSINESS_VISITOR,
+        auditService.recordTransactional(actor.tenantId(), actor.userId(), BUSINESS_VISITOR,
                 v.getId().toString(), approved ? "APPROVE" : "REJECT", "SUCCESS",
-                approved ? "通过访客预约" : "退回访客预约");
-        notificationService.publish(actor.tenantId(), v.getApplicantUserId(),
+                com.aiworkmate.common.MessageUtils.resolve(approved?"visitor.decision.auditApprove":"visitor.decision.auditReject"));
+        notificationService.publishTransactional(actor.tenantId(), v.getApplicantUserId(),
                 NotificationService.TYPE_APPROVAL,
-                approved ? "访客预约已通过" : "访客预约已被退回",
-                approved ? "你的访客预约已通过审批" : "你的访客预约被退回，请查看原因",
+                com.aiworkmate.common.MessageUtils.resolve(approved?"visitor.decision.approved":"visitor.decision.rejected"),
+                com.aiworkmate.common.MessageUtils.resolve(approved?"visitor.decision.approvedBody":"visitor.decision.rejectedBody"),
                 "visitor", v.getId());
         return toVisitorResponse(actor, visitorMapper.selectById(v.getId()), null);
     }
@@ -1623,7 +1652,12 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
     @Override
     @Transactional(readOnly = true)
     public SealUsageResponse getSealUsage(Long userId, Long id) {
-        ResolvedUserAccess actor = requirePermission(userId, "seal:read:self");
+        return getSealUsage(userId,null,id);
+    }
+    @Override
+    @Transactional(readOnly=true)
+    public SealUsageResponse getSealUsage(Long userId,Long expectedTenantId,Long id) {
+        ResolvedUserAccess actor = requirePermission(userId, expectedTenantId, "seal:read:self");
         SealUsage s = requireSeal(actor, id, false);
         boolean related = actor.userId().equals(s.getApplicantUserId())
                 || actor.userId().equals(s.getApproverUserId())
@@ -1638,7 +1672,12 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
     @Override
     @Transactional(readOnly = true)
     public PageResponse<SealUsageResponse> listMySealUsages(Long userId, String status, int page, int size) {
-        ResolvedUserAccess actor = requirePermission(userId, "seal:read:self");
+        return listMySealUsages(userId,null,status,page,size);
+    }
+    @Override
+    @Transactional(readOnly=true)
+    public PageResponse<SealUsageResponse> listMySealUsages(Long userId,Long expectedTenantId,String status,int page,int size) {
+        ResolvedUserAccess actor = requirePermission(userId, expectedTenantId, "seal:read:self");
         int safePage = Math.max(1, page);
         int safeSize = Math.min(100, Math.max(1, size));
         int offset = (safePage - 1) * safeSize;
@@ -1664,7 +1703,12 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
     @Override
     @Transactional(readOnly = true)
     public PageResponse<SealUsageResponse> listPendingSealUsages(Long userId, int page, int size) {
-        ResolvedUserAccess actor = requirePermission(userId, "approval:act");
+        return listPendingSealUsages(userId,null,page,size);
+    }
+    @Override
+    @Transactional(readOnly=true)
+    public PageResponse<SealUsageResponse> listPendingSealUsages(Long userId,Long expectedTenantId,int page,int size) {
+        ResolvedUserAccess actor = requirePermission(userId, expectedTenantId, "approval:act");
         int safePage = Math.max(1, page);
         int safeSize = Math.min(100, Math.max(1, size));
         int offset = (safePage - 1) * safeSize;
@@ -1737,11 +1781,18 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
     @Override
     @Transactional
     public SealUsageResponse rejectSealUsage(Long userId, Long taskId, ApprovalDecisionRequest request) {
-        if (request.comment() == null || request.comment().isBlank()) {
-            throw new BusinessException(ErrorCode.REQUEST_INVALID,
-                    "validation.seal.rejectReason.required");
-        }
         return decideSeal(userId, taskId, request, false);
+    }
+
+    @Override
+    @Transactional
+    public com.aiworkmate.service.model.WorkflowDecisionReceipt decideSealUsageForAgent(
+            Long userId,Long expectedTenantId,Long taskId,ApprovalDecisionRequest request,boolean approved) {
+        if(expectedTenantId==null)throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        var result=decideSeal(userId,expectedTenantId,taskId,request,approved);
+        WorkflowTask decided=taskMapper.selectById(taskId);
+        return new com.aiworkmate.service.model.WorkflowDecisionReceipt(result.id(),BUSINESS_SEAL,result.status(),result.version(),
+                decided.getId(),decided.getStatus(),decided.getVersion(),approved?"APPROVE":"REJECT");
     }
 
     @Override
@@ -1916,15 +1967,20 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
 
     private SealUsageResponse decideSeal(Long userId, Long taskId,
                                           ApprovalDecisionRequest request, boolean approved) {
-        ResolvedUserAccess actor = requirePermission(userId, "approval:act");
+        return decideSeal(userId,null,taskId,request,approved);
+    }
+    private SealUsageResponse decideSeal(Long userId,Long expectedTenantId,Long taskId,ApprovalDecisionRequest request,boolean approved) {
+        ResolvedUserAccess actor = requirePermission(userId, expectedTenantId, "approval:act");
+        validateAssignedDecision(request,approved,"validation.seal.rejectReason.required");
         WorkflowTask task = requireAssignedTask(actor, taskId, BUSINESS_SEAL);
-        SealUsage s = sealMapper.selectById(task.getBusinessId());
+        SealUsage s = sealMapper.lockById(actor.tenantId(),task.getBusinessId());
         if (s == null || !actor.tenantId().equals(s.getTenantId())) {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
         }
         if (actor.userId().equals(s.getApplicantUserId())) {
             throw new BusinessException(ErrorCode.RESOURCE_FORBIDDEN, "error.SELF_APPROVAL_FORBIDDEN");
         }
+        if(!isActionableSealTask(actor,s,task))throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID);
         LocalDateTime now = LocalDateTime.now();
         String nextStatus = approved ? "APPROVED" : "REJECTED";
         int taskUpdated = taskMapper.update(null, new LambdaUpdateWrapper<WorkflowTask>()
@@ -1956,13 +2012,13 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
         insertAction(actor, s.getWorkflowInstanceId(), taskId,
                 approved ? "APPROVE" : "REJECT", "PENDING", nextStatus,
                 normalize(request.comment()));
-        auditService.record(actor.tenantId(), actor.userId(), BUSINESS_SEAL,
+        auditService.recordTransactional(actor.tenantId(), actor.userId(), BUSINESS_SEAL,
                 s.getId().toString(), approved ? "APPROVE" : "REJECT", "SUCCESS",
-                approved ? "通过用印申请" : "退回用印申请");
-        notificationService.publish(actor.tenantId(), s.getApplicantUserId(),
+                com.aiworkmate.common.MessageUtils.resolve(approved?"seal.decision.auditApprove":"seal.decision.auditReject"));
+        notificationService.publishTransactional(actor.tenantId(), s.getApplicantUserId(),
                 NotificationService.TYPE_APPROVAL,
-                approved ? "用印申请已通过" : "用印申请已被退回",
-                approved ? "你的用印申请已通过审批" : "你的用印申请被退回，请查看原因",
+                com.aiworkmate.common.MessageUtils.resolve(approved?"seal.decision.approved":"seal.decision.rejected"),
+                com.aiworkmate.common.MessageUtils.resolve(approved?"seal.decision.approvedBody":"seal.decision.rejectedBody"),
                 "seal", s.getId());
         return toSealResponse(actor, sealMapper.selectById(s.getId()), null);
     }
@@ -1979,12 +2035,23 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
         return access;
     }
 
+    private void validateAssignedDecision(ApprovalDecisionRequest request,boolean approved,String missingReasonKey) {
+        if(request==null || request.version()==null || request.version()<0 || request.version()==Integer.MAX_VALUE
+                || request.comment()!=null && request.comment().length()>500)throw new BusinessException(ErrorCode.REQUEST_INVALID);
+        if(!approved && (request.comment()==null || request.comment().isBlank()))throw new BusinessException(ErrorCode.REQUEST_INVALID,missingReasonKey);
+    }
+
     private ResolvedUserAccess requirePermission(Long userId, String permission) {
         ResolvedUserAccess access = requireAccess(userId);
         if (!access.permissions().contains(permission)) {
             throw new BusinessException(ErrorCode.PERMISSION_DENIED);
         }
         return access;
+    }
+    private ResolvedUserAccess requirePermission(Long userId, Long expectedTenantId, String permission) {
+        ResolvedUserAccess actor=requirePermission(userId,permission);
+        if (expectedTenantId != null && !expectedTenantId.equals(actor.tenantId())) throw new BusinessException(ErrorCode.RESOURCE_FORBIDDEN);
+        return actor;
     }
 
     private ResolvedUserAccess requireAnyPermission(Long userId, String... permissions) {
@@ -2399,12 +2466,9 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
     private VisitorBookingResponse toVisitorResponse(ResolvedUserAccess actor, VisitorBooking v,
                                                       WorkflowTask task) {
         boolean applicant = actor.userId().equals(v.getApplicantUserId());
-        boolean approver = actor.userId().equals(v.getApproverUserId());
         boolean canWithdraw = applicant && "PENDING".equals(v.getStatus())
                 && actor.permissions().contains("visitor:withdraw");
-        boolean canDecide = approver && "PENDING".equals(v.getStatus())
-                && actor.permissions().contains("approval:act")
-                && !applicant;
+        boolean canDecide = isActionableVisitorTask(actor,v,task);
         boolean related = applicant || actor.userId().equals(v.getHostUserId());
         boolean canRegister = actor.permissions().contains("visitor:register")
                 && (related || actor.permissions().contains("visitor:register:any"));
@@ -2420,8 +2484,8 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
                 v.getVisitorName(), v.getVisitorCompany(), v.getVisitorPhone(), v.getPurpose(),
                 v.getExpectedVisitAt(), v.getExpectedLeaveAt(), v.getPlateNumber(), v.getPartySize(),
                 v.getStatus(), v.getVersion(), v.getWorkflowInstanceId(),
-                task == null ? null : task.getId(),
-                task == null ? null : task.getVersion(),
+                canDecide ? task.getId() : null,
+                canDecide ? task.getVersion() : null,
                 task == null ? null : task.getStatus(),
                 v.getSubmittedAt(), v.getCompletedAt(),
                 v.getRegisteredByUserId(), singleUserName(v.getRegisteredByUserId()),
@@ -2430,14 +2494,35 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
                 canCheckIn, canMarkVisited, canLeave, canMarkNoShow);
     }
 
+    private boolean isActionableVisitorTask(ResolvedUserAccess actor,VisitorBooking visitor,WorkflowTask task) {
+        return isActionableAssignedTask(actor,new ApprovalSubject(BUSINESS_VISITOR,visitor.getTenantId(),visitor.getId(),
+                visitor.getApplicantUserId(),visitor.getApproverUserId(),visitor.getWorkflowInstanceId(),visitor.getStatus(),visitor.getVersion()),task);
+    }
+    private boolean isActionableSealTask(ResolvedUserAccess actor,SealUsage usage,WorkflowTask task) {
+        return isActionableAssignedTask(actor,new ApprovalSubject(BUSINESS_SEAL,usage.getTenantId(),usage.getId(),
+                usage.getApplicantUserId(),usage.getApproverUserId(),usage.getWorkflowInstanceId(),usage.getStatus(),usage.getVersion()),task);
+    }
+    private record ApprovalSubject(String type,Long tenantId,Long id,Long applicantId,Long approverId,Long instanceId,String status,Integer version) { }
+    private boolean isActionableAssignedTask(ResolvedUserAccess actor,ApprovalSubject subject,WorkflowTask task) {
+        if (task == null || !actor.permissions().contains("approval:act") || !actor.tenantId().equals(subject.tenantId())
+                || actor.userId().equals(subject.applicantId()) || !actor.userId().equals(subject.approverId())
+                || !actor.userId().equals(task.getAssigneeUserId()) || !actor.tenantId().equals(task.getTenantId())
+                || !subject.type().equals(task.getBusinessType()) || !subject.id().equals(task.getBusinessId())
+                || task.getVersion() == null || task.getVersion() < 0 || task.getVersion() == Integer.MAX_VALUE
+                || subject.version() == null || subject.version() < 0 || subject.version() == Integer.MAX_VALUE
+                || !java.util.Objects.equals(subject.instanceId(),task.getInstanceId())
+                || !"PENDING".equals(subject.status()) || !"PENDING".equals(task.getStatus())) return false;
+        WorkflowInstance instance=instanceMapper.selectById(task.getInstanceId());
+        return instance != null && actor.tenantId().equals(instance.getTenantId()) && subject.type().equals(instance.getBusinessType())
+                && subject.id().equals(instance.getBusinessId()) && subject.applicantId().equals(instance.getApplicantId())
+                && "RUNNING".equals(instance.getStatus());
+    }
+
     private SealUsageResponse toSealResponse(ResolvedUserAccess actor, SealUsage s, WorkflowTask task) {
         boolean applicant = actor.userId().equals(s.getApplicantUserId());
-        boolean approver = actor.userId().equals(s.getApproverUserId());
         boolean canWithdraw = applicant && "PENDING".equals(s.getStatus())
                 && actor.permissions().contains("seal:withdraw");
-        boolean canDecide = approver && "PENDING".equals(s.getStatus())
-                && actor.permissions().contains("approval:act")
-                && !applicant;
+        boolean canDecide = isActionableSealTask(actor,s,task);
         boolean canRegister = actor.permissions().contains("seal:register")
                 && (applicant || actor.permissions().contains("seal:register:any"));
         boolean canRegisterUse = canRegister && "APPROVED".equals(s.getStatus());
@@ -2450,8 +2535,8 @@ public class AdminAssetsServiceImpl implements AdminAssetsService {
                 s.getApproverUserId(), singleUserName(s.getApproverUserId()),
                 s.getSealType(), s.getDocumentTitle(), s.getUsageReason(), s.getCopies(),
                 s.getStatus(), s.getVersion(), s.getWorkflowInstanceId(),
-                task == null ? null : task.getId(),
-                task == null ? null : task.getVersion(),
+                canDecide ? task.getId() : null,
+                canDecide ? task.getVersion() : null,
                 task == null ? null : task.getStatus(),
                 s.getSubmittedAt(), s.getCompletedAt(), s.getActualCopies(), s.getHandlerUserId(),
                 singleUserName(s.getHandlerUserId()), s.getUsedAt(), s.getReturnedAt(),

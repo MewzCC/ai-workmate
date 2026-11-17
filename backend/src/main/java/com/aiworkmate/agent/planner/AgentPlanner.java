@@ -7,4 +7,7 @@ import java.util.List;
 
 public interface AgentPlanner {
     PlannerCandidate plan(String input, String pageId, JsonNode pageContext, List<ToolDefinition> allowedTools);
+
+    PlannerCandidate planContinuation(String originalInput, String question, String reply, String pageId,
+                                      JsonNode pageContext, List<ToolDefinition> allowedTools);
 }

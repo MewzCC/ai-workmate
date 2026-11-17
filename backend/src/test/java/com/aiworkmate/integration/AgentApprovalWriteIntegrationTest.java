@@ -100,6 +100,43 @@ class AgentApprovalWriteIntegrationTest extends AbstractIsolatedAgentIntegration
     private static boolean atomicCreation(ToolCode code) { return code==ToolCode.APPROVAL_APPLICATION_APPLY || code==ToolCode.EXPENSE_APPLY; }
     static Stream<ToolCode> versionedWrites() { return writes().filter(c->c!=ToolCode.APPROVAL_APPLICATION_CREATE_DRAFT && !atomicCreation(c)); }
 
+    static Stream<ToolCode> tableWrites() {
+        return Stream.of(ToolCode.APPROVAL_APPLICATION_CREATE_DRAFT, ToolCode.APPROVAL_APPLICATION_UPDATE_DRAFT,
+                ToolCode.APPROVAL_APPLICATION_APPLY);
+    }
+
+    @ParameterizedTest @MethodSource("tableWrites")
+    void structuredTableRowsReachOneDomainWriteThroughConfirmationAndGateway(ToolCode code) throws Exception {
+        var task = prepare(code, "9007199254740993.01");
+        assertThat(execute(task, confirm(task)).statusCode()).isEqualTo(202);
+        terminal(task, "SUCCEEDED");
+        var result = json.readTree(response("GET", path(task), owner, null).body()).at("/data/steps/0/result");
+        long id = result.path("applicationId").asLong();
+        var data = json.readTree(jdbc.queryForObject("SELECT data_json FROM approval_application WHERE id=?", String.class, id));
+        assertThat(data.at("/items/0/amount").asText()).isEqualTo("9007199254740993.01");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM approval_application WHERE applicant_user_id=?", Long.class, owner.id())).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM agent_tool_invocation WHERE task_id=? AND handler_invoked", Long.class, task.id())).isEqualTo(1);
+    }
+
+    @ParameterizedTest @MethodSource("tableWrites")
+    void invalidTableCellRollsBackTheSingleDomainWrite(ToolCode code) throws Exception {
+        var task = prepare(code, "-0.01");
+        assertThat(execute(task, confirm(task)).statusCode()).isEqualTo(202);
+        terminal(task, "FAILED");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM business_audit_log WHERE actor_user_id=? AND resource_type='GENERIC_APPROVAL' AND result='SUCCESS'", Long.class, owner.id())).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM approval_application WHERE applicant_user_id=?", Long.class, owner.id())).isEqualTo(application == 0 ? 0L : 1L);
+        if (application != 0) assertThat(jdbc.queryForObject("SELECT version FROM approval_application WHERE id=?", Integer.class, application)).isEqualTo(version);
+    }
+
+    @ParameterizedTest @MethodSource("tableWrites")
+    void revokedPermissionBlocksStructuredTableBeforeHandlerInvocation(ToolCode code) throws Exception {
+        var task = prepare(code, "0.10");
+        String token = confirm(task);
+        jdbc.update("DELETE FROM rbac_role_permission WHERE tenant_id=? AND role_code=? AND permission_code='approval:create'", tenant, owner.role());
+        assertThat(execute(task, token).statusCode()).isEqualTo(403);
+        unchanged(task);
+    }
+
     @ParameterizedTest @MethodSource("writes")
     void confirmedWriteReturnsTheActualStateAndCommitsItsAuditTogether(ToolCode code) throws Exception {
         var task = prepare(code);
@@ -291,6 +328,10 @@ class AgentApprovalWriteIntegrationTest extends AbstractIsolatedAgentIntegration
     }
 
     private Task prepare(ToolCode code) throws Exception {
+        return prepare(code, null);
+    }
+
+    private Task prepare(ToolCode code, String tableAmount) throws Exception {
         var permissions=new LinkedHashSet<>(catalog.find(code.code()).orElseThrow().requiredPermissions());
         var routes=pages.businessPageIdsForTool(code.code()).stream().sorted().toList();
         routes.forEach(route->permissions.add("route:"+route));
@@ -307,6 +348,13 @@ class AgentApprovalWriteIntegrationTest extends AbstractIsolatedAgentIntegration
         }
         formKey="approval-it-"+UUID.randomUUID().toString().replace("-","");
         long form=jdbc.queryForObject("INSERT INTO approval_form(tenant_id,form_key,form_name,schema_json,status,created_by) VALUES (?,?,?,'{\"fields\":[{\"name\":\"reason\",\"label\":\"Reason\",\"type\":\"textarea\",\"required\":true}]}','ENABLED',?) RETURNING id",Long.class,tenant,formKey,formKey,owner.id());
+        if (tableAmount != null) {
+            String columns = """
+                    [{"name":"items","label":"Items","type":"table","required":true,"columns":[
+                    {"name":"amount","label":"Exact amount","type":"money","required":true,"min":0}]}]
+                    """;
+            jdbc.update("UPDATE approval_form SET schema_json=jsonb_set(schema_json::jsonb,'{fields}',(schema_json::jsonb->'fields')||?::jsonb)::text WHERE id=?", columns, form);
+        }
         var nodes=json.createArrayNode();
         nodes.addObject().put("nodeName","Review").put("approveType","USER").put("targetKey",Long.toString(approver));
         long process=jdbc.queryForObject("INSERT INTO approval_process(tenant_id,process_key,process_name,form_id,node_json,status,created_by) VALUES (?,?,?,?,?,'ENABLED',?) RETURNING id",Long.class,tenant,formKey,formKey,form,nodes.toString(),owner.id());
@@ -335,6 +383,10 @@ class AgentApprovalWriteIntegrationTest extends AbstractIsolatedAgentIntegration
         }
         if(code==ToolCode.APPROVAL_APPLICATION_CREATE_DRAFT || code==ToolCode.APPROVAL_APPLICATION_UPDATE_DRAFT || code==ToolCode.APPROVAL_APPLICATION_APPLY)
             args.putArray("fields").addObject().put("name","reason").put("value","controlled generic value");
+        if (tableAmount != null) {
+            args.withArray("fields").addObject().put("name", "items").putArray("rows").addObject()
+                    .putArray("cells").addObject().put("name", "amount").put("value", tableAmount);
+        }
         return freeze(code,routes,args);
     }
     private Task freeze(ToolCode code,List<String> routes,com.fasterxml.jackson.databind.JsonNode args) {

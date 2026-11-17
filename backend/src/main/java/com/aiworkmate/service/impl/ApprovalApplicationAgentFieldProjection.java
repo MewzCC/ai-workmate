@@ -34,10 +34,41 @@ final class ApprovalApplicationAgentFieldProjection {
                 String label = definition.has("label") ? text(definition.path("label"), 200) : name;
                 String type = definition.has("type") ? text(definition.path("type"), 40) : "text";
                 if (!names.add(name)) throw invalid();
-                boolean hidden = !TYPES.contains(type) || definition.path("sensitive").asBoolean()
+                JsonNode value = values.get(name);
+                if ("table".equals(type) && definition.has("columns")) {
+                    var columns = ApprovalTableData.columns(definition);
+                    boolean hidden = definition.path("sensitive").asBoolean() || sensitiveName(name)
+                            || columns.stream().anyMatch(column -> sensitiveName(column.name()));
+                    if (hidden) {
+                        result.add(new Field(name, label, type, List.of(), true));
+                        continue;
+                    }
+                    Object rows = value == null || value.isNull() ? List.of() : reader.forType(List.class).readValue(value);
+                    ApprovalTableData.validate(rows, columns, false);
+                    List<List<String>> projectedRows = new ArrayList<>();
+                    if (value != null && !value.isNull()) {
+                        for (JsonNode row : value) {
+                            List<String> cells = new ArrayList<>();
+                            for (var column : columns) {
+                                JsonNode cell = row.get(column.name());
+                                cells.add(cell == null || cell.isNull() ? "" : scalar(cell));
+                            }
+                            projectedRows.add(List.copyOf(cells));
+                        }
+                    }
+                    var table = new com.aiworkmate.dto.ApprovalApplicationAgentDetailResponse.Table(
+                            columns.stream().map(column -> new com.aiworkmate.dto.ApprovalApplicationAgentDetailResponse.TableColumn(
+                                    column.name(), column.label(), column.type())).toList(), projectedRows);
+                    result.add(new Field(name, label, type, List.of(), false, table));
+                    continue;
+                }
+                boolean reference = "user".equals(type) || "department".equals(type);
+                boolean attachment = "file".equals(type) || "image".equals(type);
+                boolean supported = attachment ? isAttachmentReferences(value)
+                        : reference ? value == null || value.isNull() || isReferenceId(value) : TYPES.contains(type);
+                boolean hidden = !supported || definition.path("sensitive").asBoolean()
                         || SECRET_NAMES.contains(name.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", ""));
                 List<String> projected = new ArrayList<>();
-                JsonNode value = values.get(name);
                 if (!hidden && value != null && !value.isNull()) {
                     if (value.isArray()) {
                         if (value.size() > 20) throw invalid();
@@ -58,11 +89,31 @@ final class ApprovalApplicationAgentFieldProjection {
         if (!value.isTextual() || value.asText().isBlank() || value.asText().length() > limit) throw invalid();
         return value.asText();
     }
+    private static boolean sensitiveName(String name) {
+        return SECRET_NAMES.contains(name.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", ""));
+    }
     private static String scalar(JsonNode value) {
         if (!value.isTextual() && !value.isNumber() && !value.isBoolean()) throw invalid();
         String text = value.asText();
         if (text.length() > 500) throw invalid();
         return text;
+    }
+
+    private static boolean isReferenceId(JsonNode value) {
+        if (!value.isTextual() && !value.isIntegralNumber()) return false;
+        String id = value.asText();
+        return id.matches("[1-9][0-9]{0,18}")
+                && (id.length() < 19 || id.compareTo("9223372036854775807") <= 0);
+    }
+
+    private static boolean isAttachmentReferences(JsonNode value) {
+        if (value == null || value.isNull()) return true;
+        if (!value.isArray() || value.size() > 20) return false;
+        var seen = new HashSet<String>();
+        for (JsonNode reference : value) {
+            if (!reference.isTextual() || !isReferenceId(reference) || !seen.add(reference.asText())) return false;
+        }
+        return true;
     }
     private static BusinessException invalid() { return new BusinessException(ErrorCode.BUSINESS_STATE_INVALID); }
 }

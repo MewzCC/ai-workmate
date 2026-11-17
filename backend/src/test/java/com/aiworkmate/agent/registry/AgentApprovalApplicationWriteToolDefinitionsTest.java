@@ -8,6 +8,20 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class AgentApprovalApplicationWriteToolDefinitionsTest {
     @Test
+    void tableInputIsBoundedStructuredAndExclusiveOfScalarValues() throws Exception {
+        var mapper = new ObjectMapper();
+        var schema = new AgentApprovalApplicationWriteToolDefinitions().approvalApplicationCreateDraftToolDefinition(mapper).inputSchema();
+        var validator = new ToolSchemaValidator();
+        var arguments = mapper.readTree("""
+                {"formKey":"expense","fields":[{"name":"items","rows":[{"cells":[
+                  {"name":"amount","value":"9007199254740993.01"}]}]}]}
+                """);
+        assertThat(validator.valid(schema, arguments)).isTrue();
+        ((com.fasterxml.jackson.databind.node.ObjectNode) arguments.path("fields").get(0)).put("value", "ambiguous");
+        assertThat(validator.valid(schema, arguments)).isFalse();
+        assertThat(schema.path("properties").path("fields").path("items").path("properties").path("rows").path("maxItems").asInt()).isEqualTo(20);
+    }
+    @Test
     void genericDraftUsesClosedTypedFieldsAndBusinessIdempotency() throws Exception {
         ObjectMapper mapper = new ObjectMapper();
         var definition = new AgentApprovalApplicationWriteToolDefinitions()
@@ -15,7 +29,7 @@ class AgentApprovalApplicationWriteToolDefinitionsTest {
         var validator = new ToolSchemaValidator();
 
         assertThat(definition.schemaHash()).isEqualTo(
-                "sha256:0b91ec92030a3bdb99baac22dce2b1e7c3a239829740fe9ad174b24ecf340424");
+                "sha256:d81ae202169689c1af702ca5ef36f53a1f0908f6236c0ca44ac2be5232faaff7");
         assertThat(definition.requiredPermissions()).containsExactly("approval:create");
         assertThat(definition.riskLevel()).isEqualTo(RiskLevel.L1);
         assertThat(definition.retryPolicy()).isEqualTo(RetryPolicy.BUSINESS_IDEMPOTENT);
@@ -110,7 +124,7 @@ class AgentApprovalApplicationWriteToolDefinitionsTest {
                 .approvalApplicationUpdateDraftToolDefinition(mapper);
 
         assertThat(definition.schemaHash()).isEqualTo(
-                "sha256:a5c42c9496a21a5168c36ccda217610628fe07528ea042342fa483368e445290");
+                "sha256:5230372a18d3c297184e08e1c6877f66c327afdf923b5b623390f31a78e58504");
         assertThat(definition.requiredPermissions()).containsExactly("approval:create");
         assertThat(definition.retryPolicy()).isEqualTo(RetryPolicy.NEVER);
         assertThat(new ToolSchemaValidator().valid(definition.inputSchema(), mapper.readTree("""

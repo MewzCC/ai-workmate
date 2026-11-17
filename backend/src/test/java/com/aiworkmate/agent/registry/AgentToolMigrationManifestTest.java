@@ -57,7 +57,9 @@ class AgentToolMigrationManifestTest {
             String compact = sql.replaceAll("\\s+", "").toLowerCase();
             return containsToolCode(toolCode)
                     && (compact.contains("'agent:tool:'||tool_code")
-                    || compact.contains("concat('agent:tool:',tool_code)"));
+                    || compact.contains("concat('agent:tool:',tool_code)")
+                    || (compact.contains("insertintorbac_permission(")
+                    && compact.contains("'agent:tool:'||d.code")));
         }
 
         private boolean containsToolCode(String toolCode) {

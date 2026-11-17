@@ -66,9 +66,18 @@ public interface ApprovalConfigurationToolPort {
                           List<FormDefinitionField> fields) {
         public FormDefinition { fields = List.copyOf(fields); }
     }
+    record FormTableColumn(String name, String label, String type, boolean required, List<String> options,
+                           java.math.BigDecimal min) {
+        public FormTableColumn { options = List.copyOf(options); }
+    }
     record FormDefinitionField(String name, String label, String type, boolean required,
-                               String placeholder, List<String> options, String width, java.math.BigDecimal min) {
-        public FormDefinitionField { options = List.copyOf(options); }
+                               String placeholder, List<String> options, String width, java.math.BigDecimal min,
+            List<FormTableColumn> columns) {
+        public FormDefinitionField { options = List.copyOf(options); columns = List.copyOf(columns); }
+        public FormDefinitionField(String name, String label, String type, boolean required,
+                String placeholder, List<String> options, String width, java.math.BigDecimal min) {
+            this(name, label, type, required, placeholder, options, width, min, List.of());
+        }
     }
 
     record FormDraftResult(long formId, String formKey, String status, int version,

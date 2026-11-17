@@ -34,6 +34,8 @@ import { requireUiPagination } from '@/hooks/usePageUiEditorCommands';
 import { useScopedOverview } from '@/hooks/useScopedOverview';
 import { usePermission } from '@/hooks/usePermission';
 import { useAsyncActionGuard } from '@/hooks/useAsyncActionGuard';
+import { adminAssetsApi } from '@/lib/adminAssetsApi';
+import { approvalTaskRoutePermission, approvalTaskTarget, todoBusinessLabelKey } from '@/lib/approvalTaskTarget';
 
 const { RangePicker } = DatePicker;
 
@@ -55,7 +57,7 @@ export default function TodoListPage() {
 function TodoInbox({ initial, leaveOnly = false }: { initial: TodoQueryFilters; leaveOnly?: boolean }) {
   const router = useRouter();
   const { t } = useTranslation();
-  const { allowed } = usePermission('todo:read');
+  const { allowed, hasPermission } = usePermission('todo:read');
   const [filters, setFilters] = useState(initial);
   const { status, page, size, businessType } = filters;
   const range = useMemo(() => filters.from || filters.to ? [filters.from, filters.to] : undefined, [filters.from, filters.to]);
@@ -80,6 +82,10 @@ function TodoInbox({ initial, leaveOnly = false }: { initial: TodoQueryFilters; 
   const records = useMemo<TodoItem[]>(() => allowed ? data?.records ?? [] : [], [allowed, data]);
   const total = allowed ? data?.total ?? 0 : 0;
   const { capture } = useAsyncActionGuard(scope);
+  const canOpen = (item: TodoItem) => {
+    const permission = approvalTaskRoutePermission(item.businessType);
+    return allowed && item.detailAvailable && permission !== null && hasPermission(permission);
+  };
   const openDetail = async (recordId: string | number) => {
     const current = capture();
     if (!current() || !allowed || !isCurrent() || typeof recordId !== 'number' || !Number.isSafeInteger(recordId) || recordId < 1)
@@ -87,12 +93,22 @@ function TodoInbox({ initial, leaveOnly = false }: { initial: TodoQueryFilters; 
     const summary = await todoApi.summary(recordId);
     if (!current() || !isCurrent()) throw new Error('PAGE_UI_COMMAND_REJECTED');
     if (!summary.detailAvailable) throw new OaApiError(t('approval.genericTasks.snapshotMissing'), 409, 'BUSINESS_STATE_INVALID');
+    const target = approvalTaskTarget({ taskId: recordId, businessId: summary.applicationId, businessType: summary.businessType, detailAvailable: summary.detailAvailable }, 'todo');
+    if (!canOpen(summary) || !target) throw new Error('PAGE_UI_FIELD_REJECTED');
+    if (summary.businessType === 'VISITOR_BOOKING' || summary.businessType === 'SEAL_USAGE') {
+      const detail = summary.businessType === 'VISITOR_BOOKING'
+        ? await adminAssetsApi.getVisitorBooking(summary.applicationId) : await adminAssetsApi.getSealUsage(summary.applicationId);
+      if (!current() || !isCurrent()) throw new Error('PAGE_UI_COMMAND_REJECTED');
+      if (detail.id !== summary.applicationId || detail.taskId != null && detail.taskId !== recordId) throw new Error('PAGE_UI_FIELD_REJECTED');
+      router.push(target); return;
+    }
     if (summary.businessType === 'GENERIC_APPROVAL') {
       const detail = await genericApprovalTaskApi.detail(recordId);
       if (!current() || !isCurrent()) throw new Error('PAGE_UI_COMMAND_REJECTED');
       if (detail.task.id !== recordId || detail.task.applicationId !== summary.applicationId) throw new Error('PAGE_UI_FIELD_REJECTED');
       router.push(`/oa/todo?kind=generic&taskId=${recordId}`); return;
     }
+    if (summary.businessType !== 'LEAVE_APPLICATION') throw new Error('PAGE_UI_FIELD_REJECTED');
     const detail = await todoApi.detail(recordId);
     if (!current() || !isCurrent()) throw new Error('PAGE_UI_COMMAND_REJECTED');
     if (detail.id !== summary.applicationId || detail.taskId !== recordId) throw new Error('PAGE_UI_FIELD_REJECTED');
@@ -126,7 +142,7 @@ function TodoInbox({ initial, leaveOnly = false }: { initial: TodoQueryFilters; 
           <div>
             <Space>
               <Avatar size="small" src={item.applicantAvatarUrl || undefined}>{item.applicantName.slice(0, 1).toUpperCase()}</Avatar>
-              <Typography.Text strong>{item.businessType === 'GENERIC_APPROVAL' ? t('approval.genericTasks.genericSubject', { name: item.applicantName, title: item.title }) : t('pages.todo.subjectTitle', { name: item.applicantName, type: item.leaveType ? leaveTypeLabel(item.leaveType) : t('approval.genericTasks.leaveTab') })}</Typography.Text>
+              <Typography.Text strong>{item.businessType !== 'LEAVE_APPLICATION' ? t('approval.genericTasks.genericSubject', { name: item.applicantName, title: item.title }) : t('pages.todo.subjectTitle', { name: item.applicantName, type: item.leaveType ? leaveTypeLabel(item.leaveType) : t('approval.genericTasks.leaveTab') })}</Typography.Text>
             </Space>
             <Typography.Text type="secondary">
               TK-{String(item.id).padStart(6, '0')} · {t('pages.todo.applicationIdLabel', { id: item.applicationId })}
@@ -136,7 +152,7 @@ function TodoInbox({ initial, leaveOnly = false }: { initial: TodoQueryFilters; 
       ),
     },
     { title: t('approval.genericTasks.businessType'), key: 'businessType', width: 140,
-      render: (_, item) => <Tag>{t(item.businessType === 'GENERIC_APPROVAL' ? 'approval.genericTasks.genericTab' : 'approval.genericTasks.leaveTab')}</Tag> },
+      render: (_, item) => <Tag>{t(todoBusinessLabelKey(item.businessType))}</Tag> },
     {
       title: t('pages.todo.columnDuration'),
       dataIndex: 'durationHalfDays',
@@ -176,7 +192,7 @@ function TodoInbox({ initial, leaveOnly = false }: { initial: TodoQueryFilters; 
         <Button
           type={item.status === 'PENDING' ? 'primary' : 'link'}
           size="small"
-          disabled={!allowed || item.detailAvailable === false}
+          disabled={!canOpen(item)}
           onClick={() => { void openDetail(item.id).catch(failure => { if (isCurrent()) message.error(formatOaApiError(failure)); }); }}
         >
           {item.detailAvailable === false ? t('approval.genericTasks.snapshotMissing') : item.status === 'PENDING' ? t('pages.todo.actionProcess') : t('pages.todo.actionView')}
@@ -205,7 +221,8 @@ function TodoInbox({ initial, leaveOnly = false }: { initial: TodoQueryFilters; 
       <Card className="leave-list-card" variant="borderless">
         <div className="todo-toolbar">
           <Select aria-label={t('approval.genericTasks.businessType')} disabled={!allowed || leaveOnly} value={businessType} style={{ minWidth: 150 }}
-            options={TODO_BUSINESS_TYPES.map(value => ({ value, label: t(value === 'ALL' ? 'approval.genericTasks.allTab' : value === 'LEAVE_APPLICATION' ? 'approval.genericTasks.leaveTab' : 'approval.genericTasks.genericTab') }))}
+            options={TODO_BUSINESS_TYPES.filter(value => (value !== 'VISITOR_BOOKING' || hasPermission('visitor:read:self')) && (value !== 'SEAL_USAGE' || hasPermission('seal:read:self')))
+              .map(value => ({ value, label: t(todoBusinessLabelKey(value)) }))}
             onChange={value => setFilters(previous => requireTodoQuery({ ...previous, businessType: value, page: 1 }))} />
           <Segmented
             value={status}

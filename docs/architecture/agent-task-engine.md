@@ -16,6 +16,7 @@ Phase 2A 任务引擎是 PostgreSQL 驱动的受控只读执行器。模型只�
 
 ```text
 RECEIVED -> PLANNING -> PLAN_READY/WAITING_CONFIRMATION -> QUEUED -> RUNNING
+PLANNING -> NEEDS_INPUT -> CANCELLED/EXPIRED
 RUNNING -> SUCCEEDED/PARTIALLY_SUCCEEDED/FAILED/TIMED_OUT
 任意受支持的非终态 -> REJECTED/EXPIRED/CANCELLED
 ```
@@ -23,6 +24,16 @@ RUNNING -> SUCCEEDED/PARTIALLY_SUCCEEDED/FAILED/TIMED_OUT
 入队事务提交后发送本地唤醒事件，定时轮询作为丢失唤醒的兜底。Worker 使用 `FOR UPDATE SKIP LOCKED` 原子领取一条任务，保存随机租约的哈希、Worker ID 和到期时间。明文租约只存在于执行线程内存，不写数据库或日志。
 
 每次执行前，Gateway 从数据库重新装载任务和步骤，校验租户、用户、状态、attempt、租约、计划/工具/Schema/参数哈希、实时权限、风险、确认、预算和输入 Schema。领域 Service 继续校验资源归属与业务状态。
+
+### 人工补充信息
+
+`POST /api/ai/tasks/plan` 可返回 `NEEDS_INPUT`、零步骤、L0、`confirmationRequired=false`、问句 `summary` 及 15 分钟 `expiresAt`。该状态没有可执行工具，不允许 execute 或 confirmation-token；仅可取消、过期或由本人补充消费。
+
+补充请求携带原 `clarificationTaskId`、原 `pageId`、原 `conversationId` 和本次 `input`。服务端在同一事务中锁定原会话和本人同租户任务，复核状态、期限、页面与会话绑定，重新加载允许工具和原页面上下文；累计 UTF-8 输入不得超过 `min(4096, agent.limits.input-max-bytes)`，最多三轮补充。不能从客户端更换上下文扩大范围。
+
+成功补充会关闭原追问并创建全新计划、哈希和步骤。写操作仍须对新计划重新确认；幂等重放返回已有计划，并发补充最多消费一次，规划失败则回滚。Workspace 将原始补充与助手问句写入会话，侧窗切页保留原页面关联；追问卡片只提供取消或返回原页面入口。详见[实施和验收记录](../roadmap/batches/20261116-agent-clarification.md)。
+
+Planner 内部补充入口将原请求、已锁定任务中保存的问句和本次回复分字段提供给模型，明确是同一请求的更新，避免文本拼接被解释为两个待办。累计用户输入仍按合并后的 UTF-8 字节检查；问句单独限制为 500 字符，所有内容均为不可信数据，不改变工具、权限或确认规则。该内部方法不开放 HTTP 能力，前端仍仅发送追问编号和本次原文，详见[逐工具补充验收](../roadmap/batches/20261116-business-tool-clarification-acceptance.md)。
 
 ## 3. 超时、重试与结果未知
 

@@ -266,6 +266,7 @@ export default {
     aiReply: 'AI 返回',
     planTitle: '执行计划',
     planFromOtherPage: '该计划属于其他页面，请返回原页面后执行',
+    returnPlanPage: '返回原页面',
     planSourcePage: '计划来源：{{page}}。切换页面不会清除会话，但不能跨页面执行旧计划。',
     requireConfirmTag: '需要确认',
     redactedArgument: '已隐藏敏感参数',
@@ -297,7 +298,7 @@ export default {
     executionCompleted: 'AI 任务 {{taskId}} 已完成：{{status}}',
     executionCompletedMessage: '任务执行完成',
     status: {
-      RECEIVED: '已接收', PLANNING: '规划中', PLAN_READY: '计划就绪', WAITING_CONFIRMATION: '等待确认',
+      RECEIVED: '已接收', PLANNING: '规划中', NEEDS_INPUT: '等待补充信息', PLAN_READY: '计划就绪', WAITING_CONFIRMATION: '等待确认',
       QUEUED: '已入队', RUNNING: '执行中', SUCCEEDED: '已成功', PARTIALLY_SUCCEEDED: '结果待核对',
       FAILED: '失败', TIMED_OUT: '已超时', REJECTED: '已拒绝', EXPIRED: '已过期', CANCELLED: '已取消',
     },

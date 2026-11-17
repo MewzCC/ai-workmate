@@ -12,7 +12,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.SpyBean;
+import org.springframework.context.annotation.Import;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -27,7 +27,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
 /** Real frozen L2 plans, confirmation cookies, worker gateway and domain transactions in owned infrastructure. */
-@SpringBootTest(webEnvironment=SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(webEnvironment=SpringBootTest.WebEnvironment.RANDOM_PORT, properties="spring.main.allow-bean-definition-overriding=true")
+@Import(ManualDecisionWorkerConfiguration.class)
 class GenericTaskApproveAgentIntegrationTest extends AbstractIsolatedAgentIntegrationTest {
     private static final AgentIntegrationEnvironment ENVIRONMENT=new AgentIntegrationEnvironment();
     private static final String SECRET=UUID.randomUUID().toString()+UUID.randomUUID();
@@ -39,7 +40,7 @@ class GenericTaskApproveAgentIntegrationTest extends AbstractIsolatedAgentIntegr
     @Autowired PasswordEncoder passwords;
     @Autowired ToolCatalog catalog;
     @Autowired AgentHashing hashing;
-    @SpyBean AgentTaskWorker worker;
+    @Autowired AgentTaskWorker worker;
     @Autowired javax.sql.DataSource datasource;
     private AgentHttpTestFixture http;
     private AgentHttpTestFixture.Actor reviewer,owner;
@@ -52,7 +53,6 @@ class GenericTaskApproveAgentIntegrationTest extends AbstractIsolatedAgentIntegr
     }
     @BeforeEach void setup() throws Exception {
         // Keep queued-before-claim mutations deterministic; polling, Gateway and domain execution remain real.
-        org.mockito.Mockito.doNothing().when(worker).wakeAfterCommit(org.mockito.ArgumentMatchers.any(com.aiworkmate.agent.task.AgentTaskQueuedEvent.class));
         tenant=jdbc.queryForObject("SELECT id FROM tenant WHERE code='DEFAULT'",Long.class);
         http=new AgentHttpTestFixture(jdbc,json,passwords,port,"en-US");
         reviewer=http.createAndLogin(tenant,List.of("route:todo","todo:read","approval:act","agent:tool:"+CODE));

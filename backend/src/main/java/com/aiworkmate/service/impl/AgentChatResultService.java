@@ -52,11 +52,24 @@ public class AgentChatResultService {
 
     @Transactional(propagation = org.springframework.transaction.annotation.Propagation.MANDATORY)
     public void persistPlanPrompt(Conversation conversation, AgentTask task) {
+        persistPlanPrompt(conversation, task, task.getInput());
+    }
+
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.MANDATORY)
+    public void persistPlanPrompt(Conversation conversation, AgentTask task, String userInput) {
         Message prompt = new Message();
         prompt.setConversationId(conversation.getId());
-        prompt.setRole("user"); prompt.setContent(task.getInput()); prompt.setStatus("success");
+        prompt.setRole("user"); prompt.setContent(userInput); prompt.setStatus("success");
         prompt.setTokenCount(0); prompt.setCreatedAt(LocalDateTime.now());
         messageMapper.insert(prompt);
+        if ("NEEDS_INPUT".equals(task.getStatus())) {
+            Message question = new Message();
+            question.setConversationId(conversation.getId());
+            question.setRole("assistant"); question.setContent(clarificationQuestion(task));
+            question.setStatus("success"); question.setTokenCount(0); question.setCreatedAt(LocalDateTime.now());
+            question.setSourceTaskNo(task.getTaskNo());
+            messageMapper.insert(question);
+        }
         updateConversation(conversation, task);
     }
 
@@ -146,5 +159,17 @@ public class AgentChatResultService {
         }
         conversation.setUpdatedAt(LocalDateTime.now());
         conversationMapper.updateById(conversation);
+    }
+
+    private String clarificationQuestion(AgentTask task) {
+        try {
+            JsonNode plan = objectMapper.readTree(task.getPlan());
+            JsonNode question = plan == null ? null : plan.get("summary");
+            if (question == null || !question.isTextual() || question.asText().isBlank() || question.asText().length() > 500)
+                throw new BusinessException(ErrorCode.INVALID_TASK_STATE);
+            return question.asText();
+        } catch (JsonProcessingException invalid) {
+            throw new BusinessException(ErrorCode.INVALID_TASK_STATE);
+        }
     }
 }

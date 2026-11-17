@@ -19,6 +19,7 @@ class ApprovalFormDefinitionQueryToolHandlerTest {
         var output = new ApprovalFormDefinitionQueryToolHandler(port, mapper).execute(context, mapper.readTree("{\"formId\":11}"));
         assertThat(output.path("formId").asLong()).isEqualTo(11L);
         assertThat(output.at("/fields/0/name").asText()).isEqualTo("reason");
+        assertThat(output.at("/fields/0").has("columns")).isFalse();
         assertThat(output.toString()).doesNotContain("schemaJson", "tenantId", "userId");
         verify(port).readFormDefinition(context.actor(), 11L);
     }
@@ -28,5 +29,18 @@ class ApprovalFormDefinitionQueryToolHandlerTest {
             assertThatThrownBy(() -> handler.execute(context, mapper.readTree(args))).isInstanceOf(BusinessException.class);
         }
         verifyNoInteractions(port);
+    }
+
+    @Test void preservesBoundedColumnMetadataAtTheWireBoundary() throws Exception {
+        var column = new ApprovalConfigurationToolPort.FormTableColumn("amount", "Exact amount", "money", true,
+                List.of(), java.math.BigDecimal.ZERO);
+        var field = new ApprovalConfigurationToolPort.FormDefinitionField("items", "Items", "table", true,
+                null, List.of(), "full", null, List.of(column));
+        when(port.readFormDefinition(context.actor(), 11L)).thenReturn(new ApprovalConfigurationToolPort.FormDefinition(
+                11L, "fixture", "Fixture", "DISABLED", 3, List.of(field)));
+        var output = new ApprovalFormDefinitionQueryToolHandler(port, mapper).execute(context, mapper.readTree("{\"formId\":11}"));
+        assertThat(output.at("/fields/0/columns/0/name").asText()).isEqualTo("amount");
+        assertThat(output.at("/fields/0/columns/0/min").decimalValue()).isEqualByComparingTo("0");
+        assertThat(output.at("/fields/0").has("min")).isFalse();
     }
 }

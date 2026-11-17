@@ -50,7 +50,8 @@ class AiTaskServiceImplTest {
         service = new AiTaskServiceImpl(runtime, aiRuntime, registry, planner,
                 new PageContextFilter(mapper, runtime, new PageCapabilityCatalog()),
                 taskMapper, stepMapper, idempotency, events,
-                taskApiService, rateLimiter, hashing, mapper, eventPublisher, mock(AgentChatResultService.class));
+                taskApiService, rateLimiter, hashing, mapper, eventPublisher, mock(AgentChatResultService.class),
+                new AgentClarificationService(taskMapper, events, mapper));
         ToolDefinition tool = tool();
         when(registry.resolveAllowedTools(any(), eq("todo-list"))).thenReturn(List.of(tool));
         when(planner.plan(anyString(), eq("todo-list"), any(), anyList())).thenReturn(new PlannerCandidate(
@@ -65,8 +66,68 @@ class AiTaskServiceImplTest {
                 .thenReturn(new IdempotencyBinding(true, 88L));
         when(taskMapper.transition(88L, "RECEIVED", "PLANNING", 0L)).thenReturn(1);
         when(taskMapper.finalizePlan(eq(88L), eq(1L), anyString(), anyString(), eq("L0"), eq("PLAN_READY"),
-                anyString(), anyString(), anyLong(), eq(1))).thenReturn(1);
+                anyString(), anyString(), anyLong(), eq(1), isNull())).thenReturn(1);
         when(stepMapper.insertPending(any(AgentTaskStep.class))).thenReturn(1);
+    }
+
+    @Test
+    void continuationPassesTheOriginalQuestionAndRawReplySeparately() throws Exception {
+        var source = new AgentTask();
+        source.setId(87L); source.setTenantId(1L); source.setUserId(7L); source.setVersion(1L);
+        source.setTaskNo("00000000-0000-4000-8000-000000000003");
+        source.setPageId("todo-list"); source.setStatus("NEEDS_INPUT"); source.setTraceId("owned-trace");
+        source.setInput("查看某一页待办"); source.setPageContext("{}");
+        source.setPlan("{\"clarificationDepth\":0,\"summary\":\"请提供页码\"}");
+        source.setConfirmationExpiresAt(java.time.LocalDateTime.now().plusMinutes(10));
+        when(taskMapper.selectOwnedForUpdate(1L, 7L, source.getTaskNo())).thenReturn(source);
+        when(taskMapper.cancelOwned(87L, 1L, 7L, "NEEDS_INPUT", 1L)).thenReturn(1);
+        when(planner.planContinuation(anyString(), anyString(), anyString(), anyString(), any(), anyList()))
+                .thenReturn(new PlannerCandidate("查询第2页", List.of(new PlannerCandidate.Step("todo.query",
+                        mapper.readTree("{\"page\":2,\"size\":20}")))));
+        var request = new AiTaskPlanRequest();
+        request.setPageId("todo-list"); request.setInput("第2页"); request.setClarificationTaskId(source.getTaskNo());
+        assertThat(service.plan(request, "structured-reply", user()).status()).isEqualTo("PLAN_READY");
+        verify(planner).planContinuation(eq(source.getInput()), eq("请提供页码"), eq("第2页"), eq("todo-list"), any(), anyList());
+        verify(planner, never()).plan(anyString(), anyString(), any(), anyList());
+    }
+
+    @Test
+    void combinedClarificationCannotExceedATightenedRuntimeInputBudget() {
+        runtime.getLimits().setInputMaxBytes(1024);
+        var source = new AgentTask();
+        source.setId(87L); source.setTenantId(1L); source.setUserId(7L); source.setVersion(1L);
+        source.setTaskNo("00000000-0000-4000-8000-000000000003");
+        source.setPageId("todo-list"); source.setStatus("NEEDS_INPUT");
+        source.setInput("a".repeat(800)); source.setPageContext("{}");
+        source.setPlan("{\"clarificationDepth\":0}");
+        source.setConfirmationExpiresAt(java.time.LocalDateTime.now().plusMinutes(10));
+        when(taskMapper.selectOwnedForUpdate(1L, 7L, source.getTaskNo())).thenReturn(source);
+        when(taskMapper.cancelOwned(87L, 1L, 7L, "NEEDS_INPUT", 1L)).thenReturn(1);
+        var request = new AiTaskPlanRequest();
+        request.setPageId("todo-list"); request.setInput("b".repeat(800));
+        request.setClarificationTaskId(source.getTaskNo());
+        assertThatThrownBy(() -> service.plan(request, "over-combined-budget", user()))
+                .isInstanceOf(com.aiworkmate.common.BusinessException.class);
+        verify(taskMapper, never()).cancelOwned(anyLong(), anyLong(), anyLong(), anyString(), anyLong());
+        verify(taskMapper, never()).insertReceived(any());
+        verifyNoInteractions(planner, idempotency, events, stepMapper);
+    }
+
+    @Test
+    void anExplicitQuestionPersistsNoStepsAndHasABoundedInputDeadline() {
+        when(planner.plan(anyString(), eq("todo-list"), any(), anyList()))
+                .thenReturn(new PlannerCandidate("需要理由", List.of(), "请提供驳回理由。"));
+        when(taskMapper.finalizePlan(eq(88L), eq(1L), anyString(), anyString(), eq("L0"), eq("NEEDS_INPUT"),
+                anyString(), anyString(), anyLong(), eq(0), any(java.time.LocalDateTime.class))).thenReturn(1);
+        AiTaskPlanRequest request = new AiTaskPlanRequest();
+        request.setInput("驳回申请"); request.setPageId("todo-list");
+        var response = service.plan(request, "question-key", user());
+        assertThat(response.status()).isEqualTo("NEEDS_INPUT");
+        assertThat(response.summary()).isEqualTo("请提供驳回理由。");
+        assertThat(response.steps()).isEmpty();
+        assertThat(response.confirmationRequired()).isFalse();
+        assertThat(response.expiresAt()).isNotNull();
+        verifyNoInteractions(stepMapper, taskApiService, eventPublisher);
     }
 
     @Test

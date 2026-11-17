@@ -2,20 +2,21 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Button, Select, Spin } from 'antd';
 import { useTranslation } from 'react-i18next';
 import type { SelectProps } from 'antd';
-import type { BusinessUserOption } from '@/lib/adminAssetsApi';
 import { message } from '@/lib/antdMessage';
 import { formatOaApiError } from '@/lib/oaApi';
 
 /** Domain-supplied, permission-filtered candidates; never fetches the global employee directory. */
-export function BusinessUserSelect({ value, onChange, query, active, scopeKey, placeholder, disabled, selectedOption, maxSearchLength = 120, ...fieldProps }: {
-  value?: number; onChange?: (value: number | undefined) => void; active: boolean; scopeKey: string; placeholder?: string;
-  query: (params: { keyword?: string; page: number; size: number }) => Promise<{ records: BusinessUserOption[]; total: number }>;
+type Candidate<Id> = { id: Id; name: string };
+
+export function BusinessUserSelect<Id extends string | number = number>({ value, onChange, query, active, scopeKey, placeholder, disabled, selectedOption, maxSearchLength = 120, ...fieldProps }: {
+  value?: Id; onChange?: (value: Id | undefined) => void; active: boolean; scopeKey: string; placeholder?: string;
+  query: (params: { keyword?: string; page: number; size: number }) => Promise<{ records: Candidate<Id>[]; total: number }>;
   disabled?: boolean;
-  selectedOption?: BusinessUserOption;
+  selectedOption?: Candidate<Id>;
   maxSearchLength?: number;
-} & Pick<SelectProps<number>, 'id' | 'aria-label' | 'aria-describedby' | 'aria-invalid' | 'onBlur' | 'onFocus'>) {
+} & Pick<SelectProps<Id>, 'id' | 'aria-label' | 'aria-describedby' | 'aria-invalid' | 'onBlur' | 'onFocus'>) {
   const [search, setSearch] = useState('');
-  const [options, setOptions] = useState<BusinessUserOption[]>([]);
+  const [options, setOptions] = useState<Candidate<Id>[]>([]);
   const [optionsScope, setOptionsScope] = useState('');
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);

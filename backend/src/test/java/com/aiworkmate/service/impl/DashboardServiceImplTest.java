@@ -42,11 +42,11 @@ class DashboardServiceImplTest {
     @Test
     void aggregatesOnlyAuthenticatedUserAndTenant() {
         when(accessService.resolveActiveUser(7L)).thenReturn(access(List.of("dashboard:read")));
-        when(mapper.countPendingTodos(9L, 7L)).thenReturn(3L);
-        when(mapper.countOverdueTodos(9L, 7L)).thenReturn(1L);
+        when(mapper.countPendingTodos(9L, 7L, new com.aiworkmate.service.model.TodoReadScope(false,false))).thenReturn(3L);
+        when(mapper.countOverdueTodos(9L, 7L, new com.aiworkmate.service.model.TodoReadScope(false,false))).thenReturn(1L);
         when(mapper.countMyApplications(9L, 7L)).thenReturn(5L);
         when(mapper.countUnreadMessages(9L, 7L)).thenReturn(2L);
-        when(mapper.selectPendingTodos(9L, 7L)).thenReturn(List.of());
+        when(mapper.selectPendingTodos(9L, 7L, new com.aiworkmate.service.model.TodoReadScope(false,false))).thenReturn(List.of());
         when(mapper.selectTrends(9L, 7L, 7)).thenReturn(List.of(
                 new DashboardOverviewResponse.TrendPoint(LocalDate.now(), 1, 0)));
         when(mapper.selectDistribution(9L, 7L, 7)).thenReturn(List.of());
@@ -57,7 +57,7 @@ class DashboardServiceImplTest {
         assertThat(response.metrics()).extracting(DashboardOverviewResponse.Metric::value)
                 .containsExactly(3L, 1L, 5L, 2L);
         assertThat(response.days()).isEqualTo(7);
-        verify(mapper).selectPendingTodos(9L, 7L);
+        verify(mapper).selectPendingTodos(9L, 7L, new com.aiworkmate.service.model.TodoReadScope(false,false));
         verify(mapper).selectTrends(9L, 7L, 7);
     }
 
@@ -67,7 +67,7 @@ class DashboardServiceImplTest {
 
         assertThatThrownBy(() -> service.overview(7L, 7)).isInstanceOf(BusinessException.class);
 
-        verify(mapper, never()).countPendingTodos(9L, 7L);
+        verify(mapper, never()).countPendingTodos(9L, 7L, new com.aiworkmate.service.model.TodoReadScope(false,false));
     }
 
     @Test
@@ -81,7 +81,7 @@ class DashboardServiceImplTest {
         when(accessService.resolveActiveUser(7L)).thenReturn(access(List.of("dashboard:read", "data:export")));
         LocalDate from = LocalDate.of(2026, 9, 6);
         LocalDate to = LocalDate.of(2026, 9, 12);
-        when(mapper.selectExportRows(9L, 7L, from.atStartOfDay(), to.plusDays(1).atStartOfDay(), "risk"))
+        when(mapper.selectExportRows(9L, 7L, new com.aiworkmate.service.model.TodoReadScope(false,false), from.atStartOfDay(), to.plusDays(1).atStartOfDay(), "risk"))
                 .thenReturn(List.of(new DashboardMapper.DashboardExportRow(
                         91L, "=SUM(A1:A2)", "+external", "LEAVE_APPLICATION",
                         LocalDateTime.of(2026, 9, 12, 9, 0), null, "PENDING", false)));
@@ -100,7 +100,7 @@ class DashboardServiceImplTest {
         when(accessService.resolveActiveUser(7L)).thenReturn(access(List.of("dashboard:read")));
         DashboardExportRequest request = new DashboardExportRequest(LocalDate.now(), LocalDate.now(), null);
         assertThatThrownBy(() -> service.export(7L, request)).isInstanceOf(BusinessException.class);
-        verify(mapper, never()).selectExportRows(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+        verify(mapper, never()).selectExportRows(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
     }
 
@@ -109,7 +109,7 @@ class DashboardServiceImplTest {
         when(accessService.resolveActiveUser(7L)).thenReturn(access(List.of("dashboard:read")));
         when(userSettingsService.getDashboardMetricCodes(7L))
                 .thenReturn(List.of("UNREAD_MESSAGES", "PENDING_TODOS"));
-        when(mapper.selectPendingTodos(9L, 7L)).thenReturn(List.of());
+        when(mapper.selectPendingTodos(9L, 7L, new com.aiworkmate.service.model.TodoReadScope(false,false))).thenReturn(List.of());
         when(mapper.selectTrends(9L, 7L, 7)).thenReturn(List.of());
         when(mapper.selectDistribution(9L, 7L, 7)).thenReturn(List.of());
         when(mapper.selectRecentActivities(9L, 7L, 7)).thenReturn(List.of());

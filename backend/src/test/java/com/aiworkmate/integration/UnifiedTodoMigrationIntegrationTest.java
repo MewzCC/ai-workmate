@@ -31,7 +31,7 @@ class UnifiedTodoMigrationIntegrationTest extends AbstractIsolatedAgentIntegrati
     @Test void upgradesRecognizedContractsAndPreservesDisabledPoliciesCustomLimitsAndUnknownHashes() throws Exception {
         assertThat(jdbc.queryForObject("SELECT current_database()",String.class)).isEqualTo(ENVIRONMENT.schema());
         var definition=catalog.find("todo.query").orElseThrow();
-        assertThat(definition.schemaHash()).isEqualTo("sha256:60764cd0dbafbad1eb753e565a3424e70f89b6232c28e411009bf95066037771");
+        assertThat(definition.schemaHash()).isEqualTo("sha256:2439f3d4f40632017737b60f9e821111762befa3a669be4e4779a84810f53671");
         assertContract(null);flyway().validate();assertThat(flyway().info().pending()).isEmpty();
         var input=(ObjectNode)definition.inputSchema().deepCopy();
         ((ObjectNode)input.path("properties")).remove("businessType");((ArrayNode)input.at("/properties/status/enum")).remove(0);

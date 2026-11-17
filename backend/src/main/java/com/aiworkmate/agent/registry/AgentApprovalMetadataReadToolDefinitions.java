@@ -41,9 +41,11 @@ public class AgentApprovalMetadataReadToolDefinitions {
     public static final String TEMPLATE_INPUT = """
             {"type":"object","additionalProperties":false,"required":[],"properties":{"keyword":{"type":"string","maxLength":120},"formKey":{"type":"string","pattern":"^[a-z][a-z0-9_-]{0,63}$"},"page":{"type":"integer","minimum":1,"maximum":10000},"size":{"type":"integer","minimum":1,"maximum":20}}}
             """.strip();
-    public static final String TEMPLATE_OUTPUT = """
+    public static final String PRE_TABLE_TEMPLATE_OUTPUT = """
             {"type":"object","additionalProperties":false,"required":["items","total","page","size"],"properties":{"items":{"type":"array","maxItems":20,"items":{"type":"object","additionalProperties":false,"required":["formId","formKey","formName","version","fields"],"properties":{"formId":{"type":"integer","minimum":1},"formKey":{"type":"string","maxLength":64},"formName":{"type":"string","maxLength":120},"version":{"type":"integer","minimum":0},"fields":{"type":"array","maxItems":20,"items":{"type":"object","additionalProperties":false,"required":["name","label","type","required","width"],"properties":{"name":{"type":"string","pattern":"^[a-z][A-Za-z0-9_-]{0,39}$"},"label":{"type":"string","minLength":1,"maxLength":40},"type":{"type":"string","enum":["text","textarea","number","money","date","dateRange","time","radio","checkbox","select","user","department","file","image","table","divider"]},"required":{"type":"boolean"},"placeholder":{"type":"string","maxLength":80},"options":{"type":"array","maxItems":10,"items":{"type":"string","minLength":1,"maxLength":80}},"width":{"type":"string","enum":["full","half"]},"min":{"type":"number","minimum":-1000000000000000,"maximum":1000000000000000}}}},"processKey":{"type":"string","maxLength":64},"processName":{"type":"string","maxLength":120},"processVersion":{"type":"integer","minimum":0}}}},"total":{"type":"integer","minimum":0},"page":{"type":"integer","minimum":1},"size":{"type":"integer","minimum":1,"maximum":20}}}
             """.strip();
+
+    public static final String TEMPLATE_OUTPUT = ApprovalApplicationFieldSchemas.withTemplateColumns(PRE_TABLE_TEMPLATE_OUTPUT);
 
     @Bean
     ToolDefinition approvalApplicationTemplateQuery(ObjectMapper mapper) throws JsonProcessingException {

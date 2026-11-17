@@ -151,6 +151,9 @@ export default {
     myApplications: 'My Applications',
     pendingApproval: 'Pending My Approval',
     decideTitle: 'Review Visitor Booking',
+    detailTitle: 'Visitor Booking Details',
+    bookingId: 'Booking ID',
+    bookingVersion: 'Booking version',
     visitProgress: 'Visit Progress',
     status: {
       PENDING: 'Pending',
@@ -195,6 +198,9 @@ export default {
     myApplications: 'My Applications',
     pendingApproval: 'Pending My Approval',
     decideTitle: 'Review Seal Usage',
+    detailTitle: 'Seal Usage Details',
+    usageId: 'Usage ID',
+    usageVersion: 'Usage version',
     status: {
       PENDING: 'Pending',
       APPROVED: 'Approved',

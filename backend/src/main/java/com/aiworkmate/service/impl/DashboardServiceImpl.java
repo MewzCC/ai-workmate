@@ -13,6 +13,7 @@ import com.aiworkmate.service.BusinessAuditService;
 import com.aiworkmate.service.UserAccessService;
 import com.aiworkmate.service.UserSettingsService;
 import com.aiworkmate.service.model.ResolvedUserAccess;
+import com.aiworkmate.service.model.TodoReadScope;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,20 +40,22 @@ public class DashboardServiceImpl implements DashboardService {
     private final UserSettingsService userSettingsService;
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true,isolation=org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
     public DashboardOverviewResponse overview(Long userId, int days) {
+        return overview(userId,null,days);
+    }
+    @Override
+    @Transactional(readOnly=true,isolation=org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
+    public DashboardOverviewResponse overview(Long userId,Long expectedTenantId,int days) {
         if (days < 1 || days > 30) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.dashboard.days.range");
         }
-        ResolvedUserAccess actor = userAccessService.resolveActiveUser(userId);
-        if (actor == null) throw new BusinessException(ErrorCode.AUTH_REQUIRED);
-        if (!actor.permissions().contains(READ_PERMISSION)) {
-            throw new BusinessException(ErrorCode.PERMISSION_DENIED);
-        }
+        ResolvedUserAccess actor = requirePermission(userId,expectedTenantId,READ_PERMISSION);
+        TodoReadScope scope=TodoReadScope.from(actor);
 
         Map<String, Long> metricValues = new LinkedHashMap<>();
-        metricValues.put("PENDING_TODOS", dashboardMapper.countPendingTodos(actor.tenantId(), actor.userId()));
-        metricValues.put("OVERDUE_TODOS", dashboardMapper.countOverdueTodos(actor.tenantId(), actor.userId()));
+        metricValues.put("PENDING_TODOS", dashboardMapper.countPendingTodos(actor.tenantId(), actor.userId(),scope));
+        metricValues.put("OVERDUE_TODOS", dashboardMapper.countOverdueTodos(actor.tenantId(), actor.userId(),scope));
         metricValues.put("MY_APPLICATIONS", dashboardMapper.countMyApplications(actor.tenantId(), actor.userId()));
         metricValues.put("UNREAD_MESSAGES", dashboardMapper.countUnreadMessages(actor.tenantId(), actor.userId()));
         List<DashboardOverviewResponse.Metric> metrics = selectedMetricCodes(actor).stream()
@@ -61,7 +64,7 @@ public class DashboardServiceImpl implements DashboardService {
 
         return new DashboardOverviewResponse(
                 OffsetDateTime.now(), days, METRIC_CODES, metrics,
-                dashboardMapper.selectPendingTodos(actor.tenantId(), actor.userId()),
+                dashboardMapper.selectPendingTodos(actor.tenantId(), actor.userId(),scope),
                 dashboardMapper.selectTrends(actor.tenantId(), actor.userId(), days),
                 dashboardMapper.selectDistribution(actor.tenantId(), actor.userId(), days),
                 dashboardMapper.selectRecentActivities(actor.tenantId(), actor.userId(), days),
@@ -70,15 +73,20 @@ public class DashboardServiceImpl implements DashboardService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true,isolation=org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
     public DashboardExportResponse export(Long userId, DashboardExportRequest request) {
-        ResolvedUserAccess actor = requirePermission(userId, "data:export");
+        return export(userId,null,request);
+    }
+    @Override
+    @Transactional(readOnly=true,isolation=org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
+    public DashboardExportResponse export(Long userId,Long expectedTenantId,DashboardExportRequest request) {
+        ResolvedUserAccess actor = requirePermission(userId,expectedTenantId,"data:export");
         if (request.from().isAfter(request.to()) || request.from().plusDays(30).isBefore(request.to())) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.dashboard.export.range");
         }
         String keyword = request.keyword() == null ? null : request.keyword().trim();
         List<DashboardMapper.DashboardExportRow> rows = dashboardMapper.selectExportRows(
-                actor.tenantId(), actor.userId(), request.from().atStartOfDay(),
+                actor.tenantId(), actor.userId(), TodoReadScope.from(actor),request.from().atStartOfDay(),
                 request.to().plusDays(1).atStartOfDay(), keyword == null || keyword.isBlank() ? null : keyword);
         String header = "taskId,title,applicant,businessType,submittedAt,dueAt,status,overdue\r\n";
         String content = "\uFEFF" + header + rows.stream().map(this::csvRow).collect(Collectors.joining("\r\n"));
@@ -127,8 +135,12 @@ public class DashboardServiceImpl implements DashboardService {
     }
 
     private ResolvedUserAccess requirePermission(Long userId, String permission) {
+        return requirePermission(userId,null,permission);
+    }
+    private ResolvedUserAccess requirePermission(Long userId,Long expectedTenantId,String permission) {
         ResolvedUserAccess actor = userAccessService.resolveActiveUser(userId);
         if (actor == null) throw new BusinessException(ErrorCode.AUTH_REQUIRED);
+        if(expectedTenantId!=null && !expectedTenantId.equals(actor.tenantId()))throw new BusinessException(ErrorCode.RESOURCE_FORBIDDEN);
         if (!actor.permissions().contains(permission)) throw new BusinessException(ErrorCode.PERMISSION_DENIED);
         return actor;
     }

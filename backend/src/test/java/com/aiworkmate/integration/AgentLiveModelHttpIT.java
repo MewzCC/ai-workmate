@@ -164,8 +164,16 @@ class AgentLiveModelHttpIT extends AbstractIsolatedAgentIntegrationTest {
         var planned = AgentHttpTestFixture.client().send(http.request("POST", "/api/ai/tasks/plan", actor,
                 UUID.randomUUID().toString(), request.toString()).timeout(Duration.ofSeconds(40)).build(), HttpResponse.BodyHandlers.ofString());
         if ("asset-owner-by-name".equals(expectedTool)) {
-            assertThat(planned.statusCode()).isEqualTo(400);
-            assertThat(json.readTree(planned.body()).path("errorCode").asText()).isEqualTo("SCHEMA_INVALID");
+            if (planned.statusCode() == 200) {
+                var question = json.readTree(planned.body()).path("data");
+                assertThat(question.path("status").asText()).isEqualTo("NEEDS_INPUT");
+                assertThat(question.path("steps")).isEmpty();
+                assertThat(question.path("riskLevel").asText()).isEqualTo("L0");
+                assertThat(question.path("confirmationRequired").asBoolean()).isFalse();
+            } else {
+                assertThat(planned.statusCode()).isEqualTo(400);
+                assertThat(json.readTree(planned.body()).path("errorCode").asText()).isEqualTo("SCHEMA_INVALID");
+            }
             assertThat(jdbc.queryForObject("SELECT count(*) FROM agent_tool_invocation WHERE user_id=?", Long.class, actor.id())).isZero();
             assertThat(MODEL_CALLS).isNotEmpty().allMatch(call -> "NONE".equals(call.failure()));
             assertThat(MODEL_CALLS).anyMatch(call -> call.shape().contains("steps=0"));

@@ -59,6 +59,47 @@ function renderDrawer(
 }
 
 describe('AIOperationDrawer', () => {
+  it('keeps a question bound to its original page and filtered context after navigation', async () => {
+    api.planAiTask.mockResolvedValueOnce({ ...basePlan, taskId: 'route-question', status: 'NEEDS_INPUT',
+      summary: '请提供理由。', steps: [] }).mockResolvedValueOnce({ ...basePlan, taskId: 'route-write',
+      status: 'WAITING_CONFIRMATION', riskLevel: 'L2', confirmationRequired: true });
+    const navigate = vi.fn().mockReturnValue(true);
+    const view = render(<App><AIOperationDrawer open role="system_admin" pageId="todo-list" pageTitle="待办中心"
+      pageContext={{ status: 'PENDING' }} onClose={vi.fn()} onNavigatePage={navigate} /></App>);
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: '驳回当前任务' } });
+    fireEvent.click(screen.getByRole('button', { name: /发送 \/ 生成计划/ }));
+    await waitFor(() => expect(screen.getAllByText('请提供理由。').length).toBeGreaterThan(0));
+    view.rerender(<App><AIOperationDrawer open role="system_admin" pageId="visitor-booking" pageTitle="访客预约"
+      pageContext={{ status: 'APPROVED' }} onClose={vi.fn()} onNavigatePage={navigate} /></App>);
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: '资料不完整' } });
+    fireEvent.click(screen.getByRole('button', { name: /发送 \/ 生成计划/ }));
+    await waitFor(() => expect(api.planAiTask).toHaveBeenLastCalledWith({ input: '资料不完整', pageId: 'todo-list',
+      pageContext: { status: 'PENDING' }, clarificationTaskId: 'route-question' }, expect.any(String)));
+    fireEvent.click(screen.getByRole('button', { name: '返回原页面' }));
+    expect(navigate).toHaveBeenCalledWith('todo-list');
+    expect(api.executeAiTask).not.toHaveBeenCalled();
+  });
+
+  it('asks without executing and binds the reply to a new plan requiring fresh confirmation', async () => {
+    api.planAiTask.mockResolvedValueOnce({ ...basePlan, taskId: 'question-drawer', status: 'NEEDS_INPUT',
+      summary: '请提供驳回理由。', steps: [] }).mockResolvedValueOnce({ ...basePlan, taskId: 'new-write-plan',
+      status: 'WAITING_CONFIRMATION', riskLevel: 'L2', confirmationRequired: true,
+      summary: '驳回当前任务', steps: [{ sequence: 1, toolCode: 'approval.genericTask.reject', title: '驳回', arguments: { comment: '资料不完整' } }] });
+    renderDrawer();
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: '请驳回当前任务' } });
+    fireEvent.click(screen.getByRole('button', { name: /发送 \/ 生成计划/ }));
+    await waitFor(() => expect(screen.getAllByText('请提供驳回理由。').length).toBeGreaterThan(0));
+    expect(api.executeAiTask).not.toHaveBeenCalled();
+    expect(api.issueAiTaskConfirmation).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: '执行计划' })).toBeNull();
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: '资料不完整' } });
+    fireEvent.click(screen.getByRole('button', { name: /发送 \/ 生成计划/ }));
+    await waitFor(() => expect(api.planAiTask).toHaveBeenLastCalledWith({ input: '资料不完整', pageId: 'todo-list',
+      clarificationTaskId: 'question-drawer' }, expect.any(String)));
+    expect(api.executeAiTask).not.toHaveBeenCalled();
+    expect(api.issueAiTaskConfirmation).not.toHaveBeenCalled();
+  });
+
   beforeEach(() => {
     api.executeAiTask.mockResolvedValue({ taskId: basePlan.taskId, status: 'QUEUED', statusUrl: '/status', eventsUrl: '/events' });
     api.getPageCapabilities.mockResolvedValue({

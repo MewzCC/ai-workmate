@@ -162,11 +162,16 @@ public interface AdminAssetsService {
             Long userId, VisitorAgentVisitCommand command, String operationKey);
 
     VisitorBookingResponse getVisitorBooking(Long userId, Long id);
+    VisitorBookingResponse getVisitorBooking(Long userId, Long expectedTenantId, Long id);
 
     PageResponse<VisitorBookingResponse> listMyVisitorBookings(Long userId, String status,
                                                                int page, int size);
 
     PageResponse<VisitorBookingResponse> listPendingVisitorBookings(Long userId, int page, int size);
+    PageResponse<VisitorBookingResponse> listMyVisitorBookings(Long userId, Long expectedTenantId, String status, int page, int size);
+    PageResponse<VisitorBookingResponse> listPendingVisitorBookings(Long userId, Long expectedTenantId, int page, int size);
+    com.aiworkmate.service.model.WorkflowDecisionReceipt decideVisitorBookingForAgent(
+            Long userId, Long expectedTenantId, Long taskId, ApprovalDecisionRequest request, boolean approved);
 
     VisitorBookingResponse withdrawVisitorBooking(Long userId, Long id, com.aiworkmate.dto.VersionRequest request);
 
@@ -199,6 +204,11 @@ public interface AdminAssetsService {
     SealUsageResponse withdrawSealUsage(Long userId, Long id, com.aiworkmate.dto.VersionRequest request);
 
     SealUsageResponse approveSealUsage(Long userId, Long taskId, ApprovalDecisionRequest request);
+    SealUsageResponse getSealUsage(Long userId, Long expectedTenantId, Long id);
+    PageResponse<SealUsageResponse> listMySealUsages(Long userId, Long expectedTenantId, String status, int page, int size);
+    PageResponse<SealUsageResponse> listPendingSealUsages(Long userId, Long expectedTenantId, int page, int size);
+    com.aiworkmate.service.model.WorkflowDecisionReceipt decideSealUsageForAgent(
+            Long userId, Long expectedTenantId, Long taskId, ApprovalDecisionRequest request, boolean approved);
 
     SealUsageResponse rejectSealUsage(Long userId, Long taskId, ApprovalDecisionRequest request);
 

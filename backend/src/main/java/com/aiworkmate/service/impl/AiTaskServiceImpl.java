@@ -52,6 +52,7 @@ public class AiTaskServiceImpl implements AiTaskService {
     private final ObjectMapper objectMapper;
     private final ApplicationEventPublisher applicationEventPublisher;
     private final AgentChatResultService chatTasks;
+    private final AgentClarificationService clarifications;
 
     @Override
     @Transactional
@@ -60,17 +61,23 @@ public class AiTaskServiceImpl implements AiTaskService {
         rateLimiter.checkPlan(user.tenantId(), user.userId());
         if (request.getInput().getBytes(StandardCharsets.UTF_8).length > runtime.getLimits().getInputMaxBytes())
             throw new BusinessException(ErrorCode.REQUEST_INVALID);
-        JsonNode safeContext = contextFilter.filter(request.getPageId(), request.getPageContext());
         List<ToolDefinition> allowed = registry.resolveAllowedTools(access(user), request.getPageId());
         if (allowed.isEmpty()) throw new BusinessException(ErrorCode.AI_TASK_CAPABILITY_UNAVAILABLE);
 
         var conversation = chatTasks.lockPlanningConversation(user, request.getPageId(), request.getConversationId());
+        var continuation = clarifications.load(request, user);
+        if (continuation.input().getBytes(StandardCharsets.UTF_8).length > Math.min(4096, runtime.getLimits().getInputMaxBytes()))
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.agent.input.tooLong");
+        JsonNode safeContext = contextFilter.filter(request.getPageId(),
+                clarifications.context(continuation, request.getPageContext()));
 
         ObjectNode requestNode = objectMapper.createObjectNode().put("input", request.getInput())
                 .put("pageId", request.getPageId());
         requestNode.set("pageContext", safeContext);
         if (request.getConversationId() != null) requestNode.put("conversationId", request.getConversationId());
+        if (request.getClarificationTaskId() != null) requestNode.put("clarificationTaskId", request.getClarificationTaskId());
         AgentTask task = newTask(request, safeContext, user);
+        task.setInput(continuation.input());
         if (taskMapper.insertReceived(task) != 1 || task.getId() == null)
             throw new IllegalStateException("Agent task persistence failed");
         IdempotencyBinding binding = idempotencyService.bind(user.tenantId(), user.userId(), IdempotencyOperation.PLAN,
@@ -82,20 +89,27 @@ public class AiTaskServiceImpl implements AiTaskService {
                     || !user.userId().equals(existing.getUserId())) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
             return response(existing, stepMapper.selectByTaskId(existing.getId()));
         }
+        clarifications.consume(continuation);
         if (conversation != null && taskMapper.countActiveForConversation(user.tenantId(), user.userId(), conversation.getId(), task.getId()) != 0)
             throw new BusinessException(ErrorCode.INVALID_TASK_STATE, "validation.chat.activeTask");
         if (taskMapper.transition(task.getId(), "RECEIVED", "PLANNING", 0L) != 1)
             throw new BusinessException(ErrorCode.INVALID_TASK_STATE);
 
         long started = System.nanoTime();
-        PlannerCandidate candidate = planner.plan(request.getInput(), request.getPageId(), safeContext, allowed);
+        PlannerCandidate candidate = continuation.source() == null
+                ? planner.plan(request.getInput(), request.getPageId(), safeContext, allowed)
+                : planner.planContinuation(continuation.source().getInput(), clarifications.question(continuation),
+                        request.getInput(), request.getPageId(), safeContext, allowed);
         Map<String, ToolDefinition> definitions = allowed.stream()
                 .collect(Collectors.toUnmodifiableMap(ToolDefinition::code, Function.identity()));
-        BuiltPlan built = buildPlan(task.getId(), task.getTraceId(), candidate, definitions);
-        String targetStatus = "L0".equals(built.riskLevel()) ? "PLAN_READY" : "WAITING_CONFIRMATION";
+        BuiltPlan built = buildPlan(task.getId(), task.getTraceId(), candidate, definitions, continuation, task.getConversationId());
+        String targetStatus = candidate.requiresClarification() ? "NEEDS_INPUT"
+                : "L0".equals(built.riskLevel()) ? "PLAN_READY" : "WAITING_CONFIRMATION";
+        LocalDateTime inputDeadline = candidate.requiresClarification()
+                ? LocalDateTime.now().plusMinutes(AgentClarificationService.TTL_MINUTES) : null;
         if (taskMapper.finalizePlan(task.getId(), 1L, json(built.plan()), built.planHash(), built.riskLevel(),
                 targetStatus, "structured-chat-client", StructuredAgentPlanner.PROMPT_VERSION,
-                (System.nanoTime() - started) / 1_000_000L, built.steps().size()) != 1)
+                (System.nanoTime() - started) / 1_000_000L, built.steps().size(), inputDeadline) != 1)
             throw new BusinessException(ErrorCode.INVALID_TASK_STATE);
         built.steps().forEach(step -> {
             if (stepMapper.insertPending(step) != 1) throw new IllegalStateException("Agent step persistence failed");
@@ -107,7 +121,9 @@ public class AiTaskServiceImpl implements AiTaskService {
         task.setPlan(json(built.plan()));
         task.setPlanHash(built.planHash());
         task.setMaxRiskLevel(built.riskLevel());
-        if (conversation != null) chatTasks.persistPlanPrompt(conversation, task);
+        task.setConfirmationExpiresAt(inputDeadline);
+        if (inputDeadline != null) task.setTimeoutAt(inputDeadline);
+        if (conversation != null) chatTasks.persistPlanPrompt(conversation, task, request.getInput());
         return response(task, built.steps());
     }
 
@@ -122,6 +138,7 @@ public class AiTaskServiceImpl implements AiTaskService {
         if (task == null) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
         if (!request.planVersion().equals(task.getPlanVersion()) || !request.planHash().equals(task.getPlanHash()))
             throw new BusinessException(ErrorCode.GATEWAY_STALE);
+        if ("NEEDS_INPUT".equals(task.getStatus())) throw new BusinessException(ErrorCode.INVALID_TASK_STATE);
         taskApiService.requireCurrentToolAccess(user, task);
         ObjectNode hashInput = objectMapper.createObjectNode().put("taskId", taskNo)
                 .put("planVersion", request.planVersion()).put("planHash", request.planHash());
@@ -149,8 +166,15 @@ public class AiTaskServiceImpl implements AiTaskService {
     }
 
     private BuiltPlan buildPlan(long taskId, String traceId, PlannerCandidate candidate,
-                                Map<String, ToolDefinition> definitions) {
-        ObjectNode plan = objectMapper.createObjectNode().put("planVersion", 1).put("summary", candidate.summary());
+                                Map<String, ToolDefinition> definitions, AgentClarificationService.Continuation continuation,
+                                Long conversationId) {
+        if (candidate.steps().isEmpty() != candidate.requiresClarification())
+            throw new BusinessException(ErrorCode.SCHEMA_INVALID);
+        ObjectNode plan = objectMapper.createObjectNode().put("planVersion", 1)
+                .put("summary", candidate.requiresClarification() ? candidate.clarification() : candidate.summary());
+        clarifications.decorate(plan, continuation, candidate.requiresClarification());
+        if ((candidate.requiresClarification() || continuation.source() != null) && conversationId != null)
+            plan.put("clarificationConversationId", conversationId);
         var planSteps = plan.putArray("steps");
         List<AgentTaskStep> steps = new ArrayList<>();
         RiskLevel maxRisk = RiskLevel.L0;
@@ -210,7 +234,9 @@ public class AiTaskServiceImpl implements AiTaskService {
     private AiTaskPlanResponse response(AgentTask task, List<AgentTaskStep> steps) {
         JsonNode plan = read(task.getPlan());
         return new AiTaskPlanResponse(task.getTaskNo(), task.getStatus(), task.getPlanVersion(), task.getPlanHash(),
-                task.getMaxRiskLevel(), !"L0".equals(task.getMaxRiskLevel()), null,
+                task.getMaxRiskLevel(), !"L0".equals(task.getMaxRiskLevel()),
+                !"NEEDS_INPUT".equals(task.getStatus()) || task.getConfirmationExpiresAt() == null ? null : task.getConfirmationExpiresAt()
+                        .atZone(java.time.ZoneId.systemDefault()).toOffsetDateTime(),
                 plan == null ? "" : plan.path("summary").asText(), steps.stream().map(step ->
                 new AiTaskPlanResponse.Step(step.getSequenceNo(), step.getToolCode(), step.getToolCode(), read(step.getArgs())))
                 .toList());

@@ -39,7 +39,13 @@ final class AgentBrowserFixture {
         Path repository = Path.of("..").toAbsolutePath().normalize();
         Path log = Path.of("target", "agent-it", schema, "browser.log").toAbsolutePath();
         Files.createDirectories(log.getParent());
-        var launcher = new ProcessBuilder("node", repository.resolve("scripts/verify-agent-browser.mjs").toString())
+        var command = new ArrayList<String>();
+        command.add("node");
+        // Windows 26200 can fast-fail inside V8 Maglev without a JS error (nodejs/node#62260).
+        // This changes only the owned test driver, never the app or its assertions.
+        if (System.getProperty("os.name", "").startsWith("Windows")) command.add("--no-maglev");
+        command.add(repository.resolve("scripts/verify-agent-browser.mjs").toString());
+        var launcher = new ProcessBuilder(command)
                 .directory(repository.resolve("frontend-oa").toFile()).redirectErrorStream(true).redirectOutput(log.toFile());
         var original = System.getenv();
         launcher.environment().clear();

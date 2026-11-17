@@ -11,7 +11,8 @@ export function agentTaskNavigationTarget(detail: Pick<AgentTaskDetail, 'status'
       || detail.steps.some((step) => step.status !== 'SUCCEEDED' || step.result == null)) return null;
   const last = detail.steps[detail.steps.length - 1];
   if (last.toolCode === 'page.ui.prepare') return null;
-  if (['approval.genericTask.detail.query', 'approval.genericTask.approve'].includes(last.toolCode)) {
+  if (last.toolCode === 'approval.genericTask.transfer') return { pageId: 'todo' };
+  if (['approval.genericTask.detail.query', 'approval.genericTask.approve', 'approval.genericTask.reject', 'approval.genericTask.cc', 'approval.genericTask.addSign'].includes(last.toolCode)) {
     const recordId = agentToolTargetRecordId(last.toolCode, last.result);
     return recordId === undefined ? null : { pageId: 'todo', recordId, recordKind: 'generic-task' };
   }
@@ -42,6 +43,11 @@ const EXACT_TARGETS: Record<string, string> = {
   'todo.query': 'todo',
   'approval.genericTask.detail.query': 'todo',
   'approval.genericTask.approve': 'todo',
+  'approval.genericTask.reject': 'todo',
+  'approval.genericTask.participants.query': 'todo',
+  'approval.genericTask.transfer': 'todo',
+  'approval.genericTask.cc': 'todo',
+  'approval.genericTask.addSign': 'todo',
   'dashboard.overview.query': 'dashboard',
   'dashboard.preferences.update': 'dashboard',
   'knowledge.search': 'knowledge-base',
@@ -74,9 +80,15 @@ const EXACT_TARGETS: Record<string, string> = {
   'approval.task.query': 'approval-list',
   'hr.organization.query': 'org-tree',
   'hr.employee.query': 'employee-files',
+  'hr.employee.documents.query': 'employee-files',
   'hr.change.query': 'employee-change',
   'hr.change.reviewer.query': 'employee-change',
   'visitor.host.query': 'visitor-booking',
+  'visitor.approve': 'visitor-booking',
+  'visitor.reject': 'visitor-booking',
+  'seal.approve': 'seal-usage',
+  'seal.documents.query': 'seal-usage',
+  'seal.reject': 'seal-usage',
   'asset.department.query': 'asset-ledger',
   'asset.custodian.query': 'asset-ledger',
   'hr.change.apply': 'employee-change',
@@ -143,8 +155,15 @@ const DICTIONARY_RECORD_KINDS: ReadonlyMap<string, AgentRecordKind> = new Map(
     .map((operation): [string, AgentRecordKind] => [`dictionary.${kind}.${operation}`, `dictionary-${kind}`])),
 );
 const RECORD_ID_FIELDS: ReadonlyMap<string, string> = new Map([
+  ['seal.approve', 'resourceId'],
+  ['seal.reject', 'resourceId'],
+  ['visitor.approve', 'resourceId'],
+  ['visitor.reject', 'resourceId'],
   ['approval.genericTask.detail.query', 'taskId'],
   ['approval.genericTask.approve', 'taskId'],
+  ['approval.genericTask.reject', 'taskId'],
+  ['approval.genericTask.cc', 'taskId'],
+  ['approval.genericTask.addSign', 'taskId'],
   ...['approval.rule.definition.query', 'approval.rule.createDraft', 'approval.rule.updateDraft', 'approval.rule.patchDraftCondition', 'approval.rule.enableDraft']
     .map((code): [string, string] => [code, 'ruleId']),
   ...['approval.form.definition.query', 'approval.form.createDraft', 'approval.form.updateDraft', 'approval.form.patchDraftField', 'approval.form.publishDraft']
@@ -210,6 +229,8 @@ export function resolveAgentToolTargetPath(pageId: string, recordId: number | un
     if (!Number.isSafeInteger(recordId) || recordId <= 0) return null;
     if (pageId === 'dictionary' && recordKind) return `/oa/dictionary?${recordKind === 'dictionary-type' ? 'typeId' : 'itemId'}=${recordId}`;
     if (pageId === 'employee-files') return `/oa/employee-files?id=${recordId}`;
+    if (pageId === 'visitor-booking') return `/oa/visitor-booking?id=${recordId}`;
+    if (pageId === 'seal-usage') return `/oa/seal-usage?id=${recordId}`;
     if (pageId === 'employee-change') return `/oa/employee-change?id=${recordId}`;
     if (pageId === 'asset-ledger') return `/oa/asset-ledger?id=${recordId}`;
     if (pageId === 'budget') return `/oa/budget?id=${recordId}`;

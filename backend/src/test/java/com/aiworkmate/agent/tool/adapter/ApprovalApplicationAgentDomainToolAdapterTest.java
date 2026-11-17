@@ -52,7 +52,10 @@ class ApprovalApplicationAgentDomainToolAdapterTest {
     void mapsTypedFieldsToExistingDomainRequest() {
         var command = new ApprovalApplicationToolPort.Draft("expense", null, List.of(
                 new ApprovalApplicationToolPort.FieldValue("reason", List.of("客户拜访"), false),
-                new ApprovalApplicationToolPort.FieldValue("tags", List.of("差旅", "客户"), true)));
+                new ApprovalApplicationToolPort.FieldValue("tags", List.of("差旅", "客户"), true),
+                new ApprovalApplicationToolPort.FieldValue("items", List.of(), false, List.of(
+                        new ApprovalApplicationToolPort.TableRow(List.of(
+                                new ApprovalApplicationToolPort.TableCell("amount", "9007199254740993.01")))))));
         var response = mock(ApprovalApplicationResponse.class);
         when(response.id()).thenReturn(30L);
         when(response.formKey()).thenReturn("expense");
@@ -68,7 +71,8 @@ class ApprovalApplicationAgentDomainToolAdapterTest {
         verify(service).createAgentDraft(eq(20L), request.capture(), eq("stable"));
         assertThat(request.getValue().formData())
                 .containsEntry("reason", "客户拜访")
-                .containsEntry("tags", List.of("差旅", "客户"));
+                .containsEntry("tags", List.of("差旅", "客户"))
+                .containsEntry("items", List.of(java.util.Map.of("amount", "9007199254740993.01")));
     }
 
     @Test

@@ -18,6 +18,7 @@ public final class ExactFormDataDeserializer extends JsonDeserializer<Map<String
         if (!(parser.getCodec() instanceof ObjectMapper mapper))
             throw JsonMappingException.from(parser, "Unsupported form data codec");
         return mapper.readerFor(new TypeReference<LinkedHashMap<String, Object>>() { })
-                .with(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS).readValue(parser);
+                .with(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS)
+                .with(JsonParser.Feature.STRICT_DUPLICATE_DETECTION).readValue(parser);
     }
 }

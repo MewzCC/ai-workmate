@@ -13,7 +13,7 @@ public final class DashboardAgentDomainToolAdapter implements DashboardToolPort 
 
     @Override
     public OverviewResult overview(ToolActorContext context, OverviewQuery query) {
-        var response = dashboardService.overview(context.userId(), query.days());
+        var response = dashboardService.overview(context.userId(), context.tenantId(), query.days());
         // Only aggregate fields cross the Agent boundary; no names, titles or audit summaries.
         return new OverviewResult(response.generatedAt().toString(), response.days(),
                 response.metrics().stream().limit(4).map(m -> new Metric(m.code(), m.value())).toList(),

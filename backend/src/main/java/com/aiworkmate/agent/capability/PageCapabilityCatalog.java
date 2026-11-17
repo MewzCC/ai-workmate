@@ -61,6 +61,9 @@ public class PageCapabilityCatalog {
 
     /** Preserve the generic approval domain's existing entry-route prerequisite independently of business permissions. */
     public Set<String> prerequisitePageIdsForTool(String toolCode) {
+        if (Set.of(APPROVAL_GENERIC_TASK_DETAIL_QUERY.code(), APPROVAL_GENERIC_TASK_APPROVE.code(),
+                APPROVAL_GENERIC_TASK_REJECT.code(),APPROVAL_GENERIC_TASK_PARTICIPANTS_QUERY.code(),APPROVAL_GENERIC_TASK_TRANSFER.code(),APPROVAL_GENERIC_TASK_CC.code(),APPROVAL_GENERIC_TASK_ADD_SIGN.code()).contains(toolCode == null ? "" : toolCode))
+            return Set.of(OaPage.TODO.routeKey());
         return Set.of(APPROVAL_APPLICATION_APPLY.code(), EXPENSE_APPLY.code(), APPROVAL_APPLICATION_TEMPLATE_QUERY.code(), APPROVAL_APPLICATION_MINE_QUERY.code(), APPROVAL_APPLICATION_DETAIL_QUERY.code(),
                 APPROVAL_APPLICATION_CREATE_DRAFT.code(), APPROVAL_APPLICATION_UPDATE_DRAFT.code(),
                 APPROVAL_APPLICATION_SUBMIT_DRAFT.code(), APPROVAL_APPLICATION_CANCEL_DRAFT.code(),
@@ -111,7 +114,7 @@ public class PageCapabilityCatalog {
                 page(OaPage.DASHBOARD, OwnershipPolicy.SELF, LIST_COMMANDS,
                         context(text("status"), number("page"), number("size")),
                         tool(TODO_QUERY), tool(NOTIFICATION_MINE), tool(USER_PERMISSION_MINE_QUERY),
-                        tool(DASHBOARD_OVERVIEW_QUERY), tool(DASHBOARD_PREFERENCES_UPDATE)),
+                        tool(DASHBOARD_OVERVIEW_QUERY), tool(DASHBOARD_PREFERENCES_UPDATE), tool(APPROVAL_GENERIC_TASK_DETAIL_QUERY)),
                 page(OaPage.AI_WORKSPACE, OwnershipPolicy.SELF, READ_COMMANDS, PageContextSchema.empty(),
                         allTools()),
                 page(OaPage.AI_TASKS, OwnershipPolicy.SELF, LIST_COMMANDS,
@@ -119,7 +122,8 @@ public class PageCapabilityCatalog {
                         tool(AGENT_TASK_MINE_QUERY), tool(AGENT_TASK_CANCEL)),
                 page(OaPage.TODO, OwnershipPolicy.ASSIGNED_TO_SELF, LIST_COMMANDS,
                         context(text("businessType"),text("status"), text("from"), text("to"), number("page"), number("size"), number("taskId"), number("taskVersion")),
-                        tool(TODO_QUERY), tool(APPROVAL_GENERIC_TASK_DETAIL_QUERY), tool(APPROVAL_GENERIC_TASK_APPROVE)),
+                        tool(TODO_QUERY), tool(APPROVAL_GENERIC_TASK_DETAIL_QUERY), tool(APPROVAL_GENERIC_TASK_APPROVE), tool(APPROVAL_GENERIC_TASK_REJECT),
+                        tool(APPROVAL_GENERIC_TASK_PARTICIPANTS_QUERY),tool(APPROVAL_GENERIC_TASK_TRANSFER),tool(APPROVAL_GENERIC_TASK_CC),tool(APPROVAL_GENERIC_TASK_ADD_SIGN)),
                 page(OaPage.MESSAGES, OwnershipPolicy.SELF, LIST_COMMANDS,
                         context(number("notificationId"), number("page"), number("size")),
                         tool(NOTIFICATION_MINE), tool(NOTIFICATION_MARK_READ)),
@@ -167,7 +171,7 @@ public class PageCapabilityCatalog {
                 page(OaPage.ORG_TREE, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         context(text("keyword"), number("departmentId"), number("limit")), tool(HR_ORGANIZATION_QUERY)),
                 page(OaPage.EMPLOYEE_FILES, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
-                        context(number("employeeId"), text("keyword")), tool(HR_ORGANIZATION_QUERY), tool(HR_EMPLOYEE_QUERY)),
+                        context(number("employeeId"), text("keyword")), tool(HR_ORGANIZATION_QUERY), tool(HR_EMPLOYEE_QUERY), tool(HR_EMPLOYEE_DOCUMENTS_QUERY)),
                 page(OaPage.EMPLOYEE_CHANGE, OwnershipPolicy.TENANT_SCOPED, LIST_COMMANDS,
                         context(number("changeId"), number("version"), text("status"), text("changeType"), text("keyword"), number("page"), number("size")),
                         tool(HR_CHANGE_QUERY), tool(HR_CHANGE_REVIEWER_QUERY), tool(HR_CHANGE_APPLY), tool(HR_CHANGE_APPROVE),
@@ -184,14 +188,14 @@ public class PageCapabilityCatalog {
                         tool(MEETING_QUERY), tool(MEETING_BOOK), tool(MEETING_CANCEL),
                         tool(MEETING_ROOM_QUERY), tool(MEETING_ROOM_CREATE), tool(MEETING_ROOM_UPDATE)),
                 page(OaPage.VISITOR_BOOKING, OwnershipPolicy.SELF, LIST_COMMANDS,
-                        context(number("bookingId"), text("queue"), text("status"), number("page"), number("size")),
+                        context(number("bookingId"), number("taskId"), number("taskVersion"), text("queue"), text("status"), number("page"), number("size")),
                         tool(VISITOR_QUERY), tool(VISITOR_HOST_QUERY), tool(VISITOR_APPLY), tool(VISITOR_CHECK_IN),
                         tool(VISITOR_MARK_ARRIVED), tool(VISITOR_LEAVE), tool(VISITOR_WITHDRAW),
-                        tool(VISITOR_NO_SHOW)),
+                        tool(VISITOR_NO_SHOW), tool(VISITOR_APPROVE), tool(VISITOR_REJECT)),
                 page(OaPage.SEAL_USAGE, OwnershipPolicy.SELF, LIST_COMMANDS,
-                        context(number("usageId"), text("queue"), text("status"), number("page"), number("size")),
-                        tool(SEAL_QUERY), tool(SEAL_APPLY), tool(SEAL_REGISTER_USE),
-                        tool(SEAL_WITHDRAW), tool(SEAL_RETURN)),
+                        context(number("usageId"), number("taskId"), number("taskVersion"), text("queue"), text("status"), number("page"), number("size")),
+                        tool(SEAL_QUERY), tool(SEAL_DOCUMENTS_QUERY), tool(SEAL_APPLY), tool(SEAL_REGISTER_USE),
+                        tool(SEAL_WITHDRAW), tool(SEAL_RETURN),tool(SEAL_APPROVE),tool(SEAL_REJECT)),
 
                 page(OaPage.EXPENSE, OwnershipPolicy.SELF, FORM_COMMANDS,
                         context(number("applicationId"), number("version"), text("status"), number("page"), number("size")),

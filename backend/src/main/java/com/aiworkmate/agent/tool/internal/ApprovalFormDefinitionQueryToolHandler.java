@@ -20,4 +20,9 @@ public final class ApprovalFormDefinitionQueryToolHandler
     @Override protected ApprovalConfigurationToolPort.FormDefinition invoke(TrustedToolContext context, Long formId) {
         return port.readFormDefinition(context.actor(), formId);
     }
+    @Override protected JsonNode serializeResult(ApprovalConfigurationToolPort.FormDefinition result) {
+        JsonNode output = super.serializeResult(result);
+        ApprovalFormToolJsonOutput.omitEmptyColumns(output.path("fields"));
+        return output;
+    }
 }

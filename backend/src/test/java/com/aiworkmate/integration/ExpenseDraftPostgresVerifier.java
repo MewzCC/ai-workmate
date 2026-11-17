@@ -327,7 +327,8 @@ final class ExpenseDraftPostgresVerifier {
                 session.getMapper(WorkflowInstanceMapper.class),
                 session.getMapper(WorkflowTaskMapper.class),
                 session.getMapper(WorkflowActionLogMapper.class),
-                access, audit, notifications, new ObjectMapper().findAndRegisterModules());
+                access, audit, notifications, new ObjectMapper().findAndRegisterModules(),
+                mock(com.aiworkmate.service.ApprovalApplicationAttachmentService.class));
     }
 
     private static void verifyCancellationTransaction(JdbcTemplate jdbc, SqlSessionTemplate session,
