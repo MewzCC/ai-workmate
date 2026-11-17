@@ -98,16 +98,16 @@ jobs:
           node-version: '20'
           cache: npm
           cache-dependency-path: |
-            fronted-main/package-lock.json
-            fonted-oa/package-lock.json
+            frontend-main/package-lock.json
+            frontend-oa/package-lock.json
       - name: Marketing site checks
-        working-directory: fronted-main
+        working-directory: frontend-main
         run: |
           npm ci
           npm run lint
           npm run build
       - name: OA tests and build
-        working-directory: fonted-oa
+        working-directory: frontend-oa
         run: |
           npm ci
           npm test

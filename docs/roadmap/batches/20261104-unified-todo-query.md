@@ -35,9 +35,9 @@
 
 | 验证 | 结果 |
 | --- | --- |
-| `cd fonted-oa; npm run lint` | 0 个错误，2 个既有 Hook 警告 |
-| `cd fonted-oa; npm run test` | 829 项通过，无失败、无跳过 |
-| `cd fonted-oa; npm run build` | 成功，退出码 0，24.69 秒 |
+| `cd frontend-oa; npm run lint` | 0 个错误，2 个既有 Hook 警告 |
+| `cd frontend-oa; npm run test` | 829 项通过，无失败、无跳过 |
+| `cd frontend-oa; npm run build` | 成功，退出码 0，24.69 秒 |
 | Java 17 下 `cd backend; mvn test` | 2073 项，0 失败、0 错误，2 项既有环境跳过，退出码 0 |
 | 统一待办真实接口与 Worker/Gateway | 8 项通过，覆盖两类业务、统一分页、历史快照、筛选、租户/用户隔离、同 Cookie 撤权、旧合约及禁用拦截 |
 | 真实 PostgreSQL 迁移 | 空库首次迁移、已识别旧工具合约升级、禁用/权限/限额保留、未知合约不改、Flyway validate、无 Pending、重复迁移为零均通过；完整回归包含隔离后端重启验证 |

@@ -16,7 +16,7 @@ const sourceScript = path.resolve(sourceDirectory, 'iconfont.js');
 const sourceMetadata = path.resolve(sourceDirectory, 'iconfont.json');
 const iconNameRegistry = path.join(
   repositoryRoot,
-  'fonted-oa',
+  'frontend-oa',
   'src',
   'components',
   'IconFont.tsx',
@@ -75,8 +75,8 @@ for (const name of monochromeNames) {
 }
 
 const targets = [
-  path.join(repositoryRoot, 'fronted-main', 'public', 'iconfont'),
-  path.join(repositoryRoot, 'fonted-oa', 'public', 'iconfont'),
+  path.join(repositoryRoot, 'frontend-main', 'public', 'iconfont'),
+  path.join(repositoryRoot, 'frontend-oa', 'public', 'iconfont'),
 ];
 const version = createHash('sha256')
   .update(normalizedScript)
@@ -96,7 +96,7 @@ await Promise.all([
   writeFile(
     path.join(
       repositoryRoot,
-      'fronted-main',
+      'frontend-main',
       'src',
       'generated',
       'iconfontVersion.ts',
@@ -107,7 +107,7 @@ await Promise.all([
   writeFile(
     path.join(
       repositoryRoot,
-      'fonted-oa',
+      'frontend-oa',
       'src',
       'generated',
       'iconfontVersion.ts',

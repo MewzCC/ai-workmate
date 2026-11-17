@@ -53,6 +53,7 @@ public class ChatServiceImpl implements ChatService {
             """;
 
     private final ChatClient chatClient;
+    private final com.aiworkmate.config.AiProviderRuntime aiProviderRuntime;
     private final ConversationMapper conversationMapper;
     private final MessageMapper messageMapper;
     private final KnowledgeContextService knowledgeContextService;
@@ -129,7 +130,7 @@ public class ChatServiceImpl implements ChatService {
                                                           List<Attachment> attachments, Long currentMessageId,
                                                           int maxContextRounds, Locale language) {
         String selectedModel = AiModelCatalog.normalize(conversation.getModel());
-        boolean multimodal = AiModelCatalog.isMultimodal(selectedModel);
+        boolean multimodal = aiProviderRuntime != null ? aiProviderRuntime.supportsImages(selectedModel) : AiModelCatalog.isMultimodal(selectedModel);
         String systemPrompt = buildSystemPrompt(role, knowledge, attachments, multimodal, language);
         List<Attachment> images = attachments.stream().filter(item -> "image".equals(item.getType())).toList();
         if (!multimodal && images.stream().anyMatch(image -> image.getExtractedText() == null)) {

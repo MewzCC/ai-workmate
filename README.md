@@ -8,7 +8,7 @@
 
 [界面预览](#界面预览) · [业务能力](#业务能力) · [快速开始](#快速开始) · [测试与-ci](#测试与-ci) · [文档](#文档)
 
-> 当前代码包含 **42 个 OA 页面组件、152 个 Agent 工具定义（50 读 / 102 写）**。登记、配置启用、用户授权和业务验收是不同状态；实际可用能力以服务端配置与实时权限为准。项目仍在迭代，待验收范围见[问题基线](docs/roadmap/oa-agent-issue-baseline-20261026.md)。
+> 当前代码包含 **42 个 OA 页面组件、163 个 Agent 工具定义（53 读 / 110 写）**。登记、配置启用、用户授权和业务验收是不同状态；实际可用能力以服务端配置与实时权限为准。项目仍在迭代，待验收范围见[问题基线](docs/roadmap/oa-agent-issue-baseline-20261026.md)。
 
 ## 界面预览
 
@@ -86,27 +86,27 @@ AGENT_EXECUTION_ENABLED=false
 AGENT_WRITE_TOOLS_ENABLED=false
 ```
 
-开启环境开关不等于获得业务权限或完成写能力发布。启用方式及边界见 [Phase 2 安全规范](docs/roadmap/phase-2-agent-security-boundary.md)与 [Tool Gateway 架构](docs/architecture/agent-tool-gateway.md)。API Key 和模型网关地址仅由服务端配置。
+开启环境开关不等于获得业务权限或完成写能力发布。启用方式及边界见 [Phase 2 安全规范](docs/roadmap/phase-2-agent-security-boundary.md)与 [Tool Gateway 架构](docs/architecture/agent-tool-gateway.md)。API Key 和模型网关地址由服务端管理；超级管理员的在线配置加密入库，不回显密钥，环境变量用作兼容默认值。
 
 ## 架构与技术栈
 
 | 部分 | 目录 / 技术 | 默认地址 |
 | --- | --- | --- |
-| 营销官网 | `fronted-main` · Vite 5 / React 18 / TypeScript | <http://localhost:3000> |
-| OA 工作台 | `fonted-oa` · Vite 5 / React 19 / React Router / Ant Design / ECharts / G6 | <http://localhost:3001/oa/> |
+| 营销官网 | `frontend-main` · Vite 5 / React 18 / TypeScript | <http://localhost:3000> |
+| OA 工作台 | `frontend-oa` · Vite 5 / React 19 / React Router / Ant Design / ECharts / G6 | <http://localhost:3001/oa/> |
 | 后端 | `backend` · Java 17 / Spring Boot 3.3 / Spring AI / Spring Security / MyBatis-Plus | <http://localhost:8080> |
 | 数据与缓存 | PostgreSQL 16 / pgvector / Flyway / Redis 7 | `5432` / `6379` |
 | 对象存储 | MinIO | API `9000` / Console `9001` |
 | 可选服务 | Embedding / Rerank / PaddleOCR / SMTP | 按服务端配置 |
 
-官网和 OA **独立运行、独立构建**。官网入口进入 OA 的 `/oa/`；OA 根路径 `/` 重定向到 `/oa`。仓库目录名 `fronted-main`、`fonted-oa` 沿用既有拼写，旧 `frontend` 不再作为应用边界。
+官网和 OA **独立运行、独立构建**。官网入口进入 OA 的 `/oa/`；OA 根路径 `/` 重定向到 `/oa`。前端目录统一为 `frontend-main`、`frontend-oa`；旧 `frontend` 不再作为应用边界。
 
 后端当前以模块化单体运行，领域服务、工具 Port / Adapter、执行网关分别组织；尚未作为 Spring Cloud 微服务部署。
 
 ```text
 ai-workmate/
-├── fronted-main/             # 独立营销官网
-├── fonted-oa/                # 独立 OA 工作台
+├── frontend-main/             # 独立营销官网
+├── frontend-oa/                # 独立 OA 工作台
 ├── backend/
 │   └── src/main/
 │       ├── java/com/aiworkmate/  # API、领域服务、认证、Agent
@@ -158,7 +158,7 @@ mvn spring-boot:run
 官网终端：
 
 ```bash
-cd fronted-main
+cd frontend-main
 npm ci
 npm run dev
 ```
@@ -166,7 +166,7 @@ npm run dev
 OA 终端：
 
 ```bash
-cd fonted-oa
+cd frontend-oa
 npm ci
 npm run dev
 ```
@@ -214,12 +214,12 @@ docker compose --env-file .env.docker --profile ocr up -d --build
 前端本地检查：
 
 ```bash
-cd fronted-main
+cd frontend-main
 npm ci
 npm run lint
 npm run build
 
-cd ../fonted-oa
+cd ../frontend-oa
 npm ci
 npm run lint
 npm test
@@ -265,3 +265,22 @@ npm run test:e2e
 | Agent | [安全边界](docs/roadmap/phase-2-agent-security-boundary.md) · [Tool Gateway](docs/architecture/agent-tool-gateway.md) · [任务引擎](docs/architecture/agent-task-engine.md) |
 | 交付与后续验收 | [工具清单](docs/roadmap/all-page-agent-tool-delivery.md) · [问题基线](docs/roadmap/oa-agent-issue-baseline-20261026.md) · [收尾记录](docs/roadmap/batches/20261104-worktree-closeout.md) |
 | 截图来源 | [截图说明](docs/images/readme/README.md) |
+
+## 许可证
+
+- 项目许可证为 [MIT License](LICENSE)，不附加非商用、禁止售卖或禁止收费 SaaS 的限制。
+- 软件按原样提供，不提供任何明示或默示担保；具体权利、条件及责任限制以许可证正文为准。
+- 本次变更不撤销历史版本已经授予的 Apache-2.0 许可。对于仍受原许可约束的历史代码或贡献，须继续遵守其原有义务；原许可副本保留于 [LICENSES/Apache-2.0.txt](LICENSES/Apache-2.0.txt)。
+- 第三方依赖、代码和素材仍适用各自的许可证及版权声明，不因项目许可证变更而自动改为 MIT。
+
+## 协作约定
+
+- 修改项目前先阅读 [AGENTS.md](AGENTS.md) 及对应 `docs/rules`、`docs/skills`。
+- 前后端接口变更必须同步更新 DTO、TypeScript 类型、调用方、国际化资源和文档。
+- 不提交密钥、真实账号、生产连接串、数据库转储或用户隐私数据。
+- 安全、鉴权、数据一致性、流式体验和失败路径优先于视觉效果。
+- 新能力必须提供本地验证方式；无法验证时必须说明环境限制。
+
+### 在线 AI 服务配置
+
+超级管理员登录 OA 后进入系统设置（`/oa/system-config`），填写 OpenAI 兼容服务地址、默认模型 ID 和 API Key，保存后点击“测试流式连接”。新请求立即使用数据库配置，无需重启。密钥加密入库、不回显；后续留空可保留原密钥。普通用户可选择 `default` 跟随后台默认模型，或输入服务支持的模型 ID。旧 AI 环境变量只在尚未在线配置时作为兼容默认值。实现与接口说明见 [在线配置](docs/architecture/online-ai-configuration.md)。

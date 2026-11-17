@@ -1,28 +1,29 @@
 # Dependencies
 node_modules/
 frontend/node_modules/
-fronted-main/node_modules/
-fonted-oa/node_modules/
+frontend-main/node_modules/
+frontend-oa/node_modules/
 
 # Next.js / frontend build output
+.vite/
 .next/
 frontend/.next/
 frontend/.next-home/
 frontend/.next-oa/
-fronted-main/.next/
-fonted-oa/.next/
+frontend-main/.next/
+frontend-oa/.next/
 out/
 frontend/out/
-fronted-main/out/
-fonted-oa/out/
+frontend-main/out/
+frontend-oa/out/
 dist/
 frontend/dist/
-fronted-main/dist/
-fonted-oa/dist/
+frontend-main/dist/
+frontend-oa/dist/
 build/
 frontend/build/
-fronted-main/build/
-fonted-oa/build/
+frontend-main/build/
+frontend-oa/build/
 *.tsbuildinfo
 /deploy/
 __pycache__/
@@ -61,6 +62,7 @@ backend/src/main/resources/application-local.yaml
 .reasonix/
 reasonix.toml
 .workbuddy-ai/
+.workbuddy/
 *.iml
 *.ipr
 *.iws
@@ -77,8 +79,8 @@ Thumbs.db
 # Test and coverage output
 coverage/
 frontend/coverage/
-fronted-main/coverage/
-fonted-oa/coverage/
+frontend-main/coverage/
+frontend-oa/coverage/
 .nyc_output/
 test-results/
 playwright-report/

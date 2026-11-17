@@ -8,9 +8,9 @@
 
 以下内容已存在于当前仓库，必须复用、扩展而非重建：
 
-前端（`fonted-oa`，React 18 + TypeScript + Vite + Ant Design 5 + ECharts + i18next + dayjs）：
+前端（`frontend-oa`，React 18 + TypeScript + Vite + Ant Design 5 + ECharts + i18next + dayjs）：
 
-- 菜单：`流程审批` 位于「业务系统」分组下（`fonted-oa/src/mock/oaMenus.ts`，
+- 菜单：`流程审批` 位于「业务系统」分组下（`frontend-oa/src/mock/oaMenus.ts`，
   真实菜单由 `GET /api/navigation` 返回），现有页面：
   - `approval-list` 审批列表（componentKey `APPROVAL_LIST` → `ApprovalListPage.tsx`）
   - `form-engine` 表单引擎（`FORM_ENGINE` → `FormEnginePage.tsx`，表单定义 CRUD）
@@ -25,7 +25,7 @@
   `StatusTag`（FormEnginePage 导出）、`OaIcon`（语义图标，禁止硬编码 Symbol ID）、
   `approvalEngineApi` / `approvalApi` / `todoApi` / `leaveApi`（`src/lib`）
 - 布局规范：`leave-list-workbench` 满高工作台模式（hero 页头 + 指标条 + Card 紧邻页头
-  填充剩余工作区），组件注册表为 `fonted-oa/src/lib/navigationApi.ts` 的
+  填充剩余工作区），组件注册表为 `frontend-oa/src/lib/navigationApi.ts` 的
   `componentKey` 联合类型 + `AdminLayout.tsx` 内的渲染分发
 
 后端（Spring Boot 3 + Java 17 + MyBatis-Plus + PostgreSQL + Flyway + JWT）：
@@ -265,7 +265,7 @@ Tertiary（opacity 更低），标题用 Ant Design `Typography`。
 
 ## 十四、技术要求（严格遵循现有技术栈）
 
-前端（`fonted-oa`）：
+前端（`frontend-oa`）：
 
 - React 18/19 + TypeScript + Vite + Ant Design 5（业务控件必须用 AntD：
   Button/Table/Drawer/Modal/Tag/Form/Select/DatePicker/Timeline/Steps）+ ECharts + dayjs
@@ -303,7 +303,7 @@ Tertiary（opacity 更低），标题用 Ant Design `Typography`。
 验证命令（本地必须运行并汇报结果）：
 
 ```bash
-cd fonted-oa && npm run lint && npm run build   # 前端
+cd frontend-oa && npm run lint && npm run build   # 前端
 cd backend && mvn test                          # 后端（无 Java 17/Maven 则说明原因）
 ```
 

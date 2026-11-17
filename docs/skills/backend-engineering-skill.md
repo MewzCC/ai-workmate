@@ -55,7 +55,7 @@ OA AI 后端必须接入真实认证、权限、审计和可观测流程：
 - 禁止接口失败后 fallback mock。
 - 未接入真实业务能力时必须返回明确错误，不得模拟执行成功。
 - 真实写操作必须先完成权限校验、幂等设计、人工确认和审计记录。
-- 真实 LLM 接入必须通过环境变量配置 `AI_API_KEY`、`AI_BASE_URL`、`AI_MODEL`。
+- 真实 LLM 优先通过超级管理员在线配置；`AI_API_KEY`、`AI_BASE_URL`、`AI_MODEL` 仅为未在线配置时的兼容默认值。
 - 安全配置不得为了联调放开全部接口。
 - 所有 Agent ToolHandler 必须由进程内 Tool Gateway 分派；Worker 只传 stepId 与租约，网关不开放公共 HTTP API。
 - 只有 gateway 包可以依赖 handler；使用 ArchUnit 或等价测试阻止 Controller、Planner、Task Service、Worker 直接调用。
@@ -64,7 +64,7 @@ OA AI 后端必须接入真实认证、权限、审计和可观测流程：
 
 ## Spring AI 规范
 
-- 模型配置通过环境变量覆盖：`AI_API_KEY`、`AI_BASE_URL`、`AI_MODEL`。
+- 模型配置通过受认证超级管理员接口在线管理，服务端加密密钥；环境变量仅作首次配置兼容。
 - 提示词模板集中管理，不散落在 controller。
 - Tool Calling 必须白名单化并做参数校验。
 - 模型异常按超时、限流、鉴权、内容安全、未知错误分类。
@@ -83,3 +83,9 @@ OA AI 后端必须接入真实认证、权限、审计和可观测流程：
 - 数据库结构、索引与种子数据变更统一通过 Flyway 版本化迁移 `backend/src/main/resources/db/migration/V*__*.sql` 管理；后端启动自动执行，禁止修改已发布的历史迁移（checksum 校验会失败）。
 - 旧版 `backend/src/main/resources/db/init.sql` 保留为幂等基线参考与手工建库脚本，不再追加新结构变更。
 - 新迁移必须保持幂等，支持新库初始化和旧库重复执行，优先使用事务、`IF NOT EXISTS`、条件 `DO` 块和 `ON CONFLICT`；迁移由 Flyway 统一管理事务，脚本内不要再写 `BEGIN;`/`COMMIT;`。
+
+## AI 在线配置
+
+系统设置中的平台 AI 服务配置仅允许实时拥有 SUPER_ADMIN 角色及 access:manage 权限的用户读写与测试。密钥 AES-GCM 加密入库，不回显、不写浏览器存储；修改需版本校验及事务审计。新请求立即使用当前配置，进行中的请求使用已获取的配置快照。模型 default 跟随后台默认值，自定义模型 ID 仅传给已配置的固定模型客户端；此接口不注册为 Agent 工具或页面表单指令。
+
+- AI 模型配置的 Base URL 回显包含 `/v1`；上游模型列表通过管理员受保护接口获取。仅保存勾选模型，聊天下拉从 `/api/ai/models` 读取；上下文预算、输出上限和原图能力必须由服务端重新校验，禁止仅前端展示开关。

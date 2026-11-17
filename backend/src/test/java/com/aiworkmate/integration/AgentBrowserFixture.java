@@ -46,7 +46,7 @@ final class AgentBrowserFixture {
         if (System.getProperty("os.name", "").startsWith("Windows")) command.add("--no-maglev");
         command.add(repository.resolve("scripts/verify-agent-browser.mjs").toString());
         var launcher = new ProcessBuilder(command)
-                .directory(repository.resolve("fonted-oa").toFile()).redirectErrorStream(true).redirectOutput(log.toFile());
+                .directory(repository.resolve("frontend-oa").toFile()).redirectErrorStream(true).redirectOutput(log.toFile());
         var original = System.getenv();
         launcher.environment().clear();
         for (String name : List.of("Path", "PATH", "SystemRoot", "WINDIR", "COMSPEC", "PATHEXT", "TEMP", "TMP",

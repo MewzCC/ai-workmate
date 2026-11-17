@@ -2,7 +2,7 @@
 
 ## 目标与边界
 
-OA 认证入口固定为 `fonted-oa` 的 `/auth`。所有 `/oa/**` 页面先调用 `GET /api/auth/me` 校验服务端签发的 HttpOnly Cookie；未认证用户携带 `redirect` 参数返回登录页。营销官网不再承载登录、注册或找回密码表单。
+OA 认证入口固定为 `frontend-oa` 的 `/auth`。所有 `/oa/**` 页面先调用 `GET /api/auth/me` 校验服务端签发的 HttpOnly Cookie；未认证用户携带 `redirect` 参数返回登录页。营销官网不再承载登录、注册或找回密码表单。
 
 ## 认证流程
 

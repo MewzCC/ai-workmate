@@ -226,7 +226,7 @@ Phase 2 不实现通用补偿状态机。每个写工具必须在定义中声明
 
 兼容策略：现有 `POST /api/ai/tasks/execute` 在前后端同一次发布中迁移到 taskId 路径接口，不保留伪成功兼容层。
 
-### 4.5 前端升级（fonted-oa）
+### 4.5 前端升级（frontend-oa）
 
 - AI Drawer 展示真实计划步骤、工具名、参数脱敏摘要、影响范围和风险等级；确认后按需签发 confirmationToken，并只保存在 Drawer 当前内存状态，关闭或刷新后重新签发。
 - L0 显示“执行”按钮；L1/L2 显示明确确认按钮，L2 使用 Ant Design `Modal.confirm` 二次确认。
@@ -342,7 +342,7 @@ flowchart LR
 
 - 新增 Flyway 迁移在 PostgreSQL 空库首次迁移、已有库升级和迁移后重启三种场景通过；`init.sql` 仅用于历史基线参考，不追加 Phase 2 结构。
 - 后端 Java 17 `mvn test` 通过，覆盖状态机、越权、幂等、确认、Worker 恢复、schema 和 SSE 所有权。
-- 两个前端 `npm run lint`、`npm run build` 通过；`fonted-oa` Vitest 通过。
+- 两个前端 `npm run lint`、`npm run build` 通过；`frontend-oa` Vitest 通过。
 - `zh-CN` 与 `en-US` 下错误响应、SSE 错误事件和 OA 页面无硬编码文案或 key 暴露。
 - 未接真实工具或 LLM 时仍返回 `AI_TASK_CAPABILITY_UNAVAILABLE`。
 

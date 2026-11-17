@@ -3,8 +3,8 @@ set -euo pipefail
 
 PACKAGE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEPLOY_ROOT="${DEPLOY_ROOT:-$PACKAGE_DIR}"
-MAIN_ZIP="${MAIN_ZIP:-$PACKAGE_DIR/fronted-main.zip}"
-OA_ZIP="${OA_ZIP:-$PACKAGE_DIR/fonted-oa.zip}"
+MAIN_ZIP="${MAIN_ZIP:-$PACKAGE_DIR/frontend-main.zip}"
+OA_ZIP="${OA_ZIP:-$PACKAGE_DIR/frontend-oa.zip}"
 
 case "$MAIN_ZIP" in
   /*) ;;
@@ -87,7 +87,7 @@ deploy_app() {
   pm2 describe "$app_name" | grep -E "status|script path|exec cwd|node.js version|unstable restarts" || true
 
   if command -v curl >/dev/null 2>&1; then
-    if [ "$app_name" = "fonted-oa" ]; then
+    if [ "$app_name" = "frontend-oa" ]; then
       if ! curl -fsS -I "http://127.0.0.1:$port/oa" >/dev/null; then
         echo "ERROR: local health check failed for $app_name on http://127.0.0.1:$port/oa" >&2
         pm2 logs "$app_name" --lines 80 --nostream || true
@@ -106,10 +106,10 @@ deploy_app() {
 }
 
 mkdir -p "$DEPLOY_ROOT"
-deploy_app "fronted-main" "$MAIN_ZIP" "3000"
-deploy_app "fonted-oa" "$OA_ZIP" "3001"
+deploy_app "frontend-main" "$MAIN_ZIP" "3000"
+deploy_app "frontend-oa" "$OA_ZIP" "3001"
 
 echo "==> Deployment completed"
-echo "fronted-main: http://127.0.0.1:3000/"
-echo "fonted-oa:    http://127.0.0.1:3001/oa"
+echo "frontend-main: http://127.0.0.1:3000/"
+echo "frontend-oa:    http://127.0.0.1:3001/oa"
 pm2 status

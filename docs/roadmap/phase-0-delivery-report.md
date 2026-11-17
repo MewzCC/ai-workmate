@@ -22,8 +22,8 @@
 
 - Phase 0 实现：完成。
 - 后端测试：已通过，11 tests，0 failure，0 error。
-- `fronted-main`：lint/build 通过；保留 1 条历史 `<img>` 性能警告。
-- `fonted-oa`：lint/build 通过，0 warning，0 error。
+- `frontend-main`：lint/build 通过；保留 1 条历史 `<img>` 性能警告。
+- `frontend-oa`：lint/build 通过，0 warning，0 error。
 - 后端生产包：构建与启动通过。
 - API 实测：health 返回 200；匿名 plan 返回 401 + `AUTH_REQUIRED`；requestId/traceId 正常透传。
 - Phase 1：未开始。

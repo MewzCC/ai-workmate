@@ -45,7 +45,7 @@
 
 ### 2.1 已具备能力
 
-- `fronted-main` 与 `fonted-oa` 已是两个独立 Vite SPA 应用，分别运行在 `3000` 和 `3001`。
+- `frontend-main` 与 `frontend-oa` 已是两个独立 Vite SPA 应用，分别运行在 `3000` 和 `3001`。
 - 后端采用 Spring Boot 3、Java 17、Spring Security、JWT、Spring AI、MyBatis-Plus、PostgreSQL/Redis 方向。
 - 已存在登录注册、JWT、SSE 聊天、会话与消息持久化基础链路。
 - OA 已具备路由入口、Ant Design 布局、菜单权限演示、Dashboard、AI Drawer、主题与 ECharts。
@@ -93,8 +93,8 @@
 
 ```mermaid
 flowchart TB
-    U["员工 / 管理员 / 审批人"] --> HOME["fronted-main :3000"]
-    U --> OA["fonted-oa :3001"]
+    U["员工 / 管理员 / 审批人"] --> HOME["frontend-main :3000"]
+    U --> OA["frontend-oa :3001"]
     OA --> BFF["Spring Boot API / 模块化单体"]
 
     subgraph Core["企业 OA 核心域"]
@@ -470,15 +470,15 @@ owner: workflow-domain
 
 ### 11.1 应用边界
 
-- `fronted-main` 继续承载官网、登录和旧聊天体验，默认端口 `3000`。
-- `fonted-oa` 独立承载 OA，默认端口 `3001`；根路由 `/` 重定向 `/oa`。
+- `frontend-main` 继续承载官网、登录和旧聊天体验，默认端口 `3000`。
+- `frontend-oa` 独立承载 OA，默认端口 `3001`；根路由 `/` 重定向 `/oa`。
 - 首页 CTA 进入 `http://<host>:3001/oa`，不得重新合并为同一个应用。
 - OA 路由保持 `/oa`、`/oa/<pageId>`，URL、菜单、标题和 AI 上下文一致。
 
 ### 11.2 OA 前端模块建议
 
 ```text
-fonted-oa/src/
+frontend-oa/src/
   app/oa/                     # 路由与页面编排
   components/oa/              # 通用 OA 布局和 AI 容器
   features/<domain>/          # 按待办、审批、人事、财务等领域组织
@@ -635,7 +635,7 @@ SLO 需在真实压测后校准，并为模型、数据库、Redis、对象存�
 **任务包**：
 
 1. 真实性整改
-   - 删除 `fonted-oa/src/lib/oaApi.ts` 中的本地 plan/execute fallback 及所有调用路径。
+   - 删除 `frontend-oa/src/lib/oaApi.ts` 中的本地 plan/execute fallback 及所有调用路径。
    - 将 `MockAiTaskServiceImpl` 替换为真实 capability-aware 服务；无真实工具时返回 `AI_TASK_CAPABILITY_UNAVAILABLE`。
    - 全仓检索并清理 AI/OA 真实执行链路中的 `mock success`、静默 fallback 和确定性伪造结果。
 2. 安全整改
@@ -661,8 +661,8 @@ SLO 需在真实压测后校准，并为模型、数据库、Redis、对象存�
 **验证**：
 
 - `cd backend && mvn test`
-- `cd fronted-main && npm run lint && npm run build`
-- `cd fonted-oa && npm run lint && npm run build`
+- `cd frontend-main && npm run lint && npm run build`
+- `cd frontend-oa && npm run lint && npm run build`
 - 手工/API 验证：匿名 401、越权 403、无能力明确失败、接口失败不产生本地成功记录。
 
 **退出门禁**：

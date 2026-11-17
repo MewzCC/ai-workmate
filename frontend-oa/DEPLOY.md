@@ -1,0 +1,25 @@
+# frontend-oa deploy
+
+Start with PM2:
+
+```bash
+bash start-pm2.sh
+```
+
+Auto deploy both frontend packages:
+
+```bash
+# Put frontend-main.zip, frontend-oa.zip and deploy-frontends-server.sh in the same server directory.
+bash deploy-frontends-server.sh
+```
+
+Debug:
+
+```bash
+pm2 logs frontend-oa --lines 100
+cat pm2-error.log
+ss -lntp | grep 3001
+curl -I http://127.0.0.1:3001/oa
+```
+
+This package is a Vite SPA build. The server needs `node_modules` (run `npm install` before `npm run build`).

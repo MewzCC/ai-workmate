@@ -1,0 +1,69 @@
+import aiConfiguration from './aiConfiguration';
+import common from './common';
+import oa from './oa';
+import dashboard from './dashboard';
+import access from './access';
+import knowledge from './knowledge';
+import approval from './approval';
+import organization from './organization';
+import employeeFile from './employeeFile';
+import pages from './pages';
+import chat from './chat';
+import auth from './auth';
+import authDesign from './authDesign';
+import profile from './profile';
+import errors from './errors';
+import attendance from './attendance';
+import adminAssets from './adminAssets';
+import employeeChange from './employeeChange';
+import workbench from './workbench';
+import dictionary from './dictionary';
+import tenantConfig from './tenantConfig';
+import dataPermission from './dataPermission';
+import aiPermission from './aiPermission';
+import supplier from './supplier';
+import contract from './contract';
+import expense from './expense';
+import budget from './budget';
+import apiCenter from './apiCenter';
+import pageActions from './pageActions';
+import runtimeLogs from './runtimeLogs';
+import platformObservability from './platformObservability';
+import sandboxReplay from './sandboxReplay';
+
+const enUS = {
+  aiConfiguration,
+  common,
+  oa,
+  dashboard,
+  access,
+  knowledge,
+  approval,
+  organization,
+  employeeFile,
+  pages,
+  chat,
+  auth,
+  authDesign,
+  profile,
+  errors,
+  attendance,
+  adminAssets,
+  employeeChange,
+  workbench,
+  dictionary,
+  tenantConfig,
+  dataPermission,
+  aiPermission,
+  supplier,
+  contract,
+  expense,
+  budget,
+  apiCenter,
+  pageActions,
+  runtimeLogs,
+  platformObservability,
+  sandboxReplay,
+};
+
+export default enUS;
