@@ -208,7 +208,6 @@ docker compose --env-file .env.docker --profile ocr up -d --build
 | --- | --- |
 | `backend` | 初始化脚本幂等性、Java 测试、真实 PostgreSQL / 原生 Redis 隔离测试、迁移与安全边界 |
 | `frontends` | 官网 lint / build，OA Vitest / lint / build |
-| `phase-1-e2e` | 安装 Chromium，真实请假审批闭环、42 页异常态、空态、权限变化与四种分辨率 |
 
 **2026-11-04 验证基线：**提交 `c4f40ffc` 的[云端流水线全部通过](https://github.com/MewzCC/ai-workmate/actions/runs/41798090422)。后端 2127 项、零失败、零错误、1 项跳过；E2E 50 项全部通过。后端跳过的是旧初始化脚本的 Testcontainers 用例；流水线另以 `psql` 连续执行两次该脚本检查幂等性。这些数字仅对应该提交，不代表所有外部服务或生产场景已验收。
 
@@ -229,7 +228,7 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-真实请假 E2E 需要隔离测试账号及环境变量，配置见工作流；未提供账号时，该业务用例会明确跳过。页面接口失败场景使用测试夹具，不应计作真实业务写入验收。
+阶段 1 请假审批 E2E 及对应 CI 任务已移除。保留的页面 E2E 可按上述命令在本地手动运行；页面接口失败场景使用测试夹具，不应计作真实业务写入验收。
 
 后端隔离测试需要先设置下列环境变量，再在 `backend` 执行 `mvn test`：
 
