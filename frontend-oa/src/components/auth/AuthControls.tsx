@@ -15,18 +15,23 @@ export function PasswordInput(props: InputProps) {
   const [visible, setVisible] = useState(false);
 
   return (
-    <div className="auth-password-field">
-      <Input size="large" type={visible ? 'text' : 'password'} autoComplete="new-password" {...props} />
-      <Button
+    <Input
+      size="large"
+      autoComplete="new-password"
+      {...props}
+      type={visible ? 'text' : 'password'}
+      suffix={<Button
         type="text"
         className="auth-password-visibility"
+        disabled={props.disabled}
+        aria-pressed={visible}
         icon={visible ? <EyeInvisibleOutlined /> : <EyeOutlined />}
         aria-label={visible ? t('auth.aria.hidePassword') : t('auth.aria.viewPassword')}
         title={visible ? t('auth.aria.hidePassword') : t('auth.aria.viewPassword')}
         onMouseDown={(event) => event.preventDefault()}
         onClick={() => setVisible((current) => !current)}
-      />
-    </div>
+      />}
+    />
   );
 }
 

@@ -67,10 +67,8 @@
 .auth-password-strength > span.active.level-1 { background: #d95b55; }
 .auth-password-strength > span.active.level-2 { background: #d99b39; }
 .auth-password-strength > span.active.level-3 { background: #2f8f68; }
-.auth-password-field { position: relative; }
-.auth-password-field .ant-input { padding-right: 42px; }
-.auth-password-field .auth-password-visibility { position: absolute; z-index: 1; top: 50%; right: 5px; width: 34px; height: 34px; padding: 0; color: #60728a; transform: translateY(-50%); }
-.auth-password-field .auth-password-visibility:hover { color: #315b9b; background: rgba(49,91,155,.08); }
+.auth-password-visibility.ant-btn { width: 34px; height: 34px; padding: 0; color: #60728a; }
+.auth-password-visibility.ant-btn:hover { color: #315b9b; background: rgba(49,91,155,.08); }
 .auth-mode-register .ant-checkbox-wrapper { font-size: 11px; }
 .auth-mode-register .auth-card { padding-top: 25px; padding-bottom: 23px; }
 .auth-mode-register .auth-heading { margin: 13px 0 18px; }

@@ -1,7 +1,5 @@
 .auth-production, .auth-production * { box-sizing: border-box; }
-.auth-production .auth-password-field { position: relative; }
-.auth-production .auth-password-field > .ant-input { padding-right: 44px; }
-.auth-production .auth-password-visibility { position: absolute; right: 5px; top: 50%; transform: translateY(-50%); border: 0; background: transparent; box-shadow: none; }
+.auth-production .ant-input-suffix > .auth-password-visibility.ant-btn { width: 30px; height: 30px; padding: 0; border: 0; border-radius: 6px; background: transparent; box-shadow: none; }
 .auth-production .auth-login-tabs { min-width: 230px; margin-bottom: 26px; }
 .auth-production .auth-login-tabs .ant-btn:not(:disabled):hover { background: transparent !important; }
 .auth-production .auth-login-tabs .ant-btn[aria-selected='true'] { color: #315acb; }
