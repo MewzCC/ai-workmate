@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Alert, Button, Card, Drawer, Form, Input, Select, Space, Tabs, Typography } from 'antd';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/components/auth/AuthProvider';
@@ -9,14 +9,26 @@ import AiChannelCards from './AiChannelCards';
 import { AI_PROVIDER_PRESETS } from '@/lib/aiProviderPresets';
 import AiUsagePanel from './AiUsagePanel';
 
-export default function AiConfigurationCard() {
+export default function AiConfigurationCard({ renderPreferences }: { renderPreferences: (active: boolean) => ReactNode }) {
  const { t } = useTranslation();
  const { user } = useAuth();
+ const [selectedTab, setSelectedTab] = useState('channels');
  const allowed = Boolean(user?.roles.includes('SUPER_ADMIN') && user.permissions.includes('access:manage'));
- return allowed ? <Tabs key={`${user?.tenantId}:${user?.id}:${user?.permissionVersion}`} destroyOnHidden items={[
-  { key: 'channels', label: t('aiConfiguration.channelsTitle'), children: <Channels /> },
-  { key: 'usage', label: t('aiConfiguration.usage.title'), children: <AiUsagePanel /> },
- ]} /> : null;
+ const activeTab = allowed ? selectedTab : 'preferences';
+ return (
+  <Tabs
+   key={`${user?.tenantId}:${user?.id}:${user?.permissionVersion}`}
+   activeKey={activeTab}
+   onChange={setSelectedTab}
+   items={[
+    ...(allowed ? [
+     { key: 'channels', label: t('aiConfiguration.channelsTitle'), children: <Channels />, destroyOnHidden: true },
+     { key: 'usage', label: t('aiConfiguration.usage.title'), children: <AiUsagePanel />, destroyOnHidden: true },
+    ] : []),
+    { key: 'preferences', label: t('aiConfiguration.userSettingsTitle'), children: renderPreferences(activeTab === 'preferences') },
+   ]}
+  />
+ );
 }
 function Channels() {
  const { t } = useTranslation();
@@ -41,7 +53,7 @@ function Channels() {
 }
 function Editor({ channelId, channel, onSaved }: { channelId: number; channel?: AiChannel; onSaved: (value: AiChannel) => void }) {
  const { t } = useTranslation();
- const [form] = Form.useForm<{ baseUrl: string; model: string; apiKey?: string; customName?: string }>();
+ const [form] = Form.useForm<{ baseUrl: string; apiKey?: string; customName?: string }>();
  const [config, setConfig] = useState<AiConfiguration>();
  const [provider, setProvider] = useState('custom');
  const [credentialReset, setCredentialReset] = useState(false);
@@ -49,6 +61,8 @@ function Editor({ channelId, channel, onSaved }: { channelId: number; channel?: 
   { value: 'custom', label: t('aiConfiguration.customProvider') }];
  const [rows, setRows] = useState<AiConfiguredModel[]>([]);
  const [selected, setSelected] = useState<string[]>([]);
+ const chatModels = rows.filter(row => selected.includes(row.id) && (row.category ?? 'CHAT') === 'CHAT');
+ const connectionModel = chatModels.find(row => row.id === config?.model)?.id ?? chatModels[0]?.id;
  const [busy, setBusy] = useState('');
  const [result, setResult] = useState<{ type: 'error' | 'success'; text: string }>();
  const active = useRef(true);
@@ -59,9 +73,9 @@ function Editor({ channelId, channel, onSaved }: { channelId: number; channel?: 
    setConfig(value);
    setCredentialReset(false);
    setProvider(AI_PROVIDER_PRESETS.find(item => item.name === channel?.name && item.baseUrl === value.baseUrl)?.id ?? 'custom');
-   const models = value.models ?? [{ id: value.model, contextWindow: 32768, maxOutputTokens: 4096, supportsImages: false }];
-   setRows(models.filter(row => row.id)); setSelected(models.map(row => row.id).filter(Boolean));
-   form.setFieldsValue({ baseUrl: value.baseUrl, model: value.model, apiKey: '', customName: channel?.name ?? '' });
+   const models = value.models ?? (value.model ? [{ id: value.model, contextWindow: 32768, maxOutputTokens: 4096, supportsImages: false }] : []);
+   setRows(models); setSelected(models.map(row => row.id));
+   form.setFieldsValue({ baseUrl: value.baseUrl, apiKey: '', customName: channel?.name ?? '' });
   }).catch(() => { if (active.current) setResult({ type: 'error', text: t('aiConfiguration.loadFailed') }); });
   return () => { active.current = false; form.resetFields(); };
  }, [form, t, channelId, channel]);
@@ -70,11 +84,7 @@ function Editor({ channelId, channel, onSaved }: { channelId: number; channel?: 
   if (value === provider) return;
   setProvider(value); setCredentialReset(true); setResult(undefined); setRows([]); setSelected([]);
   const preset = AI_PROVIDER_PRESETS.find(item => item.id === value);
-  form.setFieldsValue({ ...(preset ? { baseUrl: preset.baseUrl, customName: preset.name } : {}), apiKey: '', model: undefined });
- };
- const choose = (ids: string[]) => {
-  setSelected(ids);
-  if (!ids.includes(form.getFieldValue('model'))) form.setFieldValue('model', ids[0]);
+  form.setFieldsValue({ ...(preset ? { baseUrl: preset.baseUrl, customName: preset.name } : {}), apiKey: '' });
  };
  const discover = async () => {
   try {
@@ -92,12 +102,12 @@ function Editor({ channelId, channel, onSaved }: { channelId: number; channel?: 
   finally { if (active.current) setBusy(''); }
  };
  const test = async (model?: string) => {
+  if (!model) return;
   try {
-   const values = await form.validateFields(model ? ['baseUrl', 'apiKey'] : ['baseUrl', 'apiKey', 'model']);
-   const target = model ?? values.model;
-   setBusy(`test:${target}`); setResult(undefined);
-   await aiConfigurationApi.test({ ...values, model: target, channelId });
-   if (active.current) setResult({ type: 'success', text: t('aiConfiguration.testPassedFor', { model: target }) });
+   const values = await form.validateFields(['baseUrl', 'apiKey']);
+   setBusy(`test:${model}`); setResult(undefined);
+   await aiConfigurationApi.test({ ...values, model, channelId });
+   if (active.current) setResult({ type: 'success', text: t('aiConfiguration.testPassedFor', { model }) });
   } catch (error) { if (error instanceof Error) fail(error); }
   finally { if (active.current) setBusy(''); }
  };
@@ -109,9 +119,12 @@ function Editor({ channelId, channel, onSaved }: { channelId: number; channel?: 
    if (!models.length || models.length > 200 || models.some(row => row.maxOutputTokens >= row.contextWindow)) {
     setResult({ type: 'error', text: t('aiConfiguration.invalidModels') }); return;
    }
+   if (channelId === 1 && !connectionModel) {
+    setResult({ type: 'error', text: t('aiConfiguration.primaryRequiresChat') }); return;
+   }
    setBusy('save'); setResult(undefined);
    const name = provider === 'custom' ? values.customName!.trim() : AI_PROVIDER_PRESETS.find(item => item.id === provider)!.name;
-   const saved = await aiConfigurationApi.saveChannel(channelId, name, { baseUrl: values.baseUrl, model: values.model, apiKey: values.apiKey, version: config.version, models });
+   const saved = await aiConfigurationApi.saveChannel(channelId, name, { baseUrl: values.baseUrl, model: connectionModel ?? null, apiKey: values.apiKey, version: config.version, models });
    const updated = saved.configuration;
    if (!active.current) return;
    setConfig(updated); onSaved(saved); form.setFieldValue('apiKey', ''); message.success(t('aiConfiguration.saved'));
@@ -139,14 +152,12 @@ function Editor({ channelId, channel, onSaved }: { channelId: number; channel?: 
      <div><Typography.Title level={5}>{t('aiConfiguration.directory')}</Typography.Title><Typography.Text type="secondary">{t('aiConfiguration.capabilitiesHint')}</Typography.Text></div>
      <Button loading={busy === 'discover'} onClick={() => void discover()}>{t('aiConfiguration.fetchModels')}</Button>
     </div>
-    <AiModelTable rows={rows} selected={selected} disabled={Boolean(busy) || !config} busy={busy} onSelection={choose}
-     onChange={row => setRows(previous => previous.map(item => item.id === row.id ? row : item))} onTest={id => void test(id)} />
+    <AiModelTable rows={rows} selected={selected} disabled={Boolean(busy) || !config} busy={busy} onSelection={setSelected}
+     onChange={row => setRows(previous => previous.map(item => item.id === row.id ? row : item))}
+     onTest={id => void test(id)} />
     <div className="oa-provider-footer">
-     <Form.Item name="model" label={t('aiConfiguration.defaultModelLabel')} rules={[{ required: true }]}>
-      <Select showSearch optionFilterProp="label" options={selected.map(id => ({ label: id, value: id }))} placeholder={t('aiConfiguration.chooseDefault')} />
-     </Form.Item>
      <Space wrap>
-      <Button loading={busy.startsWith('test:')} disabled={!config || Boolean(busy)} onClick={() => void test()}>{t('aiConfiguration.test')}</Button>
+      <Button loading={busy.startsWith('test:')} disabled={!config || Boolean(busy) || !connectionModel} onClick={() => void test(connectionModel)}>{t('aiConfiguration.test')}</Button>
       <Button type="primary" loading={busy === 'save'} disabled={!config || Boolean(busy)} onClick={() => void save()}>{t('common.save')}</Button>
      </Space>
     </div>

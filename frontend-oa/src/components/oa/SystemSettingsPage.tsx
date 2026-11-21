@@ -1,6 +1,7 @@
 'use client';
 
 import AiConfigurationCard from './AiConfigurationCard';
+import ChannelModelSelect from './ChannelModelSelect';
 import ModelSelector from '@/components/ai-chat/ModelSelector';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -24,9 +25,24 @@ import { useScopedOverview } from '@/hooks/useScopedOverview';
 import { usePageUiEditorCommands } from '@/hooks/usePageUiEditorCommands';
 import { usePageUiFormContext } from '@/hooks/usePageUiFormContext';
 
-interface SettingsFormValues extends Omit<ChatSettings, 'kbId'> { forcePdfOcr: boolean }
+interface SettingsFormValues extends Omit<ChatSettings, 'kbId'> { forcePdfOcr: boolean; ocrModelRef?: string }
 
 export default function SystemSettingsPage() {
+  const { t } = useTranslation();
+
+  return (
+    <section className="oa-settings-page">
+      <header className="oa-settings-heading">
+        <Typography.Title level={4}>{t('oa.menu.system-config')}</Typography.Title>
+      </header>
+      <div className="oa-settings-content">
+        <AiConfigurationCard renderPreferences={active => <PersonalAiPreferences active={active} />} />
+      </div>
+    </section>
+  );
+}
+
+function PersonalAiPreferences({ active }: { active: boolean }) {
   const { t } = useTranslation();
   const [form] = Form.useForm<SettingsFormValues>();
   const clearAll = useAiChatStore((state) => state.clearAll);
@@ -42,11 +58,12 @@ export default function SystemSettingsPage() {
     form.resetFields();
     if (preferences) form.setFieldsValue(preferences);
   }, [form, preferences]);
-  const uiForm = usePageUiFormContext(Boolean(preferences) && !loading && !saving, undefined, undefined, `${scope}:${JSON.stringify(preferences)}`);
-  usePageUiEditorCommands({ form, open: Boolean(preferences) && !loading && !saving, canEdit: Boolean(preferences), context: uiForm.context,
+  const formOpen = active && Boolean(preferences) && !loading && !saving;
+  const uiForm = usePageUiFormContext(formOpen, undefined, undefined, `${scope}:${JSON.stringify(preferences)}`);
+  usePageUiEditorCommands({ form, open: formOpen, canEdit: active && Boolean(preferences), context: uiForm.context,
     fields: { model: AI_MODEL_OPTIONS.filter(option => option.value !== 'default').map(option => option.value), maxContextRounds: 'number', stream: 'boolean', forcePdfOcr: 'boolean' },
     labels: { model: t('chat.model'), maxContextRounds: t('chat.maxContextRounds'), stream: t('chat.streamOutput'), forcePdfOcr: t('chat.forcePdfOcr') },
-    commands: { 'ui.refreshPage': async () => { await load(); } },
+    commands: active ? { 'ui.refreshPage': async () => { await load(); } } : {},
   });
 
   const save = async () => {
@@ -57,7 +74,7 @@ export default function SystemSettingsPage() {
     setSaving(true);
     try {
       const updated = await updateChatPreferences({ model: values.model, maxContextRounds: values.maxContextRounds,
-        stream: values.stream, forcePdfOcr: values.forcePdfOcr });
+        stream: values.stream, forcePdfOcr: values.forcePdfOcr, ocrModelRef: values.ocrModelRef });
       if (activeScope.current !== scope) return;
       setPreferences(updated);
       useAiChatStore.setState(state => ({ settings: { ...state.settings, model: updated.model, maxContextRounds: updated.maxContextRounds, stream: updated.stream } }));
@@ -70,60 +87,56 @@ export default function SystemSettingsPage() {
   };
 
   return (
-    <section className="oa-settings-page">
-      <header className="oa-settings-heading">
-        <Typography.Title level={4}>{t('oa.menu.system-config')}</Typography.Title>
-      </header>
-      <div className="oa-settings-content">
-        <AiConfigurationCard />
-        <Form className="oa-settings-preferences" form={form} layout="vertical" disabled={!preferences || loading || saving} onValuesChange={uiForm.renew}>
-        <div className="oa-settings-grid">
-          <Card size="small" title={t('chat.settingsTitle')} className="oa-domain-card oa-settings-card oa-settings-card--primary">
-              <Form.Item name="model" label={t('chat.model')} rules={[{ required: true, message: t('chat.selectModelRequired') }]}>
-                <ModelSelector value={form.getFieldValue('model')} disabled={loading || saving} onChange={value => { form.setFieldValue('model', value); uiForm.renew(); }} />
-              </Form.Item>
-              <Form.Item name="maxContextRounds" label={t('chat.maxContextRounds')} rules={[{ required: true, type: 'integer', min: 1, max: 20 }]}>
-                <InputNumber min={1} max={20} precision={0} className="ai-settings-number" />
-              </Form.Item>
-              <Form.Item name="stream" label={t('chat.streamOutput')} valuePropName="checked">
-                <Switch />
-              </Form.Item>
-              <Alert type="info" showIcon title={t('aiConfiguration.userHint')} />
-          </Card>
-          <Card size="small" title={t('chat.ocrSettings')} className="oa-domain-card oa-settings-card">
-              <Form.Item name="forcePdfOcr" valuePropName="checked" label={t('chat.forcePdfOcr')} tooltip={t('chat.forcePdfOcrHint')}>
-                <Switch loading={loading} />
-              </Form.Item>
-          </Card>
-          <Card size="small" title={t('chat.dataManagement')} className="oa-domain-card oa-settings-card">
-            <Space orientation="vertical">
-              <Typography.Text>{t('chat.clearAllContent')}</Typography.Text>
-              <Button
-                danger
-                onClick={() => {
-                  Modal.confirm({
-                    title: t('chat.clearAllTitle'),
-                    content: t('chat.clearAllContent'),
-                    okText: t('chat.confirmClear'),
-                    okButtonProps: { danger: true },
-                    cancelText: t('common.cancel'),
-                    onOk: clearAll,
-                  });
-                }}
-              >
-                {t('chat.clearAllRecords')}
-              </Button>
-            </Space>
-          </Card>
-        </div>
-        <Space className="oa-settings-actions">
-          <Button type="primary" loading={saving} onClick={() => void save()}>
-            {t('chat.saveSettings')}
-          </Button>
-          <Button onClick={() => { if (preferences) { uiForm.renew(); form.setFieldsValue(preferences); } }}>{t('common.reset')}</Button>
-        </Space>
-        </Form>
+    <Form className="oa-settings-preferences" form={form} layout="vertical" disabled={!preferences || loading || saving}
+      aria-label={t('aiConfiguration.userSettingsTitle')} onValuesChange={uiForm.renew}>
+      <div className="oa-settings-grid">
+        <Card size="small" title={t('chat.settingsTitle')} className="oa-domain-card oa-settings-card oa-settings-card--primary">
+          <Form.Item name="model" label={t('chat.model')} rules={[{ required: true, message: t('chat.selectModelRequired') }]}>
+            <ModelSelector value={form.getFieldValue('model')} disabled={loading || saving} onChange={value => { form.setFieldValue('model', value); uiForm.renew(); }} />
+          </Form.Item>
+          <Form.Item name="maxContextRounds" label={t('chat.maxContextRounds')} rules={[{ required: true, type: 'integer', min: 1, max: 20 }]}>
+            <InputNumber min={1} max={20} precision={0} className="ai-settings-number" />
+          </Form.Item>
+          <Form.Item name="stream" label={t('chat.streamOutput')} valuePropName="checked">
+            <Switch />
+          </Form.Item>
+          <Alert type="info" showIcon title={t('aiConfiguration.userHint')} />
+        </Card>
+        <Card size="small" title={t('chat.ocrSettings')} className="oa-domain-card oa-settings-card">
+          <Form.Item name="ocrModelRef" label={t('aiConfiguration.categories.OCR')} extra={t('aiConfiguration.ocrChannelHint')}>
+            <ChannelModelSelect category="OCR" />
+          </Form.Item>
+          <Form.Item name="forcePdfOcr" valuePropName="checked" label={t('chat.forcePdfOcr')} tooltip={t('chat.forcePdfOcrHint')}>
+            <Switch loading={loading} />
+          </Form.Item>
+        </Card>
+        <Card size="small" title={t('chat.dataManagement')} className="oa-domain-card oa-settings-card">
+          <Space orientation="vertical">
+            <Typography.Text>{t('chat.clearAllContent')}</Typography.Text>
+            <Button
+              danger
+              onClick={() => {
+                Modal.confirm({
+                  title: t('chat.clearAllTitle'),
+                  content: t('chat.clearAllContent'),
+                  okText: t('chat.confirmClear'),
+                  okButtonProps: { danger: true },
+                  cancelText: t('common.cancel'),
+                  onOk: clearAll,
+                });
+              }}
+            >
+              {t('chat.clearAllRecords')}
+            </Button>
+          </Space>
+        </Card>
       </div>
-    </section>
+      <Space className="oa-settings-actions">
+        <Button type="primary" loading={saving} onClick={() => void save()}>
+          {t('chat.saveSettings')}
+        </Button>
+        <Button onClick={() => { if (preferences) { uiForm.renew(); form.setFieldsValue(preferences); } }}>{t('common.reset')}</Button>
+      </Space>
+    </Form>
   );
 }

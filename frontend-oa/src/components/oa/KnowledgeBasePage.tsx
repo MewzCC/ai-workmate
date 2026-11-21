@@ -18,6 +18,7 @@ import { knowledgeApi, type KnowledgeBase } from '@/lib/knowledgeApi';
 import { useRouter } from '@/lib/nextCompat';
 import { useTranslation } from 'react-i18next';
 import KnowledgeBaseDetail from './KnowledgeBaseDetail';
+import ChannelModelSelect from './ChannelModelSelect';
 import { usePageUiEditorCommands } from '@/hooks/usePageUiEditorCommands';
 import { usePageUiFormContext } from '@/hooks/usePageUiFormContext';
 import { useAuth } from '@/components/auth/AuthProvider';
@@ -29,6 +30,12 @@ interface CreateBaseValues {
   name: string;
   icon?: OaIconName;
   description?: string;
+  embeddingModelRef?: string;
+  rerankModelRef?: string;
+}
+
+function modalPopupContainer(trigger: HTMLElement): HTMLElement {
+  return trigger.closest<HTMLElement>('.ant-modal-container') ?? trigger.ownerDocument.body;
 }
 
 export default function KnowledgeBasePage({ kbId }: { kbId?: number }) {
@@ -104,6 +111,8 @@ export default function KnowledgeBasePage({ kbId }: { kbId?: number }) {
         name: values.name.trim(),
         icon: values.icon ?? 'knowledge-base',
         description: values.description?.trim() || undefined,
+        embeddingModelRef: values.embeddingModelRef,
+        rerankModelRef: values.rerankModelRef,
       });
       message.success(t('knowledge.createSuccess'));
       setCreateModalOpen(false);
@@ -158,17 +167,22 @@ export default function KnowledgeBasePage({ kbId }: { kbId?: number }) {
         loading={loading}
         styles={{ body: { padding: 16 } }}
       >
-        {bases.length === 0 ? (
-          <Empty description={t('knowledge.empty')} style={{ padding: '32px 0' }} />
+        {bases.length > 0 && (
+          <div className="oa-knowledge-base-search">
+            <Input
+              allowClear
+              prefix={<OaIcon name="search" />}
+              value={query}
+              onChange={event => setQuery(event.target.value)}
+              placeholder={t('knowledge.searchPlaceholder')}
+              aria-label={t('knowledge.searchLabel')}
+            />
+          </div>
+        )}
+        {visibleBases.length === 0 ? (
+          <Empty description={t(bases.length === 0 ? 'knowledge.empty' : 'knowledge.searchEmpty')} style={{ padding: '32px 0' }} />
         ) : (
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
-              gap: 16,
-            }}
-          >
-            <Input.Search allowClear value={query} onChange={event => setQuery(event.target.value)} placeholder={t('common.searchPlaceholder')} />
+          <div className="oa-knowledge-base-grid">
             {visibleBases.map((item) => (
               <Card
                 key={item.id}
@@ -282,6 +296,12 @@ export default function KnowledgeBasePage({ kbId }: { kbId?: number }) {
             rules={[{ max: 500, message: t('knowledge.validateDescriptionMax') }]}
           >
             <Input.TextArea rows={3} placeholder={t('knowledge.placeholderDescription')} maxLength={500} />
+          </Form.Item>
+          <Form.Item name="embeddingModelRef" label={t('aiConfiguration.categories.EMBEDDING')}>
+            <ChannelModelSelect category="EMBEDDING" getPopupContainer={modalPopupContainer} />
+          </Form.Item>
+          <Form.Item name="rerankModelRef" label={t('aiConfiguration.categories.RERANK')}>
+            <ChannelModelSelect category="RERANK" getPopupContainer={modalPopupContainer} />
           </Form.Item>
         </Form>
       </Modal>

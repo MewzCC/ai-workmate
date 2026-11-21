@@ -157,7 +157,8 @@ export default {
     dictionary: 'Dictionary',
     'access-control': 'Roles & Routes',
     'knowledge-base': 'Knowledge Base',
-    'system-config': 'System Configuration',
+    'ai-config': 'AI Configuration',
+    'system-config': 'Models & Preferences',
   },
 
   tabs: {

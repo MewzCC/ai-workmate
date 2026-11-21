@@ -40,10 +40,12 @@ import {
 import { useRouter, useSearchParams } from '@/lib/nextCompat';
 import { useTranslation } from 'react-i18next';
 import DocumentDetailDrawer from './DocumentDetailDrawer';
+import ChannelModelSelect from './ChannelModelSelect';
 import { useRegisterPageUiCommands, useRegisterPageUiViews } from './PageUiCommandBridge';
 import { usePageUiEditorCommands, requireUiPagination } from '@/hooks/usePageUiEditorCommands';
 import { usePageUiFormContext } from '@/hooks/usePageUiFormContext';
 import { usePublishPageAgentContext } from './PageAgentContext';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { requireUiFieldTypes } from '@/lib/preparedPageUiCommand';
 
 const { TextArea } = Input;
@@ -81,6 +83,7 @@ interface OverviewTabProps {
 
 function OverviewTab({ base, embedding }: OverviewTabProps) {
   const { t } = useTranslation();
+  const columns = useIsMobile() ? 1 : 2;
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
       <Card className="oa-domain-card" size="small" title={t('knowledge.overviewStatistics')}>
@@ -90,7 +93,7 @@ function OverviewTab({ base, embedding }: OverviewTabProps) {
         </Space>
       </Card>
       <Card className="oa-domain-card" size="small" title={t('knowledge.overviewBasicInfo')}>
-        <Descriptions column={2}>
+        <Descriptions column={columns}>
           <Descriptions.Item label={t('common.name')}>{base.name}</Descriptions.Item>
           <Descriptions.Item label={t('knowledge.fieldIcon')}>
             <OaIcon name={(base.icon || 'knowledge-base') as OaIconName} />
@@ -101,13 +104,13 @@ function OverviewTab({ base, embedding }: OverviewTabProps) {
           <Descriptions.Item label={t('common.updatedAt')}>
             {new Date(base.updatedAt).toLocaleString()}
           </Descriptions.Item>
-          <Descriptions.Item label={t('knowledge.fieldDescription')} span={2}>
+          <Descriptions.Item label={t('knowledge.fieldDescription')} span={columns}>
             {base.description || '-'}
           </Descriptions.Item>
         </Descriptions>
       </Card>
       <Card className="oa-domain-card" size="small" title={t('knowledge.overviewModelConfig')}>
-        <Descriptions column={2}>
+        <Descriptions column={columns}>
           <Descriptions.Item label={t('knowledge.overviewEmbeddingModel')}>
             {base.embeddingProvider && base.embeddingModel
               ? `${base.embeddingProvider} / ${base.embeddingModel}`
@@ -132,6 +135,7 @@ function OverviewTab({ base, embedding }: OverviewTabProps) {
 
 interface DocsTabProps {
   kbId: number;
+  channelEmbedding: boolean;
   onChanged: () => void;
   active: boolean;
   onSectionChange: (section: string) => void;
@@ -142,7 +146,7 @@ interface CreateFormValues {
   content: string;
 }
 
-function DocsTab({ kbId, onChanged, active, onSectionChange }: DocsTabProps) {
+function DocsTab({ kbId, channelEmbedding, onChanged, active, onSectionChange }: DocsTabProps) {
   const { t } = useTranslation();
   const [embedding, setEmbedding] = useState<EmbeddingStatus | null>(null);
   const [documents, setDocuments] = useState<KnowledgeDocument[]>([]);
@@ -440,7 +444,7 @@ function DocsTab({ kbId, onChanged, active, onSectionChange }: DocsTabProps) {
 
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
-      {embedding && !embedding.enabled && (
+      {!channelEmbedding && embedding && !embedding.enabled && (
         <Alert
           type="warning"
           showIcon
@@ -484,7 +488,7 @@ function DocsTab({ kbId, onChanged, active, onSectionChange }: DocsTabProps) {
         </div>
       )}
 
-      <Table
+      <Table sticky className="oa-knowledge-doc-table"
         rowKey="id"
         columns={columns}
         dataSource={documents}
@@ -741,6 +745,8 @@ interface SettingsFormValues {
   chunkOverlap: number;
   denseTopK: number;
   sparseTopK: number;
+  embeddingModelRef: string;
+  rerankModelRef: string;
 }
 
 interface SettingsTabProps {
@@ -753,6 +759,8 @@ function SettingsTab({ base, onSaved, active }: SettingsTabProps) {
   const { t } = useTranslation();
   const [saving, setSaving] = useState(false);
   const [settingsForm] = Form.useForm<SettingsFormValues>();
+  const embeddingModelRef = base.embeddingProvider === 'channel' ? base.embeddingModel : 'default';
+  const rerankModelRef = base.rerankModel?.includes('::') ? base.rerankModel : 'default';
   const uiForm = usePageUiFormContext(active && !saving, undefined, undefined, `${base.id}:${base.updatedAt}`);
   usePageUiEditorCommands({ form: settingsForm, open: active && !saving, canEdit: active, context: uiForm.context,
     viewKey: active ? `knowledge-base:${base.id}:settings` : undefined,
@@ -765,8 +773,8 @@ function SettingsTab({ base, onSaved, active }: SettingsTabProps) {
   useEffect(() => {
     settingsForm.setFieldsValue({ name: base.name, icon: (base.icon || 'knowledge-base') as OaIconName,
       description: base.description ?? undefined, chunkSize: base.chunkSize, chunkOverlap: base.chunkOverlap,
-      denseTopK: base.denseTopK, sparseTopK: base.sparseTopK });
-  }, [base, settingsForm]);
+      denseTopK: base.denseTopK, sparseTopK: base.sparseTopK, embeddingModelRef, rerankModelRef });
+  }, [base, settingsForm, embeddingModelRef, rerankModelRef]);
 
   const submitSettings = async () => {
     const values = await settingsForm.validateFields();
@@ -780,6 +788,8 @@ function SettingsTab({ base, onSaved, active }: SettingsTabProps) {
         chunkOverlap: values.chunkOverlap,
         denseTopK: values.denseTopK,
         sparseTopK: values.sparseTopK,
+        embeddingModelRef: values.embeddingModelRef !== embeddingModelRef ? values.embeddingModelRef : undefined,
+        rerankModelRef: values.rerankModelRef !== rerankModelRef ? values.rerankModelRef : undefined,
       });
       message.success(t('knowledge.settingsSaved'));
       onSaved();
@@ -805,6 +815,8 @@ function SettingsTab({ base, onSaved, active }: SettingsTabProps) {
           chunkOverlap: base.chunkOverlap,
           denseTopK: base.denseTopK,
           sparseTopK: base.sparseTopK,
+          embeddingModelRef,
+          rerankModelRef,
         }}
       >
         <Card className="oa-domain-card" size="small" title={t('knowledge.settingsBasicInfo')} style={{ marginBottom: 16 }}>
@@ -841,6 +853,13 @@ function SettingsTab({ base, onSaved, active }: SettingsTabProps) {
         </Card>
 
         <Card className="oa-domain-card" size="small" title={t('knowledge.settingsRetrieval')}>
+          <Form.Item name="embeddingModelRef" label={t('aiConfiguration.categories.EMBEDDING')}
+            extra={base.docCount > 0 ? t('aiConfiguration.embeddingLocked') : undefined}>
+            <ChannelModelSelect category="EMBEDDING" disabled={base.docCount > 0} />
+          </Form.Item>
+          <Form.Item name="rerankModelRef" label={t('aiConfiguration.categories.RERANK')}>
+            <ChannelModelSelect category="RERANK" />
+          </Form.Item>
           <Typography.Paragraph type="secondary" style={{ marginTop: 0 }}>
             {t('knowledge.settingsChunkHint')}
           </Typography.Paragraph>
@@ -977,7 +996,7 @@ export default function KnowledgeBaseDetail({ kbId }: { kbId: number }) {
   }
 
   return (
-    <section className="oa-domain-page">
+    <section className="oa-domain-page oa-knowledge-detail">
       <div className="oa-domain-heading">
         <Space align="center" size={12}>
           <Button icon={<OaIcon name="previous" />} onClick={() => router.push('/oa/knowledge-base')}>
@@ -1009,11 +1028,12 @@ export default function KnowledgeBaseDetail({ kbId }: { kbId: number }) {
 
       <Card className="oa-domain-card">
         <Tabs
+          className="oa-knowledge-detail-tabs"
           activeKey={section}
           onChange={setSection}
           items={[
             { key: 'overview', label: t('knowledge.tabOverview'), children: <OverviewTab base={base} embedding={embedding} /> },
-            { key: 'docs', label: t('knowledge.tabDocuments'), children: <DocsTab kbId={kbId} onChanged={loadBase} active={section === 'docs'} onSectionChange={setSection} /> },
+            { key: 'docs', label: t('knowledge.tabDocuments'), children: <DocsTab kbId={kbId} channelEmbedding={base.embeddingProvider === 'channel'} onChanged={loadBase} active={section === 'docs'} onSectionChange={setSection} /> },
             { key: 'query', label: t('knowledge.tabQuery'), children: <QueryTab kbId={kbId} active={section === 'query'} onSectionChange={setSection} /> },
             { key: 'settings', label: t('knowledge.tabSettings'), children: <SettingsTab base={base} onSaved={loadBase} active={section === 'settings'} /> },
           ]}
