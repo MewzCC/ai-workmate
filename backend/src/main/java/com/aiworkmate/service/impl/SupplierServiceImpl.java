@@ -70,7 +70,7 @@ public class SupplierServiceImpl implements SupplierService {
                         .or().like(Supplier::getShortName, keyword.trim())
                         .or().like(Supplier::getUnifiedSocialCreditCode, keyword.trim())
                         .or().like(Supplier::getContactName, keyword.trim()))
-                .orderByDesc(Supplier::getUpdatedAt);
+                .orderByDesc(Supplier::getUpdatedAt).orderByDesc(Supplier::getId);
         Page<Supplier> result = supplierMapper.selectPage(new Page<>(safePage, safeSize), query);
         boolean canManage = canManage(actor);
         SupplierStatsResponse stats = new SupplierStatsResponse(

@@ -61,7 +61,7 @@ public class WorkbenchRecordServiceImpl implements WorkbenchRecordService {
                         .or().like(WorkbenchRecord::getTitle, keyword.trim())
                         .or().like(WorkbenchRecord::getCategory, keyword.trim())
                         .or().like(WorkbenchRecord::getOwner, keyword.trim()))
-                .orderByDesc(WorkbenchRecord::getUpdatedAt);
+                .orderByDesc(WorkbenchRecord::getUpdatedAt).orderByDesc(WorkbenchRecord::getId);
         Page<WorkbenchRecord> result = mapper.selectPage(new Page<>(safePage, safeSize), query);
         boolean canManage = canManage(actor, module);
         return new WorkbenchPageResponse(

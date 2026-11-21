@@ -63,7 +63,7 @@ public class BudgetServiceImpl implements BudgetService {
                 .eq(fiscalYear!=null, BudgetPlan::getFiscalYear, fiscalYear)
                 .and(StringUtils.hasText(keyword), q -> q.like(BudgetPlan::getBudgetCode, keyword.trim())
                         .or().like(BudgetPlan::getName, keyword.trim()).or().like(BudgetPlan::getOwnerLabel, keyword.trim()))
-                .orderByDesc(BudgetPlan::getFiscalYear).orderByDesc(BudgetPlan::getUpdatedAt);
+                .orderByDesc(BudgetPlan::getFiscalYear).orderByDesc(BudgetPlan::getUpdatedAt).orderByDesc(BudgetPlan::getId);
         Page<BudgetPlan> result=planMapper.selectPage(new Page<>(safePage,safeSize),query);
         List<BudgetPlan> active=planMapper.selectList(base(actor.tenantId()).eq(BudgetPlan::getStatus,"ACTIVE"));
         BigDecimal total=nvl(planMapper.totalActive(actor.tenantId())), occupied=nvl(planMapper.totalOccupied(actor.tenantId())), spent=nvl(planMapper.totalSpent(actor.tenantId()));

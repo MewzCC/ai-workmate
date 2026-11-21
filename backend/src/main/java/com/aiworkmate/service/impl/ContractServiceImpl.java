@@ -104,7 +104,7 @@ public class ContractServiceImpl implements ContractService {
                         .or().like(BusinessContract::getCounterpartyName, keyword.trim())
                         .or().like(BusinessContract::getOwnerLabel, keyword.trim()))
                 .orderByAsc(BusinessContract::getEndDate)
-                .orderByDesc(BusinessContract::getUpdatedAt);
+                .orderByDesc(BusinessContract::getUpdatedAt).orderByDesc(BusinessContract::getId);
         Page<BusinessContract> result = contractMapper.selectPage(new Page<>(safePage, safeSize), query);
         boolean canManage = canManage(actor);
         ContractStatsResponse stats = new ContractStatsResponse(
