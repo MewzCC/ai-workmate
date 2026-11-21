@@ -49,24 +49,24 @@ export const enabledOaRoutes: readonly OaRouteFixture[] = [
 
   { routeKey: 'access-control', name: '角色权限与路由', componentKey: 'ACCESS_CONTROL', parentKey: 'settings' },
   { routeKey: 'data-permission', name: '数据权限', componentKey: 'DATA_PERMISSION', parentKey: 'settings' },
-  { routeKey: 'ai-permission', name: 'AI 操作权限', componentKey: 'AI_PERMISSION', parentKey: 'settings' },
-  { routeKey: 'knowledge-base', name: '知识库管理', componentKey: 'KNOWLEDGE_BASE', parentKey: 'settings' },
+  { routeKey: 'ai-permission', name: 'AI 操作权限', componentKey: 'AI_PERMISSION', parentKey: 'ai-config' },
+  { routeKey: 'knowledge-base', name: '知识库管理', componentKey: 'KNOWLEDGE_BASE', parentKey: 'ai-config' },
   { routeKey: 'audit-center', name: '审计中心', componentKey: 'AUDIT_CENTER', parentKey: 'settings' },
   { routeKey: 'tenant-config', name: '租户配置', componentKey: 'TENANT_CONFIG', parentKey: 'settings' },
   { routeKey: 'dictionary', name: '数据字典', componentKey: 'DICTIONARY', parentKey: 'settings' },
-  { routeKey: 'system-config', name: '系统配置', componentKey: 'SYSTEM_CONFIG', parentKey: 'settings' },
+  { routeKey: 'system-config', name: '模型与偏好', componentKey: 'SYSTEM_CONFIG', parentKey: 'ai-config' },
 ] as const;
 
 const groupNames: Readonly<Record<string, string>> = {
   workspace: '工作台', business: '业务系统', approval: '流程审批', 'approval-manage': '流程管理',
   hr: '组织人事', assets: '行政资产', finance: '财务合同', platform: '平台能力',
-  integration: '开放平台 / 联调', attendance: '考勤管理', settings: '系统设置',
+  integration: '开放平台 / 联调', attendance: '考勤管理', settings: '系统设置', 'ai-config': 'AI 配置',
 };
 
 const parentByGroup: Readonly<Record<string, string | undefined>> = {
   workspace: undefined, business: undefined, platform: undefined, attendance: undefined, settings: undefined,
   approval: 'business', 'approval-manage': 'approval', hr: 'business', assets: 'business', finance: 'business',
-  integration: 'platform',
+  integration: 'platform', 'ai-config': 'settings',
 };
 
 export function navigationFixture(routes: readonly OaRouteFixture[] = enabledOaRoutes) {
