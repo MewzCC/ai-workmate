@@ -165,7 +165,7 @@ export default function AttendanceExceptionPage() {
           title={t('attendance.exception.listTitle')}
           variant="outlined"
         >
-          <ResponsiveTable
+          <ResponsiveTable workspaceList
             rowKey="id"
             columns={columns}
             dataSource={dataScope === scope ? records : []}

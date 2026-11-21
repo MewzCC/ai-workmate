@@ -343,7 +343,7 @@ export default function AttendanceClockPage() {
           </Card>
 
           <Card className="oa-attendance-card oa-attendance-card--grow" title={t('attendance.clock.recentRecords')} variant="outlined">
-            <ResponsiveTable
+            <ResponsiveTable workspaceList
               rowKey="id"
               columns={columns}
               dataSource={records}

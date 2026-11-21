@@ -440,9 +440,11 @@ export default function AssetLedgerPage() {
     {
       title: t('adminAssets.common.action'),
       key: 'action',
+      width: 210,
+      fixed: 'right',
       render: (_: unknown, record: AssetLedger) =>
         canManage && record.canEdit ? (
-          <Space>
+          <Space size={0} wrap>
             <Button type="link" onClick={() => void openDetail(record)}>
               {t('adminAssets.asset.detail')}
             </Button>
@@ -514,7 +516,7 @@ export default function AssetLedgerPage() {
             />
           </Space>
 
-          <ResponsiveTable
+          <ResponsiveTable workspaceList scroll={{ x: 920 }}
             rowKey="id"
             columns={columns}
             dataSource={applied.scope === actorScope ? data : []}

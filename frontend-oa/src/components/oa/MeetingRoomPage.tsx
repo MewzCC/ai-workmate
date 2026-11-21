@@ -276,7 +276,7 @@ export default function MeetingRoomPage() {
             />
           </Space>
 
-          <ResponsiveTable
+          <ResponsiveTable workspaceList
             rowKey="id"
             columns={columns}
             dataSource={data}

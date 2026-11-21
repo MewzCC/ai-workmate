@@ -395,7 +395,7 @@ export default function SupplierPage() {
             onChange={(value) => { setCategory(value); setPage(1); }}
           />
         </div>
-        <ResponsiveTable
+        <ResponsiveTable workspaceList
           rowKey="id"
           loading={loading}
           columns={columns}

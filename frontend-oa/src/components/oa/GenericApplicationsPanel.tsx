@@ -93,7 +93,7 @@ export default function GenericApplicationsPanel() {
       {!allowed && <Alert type="warning" showIcon title={t('oa.ai.noPermission')} />}
       {list.error !== undefined && <Alert type="error" showIcon title={formatOaApiError(list.error)} action={<Button onClick={() => void list.load()}>{t('common.retry')}</Button>} />}
       {rawId && !selectedId && <Alert type="error" title={t('approval.genericApplications.invalidResult')} />}
-      <ResponsiveTable rowKey="id" columns={columns} dataSource={records} loading={list.loading && allowed}
+      <ResponsiveTable workspaceList rowKey="id" columns={columns} dataSource={records} loading={list.loading && allowed}
         pagination={{ current: page, pageSize: size, total: list.data?.total ?? 0, pageSizeOptions: [10, 20, 50, 100], onChange: (value, count) => { setPage(value); setSize(count); } }}
         locale={{ emptyText: <Empty description={t('common.empty')} /> }} />
     </Card>

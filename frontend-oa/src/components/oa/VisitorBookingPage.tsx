@@ -371,7 +371,7 @@ export default function VisitorBookingPage() {
                 key: 'mine',
                 label: t('adminAssets.visitor.myApplications'),
                 children: (
-                  <ResponsiveTable
+                  <ResponsiveTable workspaceList
                     rowKey="id"
                     columns={mineColumns}
                     dataSource={mine}
@@ -395,7 +395,7 @@ export default function VisitorBookingPage() {
                 key: 'pending',
                 label: t('adminAssets.visitor.pendingApproval'),
                 children: (
-                  <ResponsiveTable
+                  <ResponsiveTable workspaceList
                     rowKey="id"
                     columns={pendingColumns}
                     dataSource={pending}

@@ -296,7 +296,7 @@ export default function AttendanceSettingsPage() {
           </Card>
 
           <Card className="oa-attendance-card" title={t('attendance.settings.preview')} variant="outlined">
-            <ResponsiveTable
+            <ResponsiveTable workspaceList
               rowKey="key"
               size="middle"
               columns={sampleColumns}

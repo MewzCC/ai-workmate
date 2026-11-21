@@ -365,7 +365,10 @@ export default function EmployeeChangePage() {
           <Select allowClear value={typeFilter} placeholder={t('employeeChange.allTypes')} options={CHANGE_TYPES.map((value) => ({ value, label: t(`employeeChange.type.${value}`) }))} onChange={(value) => { setTypeFilter(value); setPage(1); }} />
           <Select allowClear value={status} placeholder={t('employeeChange.allStatus')} options={(Object.keys(STATUS_COLORS) as EmployeeChangeStatus[]).map((value) => ({ value, label: t(`employeeChange.status.${value}`) }))} onChange={(value) => { setStatus(value); setPage(1); }} />
         </div>
-        <ResponsiveTable rowKey="id" loading={loading} columns={columns} dataSource={records} scroll={{ x: 1120 }} locale={{ emptyText: <Empty description={t('employeeChange.empty')} /> }} pagination={{ current: page, pageSize: 20, total, showSizeChanger: false, onChange: setPage }} />
+        <ResponsiveTable workspaceList rowKey="id" loading={loading} columns={columns} dataSource={records}
+          scroll={{ x: 1120 }}
+          locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('employeeChange.empty')} /> }}
+          pagination={{ current: page, pageSize: 20, total, placement: ['bottomCenter'], showSizeChanger: false, onChange: setPage }} />
       </Card>
 
       <Modal open={createOpen && canManage} title={t('employeeChange.createTitle')} okText={t('employeeChange.submit')} cancelText={t(submitting ? 'common.close' : 'common.cancel')} okButtonProps={{ loading: submitting }} onOk={() => void submitChange()} onCancel={() => { createAction.reset(); setCreateOpen(false); }} width={680} destroyOnHidden>

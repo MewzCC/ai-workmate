@@ -14,10 +14,15 @@
 .oa-channel-identity > .ant-typography { min-width: 0; font-size: 16px; }
 .oa-channel-avatar { display: grid; place-items: center; flex: 0 0 36px; height: 36px; border-radius: 11px; color: var(--oa-primary); background: color-mix(in srgb, var(--oa-primary) 9%, transparent); }
 .oa-channel-heading .ant-tag, .oa-channel-badges .ant-tag { margin-inline-end: 0; border-radius: 12px; }
-.oa-channel-details { display: grid; gap: 14px; margin: 0 0 10px; flex: 1; font-size: 13px; }
+.oa-channel-details { margin: 0; font-size: 13px; }
 .oa-channel-details > div { display: grid; grid-template-columns: 90px minmax(0, 1fr); gap: 12px; }
 .oa-channel-details dt { color: var(--oa-muted); }
 .oa-channel-details dd { margin: 0; overflow-wrap: anywhere; color: var(--oa-text); }
+.oa-channel-model-summary { display: grid; align-content: start; gap: 8px; flex: 1; }
+.oa-channel-model-counts { display: grid; gap: 6px; margin: 0; font-size: 12px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 128px), 1fr)); grid-auto-rows: 1fr; }
+.oa-channel-model-counts > div { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 4px 8px; border-radius: 6px; background: color-mix(in srgb, var(--oa-text) 5%, transparent); }
+.oa-channel-model-counts dt { min-width: 0; overflow-wrap: anywhere; color: var(--oa-muted); }
+.oa-channel-model-counts dd { margin: 0; color: var(--oa-text); font-weight: 600; font-variant-numeric: tabular-nums; }
 .oa-channel-actions { border-top: 1px solid var(--oa-border); padding-top: 16px; }
 .oa-channel-actions > .ant-typography { font-size: 12px; }
 .oa-wallpaper-active .oa-channel-card.ant-card { background: color-mix(in srgb, var(--oa-card) 78%, transparent); backdrop-filter: blur(18px); }
@@ -3776,8 +3781,8 @@ html.oa-wallpaper-active .ant-menu-submenu-popup .ant-menu-dark {
 }
 
 .oa-page-title-actions {
-  flex-shrink: 0;
-  flex-wrap: nowrap !important;
+  min-width: 0;
+  justify-content: flex-end;
   align-self: center;
 }
 .oa-page-title-actions .ant-btn {
@@ -4100,9 +4105,25 @@ html.oa-wallpaper-active .ant-menu-submenu-popup .ant-menu-dark {
   ) !important;
 }
 
+.oa-role-search {
+  max-width: 320px;
+  margin-bottom: 18px;
+}
+
+.oa-knowledge-base-search {
+  max-width: 320px;
+  margin-bottom: 16px;
+}
+
+.oa-knowledge-base-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
+  gap: 16px;
+}
+
 .oa-role-card-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
   gap: 18px;
 }
 
@@ -4344,10 +4365,6 @@ html.oa-wallpaper-active .ant-menu-submenu-popup .ant-menu-dark {
 }
 
 @media (max-width: 560px) {
-  .oa-role-card-grid {
-    grid-template-columns: 1fr;
-  }
-
   .oa-role-card-actions {
     align-items: stretch;
     flex-direction: column;
@@ -5157,8 +5174,6 @@ html.oa-wallpaper-active .ant-menu-submenu-popup .ant-menu-dark {
   padding-bottom: 60px;
 }
 
-.oa-settings-content > * + * { margin-top: 16px; }
-
 .oa-settings-preferences {
   display: grid;
   min-width: 0;
@@ -5681,6 +5696,12 @@ html.oa-wallpaper-active .oa-ai-operation-drawer .ant-drawer-footer {
   .oa-page-title {
     flex-direction: column;
     align-items: stretch;
+    gap: 12px;
+  }
+
+  .oa-page-title-actions {
+    align-self: stretch;
+    justify-content: flex-start;
   }
 
   /* 顶部栏保持横向：标题在左，更多+头像在右 */
@@ -6038,45 +6059,11 @@ html.oa-wallpaper-active .oa-ai-operation-drawer .ant-drawer-footer {
   font-weight: 400;
 }
 
-/* 架构图卡片 */
-.oa-org-tree-card.ant-card {
-  border-radius: 16px;
-  border: 1px solid var(--oa-border, rgba(15, 23, 42, 0.06));
-  background: var(--oa-card, #ffffff);
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.045);
-  overflow: hidden;
-}
-
-.oa-org-tree-card .ant-card-head {
-  min-height: 66px;
-  padding: 0 22px;
-  border-bottom: 1px solid var(--oa-border, rgba(15, 23, 42, 0.06));
-  background: transparent;
-}
-
-.oa-org-tree-card .ant-card-head-title {
-  padding: 14px 0;
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--oa-text, #111827);
-  letter-spacing: -0.01em;
-}
-
-.oa-org-tree-card .ant-card-body {
-  padding: 18px 22px 22px;
-  overflow-x: auto;
-}
-
 /**
  * ============================================================
  * G6 组织架构图
  * ============================================================
  */
-
-/* 架构图标题栏提示 */
-.oa-org-tree-hint {
-  font-size: 12px;
-}
 
 /* G6 容器：采用页面 surface 底色 + 极淡主题色辉光 */
 .oa-org-graph {
@@ -6217,6 +6204,11 @@ html.oa-wallpaper-active .oa-ai-operation-drawer .ant-drawer-footer {
   flex: 1 1 auto;
 }
 
+@media (max-width: 720px) {
+  .oa-org-page { height: auto; }
+  .oa-org-heading { flex-wrap: wrap; }
+}
+
 .oa-org-employees-card .ant-table-thead > tr > th {
   background: color-mix(in srgb, var(--oa-card, #ffffff) 94%, var(--oa-text, #111827) 6%);
   color: var(--oa-muted, #64748b);
@@ -6230,7 +6222,6 @@ html.oa-wallpaper-active .oa-ai-operation-drawer .ant-drawer-footer {
 }
 
 /* 壁纸模式适配 */
-.oa-has-wallpaper .oa-org-tree-card.ant-card,
 .oa-has-wallpaper .oa-org-employees-card.ant-card,
 .oa-has-wallpaper .oa-org-stats .ant-card {
   background: color-mix(in srgb, var(--oa-card, #ffffff) 82%, transparent);
@@ -6248,10 +6239,6 @@ html.oa-wallpaper-active .oa-ai-operation-drawer .ant-drawer-footer {
     flex-direction: column;
     align-items: stretch;
     gap: 12px;
-  }
-
-  .oa-org-tree-card .ant-card-body {
-    padding: 16px 12px 20px;
   }
 
   .oa-org-graph {
@@ -6290,7 +6277,6 @@ html.oa-wallpaper-active .oa-ai-operation-drawer .ant-drawer-footer {
     padding: 12px;
   }
 
-  .oa-org-tree-hint,
   .oa-org-section-title small {
     display: none;
   }
@@ -6323,8 +6309,16 @@ html.oa-wallpaper-active .oa-ai-operation-drawer .ant-drawer-footer {
   background: var(--oa-card);
 }
 
+.oa-employee-file__list-card > .ant-card-body {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
 .oa-employee-file__list-head {
   display: flex;
+  flex-shrink: 0;
   align-items: flex-start;
   justify-content: space-between;
   margin-bottom: 12px;
@@ -6340,6 +6334,7 @@ html.oa-wallpaper-active .oa-ai-operation-drawer .ant-drawer-footer {
 }
 
 .oa-employee-file__search {
+  flex-shrink: 0;
   margin-bottom: 12px;
 }
 
@@ -6590,7 +6585,7 @@ html.oa-wallpaper-active .oa-ai-operation-drawer .ant-drawer-footer {
 .employee-change-table-card .ant-card-body {
   height: 100%;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template: auto minmax(0, 1fr) / minmax(0, 1fr);
   gap: 14px;
 }
 
@@ -6609,7 +6604,7 @@ html.oa-wallpaper-active .oa-ai-operation-drawer .ant-drawer-footer {
 
 .employee-change-toolbar {
   display: grid;
-  grid-template-columns: minmax(240px, 1fr) 180px 180px;
+  grid-template-columns: minmax(0, 2fr) repeat(2, minmax(0, 1fr));
   gap: 10px;
 }
 
@@ -6732,7 +6727,7 @@ html.oa-wallpaper-active .oa-ai-operation-drawer .ant-drawer-footer {
 .oa-mobile-cards__pager.ant-pagination {
   display: flex;
   justify-content: center;
-  margin: 14px 0 4px;
+  margin: 20px 0 4px;
 }
 
 /* 壁纸模式：卡片与表格一致切换为透明模糊材质 */
@@ -6778,11 +6773,9 @@ html.oa-wallpaper-active .oa-ai-operation-drawer .ant-drawer-footer {
 .oa-model-toolbar { margin-bottom: 12px; }
 .oa-model-toolbar > .ant-input-search { flex: 1 1 240px; max-width: 400px; }
 .oa-model-id { font-family: var(--font-mono, monospace); overflow-wrap: anywhere; font-size: 12px; }
-.oa-provider-footer { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--oa-border); align-items: flex-end; }
-.oa-provider-footer > .ant-form-item { flex: 1 1 280px; max-width: 520px; margin: 0; }
+.oa-provider-footer { justify-content: flex-end; margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--oa-border); }
 @media (max-width: 720px) {
-  .oa-provider-model-heading, .oa-provider-footer { align-items: stretch; }
-  .oa-provider-footer > .ant-form-item { max-width: none; }
+  .oa-provider-model-heading { align-items: stretch; }
   .oa-provider-model-heading > div { flex-basis: 100%; }
   .oa-provider-card .ant-card-head-wrapper { flex-wrap: wrap; gap: 8px; padding: 12px 0; }
 }

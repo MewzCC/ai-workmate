@@ -420,7 +420,7 @@ export default function MeetingBookingPanel({ rooms, canManage }: Props) {
             </aside>
           </div>
         ) : (
-          <ResponsiveTable
+          <ResponsiveTable workspaceList
             rowKey="id"
             columns={columns}
             dataSource={rows}

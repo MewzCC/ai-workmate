@@ -1,7 +1,7 @@
 export default {
   title: 'Organization',
   eyebrow: 'PEOPLE · STRUCTURE · APPROVAL',
-  description: 'Visualize department hierarchy and employee distribution. Click a department card in the graph to filter the employee list below.',
+  description: 'Browse employees or open the organization chart to filter members by department.',
   loadFailed: 'Failed to load organization',
   stats: {
     summary: 'Organization overview',

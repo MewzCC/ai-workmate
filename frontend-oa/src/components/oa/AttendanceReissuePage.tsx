@@ -289,7 +289,7 @@ export default function AttendanceReissuePage() {
               label: t('attendance.reissue.myApplications'),
               children: (
                 <>
-                  <ResponsiveTable
+                  <ResponsiveTable workspaceList
                     rowKey="id"
                     columns={mineColumns}
                     dataSource={mine}
@@ -314,7 +314,7 @@ export default function AttendanceReissuePage() {
               key: 'pending',
               label: t('attendance.reissue.pendingApproval'),
               children: (
-                <ResponsiveTable
+                <ResponsiveTable workspaceList
                   rowKey="id"
                   columns={pendingColumns}
                   dataSource={pending}

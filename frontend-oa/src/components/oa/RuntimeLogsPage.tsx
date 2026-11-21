@@ -390,7 +390,7 @@ export default function RuntimeLogsPage() {
           />
           <Button icon={<OaIcon name="reload" />} onClick={() => void load()}>{t('common.refresh')}</Button>
         </div>
-        <ResponsiveTable
+        <ResponsiveTable workspaceList
           rowKey={(record) => `${record.source}-${record.id}`}
           columns={columns}
           dataSource={records}

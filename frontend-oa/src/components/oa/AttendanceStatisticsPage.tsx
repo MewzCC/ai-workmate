@@ -174,7 +174,7 @@ export default function AttendanceStatisticsPage() {
             title={t('attendance.statistics.teamTitle')}
             variant="outlined"
           >
-            <ResponsiveTable
+            <ResponsiveTable workspaceList
               rowKey="userId"
               columns={teamColumns}
               dataSource={stats?.team || []}

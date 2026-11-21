@@ -127,7 +127,7 @@ export default function PageActionsPage() {
           <Select value={enabledFilter} onChange={setEnabledFilter} aria-label={t('pageActions.columns.status')}
             options={[{ value: 'ALL', label: t('common.all') }, { value: 'true', label: t('pageActions.enabled') }, { value: 'false', label: t('pageActions.disabled') }]} />
         </div>
-        <ResponsiveTable<PageActionItem> rowKey={(action) => `${action.pageId}:${action.toolCode}`} columns={columns} dataSource={actions} loading={loading} pagination={false} locale={{ emptyText: t('pageActions.empty') }} />
+        <ResponsiveTable<PageActionItem> workspaceList rowKey={(action) => `${action.pageId}:${action.toolCode}`} columns={columns} dataSource={actions} loading={loading} pagination={false} locale={{ emptyText: t('pageActions.empty') }} />
       </Card>
 
       <Modal open={Boolean(pending)} title={t(pending?.enabled ? 'pageActions.enableTitle' : 'pageActions.disableTitle')} okText={t('common.confirm')} cancelText={t('common.cancel')} confirmLoading={saving} onOk={() => void save()} onCancel={() => { setPending(undefined); form.resetFields(); }}>

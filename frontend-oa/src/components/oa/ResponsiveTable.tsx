@@ -1,6 +1,6 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Card, Empty, Pagination, Spin, Table } from 'antd';
 import type { TableProps } from 'antd';
 import type { ColumnsType, ColumnType } from 'antd/es/table';
@@ -9,6 +9,8 @@ import { useIsMobile } from '@/hooks/useIsMobile';
 type AnyRecord = Record<string, any>;
 
 export interface ResponsiveTableProps<T extends AnyRecord> extends TableProps<T> {
+  /** 页面主列表随工作区滚动，分栏可通过 scroll.y 设置独立滚动区域。 */
+  workspaceList?: boolean;
   /** 移动端卡片标题，默认取第一列（非操作列）的 render 结果 */
   mobileCardTitle?: (record: T, index: number) => ReactNode;
   /** 移动端卡片底部操作区，默认取 fixed: 'right' 操作列的 render 结果 */
@@ -47,6 +49,7 @@ function readCellValue<T extends AnyRecord>(record: T, dataIndex: unknown): any 
  */
 export default function ResponsiveTable<T extends AnyRecord>(props: ResponsiveTableProps<T>) {
   const {
+    workspaceList,
     mobileCardTitle,
     mobileCardActions,
     mobileCardRender,
@@ -54,9 +57,16 @@ export default function ResponsiveTable<T extends AnyRecord>(props: ResponsiveTa
     ...tableProps
   } = props;
   const isMobile = useIsMobile();
+  const config = tableProps.pagination || {};
+  const [localPage, setLocalPage] = useState(config.defaultCurrent ?? 1);
+  const [localSize, setLocalSize] = useState(config.defaultPageSize ?? 10);
 
   if (!isMobile) {
-    return <Table<T> {...tableProps} />;
+    if (!workspaceList) return <Table<T> {...tableProps} />;
+    return <Table<T> {...tableProps}
+      className={['oa-workspace-table', tableProps.className].filter(Boolean).join(' ')}
+      sticky={tableProps.sticky ?? (Boolean(tableProps.dataSource?.length) && !tableProps.scroll?.y)}
+    />;
   }
 
   const {
@@ -107,7 +117,12 @@ export default function ResponsiveTable<T extends AnyRecord>(props: ResponsiveTa
   const isSpinning = typeof loading === 'boolean' ? loading : Boolean((loading as { spinning?: boolean } | undefined)?.spinning);
   const paginationConfig = pagination === false ? null : pagination ?? {};
   const pagerTotal = paginationConfig?.total ?? records.length;
-  const pagerPageSize = paginationConfig?.pageSize ?? 10;
+  const pagerPageSize = paginationConfig?.pageSize ?? localSize;
+  const currentPage = Math.min(paginationConfig?.current ?? localPage, Math.max(1, Math.ceil(pagerTotal / pagerPageSize)));
+  // Server-paginated data already contains just the requested page.
+  const visibleRecords = paginationConfig && records.length > pagerPageSize
+    ? records.slice((currentPage - 1) * pagerPageSize, currentPage * pagerPageSize)
+    : records;
   const showPager =
     paginationConfig != null &&
     pagerTotal > 0 &&
@@ -127,7 +142,7 @@ export default function ResponsiveTable<T extends AnyRecord>(props: ResponsiveTa
         </div>
       ) : (
         <div className="oa-mobile-cards">
-          {records.map((record, index) => {
+          {visibleRecords.map((record, index) => {
             const rowProps = onRow?.(record, index);
             const clickable = typeof rowProps?.onClick === 'function';
             const key = resolveRowKey(record, index);
@@ -190,11 +205,13 @@ export default function ResponsiveTable<T extends AnyRecord>(props: ResponsiveTa
           className="oa-mobile-cards__pager"
           simple
           size="small"
-          current={paginationConfig.current}
+          current={currentPage}
           pageSize={pagerPageSize}
           total={pagerTotal}
           showTotal={paginationConfig.showTotal}
           onChange={(nextPage, nextPageSize) => {
+            setLocalPage(nextPage);
+            setLocalSize(nextPageSize);
             paginationConfig.onChange?.(nextPage, nextPageSize);
           }}
           onShowSizeChange={paginationConfig.onShowSizeChange}

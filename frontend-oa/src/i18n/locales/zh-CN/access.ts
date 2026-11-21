@@ -13,6 +13,9 @@ export default {
     routes: '动态路由',
   },
   roleCard: {
+    searchLabel: '搜索角色',
+    searchPlaceholder: '输入角色名称或编码',
+    empty: '没有匹配的角色',
     builtin: '内置',
     membersCount: '位成员',
     permissionsCount: '项权限',

@@ -149,7 +149,7 @@ export default function AiTaskCenterPage() {
     {
       title: t('pages.agentTasks.columnTask'),
       dataIndex: 'taskId',
-      width: 245,
+      width: '21%',
       render: (taskId: string, item) => <div className="agent-task-identity">
         <span className="agent-task-identity__icon"><OaIcon name="history" /></span>
         <span><Typography.Text strong copyable={{ text: taskId }}>{taskId}</Typography.Text><Typography.Text type="secondary">{item.pageId}</Typography.Text></span>
@@ -158,17 +158,17 @@ export default function AiTaskCenterPage() {
     {
       title: t('common.status'),
       dataIndex: 'status',
-      width: 165,
+      width: '13%',
       render: (value: AgentTaskStatus) => <Tag color={statusColor(value)}>{t(`oa.ai.status.${value}`)}</Tag>,
     },
     {
       title: t('pages.agentTasks.columnRisk'),
       dataIndex: 'riskLevel',
-      width: 90,
+      width: '8%',
       render: (value) => value ? <Tag color={value === 'L2' ? 'red' : value === 'L1' ? 'gold' : 'green'}>{value}</Tag> : '-',
     },
-    { title: t('pages.agentTasks.columnCreatedAt'), dataIndex: 'createdAt', width: 180, render: formatTime },
-    { title: t('pages.agentTasks.columnUpdatedAt'), dataIndex: 'updatedAt', width: 180, render: formatTime },
+    { title: t('pages.agentTasks.columnCreatedAt'), dataIndex: 'createdAt', width: '15%', render: formatTime },
+    { title: t('pages.agentTasks.columnUpdatedAt'), dataIndex: 'updatedAt', width: '15%', render: formatTime },
     {
       title: t('pages.agentTasks.columnError'),
       dataIndex: 'errorCode',
@@ -178,8 +178,8 @@ export default function AiTaskCenterPage() {
     {
       title: t('common.actions'),
       key: 'actions',
-      width: 170,
-      fixed: 'right',
+      width: '15%',
+      fixed: records.length ? 'right' : undefined,
       render: (_, item) => <Space>
         <Button type="link" size="small" onClick={() => void openDetail(item.taskId)}>{t('pages.agentTasks.view')}</Button>
         {canCancelAgentTask(item.status) && <Button danger type="link" size="small" loading={cancellingTaskId === item.taskId} onClick={() => cancelTask(item)}>{t('pages.agentTasks.cancelTask')}</Button>}
@@ -211,14 +211,14 @@ export default function AiTaskCenterPage() {
           aria-label={t('pages.agentTasks.columnCreatedAt')}
           onChange={dates => { setRange(dates?.[0] && dates[1] ? [dates[0].format('YYYY-MM-DDTHH:mm:ss'), dates[1].format('YYYY-MM-DDTHH:mm:ss')] : undefined); setPage(1); }} />
       </div>
-      <ResponsiveTable
+      <ResponsiveTable workspaceList
         rowKey="taskId"
         columns={columns}
         dataSource={records}
         loading={loading}
-        scroll={{ x: 1120 }}
-        locale={{ emptyText: <Empty description={t('pages.agentTasks.empty')} /> }}
-        pagination={{ current: page, pageSize: 20, total, showSizeChanger: false, showTotal: (value) => t('pages.agentTasks.total', { count: value }), onChange: setPage }}
+        scroll={{ x: records.length ? 980 : 760 }}
+        locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('pages.agentTasks.empty')} /> }}
+        pagination={{ current: page, pageSize: 20, total, placement: ['bottomCenter'], showSizeChanger: false, showTotal: (value) => t('pages.agentTasks.total', { count: value }), onChange: setPage }}
       />
     </Card>
 
@@ -241,7 +241,7 @@ export default function AiTaskCenterPage() {
           dataSource={detail.steps}
           columns={[
             { title: '#', dataIndex: 'sequence', width: 48 },
-            { title: t('pages.agentTasks.tool'), dataIndex: 'toolCode', width: 170, render: (value) => <Typography.Text code>{value}</Typography.Text> },
+            { title: t('pages.agentTasks.tool'), dataIndex: 'toolCode', width: '15%', render: (value) => <Typography.Text code>{value}</Typography.Text> },
             { title: t('common.status'), dataIndex: 'status', width: 110, render: (value) => <Tag>{value}</Tag> },
             { title: t('pages.agentTasks.resultSummary'), dataIndex: 'resultSummary', render: (value) => <Typography.Text className="agent-task-safe-text">{value || '-'}</Typography.Text> },
           ]}

@@ -16,10 +16,10 @@ import {
   Select,
   Space,
   Statistic,
-  Table,
   Tag,
   Typography,
 } from 'antd';
+import ResponsiveTable from './ResponsiveTable';
 import type { ColumnsType } from 'antd/es/table';
 import { OaIcon, type OaIconName } from '@/components/OaIcon';
 import { formatOaApiError } from '@/lib/oaApi';
@@ -245,7 +245,7 @@ export default function WorkbenchModulePage({ moduleKey, title }: WorkbenchModul
             onChange={(value) => { setStatus(value); setPage(1); }}
           />
         </div>
-        <Table
+        <ResponsiveTable workspaceList
           rowKey="id"
           loading={loading}
           columns={columns}
