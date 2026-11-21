@@ -30,14 +30,14 @@ const { RangePicker } = DatePicker;
 export default function ApprovalListPage() {
   const { t } = useTranslation();
   const model = useApprovalListPage();
-  const { allowed, canAct, records, stats, status, setStatus, search, setSearch, leaveType, setLeaveType,
+  const { allowed, canAct, records, stats, statsLoading, status, setStatus, search, setSearch, leaveType, setLeaveType,
     range, setRange, loading, total, page, setPage, size, setSize, drawerTaskId, closeDetail, tryOpen, load, error } = model;
   const statusOptions = APPROVAL_STATUS_KEYS.map(value => ({
     value, label: value ? t(`approval.status.${value}`) : t('common.all'),
   }));
 
   const metricCount = useMemo(() => (value: LeaveStatus) =>
-    stats.find((item) => item.status === value)?.count ?? 0,
+    stats ? stats.find((item) => item.status === value)?.count ?? 0 : null,
   [stats]);
   const metricPending = metricCount('PENDING');
   const metricApproved = metricCount('APPROVED');
@@ -45,7 +45,7 @@ export default function ApprovalListPage() {
   const metricDraft = metricCount('DRAFT');
   // 「全部单据」与其余 4 个指标同口径：stats 全局求和，而非筛选后的分页 total
   const metricTotal = useMemo(
-    () => stats.reduce((sum, item) => sum + item.count, 0),
+    () => stats?.reduce((sum, item) => sum + item.count, 0) ?? null,
     [stats],
   );
 
@@ -148,7 +148,7 @@ export default function ApprovalListPage() {
   ];
 
   return (
-    <section className="leave-list-workbench">
+    <section className="leave-list-workbench approval-list-workbench">
       <header className="leave-list-hero approval-list-hero">
         <div>
           <span className="leave-list-hero__kicker">{t('approval.approvalList.kicker')}</span>
@@ -161,16 +161,16 @@ export default function ApprovalListPage() {
         </div>
       </header>
 
-      <div className="leave-metric-strip approval-metric-strip">
+      <div className="leave-metric-strip approval-metric-strip" aria-busy={statsLoading}>
         <div className={metricPending ? 'is-attention' : ''}>
           <span>{t('approval.approvalList.metricPending')}</span>
-          <strong>{metricPending}</strong>
+          <strong>{metricPending ?? '—'}</strong>
           <small>{t('approval.approvalList.metricPendingUnit')}</small>
         </div>
-        <div><span>{t('approval.approvalList.metricApproved')}</span><strong>{metricApproved}</strong><small>{t('approval.approvalList.metricApprovedUnit')}</small></div>
-        <div><span>{t('approval.approvalList.metricRejected')}</span><strong>{metricRejected}</strong><small>{t('approval.approvalList.metricRejectedUnit')}</small></div>
-        <div><span>{t('approval.approvalList.metricDraft')}</span><strong>{metricDraft}</strong><small>{t('approval.approvalList.metricDraftUnit')}</small></div>
-        <div><span>{t('approval.approvalList.metricTotal')}</span><strong>{metricTotal}</strong><small>{t('approval.approvalList.metricTotalUnit')}</small></div>
+        <div><span>{t('approval.approvalList.metricApproved')}</span><strong>{metricApproved ?? '—'}</strong><small>{t('approval.approvalList.metricApprovedUnit')}</small></div>
+        <div><span>{t('approval.approvalList.metricRejected')}</span><strong>{metricRejected ?? '—'}</strong><small>{t('approval.approvalList.metricRejectedUnit')}</small></div>
+        <div><span>{t('approval.approvalList.metricDraft')}</span><strong>{metricDraft ?? '—'}</strong><small>{t('approval.approvalList.metricDraftUnit')}</small></div>
+        <div><span>{t('approval.approvalList.metricTotal')}</span><strong>{metricTotal ?? '—'}</strong><small>{t('approval.approvalList.metricTotalUnit')}</small></div>
       </div>
 
       <Card className="leave-list-card" variant="borderless">
@@ -188,7 +188,7 @@ export default function ApprovalListPage() {
               setPage(1);
             }}
           />
-          <Space wrap>
+          <Space className="approval-list-filters" wrap>
             <Input.Search
               placeholder={t('approval.approvalList.searchPlaceholder')}
               allowClear
@@ -238,11 +238,11 @@ export default function ApprovalListPage() {
             <Button icon={<OaIcon name="reload" />} onClick={() => void load()}>{t('common.refresh')}</Button>
           </Space>
         </div>
-        <ResponsiveTable
+        <ResponsiveTable workspaceList
           rowKey="id"
           columns={columns}
           dataSource={records}
-          loading={loading}
+          loading={loading && !model.data}
           locale={{ emptyText: <Empty description={t('approval.approvalList.empty')} /> }}
           scroll={{ x: 1100 }}
           onRow={(item) => ({
