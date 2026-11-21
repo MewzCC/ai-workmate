@@ -15,6 +15,7 @@ import java.nio.file.Path;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -39,7 +40,7 @@ class TikaFileParserServiceImplTest {
     void validatesBlankPdfAttachmentsWithoutCallingOcrOrUserExtractionPreferences() throws Exception {
         var ocr = Mockito.mock(OcrService.class);
         var settings = Mockito.mock(UserSettingsService.class);
-        var parser = new TikaFileParserServiceImpl(new UploadProperties(), ocr, settings);
+        var parser = new TikaFileParserServiceImpl(new UploadProperties(), ocr, settings, mock(ChannelOcrRecognition.class));
         Path file = tempDir.resolve("blank.pdf");
         Files.write(file, BLANK_PDF);
         var result = parser.inspect(file, "blank.pdf", USER_ID);
@@ -79,7 +80,7 @@ class TikaFileParserServiceImplTest {
         OcrService ocrService = Mockito.mock(OcrService.class);
         when(ocrService.isAvailable()).thenReturn(true);
         when(ocrService.recognize(any(), any())).thenReturn("扫描版识别结果");
-        TikaFileParserServiceImpl parser = new TikaFileParserServiceImpl(properties, ocrService, settingsService(false));
+        TikaFileParserServiceImpl parser = new TikaFileParserServiceImpl(properties, ocrService, settingsService(false), mock(ChannelOcrRecognition.class));
 
         var parsed = parser.parse(pdf, pdf.getFileName().toString(), USER_ID);
 
@@ -98,7 +99,7 @@ class TikaFileParserServiceImplTest {
         OcrService ocrService = Mockito.mock(OcrService.class);
         when(ocrService.isAvailable()).thenReturn(true);
         when(ocrService.recognize(any(), any())).thenReturn(null);
-        TikaFileParserServiceImpl parser = new TikaFileParserServiceImpl(properties, ocrService, settingsService(false));
+        TikaFileParserServiceImpl parser = new TikaFileParserServiceImpl(properties, ocrService, settingsService(false), mock(ChannelOcrRecognition.class));
 
         assertThatThrownBy(() -> parser.parse(pdf, pdf.getFileName().toString(), USER_ID))
                 .isInstanceOf(BusinessException.class)
@@ -116,7 +117,7 @@ class TikaFileParserServiceImplTest {
         OcrService ocrService = Mockito.mock(OcrService.class);
         when(ocrService.isAvailable()).thenReturn(true);
         when(ocrService.recognize(any(), any())).thenReturn("强制 OCR 识别结果");
-        TikaFileParserServiceImpl parser = new TikaFileParserServiceImpl(properties, ocrService, settingsService(true));
+        TikaFileParserServiceImpl parser = new TikaFileParserServiceImpl(properties, ocrService, settingsService(true), mock(ChannelOcrRecognition.class));
 
         var parsed = parser.parse(pdf, pdf.getFileName().toString(), USER_ID);
 
@@ -133,7 +134,7 @@ class TikaFileParserServiceImplTest {
         OcrService ocrService = Mockito.mock(OcrService.class);
         when(ocrService.isAvailable()).thenReturn(true);
         when(ocrService.recognize(any(), any())).thenReturn(null);
-        TikaFileParserServiceImpl parser = new TikaFileParserServiceImpl(properties, ocrService, settingsService(true));
+        TikaFileParserServiceImpl parser = new TikaFileParserServiceImpl(properties, ocrService, settingsService(true), mock(ChannelOcrRecognition.class));
 
         assertThatThrownBy(() -> parser.parse(pdf, pdf.getFileName().toString(), USER_ID))
                 .isInstanceOf(BusinessException.class)
@@ -152,6 +153,6 @@ class TikaFileParserServiceImplTest {
         OcrService ocrService = Mockito.mock(OcrService.class);
         when(ocrService.isAvailable()).thenReturn(true);
         when(ocrService.recognize(any(), any())).thenReturn("识别文本");
-        return new TikaFileParserServiceImpl(properties, ocrService, settingsService(false));
+        return new TikaFileParserServiceImpl(properties, ocrService, settingsService(false), mock(ChannelOcrRecognition.class));
     }
 }

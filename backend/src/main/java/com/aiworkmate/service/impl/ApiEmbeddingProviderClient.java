@@ -3,16 +3,18 @@ package com.aiworkmate.service.impl;
 import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.common.ErrorCode;
 import com.aiworkmate.config.EmbeddingProperties;
+import com.aiworkmate.config.AiProviderRuntime.ChannelModel;
 import com.aiworkmate.service.EmbeddingProviderClient;
 import com.aiworkmate.service.model.EmbeddingResult;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
 import java.time.Duration;
+import java.net.http.HttpClient;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -23,13 +25,15 @@ import java.util.Map;
 @Service
 public class ApiEmbeddingProviderClient implements EmbeddingProviderClient {
 
+    static final int STORAGE_DIMENSION = 1024;
     private final EmbeddingProperties properties;
     private final RestClient restClient;
 
     public ApiEmbeddingProviderClient(EmbeddingProperties properties) {
         this.properties = properties;
-        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
-        requestFactory.setConnectTimeout(Duration.ofMillis(properties.getConnectTimeoutMs()));
+        var requestFactory = new JdkClientHttpRequestFactory(HttpClient.newBuilder()
+                .followRedirects(HttpClient.Redirect.NEVER)
+                .connectTimeout(Duration.ofMillis(properties.getConnectTimeoutMs())).build());
         requestFactory.setReadTimeout(Duration.ofMillis(properties.getReadTimeoutMs()));
         this.restClient = RestClient.builder()
                 .requestFactory(requestFactory)
@@ -48,7 +52,18 @@ public class ApiEmbeddingProviderClient implements EmbeddingProviderClient {
 
     @Override
     public EmbeddingResult embed(List<String> texts) {
-        if (properties.getApiKey() == null || properties.getApiKey().isBlank()) {
+        return embed(texts, provider(), model(), model(), endpoint(), properties.getApiKey(),
+                properties.getDimension(), properties.isApiSendDimensions());
+    }
+
+    EmbeddingResult embed(List<String> texts, String reference, ChannelModel selected) {
+        return embed(texts, "channel", reference, selected.model().id(), selected.baseUrl() + "/embeddings",
+                selected.apiKey(), STORAGE_DIMENSION, selected.model().sendDimensions());
+    }
+
+    private EmbeddingResult embed(List<String> texts, String provider, String reference, String upstreamModel,
+                                  String endpoint, String apiKey, int dimension, boolean sendDimensions) {
+        if (apiKey == null || apiKey.isBlank()) {
             throw new BusinessException(ErrorCode.EMBEDDING_UNAVAILABLE,
                     "validation.runtime.embedding.keyMissing");
         }
@@ -63,42 +78,40 @@ public class ApiEmbeddingProviderClient implements EmbeddingProviderClient {
             for (int offset = 0; offset < texts.size(); offset += batchSize) {
                 List<String> batch = texts.subList(offset, Math.min(texts.size(), offset + batchSize));
                 ApiEmbeddingResponse response = restClient.post()
-                        .uri(endpoint())
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + properties.getApiKey())
-                        .body(requestBody(batch))
+                        .uri(endpoint)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
+                        .body(requestBody(batch, upstreamModel, dimension, sendDimensions))
                         .retrieve()
                         .body(ApiEmbeddingResponse.class);
-                appendValidated(vectors, response, batch.size());
+                appendValidated(vectors, response, batch.size(), dimension);
             }
         } catch (BusinessException ex) {
             throw ex;
         } catch (RestClientException ex) {
-            log.warn("Embedding API request failed, endpoint={}, model={}, textCount={}",
-                    properties.getApiBaseUrl(), model(), texts.size(), ex);
+            log.warn("Embedding API request failed, textCount={}, errorType={}", texts.size(), ex.getClass().getSimpleName());
             throw new BusinessException(ErrorCode.EMBEDDING_UNAVAILABLE,
                     "validation.runtime.embedding.remoteUnavailable");
         } catch (RuntimeException ex) {
-            log.error("Embedding API returned invalid response, model={}, textCount={}",
-                    model(), texts.size(), ex);
+            log.warn("Embedding API returned invalid response, textCount={}, errorType={}", texts.size(), ex.getClass().getSimpleName());
             throw new BusinessException(ErrorCode.EMBEDDING_RESPONSE_INVALID);
         }
         log.info("Embedding API completed, model={}, textCount={}, dimension={}, latencyMs={}",
-                model(), texts.size(), properties.getDimension(),
+                reference, texts.size(), dimension,
                 Duration.ofNanos(System.nanoTime() - startedAt).toMillis());
-        return new EmbeddingResult(provider(), model(), List.copyOf(vectors));
+        return new EmbeddingResult(provider, reference, List.copyOf(vectors));
     }
 
-    private Map<String, Object> requestBody(List<String> texts) {
+    private Map<String, Object> requestBody(List<String> texts, String model, int dimension, boolean sendDimensions) {
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("model", model());
+        body.put("model", model);
         body.put("input", texts);
-        if (properties.isApiSendDimensions()) {
-            body.put("dimensions", properties.getDimension());
+        if (sendDimensions) {
+            body.put("dimensions", dimension);
         }
         return body;
     }
 
-    private void appendValidated(List<float[]> target, ApiEmbeddingResponse response, int expectedCount) {
+    private void appendValidated(List<float[]> target, ApiEmbeddingResponse response, int expectedCount, int dimension) {
         if (response == null || response.data() == null || response.data().size() != expectedCount) {
             throw new BusinessException(ErrorCode.EMBEDDING_RESPONSE_INVALID,
                     "validation.runtime.embedding.remoteCountInvalid");
@@ -113,14 +126,14 @@ public class ApiEmbeddingProviderClient implements EmbeddingProviderClient {
                         "validation.runtime.embedding.remoteIndicesInvalid");
             }
             List<Double> values = item.embedding();
-            if (values == null || values.size() != properties.getDimension()) {
+            if (values == null || values.size() != dimension) {
                 throw new BusinessException(ErrorCode.EMBEDDING_RESPONSE_INVALID,
                         "validation.runtime.embedding.remoteDimensionInvalid");
             }
             float[] vector = new float[values.size()];
             for (int index = 0; index < values.size(); index++) {
                 Double value = values.get(index);
-                if (value == null || !Double.isFinite(value)) {
+                if (value == null || !Float.isFinite(value.floatValue())) {
                     throw new BusinessException(ErrorCode.EMBEDDING_RESPONSE_INVALID,
                             "validation.runtime.embedding.remoteValuesInvalid");
                 }

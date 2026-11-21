@@ -1,5 +1,17 @@
 # AI 在线配置
 
+导航入口位于「系统设置 → AI 配置」。目录下包含「模型与偏好」`/oa/system-config`、「AI 操作权限」`/oa/ai-permission` 和「知识库管理」`/oa/knowledge-base`，各页面仍按原有权限显示。「模型与偏好」提供「AI 渠道」「调用分析」「AI 使用设置」三个独立页签。用户可以在「AI 使用设置」中调整自己的对话和 OCR 设置，或管理自己的聊天记录。
+
+## 渠道模型分类
+
+在渠道抽屉中从上游获取模型，再在模型目录选择用途并勾选启用。历史未分类模型按对话模型读取。只有对话模型可作为默认聊天模型，独立的 Embedding、Rerank、OCR 等专用渠道无需指定默认对话模型。TTS、ASR 和图像生成支持分类登记。
+
+渠道抽屉只管理启用的模型及其分类。保存时，如果现有默认对话模型仍启用就继续使用它，否则使用所选的第一个对话模型。
+
+知识库选择 Embedding 和 Rerank 后使用渠道配置。「AI 使用设置」中的 OCR 模型用于聊天附件与知识库文档解析。选择渠道 OCR 会发送图片或渲染后的 PDF 页面，当前支持兼容图片输入的 `POST /chat/completions`，单份 PDF 上限为 10 页。本地 PaddleOCR 仍作为默认识别方式供未选择渠道或内部 OA 业务上传使用。 [Chat Completions API](https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create)
+
+新模型的 Base URL、密钥和模型 ID 只在渠道中维护。旧远程 Embedding、Rerank 环境变量仅用于兼容尚未切换到渠道的部署。服务端按分类校验模型引用，前台选项不包含凭据或内部连接地址。
+
 ## 调用分析（2026-11-16）
 
 统计响应增加 `channelName`，按当前渠道配置解析名称；渠道改名后，历史统计随刷新展示新名称，无需重写历史调用。筛选和图例展示渠道名，内部仍按 channelId 隔离；同名渠道追加编号区分，环境配置显示“环境变量配置”，缺失的历史渠道回退显示编号。
@@ -18,13 +30,13 @@
 
 预设地址参考：[硅基流动](https://docs.siliconflow.cn/docs/userguide/quickstart)、[DeepSeek](https://api-docs.deepseek.com/quick_start/agent_integrations/)、[MiMo](https://mimo.mi.com/docs/en-US/quick-start/summary/first-api-call)、[百炼](https://help.aliyun.com/zh/model-studio/base-url)、[OpenAI](https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create)、[OpenRouter](https://openrouter.ai/blog/insights/model-routing/)、[Ollama](https://github.com/ollama/ollama/blob/main/docs/api/openai-compatibility.mdx)。
 
-管理界面一级仅以渠道卡片网格展示默认渠道、连接地址、密钥配置状态和启用模型数量；卡片上的连接测试只传渠道编号、地址和模型，由服务端读取该渠道密钥。点击配置或新增后进入二级“AI 服务配置”抽屉，关闭后回到列表；渠道名称使用最大 320px 宽的可搜索下拉框，允许选择常用名称或搜索后选用自定义名称。新增渠道的密钥与连接字段保持空白。测试结果仅代表最近一次人工测试，不作为持续健康状态。
+渠道卡片展示默认渠道标识、连接地址、密钥配置状态，以及各分类的启用模型数量。卡片上的连接测试只传渠道编号、地址和模型，由服务端读取该渠道密钥。点击配置或新增后进入二级“AI 服务配置”抽屉，关闭后回到列表；渠道名称使用最大 320px 宽的可搜索下拉框，允许选择常用名称或搜索后选用自定义名称。新增渠道的密钥与连接字段保持空白。测试结果仅代表最近一次人工测试，不作为持续健康状态。
 
 `GET /api/admin/ai-configuration/channels` 返回渠道列表（id、name、configuration），不包含密钥。
 `PUT /api/admin/ai-configuration/channels/{id}` 接收 name 与 configuration（沿用原配置 DTO）。渠道编号范围 1–999999，version=0 创建，后续按渠道乐观锁更新，事务内记录审计。密钥留空仅复用该渠道密钥，新渠道必须输入密钥。
 探测和测试请求可携带 channelId，空密钥仅复用指定渠道密钥。渠道 1 为固定默认渠道，兼容原单配置接口和旧模型 ID；其他渠道在 `/api/ai/models` 中以 `channelId::modelId` 暴露，调用时服务端解析并验证该渠道模型清单，发送上游前去掉渠道前缀。未配置渠道明确拒绝，不回退到其他供应商。新增迁移保留已有配置与密钥。当前支持 OpenAI-compatible 协议，不自动故障转移。切换渠道前需保存草稿。
 
-平台全局配置位于 OA `/oa/system-config`，仅超级管理员（实时 SUPER_ADMIN + access:manage）可管理。普通用户可以在聊天中选择 `default` 跟随服务端模型，或输入网关支持的模型 ID。配置作用于聊天与 Agent Planner，不修改工具权限、执行策略、嵌入、OCR 或重排服务。
+平台全局配置位于 OA `/oa/system-config`，仅超级管理员（实时 SUPER_ADMIN + access:manage）可管理。聊天使用 `default` 时跟随服务端默认对话模型。Embedding、Rerank、OCR 来自各自的分类目录，工具权限和执行策略由原有鉴权流程管理。
 
 ## 接口
 
@@ -66,7 +78,9 @@ Base URL 统一持久化并回显完整 `/v1` 前缀；省略时补齐。模型�
 - `PUT /api/admin/ai-configuration` 新增 models 数组：每项 id、contextWindow（1024–2097152）、maxOutputTokens（16–393216）、supportsImages。1–200 项，不重复，默认模型必须已启用，输出上限必须小于上下文。
 
 2026-11-16：输出上限扩大到 DeepSeek 官方公布的 384K（393216）。输入框固定允许输入到 393216，不再用当前上下文减一限制编辑；草稿超过上下文时标红，保存时仍校验输出必须小于上下文，便于按任意顺序编辑两项。模型发现优先读取官方 `context_window`，兼容 `context_length`；不再将输出截到上下文的一半。已有保存值保持不变，管理员按实际上游能力调整后保存。参考：https://api-docs.deepseek.com/api/list-models/ 。
-- `GET /api/ai/models`：所有已认证用户读取启用的模型与能力；不包含供应商地址、密钥或内部版本。聊天及个人偏好使用可搜索下拉。已禁用的旧会话模型请求会被拒绝，用户可改选默认或其他已启用模型。
+- `GET /api/ai/models`：所有已认证用户读取启用的模型与能力；不包含供应商地址、密钥或内部版本。聊天及「AI 使用设置」使用可搜索下拉。已禁用的旧会话模型请求会被拒绝，用户可改选默认或其他已启用模型。
+- `GET /api/ai/models?category=EMBEDDING|RERANK|OCR`：读取对应分类启用的模型，使用带渠道编号的稳定引用。
+- `PUT /api/settings/chat`：可选传入 `ocrModelRef`，设为 `default` 时使用默认 OCR 引擎。省略时保留原选择。
 
 模型调用服务端按已保存名单重新验证，输出上限固定使用配置值。文本上下文预算使用 UTF-8 字节数加消息/图片预留的保守估算，超预算明确拒绝，不悄悄截断系统提示词或 Agent 计划；该预算并非上游分词器的精确 token 数，图片 token 仍由上游实际限制最终校验。图片开关控制向模型转发原图；关闭时沿用现有 OCR 文本路径，OCR 不可用则明确失败。设置不能让不支持视觉的上游模型获得视觉能力。
 

@@ -28,6 +28,12 @@ public record KnowledgeBaseUpdateRequest(
 
         @Min(value = 0, message = "{validation.kb.sparseTopK.min}")
         @Max(value = 50, message = "{validation.kb.sparseTopK.max}")
-        Integer sparseTopK
+        Integer sparseTopK,
+        @Size(max = 128) String embeddingModelRef,
+        @Size(max = 128) String rerankModelRef
 ) {
+    public KnowledgeBaseUpdateRequest(String name, String icon, String description, Integer chunkSize,
+                                      Integer chunkOverlap, Integer denseTopK, Integer sparseTopK) {
+        this(name, icon, description, chunkSize, chunkOverlap, denseTopK, sparseTopK, null, null);
+    }
 }

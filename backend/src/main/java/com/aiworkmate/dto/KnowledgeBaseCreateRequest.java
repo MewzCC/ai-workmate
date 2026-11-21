@@ -12,6 +12,11 @@ public record KnowledgeBaseCreateRequest(
         String icon,
 
         @Size(max = 500, message = "{validation.kb.description.maxLength}")
-        String description
+        String description,
+        @Size(max = 128) String embeddingModelRef,
+        @Size(max = 128) String rerankModelRef
 ) {
+    public KnowledgeBaseCreateRequest(String name, String icon, String description) {
+        this(name, icon, description, null, null);
+    }
 }

@@ -2,15 +2,13 @@
 
 ## 目标
 
-AI WorkMate 的知识库使用 PostgreSQL `pgvector` 保存向量。开发环境可调用本机
-Qwen3 Embedding 服务，服务器环境可切换到 OpenAI 兼容的 Embeddings API。两种模式
-共用知识入库、检索和聊天 RAG 链路，不存在本地 mock 或失败后伪造成功。
+AI WorkMate 的知识库使用 PostgreSQL `pgvector` 保存向量。新建知识库时可从 OA 的 AI 渠道选择已启用的 Embedding 和 Rerank 模型。选中的 Embedding 用于文档入库、索引重建和指定知识库的检索，选中的 Rerank 用于对召回的候选片段重新排序。
 
-## Provider 切换
+## 渠道模型和兼容默认值
 
-只允许通过服务端环境变量切换，API Key 不进入前端或数据库。
+渠道模型的地址和凭据由超级管理员在「系统设置 → AI 配置 → 模型与偏好 → AI 渠道」维护。知识库只保存渠道模型引用 `channelId::modelId`。Embedding 需要支持 1024 维输出，可在模型选项里勾选显式发送 `dimensions=1024`。Rerank 渠道需要支持兼容的 `POST /rerank` 接口。 [Embeddings API](https://developers.openai.com/api/reference/resources/embeddings/methods/create) · [Rerank API](https://docs.siliconflow.com/en/api-reference/rerank/create-rerank)
 
-本地模式：
+已有知识库选择服务端默认时，继续兼容现有本地或旧远程索引。默认本地模式依赖以下服务：
 
 ```dotenv
 EMBEDDING_ENABLED=true
@@ -31,28 +29,15 @@ Content-Type: application/json
 
 响应中的 `embeddings` 数量必须与请求一致，`dim` 必须为 `1024`。
 
-远程 API 模式：
-
-```dotenv
-EMBEDDING_ENABLED=true
-EMBEDDING_PROVIDER=api
-EMBEDDING_API_BASE_URL=https://api.openai.com/v1
-EMBEDDING_API_KEY=replace-with-server-secret
-EMBEDDING_API_MODEL=text-embedding-3-small
-EMBEDDING_API_SEND_DIMENSIONS=true
-EMBEDDING_DIMENSION=1024
-```
-
-远程服务需要兼容 `POST /embeddings`。如果供应商不接受 `dimensions` 参数，将
-`EMBEDDING_API_SEND_DIMENSIONS` 设为 `false`，同时所选模型仍必须固定返回 1024 维。
-
 ## 向量空间隔离与切换
 
 `knowledge_doc` 和 `knowledge_chunk` 都保存 `embedding_provider` 与
 `embedding_model`。检索只查询当前 Provider 和模型生成的向量，避免不同模型的向量
 直接比较。
 
-切换 Provider 或模型后，旧文档不会被当前模型检索，需要逐个调用重建接口：
+知识库已有文档时锁定 Embedding 选择。需要换模型时，先新建知识库并选好新模型，再重新导入原文档。空知识库可以直接切换。相同渠道与模型 ID 应持续指向同一向量空间。
+
+单文档重建使用所属知识库当前的模型：
 
 ```http
 POST /api/knowledge/documents/{documentId}/reindex
@@ -66,7 +51,7 @@ Authorization: Bearer <JWT>
 知识库（集合）维度：
 
 - `GET /api/knowledge/bases`：当前用户的知识库列表（含文档数、分块数）。
-- `POST /api/knowledge/bases`：新建知识库（记录名称、图标、描述，并固化当前嵌入模型）。
+- `POST /api/knowledge/bases`：新建知识库，可选传入 `embeddingModelRef`、`rerankModelRef`。
 - `GET /api/knowledge/bases/{kbId}`：知识库详情（基本信息 + 文档/分块统计 + 模型与检索参数）。
 - `PUT /api/knowledge/bases/{kbId}`：更新知识库基本信息与检索/分块参数（分块重叠必须小于分块大小）。
 - `DELETE /api/knowledge/bases/{kbId}`：删除知识库，级联删除其文档与分块。

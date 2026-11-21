@@ -91,6 +91,7 @@ public class KnowledgeServiceImpl implements KnowledgeService {
     private final EmbeddingProperties properties;
     private final ObjectMapper objectMapper;
     private final RerankService rerankService;
+    private final ChannelKnowledgeModels channelModels;
 
     @Override
     @Transactional
@@ -118,7 +119,7 @@ public class KnowledgeServiceImpl implements KnowledgeService {
         Path tempFile = createTempFile(file);
         try {
             String filename = safeDisplayName(file);
-            ParsedFile parsed = fileParserService.parse(tempFile, filename, userId);
+            ParsedFile parsed = fileParserService.parseWithPersonalOcr(tempFile, filename, userId);
             if (parsed.image() && (parsed.extractedText() == null || parsed.extractedText().isBlank())) {
                 throw new BusinessException(ErrorCode.REQUEST_INVALID, "error.knowledge_image_no_text");
             }
@@ -140,9 +141,9 @@ public class KnowledgeServiceImpl implements KnowledgeService {
     private KnowledgeDocumentResponse createFromContent(Long userId, Long kbId, String filename,
                                                         String content, String fileType, long fileSize) {
         ResolvedUserAccess access = requireAccess(userId);
-        KnowledgeBase knowledgeBase = requireKnowledgeBase(access, kbId);
+        KnowledgeBase knowledgeBase = requireKnowledgeBase(access, kbId, true);
 
-        EmbeddingDescriptor descriptor = embeddingService.current();
+        EmbeddingDescriptor descriptor = embeddingDescriptor(knowledgeBase);
         String contentHash = sha256(content);
         KnowledgeDocument existing = findByHash(access, kbId, contentHash, descriptor);
         if (existing != null) {
@@ -158,7 +159,7 @@ public class KnowledgeServiceImpl implements KnowledgeService {
         if (chunks.isEmpty()) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.runtime.knowledge.textEmpty");
         }
-        EmbeddingResult embeddings = embeddingService.embed(chunks);
+        EmbeddingResult embeddings = embed(descriptor, chunks);
         validateEmbeddingResult(descriptor, embeddings, chunks.size());
 
         LocalDateTime now = LocalDateTime.now();
@@ -205,7 +206,8 @@ public class KnowledgeServiceImpl implements KnowledgeService {
 
     private KnowledgeDocumentResponse reindex(ResolvedUserAccess access, Long documentId) {
         KnowledgeDocument document = requireOwned(access, documentId);
-        EmbeddingDescriptor descriptor = embeddingService.current();
+        EmbeddingDescriptor descriptor = document.getKbId() == null ? embeddingService.current()
+                : embeddingDescriptor(requireKnowledgeBase(access, document.getKbId()));
         KnowledgeDocument duplicate = findByHash(access, document.getKbId(), document.getContentHash(), descriptor);
         if (duplicate != null && !duplicate.getId().equals(documentId)) {
             throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID,
@@ -216,7 +218,7 @@ public class KnowledgeServiceImpl implements KnowledgeService {
         if (chunks.isEmpty()) {
             throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID, "validation.runtime.knowledge.noChunks");
         }
-        EmbeddingResult embeddings = embeddingService.embed(chunks);
+        EmbeddingResult embeddings = embed(descriptor, chunks);
         validateEmbeddingResult(descriptor, embeddings, chunks.size());
         for (int index = 0; index < chunks.size(); index++) {
             int updated = documentMapper.updateChunkEmbedding(access.tenantId(), access.userId(), documentId,
@@ -383,7 +385,7 @@ public class KnowledgeServiceImpl implements KnowledgeService {
                         row.getFilename(), row.getChunkIndex(), row.getContent(), row.getScore(), "DENSE"))
                 .filter(record -> !isTocLikeChunk(record.content()))
                 .toList();
-        records = applyRerank(query, records);
+        records = applyRerank(query, records, null);
         return new KnowledgeSearchResponse(descriptor.provider(), descriptor.model(),
                 descriptor.dimension(), records);
     }
@@ -394,7 +396,7 @@ public class KnowledgeServiceImpl implements KnowledgeService {
         ResolvedUserAccess access = requireAccess(userId);
         KnowledgeBase knowledgeBase = requireKnowledgeBase(access, kbId);
         String query = request.query().strip();
-        EmbeddingDescriptor descriptor = embeddingService.current();
+        EmbeddingDescriptor descriptor = embeddingDescriptor(knowledgeBase);
 
         int denseTopK = knowledgeBase.getDenseTopK() == null ? 5 : knowledgeBase.getDenseTopK();
         int sparseTopK = knowledgeBase.getSparseTopK() == null ? 0 : knowledgeBase.getSparseTopK();
@@ -415,7 +417,7 @@ public class KnowledgeServiceImpl implements KnowledgeService {
                     .eq(KnowledgeDocument::getEmbeddingProvider, descriptor.provider())
                     .eq(KnowledgeDocument::getEmbeddingModel, descriptor.model()));
             if (available != null && available > 0) {
-                EmbeddingResult embedding = embeddingService.embed(List.of(query));
+                EmbeddingResult embedding = embed(descriptor, List.of(query));
                 validateEmbeddingResult(descriptor, embedding, 1);
                 double minScore = request.minScore() == null
                         ? properties.getRetrievalMinScore() : request.minScore();
@@ -450,7 +452,7 @@ public class KnowledgeServiceImpl implements KnowledgeService {
                 })
                 .sorted(Comparator.comparingDouble(KnowledgeSearchItemResponse::score).reversed())
                 .toList());
-        records = applyRerank(query, records);
+        records = applyRerank(query, records, knowledgeBase.getRerankModel());
         records = records.stream().limit(resultCap).toList();
 
         return new KnowledgeSearchResponse(descriptor.provider(), descriptor.model(),
@@ -470,14 +472,18 @@ public class KnowledgeServiceImpl implements KnowledgeService {
      * 对检索候选做 rerank 重排（若已配置）。失败时降级为原检索顺序，不阻断检索。
      */
     private List<KnowledgeSearchItemResponse> applyRerank(String query,
-                                                          List<KnowledgeSearchItemResponse> records) {
-        if (rerankService == null || !rerankService.configured() || records.size() < 2) {
+                                                          List<KnowledgeSearchItemResponse> records,
+                                                          String modelReference) {
+        boolean configuredChannel = modelReference != null && modelReference.contains("::");
+        if (records.size() < 2 || (!configuredChannel && (rerankService == null || !rerankService.configured()))) {
             return records;
         }
         try {
             List<String> documents = records.stream()
                     .map(KnowledgeSearchItemResponse::content).toList();
-            List<RerankService.RankedItem> ranked = rerankService.rerank(query, documents, records.size());
+            List<RerankService.RankedItem> ranked = configuredChannel
+                    ? channelModels.rerank(modelReference, query, documents, records.size())
+                    : rerankService.rerank(query, documents, records.size());
             List<KnowledgeSearchItemResponse> reranked = ranked.stream()
                     .filter(item -> item.index() >= 0 && item.index() < records.size())
                     .map(item -> {
@@ -487,9 +493,12 @@ public class KnowledgeServiceImpl implements KnowledgeService {
                                 item.score(), record.matchType());
                     })
                     .toList();
+            if (configuredChannel && reranked.isEmpty())
+                throw new BusinessException(ErrorCode.EMBEDDING_RESPONSE_INVALID, "validation.runtime.rerank.responseEmpty");
             return reranked.isEmpty() ? records : reranked;
         } catch (RuntimeException ex) {
-            log.warn("Rerank failed, fallback to retrieval order, query={}", query, ex);
+            if (configuredChannel) throw ex;
+            log.warn("Rerank failed, fallback to retrieval order, errorType={}", ex.getClass().getSimpleName());
             return records;
         }
     }
@@ -539,14 +548,30 @@ public class KnowledgeServiceImpl implements KnowledgeService {
     }
 
     private KnowledgeBase requireKnowledgeBase(ResolvedUserAccess access, Long kbId) {
-        KnowledgeBase knowledgeBase = knowledgeBaseMapper.selectOne(new LambdaQueryWrapper<KnowledgeBase>()
+        return requireKnowledgeBase(access, kbId, false);
+    }
+
+    private KnowledgeBase requireKnowledgeBase(ResolvedUserAccess access, Long kbId, boolean lock) {
+        var query = new LambdaQueryWrapper<KnowledgeBase>()
                 .eq(KnowledgeBase::getId, kbId)
                 .eq(KnowledgeBase::getTenantId, access.tenantId())
-                .eq(KnowledgeBase::getUserId, access.userId()));
+                .eq(KnowledgeBase::getUserId, access.userId());
+        if (lock) query.last("FOR UPDATE");
+        KnowledgeBase knowledgeBase = knowledgeBaseMapper.selectOne(query);
         if (knowledgeBase == null) {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
         }
         return knowledgeBase;
+    }
+
+    private EmbeddingDescriptor embeddingDescriptor(KnowledgeBase base) {
+        return ChannelKnowledgeModels.PROVIDER.equals(base.getEmbeddingProvider())
+                ? channelModels.descriptor(base.getEmbeddingModel()) : embeddingService.current();
+    }
+
+    private EmbeddingResult embed(EmbeddingDescriptor descriptor, List<String> texts) {
+        return ChannelKnowledgeModels.PROVIDER.equals(descriptor.provider())
+                ? channelModels.embed(descriptor.model(), texts) : embeddingService.embed(texts);
     }
 
     private KnowledgeDocument requireOwned(ResolvedUserAccess access, Long documentId) {
