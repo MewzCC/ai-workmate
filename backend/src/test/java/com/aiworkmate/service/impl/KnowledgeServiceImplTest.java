@@ -75,7 +75,7 @@ class KnowledgeServiceImplTest {
                                                 RerankService rerankService) {
         return new KnowledgeServiceImpl(mapper, kbMapper, embeddingService,
                 new KnowledgeChunker(), accessService, parser,
-                new UploadProperties(), properties, new ObjectMapper(), rerankService);
+                new UploadProperties(), properties, new ObjectMapper(), rerankService, mock(ChannelKnowledgeModels.class));
     }
 
     @Test
@@ -252,7 +252,7 @@ class KnowledgeServiceImplTest {
         when(accessService.resolveActiveUser(7L)).thenReturn(ACCESS);
         when(kbMapper.selectOne(any())).thenReturn(ownedKnowledgeBase());
         when(embeddingService.current()).thenReturn(new EmbeddingDescriptor("local", "model-a", 3));
-        when(parser.parse(any(), eq("policy.pdf"), any(Long.class)))
+        when(parser.parseWithPersonalOcr(any(), eq("policy.pdf"), any(Long.class)))
                 .thenReturn(new ParsedFile("application/pdf",
                         "Annual leave must be approved by the direct manager.", false));
         when(embeddingService.embed(any()))
@@ -290,7 +290,7 @@ class KnowledgeServiceImplTest {
         when(accessService.resolveActiveUser(7L)).thenReturn(ACCESS);
         when(kbMapper.selectOne(any())).thenReturn(ownedKnowledgeBase());
         when(embeddingService.current()).thenReturn(new EmbeddingDescriptor("local", "model-a", 3));
-        when(parser.parse(any(), eq("scan.png"), any(Long.class)))
+        when(parser.parseWithPersonalOcr(any(), eq("scan.png"), any(Long.class)))
                 .thenReturn(new ParsedFile("image/png", "发票金额 1000 元", true));
         when(embeddingService.embed(any()))
                 .thenReturn(new EmbeddingResult("local", "model-a",
@@ -320,7 +320,7 @@ class KnowledgeServiceImplTest {
         FileParserService parser = mock(FileParserService.class);
         when(accessService.resolveActiveUser(7L)).thenReturn(ACCESS);
         when(kbMapper.selectOne(any())).thenReturn(ownedKnowledgeBase());
-        when(parser.parse(any(), anyString(), any(Long.class)))
+        when(parser.parseWithPersonalOcr(any(), anyString(), any(Long.class)))
                 .thenReturn(new ParsedFile("image/png", null, true));
         KnowledgeServiceImpl service = service(mapper, kbMapper,
                 mock(EmbeddingService.class), accessService, parser, new EmbeddingProperties());
@@ -352,6 +352,7 @@ class KnowledgeServiceImplTest {
     @Test
     void batchReindexShouldReindexAllDocuments() {
         KnowledgeDocumentMapper mapper = mock(KnowledgeDocumentMapper.class);
+        KnowledgeBaseMapper kbMapper = mock(KnowledgeBaseMapper.class);
         EmbeddingService embeddingService = mock(EmbeddingService.class);
         UserAccessService accessService = mock(UserAccessService.class);
         EmbeddingProperties properties = new EmbeddingProperties();
@@ -365,13 +366,14 @@ class KnowledgeServiceImplTest {
         doc.setFileType("TEXT");
         doc.setStatus("READY");
         when(mapper.selectOne(any())).thenReturn(doc);
+        when(kbMapper.selectOne(any())).thenReturn(ownedKnowledgeBase());
         when(mapper.selectChunkContents(eq(99L), eq(7L), eq(42L))).thenReturn(List.of("chunk a"));
         when(embeddingService.embed(List.of("chunk a")))
                 .thenReturn(new EmbeddingResult("local", "model-a",
                         List.of(new float[]{0.1F, 0.2F, 0.3F})));
         when(mapper.updateChunkEmbedding(eq(99L), eq(7L), eq(42L), eq(0),
                 anyString(), eq("local"), eq("model-a"))).thenReturn(1);
-        KnowledgeServiceImpl service = service(mapper, mock(KnowledgeBaseMapper.class),
+        KnowledgeServiceImpl service = service(mapper, kbMapper,
                 embeddingService, accessService, mock(FileParserService.class), properties);
 
         var results = service.batchReindex(7L, List.of(42L));

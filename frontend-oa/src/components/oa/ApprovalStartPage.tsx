@@ -49,7 +49,11 @@ export default function ApprovalStartPage() {
           <div className="approval-template-card__head"><span className="approval-template-card__icon is-hr"><OaIcon name="form" /></span>
             <Typography.Title level={5}>{t('approval.form.titleCreate')}</Typography.Title></div>
           <Typography.Paragraph type="secondary">{t('approval.form.heroDescription')}</Typography.Paragraph>
-          <Button type="link" disabled={page.action.busy} onClick={page.openLeave}>{t('approval.start.openForm')}</Button>
+          <div className="approval-template-card__foot">
+            <Button type="link" size="small" icon={<OaIcon name="send" />} disabled={page.action.busy} onClick={page.openLeave}>
+              {t('approval.start.openForm')}
+            </Button>
+          </div>
         </Card>}
         {cards(common)}
       </div>

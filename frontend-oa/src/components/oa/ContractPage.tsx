@@ -373,7 +373,7 @@ export default function ContractPage() {
           { value: 'EXPIRING', label: t('contract.expiry.EXPIRING') }, { value: 'EXPIRED', label: t('contract.expiry.EXPIRED') },
         ]} onChange={(value) => { setExpiryState(value); setPage(1); }} />
       </div>
-      <ResponsiveTable rowKey="id" loading={loading} columns={columns} dataSource={records} scroll={{ x: 1350 }}
+      <ResponsiveTable workspaceList rowKey="id" loading={loading} columns={columns} dataSource={records} scroll={{ x: 1350 }}
         locale={{ emptyText: <Empty description={t('contract.empty')} /> }} onRow={(record) => ({ onClick: () => openDetail(record) })}
         pagination={{ current: page, pageSize: size, total, showSizeChanger: true,
           showTotal: (count) => t('common.total', { count }), onChange: (next, nextSize) => { setPage(next); setSize(nextSize); } }} />

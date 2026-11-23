@@ -3,17 +3,19 @@ package com.aiworkmate.service.impl;
 import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.common.ErrorCode;
 import com.aiworkmate.config.EmbeddingProperties;
+import com.aiworkmate.config.AiProviderRuntime.ChannelModel;
 import com.aiworkmate.config.RerankProperties;
 import com.aiworkmate.service.RerankService;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
 import java.time.Duration;
+import java.net.http.HttpClient;
 import java.util.List;
 import java.util.Map;
 
@@ -33,8 +35,9 @@ public class SiliconflowRerankService implements RerankService {
     public SiliconflowRerankService(RerankProperties rerankProperties, EmbeddingProperties embeddingProperties) {
         this.rerankProperties = rerankProperties;
         this.embeddingProperties = embeddingProperties;
-        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
-        requestFactory.setConnectTimeout(Duration.ofMillis(rerankProperties.getConnectTimeoutMs()));
+        var requestFactory = new JdkClientHttpRequestFactory(HttpClient.newBuilder()
+                .followRedirects(HttpClient.Redirect.NEVER)
+                .connectTimeout(Duration.ofMillis(rerankProperties.getConnectTimeoutMs())).build());
         requestFactory.setReadTimeout(Duration.ofMillis(rerankProperties.getReadTimeoutMs()));
         this.restClient = RestClient.builder()
                 .requestFactory(requestFactory)
@@ -58,16 +61,25 @@ public class SiliconflowRerankService implements RerankService {
         if (!configured()) {
             throw new BusinessException(ErrorCode.EMBEDDING_UNAVAILABLE, "validation.runtime.rerank.unconfigured");
         }
+        return rerank(query, documents, topN, endpoint(), apiKey(), model());
+    }
+
+    List<RankedItem> rerank(String query, List<String> documents, int topN, ChannelModel selected) {
+        return rerank(query, documents, topN, selected.baseUrl() + "/rerank", selected.apiKey(), selected.model().id());
+    }
+
+    private List<RankedItem> rerank(String query, List<String> documents, int topN, String endpoint,
+                                    String apiKey, String model) {
         if (query == null || query.isBlank() || documents == null || documents.isEmpty()) {
             throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.runtime.rerank.inputEmpty");
         }
         long startedAt = System.nanoTime();
         try {
             RerankResponse response = restClient.post()
-                    .uri(endpoint())
-                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey())
+                    .uri(endpoint)
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
                     .body(Map.of(
-                            "model", model(),
+                            "model", model,
                             "query", query,
                             "documents", documents,
                             "top_n", Math.max(1, topN)))
@@ -80,17 +92,15 @@ public class SiliconflowRerankService implements RerankService {
                     .map(item -> new RankedItem(item.index(), item.relevanceScore()))
                     .toList();
             log.info("Rerank completed, model={}, documents={}, latencyMs={}",
-                    model(), documents.size(), Duration.ofNanos(System.nanoTime() - startedAt).toMillis());
+                    model, documents.size(), Duration.ofNanos(System.nanoTime() - startedAt).toMillis());
             return ranked;
         } catch (BusinessException ex) {
             throw ex;
         } catch (RestClientException ex) {
-            log.warn("Rerank API request failed, endpoint={}, model={}, documentCount={}",
-                    rerankProperties.getApiBaseUrl(), model(), documents.size(), ex);
+            log.warn("Rerank API request failed, documentCount={}, errorType={}", documents.size(), ex.getClass().getSimpleName());
             throw new BusinessException(ErrorCode.EMBEDDING_UNAVAILABLE, "validation.runtime.rerank.unavailable");
         } catch (RuntimeException ex) {
-            log.error("Rerank API returned invalid response, model={}, documentCount={}",
-                    model(), documents.size(), ex);
+            log.warn("Rerank API returned invalid response, documentCount={}, errorType={}", documents.size(), ex.getClass().getSimpleName());
             throw new BusinessException(ErrorCode.EMBEDDING_RESPONSE_INVALID);
         }
     }

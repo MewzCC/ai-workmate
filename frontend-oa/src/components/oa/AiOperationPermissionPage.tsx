@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import {
-  Alert, App, Badge, Button, Card, Checkbox, Empty, Input, Segmented, Select, Space, Spin, Switch, Tag, Typography,
+  Alert, App, Badge, Button, Card, Checkbox, Empty, Input, Select, Space, Spin, Switch, Tag, Typography,
 } from 'antd';
 import { OaIcon } from '@/components/OaIcon';
 import {
@@ -119,6 +119,10 @@ export default function AiOperationPermissionPage() {
   }
 
   const runtimeReady = data.runtime.agentEnabled && data.runtime.planningEnabled;
+  const keyword = filterCode.trim().toLowerCase();
+  const visibleTools = data.tools.filter(tool =>
+    `${tool.code} ${tool.name} ${toolName(tool, t)}`.toLowerCase().includes(keyword)
+      && (enabledFilter === 'ALL' || tool.effectiveEnabled === (enabledFilter === 'true')));
   return (
     <section className="oa-ai-permission-page">
       <header className="oa-ai-permission-header">
@@ -150,12 +154,15 @@ export default function AiOperationPermissionPage() {
             <div><strong>{t('aiPermission.tenantWrite')}</strong><small>{t('aiPermission.tenantWriteHint')}</small></div>
             <Switch loading={saving} checked={data.tenantPolicy.writeToolsEnabled} onChange={confirmWriteGate} />
           </div>
-          <div className="oa-ai-permission-tool-list">
-            <Space wrap><Input allowClear value={filterCode} onChange={event => setFilterCode(event.target.value)} placeholder={t('common.searchPlaceholder')} />
+          <div className="oa-ai-permission-toolbar">
+            <Input allowClear value={filterCode} onChange={event => setFilterCode(event.target.value)}
+              placeholder={t('common.searchPlaceholder')} aria-label={t('common.searchPlaceholder')} />
               <Select value={enabledFilter} onChange={setEnabledFilter} aria-label={t('common.status')} options={[
-                { value: 'ALL', label: t('common.all') }, { value: 'true', label: t('common.enable') }, { value: 'false', label: t('common.disable') }]} /></Space>
-            {data.tools.filter(tool => `${tool.code} ${tool.name} ${toolName(tool, t)}`.toLowerCase().includes(filterCode.trim().toLowerCase())
-              && (enabledFilter === 'ALL' || tool.effectiveEnabled === (enabledFilter === 'true'))).map((tool) => (
+                { value: 'ALL', label: t('common.all') }, { value: 'true', label: t('common.enable') }, { value: 'false', label: t('common.disable') }]} />
+          </div>
+          <div className="oa-ai-permission-tool-list">
+            {visibleTools.length === 0 && <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('common.empty')} />}
+            {visibleTools.map((tool) => (
               <article className="oa-ai-permission-tool" key={tool.code}>
                 <div className="oa-ai-permission-tool-main">
                   <span className={`oa-ai-permission-risk is-${tool.riskLevel.toLowerCase()}`}>{tool.riskLevel}</span>
@@ -175,7 +182,8 @@ export default function AiOperationPermissionPage() {
         </Card>
 
         <Card className="oa-ai-permission-roles" title={t('aiPermission.roleMatrix')}>
-          <Segmented block value={selectedRoleCode} options={data.roles.map((role) => ({ label: role.name, value: role.code }))} onChange={(value) => setSelectedRoleCode(String(value))} />
+          <Select aria-label={t('aiPermission.roleMatrix')} value={selectedRoleCode || undefined}
+            options={data.roles.map((role) => ({ label: role.name, value: role.code }))} onChange={setSelectedRoleCode} />
           {selectedRole && <RoleEditor role={selectedRole} tools={data.tools} values={selectedToolCodes} onChange={setSelectedToolCodes} t={t} />}
           <Button type="primary" block loading={saving} disabled={!selectedRole || selectedRole.immutable} onClick={() => void saveRole()}>{t('aiPermission.saveRole')}</Button>
         </Card>

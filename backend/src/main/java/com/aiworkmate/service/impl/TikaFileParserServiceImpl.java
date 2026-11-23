@@ -37,6 +37,7 @@ public class TikaFileParserServiceImpl implements FileParserService {
     private final UploadProperties properties;
     private final OcrService ocrService;
     private final UserSettingsService userSettingsService;
+    private final ChannelOcrRecognition channelOcr;
     private final Tika tika = new Tika();
 
     @Override
@@ -62,6 +63,15 @@ public class TikaFileParserServiceImpl implements FileParserService {
 
     @Override
     public ParsedFile parse(Path path, String filename, Long userId) {
+        return parse(path, filename, userId, false);
+    }
+
+    @Override
+    public ParsedFile parseWithPersonalOcr(Path path, String filename, Long userId) {
+        return parse(path, filename, userId, true);
+    }
+
+    private ParsedFile parse(Path path, String filename, Long userId, boolean personalOcr) {
         try {
             if (isMarkdown(filename)) {
                 return new ParsedFile("text/markdown", readMarkdown(path), false);
@@ -71,7 +81,7 @@ public class TikaFileParserServiceImpl implements FileParserService {
                 mimeType = tika.detect(input, filename);
             }
             if (IMAGE_TYPES.contains(mimeType)) {
-                String text = ocrService.recognize(path, filename);
+                String text = recognize(path, filename, mimeType, userId, personalOcr);
                 return new ParsedFile(mimeType, text, true);
             }
             if (isPdf(mimeType)) {
@@ -80,7 +90,7 @@ public class TikaFileParserServiceImpl implements FileParserService {
                 if (forceOcr || text.isBlank()) {
                     // 强制 OCR（用户设置）或扫描版 PDF 无文本层：交由 OCR 服务渲染页面逐页识别；
                     // 强制模式下 OCR 失败时回退文本层，避免上传因 OCR 抖动失败
-                    String ocrText = ocrService.recognize(path, filename);
+                    String ocrText = recognize(path, filename, mimeType, userId, personalOcr);
                     if (ocrText != null && !ocrText.isBlank()) {
                         return new ParsedFile(mimeType, limit(ocrText), false);
                     }
@@ -108,6 +118,12 @@ public class TikaFileParserServiceImpl implements FileParserService {
         if (text.isBlank()) throw new IOException("No extractable text");
         int maxChars = properties.getExtractedTextMaxChars();
         return text.length() <= maxChars ? text : text.substring(0, maxChars);
+    }
+
+    private String recognize(Path path, String filename, String mimeType, Long userId, boolean personalOcr) {
+        String model = personalOcr ? userSettingsService.ocrModelReference(userId) : null;
+        return model == null || model.equals("default") ? ocrService.recognize(path, filename)
+                : channelOcr.recognize(model, path, mimeType);
     }
 
     private String readMarkdown(Path path) throws IOException {

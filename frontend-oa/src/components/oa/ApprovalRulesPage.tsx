@@ -212,7 +212,8 @@ export default function ApprovalRulesPage() {
       title: t('approval.config.rule.columnKey'),
       dataIndex: 'ruleKey',
       key: 'ruleKey',
-      render: (v: string, record) => <Button type="link" onClick={() => showDetail(record.id)}>{v}</Button>,
+      width: 180,
+      render: (v: string, record) => <Button className="approval-config-key" type="link" onClick={() => showDetail(record.id)}>{v}</Button>,
     },
     {
       title: t('approval.config.rule.columnName'),
@@ -260,10 +261,10 @@ export default function ApprovalRulesPage() {
     {
       title: t('common.actions'),
       key: 'action',
-      width: 130,
+      width: 192,
       fixed: 'right',
       render: (_, record) =>
-          <Space>
+          <Space size={4} wrap>
             <Button type="link" size="small" onClick={() => showDetail(record.id)}>{t('common.view')}</Button>
             {canManage && record.canEdit && <Button type="link" size="small" onClick={() => void openEditor(record)}>
               {t('approval.config.common.edit')}
@@ -291,7 +292,6 @@ export default function ApprovalRulesPage() {
           <Input.Search
             placeholder={t('approval.config.common.searchPlaceholder')}
             allowClear
-            style={{ width: 240 }}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             onSearch={applySearch}
@@ -300,7 +300,6 @@ export default function ApprovalRulesPage() {
             <Select
               allowClear
               placeholder={t('approval.config.common.status')}
-              style={{ width: 130 }}
               value={status}
               onChange={(v) => { setStatus(v); setPage(1); }}
               options={(['ENABLED', 'DISABLED'] as const).map((s) => ({
@@ -313,18 +312,19 @@ export default function ApprovalRulesPage() {
             </Button>
           </Space>
         </div>
-        <ResponsiveTable
+        <ResponsiveTable workspaceList
           rowKey="id"
           columns={columns}
           dataSource={data}
           loading={loading}
           size="middle"
           locale={{ emptyText: <Empty description={t('approval.config.common.noData')} /> }}
-          scroll={{ x: 980 }}
+          scroll={{ x: 1100 }}
           pagination={{
             current: page,
             pageSize: 20,
             total,
+            placement: ['bottomCenter'],
             showSizeChanger: false,
             onChange: setPage,
           }}

@@ -27,6 +27,7 @@ const KnowledgeBasePage = lazy(() => import('./KnowledgeBasePage'));
 const { Content } = Layout;
 const OPEN_TABS_STORAGE_KEY = 'workmeta-oa-open-tabs';
 const MAX_OPEN_TABS = 20;
+const COMPACT_SIDEBAR_QUERY = '(max-width: 1024px)';
 
 function isMobileViewport(): boolean {
   if (typeof window === 'undefined' || !window.matchMedia) return false;
@@ -162,7 +163,7 @@ export default function AdminLayout() {
     if (user?.role === 'FINANCE_ADMIN') return 'finance_admin';
     return 'employee';
   }, [user?.role]);
-  const [collapsed, setCollapsed] = useState(() => isMobileViewport());
+  const [collapsed, setCollapsed] = useState(() => typeof window !== 'undefined' && window.matchMedia(COMPACT_SIDEBAR_QUERY).matches);
   const [menus, setMenus] = useState<OaMenuItem[]>([]);
   const [navigationLoaded, setNavigationLoaded] = useState(false);
   const [selectedMenu, setSelectedMenu] = useState<OaMenuItem>(dashboardMenu);
@@ -331,12 +332,12 @@ export default function AdminLayout() {
   // 进入移动端视口时自动收起侧栏（用户手动展开/收起状态在桌面端保留）
   useEffect(() => {
     if (typeof window === 'undefined' || !window.matchMedia) return;
-    const mql = window.matchMedia(OA_MOBILE_MEDIA_QUERY);
+    const queries = [OA_MOBILE_MEDIA_QUERY, COMPACT_SIDEBAR_QUERY].map(query => window.matchMedia(query));
     const onViewportChange = (event: MediaQueryListEvent) => {
       if (event.matches) setCollapsed(true);
     };
-    mql.addEventListener('change', onViewportChange);
-    return () => mql.removeEventListener('change', onViewportChange);
+    queries.forEach(query => query.addEventListener('change', onViewportChange));
+    return () => queries.forEach(query => query.removeEventListener('change', onViewportChange));
   }, []);
 
   useEffect(() => {

@@ -13,6 +13,9 @@ export default {
     routes: 'Dynamic Routes',
   },
   roleCard: {
+    searchLabel: 'Search roles',
+    searchPlaceholder: 'Enter a role name or code',
+    empty: 'No matching roles',
     builtin: 'Built-in',
     membersCount: ' members',
     permissionsCount: ' permissions',

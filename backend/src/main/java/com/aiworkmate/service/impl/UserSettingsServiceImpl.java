@@ -2,6 +2,8 @@ package com.aiworkmate.service.impl;
 
 import com.aiworkmate.common.BusinessException;
 import com.aiworkmate.common.ErrorCode;
+import com.aiworkmate.config.AiProviderRuntime;
+import com.aiworkmate.dto.AiModelCategory;
 import com.aiworkmate.dto.ChatPreferencesRequest;
 import com.aiworkmate.dto.ChatPreferencesResponse;
 import com.aiworkmate.entity.UserSetting;
@@ -29,6 +31,7 @@ import java.util.stream.Collectors;
 public class UserSettingsServiceImpl implements UserSettingsService {
 
     static final String KEY_FORCE_PDF_OCR = "ocr.forcePdfOcr";
+    static final String KEY_OCR_MODEL = "ocr.model";
     static final String KEY_CHAT_MODEL = "chat.model";
     static final String KEY_CHAT_CONTEXT_ROUNDS = "chat.maxContextRounds";
     static final String KEY_CHAT_STREAM = "chat.stream";
@@ -40,12 +43,20 @@ public class UserSettingsServiceImpl implements UserSettingsService {
     private final UserSettingMapper userSettingMapper;
     private final UserAccessService userAccessService;
     private final BusinessAuditService auditService;
+    private final AiProviderRuntime aiProviderRuntime;
 
     @Override
     @Transactional(readOnly = true)
     public boolean isForcePdfOcr(Long userId) {
         UserSetting setting = findSetting(userId, KEY_FORCE_PDF_OCR);
         return setting != null && "true".equalsIgnoreCase(setting.getSettingValue());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public String ocrModelReference(Long userId) {
+        UserSetting setting = findSetting(userId, KEY_OCR_MODEL);
+        return setting == null ? "default" : setting.getSettingValue();
     }
 
     @Override
@@ -70,13 +81,21 @@ public class UserSettingsServiceImpl implements UserSettingsService {
                 Integer.toString(DEFAULT_CONTEXT_ROUNDS)));
         boolean stream = Boolean.parseBoolean(value(settings, KEY_CHAT_STREAM, "true"));
         boolean forceOcr = Boolean.parseBoolean(value(settings, KEY_FORCE_PDF_OCR, "false"));
-        return new ChatPreferencesResponse(model, rounds, stream, forceOcr, initialized);
+        return new ChatPreferencesResponse(model, rounds, stream, forceOcr, initialized,
+                value(settings, KEY_OCR_MODEL, "default"));
     }
 
     @Override
     @Transactional
     public ChatPreferencesResponse updateChatPreferences(Long userId, ChatPreferencesRequest request) {
         String model = AiModelCatalog.normalize(request.model());
+        String ocrModelRef = request.ocrModelRef();
+        if (ocrModelRef != null) {
+            if (!ocrModelRef.equals("default")) aiProviderRuntime.validateTypedModel(ocrModelRef, AiModelCategory.OCR);
+            upsert(userId, KEY_OCR_MODEL, ocrModelRef);
+        } else {
+            ocrModelRef = ocrModelReference(userId);
+        }
         upsert(userId, KEY_CHAT_MODEL, model);
         upsert(userId, KEY_CHAT_CONTEXT_ROUNDS, Integer.toString(request.maxContextRounds()));
         upsert(userId, KEY_CHAT_STREAM, Boolean.toString(request.stream()));
@@ -84,7 +103,7 @@ public class UserSettingsServiceImpl implements UserSettingsService {
         log.info("User chat preferences updated, userId={}, model={}, maxContextRounds={}, stream={}, forcePdfOcr={}",
                 userId, model, request.maxContextRounds(), request.stream(), request.forcePdfOcr());
         return new ChatPreferencesResponse(model, request.maxContextRounds(), request.stream(),
-                request.forcePdfOcr(), true);
+                request.forcePdfOcr(), true, ocrModelRef);
     }
 
     @Override
@@ -158,7 +177,7 @@ public class UserSettingsServiceImpl implements UserSettingsService {
         List<UserSetting> rows = userSettingMapper.selectList(new LambdaQueryWrapper<UserSetting>()
                 .eq(UserSetting::getUserId, userId)
                 .in(UserSetting::getSettingKey, KEY_CHAT_MODEL, KEY_CHAT_CONTEXT_ROUNDS,
-                        KEY_CHAT_STREAM, KEY_FORCE_PDF_OCR));
+                        KEY_CHAT_STREAM, KEY_FORCE_PDF_OCR, KEY_OCR_MODEL));
         return rows.stream().collect(Collectors.toMap(UserSetting::getSettingKey,
                 Function.identity(), (left, right) -> right));
     }

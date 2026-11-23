@@ -26,7 +26,7 @@ class KnowledgeBaseServiceImplTest {
     private final EmbeddingService embeddingService = mock(EmbeddingService.class);
     private final UserAccessService accessService = mock(UserAccessService.class);
     private final KnowledgeBaseServiceImpl service = new KnowledgeBaseServiceImpl(
-            mapper, embeddingService, new EmbeddingProperties(), accessService);
+            mapper, embeddingService, new EmbeddingProperties(), accessService, mock(ChannelKnowledgeModels.class));
 
     @Test
     void agentQueryReturnsOnlyOwnedBasesAndBoundsTheRequestedLimit() {
@@ -110,6 +110,19 @@ class KnowledgeBaseServiceImplTest {
                         .isEqualTo(ErrorCode.PERMISSION_DENIED.getErrorCode()));
 
         verifyNoInteractions(mapper, embeddingService);
+    }
+
+    @Test
+    void refusesToChangeEmbeddingForAnIndexedKnowledgeBase() {
+        when(accessService.resolveActiveUser(7L)).thenReturn(access(List.of()));
+        when(mapper.selectOne(any())).thenReturn(ownedBase());
+        when(mapper.countDocuments(99L, 7L, 42L)).thenReturn(1L);
+
+        assertThatThrownBy(() -> service.update(7L, 42L,
+                new KnowledgeBaseUpdateRequest(null, null, null, null, null, null, null, "2::new-embedding", null)))
+                .isInstanceOf(BusinessException.class)
+                .extracting("messageKey").isEqualTo("validation.runtime.knowledge.embeddingModelLocked");
+        verify(mapper, never()).updateById(any(KnowledgeBase.class));
     }
 
     private ResolvedUserAccess access(List<String> permissions) {

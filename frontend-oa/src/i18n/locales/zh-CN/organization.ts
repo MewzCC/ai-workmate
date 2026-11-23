@@ -1,7 +1,7 @@
 export default {
   title: '组织架构',
   eyebrow: '人员 · 组织 · 审批关系',
-  description: '直观展示部门层级关系与员工分布，点击架构图中的部门卡片可筛选下方员工列表。',
+  description: '查看组织成员，或打开架构图，选择部门筛选成员。',
   loadFailed: '组织架构加载失败',
   stats: {
     summary: '组织概览',

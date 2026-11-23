@@ -430,7 +430,7 @@ export default function SealUsagePage() {
                 key: 'mine',
                 label: t('adminAssets.seal.myApplications'),
                 children: (
-                  <ResponsiveTable
+                  <ResponsiveTable workspaceList
                     rowKey="id"
                     columns={mineColumns}
                     dataSource={mine}
@@ -454,7 +454,7 @@ export default function SealUsagePage() {
                 key: 'pending',
                 label: t('adminAssets.seal.pendingApproval'),
                 children: (
-                  <ResponsiveTable
+                  <ResponsiveTable workspaceList
                     rowKey="id"
                     columns={pendingColumns}
                     dataSource={pending}

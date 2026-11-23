@@ -42,6 +42,8 @@ export interface KnowledgeBaseCreatePayload {
   name: string;
   icon?: string;
   description?: string;
+  embeddingModelRef?: string;
+  rerankModelRef?: string;
 }
 
 export interface KnowledgeBaseUpdatePayload {
@@ -52,6 +54,8 @@ export interface KnowledgeBaseUpdatePayload {
   chunkOverlap?: number;
   denseTopK?: number;
   sparseTopK?: number;
+  embeddingModelRef?: string;
+  rerankModelRef?: string;
 }
 
 export interface KnowledgeDocument {

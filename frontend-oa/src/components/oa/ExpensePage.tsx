@@ -225,7 +225,7 @@ export default function ExpensePage() {
       <Space><Button icon={<OaIcon name="reload" />} onClick={() => void load()}>{t('expense.refresh')}</Button>{canWrite && <Button type="primary" icon={<OaIcon name="add" />} onClick={openCreate}>{t('expense.add')}</Button>}</Space></header>
     <div className="oa-expense-stats"><Card><Statistic title={t('expense.total')} value={counts.total} /></Card><Card><Statistic title={t('expense.draft')} value={counts.draft} /></Card><Card><Statistic title={t('expense.pending')} value={counts.pending} /></Card><Card><Statistic title={t('expense.approved')} value={counts.approved} /></Card></div>
     <Card className="oa-expense-list-card"><div className="oa-expense-toolbar"><Select allowClear value={status} options={statusOptions} placeholder={t('expense.searchStatus')} onChange={(value) => { setStatus(value); setPage(1); }} /></div>
-      <ResponsiveTable rowKey="id" loading={loading} columns={columns} dataSource={records} scroll={{ x: 1120 }} onRow={(record) => ({ onClick: () => void openDetail(record) })}
+      <ResponsiveTable workspaceList rowKey="id" loading={loading} columns={columns} dataSource={records} scroll={{ x: 1120 }} onRow={(record) => ({ onClick: () => void openDetail(record) })}
         locale={{ emptyText: <Empty description={t('expense.empty')} /> }} pagination={{ current: page, pageSize: size, total, showSizeChanger: true,
           showTotal: (count) => t('common.total', { count }), onChange: (next, nextSize) => { setPage(next); setSize(nextSize); } }} /></Card>
     <Drawer width="min(680px, 100vw)" open={editorOpen && dataScope === scope} title={t(editing ? 'expense.form.editTitle' : 'expense.form.createTitle')} onClose={closeEditor}

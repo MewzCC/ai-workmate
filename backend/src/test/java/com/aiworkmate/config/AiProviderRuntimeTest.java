@@ -1,4 +1,7 @@
 package com.aiworkmate.config;
+import com.aiworkmate.common.BusinessException;
+import com.aiworkmate.dto.AiConfiguredModel;
+import com.aiworkmate.dto.AiModelCategory;
 import com.aiworkmate.mapper.AiConfigurationMapper;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.Test;
@@ -7,10 +10,30 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Map;
+import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 class AiProviderRuntimeTest {
+ @Test void separatesTypedModelsFromChatAndSupportsLegacyRows() {
+  var mapper = mock(AiConfigurationMapper.class);
+  var cipher = new AiSecretCipher("test-secret");
+  when(mapper.load()).thenReturn(Map.of("model", "legacy", "models",
+      "[{\"id\":\"legacy\",\"contextWindow\":32768,\"maxOutputTokens\":4096,\"supportsImages\":false}]"));
+  var embed = new AiConfiguredModel("embedding", 32768, 4096, false, AiModelCategory.EMBEDDING, true);
+  var ocr = new AiConfiguredModel("reader", 32768, 4096, false, AiModelCategory.OCR, false);
+  var typed = Map.<String, Object>of("id", 2L, "models", AiModelSettings.write(List.of(embed, ocr)),
+      "base_url", "http://127.0.0.1/v1", "encrypted_api_key", cipher.encrypt("typed-test-key"));
+  when(mapper.channels()).thenReturn(List.of(typed));
+  when(mapper.channel(2L)).thenReturn(typed);
+  var runtime = new AiProviderRuntime(mapper, cipher, new AiRuntimeProperties(), "legacy");
+  assertThat(runtime.catalog()).extracting(AiConfiguredModel::id).containsExactly("legacy");
+  assertThat(runtime.catalog(AiModelCategory.EMBEDDING)).extracting(AiConfiguredModel::id).containsExactly("2::embedding");
+  assertThat(runtime.channelModel("2::reader", AiModelCategory.OCR).model()).isEqualTo(ocr);
+  assertThatThrownBy(() -> runtime.validateTypedModel("2::reader", AiModelCategory.EMBEDDING))
+      .isInstanceOf(BusinessException.class);
+  assertThatThrownBy(() -> runtime.supportsImages("2::reader")).isInstanceOf(BusinessException.class);
+ }
  @Test void isolatesSameNamedModelsAndRejectsUnknownChannels() {
   var mapper=mock(AiConfigurationMapper.class); var cipher=new AiSecretCipher("test-secret");
   when(mapper.load()).thenReturn(Map.of("model","same"));

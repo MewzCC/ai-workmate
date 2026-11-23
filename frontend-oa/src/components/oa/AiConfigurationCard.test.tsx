@@ -6,12 +6,18 @@ const mocks = vi.hoisted(() => ({
  get: vi.fn(), save: vi.fn(), channels: vi.fn(), saveChannel: vi.fn(), test: vi.fn(), discover: vi.fn(), success: vi.fn(),
 }));
 vi.mock('@/components/auth/AuthProvider', () => ({ useAuth: () => ({ user: mocks.user }) }));
-vi.mock('@/lib/aiConfigurationApi', () => ({ aiConfigurationApi: mocks }));
+vi.mock('@/lib/aiConfigurationApi', async (importOriginal) => ({
+ ...await importOriginal<typeof import('@/lib/aiConfigurationApi')>(),
+ aiConfigurationApi: mocks,
+}));
 vi.mock('@/lib/antdMessage', () => ({ message: { success: mocks.success } }));
 vi.mock('react-i18next', () => { const t = (key: string, options?: { size?: string }) => key === 'aiConfiguration.contextPresetSize' ? options?.size : key; return { useTranslation: () => ({ t }) }; });
 afterEach(cleanup);
+function renderConfiguration() {
+ render(<AiConfigurationCard renderPreferences={() => <div>AI user settings form</div>} />);
+}
 async function openEditor() {
- render(<AiConfigurationCard />);
+ renderConfiguration();
  fireEvent.click(await screen.findByText('aiConfiguration.configureChannel'));
 }
 beforeEach(() => {
@@ -19,10 +25,16 @@ beforeEach(() => {
  mocks.channels.mockResolvedValue([]);
  mocks.get.mockResolvedValue({ baseUrl: 'http://gateway.example/v1', model: 'custom/model', keyConfigured: true, version: 3, source: 'DATABASE' });
 });
-it('hides platform settings from ordinary users', () => {
- mocks.user.roles = ['EMPLOYEE']; render(<AiConfigurationCard />);
+it.each([
+ { roles: ['EMPLOYEE'], permissions: ['access:manage'] },
+ { roles: ['SUPER_ADMIN'], permissions: [] },
+])('shows only personal preferences without both platform permissions', ({ roles, permissions }) => {
+ mocks.user.roles = roles; mocks.user.permissions = permissions; renderConfiguration();
+ expect(mocks.channels).not.toHaveBeenCalled();
  expect(mocks.get).not.toHaveBeenCalled();
- expect(screen.queryByText('aiConfiguration.title')).not.toBeInTheDocument();
+ expect(screen.queryByRole('tab', { name: 'aiConfiguration.channelsTitle' })).not.toBeInTheDocument();
+ expect(screen.queryByRole('tab', { name: 'aiConfiguration.usage.title' })).not.toBeInTheDocument();
+ expect(screen.getByRole('tabpanel', { name: 'aiConfiguration.userSettingsTitle' })).toHaveTextContent('AI user settings form');
 });
 it('fills provider URLs and allows an explicit custom name without reusing old credentials', async () => {
  await openEditor();
@@ -48,7 +60,7 @@ it('fills provider URLs and allows an explicit custom name without reusing old c
 });
 it('tests a saved channel directly from its card using only that channel credential reference', async () => {
  mocks.channels.mockResolvedValue([{ id: 2, name: 'Secondary', configuration: { baseUrl: 'http://second.example/v1', model: 'same', keyConfigured: true, version: 1, source: 'DATABASE', models: [] } }]);
- render(<AiConfigurationCard />);
+ renderConfiguration();
  await screen.findByText('Secondary');
  expect(screen.queryByLabelText('aiConfiguration.baseUrl')).not.toBeInTheDocument();
  fireEvent.click(screen.getByText('aiConfiguration.testChannel'));
@@ -102,4 +114,26 @@ it('fetches upstream models and keeps them unselected until explicitly checked',
  fireEvent.click(screen.getByText('aiConfiguration.fetchModels'));
  await screen.findByText('new/model');
  expect(screen.getByRole('checkbox', { name: 'new/model' })).not.toBeChecked();
+});
+
+it('saves a dedicated embedding channel without a default chat model', async () => {
+ mocks.saveChannel.mockImplementationOnce(async (id, name, configuration) => ({
+  id, name, configuration: { ...configuration, keyConfigured: true, version: 1, source: 'DATABASE' },
+ }));
+ renderConfiguration();
+ fireEvent.click(await screen.findByText('aiConfiguration.addChannel'));
+ fireEvent.change(await screen.findByLabelText('aiConfiguration.customName'), { target: { value: 'Vector channel' } });
+ fireEvent.change(screen.getByLabelText('aiConfiguration.baseUrl'), { target: { value: 'https://models.example/v1' } });
+ fireEvent.change(screen.getByLabelText('chat.apiKeyLabel'), { target: { value: 'test-token' } });
+ mocks.discover.mockResolvedValueOnce([{ id: 'vector-model', contextWindow: 32768, maxOutputTokens: 4096, supportsImages: false }]);
+ fireEvent.click(screen.getByRole('button', { name: 'aiConfiguration.fetchModels' }));
+ fireEvent.mouseDown(await screen.findByRole('combobox', { name: 'aiConfiguration.categoryFor' }));
+ fireEvent.click(await screen.findByText('aiConfiguration.categories.EMBEDDING'));
+ fireEvent.click(screen.getByRole('checkbox', { name: 'vector-model' }));
+ fireEvent.click(screen.getByRole('checkbox', { name: 'aiConfiguration.requestDimensions' }));
+ fireEvent.click(screen.getByRole('button', { name: 'common.save' }));
+ await waitFor(() => expect(mocks.saveChannel).toHaveBeenCalledWith(2, 'Vector channel', expect.objectContaining({
+  model: null,
+  models: [expect.objectContaining({ id: 'vector-model', category: 'EMBEDDING', sendDimensions: true })],
+ })));
 });

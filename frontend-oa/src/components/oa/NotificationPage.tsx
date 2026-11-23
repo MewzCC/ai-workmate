@@ -184,12 +184,12 @@ export default function NotificationPage() {
         </Space>
       </div>
 
-      <Card className="oa-domain-card" size="small">
+      <Card className="oa-domain-card oa-domain-list-card" size="small">
         {!allowed && <Alert type="warning" showIcon title={t('oa.ai.noPermission')} />}
         {allowed && error !== undefined && <Alert type="error" showIcon title={t('common.loadingFailed')}
           action={<Button onClick={() => void load()}>{t('common.retry')}</Button>} />}
         <Spin spinning={loading && allowed}>
-          <ResponsiveTable<NotificationItem>
+          <ResponsiveTable<NotificationItem> workspaceList
             rowKey="id"
             columns={columns}
             dataSource={items}

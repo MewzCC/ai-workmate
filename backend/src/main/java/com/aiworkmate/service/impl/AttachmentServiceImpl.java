@@ -47,7 +47,7 @@ public class AttachmentServiceImpl implements AttachmentService {
         validateBasicFile(file);
         Path tempFile = createTempFile(file);
         try {
-            ParsedFile parsed = fileParserService.parse(tempFile, safeDisplayName(file), userId);
+            ParsedFile parsed = fileParserService.parseWithPersonalOcr(tempFile, safeDisplayName(file), userId);
             validateSize(file.getSize(), parsed.image());
             String storageName = buildStorageName();
             try {

@@ -321,7 +321,7 @@ export default function SandboxReplayPage() {
           />
           <Button icon={<OaIcon name="reload" />} onClick={() => void load()}>{t('common.refresh')}</Button>
         </div>
-        <ResponsiveTable
+        <ResponsiveTable workspaceList
           rowKey="id"
           columns={columns}
           dataSource={records}

@@ -62,7 +62,7 @@ export default function GenericApprovalInbox() {
         <Space wrap><DatePicker.RangePicker showTime disabled={!allowed} value={range ? [dayjs(range[0]), dayjs(range[1])] : null}
           onChange={dates => { setRange(dates?.[0] && dates[1] ? [dates[0].format('YYYY-MM-DDTHH:mm:ss'), dates[1].format('YYYY-MM-DDTHH:mm:ss')] : undefined); setPage(1); }} />
           <Button disabled={!allowed} icon={<OaIcon name="reload" />} onClick={() => void overview.load()}>{t('common.refresh')}</Button></Space></div>
-      <ResponsiveTable rowKey="id" loading={overview.loading && allowed} dataSource={allowed ? overview.data?.records ?? [] : []} scroll={{ x: 900 }}
+      <ResponsiveTable workspaceList rowKey="id" loading={overview.loading && allowed} dataSource={allowed ? overview.data?.records ?? [] : []} scroll={{ x: 900 }}
         locale={{ emptyText: <Empty description={t('approval.genericTasks.empty')} /> }} columns={[
           { title: t('approval.genericTasks.request'), render: (_, row) => <Space direction="vertical" size={0}><Typography.Text strong>{row.title || t('approval.genericTasks.legacyTitle')}</Typography.Text><Typography.Text type="secondary">#{row.applicationId} · {row.formName}</Typography.Text></Space> },
           { title: t('approval.approvalDetail.applicantLabel'), dataIndex: 'applicantName' },

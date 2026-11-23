@@ -23,7 +23,7 @@ export default function ApprovalConfigShell({
   children,
 }: ApprovalConfigShellProps) {
   return (
-    <section className="leave-list-workbench">
+    <section className="leave-list-workbench approval-config-workbench">
       <header className="leave-list-hero">
         <div>
           <span className="leave-list-hero__kicker">{eyebrow}</span>

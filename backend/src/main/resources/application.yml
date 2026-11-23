@@ -135,6 +135,7 @@ app:
         auth-header-name: ${INTEGRATION_SANDBOX_AUTH_HEADER:}
         auth-header-value: ${INTEGRATION_SANDBOX_AUTH_VALUE:}
   embedding:
+    # 供尚未选用渠道模型的知识库和既有索引兼容使用。
     enabled: ${EMBEDDING_ENABLED:true}
     provider: ${EMBEDDING_PROVIDER:local}
     local-base-url: ${EMBEDDING_LOCAL_BASE_URL:http://127.0.0.1:18080}
@@ -154,6 +155,7 @@ app:
     retrieval-min-score: ${KNOWLEDGE_RETRIEVAL_MIN_SCORE:0.35}
     sparse-min-score: ${KNOWLEDGE_SPARSE_MIN_SCORE:0.05}
     rerank:
+      # 旧部署的默认引擎。知识库已选的渠道 Rerank 直接读取渠道配置。
       enabled: ${RERANK_ENABLED:false}
       model: ${RERANK_MODEL:Qwen/Qwen3-Reranker-4B}
       api-base-url: ${RERANK_API_BASE_URL:https://api.siliconflow.cn/v1}

@@ -336,7 +336,7 @@ function LeaveApplicationsPanel() {
         </div>
         {!allowed && <Alert type="warning" showIcon title={t('oa.ai.noPermission')} />}
         {error !== undefined && <Alert type="error" showIcon title={formatOaApiError(error)} action={<Button onClick={() => void load()}>{t('common.retry')}</Button>} />}
-        <ResponsiveTable
+        <ResponsiveTable workspaceList
           rowKey="id"
           columns={columns}
           dataSource={records}

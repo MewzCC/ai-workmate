@@ -46,19 +46,34 @@ it('does not reopen a closed preview from a late request or an older opening', a
   act(() => hook.result.current.closeDetail()); await act(async () => { late.resolve({ id: 9, taskId: 42 }); await rejected; });
   expect(hook.result.current.drawerTaskId).toBeNull();
 });
-it('clears preview and records when filters change and ignores the older list', async () => {
+it('retains rows while switching filters and ignores an older response', async () => {
   const hook = renderHook(useApprovalListPage); await waitFor(() => expect(hook.result.current.total).toBe(1));
   await act(async () => { await open(42); }); const old = deferred<ReturnType<typeof records>>(); api.list.mockReturnValueOnce(old.promise);
   let refresh!: Promise<unknown>; act(() => { refresh = hook.result.current.load(); });
-  api.list.mockResolvedValueOnce(records(10)); act(() => hook.result.current.setPage(2));
-  expect(hook.result.current.drawerTaskId).toBeNull(); await waitFor(() => expect(hook.result.current.records[0].id).toBe(10));
+  const next = deferred<ReturnType<typeof records>>(); api.list.mockReturnValueOnce(next.promise);
+  act(() => hook.result.current.setStatus('APPROVED'));
+  expect(hook.result.current.drawerTaskId).toBeNull();
+  expect(hook.result.current.records[0].id).toBe(9);
+  expect(hook.result.current.total).toBe(1);
+  await act(async () => { next.resolve(records(10)); await next.promise; });
+  await waitFor(() => expect(hook.result.current.records[0].id).toBe(10));
   await act(async () => { old.resolve(records(99)); await refresh; }); expect(hook.result.current.records[0].id).toBe(10);
 });
-it('fails refresh explicitly and clears statistics instead of keeping stale successful rows', async () => {
+it('reports a failed stats refresh independently of a successful list refresh', async () => {
   const hook = renderHook(useApprovalListPage); await waitFor(() => expect(hook.result.current.total).toBe(1));
   api.stats.mockRejectedValueOnce(new Error('stats unavailable'));
   await act(async () => { await expect(hook.result.current.refresh()).rejects.toThrow(); });
-  expect(hook.result.current.records).toEqual([]); expect(hook.result.current.stats).toEqual([]); expect(hook.result.current.error).toBeTruthy();
+  expect(hook.result.current.records).toEqual(records().records);
+  expect(hook.result.current.stats).toEqual([{ status: 'PENDING', count: 4 }]);
+  expect(hook.result.current.error).toBeUndefined();
+});
+it('clears old rows when the list request fails', async () => {
+  const hook = renderHook(useApprovalListPage); await waitFor(() => expect(hook.result.current.total).toBe(1));
+  api.list.mockRejectedValueOnce(new Error('list unavailable'));
+  act(() => hook.result.current.setStatus('REJECTED'));
+  await waitFor(() => expect(hook.result.current.error).toBeTruthy());
+  expect(hook.result.current.records).toEqual([]);
+  expect(hook.result.current.total).toBe(0);
 });
 it('revokes list and opening callbacks without another login and cannot revive them after regrant', async () => {
   const hook = renderHook(useApprovalListPage); await waitFor(() => expect(hook.result.current.total).toBe(1));

@@ -255,7 +255,7 @@ function TodoInbox({ initial, leaveOnly = false }: { initial: TodoQueryFilters; 
         {!allowed && <Alert type="warning" showIcon title={t('oa.ai.noPermission')} />}
         {allowed && error !== undefined && <Alert type="error" showIcon title={t('common.loadingFailed')}
           description={formatOaApiError(error)} action={<Button onClick={() => void load()}>{t('common.retry')}</Button>} />}
-        <ResponsiveTable
+        <ResponsiveTable workspaceList
           rowKey="id"
           columns={columns}
           dataSource={records}

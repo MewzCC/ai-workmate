@@ -20,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
@@ -31,6 +32,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     private final EmbeddingService embeddingService;
     private final EmbeddingProperties properties;
     private final UserAccessService userAccessService;
+    private final ChannelKnowledgeModels channelModels;
 
     @Override
     public List<KnowledgeBaseResponse> list(Long userId) {
@@ -74,7 +76,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     }
 
     private KnowledgeBaseResponse create(ResolvedUserAccess access, KnowledgeBaseCreateRequest request) {
-        EmbeddingDescriptor descriptor = embeddingService.current();
+        EmbeddingDescriptor descriptor = embeddingFor(request.embeddingModelRef());
         LocalDateTime now = LocalDateTime.now();
         KnowledgeBase knowledgeBase = new KnowledgeBase();
         knowledgeBase.setTenantId(access.tenantId());
@@ -84,6 +86,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         knowledgeBase.setDescription(blankToNull(request.description()));
         knowledgeBase.setEmbeddingProvider(descriptor.provider());
         knowledgeBase.setEmbeddingModel(descriptor.model());
+        knowledgeBase.setRerankModel(rerankFor(request.rerankModelRef()));
         knowledgeBase.setChunkSize(properties.getChunkMaxChars());
         knowledgeBase.setChunkOverlap(properties.getChunkOverlapChars());
         knowledgeBase.setDenseTopK(properties.getRetrievalTopK());
@@ -115,8 +118,8 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     }
 
     private KnowledgeBaseResponse update(ResolvedUserAccess access, Long kbId, KnowledgeBaseUpdateRequest request) {
-        KnowledgeBase knowledgeBase = requireOwned(access, kbId);
-        boolean changed = false;
+        KnowledgeBase knowledgeBase = requireOwned(access, kbId, request.embeddingModelRef() != null);
+        boolean changed = updateModels(access, knowledgeBase, request);
         if (request.name() != null && !request.name().isBlank() && !request.name().strip().equals(knowledgeBase.getName())) {
             knowledgeBase.setName(request.name().strip());
             changed = true;
@@ -151,6 +154,44 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             knowledgeBaseMapper.updateById(knowledgeBase);
         }
         return toResponse(knowledgeBase);
+    }
+
+    private boolean updateModels(ResolvedUserAccess access, KnowledgeBase base, KnowledgeBaseUpdateRequest request) {
+        boolean changed = false;
+        if (request.embeddingModelRef() != null) {
+            String current = ChannelKnowledgeModels.PROVIDER.equals(base.getEmbeddingProvider())
+                    ? base.getEmbeddingModel() : "default";
+            if (!Objects.equals(current, request.embeddingModelRef())) {
+                if (knowledgeBaseMapper.countDocuments(access.tenantId(), access.userId(), base.getId()) > 0) {
+                    throw new BusinessException(ErrorCode.BUSINESS_STATE_INVALID,
+                            "validation.runtime.knowledge.embeddingModelLocked");
+                }
+                EmbeddingDescriptor descriptor = embeddingFor(request.embeddingModelRef());
+                base.setEmbeddingProvider(descriptor.provider());
+                base.setEmbeddingModel(descriptor.model());
+                changed = true;
+            }
+        }
+        if (request.rerankModelRef() != null) {
+            String current = base.getRerankModel();
+            if (current == null || !current.contains("::")) current = "default";
+            if (!Objects.equals(current, request.rerankModelRef())) {
+                base.setRerankModel(rerankFor(request.rerankModelRef()));
+                changed = true;
+            }
+        }
+        return changed;
+    }
+
+    private EmbeddingDescriptor embeddingFor(String reference) {
+        return reference == null || reference.equals("default")
+                ? embeddingService.current() : channelModels.descriptor(reference);
+    }
+
+    private String rerankFor(String reference) {
+        if (reference == null || reference.equals("default")) return "";
+        channelModels.validateRerank(reference);
+        return reference;
     }
 
     @Override
@@ -188,10 +229,16 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     }
 
     private KnowledgeBase requireOwned(ResolvedUserAccess access, Long kbId) {
-        KnowledgeBase knowledgeBase = knowledgeBaseMapper.selectOne(new LambdaQueryWrapper<KnowledgeBase>()
+        return requireOwned(access, kbId, false);
+    }
+
+    private KnowledgeBase requireOwned(ResolvedUserAccess access, Long kbId, boolean lock) {
+        var query = new LambdaQueryWrapper<KnowledgeBase>()
                 .eq(KnowledgeBase::getId, kbId)
                 .eq(KnowledgeBase::getTenantId, access.tenantId())
-                .eq(KnowledgeBase::getUserId, access.userId()));
+                .eq(KnowledgeBase::getUserId, access.userId());
+        if (lock) query.last("FOR UPDATE");
+        KnowledgeBase knowledgeBase = knowledgeBaseMapper.selectOne(query);
         if (knowledgeBase == null) {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
         }

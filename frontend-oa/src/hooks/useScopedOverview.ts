@@ -6,7 +6,7 @@ import { captureAuthDataScope } from '@/lib/authEvents';
 import { useAsyncActionGuard } from './useAsyncActionGuard';
 
 /** Reuses authenticated overview loading without retaining another user's or permission version's data. */
-export function useScopedOverview<T>(query: () => Promise<T>) {
+export function useScopedOverview<T>(query: () => Promise<T>, { keepPreviousData = false } = {}) {
   const { user } = useAuth();
   const identity = JSON.stringify([user?.tenantId, user?.id, user?.permissionVersion,
     [...(user?.permissions ?? [])].sort(), [...(user?.roles ?? [])].sort(), [...(user?.dataScopes ?? [])].sort()]);
@@ -19,7 +19,7 @@ export function useScopedOverview<T>(query: () => Promise<T>) {
   // Scope ownership survives StrictMode's effect replay; each request still has its own ticket.
   const isCurrent = useCallback(() => guard.capture()() && guard.authCurrent(), [guard]);
   const request = useRef(0);
-  const [snapshot, setSnapshot] = useState<{ scope: string; value: T | null }>();
+  const [snapshot, setSnapshot] = useState<{ scope: string; identity: string; authCurrent: () => boolean; value: T | null }>();
   const [loadingState, setLoading] = useState({ scope, busy: true });
   const [failure, setFailure] = useState<{ scope: string; error: unknown }>();
   const setData = useCallback((next: SetStateAction<T | null>) => {
@@ -27,9 +27,9 @@ export function useScopedOverview<T>(query: () => Promise<T>) {
     setSnapshot(previous => {
       if (!isCurrent()) return previous;
       const value = previous?.scope === scope ? previous.value : null;
-      return { scope, value: typeof next === 'function' ? (next as (previous: T | null) => T | null)(value) : next };
+      return { scope, identity, authCurrent: guard.authCurrent, value: typeof next === 'function' ? (next as (previous: T | null) => T | null)(value) : next };
     });
-  }, [isCurrent, scope]);
+  }, [isCurrent, scope, identity, guard]);
   const load = useCallback(async () => {
     if (!isCurrent()) return null;
     const ticket = ++request.current;
@@ -49,7 +49,9 @@ export function useScopedOverview<T>(query: () => Promise<T>) {
     void load();
     return () => { request.current += 1; };
   }, [load]);
-  return { data: snapshot?.scope === scope ? snapshot.value : null, setData,
-    loading: loadingState.scope === scope ? loadingState.busy : Boolean(user?.id),
+  const loading = loadingState.scope === scope ? loadingState.busy : Boolean(user?.id);
+  const showPrevious = keepPreviousData && loading && snapshot?.identity === identity && snapshot.authCurrent();
+  return { data: snapshot && (snapshot.scope === scope || showPrevious) ? snapshot.value : null, setData,
+    loading,
     error: failure?.scope === scope ? failure.error : undefined, load, scope, isCurrent };
 }

@@ -126,7 +126,7 @@ export default function AuditCenterPage() {
           <Typography.Paragraph type="secondary">{t('approval.audit.description')}</Typography.Paragraph>
         </div>
       </div>
-      <Card className="oa-domain-card">
+      <Card className="oa-domain-card oa-domain-list-card">
         <div className="oa-domain-toolbar">
           <Input value={action} onChange={(event) => setAction(event.target.value)}
             placeholder={t('approval.audit.actionPlaceholder')} allowClear style={{ width: 190 }} />
@@ -146,7 +146,7 @@ export default function AuditCenterPage() {
             {t('approval.audit.search')}
           </Button>
         </div>
-        <ResponsiveTable
+        <ResponsiveTable workspaceList
           rowKey="id"
           columns={columns}
           dataSource={records}

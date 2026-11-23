@@ -1,6 +1,7 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from '@/lib/nextCompat';
-import { approvalApi, todoApi, formatOaApiError, type LeaveStatus, type LeaveType } from '@/lib/oaApi';
+import { approvalApi, todoApi, formatOaApiError, type ApprovalStatusCount, type LeaveStatus, type LeaveType } from '@/lib/oaApi';
+import { captureAuthDataScope } from '@/lib/authEvents';
 import { message } from '@/lib/antdMessage';
 import { requireUiFieldTypes } from '@/lib/preparedPageUiCommand';
 import { useRegisterPageUiCommands } from '@/components/oa/PageUiCommandBridge';
@@ -13,23 +14,31 @@ import { requireUiPagination, uiDateRange } from './usePageUiEditorCommands';
 export const APPROVAL_STATUS_KEYS: (LeaveStatus | '')[] = ['', 'PENDING', 'APPROVED', 'REJECTED', 'WITHDRAWN', 'DRAFT'];
 export const APPROVAL_LEAVE_TYPES: LeaveType[] = ['ANNUAL', 'PERSONAL', 'SICK', 'MARRIAGE', 'MATERNITY', 'PATERNITY', 'BEREAVEMENT', 'COMPENSATORY', 'OTHER'];
 
+let lastApprovalStats: { value: ApprovalStatusCount[]; isCurrent: () => boolean } | undefined;
+
 export function useApprovalListPage() {
   const router = useRouter(), { allowed, hasPermission } = usePermission('approval:read');
   const [status, setStatus] = useState<LeaveStatus>(), [keyword, setKeyword] = useState(''), [search, setSearch] = useState('');
   const [leaveType, setLeaveType] = useState<LeaveType>(), [range, setRange] = useState<[string, string]>();
   const [page, setPage] = useState(1), [size, setSize] = useState(20);
-  const query = useCallback(async () => {
-    if (!allowed) return null;
-    const [list, stats] = await Promise.all([approvalApi.list({ status, keyword: keyword || undefined, leaveType,
-      from: range?.[0], to: range?.[1], page, size }), approvalApi.stats()]);
-    return { list, stats };
-  }, [allowed, keyword, leaveType, page, range, size, status]);
-  const overview = useScopedOverview(query), { capture, invalidate } = useAsyncActionGuard(overview.scope);
+  const query = useCallback(() => allowed
+    ? approvalApi.list({ status, keyword: keyword || undefined, leaveType, from: range?.[0], to: range?.[1], page, size })
+    : Promise.resolve(null), [allowed, keyword, leaveType, page, range, size, status]);
+  const queryStats = useCallback(() => allowed ? approvalApi.stats() : Promise.resolve(null), [allowed]);
+  const overview = useScopedOverview(query, { keepPreviousData: true }), { capture, invalidate } = useAsyncActionGuard(overview.scope);
+  const statsOverview = useScopedOverview(queryStats);
   const [selection, setSelection] = useState<{ scope: string; id: number }>();
   const opening = useRef(0);
   const drawerTaskId = allowed && selection?.scope === overview.scope ? selection.id : null;
-  const records = useMemo(() => allowed ? overview.data?.list.records ?? [] : [], [allowed, overview.data]);
-  const stats = useMemo(() => allowed ? overview.data?.stats ?? [] : [], [allowed, overview.data]);
+  const records = useMemo(() => allowed ? overview.data?.records ?? [] : [], [allowed, overview.data]);
+  const { data: freshStats, isCurrent: statsCurrent } = statsOverview;
+  useEffect(() => {
+    if (freshStats && statsCurrent()) {
+      lastApprovalStats = { value: freshStats, isCurrent: captureAuthDataScope() };
+    }
+  }, [freshStats, statsCurrent]);
+  const cachedStats = lastApprovalStats?.isCurrent() ? lastApprovalStats.value : null;
+  const stats = allowed ? freshStats ?? cachedStats : null;
   const openDetail = async (id: string | number, navigate = false) => {
     const current = capture(), ticket = ++opening.current;
     if (!allowed || !current() || !overview.isCurrent() || typeof id !== 'number' || !Number.isSafeInteger(id) || id < 1)
@@ -43,7 +52,12 @@ export function useApprovalListPage() {
   const tryOpen = (id: number, navigate = false) => {
     const current = capture(); void openDetail(id, navigate).catch(error => { if (current() && overview.isCurrent()) message.error(formatOaApiError(error)); });
   };
-  const refresh = async () => { if (!allowed || !overview.isCurrent() || !await overview.load()) throw new Error('PAGE_UI_FIELD_REJECTED'); };
+  const load = () => Promise.all([overview.load(), statsOverview.load()]);
+  const refresh = async () => {
+    if (!allowed || !overview.isCurrent()) throw new Error('PAGE_UI_FIELD_REJECTED');
+    const [list, latestStats] = await load();
+    if (!list || !latestStats) throw new Error('PAGE_UI_FIELD_REJECTED');
+  };
   usePublishPageAgentContext({ taskId: drawerTaskId ?? undefined, status, keyword, leaveType, from: range?.[0], to: range?.[1], page, size });
   useRegisterPageUiCommands({
     'ui.refreshPage': refresh,
@@ -61,7 +75,8 @@ export function useApprovalListPage() {
     },
     'ui.openDetail': ({ payload: { recordId } }) => openDetail(recordId),
   });
-  return { ...overview, allowed, canAct: hasPermission('approval:act'), records, stats, total: allowed ? overview.data?.list.total ?? 0 : 0,
+  return { ...overview, load, allowed, canAct: hasPermission('approval:act'), records, stats,
+    statsLoading: allowed && statsOverview.loading, total: allowed ? overview.data?.total ?? 0 : 0,
     status, setStatus, keyword, search, setSearch, applySearch: (value = search) => { setKeyword(value.trim()); setPage(1); },
     leaveType, setLeaveType, range, setRange, page, setPage, size, setSize, drawerTaskId, tryOpen,
     closeDetail: () => { invalidate(); setSelection(undefined); }, refresh };

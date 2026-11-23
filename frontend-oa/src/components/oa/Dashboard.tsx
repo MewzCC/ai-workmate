@@ -224,7 +224,7 @@ export default function Dashboard({ primaryColor, onOpenAi }: DashboardProps) {
           <Card className="oa-card" title={t('dashboard.cards.todoList')}
             extra={<Button type="link" disabled={!canReadTodos || !canEnterTodos} onClick={() => router.push('/oa/todo')}>{t('dashboard.cards.allTodos')}</Button>}>
             <Typography.Paragraph type="secondary">{t('dashboard.cards.todoWindow')}</Typography.Paragraph>
-            <ResponsiveTable
+            <ResponsiveTable workspaceList
               rowKey="taskId"
               columns={columns}
               dataSource={overview.todos}

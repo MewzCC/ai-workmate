@@ -20,6 +20,7 @@ export interface ChatPreferences {
   stream: boolean;
   forcePdfOcr: boolean;
   initialized: boolean;
+  ocrModelRef?: string;
 }
 
 async function parse<T>(response: Response): Promise<T> {

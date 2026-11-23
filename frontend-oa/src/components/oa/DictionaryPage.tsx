@@ -372,7 +372,7 @@ export default function DictionaryPage() {
           onSearch={(value) => { setItemKeyword(value.trim()); setPage(1); }} />
           <Segmented value={itemStatus} options={[{ value: '', label: t('dictionary.allStatuses') }, { value: 'ACTIVE', label: t('dictionary.active') }, { value: 'DISABLED', label: t('dictionary.disabled') }]}
             onChange={(value) => { setItemStatus(String(value)); setPage(1); }} /></div>
-        <ResponsiveTable rowKey="id" loading={loadingItems} columns={columns} dataSource={items} scroll={{ x: 1050 }}
+        <ResponsiveTable workspaceList rowKey="id" loading={loadingItems} columns={columns} dataSource={items} scroll={{ x: 1050, y: 'var(--oa-pane-list-height)' }}
           locale={{ emptyText: <Empty description={t('dictionary.emptyItems')} /> }}
           pagination={{ current: page, pageSize: size, total, showSizeChanger: true, onChange: (nextPage, nextSize) => { setPage(nextPage); setSize(nextSize); } }} />
       </Card>

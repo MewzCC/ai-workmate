@@ -44,12 +44,7 @@ public class AiConfigurationServiceImpl implements AiConfigurationService {
         var actor=authorize(userId);
         if(channelId<1 || channelId>999999) throw new BusinessException(ErrorCode.REQUEST_INVALID);
         var request=channel.configuration();
-        var models=request.models()==null ? List.of(AiConfiguredModel.defaults(request.model())) : request.models();
-        if(models.isEmpty() || models.size()>200 || models.stream().map(AiConfiguredModel::id).distinct().count()!=models.size()
-                || models.stream().noneMatch(m -> m.id().equals(request.model()))
-                || models.stream().anyMatch(m -> m.maxOutputTokens()>=m.contextWindow() || m.id().contains("::")
-                    || (channelId!=1 && m.id().length()+Long.toString(channelId).length()+2>128)))
-            throw new BusinessException(ErrorCode.REQUEST_INVALID,"validation.aiConfiguration.models");
+        var models=validatedModels(request, channelId);
         var old=mapper.channel(channelId);
         String encrypted;
         if(request.apiKey()==null || request.apiKey().isBlank()) {
@@ -95,11 +90,7 @@ public class AiConfigurationServiceImpl implements AiConfigurationService {
     public AiConfigurationResponse save(Long id,AiConfigurationRequest request) {
         var actor=authorize(id);
         String url=normalizeUrl(request.baseUrl());
-        var models=request.models()==null ? List.of(AiConfiguredModel.defaults(request.model())) : request.models();
-        if(models.isEmpty() || models.size()>200 || models.stream().map(AiConfiguredModel::id).distinct().count()!=models.size()
-                || models.stream().noneMatch(m -> m.id().equals(request.model()))
-                || models.stream().anyMatch(m -> m.maxOutputTokens()>=m.contextWindow()))
-            throw new BusinessException(ErrorCode.REQUEST_INVALID,"validation.aiConfiguration.models");
+        var models=validatedModels(request, 1);
         String encrypted;
         if(request.apiKey()==null || request.apiKey().isBlank()) {
             var old=mapper.load();
@@ -112,6 +103,25 @@ public class AiConfigurationServiceImpl implements AiConfigurationService {
         if(changed!=1) throw new BusinessException(ErrorCode.VERSION_CONFLICT);
         audit.recordTransactional(actor.tenantId(),id,"AI_CONFIGURATION","1","UPDATE","SUCCESS","AI provider configuration updated");
         return response();
+    }
+
+    private List<AiConfiguredModel> validatedModels(AiConfigurationRequest request, long channelId) {
+        var models = request.models() != null ? request.models()
+                : request.model() == null ? List.<AiConfiguredModel>of() : List.of(AiConfiguredModel.defaults(request.model()));
+        boolean hasChat = models.stream().anyMatch(model -> model.category() == AiModelCategory.CHAT);
+        boolean needsDefault = channelId == 1 || hasChat;
+        boolean validDefault = needsDefault
+                ? models.stream().anyMatch(model -> model.category() == AiModelCategory.CHAT && model.id().equals(request.model()))
+                : request.model() == null;
+        if (models.isEmpty() || models.size() > 200 || !validDefault
+                || models.stream().map(AiConfiguredModel::id).distinct().count() != models.size()
+                || models.stream().anyMatch(model -> model.maxOutputTokens() >= model.contextWindow()
+                        || model.id().contains("::")
+                        || ((channelId != 1 || model.category() != AiModelCategory.CHAT)
+                            && model.id().length() + Long.toString(channelId).length() + 2 > 128))) {
+            throw new BusinessException(ErrorCode.REQUEST_INVALID, "validation.aiConfiguration.models");
+        }
+        return models;
     }
     public List<AiConfiguredModel> discover(Long id,AiProviderProbeRequest request) {
         authorize(id);

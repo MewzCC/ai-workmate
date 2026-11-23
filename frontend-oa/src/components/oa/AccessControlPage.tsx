@@ -95,6 +95,8 @@ export default function AccessControlPage() {
   });
 
   const roles = overview?.roles || [];
+  const roleKeyword = filterCode.trim().toLowerCase();
+  const filteredRoles = roles.filter(role => `${role.code} ${role.name}`.toLowerCase().includes(roleKeyword));
   const selectedRole = roles.find((role) => role.code === selectedRoleCode);
   const groupedPermissions = useMemo(
     () => groupPermissions(overview?.permissions || []),
@@ -524,55 +526,67 @@ export default function AccessControlPage() {
               key: 'roles',
               label: <span><OaIcon name="role" /> {t('access.tabs.roles')}</span>,
               children: (
-                <div className="oa-role-card-grid">
-                  <Input allowClear value={filterCode} onChange={event => setFilterCode(event.target.value)} placeholder={t('common.searchPlaceholder')} />
-                  {roles.filter(role => `${role.code} ${role.name}`.toLowerCase().includes(filterCode.trim().toLowerCase())).map((role) => {
-                    const members = overview.users.filter((user) => user.roles.includes(role.code));
-                    return (
-                      <Card className="oa-role-card" key={role.code}>
-                        <div className="oa-role-card-heading">
-                          <div className="oa-role-card-icon"><OaIcon name="role" /></div>
-                          <div className="oa-role-card-title">
-                            <Space size={8} wrap>
-                              <Typography.Title level={5}>{role.name}</Typography.Title>
-                              {role.builtin && <Tag variant="filled">{t('access.roleCard.builtin')}</Tag>}
-                            </Space>
-                            <Typography.Text className="oa-access-code">{role.code}</Typography.Text>
+                <>
+                  <div className="oa-role-search">
+                    <Input
+                      allowClear
+                      prefix={<OaIcon name="search" />}
+                      value={filterCode}
+                      onChange={event => setFilterCode(event.target.value)}
+                      placeholder={t('access.roleCard.searchPlaceholder')}
+                      aria-label={t('access.roleCard.searchLabel')}
+                    />
+                  </div>
+                  {filteredRoles.length === 0 && <Empty description={t('access.roleCard.empty')} />}
+                  <div className="oa-role-card-grid">
+                    {filteredRoles.map((role) => {
+                      const members = overview.users.filter((user) => user.roles.includes(role.code));
+                      return (
+                        <Card className="oa-role-card" key={role.code}>
+                          <div className="oa-role-card-heading">
+                            <div className="oa-role-card-icon"><OaIcon name="role" /></div>
+                            <div className="oa-role-card-title">
+                              <Space size={8} wrap>
+                                <Typography.Title level={5}>{role.name}</Typography.Title>
+                                {role.builtin && <Tag variant="filled">{t('access.roleCard.builtin')}</Tag>}
+                              </Space>
+                              <Typography.Text className="oa-access-code">{role.code}</Typography.Text>
+                            </div>
                           </div>
-                        </div>
-                        <Typography.Paragraph className="oa-role-card-description" type="secondary">
-                          {role.description}
-                        </Typography.Paragraph>
-                        <div className="oa-role-card-summary">
-                          <div><strong>{members.length}</strong><span>{t('access.roleCard.membersCount')}</span></div>
-                          <div><strong>{role.permissions.length}</strong><span>{t('access.roleCard.permissionsCount')}</span></div>
-                        </div>
-                        <div className="oa-role-member-preview">
-                          <Avatar.Group max={{ count: 4 }}>
-                            {members.map((user) => (
-                              <Tooltip key={user.id} title={`${user.name} · ${user.email}`}>
-                                <Avatar src={user.avatarUrl || undefined}>{user.name.slice(0, 1).toUpperCase()}</Avatar>
-                              </Tooltip>
-                            ))}
-                          </Avatar.Group>
-                          <Typography.Text type="secondary">
-                            {members.length ? t('access.roleCard.associatedUsers', { count: members.length }) : t('access.roleCard.noMembers')}
-                          </Typography.Text>
-                        </div>
-                        <div className="oa-role-card-actions">
-                          <Button icon={<OaIcon name="user" />}
-                            onClick={() => openRoleWorkspace(role, 'members')}>
-                            {t('access.roleCard.manageMembers')}
-                          </Button>
-                          <Button type="primary" ghost icon={<OaIcon name="access-control" />}
-                            onClick={() => openRoleWorkspace(role, 'permissions')}>
-                            {t('access.roleCard.configurePermissions')}
-                          </Button>
-                        </div>
-                      </Card>
-                    );
-                  })}
-                </div>
+                          <Typography.Paragraph className="oa-role-card-description" type="secondary">
+                            {role.description}
+                          </Typography.Paragraph>
+                          <div className="oa-role-card-summary">
+                            <div><strong>{members.length}</strong><span>{t('access.roleCard.membersCount')}</span></div>
+                            <div><strong>{role.permissions.length}</strong><span>{t('access.roleCard.permissionsCount')}</span></div>
+                          </div>
+                          <div className="oa-role-member-preview">
+                            <Avatar.Group max={{ count: 4 }}>
+                              {members.map((user) => (
+                                <Tooltip key={user.id} title={`${user.name} · ${user.email}`}>
+                                  <Avatar src={user.avatarUrl || undefined}>{user.name.slice(0, 1).toUpperCase()}</Avatar>
+                                </Tooltip>
+                              ))}
+                            </Avatar.Group>
+                            <Typography.Text type="secondary">
+                              {members.length ? t('access.roleCard.associatedUsers', { count: members.length }) : t('access.roleCard.noMembers')}
+                            </Typography.Text>
+                          </div>
+                          <div className="oa-role-card-actions">
+                            <Button icon={<OaIcon name="user" />}
+                              onClick={() => openRoleWorkspace(role, 'members')}>
+                              {t('access.roleCard.manageMembers')}
+                            </Button>
+                            <Button type="primary" ghost icon={<OaIcon name="access-control" />}
+                              onClick={() => openRoleWorkspace(role, 'permissions')}>
+                              {t('access.roleCard.configurePermissions')}
+                            </Button>
+                          </div>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                </>
               ),
             },
             {
@@ -586,7 +600,7 @@ export default function AccessControlPage() {
                       {t('access.organization.addOrUpdateDepartment')}
                     </Button>
                   </div>
-                  <ResponsiveTable
+                  <ResponsiveTable workspaceList
                     rowKey="id"
                     dataSource={overview.departments}
                     pagination={false}
@@ -631,7 +645,7 @@ export default function AccessControlPage() {
                       {t('access.organization.addOrUpdatePosition')}
                     </Button>
                   </div>
-                  <ResponsiveTable
+                  <ResponsiveTable workspaceList
                     rowKey="id"
                     dataSource={overview.positions}
                     pagination={false}
@@ -675,7 +689,7 @@ export default function AccessControlPage() {
                     <Alert type="info" showIcon
                       title={t('access.usersAlert')} />
                   </div>
-                  <ResponsiveTable
+                  <ResponsiveTable workspaceList
                     className="oa-access-table"
                     rowKey="id"
                     columns={userColumns}
@@ -699,7 +713,7 @@ export default function AccessControlPage() {
                       {t('access.addRoute')}
                     </Button>
                   </div>
-                  <ResponsiveTable
+                  <ResponsiveTable workspaceList
                     className="oa-access-table"
                     rowKey="routeKey"
                     columns={routeColumns}

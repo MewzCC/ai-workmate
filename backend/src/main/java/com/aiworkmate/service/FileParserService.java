@@ -16,4 +16,9 @@ public interface FileParserService {
      * @param userId 上传者，用于按用户偏好决定 PDF 是否强制 OCR
      */
     ParsedFile parse(Path path, String filename, Long userId);
+
+    /** Extract chat attachments or knowledge documents using the user's selected OCR model. */
+    default ParsedFile parseWithPersonalOcr(Path path, String filename, Long userId) {
+        return parse(path, filename, userId);
+    }
 }

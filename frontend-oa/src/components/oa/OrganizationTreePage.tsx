@@ -8,6 +8,7 @@ import {
   Card,
   Empty,
   Input,
+  Modal,
   Select,
   Space,
   Spin,
@@ -50,6 +51,7 @@ export default function OrganizationTreePage() {
   const request = useRef(0);
   const [loading, setLoading] = useState(true);
   const [selectedDepartmentId, setSelectedDepartmentId] = useState<number | undefined>();
+  const [graphOpen, setGraphOpen] = useState(false);
   const [keyword, setKeyword] = useState('');
   // 用于强制重新触发架构图入场动画（刷新/重置时变更）
   const [animKey, setAnimKey] = useState(0);
@@ -229,9 +231,14 @@ export default function OrganizationTreePage() {
             </Typography.Paragraph>
           </div>
         </div>
-        <Button icon={<ReloadOutlined />} onClick={() => void load()} loading={loading}>
-          {t('common.refresh')}
-        </Button>
+        <Space wrap>
+          <Button icon={<OaIcon name="organization" />} onClick={() => setGraphOpen(true)}>
+            {t('organization.graph.cardTitle')}
+          </Button>
+          <Button icon={<ReloadOutlined />} onClick={() => void load()} loading={loading}>
+            {t('common.refresh')}
+          </Button>
+        </Space>
       </header>
 
       <Spin spinning={loading} wrapperClassName="oa-org-loading">
@@ -250,37 +257,6 @@ export default function OrganizationTreePage() {
               <Statistic title={t('organization.stats.positions')} value={stats.positions} prefix={<OaIcon name="employee-files" />} />
             </Card>
           </div>
-
-          <Card
-            className="oa-org-tree-card"
-            title={(
-              <div className="oa-org-section-title">
-                <span className="oa-org-section-title__icon"><OaIcon name="organization" /></span>
-                <span>
-                  <strong>{t('organization.graph.cardTitle')}</strong>
-                  <small>{t('organization.graph.description')}</small>
-                </span>
-              </div>
-            )}
-            extra={
-              <Typography.Text type="secondary" className="oa-org-tree-hint">
-                {t('organization.graph.hint', { count: stats.departments })}
-              </Typography.Text>
-            }
-          >
-            {departmentTree.length === 0 ? (
-              <Empty description={t('organization.graph.empty')} />
-            ) : (
-              <Suspense fallback={<Spin tip={t('organization.graph.loading')} />}>
-                <OrganizationGraph
-                  data={departmentTree}
-                  selectedId={selectedDepartmentId}
-                  onSelect={setSelectedDepartmentId}
-                  animKey={animKey}
-                />
-              </Suspense>
-            )}
-          </Card>
 
           <Card
             className="oa-org-employees-card"
@@ -322,7 +298,7 @@ export default function OrganizationTreePage() {
                 )}
               </Space>
             </div>
-            <ResponsiveTable
+            <ResponsiveTable workspaceList
               rowKey="id"
               rowClassName="oa-org-employee-clickable"
               columns={columns}
@@ -338,6 +314,17 @@ export default function OrganizationTreePage() {
           </Card>
         </div>
       </Spin>
+      <Modal open={graphOpen} onCancel={() => setGraphOpen(false)} footer={null}
+        width={960} destroyOnHidden title={t('organization.graph.cardTitle')}>
+        {departmentTree.length === 0 ? (
+          <Empty description={t('organization.graph.empty')} />
+        ) : (
+          <Suspense fallback={<Spin tip={t('organization.graph.loading')} />}>
+            <OrganizationGraph data={departmentTree} selectedId={selectedDepartmentId} animKey={animKey}
+              onSelect={(id) => { setSelectedDepartmentId(id); setGraphOpen(false); }} />
+          </Suspense>
+        )}
+      </Modal>
     </section>
   );
 }
