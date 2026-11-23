@@ -234,6 +234,8 @@ export default {
     panelTitle: 'AI 操作面板',
     placeholder: '例如：查询我的待办，并按截止时间排序',
     send: '发送 / 生成计划',
+    keyboardHint: 'Enter 发送，Shift+Enter 换行',
+    planningFeedback: '已收到，正在分析请求并生成计划，请稍候…',
     automaticReadHint: '允许的只读查询会自动执行；写操作仍需确认。',
     cancelPlan: '取消计划',
     cancelledPlan: '已取消当前计划',

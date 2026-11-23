@@ -234,6 +234,8 @@ export default {
     panelTitle: 'AI Panel',
     placeholder: 'e.g. Query my tasks and sort them by due date',
     send: 'Send / generate plan',
+    keyboardHint: 'Enter to send, Shift+Enter for a new line',
+    planningFeedback: 'Request received. Analyzing your request and preparing a plan…',
     automaticReadHint: 'Allowed read-only queries run automatically; writes still require confirmation.',
     cancelPlan: 'Cancel plan',
     cancelledPlan: 'Current plan cancelled',

@@ -87,6 +87,8 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageC
   const [capabilityError, setCapabilityError] = useState<string | null>(null);
   const [capabilityReload, setCapabilityReload] = useState(0);
   const confirmationTokenRef = useRef<string | null>(null);
+  const lastPromptRef = useRef('');
+  const submittingRef = useRef(false);
   const clarificationRequestRef = useRef<{ taskId: string; input: string; key: string } | null>(null);
   const unsubscribeRef = useRef<(() => void) | null>(null);
   const refreshedTaskRef = useRef<string | null>(null);
@@ -258,12 +260,15 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageC
   };
 
   const submitPlan = async (preset?: string) => {
-    if (cancelling) return;
+    if (cancelling || executing || submittingRef.current) return;
     const value = (preset || input).trim();
     if (!value) {
       message.warning(t('oa.ai.enterTask'));
       return;
     }
+    submittingRef.current = true;
+    lastPromptRef.current = value;
+    setInput((current) => current.trim() === value ? '' : current);
     const continuation = plan?.status === 'NEEDS_INPUT' && (taskStatus ?? plan.status) === 'NEEDS_INPUT' && planPage
       ? { plan, page: planPage } : null;
     const sourcePage = continuation?.page ?? { id: pageId, title: pageTitle, context: pageContext };
@@ -321,6 +326,7 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageC
     } catch (error) {
       if (request !== planRequestRef.current) return;
       const errorMessage = formatOaApiError(error);
+      setInput((current) => current === '' ? value : current);
       setPlan(continuation?.plan ?? null);
       setPlanPage(continuation?.page ?? null);
       if (continuation) setTaskStatus('NEEDS_INPUT');
@@ -328,6 +334,7 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageC
       setMessages((previous) => [...previous, { role: 'assistant', content: errorMessage }]);
       message.error(errorMessage);
     } finally {
+      submittingRef.current = false;
       if (request === planRequestRef.current) setLoading(false);
     }
   };
@@ -441,7 +448,14 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageC
   return (
     <Drawer rootClassName="oa-ai-operation-drawer" title={t('oa.ai.panelTitle')} size="default" styles={{ wrapper: { width: 540 } }} open={open} onClose={closeDrawer} afterOpenChange={onOpenChangeComplete}
       footer={<Space orientation="vertical" size={10} className="oa-ai-composer">
-        <Input.TextArea rows={4} maxLength={4096} showCount value={input} onChange={(event) => setInput(event.target.value)} placeholder={t('oa.ai.placeholder')} />
+        <Input.TextArea rows={4} maxLength={4096} showCount value={input} onChange={(event) => setInput(event.target.value)} placeholder={t('oa.ai.placeholder')}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing && event.keyCode !== 229) {
+              event.preventDefault();
+              void submitPlan();
+            }
+          }} />
+        <Typography.Text type="secondary">{t('oa.ai.keyboardHint')}</Typography.Text>
         <Typography.Text type="secondary">{t('oa.ai.automaticReadHint')}</Typography.Text>
         <Space wrap>
           <Button type="primary" icon={<OaIcon name="send" />} loading={loading} disabled={executing || cancelling} onClick={() => submitPlan()}>{t('oa.ai.send')}</Button>
@@ -464,7 +478,7 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageC
         {capabilityError && <Alert type="error" showIcon title={t('oa.ai.capabilityLoadFailed')} description={capabilityError}
           action={<Button size="small" onClick={() => setCapabilityReload((value) => value + 1)}>{t('common.retry')}</Button>} />}
 
-        {operationError && <Alert type="error" showIcon title={t('oa.ai.callFailed')} description={operationError.message} action={operationError.retryable ? <Button size="small" disabled={loading || executing || cancelling} onClick={() => submitPlan()}>{t('common.retry')}</Button> : undefined} />}
+        {operationError && <Alert type="error" showIcon title={t('oa.ai.callFailed')} description={operationError.message} action={operationError.retryable ? <Button size="small" disabled={loading || executing || cancelling} onClick={() => submitPlan(lastPromptRef.current)}>{t('common.retry')}</Button> : undefined} />}
         {cancellationError && <Alert type="error" showIcon title={t('oa.ai.cancelFailed')} description={cancellationError}
           action={plan && canCancelAgentTask(taskStatus ?? plan.status) ? <Button size="small" disabled={cancelling} onClick={() => void cancelPlan()}>{t('common.retry')}</Button> : undefined} />}
 
@@ -475,6 +489,7 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageC
               <Typography.Paragraph className="oa-ai-message-content">{item.content}</Typography.Paragraph>
             </li>)}
           </ul>}
+          {loading && <div role="status" aria-live="polite"><Space><Spin size="small" /><Typography.Text>{t('oa.ai.planningFeedback')}</Typography.Text></Space></div>}
         </Card>
 
         {plan && (resultLoading || resultError || resultDetail) && <div ref={resultCardRef}><Card size="small" className="oa-ai-result-card" title={t('oa.ai.resultTitle')}>

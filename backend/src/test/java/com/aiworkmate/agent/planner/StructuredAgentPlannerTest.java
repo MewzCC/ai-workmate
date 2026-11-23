@@ -119,8 +119,11 @@ class StructuredAgentPlannerTest {
             try { Thread.sleep(5_000); } catch (InterruptedException exception) { Thread.currentThread().interrupt(); }
             return "{}";
         };
-        assertThatThrownBy(() -> planner(model).plan("x", "todo-list", mapper.createObjectNode(), List.of(tool())))
-                .isInstanceOf(BusinessException.class);
+        StructuredAgentPlanner timedPlanner = new StructuredAgentPlanner(model, mapper, new ToolSchemaValidator(), properties,
+                command -> new Thread(command, "planner-timeout-test").start());
+        assertThatThrownBy(() -> timedPlanner.plan("x", "todo-list", mapper.createObjectNode(), List.of(tool())))
+                .isInstanceOf(BusinessException.class)
+                .extracting("messageKey").isEqualTo("error.agent.plannerTimeout");
         assertThat(calls).hasValue(2);
     }
 

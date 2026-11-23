@@ -97,11 +97,15 @@ public class StructuredAgentPlanner implements AgentPlanner {
                 return validate(parse(raw), allowedTools);
             } catch (RuntimeException exception) {
                 last = exception;
-                log.warn("Structured Agent planner attempt rejected: attempt={}", attempt + 1);
+                log.warn("Structured Agent planner attempt rejected: attempt={}, category={}", attempt + 1,
+                        exception.getCause() == null ? exception.getClass().getSimpleName()
+                                : exception.getCause().getClass().getSimpleName());
             }
         }
-        throw new BusinessException(last instanceof CandidateRejectedException
-                ? ErrorCode.SCHEMA_INVALID : ErrorCode.AI_TASK_CAPABILITY_UNAVAILABLE);
+        if (last instanceof CandidateRejectedException) throw new BusinessException(ErrorCode.SCHEMA_INVALID);
+        throw new BusinessException(ErrorCode.AI_TASK_CAPABILITY_UNAVAILABLE,
+                last != null && last.getCause() instanceof java.util.concurrent.TimeoutException
+                        ? "error.agent.plannerTimeout" : "error.agent.plannerModelUnavailable");
     }
 
     private PlannerCandidate parse(String raw) {

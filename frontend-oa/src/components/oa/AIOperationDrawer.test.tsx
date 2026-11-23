@@ -59,6 +59,25 @@ function renderDrawer(
 }
 
 describe('AIOperationDrawer', () => {
+  it('sends with Enter, retains Shift+Enter and IME input, and shows feedback while waiting', async () => {
+    let resolve!: (value: typeof basePlan) => void;
+    api.planAiTask.mockImplementationOnce(() => new Promise<typeof basePlan>((done) => { resolve = done; }));
+    renderDrawer();
+    const input = screen.getByRole('textbox');
+    fireEvent.change(input, { target: { value: '查询待办' } });
+    fireEvent.keyDown(input, { key: 'Enter', shiftKey: true });
+    fireEvent.keyDown(input, { key: 'Enter', isComposing: true, keyCode: 229 });
+    expect(api.planAiTask).not.toHaveBeenCalled();
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(input).toHaveValue('');
+    expect(screen.getByRole('status')).toHaveTextContent('正在分析请求');
+    await waitFor(() => expect(api.planAiTask).toHaveBeenCalledTimes(1));
+    fireEvent.change(input, { target: { value: '下一条' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(api.planAiTask).toHaveBeenCalledTimes(1);
+    await act(async () => resolve(basePlan));
+    expect(input).toHaveValue('下一条');
+  });
   it('keeps a question bound to its original page and filtered context after navigation', async () => {
     api.planAiTask.mockResolvedValueOnce({ ...basePlan, taskId: 'route-question', status: 'NEEDS_INPUT',
       summary: '请提供理由。', steps: [] }).mockResolvedValueOnce({ ...basePlan, taskId: 'route-write',
