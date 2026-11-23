@@ -25,7 +25,7 @@ import java.util.concurrent.FutureTask;
 @Service
 @Slf4j
 public class StructuredAgentPlanner implements AgentPlanner {
-    public static final String PROMPT_VERSION = "phase2a-v3-clarification-update";
+    public static final String PROMPT_VERSION = "phase2a-v4-business-date";
     private static final String SYSTEM_PROMPT = """
             You are a constrained enterprise task planner. Return exactly one JSON object and no markdown.
             Shape: {"summary":"short user-facing summary","steps":[{"toolCode":"allowed.code","arguments":{}}]}.
@@ -77,14 +77,29 @@ public class StructuredAgentPlanner implements AgentPlanner {
     }
 
     private PlannerCandidate planPrompt(String userPrompt, List<ToolDefinition> allowedTools) {
+        var reply = PlannerReplyStream.listener();
+        var zone = java.time.ZoneId.of("Asia/Shanghai");
+        String systemPrompt = SYSTEM_PROMPT.formatted(properties.getLimits().getMaxPlanSteps())
+                + "\nTrusted server business date: " + java.time.LocalDate.now(zone) + ". Time zone: " + zone + "."
+                + " Resolve relative dates such as today and tomorrow against this date, including clarification replies."
+                + " Do not ask for an absolute date when a relative date unambiguously resolves it.";
         RuntimeException last = null;
         for (int attempt = 0; attempt < 2; attempt++) {
+            long submitted = System.nanoTime();
+            var started = new java.util.concurrent.atomic.AtomicLong();
             try {
-                FutureTask<String> call = new FutureTask<>(() -> modelClient.complete(
-                        SYSTEM_PROMPT.formatted(properties.getLimits().getMaxPlanSteps()), userPrompt));
-                plannerExecutor.execute(call);
+                if (reply != null) reply.accept("");
+                FutureTask<String> call = new FutureTask<>(() -> {
+                    started.set(System.nanoTime());
+                    return reply == null
+                        ? modelClient.complete(systemPrompt, userPrompt)
+                        : modelClient.stream(systemPrompt
+                                + "\nEmit the top-level summary property first. Its text is a provisional explanation, never a claim of execution.",
+                                userPrompt, PlannerReplyStream.summaryChunks(strictMapper, reply));
+                });
                 String raw;
                 try {
+                    plannerExecutor.execute(call);
                     raw = call.get(properties.getLimits().getPlannerTimeoutMs(), TimeUnit.MILLISECONDS);
                 } catch (InterruptedException exception) {
                     Thread.currentThread().interrupt();
@@ -94,18 +109,29 @@ public class StructuredAgentPlanner implements AgentPlanner {
                 } finally {
                     call.cancel(true);
                 }
-                return validate(parse(raw), allowedTools);
+                var candidate = validate(parse(raw), allowedTools);
+                log.info("Agent planning completed: attempt={}, queueMs={}, totalMs={}, toolCount={}, clarification={}",
+                        attempt + 1, queueMillis(submitted, started.get()),
+                        TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - submitted), allowedTools.size(), candidate.requiresClarification());
+                return candidate;
             } catch (RuntimeException exception) {
                 last = exception;
-                log.warn("Structured Agent planner attempt rejected: attempt={}, category={}", attempt + 1,
+                log.warn("Structured Agent planner attempt rejected: attempt={}, category={}, queueMs={}, totalMs={}", attempt + 1,
                         exception.getCause() == null ? exception.getClass().getSimpleName()
-                                : exception.getCause().getClass().getSimpleName());
+                                : exception.getCause().getClass().getSimpleName(), queueMillis(submitted, started.get()),
+                        TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - submitted));
+                // Retry malformed candidates only. Repeating a timeout or an overloaded executor doubles pressure.
+                if (!(exception instanceof CandidateRejectedException)) break;
             }
         }
         if (last instanceof CandidateRejectedException) throw new BusinessException(ErrorCode.SCHEMA_INVALID);
         throw new BusinessException(ErrorCode.AI_TASK_CAPABILITY_UNAVAILABLE,
                 last != null && last.getCause() instanceof java.util.concurrent.TimeoutException
                         ? "error.agent.plannerTimeout" : "error.agent.plannerModelUnavailable");
+    }
+
+    private long queueMillis(long submitted, long started) {
+        return TimeUnit.NANOSECONDS.toMillis((started == 0 ? System.nanoTime() : started) - submitted);
     }
 
     private PlannerCandidate parse(String raw) {

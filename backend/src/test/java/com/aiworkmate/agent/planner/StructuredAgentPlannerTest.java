@@ -21,6 +21,17 @@ class StructuredAgentPlannerTest {
     private final AgentRuntimeProperties properties = new AgentRuntimeProperties();
 
     @Test
+    void suppliesTrustedBusinessDateForRelativeDateClarifications() {
+        var expected = java.time.LocalDate.now(java.time.ZoneId.of("Asia/Shanghai")).toString();
+        PlannerModelClient model = (system, user) -> {
+            assertThat(system).contains("Asia/Shanghai", expected, "relative dates");
+            return "{\"summary\":\"需要信息\",\"clarification\":\"什么理由？\",\"steps\":[]}";
+        };
+        planner(model).planContinuation("请明天的假", "何时？", "明天9点到18点", "ai-workspace",
+                mapper.createObjectNode(), List.of(tool()));
+    }
+
+    @Test
     void continuationSeparatesThePriorQuestionAndReplyAsDataForTheSameRequest() throws Exception {
         String original = "查询指定任务候选人，尚未提供编号";
         String question = "请提供任务编号";
@@ -111,7 +122,7 @@ class StructuredAgentPlannerTest {
     }
 
     @Test
-    void boundsEachModelAttemptByPlannerTimeout() {
+    void boundsTimeoutWithoutRepeatingTheSameSlowModelRequest() {
         properties.getLimits().setPlannerTimeoutMs(100);
         AtomicInteger calls = new AtomicInteger();
         PlannerModelClient model = (system, user) -> {
@@ -124,7 +135,7 @@ class StructuredAgentPlannerTest {
         assertThatThrownBy(() -> timedPlanner.plan("x", "todo-list", mapper.createObjectNode(), List.of(tool())))
                 .isInstanceOf(BusinessException.class)
                 .extracting("messageKey").isEqualTo("error.agent.plannerTimeout");
-        assertThat(calls).hasValue(2);
+        assertThat(calls).hasValue(1);
     }
 
     @Test
