@@ -6,7 +6,7 @@ import { Alert, App as AntdApp, Button, Card, Drawer, Empty, Input, Space, Spin,
 import type { AgentTaskDetail, AgentTaskStatus, AiTaskEvent, AiTaskExecuteResponse, AiTaskPlanResponse, OaRole, PageCapability } from '@/types/oa';
 import { sanitizePageAgentContext, type PageAgentContextSnapshot } from './PageAgentContext';
 import PageAgentCapabilityPanel from './PageAgentCapabilityPanel';
-import { agentTaskApi, executeAiTask, formatOaApiError, getPageCapabilities, issueAiTaskConfirmation, OaApiError, planAiTask, subscribeAiTaskEvents } from '@/lib/oaApi';
+import { agentTaskApi, executeAiTask, formatOaApiError, getPageCapabilities, issueAiTaskConfirmation, OaApiError, streamAiTaskPlan, subscribeAiTaskEvents } from '@/lib/oaApi';
 import { OaIcon } from '@/components/OaIcon';
 import AgentPlanPreview from './AgentPlanPreview';
 import { agentTaskNavigationTarget, type AgentPageNavigator } from '@/lib/agentToolTargetPage';
@@ -78,6 +78,9 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageC
   const [resultLoading, setResultLoading] = useState(false);
   const [resultError, setResultError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [streamingReply, setStreamingReply] = useState('');
+  const planAbortRef = useRef<AbortController | null>(null);
+  const replyEndRef = useRef<HTMLDivElement | null>(null);
   const [executing, setExecuting] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [cancellationError, setCancellationError] = useState<string | null>(null);
@@ -115,7 +118,10 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageC
 
   useEffect(() => () => stopEventStream(), []);
   useEffect(() => () => { resultRequestRef.current += 1; }, []);
-  useEffect(() => () => { planRequestRef.current += 1; }, []);
+  useEffect(() => () => { planRequestRef.current += 1; planAbortRef.current?.abort(); }, []);
+  useEffect(() => {
+    if (open && loading) replyEndRef.current?.scrollIntoView?.({ block: 'nearest' });
+  }, [open, loading, streamingReply]);
   useEffect(() => () => { cancellationRequestRef.current += 1; }, []);
   useEffect(() => () => { executionRequestRef.current += 1; }, []);
   useEffect(() => {
@@ -278,6 +284,13 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageC
     setPlan(null);
     setPlanPage(null);
     setLoading(true);
+    setStreamingReply('');
+    planAbortRef.current?.abort();
+    const planAbort = new AbortController();
+    planAbortRef.current = planAbort;
+    const onReply = (text: string) => {
+      if (request === planRequestRef.current && !planAbort.signal.aborted) setStreamingReply(text);
+    };
     setOperationError(null);
     setMessages((previous) => [...previous, { role: 'user', content: value }]);
     try {
@@ -300,9 +313,9 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageC
         const retry = previous?.taskId === continuation.plan.taskId && previous.input === value
           ? previous : { taskId: continuation.plan.taskId, input: value, key: uuid() };
         clarificationRequestRef.current = retry;
-        nextPlan = await planAiTask(payload, retry.key);
+        nextPlan = await streamAiTaskPlan(payload, onReply, retry.key, planAbort.signal);
         clarificationRequestRef.current = null;
-      } else nextPlan = await planAiTask(payload);
+      } else nextPlan = await streamAiTaskPlan(payload, onReply, undefined, planAbort.signal);
       if (request !== planRequestRef.current) return;
       if (nextPlan.status === 'NEEDS_INPUT' && !isAgentClarificationPlan(nextPlan))
         throw new Error(t('chat.operationPlanUnavailable'));
@@ -336,6 +349,7 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageC
     } finally {
       submittingRef.current = false;
       if (request === planRequestRef.current) setLoading(false);
+      if (request === planRequestRef.current) setStreamingReply('');
     }
   };
 
@@ -489,7 +503,10 @@ export default function AIOperationDrawer({ open, role, pageId, pageTitle, pageC
               <Typography.Paragraph className="oa-ai-message-content">{item.content}</Typography.Paragraph>
             </li>)}
           </ul>}
-          {loading && <div role="status" aria-live="polite"><Space><Spin size="small" /><Typography.Text>{t('oa.ai.planningFeedback')}</Typography.Text></Space></div>}
+          {loading && <div role="status" aria-live="polite" ref={replyEndRef}>
+            <Space><Spin size="small" /><Typography.Text>{t('oa.ai.streamingDraft')}</Typography.Text></Space>
+            <Typography.Paragraph className="oa-ai-message-content">{streamingReply || t('oa.ai.planningFeedback')}</Typography.Paragraph>
+          </div>}
         </Card>
 
         {plan && (resultLoading || resultError || resultDetail) && <div ref={resultCardRef}><Card size="small" className="oa-ai-result-card" title={t('oa.ai.resultTitle')}>

@@ -236,6 +236,8 @@ export default {
     send: '发送 / 生成计划',
     keyboardHint: 'Enter 发送，Shift+Enter 换行',
     planningFeedback: '已收到，正在分析请求并生成计划，请稍候…',
+    streamingDraft: '正在生成回复，计划尚未校验完成',
+    streamInterrupted: '回复连接已中断或返回内容无效，未确认计划执行，请重试。',
     automaticReadHint: '允许的只读查询会自动执行；写操作仍需确认。',
     cancelPlan: '取消计划',
     cancelledPlan: '已取消当前计划',

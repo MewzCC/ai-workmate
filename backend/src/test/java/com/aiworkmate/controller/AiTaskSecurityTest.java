@@ -51,6 +51,7 @@ class AiTaskSecurityTest {
 
     @MockBean
     private AiTaskService aiTaskService;
+    @MockBean private com.aiworkmate.service.AgentPlanStreamService planStreams;
     @MockBean private com.aiworkmate.service.AiIntentService aiIntentService;
 
     @MockBean

@@ -142,6 +142,57 @@ export async function planAiTask(
   });
 }
 
+/** Provisional reply text is presentation only; only the final plan may be executed. */
+export async function streamAiTaskPlan(
+  payload: AiTaskPlanRequest,
+  onReply: (text: string) => void,
+  idempotencyKey = createIdempotencyKey(),
+  signal?: AbortSignal,
+): Promise<AiTaskPlanResponse> {
+  const response = await fetch(`${BASE}/ai/tasks/plan/stream`, {
+    method: 'POST', credentials: 'include', cache: 'no-store', signal,
+    headers: buildApiHeaders(true, { Accept: 'text/event-stream', 'Idempotency-Key': idempotencyKey }),
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) return parseResult<AiTaskPlanResponse>(response);
+  assertAuthResponseCurrent(response);
+  if (!response.body || !response.headers.get('content-type')?.includes('text/event-stream'))
+    throw new OaApiError(i18n.t('oa.ai.streamInterrupted'), 502, 'STREAM_INVALID');
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  try {
+    while (true) {
+      const { done, value } = await readAuthenticatedChunk(response, reader);
+      buffer += decoder.decode(value, { stream: !done });
+      buffer = buffer.replaceAll('\r\n', '\n');
+      if (buffer.length > 262144) throw new OaApiError(i18n.t('oa.ai.streamInterrupted'), 502, 'STREAM_INVALID');
+      let boundary: number;
+      while ((boundary = buffer.indexOf('\n\n')) >= 0) {
+        const event = parseSseFrame(buffer.slice(0, boundary));
+        buffer = buffer.slice(boundary + 2);
+        if (!event) continue;
+        if (event.type === 'reply' && typeof event.data.text === 'string' && event.data.text.length <= 500)
+          onReply(event.data.text);
+        if (event.type === 'error') {
+          const status = typeof event.data.status === 'number' ? event.data.status : 500;
+          notifyAuthResponseStatus(status, response);
+          throw new OaApiError(String(event.data.message || statusMessage(status)), status,
+            String(event.data.errorCode || 'SYSTEM_ERROR'), String(event.data.requestId || ''), String(event.data.traceId || ''));
+        }
+        if (event.type === 'plan') {
+          const plan = event.data as unknown as AiTaskPlanResponse;
+          if (typeof plan.taskId !== 'string' || typeof plan.summary !== 'string' || !Array.isArray(plan.steps)
+              || !['PLAN_READY', 'WAITING_CONFIRMATION', 'NEEDS_INPUT'].includes(plan.status))
+            throw new OaApiError(i18n.t('oa.ai.streamInterrupted'), 502, 'STREAM_INVALID');
+          return plan;
+        }
+      }
+      if (done) throw new OaApiError(i18n.t('oa.ai.streamInterrupted'), 502, 'STREAM_INTERRUPTED');
+    }
+  } finally { void reader.cancel().catch(() => undefined); }
+}
+
 export async function issueAiTaskConfirmation(
   taskId: string,
   payload: Pick<AiTaskExecuteRequest, 'planVersion' | 'planHash'>,

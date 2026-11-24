@@ -35,7 +35,7 @@ public class AgentApprovalTaskWriteToolDefinitions {
     ToolDefinition approvalTaskRejectToolDefinition(ObjectMapper mapper) throws JsonProcessingException {
         return ToolDefinitionFactory.singleWrite(ToolCode.APPROVAL_TASK_REJECT, "Reject one assigned task",
                 "Rejects exactly one currently assigned approval task with a bounded reason.",
-                "Reject one assigned task after secondary confirmation.", mapper.readTree(REJECT_INPUT_SCHEMA),
+                "用户明确要求驳回一条本人待审批的请假任务时使用；必须提供真实taskId、当前version和驳回意见comment，原文保留。不要因意见含有同意、认可等词改为同意操作；不适用于通用表单审批任务。返回申请和任务编号、处理状态、新版本及REJECT动作；执行前二次确认。", mapper.readTree(REJECT_INPUT_SCHEMA),
                 mapper.readTree(OUTPUT_SCHEMA), ToolWriteProfile.SECONDARY_L2, Set.of("approval:act"),
                 OwnershipPolicy.ASSIGNED_TO_SELF, 1, 8192, 10000);
     }
@@ -66,7 +66,7 @@ public class AgentApprovalTaskWriteToolDefinitions {
     private ToolDefinition decision(ObjectMapper mapper, ToolCode code, String name, String description)
             throws JsonProcessingException {
         return ToolDefinitionFactory.singleWrite(code, name, description,
-                "Decide one assigned task after secondary confirmation.", mapper.readTree(DECISION_INPUT_SCHEMA),
+                "用户明确要求同意或通过一条本人待审批的请假任务时使用；必须提供真实taskId和当前version，comment可选并保留用户原文，不凭意见语气改为驳回。不适用于通用表单审批任务。返回申请和任务编号、处理状态、新版本及APPROVE动作；执行前二次确认。", mapper.readTree(DECISION_INPUT_SCHEMA),
                 mapper.readTree(OUTPUT_SCHEMA), ToolWriteProfile.SECONDARY_L2, Set.of("approval:act"),
                 OwnershipPolicy.ASSIGNED_TO_SELF, 1, 8192, 10000);
     }

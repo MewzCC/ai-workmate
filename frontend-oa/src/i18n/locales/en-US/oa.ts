@@ -236,6 +236,8 @@ export default {
     send: 'Send / generate plan',
     keyboardHint: 'Enter to send, Shift+Enter for a new line',
     planningFeedback: 'Request received. Analyzing your request and preparing a plan…',
+    streamingDraft: 'Generating a reply. The plan is not yet validated.',
+    streamInterrupted: 'The reply connection was interrupted or invalid. Plan execution is not confirmed. Please retry.',
     automaticReadHint: 'Allowed read-only queries run automatically; writes still require confirmation.',
     cancelPlan: 'Cancel plan',
     cancelledPlan: 'Current plan cancelled',

@@ -2,12 +2,15 @@ param(
     [switch]$EnableLiveModel,
     [ValidatePattern('^[a-zA-Z0-9-]+$')][string]$Label = 'run',
     [ValidateRange(1, 10)][int]$Repeats = 3,
+    [switch]$Selection,
+    [switch]$EdgeCases,
     [string]$EnvFile
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 if (-not $EnableLiveModel) { throw 'Pass -EnableLiveModel to authorize real model requests.' }
+if ($EdgeCases -and -not $Selection) { throw '-EdgeCases requires -Selection.' }
 $repositoryPath = Split-Path -Parent $PSScriptRoot
 if (-not $EnvFile) { $EnvFile = Join-Path $repositoryPath '.env' }
 $names = @('AI_API_KEY', 'AI_BASE_URL', 'AI_MODEL')
@@ -28,10 +31,12 @@ try {
     Push-Location (Join-Path $repositoryPath 'backend')
     try {
         New-Item -ItemType Directory -Path target -Force | Out-Null
-        $logPath = "target/planner-benchmark-$Label.log"
-        & mvn '-Dtest=PlannerLatencyBenchmarkTest' '-Dagent.test.live-model=true' "-Dbenchmark.label=$Label" "-Dbenchmark.repeats=$Repeats" test *> $logPath
+        $testClass = if ($Selection) { 'ToolSelectionBenchmarkTest' } else { 'PlannerLatencyBenchmarkTest' }
+        $prefix = if ($Selection) { 'tool-selection' } else { 'planner-benchmark' }
+        $logPath = "target/$prefix-$Label.log"
+        & mvn "-Dtest=$testClass" '-Dagent.test.live-model=true' "-Dbenchmark.label=$Label" "-Dbenchmark.repeats=$Repeats" "-Dbenchmark.edge-cases=$($EdgeCases.IsPresent.ToString().ToLowerInvariant())" test *> $logPath
         $result = $LASTEXITCODE
-        Select-String -LiteralPath $logPath -Pattern '^Planner benchmark|^\[INFO\] BUILD |^\[INFO\] Tests run:' |
+        Select-String -LiteralPath $logPath -Pattern '^Planner benchmark|^Selection benchmark|^\[INFO\] BUILD |^\[INFO\] Tests run:' |
             ForEach-Object { Write-Output $_.Line }
         if ($result -ne 0) { throw "Benchmark failed; inspect the local $logPath" }
     } finally { Pop-Location }

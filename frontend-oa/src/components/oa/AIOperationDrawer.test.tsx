@@ -19,7 +19,9 @@ const api = vi.hoisted(() => ({
 
 vi.mock('@/lib/oaApi', async (importOriginal) => {
   const original = await importOriginal<typeof import('@/lib/oaApi')>();
-  return { ...original, ...api };
+  return { ...original, ...api,
+    streamAiTaskPlan: (payload: unknown, _onReply: (text: string) => void, key?: string) =>
+      key === undefined ? api.planAiTask(payload) : api.planAiTask(payload, key) };
 });
 
 import AIOperationDrawer from './AIOperationDrawer';

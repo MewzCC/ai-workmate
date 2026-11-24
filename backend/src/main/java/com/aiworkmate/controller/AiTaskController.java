@@ -44,6 +44,18 @@ public class AiTaskController {
 
     private final AiTaskService aiTaskService;
     private final AgentTaskApiService agentTaskApiService;
+    private final com.aiworkmate.service.AgentPlanStreamService planStreams;
+
+    @PostMapping(value = "/plan/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public reactor.core.publisher.Flux<org.springframework.http.codec.ServerSentEvent<Object>> planStream(
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
+            @Valid @RequestBody AiTaskPlanRequest request,
+            @AuthenticationPrincipal AuthenticatedUser user,
+            jakarta.servlet.http.HttpServletResponse response) {
+        response.setHeader("Cache-Control", "no-store");
+        response.setHeader("X-Accel-Buffering", "no");
+        return planStreams.plan(request, idempotencyKey, user);
+    }
 
     @PostMapping("/plan")
     public Result<AiTaskPlanResponse> plan(@RequestHeader("Idempotency-Key") String idempotencyKey,

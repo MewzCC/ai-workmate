@@ -277,7 +277,7 @@ public class AgentReadToolDefinitions {
                 ToolCode.TODO_QUERY,
                 "Query my approval tasks",
                 "Returns leave, generic approval, visitor and seal tasks assigned to the authenticated user in the authenticated tenant. Visitor and seal records additionally require their live domain read permissions. Supports an optional businessType filter and returns the applied query.",
-                "Display the current user's real approval inbox; defaults to pending tasks across the four supported business types, filtered by live domain permissions. Does not perform approval or expose raw business payloads.",
+                "查询待我审批、需要我处理的审批待办，不是本人发起的申请。默认查询待处理项，业务类型、状态、时间和分页均可选，无需逐项追问。返回任务编号、申请编号、当前版本、业务类型、状态及逾期标记；只查询，不执行同意或驳回。",
                 objectMapper.readTree(TODO_QUERY_INPUT_SCHEMA),
                 objectMapper.readTree(TODO_QUERY_OUTPUT_SCHEMA),
                 Set.of("todo:read"),
@@ -294,7 +294,7 @@ public class AgentReadToolDefinitions {
                 ToolCode.LEAVE_MINE,
                 "Query my leave applications",
                 "Returns leave applications owned by the authenticated user in the authenticated tenant.",
-                "Display a bounded list or one owned leave application without exposing internal identities.",
+                "查询我申请的假、本人请假记录、草稿或申请状态；不是查询待我审批的任务。可按真实applicationId查一条，或按可选状态与分页查列表；不必为可选筛选追问。只返回本人申请列表及总数，不提交、撤回或审批。",
                 objectMapper.readTree(LEAVE_MINE_INPUT_SCHEMA),
                 objectMapper.readTree(LEAVE_MINE_OUTPUT_SCHEMA),
                 Set.of("leave:read:self"),
@@ -321,7 +321,7 @@ public class AgentReadToolDefinitions {
         return ToolDefinitionFactory.read(
                 ToolCode.NOTIFICATION_MINE, "Query my notifications",
                 "Returns notifications owned by the authenticated user in the authenticated tenant.",
-                "Display a bounded read-only notification list without internal business identifiers.",
+                "查询我的系统通知、提醒和消息列表，只读返回通知条目与总数；不代替审批待办或请假申请查询，不标记已读、不发送消息。分页可选，未指定时使用服务端默认值。",
                 objectMapper.readTree(NOTIFICATION_MINE_INPUT_SCHEMA),
                 objectMapper.readTree(NOTIFICATION_MINE_OUTPUT_SCHEMA),
                 Set.of("notification:read:self"), OwnershipPolicy.SELF, 50, 65536, 15000);

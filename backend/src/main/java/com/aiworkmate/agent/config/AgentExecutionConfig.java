@@ -14,6 +14,19 @@ import java.util.concurrent.atomic.AtomicInteger;
 @Configuration
 public class AgentExecutionConfig {
 
+    @Bean("agentPlanStreamExecutor")
+    public TaskExecutor agentPlanStreamExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(2);
+        executor.setMaxPoolSize(2);
+        executor.setQueueCapacity(8);
+        executor.setThreadNamePrefix("agent-plan-stream-");
+        executor.setWaitForTasksToCompleteOnShutdown(false);
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
+        executor.initialize();
+        return executor;
+    }
+
     @Bean("agentTaskExecutor")
     public TaskExecutor agentTaskExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();

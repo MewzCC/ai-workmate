@@ -180,8 +180,11 @@ class StructuredAgentPlannerTest {
     private ToolDefinition tool() {
         ToolDefinition definition = mock(ToolDefinition.class);
         when(definition.code()).thenReturn("todo.query");
+        when(definition.name()).thenReturn("Query my todos");
+        when(definition.description()).thenReturn("Read my assigned approval tasks");
         when(definition.purpose()).thenReturn("Query current user's todos");
         try {
+            when(definition.outputSchema()).thenReturn(mapper.readTree("{\"type\":\"object\",\"additionalProperties\":false,\"properties\":{}}"));
             when(definition.inputSchema()).thenReturn(mapper.readTree("""
                     {"type":"object","additionalProperties":false,"properties":{
                       "page":{"type":"integer","minimum":1},"size":{"type":"integer","minimum":1,"maximum":50}

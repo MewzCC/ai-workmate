@@ -97,6 +97,12 @@ public class AiProviderRuntime {
                 .orElseThrow(() -> new BusinessException(ErrorCode.REQUEST_INVALID,"validation.chat.model.invalid"));
     }
     public boolean supportsImages(String requested) { return policy(resolve(requested),upstreamId(requested)).supportsImages(); }
+    /** Text-only two-message planner budget, using the same conservative byte accounting as prepare(). */
+    public int plannerInputBudgetBytes() {
+        var row = mapper.load();
+        var selected = policy(row, null);
+        return Math.max(0, selected.contextWindow() - selected.maxOutputTokens() - 64);
+    }
     public OpenAiChatModel model() {
         var row=mapper.load(); return create(row,policy(row,null));
     }
